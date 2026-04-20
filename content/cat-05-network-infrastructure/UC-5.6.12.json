@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.6.12",
+  "title": "DNS Query Type Distribution",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=infoblox:dns`, `sourcetype=stream:dns`",
+  "app": "Splunk_TA_infoblox, Splunk Stream",
+  "spl": "index=network sourcetype=\"stream:dns\"\n| stats count by query_type\n| eventstats sum(count) as total\n| eval pct=round(count/total*100,2) | sort -count\n| head 20",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Network_Resolution.DNS\n  by DNS.src DNS.query DNS.record_type span=5m\n| sort -count",
+  "cimModels": [
+    "Network_Resolution"
+  ],
+  "description": "Unusual query type distribution (spikes in TXT, MX, or ANY) can indicate DNS tunneling, reconnaissance, or abuse.",
+  "value": "Unusual query type distribution (spikes in TXT, MX, or ANY) can indicate DNS tunneling, reconnaissance, or abuse.",
+  "implementation": "Capture DNS query types via Splunk Stream or DNS server logs. Baseline normal distribution (typically >80% A/AAAA). Alert on abnormal increases in TXT, NULL, or ANY queries.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk_TA_infoblox, Splunk Stream.\n• Ensure the following data sources are available: `sourcetype=infoblox:dns`, `sourcetype=stream:dns`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCapture DNS query types via Splunk Stream or DNS server logs. Baseline normal distribution (typically >80% A/AAAA). Alert on abnormal increases in TXT, NULL, or ANY queries.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"stream:dns\"\n| stats count by query_type\n| eventstats sum(count) as total\n| eval pct=round(count/total*100,2) | sort -count\n| head 20\n```\n\nUnderstanding this SPL\n\n**DNS Query Type Distribution** — Unusual query type distribution (spikes in TXT, MX, or ANY) can indicate DNS tunneling, reconnaissance, or abuse.\n\nDocumented **Data sources**: `sourcetype=infoblox:dns`, `sourcetype=stream:dns`. **App/TA** (typical add-on context): Splunk_TA_infoblox, Splunk Stream. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: stream:dns. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"stream:dns\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by query_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Network_Resolution.DNS\n  by DNS.src DNS.query DNS.record_type span=5m\n| sort -count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**DNS Query Type Distribution** — Unusual query type distribution (spikes in TXT, MX, or ANY) can indicate DNS tunneling, reconnaissance, or abuse.\n\nDocumented **Data sources**: `sourcetype=infoblox:dns`, `sourcetype=stream:dns`. **App/TA** (typical add-on context): Splunk_TA_infoblox, Splunk Stream. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Resolution.DNS` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart (query type distribution), Timechart (by type), Table.",
+  "visualization": "Pie chart (query type distribution), Timechart (by type), Table.",
+  "references": [
+    {
+      "title": "CIM: Network_Resolution",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution"
+    }
+  ],
+  "equipment": [
+    "infoblox",
+    "stream"
+  ]
+}

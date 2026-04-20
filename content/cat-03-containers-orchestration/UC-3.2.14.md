@@ -1,0 +1,76 @@
+---
+id: "3.2.14"
+title: "Container Image Pull Failures"
+criticality: "high"
+splunkPillar: "Observability"
+---
+
+# UC-3.2.14 · Container Image Pull Failures
+
+## Description
+
+ImagePullBackOff prevents pods from starting. Caused by wrong image tags, registry auth failures, or network issues. Blocks deployments.
+
+## Value
+
+ImagePullBackOff prevents pods from starting. Caused by wrong image tags, registry auth failures, or network issues. Blocks deployments.
+
+## Implementation
+
+Forward Kubernetes events. Alert on ImagePullBackOff events. Parse the image name and registry to identify whether it's an auth issue, missing tag, or network issue.
+
+## Detailed Implementation
+
+Prerequisites
+• Install and configure the required add-on or app: Splunk OTel Collector, Kubernetes events.
+• Ensure the following data sources are available: `sourcetype=kube:events`.
+• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+Step 1 — Configure data collection
+Forward Kubernetes events. Alert on ImagePullBackOff events. Parse the image name and registry to identify whether it's an auth issue, missing tag, or network issue.
+
+Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+index=k8s sourcetype="kube:events" (reason="ErrImagePull" OR reason="ImagePullBackOff" OR reason="Failed" message="*pulling image*")
+| stats count by namespace, involvedObject.name, message
+| sort -count
+```
+
+Understanding this SPL
+
+**Container Image Pull Failures** — ImagePullBackOff prevents pods from starting. Caused by wrong image tags, registry auth failures, or network issues. Blocks deployments.
+
+Documented **Data sources**: `sourcetype=kube:events`. **App/TA** (typical add-on context): Splunk OTel Collector, Kubernetes events. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: k8s; **sourcetype**: kube:events. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+• Scopes the data: index=k8s, sourcetype="kube:events". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+• `stats` rolls up events into metrics; results are split **by namespace, involvedObject.name, message** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+
+Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (pod, image, error), Single value (pull failures last hour), Bar chart by namespace.
+
+## SPL
+
+```spl
+index=k8s sourcetype="kube:events" (reason="ErrImagePull" OR reason="ImagePullBackOff" OR reason="Failed" message="*pulling image*")
+| stats count by namespace, involvedObject.name, message
+| sort -count
+```
+
+## Visualization
+
+Table (pod, image, error), Single value (pull failures last hour), Bar chart by namespace.
+
+## References
+
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

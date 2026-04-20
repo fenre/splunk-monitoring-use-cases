@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.9.19",
+  "title": "Network Redundancy and HA Failover Events",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:link_events`",
+  "app": "`Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)",
+  "spl": "index=nozomi sourcetype=\"nozomi:link_events\" status IN (\"up\", \"down\", \"flapping\")\n| bin _time span=1h\n| stats count as failover_events by src_ip, dst_ip, status, zone, _time\n| where failover_events > 2\n| table _time, src_ip, dst_ip, status, failover_events, zone",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=1h | sort - count",
+  "cimModels": [
+    "Network_Traffic",
+    "Change"
+  ],
+  "description": "OT security platforms detect network redundancy failover events and router HA state changes across industrial protocols. Frequent failovers indicate network instability that could disrupt real-time control. Unexpected failovers may also indicate denial-of-service attacks or physical cable issues.",
+  "value": "OT security platforms detect network redundancy failover events and router HA state changes across industrial protocols. Frequent failovers indicate network instability that could disrupt real-time control. Unexpected failovers may also indicate denial-of-service attacks or physical cable issues.",
+  "implementation": "Both platforms detect network redundancy and HA state changes. Baseline normal failover frequency (should be near zero in stable networks). Alert on any failover event. Multiple failovers in short succession (flapping) indicates a serious issue. Correlate with physical infrastructure monitoring.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905).\n• Ensure the following data sources are available: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:link_events`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBoth platforms detect network redundancy and HA state changes. Baseline normal failover frequency (should be near zero in stable networks). Alert on any failover event. Multiple failovers in short succession (flapping) indicates a serious issue. Correlate with physical infrastructure monitoring.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nozomi sourcetype=\"nozomi:link_events\" status IN (\"up\", \"down\", \"flapping\")\n| bin _time span=1h\n| stats count as failover_events by src_ip, dst_ip, status, zone, _time\n| where failover_events > 2\n| table _time, src_ip, dst_ip, status, failover_events, zone\n```\n\nUnderstanding this SPL\n\n**Network Redundancy and HA Failover Events** — OT security platforms detect network redundancy failover events and router HA state changes across industrial protocols. Frequent failovers indicate network instability that could disrupt real-time control. Unexpected failovers may also indicate denial-of-service attacks or physical cable issues.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:link_events`. **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nozomi; **sourcetype**: nozomi:link_events. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nozomi, sourcetype=\"nozomi:link_events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by src_ip, dst_ip, status, zone, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where failover_events > 2` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Network Redundancy and HA Failover Events**): table _time, src_ip, dst_ip, status, failover_events, zone\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=1h | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Network Redundancy and HA Failover Events** — OT security platforms detect network redundancy failover events and router HA state changes across industrial protocols. Frequent failovers indicate network instability that could disrupt real-time control. Unexpected failovers may also indicate denial-of-service attacks or physical cable issues.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:link_events`. **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Failover event timeline; network stability score; flapping device detection; HA state dashboard.",
+  "visualization": "Failover event timeline; network stability score; flapping device detection; HA state dashboard.",
+  "references": [
+    {
+      "title": "Splunkbase app 5748",
+      "url": "https://splunkbase.splunk.com/app/5748"
+    },
+    {
+      "title": "Splunkbase app 6905",
+      "url": "https://splunkbase.splunk.com/app/6905"
+    },
+    {
+      "title": "CIM: Network Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "cisco"
+  ]
+}

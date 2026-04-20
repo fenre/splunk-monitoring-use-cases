@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.34",
+  "title": "Protocol Gateway Health & Connectivity Monitoring",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=edge-hub-health` sourcetype=edge_hub, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log connection_event",
+  "app": "Splunk Edge Hub (health monitoring), Splunk OT Intelligence",
+  "premiumApps": [
+    "Splunk Edge Hub",
+    "Splunk OT Intelligence"
+  ],
+  "spl": "index=edge-hub-health sourcetype=edge_hub gateway_name=*\n| stats latest(connection_status) as status, latest(response_time_ms) as response_time,\n        count(eval(error_code!=0)) as error_count by gateway_name, host\n| eval gateway_health=case(\n    status=\"CONNECTED\" AND response_time < 1000 AND error_count < 5, \"HEALTHY\",\n    status=\"CONNECTED\" AND response_time >= 1000, \"SLOW\",\n    status=\"DISCONNECTED\" OR error_count > 10, \"DEGRADED\",\n    1=1, \"UNKNOWN\")",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Tracks OPC-UA/Modbus/MQTT gateway uptime and connection quality to prevent silent data loss.",
+  "value": "Tracks OPC-UA/Modbus/MQTT gateway uptime and connection quality to prevent silent data loss.",
+  "implementation": "Edge Hub continuously monitors OPC-UA (port 4840), Modbus TCP (port 502), and MQTT broker (port 1883) connectivity every 15 seconds. Log connection attempts + response times to edge-hub-health index (sourcetype=edge_hub). Track error codes (authentication failures, timeouts, handshake errors). Store 100K health events locally. If gateway disconnects, LED ring turns red. Resume transmission via local SQLite backlog (FIFO) when connectivity restored. Configure alert thresholds: downtime > 1 minute = critical, response time > 2s = warning.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (health monitoring), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-health` sourcetype=edge_hub, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log connection_event.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEdge Hub continuously monitors OPC-UA (port 4840), Modbus TCP (port 502), and MQTT broker (port 1883) connectivity every 15 seconds. Log connection attempts + response times to edge-hub-health index (sourcetype=edge_hub). Track error codes (authentication failures, timeouts, handshake errors). Store 100K health events locally. If gateway disconnects, LED ring turns red. Resume transmission via local SQLite backlog (FIFO) when connectivity restored. Configure alert thresholds: downtime > 1 minute…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-health sourcetype=edge_hub gateway_name=*\n| stats latest(connection_status) as status, latest(response_time_ms) as response_time,\n        count(eval(error_code!=0)) as error_count by gateway_name, host\n| eval gateway_health=case(\n    status=\"CONNECTED\" AND response_time < 1000 AND error_count < 5, \"HEALTHY\",\n    status=\"CONNECTED\" AND response_time >= 1000, \"SLOW\",\n    status=\"DISCONNECTED\" OR error_count > 10, \"DEGRADED\",\n    1=1, \"UNKNOWN\")\n```\n\nUnderstanding this SPL\n\n**Protocol Gateway Health & Connectivity Monitoring** — Tracks OPC-UA/Modbus/MQTT gateway uptime and connection quality to prevent silent data loss.\n\nDocumented **Data sources**: `index=edge-hub-health` sourcetype=edge_hub, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log connection_event. **App/TA** (typical add-on context): Splunk Edge Hub (health monitoring), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-health; **sourcetype**: edge_hub. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-health, sourcetype=edge_hub. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by gateway_name, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **gateway_health** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gateway uptime timeline, response time histogram, error rate trend.",
+  "visualization": "Gateway uptime timeline, response time histogram, error rate trend.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "edge_hub"
+  ]
+}

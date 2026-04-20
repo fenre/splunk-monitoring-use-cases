@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.4.25",
+  "title": "Multi-Cloud Secret Management Audit",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=aws:cloudtrail` (secretsmanager, kms), `sourcetype=mscs:azure:audit` (Key Vault), `sourcetype=google:gcp:pubsub:message` (secretmanager.googleapis.com)",
+  "app": "`Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`",
+  "spl": "(index=aws sourcetype=\"aws:cloudtrail\" eventSource=\"secretsmanager.amazonaws.com\" eventName=\"GetSecretValue\")\n OR (index=azure sourcetype=\"mscs:azure:audit\" resourceId=\"*vaults*\")\n OR (index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"secretmanager.googleapis.com\")\n| eval principal=coalesce(userIdentity.arn, identity.claims.appid, protoPayload.authenticationInfo.principalEmail)\n| stats count by principal, index\n| sort -count",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Secrets touched across AWS Secrets Manager, Azure Key Vault, and GCP Secret Manager must be auditable for least-privilege reviews and breach investigations.",
+  "value": "Secrets touched across AWS Secrets Manager, Azure Key Vault, and GCP Secret Manager must be auditable for least-privilege reviews and breach investigations.",
+  "implementation": "Enrich with HR or CMDB owner for service principals. Alert on first-time accessor, after-hours bulk reads, or secrets read from unexpected regions. Retention aligned to compliance policy.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudtrail` (secretsmanager, kms), `sourcetype=mscs:azure:audit` (Key Vault), `sourcetype=google:gcp:pubsub:message` (secretmanager.googleapis.com).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnrich with HR or CMDB owner for service principals. Alert on first-time accessor, after-hours bulk reads, or secrets read from unexpected regions. Retention aligned to compliance policy.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n(index=aws sourcetype=\"aws:cloudtrail\" eventSource=\"secretsmanager.amazonaws.com\" eventName=\"GetSecretValue\")\n OR (index=azure sourcetype=\"mscs:azure:audit\" resourceId=\"*vaults*\")\n OR (index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"secretmanager.googleapis.com\")\n| eval principal=coalesce(userIdentity.arn, identity.claims.appid, protoPayload.authenticationInfo.principalEmail)\n| stats count by principal, index\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Multi-Cloud Secret Management Audit** — Secrets touched across AWS Secrets Manager, Azure Key Vault, and GCP Secret Manager must be auditable for least-privilege reviews and breach investigations.\n\nDocumented **Data sources**: `sourcetype=aws:cloudtrail` (secretsmanager, kms), `sourcetype=mscs:azure:audit` (Key Vault), `sourcetype=google:gcp:pubsub:message` (secretmanager.googleapis.com). **App/TA** (typical add-on context): `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws, azure, gcp; **sourcetype**: aws:cloudtrail, mscs:azure:audit, google:gcp:pubsub:message. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, index=azure, index=gcp, sourcetype=\"aws:cloudtrail\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **principal** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by principal, index** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Multi-Cloud Secret Management Audit** — Secrets touched across AWS Secrets Manager, Azure Key Vault, and GCP Secret Manager must be auditable for least-privilege reviews and breach investigations.\n\nDocumented **Data sources**: `sourcetype=aws:cloudtrail` (secretsmanager, kms), `sourcetype=mscs:azure:audit` (Key Vault), `sourcetype=google:gcp:pubsub:message` (secretmanager.googleapis.com). **App/TA** (typical add-on context): `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (principal, cloud, access count), Bar chart (top accessors), Timeline (spikes).",
+  "visualization": "Table (principal, cloud, access count), Bar chart (top accessors), Timeline (spikes).",
+  "references": [
+    {
+      "title": "Splunk_TA_aws",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk_TA_microsoft-cloudservices",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "Splunk_TA_google-cloudplatform",
+      "url": "https://splunkbase.splunk.com/app/3088"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "mitreAttack": [
+    "T1098.001",
+    "T1552.005"
+  ],
+  "equipment": [
+    "aws",
+    "azure",
+    "gcp",
+    "m365"
+  ]
+}

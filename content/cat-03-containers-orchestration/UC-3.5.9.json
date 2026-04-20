@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.5.9",
+  "title": "Service Mesh Control Plane Health",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=kube:logs` or `sourcetype=otel:logs`",
+  "app": "Splunk OTel Collector, Kubernetes metrics/logs",
+  "spl": "index=containers (sourcetype=\"kube:logs\" OR sourcetype=\"otel:logs\") (istiod OR \"istiod-\")\n| stats count(eval(match(_raw, \"(?i)error|panic|failed\"))) as err_count, count as line_count by pod, namespace\n| eval err_rate=round(100*err_count/line_count, 2)\n| where err_rate>5 OR err_count>50\n| sort -err_count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "istiod and validating webhook outages block config pushes and sidecar updates; early detection prevents a widening blast radius across namespaces.",
+  "value": "istiod and validating webhook outages block config pushes and sidecar updates; early detection prevents a widening blast radius across namespaces.",
+  "implementation": "Collect istiod container logs and kube-state-metrics for Deployment replicas (`istiod` available vs desired). Ingest admission webhook failure events from API server audit if enabled. Alert on istiod pod restarts, gRPC push errors in logs, and replica mismatch.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk OTel Collector, Kubernetes metrics/logs.\n• Ensure the following data sources are available: `sourcetype=kube:logs` or `sourcetype=otel:logs`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect istiod container logs and kube-state-metrics for Deployment replicas (`istiod` available vs desired). Ingest admission webhook failure events from API server audit if enabled. Alert on istiod pod restarts, gRPC push errors in logs, and replica mismatch.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=containers (sourcetype=\"kube:logs\" OR sourcetype=\"otel:logs\") (istiod OR \"istiod-\")\n| stats count(eval(match(_raw, \"(?i)error|panic|failed\"))) as err_count, count as line_count by pod, namespace\n| eval err_rate=round(100*err_count/line_count, 2)\n| where err_rate>5 OR err_count>50\n| sort -err_count\n```\n\nUnderstanding this SPL\n\n**Service Mesh Control Plane Health** — istiod and validating webhook outages block config pushes and sidecar updates; early detection prevents a widening blast radius across namespaces.\n\nDocumented **Data sources**: `sourcetype=kube:logs` or `sourcetype=otel:logs`. **App/TA** (typical add-on context): Splunk OTel Collector, Kubernetes metrics/logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: containers; **sourcetype**: kube:logs, otel:logs. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=containers, sourcetype=\"kube:logs\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by pod, namespace** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **err_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where err_rate>5 OR err_count>50` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (istiod ready replicas), Timeline (pod restarts), Table (error snippets by pod).",
+  "visualization": "Single value (istiod ready replicas), Timeline (pod restarts), Table (error snippets by pod).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "kubernetes",
+    "opentelemetry"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ]
+}

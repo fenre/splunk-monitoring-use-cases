@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.5.7",
+  "title": "Drill Rig Sensor Health Monitoring",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Oil, Gas, and Mining",
+  "dataSources": "`index=ot` `sourcetype=\"drillrig:sensor\"` fields `rig_id`, `channel`, `status`, `value_age_sec`",
+  "app": "Rig data logger via HEC",
+  "spl": "index=ot sourcetype=\"drillrig:sensor\"\n| eval ok=if(status=\"ok\" AND value_age_sec < 30, 1, 0)\n| stats avg(ok) as health_frac by rig_id, channel\n| eval health_pct=round(health_frac*100,2)\n| where health_pct < 99\n| table rig_id, channel, health_pct",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Drill instrumentation must stay online for safe and efficient drilling. Monitoring channel health catches failures before they impact operations.",
+  "value": "Drill instrumentation must stay online for safe and efficient drilling. Monitoring channel health catches failures before they impact operations.",
+  "implementation": "Tune value_age_sec threshold per channel type. Alert the rig supervisor when channels degrade. Align with planned rig maintenance. **Domain context:** Drilling instrumentation supports MWD/LWD and well control awareness—loss of WOB/RPM/torque channels can indicate surface or downhole sensor faults. **Splunk:** `stats avg(ok)` assumes evenly spaced samples—prefer `timechart` + fill for irregular logger intervals.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Rig data logger via HEC.\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"drillrig:sensor\"` fields `rig_id`, `channel`, `status`, `value_age_sec`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTune value_age_sec threshold per channel type. Alert the rig supervisor when channels degrade. Align with planned rig maintenance. **Domain context:** Drilling instrumentation supports MWD/LWD and well control awareness—loss of WOB/RPM/torque channels can indicate surface or downhole sensor faults. **Splunk:** `stats avg(ok)` assumes evenly spaced samples—prefer `timechart` + fill for irregular logger intervals.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"drillrig:sensor\"\n| eval ok=if(status=\"ok\" AND value_age_sec < 30, 1, 0)\n| stats avg(ok) as health_frac by rig_id, channel\n| eval health_pct=round(health_frac*100,2)\n| where health_pct < 99\n| table rig_id, channel, health_pct\n```\n\nUnderstanding this SPL\n\n**Drill Rig Sensor Health Monitoring** — Drill instrumentation must stay online for safe and efficient drilling. Monitoring channel health catches failures before they impact operations.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"drillrig:sensor\"` fields `rig_id`, `channel`, `status`, `value_age_sec`. **App/TA** (typical add-on context): Rig data logger via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: drillrig:sensor. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"drillrig:sensor\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **ok** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by rig_id, channel** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **health_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where health_pct < 99` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Drill Rig Sensor Health Monitoring**): table rig_id, channel, health_pct\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Matrix (rig × channel), Time chart (stale count), Table (bad channels).",
+  "visualization": "Matrix (rig × channel), Time chart (stale count), Table (bad channels).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

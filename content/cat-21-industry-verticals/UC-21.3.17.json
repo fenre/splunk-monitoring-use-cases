@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.3.17",
+  "title": "Clinical Decision Support Response Time",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Healthcare",
+  "dataSources": "`index=healthcare` `sourcetype=\"cds:query\"` fields `rule_id`, `query_time_ms`, `result`, `triggered_alert`",
+  "app": "CDS engine logs via HEC",
+  "spl": "index=healthcare sourcetype=\"cds:query\"\n| bin _time span=1h\n| stats avg(query_time_ms) as avg_ms, perc95(query_time_ms) as p95_ms, count by rule_id, _time\n| where p95_ms > 500\n| table _time, rule_id, avg_ms, p95_ms, count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "CDS alerts must fire in real-time during clinical workflows. Excessive latency causes clinicians to bypass alerts, reducing patient safety benefit.",
+  "value": "CDS alerts must fire in real-time during clinical workflows. Excessive latency causes clinicians to bypass alerts, reducing patient safety benefit.",
+  "implementation": "Instrument CDS engine with response time logging. Track by rule type and clinical context. Optimize slow rules that impact order entry workflows. Alert when latency exceeds clinical usability thresholds. **Domain context:** CDS Hooks / SMART targets sub-second response for interruptive alerts in some workflows; batch analytics rules differ. **Splunk:** Separate interruptive vs background CDS if `rule_id` encodes workflow type.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: CDS engine logs via HEC.\n• Ensure the following data sources are available: `index=healthcare` `sourcetype=\"cds:query\"` fields `rule_id`, `query_time_ms`, `result`, `triggered_alert`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nInstrument CDS engine with response time logging. Track by rule type and clinical context. Optimize slow rules that impact order entry workflows. Alert when latency exceeds clinical usability thresholds. **Domain context:** CDS Hooks / SMART targets sub-second response for interruptive alerts in some workflows; batch analytics rules differ. **Splunk:** Separate interruptive vs background CDS if `rule_id` encodes workflow type.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=healthcare sourcetype=\"cds:query\"\n| bin _time span=1h\n| stats avg(query_time_ms) as avg_ms, perc95(query_time_ms) as p95_ms, count by rule_id, _time\n| where p95_ms > 500\n| table _time, rule_id, avg_ms, p95_ms, count\n```\n\nUnderstanding this SPL\n\n**Clinical Decision Support Response Time** — CDS alerts must fire in real-time during clinical workflows. Excessive latency causes clinicians to bypass alerts, reducing patient safety benefit.\n\nDocumented **Data sources**: `index=healthcare` `sourcetype=\"cds:query\"` fields `rule_id`, `query_time_ms`, `result`, `triggered_alert`. **App/TA** (typical add-on context): CDS engine logs via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: healthcare; **sourcetype**: cds:query. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=healthcare, sourcetype=\"cds:query\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by rule_id, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where p95_ms > 500` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Clinical Decision Support Response Time**): table _time, rule_id, avg_ms, p95_ms, count\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (response time by rule), Heatmap (rule × time), Table (slowest rules).",
+  "visualization": "Line chart (response time by rule), Heatmap (rule × time), Table (slowest rules).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

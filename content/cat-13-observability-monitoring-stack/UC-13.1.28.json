@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.1.28",
+  "title": "SHC Configuration Replication Lag (_internal)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Configuration"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=_internal` `sourcetype=splunkd` (SHC, replication, `apply_bundle`)",
+  "app": "Monitoring Console",
+  "spl": "index=_internal sourcetype=splunkd component=*SHC* OR component=*shcluster*\n| search (\"replication\" OR \"bundle\" OR \"lag\") AND (log_level=WARN OR log_level=ERROR)\n| stats count by host, message\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Lagging conf replication causes inconsistent searches and failed lookups across members.",
+  "value": "Lagging conf replication causes inconsistent searches and failed lookups across members.",
+  "implementation": "Prefer REST `| rest /services/shcluster/member/members` for `last_conf_replication` where available. Alert on WARN/ERROR about replication lag or failed bundles.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Monitoring Console.\n• Ensure the following data sources are available: `index=_internal` `sourcetype=splunkd` (SHC, replication, `apply_bundle`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPrefer REST `| rest /services/shcluster/member/members` for `last_conf_replication` where available. Alert on WARN/ERROR about replication lag or failed bundles.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal sourcetype=splunkd component=*SHC* OR component=*shcluster*\n| search (\"replication\" OR \"bundle\" OR \"lag\") AND (log_level=WARN OR log_level=ERROR)\n| stats count by host, message\n| sort -count\n```\n\nUnderstanding this SPL\n\n**SHC Configuration Replication Lag (_internal)** — Lagging conf replication causes inconsistent searches and failed lookups across members.\n\nDocumented **Data sources**: `index=_internal` `sourcetype=splunkd` (SHC, replication, `apply_bundle`). **App/TA** (typical add-on context): Monitoring Console. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal; **sourcetype**: splunkd. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, sourcetype=splunkd. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by host, message** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (members with replication issues), Single value (max lag seconds).",
+  "visualization": "Table (members with replication issues), Single value (max lag seconds).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

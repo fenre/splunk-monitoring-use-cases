@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.9.41",
+  "title": "Transaction Test Completion Rate (ThousandEyes)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Transaction tests)",
+  "app": "`Cisco ThousandEyes App for Splunk` (Splunkbase 7719)",
+  "spl": "`stream_index` thousandeyes.test.type=\"web-transactions\"\n| stats avg(web.transaction.completion) as avg_completion sum(web.transaction.errors.count) as total_errors by thousandeyes.test.name\n| where avg_completion < 100 OR total_errors > 0\n| sort avg_completion",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Transaction tests execute scripted multi-step user workflows (login, navigate, submit form, verify result). Completion rate below 100% means users cannot complete critical business processes.",
+  "value": "Transaction tests execute scripted multi-step user workflows (login, navigate, submit form, verify result). Completion rate below 100% means users cannot complete critical business processes.",
+  "implementation": "Create Transaction tests in ThousandEyes using Selenium-based scripted workflows that simulate real user journeys. The OTel metric `web.transaction.completion` reports 100% on success and 0% on error. `web.transaction.errors.count` returns 1 when an error occurs and 0 otherwise. The Splunk App Application dashboard includes a \"Transaction Completion (%)\" panel.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco ThousandEyes App for Splunk` (Splunkbase 7719).\n• Ensure the following data sources are available: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Transaction tests).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate Transaction tests in ThousandEyes using Selenium-based scripted workflows that simulate real user journeys. The OTel metric `web.transaction.completion` reports 100% on success and 0% on error. `web.transaction.errors.count` returns 1 when an error occurs and 0 otherwise. The Splunk App Application dashboard includes a \"Transaction Completion (%)\" panel.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n`stream_index` thousandeyes.test.type=\"web-transactions\"\n| stats avg(web.transaction.completion) as avg_completion sum(web.transaction.errors.count) as total_errors by thousandeyes.test.name\n| where avg_completion < 100 OR total_errors > 0\n| sort avg_completion\n```\n\nUnderstanding this SPL\n\n**Transaction Test Completion Rate (ThousandEyes)** — Transaction tests execute scripted multi-step user workflows (login, navigate, submit form, verify result). Completion rate below 100% means users cannot complete critical business processes.\n\nDocumented **Data sources**: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Transaction tests). **App/TA** (typical add-on context): `Cisco ThousandEyes App for Splunk` (Splunkbase 7719). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Invokes macro `stream_index` — in Search, use the UI or expand to inspect the underlying SPL.\n• `stats` rolls up events into metrics; results are split **by thousandeyes.test.name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where avg_completion < 100 OR total_errors > 0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (completion %), Line chart (completion over time), Table (test, completion, errors).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Single value (completion %), Line chart (completion over time), Table (test, completion, errors).",
+  "references": [
+    {
+      "title": "Splunkbase app 7719",
+      "url": "https://splunkbase.splunk.com/app/7719"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_thousandeyes"
+  ]
+}

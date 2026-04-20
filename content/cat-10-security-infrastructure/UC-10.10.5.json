@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.10.5",
+  "title": "MITRE ATT&CK technique coverage gap analysis",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Notable events with MITRE annotations, lookup of desired coverage",
+  "app": "Splunk Enterprise Security / custom",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup desired_mitre_coverage.csv\n| fields technique_id\n| join type=left max=0 technique_id [\n    search `notable` earliest=-365d\n    | mvexpand annotations.mitre_attack.mitre_attack_id limit=500\n    | rename annotations.mitre_attack.mitre_attack_id as technique_id\n    | stats dc(rule_name) as rule_count by technique_id\n  ]\n| where isnull(rule_count)",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Compares technique IDs from fired notables against desired coverage matrix.",
+  "value": "Compares technique IDs from fired notables against desired coverage matrix.",
+  "implementation": "Normalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security / custom.\n• Ensure the following data sources are available: Notable events with MITRE annotations, lookup of desired coverage.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup desired_mitre_coverage.csv\n| fields technique_id\n| join type=left max=0 technique_id [\n    search `notable` earliest=-365d\n    | mvexpand annotations.mitre_attack.mitre_attack_id limit=500\n    | rename annotations.mitre_attack.mitre_attack_id as technique_id\n    | stats dc(rule_name) as rule_count by technique_id\n  ]\n| where isnull(rule_count)\n```\n\nUnderstanding this SPL\n\n**MITRE ATT&CK technique coverage gap analysis** — Compares technique IDs from fired notables against desired coverage matrix.\n\nDocumented **Data sources**: Notable events with MITRE annotations, lookup of desired coverage. **App/TA** (typical add-on context): Splunk Enterprise Security / custom. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Detection type** for this use case: Operational metrics — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Keeps or drops fields with `fields` to shape columns and size.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(rule_count)` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Single value, Time chart\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Table, Single value, Time chart",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.",
+  "detectionType": "Operational metrics",
+  "securityDomain": "soc_operations"
+}

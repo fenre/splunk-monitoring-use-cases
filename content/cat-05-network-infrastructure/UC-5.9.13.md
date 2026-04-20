@@ -1,0 +1,77 @@
+---
+id: "5.9.13"
+title: "DNS Availability Monitoring"
+criticality: "critical"
+splunkPillar: "Observability"
+---
+
+# UC-5.9.13 · DNS Availability Monitoring
+
+## Description
+
+DNS failures cascade into application outages — if users cannot resolve names, nothing works. ThousandEyes DNS tests monitor availability from multiple global vantage points.
+
+## Value
+
+DNS failures cascade into application outages — if users cannot resolve names, nothing works. ThousandEyes DNS tests monitor availability from multiple global vantage points.
+
+## Implementation
+
+Create DNS Server tests in ThousandEyes targeting critical domain names and DNS servers. The OTel metric `dns.lookup.availability` reports 100% when resolution succeeds and 0% on error. The Splunk App Network dashboard includes a "DNS Availability (%)" line chart with drilldown to ThousandEyes.
+
+## Detailed Implementation
+
+Prerequisites
+• Install and configure the required add-on or app: `Cisco ThousandEyes App for Splunk` (Splunkbase 7719).
+• Ensure the following data sources are available: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (DNS tests).
+• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+Step 1 — Configure data collection
+Create DNS Server tests in ThousandEyes targeting critical domain names and DNS servers. The OTel metric `dns.lookup.availability` reports 100% when resolution succeeds and 0% on error. The Splunk App Network dashboard includes a "DNS Availability (%)" line chart with drilldown to ThousandEyes.
+
+Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+`stream_index` thousandeyes.test.type="dns-server"
+| stats avg(dns.lookup.availability) as avg_availability by dns.question.name, server.address
+| where avg_availability < 100
+| sort avg_availability
+```
+
+Understanding this SPL
+
+**DNS Availability Monitoring** — DNS failures cascade into application outages — if users cannot resolve names, nothing works. ThousandEyes DNS tests monitor availability from multiple global vantage points.
+
+Documented **Data sources**: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (DNS tests). **App/TA** (typical add-on context): `Cisco ThousandEyes App for Splunk` (Splunkbase 7719). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+**Pipeline walkthrough**
+
+• Invokes macro `stream_index` — in Search, use the UI or expand to inspect the underlying SPL.
+• `stats` rolls up events into metrics; results are split **by dns.question.name, server.address** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• Filters the current rows with `where avg_availability < 100` — typically the threshold or rule expression for this monitoring goal.
+• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+
+Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (availability % over time), Single value (current availability), Table (question, server, availability).
+
+## SPL
+
+```spl
+`stream_index` thousandeyes.test.type="dns-server"
+| stats avg(dns.lookup.availability) as avg_availability by dns.question.name, server.address
+| where avg_availability < 100
+| sort avg_availability
+```
+
+## Visualization
+
+Line chart (availability % over time), Single value (current availability), Table (question, server, availability).
+
+## References
+
+- [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)

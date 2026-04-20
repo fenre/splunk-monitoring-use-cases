@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.5.21",
+  "title": "MQTT Topic Tree Depth and Fan-Out Analysis",
+  "criticality": "low",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=ot` `sourcetype=\"mqtt:message\"` fields `topic`",
+  "app": "MQTT Modular Input (Splunkbase 1890), HiveMQ Splunk Extension",
+  "spl": "index=ot sourcetype=\"mqtt:message\"\n| eval depth=mvcount(split(topic,\"/\"))\n| eval parts=split(topic,\"/\")\n| eval root=mvindex(parts,0)\n| stats count as msgs, dc(topic) as unique_topics, max(depth) as max_depth, avg(depth) as avg_depth by root, host\n| sort - unique_topics",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Deep topic hierarchies and high fan-out increase broker memory and ACL evaluation costs; trending complexity helps right-size clusters and topic design reviews.",
+  "value": "Deep topic hierarchies and high fan-out increase broker memory and ACL evaluation costs; trending complexity helps right-size clusters and topic design reviews.",
+  "implementation": "For very high message rates, sample or pre-aggregate in HiveMQ metrics. Exclude test topics. Pair with ACL audit if unauthorized deep topics appear.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: MQTT Modular Input (Splunkbase 1890), HiveMQ Splunk Extension.\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"mqtt:message\"` fields `topic`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFor very high message rates, sample or pre-aggregate in HiveMQ metrics. Exclude test topics. Pair with ACL audit if unauthorized deep topics appear.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"mqtt:message\"\n| eval depth=mvcount(split(topic,\"/\"))\n| eval parts=split(topic,\"/\")\n| eval root=mvindex(parts,0)\n| stats count as msgs, dc(topic) as unique_topics, max(depth) as max_depth, avg(depth) as avg_depth by root, host\n| sort - unique_topics\n```\n\nUnderstanding this SPL\n\n**MQTT Topic Tree Depth and Fan-Out Analysis** — Deep topic hierarchies and high fan-out increase broker memory and ACL evaluation costs; trending complexity helps right-size clusters and topic design reviews.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"mqtt:message\"` fields `topic`. **App/TA** (typical add-on context): MQTT Modular Input (Splunkbase 1890), HiveMQ Splunk Extension. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: mqtt:message. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"mqtt:message\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **depth** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **parts** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **root** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by root, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (unique topics by root prefix), Histogram (depth distribution), Table (top fan-out roots).",
+  "visualization": "Bar chart (unique topics by root prefix), Histogram (depth distribution), Table (top fan-out roots).",
+  "references": [
+    {
+      "title": "MQTT Modular Input",
+      "url": "https://splunkbase.splunk.com/app/1890"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.",
+  "equipment": [
+    "mqtt"
+  ]
+}

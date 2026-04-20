@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "15.1.8",
+  "title": "Generator Runtime and Fuel Level",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Generator controller telemetry (fuel_level_pct, run_hours, engine_status)",
+  "app": "Custom (generator controller SNMP/Modbus, BMS integration)",
+  "spl": "index=power sourcetype=\"generator:telemetry\"\n| stats latest(fuel_level_pct) as fuel_pct, latest(run_hours) as run_hrs, latest(engine_status) as status by generator_id\n| where fuel_pct < 30 OR status!=\"standby\" AND status!=\"running\"\n| table generator_id, fuel_pct, run_hrs, status",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Diesel generator monitoring for extended outages; fuel level and run hours ensure generators can sustain operations during prolonged utility failures.",
+  "value": "Diesel generator monitoring for extended outages; fuel level and run hours ensure generators can sustain operations during prolonged utility failures.",
+  "implementation": "Integrate generator controller via SNMP or Modbus. Ingest fuel_level_pct, run_hours, engine_status (standby, running, fault). Poll every 5–15 minutes. Alert on low fuel (<30%), engine fault, or unexpected runtime. Correlate with utility outage events. Report fuel consumption rate during run events.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (generator controller SNMP/Modbus, BMS integration).\n• Ensure the following data sources are available: Generator controller telemetry (fuel_level_pct, run_hours, engine_status).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIntegrate generator controller via SNMP or Modbus. Ingest fuel_level_pct, run_hours, engine_status (standby, running, fault). Poll every 5–15 minutes. Alert on low fuel (<30%), engine fault, or unexpected runtime. Correlate with utility outage events. Report fuel consumption rate during run events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=power sourcetype=\"generator:telemetry\"\n| stats latest(fuel_level_pct) as fuel_pct, latest(run_hours) as run_hrs, latest(engine_status) as status by generator_id\n| where fuel_pct < 30 OR status!=\"standby\" AND status!=\"running\"\n| table generator_id, fuel_pct, run_hrs, status\n```\n\nUnderstanding this SPL\n\n**Generator Runtime and Fuel Level** — Diesel generator monitoring for extended outages; fuel level and run hours ensure generators can sustain operations during prolonged utility failures.\n\nDocumented **Data sources**: Generator controller telemetry (fuel_level_pct, run_hours, engine_status). **App/TA** (typical add-on context): Custom (generator controller SNMP/Modbus, BMS integration). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: power; **sourcetype**: generator:telemetry. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=power, sourcetype=\"generator:telemetry\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by generator_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where fuel_pct < 30 OR status!=\"standby\" AND status!=\"running\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Generator Runtime and Fuel Level**): table generator_id, fuel_pct, run_hrs, status\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (fuel level per generator), Table (generator status), Line chart (fuel level trend), Single value (lowest fuel %).",
+  "visualization": "Gauge (fuel level per generator), Table (generator status), Line chart (fuel level trend), Single value (lowest fuel %).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "modbus",
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_generic"
+  ]
+}

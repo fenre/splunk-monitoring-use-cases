@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.2.62",
+  "title": "Network Share Discovery Via Dir Command",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Windows Event Log Security 5140",
+  "app": "Splunk Security Essentials / ESCU",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "`wineventlog_security` EventCode=5140 ShareName IN(\"\\\\\\\\*\\\\ADMIN$\",\"\\\\\\\\*\\\\C$\",\"*\\\\\\\\*\\\\IPC$\") AccessMask= 0x1 | stats min(_time) as firstTime max(_time) as lastTime count by ShareName IpAddress ObjectType SubjectUserName SubjectDomainName IpPort AccessMask Computer | rename Computer as dest | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)` | `network_share_discovery_via_dir_command_filter`",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "The following analytic detects access to Windows administrative SMB shares (Admin$, IPC$, C$) using the 'dir' command. It leverages Windows Security Event Logs with EventCode 5140 to identify this activity. This behavior is significant as it is commonly used by tools like PsExec/PaExec for staging binaries before creating and starting services on remote endpoints, a technique often employed by adversaries for lateral movement and remote code execution. If confirmed malicious, this activity could…",
+  "value": "The following analytic detects access to Windows administrative SMB shares (Admin$, IPC$, C$) using the 'dir' command. It leverages Windows Security Event Logs with EventCode 5140 to identify this activity. This behavior is significant as it is commonly used by tools like PsExec/PaExec for staging binaries before creating and starting services on remote endpoints, a technique often employed by adversaries for lateral movement and remote code execution. If confirmed malicious, this activity could…",
+  "implementation": "To successfully implement this search, you need to be ingesting Windows Security Event Logs with 5140 EventCode enabled. The Windows TA is also required. Also enable the object Audit access success/failure in your group policy.",
+  "detailedImplementation": "Enterprise Security Detection Rule\n\n\"Network Share Discovery Via Dir Command\" is a Hunting detection designed for analyst-driven threat hunting rather than automated alerting, sourced from the Splunk Enterprise Security Content Update (ESCU). Hunting detections are not intended for automated alerting. They are run on-demand or on a low-frequency schedule by security analysts investigating specific threat hypotheses.\n\nPrerequisites\n\n• Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.\n• Data sources: Windows Event Log Security 5140. Must be ingested into Splunk and normalized to the Common Information Model (CIM) via the appropriate Technology Add-on.\n• MITRE ATT&CK: T1135. Review the ATT&CK matrix for adjacent techniques to identify detection coverage gaps in your environment.\n\nDeployment\n\n1. In Enterprise Security, navigate to Configure → Content → Content Management.\n2. Search for \"Network Share Discovery Via Dir Command\" or filter by Analytic Story.\n3. Hunting detections are typically left disabled for automated scheduling. Instead, run them on-demand from the Search bar or schedule at low frequency (daily or weekly).\n4. Review results manually — hunting detections cast a wider net and expect analyst judgment to separate signal from noise.\n5. When results warrant further investigation, create a Notable Event manually or initiate your incident response workflow.\n\nTuning and False Positive Management\n\nKnown false positives for this detection: System Administrators may use looks like net.exe or \"dir commandline\" for troubleshooting or administrations tasks. However, this will typically come only from certain users and certain systems that can be added to an allow list.\n\n• Hunting detections are expected to produce broader result sets that require analyst interpretation. Focus on refining the search scope (time range, specific hosts or users) rather than eliminating all noise.\n• Maintain a hunting journal documenting hypotheses tested, results found, and detection improvements identified.\n• Share high-fidelity findings with the detection engineering team to convert recurring hunting patterns into automated TTP or Anomaly detections.\n\nAnalyst Response Workflow\n\nWhen reviewing Hunting results:\n\n1. Run the search manually or review scheduled results. Evaluate each returned event against your threat hypothesis — not every result indicates compromise.\n2. Cross-reference findings with current threat intelligence, recent security advisories, and outputs from other detection sources.\n3. If suspicious activity is confirmed, create a Notable Event or escalate directly to your incident response process with the supporting evidence.\n4. Document the hunting exercise: hypothesis, data sources queried, time range, findings, and any detection engineering improvements identified.\n\nValidation\n\nConfirm the required data sources are flowing:\n\n```spl\n| tstats count where index=* by index, sourcetype | sort -count\n```\n\nVerify the detection is enabled and firing:\n\n```spl\nindex=_audit action=\"alert_fired\" ss_name=\"*\"\n| stats count by ss_name, trigger_time | sort -trigger_time\n```",
+  "visualization": "Table, Timeline (from ESCU).",
+  "references": [
+    {
+      "url": "https://thedfirreport.com/2023/05/22/icedid-macro-ends-in-nokoyawa-ransomware/"
+    }
+  ],
+  "knownFalsePositives": "System Administrators may use looks like net.exe or \"dir commandline\" for troubleshooting or administrations tasks. However, this will typically come only from certain users and certain systems that can be added to an allow list.",
+  "mitreAttack": [
+    "T1135"
+  ],
+  "detectionType": "Hunting",
+  "equipment": [
+    "security_essentials"
+  ]
+}

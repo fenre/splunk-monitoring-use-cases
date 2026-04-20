@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "18.2.2",
+  "title": "Micro-Segmentation Enforcement",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "NSX DFW logs, NSX security group membership",
+  "app": "`vmware_nsx_addon`, NSX DFW logs",
+  "spl": "index=vmware sourcetype=\"vmware:nsx:dfw\"\n| lookup nsx_security_groups vm_name OUTPUT security_group\n| stats count as hits, dc(dst_ip) as unique_destinations by security_group, action, direction\n| eval compliance=if(action=\"DROP\" AND direction=\"intra-group\", \"Violation\", \"Expected\")\n| sort -hits",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "NSX micro-segmentation is a key Zero Trust control. Monitoring enforcement validates that workloads are properly isolated, detects lateral movement attempts, and proves compliance with segmentation policies during audits.",
+  "value": "NSX micro-segmentation is a key Zero Trust control. Monitoring enforcement validates that workloads are properly isolated, detects lateral movement attempts, and proves compliance with segmentation policies during audits.",
+  "implementation": "Define security groups in NSX aligned with application tiers. Enable DFW logging for inter-group and intra-group traffic. Enrich logs with security group membership. Track allowed vs denied inter-group communication. Alert on intra-group denials or unexpected inter-group allows.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `vmware_nsx_addon`, NSX DFW logs.\n• Ensure the following data sources are available: NSX DFW logs, NSX security group membership.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDefine security groups in NSX aligned with application tiers. Enable DFW logging for inter-group and intra-group traffic. Enrich logs with security group membership. Track allowed vs denied inter-group communication. Alert on intra-group denials or unexpected inter-group allows.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:nsx:dfw\"\n| lookup nsx_security_groups vm_name OUTPUT security_group\n| stats count as hits, dc(dst_ip) as unique_destinations by security_group, action, direction\n| eval compliance=if(action=\"DROP\" AND direction=\"intra-group\", \"Violation\", \"Expected\")\n| sort -hits\n```\n\nUnderstanding this SPL\n\n**Micro-Segmentation Enforcement** — NSX micro-segmentation is a key Zero Trust control. Monitoring enforcement validates that workloads are properly isolated, detects lateral movement attempts, and proves compliance with segmentation policies during audits.\n\nDocumented **Data sources**: NSX DFW logs, NSX security group membership. **App/TA** (typical add-on context): `vmware_nsx_addon`, NSX DFW logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:nsx:dfw. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:nsx:dfw\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `stats` rolls up events into metrics; results are split **by security_group, action, direction** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **compliance** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap (group-to-group traffic), Sankey diagram (flow paths), Bar chart (denials by group), Single value (policy violation count).",
+  "visualization": "Heatmap (group-to-group traffic), Sankey diagram (flow paths), Bar chart (denials by group), Single value (policy violation count).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "nsx",
+    "vmware"
+  ]
+}

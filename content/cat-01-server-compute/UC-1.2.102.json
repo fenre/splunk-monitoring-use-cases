@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.102",
+  "title": "Software Restriction / AppLocker Bypass Detection",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-AppLocker/EXE and DLL`, `sourcetype=WinEventLog:Microsoft-Windows-AppLocker/MSI and Script`",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-AppLocker*\" EventCode IN (8004, 8007, 8022, 8025)\n| eval BlockType=case(EventCode=8004,\"EXE_Blocked\", EventCode=8007,\"Script_Blocked\", EventCode=8022,\"MSI_Blocked\", EventCode=8025,\"DLL_Blocked\", 1=1,\"Other\")\n| stats count by host, UserName, BlockType, RuleName, FilePath\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Application whitelisting is a primary defense against malware. Detecting bypass attempts reveals both sophisticated attackers and policy gaps.",
+  "value": "Application whitelisting is a primary defense against malware. Detecting bypass attempts reveals both sophisticated attackers and policy gaps.",
+  "implementation": "Collect all four AppLocker log channels (EXE/DLL, MSI/Script, Packaged app, Script). Track blocked executions (8004/8007/8022/8025) and audit-mode warnings (8003/8006). Alert on repeated blocks from same user (attempted bypass), blocks in admin paths, and execution of known LOLBins that bypass default rules (mshta.exe, regsvr32.exe, msbuild.exe). Correlate with Sysmon for parent process context.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-AppLocker/EXE and DLL`, `sourcetype=WinEventLog:Microsoft-Windows-AppLocker/MSI and Script`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect all four AppLocker log channels (EXE/DLL, MSI/Script, Packaged app, Script). Track blocked executions (8004/8007/8022/8025) and audit-mode warnings (8003/8006). Alert on repeated blocks from same user (attempted bypass), blocks in admin paths, and execution of known LOLBins that bypass default rules (mshta.exe, regsvr32.exe, msbuild.exe). Correlate with Sysmon for parent process context.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog source=\"WinEventLog:Microsoft-Windows-AppLocker*\" EventCode IN (8004, 8007, 8022, 8025)\n| eval BlockType=case(EventCode=8004,\"EXE_Blocked\", EventCode=8007,\"Script_Blocked\", EventCode=8022,\"MSI_Blocked\", EventCode=8025,\"DLL_Blocked\", 1=1,\"Other\")\n| stats count by host, UserName, BlockType, RuleName, FilePath\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Software Restriction / AppLocker Bypass Detection** — Application whitelisting is a primary defense against malware. Detecting bypass attempts reveals both sophisticated attackers and policy gaps.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-AppLocker/EXE and DLL`, `sourcetype=WinEventLog:Microsoft-Windows-AppLocker/MSI and Script`. **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **BlockType** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, UserName, BlockType, RuleName, FilePath** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (blocks by type), Table (blocked files), Timechart (block trends).",
+  "visualization": "Bar chart (blocks by type), Table (blocked files), Timechart (block trends).",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.1.65",
+  "title": "GuardDuty Severity Analysis",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=aws:cloudwatch:guardduty`, GuardDuty S3 export",
+  "app": "`Splunk_TA_aws`",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch:guardduty\"\n| stats count by severity, type, accountId\n| sort -count",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.severity | sort - count",
+  "cimModels": [
+    "Intrusion_Detection"
+  ],
+  "description": "Prioritizing GuardDuty findings by severity and type reduces noise and speeds triage versus raw event volume.",
+  "value": "Prioritizing GuardDuty findings by severity and type reduces noise and speeds triage versus raw event volume.",
+  "implementation": "Normalize severity (8–10 = high). Auto-suppress known pen-test ranges via lookup. Weekly trend of finding types. SOAR integration for HIGH and above with runbooks per `type`.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch:guardduty`, GuardDuty S3 export.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize severity (8–10 = high). Auto-suppress known pen-test ranges via lookup. Weekly trend of finding types. SOAR integration for HIGH and above with runbooks per `type`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch:guardduty\"\n| stats count by severity, type, accountId\n| sort -count\n```\n\nUnderstanding this SPL\n\n**GuardDuty Severity Analysis** — Prioritizing GuardDuty findings by severity and type reduces noise and speeds triage versus raw event volume.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch:guardduty`, GuardDuty S3 export. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch:guardduty. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch:guardduty\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by severity, type, accountId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.severity | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**GuardDuty Severity Analysis** — Prioritizing GuardDuty findings by severity and type reduces noise and speeds triage versus raw event volume.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch:guardduty`, GuardDuty S3 export. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Intrusion_Detection.IDS_Attacks` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (findings by type), Pie chart (severity), Table (account, type, count).",
+  "visualization": "Bar chart (findings by type), Pie chart (severity), Table (account, type, count).",
+  "references": [
+    {
+      "title": "Splunk_TA_aws",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "CIM: Intrusion_Detection",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection"
+    }
+  ],
+  "mitreAttack": [
+    "T1580",
+    "T1526"
+  ],
+  "equipment": [
+    "aws"
+  ]
+}

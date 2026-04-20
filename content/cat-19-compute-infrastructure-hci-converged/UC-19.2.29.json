@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.2.29",
+  "title": "Nutanix Controller VM Storage Bandwidth Saturation",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=hci` `sourcetype=\"nutanix:cvm:metrics\"` with fields `node`, `read_mbps`, `write_mbps`, `link_speed_mbps`",
+  "app": "`TA-nutanix`, Prism metrics",
+  "spl": "index=hci sourcetype=\"nutanix:cvm:metrics\" earliest=-4h\n| eval total_mbps=read_mbps+write_mbps\n| eval util_pct=round(100*total_mbps/nullif(link_speed_mbps,0),1)\n| stats perc95(util_pct) as p95_util by node\n| where p95_util>75\n| sort -p95_util",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host | sort - count",
+  "cimModels": [
+    "Performance"
+  ],
+  "description": "When CVM front-end bandwidth saturates, latency rises for every VM on the node regardless of guest CPU. Spotting sustained saturation drives rebalance, network uplink upgrades, or noisy-neighbor containment.",
+  "value": "When CVM front-end bandwidth saturates, latency rises for every VM on the node regardless of guest CPU. Spotting sustained saturation drives rebalance, network uplink upgrades, or noisy-neighbor containment.",
+  "implementation": "(1) Collect per-CVM throughput and negotiated link speed; (2) alert when 95th percentile utilization exceeds 75% for one hour; (3) correlate with rebuild tasks (UC-19.2.9) and snapshot storms.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-nutanix`, Prism metrics.\n• Ensure the following data sources are available: `index=hci` `sourcetype=\"nutanix:cvm:metrics\"` with fields `node`, `read_mbps`, `write_mbps`, `link_speed_mbps`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Collect per-CVM throughput and negotiated link speed; (2) alert when 95th percentile utilization exceeds 75% for one hour; (3) correlate with rebuild tasks (UC-19.2.9) and snapshot storms.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=hci sourcetype=\"nutanix:cvm:metrics\" earliest=-4h\n| eval total_mbps=read_mbps+write_mbps\n| eval util_pct=round(100*total_mbps/nullif(link_speed_mbps,0),1)\n| stats perc95(util_pct) as p95_util by node\n| where p95_util>75\n| sort -p95_util\n```\n\nUnderstanding this SPL\n\n**Nutanix Controller VM Storage Bandwidth Saturation** — When CVM front-end bandwidth saturates, latency rises for every VM on the node regardless of guest CPU. Spotting sustained saturation drives rebalance, network uplink upgrades, or noisy-neighbor containment.\n\nDocumented **Data sources**: `index=hci` `sourcetype=\"nutanix:cvm:metrics\"` with fields `node`, `read_mbps`, `write_mbps`, `link_speed_mbps`. **App/TA** (typical add-on context): `TA-nutanix`, Prism metrics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: hci; **sourcetype**: nutanix:cvm:metrics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=hci, sourcetype=\"nutanix:cvm:metrics\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **total_mbps** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **util_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by node** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where p95_util>75` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Nutanix Controller VM Storage Bandwidth Saturation** — When CVM front-end bandwidth saturates, latency rises for every VM on the node regardless of guest CPU. Spotting sustained saturation drives rebalance, network uplink upgrades, or noisy-neighbor containment.\n\nDocumented **Data sources**: `index=hci` `sourcetype=\"nutanix:cvm:metrics\"` with fields `node`, `read_mbps`, `write_mbps`, `link_speed_mbps`. **App/TA** (typical add-on context): `TA-nutanix`, Prism metrics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Performance.CPU` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (Mbps per node), Table (saturated CVMs), Gauge (peak utilization).",
+  "visualization": "Line chart (Mbps per node), Table (saturated CVMs), Gauge (peak utilization).",
+  "references": [
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+    }
+  ],
+  "equipment": [
+    "nutanix"
+  ],
+  "hardware": "Nutanix AOS nodes (10/25 GbE uplinks)"
+}

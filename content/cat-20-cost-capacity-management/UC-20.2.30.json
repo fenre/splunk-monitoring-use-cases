@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "20.2.30",
+  "title": "Search and Analytics Cluster Disk Watermark Risk",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=observability` `sourcetype=\"elastic:cluster_stats\"`",
+  "app": "Elastic/OpenSearch monitoring API, HTTP Event Collector",
+  "spl": "index=observability sourcetype=\"elastic:cluster_stats\" earliest=-30d\n| eval used=tonumber(coalesce(store_size_bytes, total_used_bytes))\n| eval total=tonumber(coalesce(total_capacity_bytes, disk_total_bytes))\n| eval used_pct=round(100*used/nullif(total,0),2)\n| bin _time span=1d\n| stats latest(used_pct) as used_pct by _time, cluster_name\n| predict used_pct as forecast_pct algorithm=LLP5 future_timespan=30\n| where 'forecast_pct+30d' > 75\n| table cluster_name, used_pct, 'forecast_pct+30d'",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "OpenSearch and Elasticsearch clusters stop indexing when disk watermarks are breached, breaking log and application pipelines. Tracking used shard store versus cluster capacity predicts when frozen tiers or data nodes must be added.",
+  "value": "OpenSearch and Elasticsearch clusters stop indexing when disk watermarks are breached, breaking log and application pipelines. Tracking used shard store versus cluster capacity predicts when frozen tiers or data nodes must be added.",
+  "implementation": "(1) Poll `_cluster/stats` or Elastic Cloud metrics daily. (2) Align thresholds with `cluster.routing.allocation.disk.watermark` settings. (3) Integrate with storage forecasting (UC-20.2.2) when forecast crosses seventy-five percent within thirty days.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Elastic/OpenSearch monitoring API, HTTP Event Collector.\n• Ensure the following data sources are available: `index=observability` `sourcetype=\"elastic:cluster_stats\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Poll `_cluster/stats` or Elastic Cloud metrics daily. (2) Align thresholds with `cluster.routing.allocation.disk.watermark` settings. (3) Integrate with storage forecasting (UC-20.2.2) when forecast crosses seventy-five percent within thirty days.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=observability sourcetype=\"elastic:cluster_stats\" earliest=-30d\n| eval used=tonumber(coalesce(store_size_bytes, total_used_bytes))\n| eval total=tonumber(coalesce(total_capacity_bytes, disk_total_bytes))\n| eval used_pct=round(100*used/nullif(total,0),2)\n| bin _time span=1d\n| stats latest(used_pct) as used_pct by _time, cluster_name\n| predict used_pct as forecast_pct algorithm=LLP5 future_timespan=30\n| where 'forecast_pct+30d' > 75\n| table cluster_name, used_pct, 'forecast_pct+30d'\n```\n\nUnderstanding this SPL\n\n**Search and Analytics Cluster Disk Watermark Risk** — OpenSearch and Elasticsearch clusters stop indexing when disk watermarks are breached, breaking log and application pipelines. Tracking used shard store versus cluster capacity predicts when frozen tiers or data nodes must be added.\n\nDocumented **Data sources**: `index=observability` `sourcetype=\"elastic:cluster_stats\"`. **App/TA** (typical add-on context): Elastic/OpenSearch monitoring API, HTTP Event Collector. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: observability; **sourcetype**: elastic:cluster_stats. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=observability, sourcetype=\"elastic:cluster_stats\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **used** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **total** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **used_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, cluster_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Pipeline stage (see **Search and Analytics Cluster Disk Watermark Risk**): predict used_pct as forecast_pct algorithm=LLP5 future_timespan=30\n• Filters the current rows with `where 'forecast_pct+30d' > 75` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Search and Analytics Cluster Disk Watermark Risk**): table cluster_name, used_pct, 'forecast_pct+30d'\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Area chart (used percent with forecast), Table (clusters breaching planning threshold), Single value (clusters over watermark risk).",
+  "visualization": "Area chart (used percent with forecast), Table (clusters breaching planning threshold), Single value (clusters over watermark risk).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "elasticsearch"
+  ],
+  "equipmentModels": [
+    "elasticsearch_opensearch"
+  ]
+}

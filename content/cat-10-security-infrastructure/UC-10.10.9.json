@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.10.9",
+  "title": "YARA scan result ingestion and match alerting",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "YARA scanner JSON/CEF forwarded to Splunk",
+  "app": "Custom TA / HEC",
+  "spl": "index=yara sourcetype=yara:scan\n| search match=\"true\" OR match_count>0\n| table _time, host, rule_name, path, match_count, scanner_version\n| sort - _time",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Ingests YARA scanner output and alerts on any match or severity threshold.",
+  "value": "Ingests YARA scanner output and alerts on any match or severity threshold.",
+  "implementation": "Normalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom TA / HEC.\n• Ensure the following data sources are available: YARA scanner JSON/CEF forwarded to Splunk.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=yara sourcetype=yara:scan\n| search match=\"true\" OR match_count>0\n| table _time, host, rule_name, path, match_count, scanner_version\n| sort - _time\n```\n\nUnderstanding this SPL\n\n**YARA scan result ingestion and match alerting** — Ingests YARA scanner output and alerts on any match or severity threshold.\n\nDocumented **Data sources**: YARA scanner JSON/CEF forwarded to Splunk. **App/TA** (typical add-on context): Custom TA / HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: yara; **sourcetype**: yara:scan. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Detection type** for this use case: Operational metrics — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=yara, sourcetype=yara:scan. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **YARA scan result ingestion and match alerting**): table _time, host, rule_name, path, match_count, scanner_version\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Time chart, Single value\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Table, Time chart, Single value",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.",
+  "detectionType": "Operational metrics",
+  "securityDomain": "soc_operations"
+}

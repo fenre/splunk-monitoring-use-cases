@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "11.3.6",
+  "title": "Toll Fraud Detection (Cisco CUCM)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "CDR records (called party number, duration, time of day)",
+  "app": "UCM CDR analysis",
+  "spl": "index=voip sourcetype=\"cisco:ucm:cdr\"\n| where match(calledPartyNumber,\"^011|^00\") AND duration > 60\n| stats count, sum(duration) as total_min by callingPartyNumber, calledPartyNumber\n| where count > 10\n| sort -total_min",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Toll fraud causes significant financial loss. International premium-rate calls from compromised systems can cost thousands per hour.",
+  "value": "Toll fraud causes significant financial loss. International premium-rate calls from compromised systems can cost thousands per hour.",
+  "implementation": "Monitor CDR for international calls, premium-rate numbers (900, 976), and calls outside business hours. Baseline normal international calling patterns. Alert on anomalous patterns. Block suspicious numbers in real-time.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: UCM CDR analysis.\n• Ensure the following data sources are available: CDR records (called party number, duration, time of day).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor CDR for international calls, premium-rate numbers (900, 976), and calls outside business hours. Baseline normal international calling patterns. Alert on anomalous patterns. Block suspicious numbers in real-time.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=voip sourcetype=\"cisco:ucm:cdr\"\n| where match(calledPartyNumber,\"^011|^00\") AND duration > 60\n| stats count, sum(duration) as total_min by callingPartyNumber, calledPartyNumber\n| where count > 10\n| sort -total_min\n```\n\nUnderstanding this SPL\n\n**Toll Fraud Detection (Cisco CUCM)** — Toll fraud causes significant financial loss. International premium-rate calls from compromised systems can cost thousands per hour.\n\nDocumented **Data sources**: CDR records (called party number, duration, time of day). **App/TA** (typical add-on context): UCM CDR analysis. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: voip; **sourcetype**: cisco:ucm:cdr. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=voip, sourcetype=\"cisco:ucm:cdr\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where match(calledPartyNumber,\"^011|^00\") AND duration > 60` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by callingPartyNumber, calledPartyNumber** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count > 10` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (suspicious calls), Bar chart (international calls by destination), Timeline (unusual calling activity), Geo map (call destinations).",
+  "visualization": "Table (suspicious calls), Bar chart (international calls by destination), Timeline (unusual calling activity), Geo map (call destinations).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipmentModels": [
+    "cisco_ucm"
+  ],
+  "hardware": "Cisco Unified Communications Manager (CUCM), Unity Connection, IP Phone 7800 series, IP Phone 8800 series"
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.28",
+  "title": "Windows Firewall Rule Changes",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Windows Firewall With Advanced Security/Firewall` (EventCode 2004, 2005, 2006, 2033)",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-Windows Firewall With Advanced Security/Firewall\"\n  EventCode IN (2004, 2005, 2006, 2033)\n| eval action=case(EventCode=2004,\"Rule Added\",EventCode=2005,\"Rule Modified\",EventCode=2006,\"Rule Deleted\",EventCode=2033,\"Firewall Disabled\")\n| table _time, host, action, RuleName, ApplicationPath, Direction, Protocol\n| sort -_time",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.user All_Changes.object_category All_Changes.action span=1h\n| sort -count",
+  "cimModels": [
+    "Change"
+  ],
+  "description": "Unauthorized firewall rule changes can open attack vectors. Malware often disables the firewall or adds allow rules for C2 communication.",
+  "value": "Unauthorized firewall rule changes can open attack vectors. Malware often disables the firewall or adds allow rules for C2 communication.",
+  "implementation": "Enable the Windows Firewall audit log. EventCode 2004=rule added, 2005=modified, 2006=deleted, 2033=firewall disabled. Alert immediately on firewall disabled events. Track rule changes against change management records. Focus on inbound allow rules added for non-standard ports.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-Windows Firewall With Advanced Security/Firewall` (EventCode 2004, 2005, 2006, 2033).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the Windows Firewall audit log. EventCode 2004=rule added, 2005=modified, 2006=deleted, 2033=firewall disabled. Alert immediately on firewall disabled events. Track rule changes against change management records. Focus on inbound allow rules added for non-standard ports.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog source=\"WinEventLog:Microsoft-Windows-Windows Firewall With Advanced Security/Firewall\"\n  EventCode IN (2004, 2005, 2006, 2033)\n| eval action=case(EventCode=2004,\"Rule Added\",EventCode=2005,\"Rule Modified\",EventCode=2006,\"Rule Deleted\",EventCode=2033,\"Firewall Disabled\")\n| table _time, host, action, RuleName, ApplicationPath, Direction, Protocol\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Windows Firewall Rule Changes** — Unauthorized firewall rule changes can open attack vectors. Malware often disables the firewall or adds allow rules for C2 communication.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-Windows Firewall With Advanced Security/Firewall` (EventCode 2004, 2005, 2006, 2033). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **action** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Windows Firewall Rule Changes**): table _time, host, action, RuleName, ApplicationPath, Direction, Protocol\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.user All_Changes.object_category All_Changes.action span=1h\n| sort -count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Windows Firewall Rule Changes** — Unauthorized firewall rule changes can open attack vectors. Malware often disables the firewall or adds allow rules for C2 communication.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-Windows Firewall With Advanced Security/Firewall` (EventCode 2004, 2005, 2006, 2033). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (rule changes), Timeline, Single value (firewall disabled count — target: 0).",
+  "visualization": "Table (rule changes), Timeline, Single value (firewall disabled count — target: 0).",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

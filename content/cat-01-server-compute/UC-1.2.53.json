@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.53",
+  "title": "BitLocker Recovery Events",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-BitLocker/BitLocker Management` (EventCode 768, 770, 775, 846)",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-BitLocker*\"\n  EventCode IN (768, 770, 775, 846)\n| eval issue=case(EventCode=768,\"Recovery mode entered\",EventCode=770,\"Protection suspended\",EventCode=775,\"Recovery key used\",EventCode=846,\"Encryption failed\")\n| table _time, host, issue, VolumeName, RecoveryReason\n| sort -_time",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "BitLocker recovery mode triggers indicate TPM issues, boot configuration changes, or potential tampering with the boot chain. Each event requires investigation.",
+  "value": "BitLocker recovery mode triggers indicate TPM issues, boot configuration changes, or potential tampering with the boot chain. Each event requires investigation.",
+  "implementation": "Forward BitLocker Management and Operational logs. EventCode 768/775=recovery mode (TPM unsealing failed, boot integrity compromised). Common benign triggers: BIOS updates, boot order changes. Alert on recovery events — each one should be correlated with approved change windows. Track EventCode 770 (protection suspended) — ensure it's re-enabled within 24 hours.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-BitLocker/BitLocker Management` (EventCode 768, 770, 775, 846).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward BitLocker Management and Operational logs. EventCode 768/775=recovery mode (TPM unsealing failed, boot integrity compromised). Common benign triggers: BIOS updates, boot order changes. Alert on recovery events — each one should be correlated with approved change windows. Track EventCode 770 (protection suspended) — ensure it's re-enabled within 24 hours.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog source=\"WinEventLog:Microsoft-Windows-BitLocker*\"\n  EventCode IN (768, 770, 775, 846)\n| eval issue=case(EventCode=768,\"Recovery mode entered\",EventCode=770,\"Protection suspended\",EventCode=775,\"Recovery key used\",EventCode=846,\"Encryption failed\")\n| table _time, host, issue, VolumeName, RecoveryReason\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**BitLocker Recovery Events** — BitLocker recovery mode triggers indicate TPM issues, boot configuration changes, or potential tampering with the boot chain. Each event requires investigation.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-BitLocker/BitLocker Management` (EventCode 768, 770, 775, 846). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **issue** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **BitLocker Recovery Events**): table _time, host, issue, VolumeName, RecoveryReason\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (recovery events), Timeline, Single value (unresolved recoveries).",
+  "visualization": "Table (recovery events), Timeline, Single value (unresolved recoveries).",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

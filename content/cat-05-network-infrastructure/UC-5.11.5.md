@@ -1,0 +1,84 @@
+---
+id: "5.11.5"
+title: "Optical Transceiver Health Monitoring"
+criticality: "high"
+splunkPillar: "Observability"
+---
+
+# UC-5.11.5 · Optical Transceiver Health Monitoring
+
+## Description
+
+Optical transceivers fail gradually — Tx power drops, Rx power drifts, temperature climbs. By the time an interface goes down, the damage (packet loss, CRC errors, application impact) is already done. gNMI streaming of `/components/component` optic data at 60-second intervals enables predictive failure alerting: catch a dimming laser or overheating module hours before it causes an outage.
+
+## Value
+
+Optical transceivers fail gradually — Tx power drops, Rx power drifts, temperature climbs. By the time an interface goes down, the damage (packet loss, CRC errors, application impact) is already done. gNMI streaming of `/components/component` optic data at 60-second intervals enables predictive failure alerting: catch a dimming laser or overheating module hours before it causes an outage.
+
+## Implementation
+
+Subscribe to `/components/component/transceiver/state` at 60s intervals. Optic thresholds vary by type — SFP+ typically alarms at Rx < -14 dBm, QSFP28 at Rx < -21 dBm. Set warning at 3 dB above vendor alarm threshold. Track trends to predict failure: a steady decline of 0.5 dBm/week indicates a dying laser. Cross-reference with interface errors (UC-5.11.2) to correlate optic degradation with CRC/FCS errors.
+
+## Detailed Implementation
+
+Prerequisites
+• Install and configure the required add-on or app: Telegraf (`inputs.gnmi` plugin) → Splunk HEC.
+• Ensure the following data sources are available: gNMI path: `/components/component/transceiver/state` (output-power, input-power, laser-bias-current, temperature); Telegraf metric: `openconfig_platform`.
+• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+Step 1 — Configure data collection
+Subscribe to `/components/component/transceiver/state` at 60s intervals. Optic thresholds vary by type — SFP+ typically alarms at Rx < -14 dBm, QSFP28 at Rx < -21 dBm. Set warning at 3 dB above vendor alarm threshold. Track trends to predict failure: a steady decline of 0.5 dBm/week indicates a dying laser. Cross-reference with interface errors (UC-5.11.2) to correlate optic degradation with CRC/FCS errors.
+
+Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+| mstats latest("openconfig_platform.output_power_instant") AS tx_dbm, latest("openconfig_platform.input_power_instant") AS rx_dbm, latest("openconfig_platform.laser_bias_current_instant") AS bias_ma, latest("openconfig_platform.temperature_instant") AS temp_c WHERE index=gnmi_metrics BY host, name span=5m
+| where rx_dbm < -25 OR tx_dbm < -8 OR temp_c > 75
+| eval concern=case(rx_dbm < -28, "CRITICAL: Rx near failure", rx_dbm < -25, "WARNING: Rx degrading", tx_dbm < -8, "WARNING: Tx low output", temp_c > 85, "CRITICAL: Overheating", temp_c > 75, "WARNING: High temp", 1=1, "Check")
+| table _time, host, name, tx_dbm, rx_dbm, bias_ma, temp_c, concern
+| sort -temp_c
+```
+
+Understanding this SPL
+
+**Optical Transceiver Health Monitoring** — Optical transceivers fail gradually — Tx power drops, Rx power drifts, temperature climbs. By the time an interface goes down, the damage (packet loss, CRC errors, application impact) is already done. gNMI streaming of `/components/component` optic data at 60-second intervals enables predictive failure alerting: catch a dimming laser or overheating module hours before it causes an outage.
+
+Documented **Data sources**: gNMI path: `/components/component/transceiver/state` (output-power, input-power, laser-bias-current, temperature); Telegraf metric: `openconfig_platform`. **App/TA** (typical add-on context): Telegraf (`inputs.gnmi` plugin) → Splunk HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: gnmi_metrics.
+
+**Pipeline walkthrough**
+
+• Uses `mstats` to query metrics indexes (pre-aggregated metric data).
+• Filters the current rows with `where rx_dbm < -25 OR tx_dbm < -8 OR temp_c > 75` — typically the threshold or rule expression for this monitoring goal.
+• `eval` defines or adjusts **concern** — often to normalize units, derive a ratio, or prepare for thresholds.
+• Pipeline stage (see **Optical Transceiver Health Monitoring**): table _time, host, name, tx_dbm, rx_dbm, bias_ma, temp_c, concern
+• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+
+
+Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (optics near threshold), Line chart (Rx/Tx power trend over weeks), Heatmap (temperature across all ports), Gauge (worst-case margin).
+
+## SPL
+
+```spl
+| mstats latest("openconfig_platform.output_power_instant") AS tx_dbm, latest("openconfig_platform.input_power_instant") AS rx_dbm, latest("openconfig_platform.laser_bias_current_instant") AS bias_ma, latest("openconfig_platform.temperature_instant") AS temp_c WHERE index=gnmi_metrics BY host, name span=5m
+| where rx_dbm < -25 OR tx_dbm < -8 OR temp_c > 75
+| eval concern=case(rx_dbm < -28, "CRITICAL: Rx near failure", rx_dbm < -25, "WARNING: Rx degrading", tx_dbm < -8, "WARNING: Tx low output", temp_c > 85, "CRITICAL: Overheating", temp_c > 75, "WARNING: High temp", 1=1, "Check")
+| table _time, host, name, tx_dbm, rx_dbm, bias_ma, temp_c, concern
+| sort -temp_c
+```
+
+## Visualization
+
+Table (optics near threshold), Line chart (Rx/Tx power trend over weeks), Heatmap (temperature across all ports), Gauge (worst-case margin).
+
+## References
+
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

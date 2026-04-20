@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.21",
+  "title": "SWG Bypass Attempt Detection",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`zscaler:web`, endpoint proxy logs",
+  "app": "`Splunk_TA_zscaler`, Netskope Add-on for Splunk",
+  "spl": "index=proxy sourcetype=\"zscaler:web\" earliest=-24h\n| where match(lower(reason),\"(?i)bypass|tunnel|direct|pac\") OR match(lower(url),\"(?i)proxy\\.pac\")\n| stats count by user, src, reason\n| sort -count",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Network_Traffic.All_Traffic\n  by All_Traffic.user span=1h\n| where count > 200",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "description": "Detects attempts to reach direct IPs, misuse PAC files, or tunnel out of SWG inspection.",
+  "value": "Detects attempts to reach direct IPs, misuse PAC files, or tunnel out of SWG inspection.",
+  "implementation": "Correlate with firewall deny for non-standard ports. Tune for false positives from dev tools.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_zscaler`, Netskope Add-on for Splunk.\n• Ensure the following data sources are available: `zscaler:web`, endpoint proxy logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCorrelate with firewall deny for non-standard ports. Tune for false positives from dev tools.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"zscaler:web\" earliest=-24h\n| where match(lower(reason),\"(?i)bypass|tunnel|direct|pac\") OR match(lower(url),\"(?i)proxy\\.pac\")\n| stats count by user, src, reason\n| sort -count\n```\n\nUnderstanding this SPL\n\n**SWG Bypass Attempt Detection** — Detects attempts to reach direct IPs, misuse PAC files, or tunnel out of SWG inspection.\n\nDocumented **Data sources**: `zscaler:web`, endpoint proxy logs. **App/TA** (typical add-on context): `Splunk_TA_zscaler`, Netskope Add-on for Splunk. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: proxy; **sourcetype**: zscaler:web. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=proxy, sourcetype=\"zscaler:web\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where match(lower(reason),\"(?i)bypass|tunnel|direct|pac\") OR match(lower(url),\"(?i)proxy\\.pac\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by user, src, reason** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Network_Traffic.All_Traffic\n  by All_Traffic.user span=1h\n| where count > 200\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**SWG Bypass Attempt Detection** — Detects attempts to reach direct IPs, misuse PAC files, or tunnel out of SWG inspection.\n\nDocumented **Data sources**: `zscaler:web`, endpoint proxy logs. **App/TA** (typical add-on context): `Splunk_TA_zscaler`, Netskope Add-on for Splunk. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Filters the current rows with `where count > 200` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (bypass attempts), Bar chart (by user), Timeline.",
+  "visualization": "Table (bypass attempts), Bar chart (by user), Timeline.",
+  "references": [
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1572",
+    "T1090",
+    "T1048",
+    "T1573"
+  ],
+  "equipment": [
+    "netskope",
+    "zscaler"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "18.2.10",
+  "title": "Load Balancer Pool Health",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`vmware:nsx:lb_pool`",
+  "app": "`vmware_nsx_addon`, Avi if integrated",
+  "spl": "index=vmware sourcetype=\"vmware:nsx:lb_pool\" earliest=-24h\n| where member_status!=\"UP\" OR health_check_failures>0\n| stats count by pool_name, member_ip, member_status\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Monitors NSX Advanced Load Balancer / LB pool member up/down and health check failures for published apps.",
+  "value": "Monitors NSX Advanced Load Balancer / LB pool member up/down and health check failures for published apps.",
+  "implementation": "Map Avi or NSX LB API fields. Alert when active members < minimum for pool.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `vmware_nsx_addon`, Avi if integrated.\n• Ensure the following data sources are available: `vmware:nsx:lb_pool`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap Avi or NSX LB API fields. Alert when active members < minimum for pool.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:nsx:lb_pool\" earliest=-24h\n| where member_status!=\"UP\" OR health_check_failures>0\n| stats count by pool_name, member_ip, member_status\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Load Balancer Pool Health** — Monitors NSX Advanced Load Balancer / LB pool member up/down and health check failures for published apps.\n\nDocumented **Data sources**: `vmware:nsx:lb_pool`. **App/TA** (typical add-on context): `vmware_nsx_addon`, Avi if integrated. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:nsx:lb_pool. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:nsx:lb_pool\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where member_status!=\"UP\" OR health_check_failures>0` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by pool_name, member_ip, member_status** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unhealthy pools), Bar chart (failures by pool), Single value (pools in critical state).",
+  "visualization": "Table (unhealthy pools), Bar chart (failures by pool), Single value (pools in critical state).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "nsx",
+    "vmware"
+  ],
+  "hardware": "NSX ALB, LB service on Edge"
+}

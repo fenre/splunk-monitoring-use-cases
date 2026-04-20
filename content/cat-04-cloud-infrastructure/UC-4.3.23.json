@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.3.23",
+  "title": "VPC Service Controls Perimeter Violations",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Access Context Manager / VPC SC audit logs (perimeter violation events)",
+  "app": "`Splunk_TA_google-cloudplatform`",
+  "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"accesscontextmanager.googleapis.com\"\n| search \"violation\" OR \"perimeter\"\n| table _time protoPayload.authenticationInfo.principalEmail protoPayload.requestMetadata.callerIp resource\n| sort -_time",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "VPC Service Controls enforce network perimeter. Violations indicate data exfiltration attempts or misconfigured access. Critical for data perimeter security.",
+  "value": "VPC Service Controls enforce network perimeter. Violations indicate data exfiltration attempts or misconfigured access. Critical for data perimeter security.",
+  "implementation": "Enable VPC SC violation logging. Forward to Pub/Sub and Splunk. Alert on every violation. Correlate with principal, source IP, and resource. Use for perimeter tuning and incident response.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_google-cloudplatform`.\n• Ensure the following data sources are available: Access Context Manager / VPC SC audit logs (perimeter violation events).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable VPC SC violation logging. Forward to Pub/Sub and Splunk. Alert on every violation. Correlate with principal, source IP, and resource. Use for perimeter tuning and incident response.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"accesscontextmanager.googleapis.com\"\n| search \"violation\" OR \"perimeter\"\n| table _time protoPayload.authenticationInfo.principalEmail protoPayload.requestMetadata.callerIp resource\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**VPC Service Controls Perimeter Violations** — VPC Service Controls enforce network perimeter. Violations indicate data exfiltration attempts or misconfigured access. Critical for data perimeter security.\n\nDocumented **Data sources**: Access Context Manager / VPC SC audit logs (perimeter violation events). **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gcp; **sourcetype**: google:gcp:pubsub:message. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gcp, sourcetype=\"google:gcp:pubsub:message\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **VPC Service Controls Perimeter Violations**): table _time protoPayload.authenticationInfo.principalEmail protoPayload.requestMetadata.callerIp resource\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (principal, resource, violation), Timeline (violations), Map (source IPs).",
+  "visualization": "Table (principal, resource, violation), Timeline (violations), Map (source IPs).",
+  "references": [
+    {
+      "title": "Splunk_TA_google-cloudplatform",
+      "url": "https://splunkbase.splunk.com/app/3088"
+    }
+  ],
+  "mitreAttack": [
+    "T1562.007"
+  ],
+  "equipment": [
+    "gcp"
+  ]
+}

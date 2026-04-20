@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "15.3.13",
+  "title": "Environmental Sensor Battery Status",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Sensor management interface (battery_level_pct, last_report_time)",
+  "app": "SNMP modular input, custom (sensor API)",
+  "spl": "index=environment sourcetype=\"sensor:battery_status\"\n| eval hours_since_report=round((now()-last_report_time)/3600,1)\n| where battery_level_pct < 20 OR hours_since_report > 24\n| table sensor_id, zone, sensor_type, battery_level_pct, last_report_time, hours_since_report\n| sort battery_level_pct",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Wireless environmental sensor battery health; dead batteries create monitoring gaps and risk undetected temperature or humidity exceedances.",
+  "value": "Wireless environmental sensor battery health; dead batteries create monitoring gaps and risk undetected temperature or humidity exceedances.",
+  "implementation": "Poll sensor management interface (SNMP, API) for battery_level_pct and last_report_time. Poll daily or every 6 hours. Alert on battery <20% or no report in 24+ hours (possible dead battery). Maintain sensor inventory with battery replacement schedule. Report on sensors due for battery change.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP modular input, custom (sensor API).\n• Ensure the following data sources are available: Sensor management interface (battery_level_pct, last_report_time).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll sensor management interface (SNMP, API) for battery_level_pct and last_report_time. Poll daily or every 6 hours. Alert on battery <20% or no report in 24+ hours (possible dead battery). Maintain sensor inventory with battery replacement schedule. Report on sensors due for battery change.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=environment sourcetype=\"sensor:battery_status\"\n| eval hours_since_report=round((now()-last_report_time)/3600,1)\n| where battery_level_pct < 20 OR hours_since_report > 24\n| table sensor_id, zone, sensor_type, battery_level_pct, last_report_time, hours_since_report\n| sort battery_level_pct\n```\n\nUnderstanding this SPL\n\n**Environmental Sensor Battery Status** — Wireless environmental sensor battery health; dead batteries create monitoring gaps and risk undetected temperature or humidity exceedances.\n\nDocumented **Data sources**: Sensor management interface (battery_level_pct, last_report_time). **App/TA** (typical add-on context): SNMP modular input, custom (sensor API). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: environment; **sourcetype**: sensor:battery_status. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=environment, sourcetype=\"sensor:battery_status\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **hours_since_report** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where battery_level_pct < 20 OR hours_since_report > 24` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Environmental Sensor Battery Status**): table sensor_id, zone, sensor_type, battery_level_pct, last_report_time, hours_since_report\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (low battery sensors), Gauge (lowest battery %), Bar chart (sensors by battery level), Single value (sensors needing battery replacement).",
+  "visualization": "Table (low battery sensors), Gauge (lowest battery %), Bar chart (sensors by battery level), Single value (sensors needing battery replacement).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_generic"
+  ]
+}

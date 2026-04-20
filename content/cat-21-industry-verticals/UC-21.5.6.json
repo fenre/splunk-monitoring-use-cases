@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.5.6",
+  "title": "Haul Truck Fleet Utilization and Payload Tracking",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Oil, Gas, and Mining",
+  "dataSources": "`index=ot` `sourcetype=\"haultruck:telematics\"` fields `truck_id`, `payload_ton`, `engine_hours`, `loaded`",
+  "app": "Fleet management / onboard weighing via HEC",
+  "spl": "index=ot sourcetype=\"haultruck:telematics\"\n| where loaded=1 OR lower(loaded)=\"true\"\n| stats sum(payload_ton) as total_payload, sum(engine_hours) as total_hours by truck_id\n| eval tons_per_hour=round(total_payload/nullif(total_hours,0),1)\n| sort - total_payload\n| table truck_id, total_payload, total_hours, tons_per_hour",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Measuring truck active hours and payload improves fleet sizing, load-pass matching, and reduces per-ton haulage costs.",
+  "value": "Measuring truck active hours and payload improves fleet sizing, load-pass matching, and reduces per-ton haulage costs.",
+  "implementation": "Ingest load cycles with valid payload. Reconcile with scale house periodically. Use engine hours for maintenance scheduling alongside production KPIs. **Domain context:** Mining production metrics often reconcile truck counts with shovel/fleet management systems—empty haul vs loaded haul should be modeled. **Splunk:** `loaded=1 OR lower(loaded)=\"true\"` covers string/boolean variants; confirm with telematics vendor.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Fleet management / onboard weighing via HEC.\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"haultruck:telematics\"` fields `truck_id`, `payload_ton`, `engine_hours`, `loaded`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest load cycles with valid payload. Reconcile with scale house periodically. Use engine hours for maintenance scheduling alongside production KPIs. **Domain context:** Mining production metrics often reconcile truck counts with shovel/fleet management systems—empty haul vs loaded haul should be modeled. **Splunk:** `loaded=1 OR lower(loaded)=\"true\"` covers string/boolean variants; confirm with telematics vendor.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"haultruck:telematics\"\n| where loaded=1 OR lower(loaded)=\"true\"\n| stats sum(payload_ton) as total_payload, sum(engine_hours) as total_hours by truck_id\n| eval tons_per_hour=round(total_payload/nullif(total_hours,0),1)\n| sort - total_payload\n| table truck_id, total_payload, total_hours, tons_per_hour\n```\n\nUnderstanding this SPL\n\n**Haul Truck Fleet Utilization and Payload Tracking** — Measuring truck active hours and payload improves fleet sizing, load-pass matching, and reduces per-ton haulage costs.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"haultruck:telematics\"` fields `truck_id`, `payload_ton`, `engine_hours`, `loaded`. **App/TA** (typical add-on context): Fleet management / onboard weighing via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: haultruck:telematics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"haultruck:telematics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where loaded=1 OR lower(loaded)=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by truck_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **tons_per_hour** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Haul Truck Fleet Utilization and Payload Tracking**): table truck_id, total_payload, total_hours, tons_per_hour\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (payload by truck), Scatter (hours vs tons), Fleet summary.",
+  "visualization": "Bar chart (payload by truck), Scatter (hours vs tons), Fleet summary.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

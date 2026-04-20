@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.3.7",
+  "title": "Distributed Trace Sampling and Coverage",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Trace metadata, sampling flags, span counts per trace",
+  "app": "APM/tracing TAs (Jaeger, Tempo, OTLP)",
+  "spl": "index=traces sourcetype=\"trace:span\"\n| bin _time span=1h\n| stats count as spans, dc(trace_id) as traces, avg(sample_rate) as avg_sample by service, _time\n| eval spans_per_trace=spans/traces\n| where spans_per_trace < 5 OR avg_sample < 0.01",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Trace sampling rate and coverage affect observability. Monitoring sampling decisions and trace completeness supports tuning and gap detection.",
+  "value": "Trace sampling rate and coverage affect observability. Monitoring sampling decisions and trace completeness supports tuning and gap detection.",
+  "implementation": "Ingest trace metadata and sampling rates. Alert when sampling drops below target or trace completeness (spans per trace) is low for critical services. Report on coverage by service and env.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: APM/tracing TAs (Jaeger, Tempo, OTLP).\n• Ensure the following data sources are available: Trace metadata, sampling flags, span counts per trace.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest trace metadata and sampling rates. Alert when sampling drops below target or trace completeness (spans per trace) is low for critical services. Report on coverage by service and env.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=traces sourcetype=\"trace:span\"\n| bin _time span=1h\n| stats count as spans, dc(trace_id) as traces, avg(sample_rate) as avg_sample by service, _time\n| eval spans_per_trace=spans/traces\n| where spans_per_trace < 5 OR avg_sample < 0.01\n```\n\nUnderstanding this SPL\n\n**Distributed Trace Sampling and Coverage** — Trace sampling rate and coverage affect observability. Monitoring sampling decisions and trace completeness supports tuning and gap detection.\n\nDocumented **Data sources**: Trace metadata, sampling flags, span counts per trace. **App/TA** (typical add-on context): APM/tracing TAs (Jaeger, Tempo, OTLP). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: traces; **sourcetype**: trace:span. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=traces, sourcetype=\"trace:span\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by service, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **spans_per_trace** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where spans_per_trace < 5 OR avg_sample < 0.01` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (sampling rate by service), Table (low-coverage services), Bar chart (spans per trace).",
+  "visualization": "Line chart (sampling rate by service), Table (low-coverage services), Bar chart (spans per trace).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipmentModels": [
+    "cisco_aci"
+  ]
+}

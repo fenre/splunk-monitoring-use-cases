@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.1.2",
+  "title": "Container OOM Kills",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=docker:events`, host `dmesg`/syslog",
+  "app": "Splunk Connect for Docker, host syslog",
+  "spl": "index=os sourcetype=syslog \"Memory cgroup out of memory\" OR \"oom-kill\"\n| rex \"task (?<process>\\S+)\"\n| table _time host process _raw",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "OOM kills mean the container exceeded its memory limit. The application is either leaking memory or undersized. Data loss is likely.",
+  "value": "OOM kills mean the container exceeded its memory limit. The application is either leaking memory or undersized. Data loss is likely.",
+  "implementation": "Collect Docker events and forward host syslog. Alert immediately on any OOM event. Include container memory limit in the alert context to aid right-sizing decisions.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Connect for Docker, host syslog.\n• Ensure the following data sources are available: `sourcetype=docker:events`, host `dmesg`/syslog.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect Docker events and forward host syslog. Alert immediately on any OOM event. Include container memory limit in the alert context to aid right-sizing decisions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog \"Memory cgroup out of memory\" OR \"oom-kill\"\n| rex \"task (?<process>\\S+)\"\n| table _time host process _raw\n```\n\nUnderstanding this SPL\n\n**Container OOM Kills** — OOM kills mean the container exceeded its memory limit. The application is either leaking memory or undersized. Data loss is likely.\n\nDocumented **Data sources**: `sourcetype=docker:events`, host `dmesg`/syslog. **App/TA** (typical add-on context): Splunk Connect for Docker, host syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• Pipeline stage (see **Container OOM Kills**): table _time host process _raw\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Events timeline, Single value (OOM count last 24h), Table with container details.",
+  "visualization": "Events timeline, Single value (OOM count last 24h), Table with container details.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "docker",
+    "syslog"
+  ]
+}

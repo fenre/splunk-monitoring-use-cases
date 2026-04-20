@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.3.3",
+  "title": "VM Placement and Live Migration Failure Rate",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=wineventlog` `sourcetype=\"WinEventLog:Microsoft-Windows-Hyper-V-High-Availability/Admin\"` with fields `host`, `EventCode`, `Message`",
+  "app": "Windows Event Forwarding, Splunk Add-on for Microsoft Windows",
+  "spl": "index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Hyper-V-High-Availability/Admin\" earliest=-24h EventCode=21111 OR EventCode=21110\n| stats count as mig_fail by host, EventCode\n| where mig_fail>=3\n| sort -mig_fail",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Failed live migrations strand VMs on stressed nodes and can interrupt maintenance. Trending Hyper-V migration failures by reason code highlights network, CSV, or CPU pressure before scheduled patching windows.",
+  "value": "Failed live migrations strand VMs on stressed nodes and can interrupt maintenance. Trending Hyper-V migration failures by reason code highlights network, CSV, or CPU pressure before scheduled patching windows.",
+  "implementation": "(1) Enable WEF subscription for Hyper-V HA admin log on all HCI nodes; (2) map EventCode meanings in a lookup; (3) alert on repeated migration failures per host; (4) correlate with CSV disconnect events in the same time window.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Windows Event Forwarding, Splunk Add-on for Microsoft Windows.\n• Ensure the following data sources are available: `index=wineventlog` `sourcetype=\"WinEventLog:Microsoft-Windows-Hyper-V-High-Availability/Admin\"` with fields `host`, `EventCode`, `Message`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Enable WEF subscription for Hyper-V HA admin log on all HCI nodes; (2) map EventCode meanings in a lookup; (3) alert on repeated migration failures per host; (4) correlate with CSV disconnect events in the same time window.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Hyper-V-High-Availability/Admin\" earliest=-24h EventCode=21111 OR EventCode=21110\n| stats count as mig_fail by host, EventCode\n| where mig_fail>=3\n| sort -mig_fail\n```\n\nUnderstanding this SPL\n\n**VM Placement and Live Migration Failure Rate** — Failed live migrations strand VMs on stressed nodes and can interrupt maintenance. Trending Hyper-V migration failures by reason code highlights network, CSV, or CPU pressure before scheduled patching windows.\n\nDocumented **Data sources**: `index=wineventlog` `sourcetype=\"WinEventLog:Microsoft-Windows-Hyper-V-High-Availability/Admin\"` with fields `host`, `EventCode`, `Message`. **App/TA** (typical add-on context): Windows Event Forwarding, Splunk Add-on for Microsoft Windows. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Microsoft-Windows-Hyper-V-High-Availability/Admin. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Microsoft-Windows-Hyper-V-High-Availability/Admin\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, EventCode** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where mig_fail>=3` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (failures by host), Table (EventCode breakdown), Timeline (migration failures).",
+  "visualization": "Bar chart (failures by host), Table (EventCode breakdown), Timeline (migration failures).",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "hardware": "Windows Server Azure Stack HCI hosts"
+}

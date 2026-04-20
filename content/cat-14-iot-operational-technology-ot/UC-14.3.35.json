@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.35",
+  "title": "Industrial Alarm Management via OPC-UA",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=edge-hub-logs` sourcetype=splunk_edge_hub_opcua alarm_event, `index=edge-hub-health` sourcetype=edge_hub",
+  "app": "Splunk Edge Hub (OPC-UA A&E client), Splunk OT Intelligence",
+  "premiumApps": [
+    "Splunk Edge Hub",
+    "Splunk OT Intelligence"
+  ],
+  "spl": "index=edge-hub-logs sourcetype=splunk_edge_hub_opcua alarm_event=true\n| bin _time span=1m\n| stats count as alarm_count, latest(alarm_severity) as severity, latest(alarm_message) as msg by source_node_id, _time\n| where severity=\"HIGH\" OR severity=\"CRITICAL\"\n| eval acknowledgment_status=if(isnotnull(acknowledged_time), \"ACK\", \"UNACK\")\n| where acknowledgment_status=\"UNACK\"",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Centralizes alarm processing from multiple PLCs via OPC-UA Alarms & Events service, preventing missed critical alerts.",
+  "value": "Centralizes alarm processing from multiple PLCs via OPC-UA Alarms & Events service, preventing missed critical alerts.",
+  "implementation": "Configure OPC-UA in Advanced Settings → OPC-UA tab with Alarms & Events subscription enabled. Define event filters for alarm severity levels (High, Critical). Edge Hub subscribes to server's Alarms & Events namespace and logs all alarm state changes (triggered, acknowledged, cleared) to edge-hub-logs (sourcetype=splunk_edge_hub_opcua). Store alarm events locally via 100K backlog for resilience. Implement alarm acknowledgment workflow: operator ack in Splunk → webhook → OPC-UA Acknowledge operation. Color LED ring based on highest unacknowledged severity (red=critical, orange=high).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (OPC-UA A&E client), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-logs` sourcetype=splunk_edge_hub_opcua alarm_event, `index=edge-hub-health` sourcetype=edge_hub.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure OPC-UA in Advanced Settings → OPC-UA tab with Alarms & Events subscription enabled. Define event filters for alarm severity levels (High, Critical). Edge Hub subscribes to server's Alarms & Events namespace and logs all alarm state changes (triggered, acknowledged, cleared) to edge-hub-logs (sourcetype=splunk_edge_hub_opcua). Store alarm events locally via 100K backlog for resilience. Implement alarm acknowledgment workflow: operator ack in Splunk → webhook → OPC-UA Acknowledge operati…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=splunk_edge_hub_opcua alarm_event=true\n| bin _time span=1m\n| stats count as alarm_count, latest(alarm_severity) as severity, latest(alarm_message) as msg by source_node_id, _time\n| where severity=\"HIGH\" OR severity=\"CRITICAL\"\n| eval acknowledgment_status=if(isnotnull(acknowledged_time), \"ACK\", \"UNACK\")\n| where acknowledgment_status=\"UNACK\"\n```\n\nUnderstanding this SPL\n\n**Industrial Alarm Management via OPC-UA** — Centralizes alarm processing from multiple PLCs via OPC-UA Alarms & Events service, preventing missed critical alerts.\n\nDocumented **Data sources**: `index=edge-hub-logs` sourcetype=splunk_edge_hub_opcua alarm_event, `index=edge-hub-health` sourcetype=edge_hub. **App/TA** (typical add-on context): Splunk Edge Hub (OPC-UA A&E client), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: splunk_edge_hub_opcua. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=splunk_edge_hub_opcua. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by source_node_id, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where severity=\"HIGH\" OR severity=\"CRITICAL\"` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **acknowledgment_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where acknowledgment_status=\"UNACK\"` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alarm frequency timeline, severity distribution pie, acknowledgment status list.",
+  "visualization": "Alarm frequency timeline, severity distribution pie, acknowledgment status list.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.",
+  "equipment": [
+    "edge_hub",
+    "opcua"
+  ]
+}

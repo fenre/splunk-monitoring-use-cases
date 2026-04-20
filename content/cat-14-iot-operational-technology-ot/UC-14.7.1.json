@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.7.1",
+  "title": "Litmus Edge Gateway Connectivity Health",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=ot` `sourcetype=\"litmus:health\"` fields `gateway_id`, `status`, `online`",
+  "app": "Litmus Edge (Splunk HEC connector)",
+  "spl": "index=ot sourcetype=\"litmus:health\"\n| eval is_online=case(\n    match(lower(status),\"online|up|connected|running\"), 1,\n    match(lower(status),\"offline|down|disconnected|stopped\"), 0,\n    online=\"true\" OR online=\"1\", 1,\n    true(), 0)\n| stats latest(is_online) as online_now, latest(_time) as last_health by gateway_id, site_id\n| where online_now=0 OR isnull(online_now)\n| eval minutes_since=round((now()-last_health)/60,1)\n| table gateway_id, site_id, online_now, last_health, minutes_since",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Gateway offline events stop OT data from reaching Splunk; early detection reduces blind spots in plant visibility.",
+  "value": "Gateway offline events stop OT data from reaching Splunk; early detection reduces blind spots in plant visibility.",
+  "implementation": "Enable the Litmus Edge Splunk HEC destination and send periodic health/heartbeat JSON. Ensure gateway_id and site_id are present. Alert if no healthy event for 2x the expected interval.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Litmus Edge (Splunk HEC connector).\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"litmus:health\"` fields `gateway_id`, `status`, `online`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the Litmus Edge Splunk HEC destination and send periodic health/heartbeat JSON. Ensure gateway_id and site_id are present. Alert if no healthy event for 2x the expected interval.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"litmus:health\"\n| eval is_online=case(\n    match(lower(status),\"online|up|connected|running\"), 1,\n    match(lower(status),\"offline|down|disconnected|stopped\"), 0,\n    online=\"true\" OR online=\"1\", 1,\n    true(), 0)\n| stats latest(is_online) as online_now, latest(_time) as last_health by gateway_id, site_id\n| where online_now=0 OR isnull(online_now)\n| eval minutes_since=round((now()-last_health)/60,1)\n| table gateway_id, site_id, online_now, last_health, minutes_since\n```\n\nUnderstanding this SPL\n\n**Litmus Edge Gateway Connectivity Health** — Gateway offline events stop OT data from reaching Splunk; early detection reduces blind spots in plant visibility.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"litmus:health\"` fields `gateway_id`, `status`, `online`. **App/TA** (typical add-on context): Litmus Edge (Splunk HEC connector). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: litmus:health. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"litmus:health\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **is_online** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by gateway_id, site_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where online_now=0 OR isnull(online_now)` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **minutes_since** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Litmus Edge Gateway Connectivity Health**): table gateway_id, site_id, online_now, last_health, minutes_since\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (gateways offline), Table (gateway, site, last health), Status indicator (green/red per gateway).",
+  "visualization": "Single value (gateways offline), Table (gateway, site, last health), Status indicator (green/red per gateway).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

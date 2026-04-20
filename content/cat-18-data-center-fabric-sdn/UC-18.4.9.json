@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "18.4.9",
+  "title": "Nexus Dashboard Site and Fabric Assurance Health Score",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=cisco_dc` `sourcetype=\"cisco:nd:site_health\"` with fields `site_name`, `fabric_name`, `assurance_score`, `risk_level`, `open_findings`",
+  "app": "Cisco DC Networking Application (Splunkbase 7777), Nexus Dashboard REST export",
+  "spl": "index=cisco_dc sourcetype=\"cisco:nd:site_health\" earliest=-24h\n| stats latest(assurance_score) as score latest(risk_level) as risk latest(open_findings) as findings by site_name, fabric_name\n| where score < 85 OR match(lower(risk),\"(?i)high|critical\")\n| sort score\n| table site_name, fabric_name, score, risk, findings",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity, Alerts.signature, Alerts.app | sort - count",
+  "cimModels": [
+    "Alerts"
+  ],
+  "description": "Site-level assurance scores roll up connectivity, best-practice violations, and capacity risk across all managed switches. Surfacing declining scores in Splunk gives data center operators a single trend line to prioritize remediation before Insights opens critical anomalies during business peaks.",
+  "value": "Site-level assurance scores roll up connectivity, best-practice violations, and capacity risk across all managed switches. Surfacing declining scores in Splunk gives data center operators a single trend line to prioritize remediation before Insights opens critical anomalies during business peaks.",
+  "implementation": "(1) Schedule API pull from Nexus Dashboard Assurance or ingest pre-aggregated JSON via HEC. (2) Map score scale to your SLA colors. (3) Correlate drops with NDI anomalies (UC-18.4.1) and compliance drift (UC-18.4.2).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cisco DC Networking Application (Splunkbase 7777), Nexus Dashboard REST export.\n• Ensure the following data sources are available: `index=cisco_dc` `sourcetype=\"cisco:nd:site_health\"` with fields `site_name`, `fabric_name`, `assurance_score`, `risk_level`, `open_findings`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Schedule API pull from Nexus Dashboard Assurance or ingest pre-aggregated JSON via HEC. (2) Map score scale to your SLA colors. (3) Correlate drops with NDI anomalies (UC-18.4.1) and compliance drift (UC-18.4.2).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cisco_dc sourcetype=\"cisco:nd:site_health\" earliest=-24h\n| stats latest(assurance_score) as score latest(risk_level) as risk latest(open_findings) as findings by site_name, fabric_name\n| where score < 85 OR match(lower(risk),\"(?i)high|critical\")\n| sort score\n| table site_name, fabric_name, score, risk, findings\n```\n\nUnderstanding this SPL\n\n**Nexus Dashboard Site and Fabric Assurance Health Score** — Site-level assurance scores roll up connectivity, best-practice violations, and capacity risk across all managed switches. Surfacing declining scores in Splunk gives data center operators a single trend line to prioritize remediation before Insights opens critical anomalies during business peaks.\n\nDocumented **Data sources**: `index=cisco_dc` `sourcetype=\"cisco:nd:site_health\"` with fields `site_name`, `fabric_name`, `assurance_score`, `risk_level`, `open_findings`. **App/TA** (typical add-on context): Cisco DC Networking Application (Splunkbase 7777), Nexus Dashboard REST export. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cisco_dc; **sourcetype**: cisco:nd:site_health. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cisco_dc, sourcetype=\"cisco:nd:site_health\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by site_name, fabric_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where score < 85 OR match(lower(risk),\"(?i)high|critical\")` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Nexus Dashboard Site and Fabric Assurance Health Score**): table site_name, fabric_name, score, risk, findings\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity, Alerts.signature, Alerts.app | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Nexus Dashboard Site and Fabric Assurance Health Score** — Site-level assurance scores roll up connectivity, best-practice violations, and capacity risk across all managed switches. Surfacing declining scores in Splunk gives data center operators a single trend line to prioritize remediation before Insights opens critical anomalies during business peaks.\n\nDocumented **Data sources**: `index=cisco_dc` `sourcetype=\"cisco:nd:site_health\"` with fields `site_name`, `fabric_name`, `assurance_score`, `risk_level`, `open_findings`. **App/TA** (typical add-on context): Cisco DC Networking Application (Splunkbase 7777), Nexus Dashboard REST export. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Alerts.Alerts` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (worst site score), Bar chart (score by fabric), Table (sites below threshold).",
+  "visualization": "Single value (worst site score), Bar chart (score by fabric), Table (sites below threshold).",
+  "references": [
+    {
+      "title": "Cisco DC Networking Application",
+      "url": "https://splunkbase.splunk.com/app/7777"
+    },
+    {
+      "title": "CIM: Alerts",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_nexus"
+  ],
+  "hardware": "Nexus Dashboard, NDFC-managed fabrics"
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.49",
+  "title": "Sound Level & Frequency Band Monitoring for Regulatory Compliance",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=edge-hub-data` metric_name=sound_level_db OR metric_name=frequency_band_power, `sourcetype=edge_hub`",
+  "app": "Splunk Edge Hub (stereo microphone + custom container), gRPC SDK",
+  "premiumApps": [
+    "Splunk Edge Hub"
+  ],
+  "spl": "| mstats avg(sound_level_db) as avg_db, max(sound_level_db) as peak_db by location, _time span=1h\n| stats avg(avg_db) as hourly_avg_db, max(peak_db) as hourly_peak_db by location\n| eval osha_exposure_rating=case(\n    hourly_avg_db >= 90, \"NO_PROTECTION_REQUIRED\",\n    hourly_avg_db >= 85, \"HEARING_PROTECTION_REQUIRED\",\n    1=1, \"SAFE\")\n| where osha_exposure_rating=\"HEARING_PROTECTION_REQUIRED\"",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Monitors workplace noise levels to ensure OSHA compliance (90 dB over 8 hours) and tracks frequency bands for hearing loss risk.",
+  "value": "Monitors workplace noise levels to ensure OSHA compliance (90 dB over 8 hours) and tracks frequency bands for hearing loss risk.",
+  "implementation": "Deploy Edge Hub with stereo microphone in warehouse/factory/airport locations. Configure 1-hour aggregation for OSHA 8-hour TWA (time-weighted average). Build custom container that computes: (1) dB(A) sound pressure level (apply A-weighting curve), (2) frequency band powers (125Hz, 250Hz, 500Hz, 1kHz, 2kHz, 4kHz, 8kHz octave bands). Store hourly averages in edge-hub-data metrics. Alert if hourly average exceeds 85 dB (OSHA hearing protection threshold). Log high-frequency band power (4-8kHz) for hearing loss risk assessment. Note: Do not stream raw audio; only log processed metrics for privacy.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (stereo microphone + custom container), gRPC SDK.\n• Ensure the following data sources are available: `index=edge-hub-data` metric_name=sound_level_db OR metric_name=frequency_band_power, `sourcetype=edge_hub`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Edge Hub with stereo microphone in warehouse/factory/airport locations. Configure 1-hour aggregation for OSHA 8-hour TWA (time-weighted average). Build custom container that computes: (1) dB(A) sound pressure level (apply A-weighting curve), (2) frequency band powers (125Hz, 250Hz, 500Hz, 1kHz, 2kHz, 4kHz, 8kHz octave bands). Store hourly averages in edge-hub-data metrics. Alert if hourly average exceeds 85 dB (OSHA hearing protection threshold). Log high-frequency band power (4-8kHz) for…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| mstats avg(sound_level_db) as avg_db, max(sound_level_db) as peak_db by location, _time span=1h\n| stats avg(avg_db) as hourly_avg_db, max(peak_db) as hourly_peak_db by location\n| eval osha_exposure_rating=case(\n    hourly_avg_db >= 90, \"NO_PROTECTION_REQUIRED\",\n    hourly_avg_db >= 85, \"HEARING_PROTECTION_REQUIRED\",\n    1=1, \"SAFE\")\n| where osha_exposure_rating=\"HEARING_PROTECTION_REQUIRED\"\n```\n\nUnderstanding this SPL\n\n**Sound Level & Frequency Band Monitoring for Regulatory Compliance** — Monitors workplace noise levels to ensure OSHA compliance (90 dB over 8 hours) and tracks frequency bands for hearing loss risk.\n\nDocumented **Data sources**: `index=edge-hub-data` metric_name=sound_level_db OR metric_name=frequency_band_power, `sourcetype=edge_hub`. **App/TA** (typical add-on context): Splunk Edge Hub (stereo microphone + custom container), gRPC SDK. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `mstats` to query metrics indexes (pre-aggregated metric data).\n• `stats` rolls up events into metrics; results are split **by location** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **osha_exposure_rating** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where osha_exposure_rating=\"HEARING_PROTECTION_REQUIRED\"` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Noise level trend by location, frequency band heatmap, OSHA compliance status.",
+  "visualization": "Noise level trend by location, frequency band heatmap, OSHA compliance status.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "edge_hub"
+  ]
+}

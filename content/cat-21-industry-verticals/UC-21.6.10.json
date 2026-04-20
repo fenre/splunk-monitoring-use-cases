@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.6.10",
+  "title": "Mobile POS Device Battery and Connectivity",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Retail and E-Commerce",
+  "dataSources": "`index=retail` `sourcetype=\"mpos:device\"` (device_id, store_id, battery_pct, rssi_dbm, last_seen_epoch)",
+  "app": "MDM / mPOS telemetry via HEC",
+  "spl": "index=retail sourcetype=\"mpos:device\"\n| eval age_sec=now()-last_seen_epoch\n| eval at_risk=if(battery_pct < 20 OR rssi_dbm < -80 OR age_sec > 300, 1, 0)\n| where at_risk=1\n| stats latest(battery_pct) as batt, latest(rssi_dbm) as rssi, max(age_sec) as max_age by store_id, device_id\n| sort store_id, - max_age\n| table store_id, device_id, batt, rssi, max_age",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "mPOS devices that drop offline or run low on battery interrupt line-busting during peaks; proactive swaps reduce abandoned transactions.",
+  "value": "mPOS devices that drop offline or run low on battery interrupt line-busting during peaks; proactive swaps reduce abandoned transactions.",
+  "implementation": "Ingest periodic telemetry from MDM or the payment app SDK. Map `device_id` to assigned associate in a lookup for dispatch. Exclude devices in charging cradles if `docked` is available. **Domain context:** mPOS reliability affects peak-hour throughput; PCI and labor policies may govern device reassignment workflows. **Splunk:** `now()-last_seen_epoch` on stale devices—confirm MDM poll interval to avoid false offline.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: MDM / mPOS telemetry via HEC.\n• Ensure the following data sources are available: `index=retail` `sourcetype=\"mpos:device\"` (device_id, store_id, battery_pct, rssi_dbm, last_seen_epoch).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest periodic telemetry from MDM or the payment app SDK. Map `device_id` to assigned associate in a lookup for dispatch. Exclude devices in charging cradles if `docked` is available. **Domain context:** mPOS reliability affects peak-hour throughput; PCI and labor policies may govern device reassignment workflows. **Splunk:** `now()-last_seen_epoch` on stale devices—confirm MDM poll interval to avoid false offline.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=retail sourcetype=\"mpos:device\"\n| eval age_sec=now()-last_seen_epoch\n| eval at_risk=if(battery_pct < 20 OR rssi_dbm < -80 OR age_sec > 300, 1, 0)\n| where at_risk=1\n| stats latest(battery_pct) as batt, latest(rssi_dbm) as rssi, max(age_sec) as max_age by store_id, device_id\n| sort store_id, - max_age\n| table store_id, device_id, batt, rssi, max_age\n```\n\nUnderstanding this SPL\n\n**Mobile POS Device Battery and Connectivity** — mPOS devices that drop offline or run low on battery interrupt line-busting during peaks; proactive swaps reduce abandoned transactions.\n\nDocumented **Data sources**: `index=retail` `sourcetype=\"mpos:device\"` (device_id, store_id, battery_pct, rssi_dbm, last_seen_epoch). **App/TA** (typical add-on context): MDM / mPOS telemetry via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: retail; **sourcetype**: mpos:device. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=retail, sourcetype=\"mpos:device\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **age_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **at_risk** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where at_risk=1` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by store_id, device_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Mobile POS Device Battery and Connectivity**): table store_id, device_id, batt, rssi, max_age\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (at-risk devices), Histogram (battery distribution), Map (store locations if lat/long present).",
+  "visualization": "Table (at-risk devices), Histogram (battery distribution), Map (store locations if lat/long present).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

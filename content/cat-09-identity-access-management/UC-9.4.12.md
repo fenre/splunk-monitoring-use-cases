@@ -1,0 +1,86 @@
+---
+id: "9.4.12"
+title: "RADIUS / TACACS+ Server Response Time"
+criticality: "high"
+splunkPillar: "Security"
+---
+
+# UC-9.4.12 · RADIUS / TACACS+ Server Response Time
+
+## Description
+
+Authentication server latency and availability for network device auth; slow or unavailable RADIUS/TACACS+ blocks admin access to routers and switches.
+
+## Value
+
+Authentication server latency and availability for network device auth; slow or unavailable RADIUS/TACACS+ blocks admin access to routers and switches.
+
+## Implementation
+
+Run radtest (FreeRADIUS) or equivalent probe against RADIUS servers every 60 seconds. For TACACS+, use tacacs_plus Python library or custom script. Ingest probe results with response time. Forward NAS syslog (e.g., Cisco, Arista) for accounting and auth events. Alert on avg response >500ms or any probe timeout. Correlate with NAS auth failures to distinguish server vs network issues.
+
+## Detailed Implementation
+
+Prerequisites
+• Install and configure the required add-on or app: Custom scripted input (radtest, tacacs_plus probe), syslog from NAS devices.
+• Ensure the following data sources are available: RADIUS accounting logs, NAS syslog, synthetic probe results.
+• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+Step 1 — Configure data collection
+Run radtest (FreeRADIUS) or equivalent probe against RADIUS servers every 60 seconds. For TACACS+, use tacacs_plus Python library or custom script. Ingest probe results with response time. Forward NAS syslog (e.g., Cisco, Arista) for accounting and auth events. Alert on avg response >500ms or any probe timeout. Correlate with NAS auth failures to distinguish server vs network issues.
+
+Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+index=radius sourcetype="radius:probe"
+| bin _time span=5m
+| stats avg(response_ms) as avg_ms, max(response_ms) as max_ms, count(eval(response_ms>2000)) as slow_count by server, _time
+| where avg_ms > 500 OR max_ms > 2000 OR slow_count > 0
+| table _time, server, avg_ms, max_ms, slow_count
+```
+
+Understanding this SPL
+
+**RADIUS / TACACS+ Server Response Time** — Authentication server latency and availability for network device auth; slow or unavailable RADIUS/TACACS+ blocks admin access to routers and switches.
+
+Documented **Data sources**: RADIUS accounting logs, NAS syslog, synthetic probe results. **App/TA** (typical add-on context): Custom scripted input (radtest, tacacs_plus probe), syslog from NAS devices. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: radius; **sourcetype**: radius:probe. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+
+**Pipeline walkthrough**
+
+• Scopes the data: index=radius, sourcetype="radius:probe". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+• Discretizes time or numeric ranges with `bin`/`bucket`.
+• `stats` rolls up events into metrics; results are split **by server, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• Filters the current rows with `where avg_ms > 500 OR max_ms > 2000 OR slow_count > 0` — typically the threshold or rule expression for this monitoring goal.
+• Pipeline stage (see **RADIUS / TACACS+ Server Response Time**): table _time, server, avg_ms, max_ms, slow_count
+
+
+Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (response time by server), Table (slow probes), Single value (current avg latency), Status grid (server × health).
+
+## SPL
+
+```spl
+index=radius sourcetype="radius:probe"
+| bin _time span=5m
+| stats avg(response_ms) as avg_ms, max(response_ms) as max_ms, count(eval(response_ms>2000)) as slow_count by server, _time
+| where avg_ms > 500 OR max_ms > 2000 OR slow_count > 0
+| table _time, server, avg_ms, max_ms, slow_count
+```
+
+## Visualization
+
+Line chart (response time by server), Table (slow probes), Single value (current avg latency), Status grid (server × health).
+
+## Known False Positives
+
+Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+
+## References
+
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

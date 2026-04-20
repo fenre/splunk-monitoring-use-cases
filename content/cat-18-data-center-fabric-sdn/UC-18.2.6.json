@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "18.2.6",
+  "title": "Distributed Firewall Rule Hit Rate Analysis",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=vmware:nsx:dfw`",
+  "app": "`vmware_nsx_addon`",
+  "spl": "index=vmware sourcetype=\"vmware:nsx:dfw\" earliest=-7d\n| bin _time span=1d\n| stats count by _time, rule_id, rule_name\n| eventstats avg(count) as baseline by rule_id\n| where count < baseline*0.2 OR count > baseline*5\n| table _time, rule_id, rule_name, count, baseline",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Baselines hits per DFW rule and flags sudden drops (unused or bypassed) or spikes (attack or misconfiguration) — complements UC-18.2.1 volume view.",
+  "value": "Baselines hits per DFW rule and flags sudden drops (unused or bypassed) or spikes (attack or misconfiguration) — complements UC-18.2.1 volume view.",
+  "implementation": "Requires ≥7 days of data for baseline. Exclude ephemeral rules by lookup. Alert on zero-hit critical allow rules.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `vmware_nsx_addon`.\n• Ensure the following data sources are available: `sourcetype=vmware:nsx:dfw`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRequires ≥7 days of data for baseline. Exclude ephemeral rules by lookup. Alert on zero-hit critical allow rules.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:nsx:dfw\" earliest=-7d\n| bin _time span=1d\n| stats count by _time, rule_id, rule_name\n| eventstats avg(count) as baseline by rule_id\n| where count < baseline*0.2 OR count > baseline*5\n| table _time, rule_id, rule_name, count, baseline\n```\n\nUnderstanding this SPL\n\n**Distributed Firewall Rule Hit Rate Analysis** — Baselines hits per DFW rule and flags sudden drops (unused or bypassed) or spikes (attack or misconfiguration) — complements UC-18.2.1 volume view.\n\nDocumented **Data sources**: `sourcetype=vmware:nsx:dfw`. **App/TA** (typical add-on context): `vmware_nsx_addon`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:nsx:dfw. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:nsx:dfw\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, rule_id, rule_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eventstats` rolls up events into metrics; results are split **by rule_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count < baseline*0.2 OR count > baseline*5` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Distributed Firewall Rule Hit Rate Analysis**): table _time, rule_id, rule_name, count, baseline\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (hits per rule), Table (anomalies), Heatmap (rule × day).",
+  "visualization": "Line chart (hits per rule), Table (anomalies), Heatmap (rule × day).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "nsx",
+    "vmware"
+  ],
+  "hardware": "NSX-T Data Center"
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.5.16",
+  "title": "Elasticsearch Cross-Cluster Replication Lag",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=elasticsearch:ccr_stats`",
+  "app": "Custom REST scripted input (`_ccr/stats`)",
+  "spl": "index=database sourcetype=\"elasticsearch:ccr_stats\"\n| eval lag_seconds=operations_behind/max(1, operations_per_second)\n| where lag_seconds > 60 OR fatal_exception IS NOT NULL\n| timechart span=5m max(lag_seconds) as max_lag_s, max(operations_behind) as ops_behind by follower_index",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "CCR follower lag directly impacts disaster recovery readiness. Excessive lag means a failover would lose recent data. Monitoring ensures replication SLAs are met.",
+  "value": "CCR follower lag directly impacts disaster recovery readiness. Excessive lag means a failover would lose recent data. Monitoring ensures replication SLAs are met.",
+  "implementation": "Poll `GET /_ccr/stats` to extract per-follower-index `operations_written`, `operations_read`, and `time_since_last_read`. Calculate replication lag as operations behind the leader. Alert when lag exceeds threshold (e.g., 60 seconds) or when `fatal_exception` is present. Monitor `read_exceptions` for transient network issues between clusters.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom REST scripted input (`_ccr/stats`).\n• Ensure the following data sources are available: `sourcetype=elasticsearch:ccr_stats`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll `GET /_ccr/stats` to extract per-follower-index `operations_written`, `operations_read`, and `time_since_last_read`. Calculate replication lag as operations behind the leader. Alert when lag exceeds threshold (e.g., 60 seconds) or when `fatal_exception` is present. Monitor `read_exceptions` for transient network issues between clusters.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"elasticsearch:ccr_stats\"\n| eval lag_seconds=operations_behind/max(1, operations_per_second)\n| where lag_seconds > 60 OR fatal_exception IS NOT NULL\n| timechart span=5m max(lag_seconds) as max_lag_s, max(operations_behind) as ops_behind by follower_index\n```\n\nUnderstanding this SPL\n\n**Elasticsearch Cross-Cluster Replication Lag** — CCR follower lag directly impacts disaster recovery readiness. Excessive lag means a failover would lose recent data. Monitoring ensures replication SLAs are met.\n\nDocumented **Data sources**: `sourcetype=elasticsearch:ccr_stats`. **App/TA** (typical add-on context): Custom REST scripted input (`_ccr/stats`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: elasticsearch:ccr_stats. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"elasticsearch:ccr_stats\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **lag_seconds** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where lag_seconds > 60 OR fatal_exception IS NOT NULL` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by follower_index** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (lag per follower index), Table (follower status), Single value (max lag across all followers).",
+  "visualization": "Line chart (lag per follower index), Table (follower status), Single value (max lag across all followers).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

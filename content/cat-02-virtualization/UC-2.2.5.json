@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.2.5",
+  "title": "Integration Services Version",
+  "criticality": "low",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "PowerShell scripted input (`Get-VMIntegrationService`)",
+  "app": "`Splunk_TA_windows` (Hyper-V), custom scripted input",
+  "spl": "index=hyperv sourcetype=integration_services\n| stats latest(version) as ic_version by vm_name, host\n| where ic_version != \"latest\"",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Outdated integration services cause performance issues and prevent features like time sync, heartbeat, and data exchange from working correctly.",
+  "value": "Outdated integration services cause performance issues and prevent features like time sync, heartbeat, and data exchange from working correctly.",
+  "implementation": "Replace `\"latest\"` in the SPL with the actual expected integration services version. Create a PowerShell scripted input on Hyper-V hosts: `Get-VM | Get-VMIntegrationService | Select VMName, Name, Enabled, PrimaryOperationalStatus`. Run daily.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows` (Hyper-V), custom scripted input.\n• Ensure the following data sources are available: PowerShell scripted input (`Get-VMIntegrationService`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nReplace `\"latest\"` in the SPL with the actual expected integration services version. Create a PowerShell scripted input on Hyper-V hosts: `Get-VM | Get-VMIntegrationService | Select VMName, Name, Enabled, PrimaryOperationalStatus`. Run daily.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=hyperv sourcetype=integration_services\n| stats latest(version) as ic_version by vm_name, host\n| where ic_version != \"latest\"\n```\n\nUnderstanding this SPL\n\n**Integration Services Version** — Outdated integration services cause performance issues and prevent features like time sync, heartbeat, and data exchange from working correctly.\n\nDocumented **Data sources**: PowerShell scripted input (`Get-VMIntegrationService`). **App/TA** (typical add-on context): `Splunk_TA_windows` (Hyper-V), custom scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: hyperv; **sourcetype**: integration_services. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=hyperv, sourcetype=integration_services. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by vm_name, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where ic_version != \"latest\"` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (VM, version, status), Pie chart (current vs. outdated).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Table (VM, version, status), Pie chart (current vs. outdated).",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "equipment": [
+    "hyperv",
+    "windows"
+  ]
+}

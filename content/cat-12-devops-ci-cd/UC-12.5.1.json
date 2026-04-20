@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.5.1",
+  "title": "ArgoCD Sync Status Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault",
+    "Configuration"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=argocd:application`, `sourcetype=argocd:audit`",
+  "app": "Splunk Add-on for Argo CD, custom ArgoCD API/audit input",
+  "spl": "index=devops (sourcetype=\"argocd:application\" OR sourcetype=\"argocd:audit\")\n| search sync_status IN (\"OutOfSync\",\"Unknown\") OR operation_state=\"Error\" OR phase=\"Failed\"\n| stats latest(_time) as last_seen, values(message) as messages by name, namespace, project\n| sort -last_seen",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Failed or stuck sync operations leave clusters diverging from Git and block releases; surfacing them quickly limits blast radius and restores desired state.",
+  "value": "Failed or stuck sync operations leave clusters diverging from Git and block releases; surfacing them quickly limits blast radius and restores desired state.",
+  "implementation": "Ingest Argo CD application CR status and controller/audit logs via add-on or HEC. Normalize `sync_status`, `operation_state`, and error messages. Alert when sync fails or remains in Error/Failed beyond a short window. Correlate with Git commits and cluster events.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Argo CD, custom ArgoCD API/audit input.\n• Ensure the following data sources are available: `sourcetype=argocd:application`, `sourcetype=argocd:audit`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest Argo CD application CR status and controller/audit logs via add-on or HEC. Normalize `sync_status`, `operation_state`, and error messages. Alert when sync fails or remains in Error/Failed beyond a short window. Correlate with Git commits and cluster events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops (sourcetype=\"argocd:application\" OR sourcetype=\"argocd:audit\")\n| search sync_status IN (\"OutOfSync\",\"Unknown\") OR operation_state=\"Error\" OR phase=\"Failed\"\n| stats latest(_time) as last_seen, values(message) as messages by name, namespace, project\n| sort -last_seen\n```\n\nUnderstanding this SPL\n\n**ArgoCD Sync Status Failures** — Failed or stuck sync operations leave clusters diverging from Git and block releases; surfacing them quickly limits blast radius and restores desired state.\n\nDocumented **Data sources**: `sourcetype=argocd:application`, `sourcetype=argocd:audit`. **App/TA** (typical add-on context): Splunk Add-on for Argo CD, custom ArgoCD API/audit input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops; **sourcetype**: argocd:application, argocd:audit. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, sourcetype=\"argocd:application\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by name, namespace, project** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed apps), Single value (apps in failed sync), Timeline (sync operations), Status grid by project.",
+  "visualization": "Table (failed apps), Single value (apps in failed sync), Timeline (sync operations), Status grid by project.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "argocd"
+  ]
+}

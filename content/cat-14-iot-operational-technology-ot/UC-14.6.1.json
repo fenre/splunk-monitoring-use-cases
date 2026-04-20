@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.6.1",
+  "title": "S7comm PLC Read/Write Operation Monitoring",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Performance",
+    "Change"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Manufacturing",
+  "dataSources": "`index=ot` `sourcetype=\"zeek:s7comm:json\"` (ICSNPP `s7comm.log` fields such as `function_name`, `rosctr_name`, `source_h`, `destination_h`)",
+  "app": "TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)",
+  "spl": "index=ot sourcetype=\"zeek:s7comm:json\"\n| eval op=case(match(function_name,\"(?i)read\"),\"read\",match(function_name,\"(?i)write\"),\"write\",\"other\")\n| stats count(eval(op==\"read\")) as reads count(eval(op==\"write\")) as writes by source_h destination_h\n| eval write_ratio=if(reads+writes>0, round(100*writes/(reads+writes),2), null())\n| where writes>0 AND (reads=0 OR write_ratio>25)\n| table source_h destination_h reads writes write_ratio",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Unexpected write-heavy traffic to Siemens PLCs can indicate tampering or mis-engineered automation; tracking read versus write ratios supports least-privilege engineering and early detection of process-impacting changes.",
+  "value": "Unexpected write-heavy traffic to Siemens PLCs can indicate tampering or mis-engineered automation; tracking read versus write ratios supports least-privilege engineering and early detection of process-impacting changes.",
+  "implementation": "Deploy Zeek with ICSNPP-S7COMM on passive taps or SPAN ports on OT VLANs carrying PLC traffic; forward JSON logs to Splunk with TA for Zeek field extractions. Baseline read/write ratios per engineering workstation pair; tune the write-ratio threshold per zone and alert on off-hours spikes.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884).\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"zeek:s7comm:json\"` (ICSNPP `s7comm.log` fields such as `function_name`, `rosctr_name`, `source_h`, `destination_h`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Zeek with ICSNPP-S7COMM on passive taps or SPAN ports on OT VLANs carrying PLC traffic; forward JSON logs to Splunk with TA for Zeek field extractions. Baseline read/write ratios per engineering workstation pair; tune the write-ratio threshold per zone and alert on off-hours spikes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"zeek:s7comm:json\"\n| eval op=case(match(function_name,\"(?i)read\"),\"read\",match(function_name,\"(?i)write\"),\"write\",\"other\")\n| stats count(eval(op==\"read\")) as reads count(eval(op==\"write\")) as writes by source_h destination_h\n| eval write_ratio=if(reads+writes>0, round(100*writes/(reads+writes),2), null())\n| where writes>0 AND (reads=0 OR write_ratio>25)\n| table source_h destination_h reads writes write_ratio\n```\n\nUnderstanding this SPL\n\n**S7comm PLC Read/Write Operation Monitoring** — Unexpected write-heavy traffic to Siemens PLCs can indicate tampering or mis-engineered automation; tracking read versus write ratios supports least-privilege engineering and early detection of process-impacting changes.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"zeek:s7comm:json\"` (ICSNPP `s7comm.log` fields such as `function_name`, `rosctr_name`, `source_h`, `destination_h`). **App/TA** (typical add-on context): TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: zeek:s7comm:json. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"zeek:s7comm:json\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **op** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by source_h destination_h** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **write_ratio** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where writes>0 AND (reads=0 OR write_ratio>25)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **S7comm PLC Read/Write Operation Monitoring**): table source_h destination_h reads writes write_ratio\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (writes vs reads by source/destination pair), Single value (max write_ratio), Table (top writers).",
+  "visualization": "Bar chart (writes vs reads by source/destination pair), Single value (max write_ratio), Table (top writers).",
+  "references": [
+    {
+      "title": "TA for Zeek",
+      "url": "https://splunkbase.splunk.com/app/5466"
+    },
+    {
+      "title": "Corelight App for Splunk",
+      "url": "https://splunkbase.splunk.com/app/3884"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.3.2",
+  "title": "Host Overcommit Detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Custom sourcetype (`virsh nodeinfo` + `virsh list --all`)",
+  "app": "Custom scripted input",
+  "spl": "index=virtualization sourcetype=kvm_capacity\n| stats sum(vm_vcpus) as total_vcpus, sum(vm_memory_mb) as total_vm_mem, latest(host_cpus) as host_cpus, latest(host_memory_mb) as host_mem by host\n| eval cpu_overcommit = round(total_vcpus / host_cpus, 2)\n| eval mem_overcommit = round(total_vm_mem / host_mem, 2)\n| where cpu_overcommit > 3 OR mem_overcommit > 1.2",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Overcommitted KVM hosts cause all VMs to compete for resources. Unlike VMware, KVM doesn't have sophisticated DRS — manual balancing is needed.",
+  "value": "Overcommitted KVM hosts cause all VMs to compete for resources. Unlike VMware, KVM doesn't have sophisticated DRS — manual balancing is needed.",
+  "implementation": "Create scripted input combining `virsh nodeinfo` (host resources) with `virsh dominfo <vm>` for each VM. Calculate aggregate allocation vs. physical capacity. Alert when memory overcommit >1.2x or CPU >4x.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input.\n• Ensure the following data sources are available: Custom sourcetype (`virsh nodeinfo` + `virsh list --all`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate scripted input combining `virsh nodeinfo` (host resources) with `virsh dominfo <vm>` for each VM. Calculate aggregate allocation vs. physical capacity. Alert when memory overcommit >1.2x or CPU >4x.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=virtualization sourcetype=kvm_capacity\n| stats sum(vm_vcpus) as total_vcpus, sum(vm_memory_mb) as total_vm_mem, latest(host_cpus) as host_cpus, latest(host_memory_mb) as host_mem by host\n| eval cpu_overcommit = round(total_vcpus / host_cpus, 2)\n| eval mem_overcommit = round(total_vm_mem / host_mem, 2)\n| where cpu_overcommit > 3 OR mem_overcommit > 1.2\n```\n\nUnderstanding this SPL\n\n**Host Overcommit Detection** — Overcommitted KVM hosts cause all VMs to compete for resources. Unlike VMware, KVM doesn't have sophisticated DRS — manual balancing is needed.\n\nDocumented **Data sources**: Custom sourcetype (`virsh nodeinfo` + `virsh list --all`). **App/TA** (typical add-on context): Custom scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: virtualization; **sourcetype**: kvm_capacity. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=virtualization, sourcetype=kvm_capacity. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **cpu_overcommit** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **mem_overcommit** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where cpu_overcommit > 3 OR mem_overcommit > 1.2` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, allocated vs. physical), Gauge per host.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Table (host, allocated vs. physical), Gauge per host.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

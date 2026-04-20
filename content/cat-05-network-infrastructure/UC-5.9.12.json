@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.9.12",
+  "title": "Prefix Reachability by Region",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (BGP tests)",
+  "app": "`Cisco ThousandEyes App for Splunk` (Splunkbase 7719)",
+  "spl": "`stream_index` thousandeyes.test.type=\"bgp\"\n| stats avg(bgp.reachability) as avg_reachability by thousandeyes.monitor.location, network.prefix\n| eval region=case(\n    match(thousandeyes.monitor.location,\"US\\|CA\\|MX\\|BR\"),\"Americas\",\n    match(thousandeyes.monitor.location,\"GB\\|DE\\|FR\\|NL\"),\"EMEA\",\n    match(thousandeyes.monitor.location,\"JP\\|SG\\|AU\\|IN\"),\"APAC\",\n    1=1,\"Other\")\n| stats avg(avg_reachability) as regional_reachability by region, network.prefix\n| sort region, network.prefix",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Comparing BGP prefix reachability across geographic regions identifies regional outages or ISP-specific routing issues that affect only certain user populations.",
+  "value": "Comparing BGP prefix reachability across geographic regions identifies regional outages or ISP-specific routing issues that affect only certain user populations.",
+  "implementation": "BGP monitors are distributed globally. Group reachability results by `thousandeyes.monitor.location` and aggregate into regions. A prefix that is 100% reachable in Americas but <80% in APAC indicates a regional routing problem.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco ThousandEyes App for Splunk` (Splunkbase 7719).\n• Ensure the following data sources are available: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (BGP tests).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBGP monitors are distributed globally. Group reachability results by `thousandeyes.monitor.location` and aggregate into regions. A prefix that is 100% reachable in Americas but <80% in APAC indicates a regional routing problem.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n`stream_index` thousandeyes.test.type=\"bgp\"\n| stats avg(bgp.reachability) as avg_reachability by thousandeyes.monitor.location, network.prefix\n| eval region=case(\n    match(thousandeyes.monitor.location,\"US\\|CA\\|MX\\|BR\"),\"Americas\",\n    match(thousandeyes.monitor.location,\"GB\\|DE\\|FR\\|NL\"),\"EMEA\",\n    match(thousandeyes.monitor.location,\"JP\\|SG\\|AU\\|IN\"),\"APAC\",\n    1=1,\"Other\")\n| stats avg(avg_reachability) as regional_reachability by region, network.prefix\n| sort region, network.prefix\n```\n\nUnderstanding this SPL\n\n**Prefix Reachability by Region** — Comparing BGP prefix reachability across geographic regions identifies regional outages or ISP-specific routing issues that affect only certain user populations.\n\nDocumented **Data sources**: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (BGP tests). **App/TA** (typical add-on context): `Cisco ThousandEyes App for Splunk` (Splunkbase 7719). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Invokes macro `stream_index` — in Search, use the UI or expand to inspect the underlying SPL.\n• `stats` rolls up events into metrics; results are split **by thousandeyes.monitor.location, network.prefix** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **region** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by region, network.prefix** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Map (reachability by monitor location), Table (region, prefix, reachability), Column chart comparing regions.",
+  "visualization": "Map (reachability by monitor location), Table (region, prefix, reachability), Column chart comparing regions.",
+  "references": [
+    {
+      "title": "Splunkbase app 7719",
+      "url": "https://splunkbase.splunk.com/app/7719"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_thousandeyes"
+  ]
+}

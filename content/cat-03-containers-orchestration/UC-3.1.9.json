@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.1.9",
+  "title": "Docker Daemon Health and Version Drift",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Configuration"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "docker info JSON output, docker version",
+  "app": "Custom scripted input (docker info, docker version)",
+  "spl": "index=containers sourcetype=\"docker:info\"\n| stats values(ServerVersion) as versions by host\n| eval version_count = mvcount(versions)\n| where version_count > 1\n| mvexpand versions limit=100\n| table host versions",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Mixed Docker Engine versions break image compatibility and CVE patching cadence; silent `ServerErrors` in the daemon log precede pull and run failures. Standardize on a patch channel and alert before user-facing container failures cascade.",
+  "value": "Mixed Docker Engine versions break image compatibility and CVE patching cadence; silent `ServerErrors` in the daemon log precede pull and run failures. Standardize on a patch channel and alert before user-facing container failures cascade.",
+  "implementation": "Create scripted input that runs `docker info --format '{{json .}}'` and `docker version --format '{{json .}}'` every 300 seconds. Parse ServerVersion, ServerErrors, Containers, Images, and DriverStatus. Forward to Splunk via HEC. Alert when Docker daemon is unresponsive (no data for >5 minutes) or when ServerErrors is non-empty. Report version drift: alert when multiple Engine versions exist across the fleet.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (docker info, docker version).\n• Ensure the following data sources are available: docker info JSON output, docker version.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate scripted input that runs `docker info --format '{{json .}}'` and `docker version --format '{{json .}}'` every 300 seconds. Parse ServerVersion, ServerErrors, Containers, Images, and DriverStatus. Forward to Splunk via HEC. Alert when Docker daemon is unresponsive (no data for >5 minutes) or when ServerErrors is non-empty. Report version drift: alert when multiple Engine versions exist across the fleet.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=containers sourcetype=\"docker:info\"\n| stats values(ServerVersion) as versions by host\n| eval version_count = mvcount(versions)\n| where version_count > 1\n| mvexpand versions limit=100\n| table host versions\n```\n\nUnderstanding this SPL\n\n**Docker Daemon Health and Version Drift** — Mixed Docker Engine versions break image compatibility and CVE patching cadence; silent `ServerErrors` in the daemon log precede pull and run failures. Standardize on a patch channel and alert before user-facing container failures cascade.\n\nDocumented **Data sources**: docker info JSON output, docker version. **App/TA** (typical add-on context): Custom scripted input (docker info, docker version). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: containers; **sourcetype**: docker:info. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=containers, sourcetype=\"docker:info\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **version_count** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where version_count > 1` — typically the threshold or rule expression for this monitoring goal.\n• Expands multivalue fields with `mvexpand` — use `limit=` to cap row explosion.\n• Pipeline stage (see **Docker Daemon Health and Version Drift**): table host versions\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, version, containers, images), Single value (version count), Status grid (host health).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Table (host, version, containers, images), Single value (version count), Status grid (host health).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "docker"
+  ]
+}

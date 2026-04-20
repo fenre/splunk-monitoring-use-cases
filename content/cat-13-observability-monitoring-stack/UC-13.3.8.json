@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.3.8",
+  "title": "Log Ingestion Backlog and Lag",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Indexer acknowledgment, forwarder queue depth, event timestamps",
+  "app": "Splunk _internal, forwarder metrics",
+  "spl": "index=_internal source=*metrics* group=queue\n| stats latest(current_size) as queue_depth by host, name\n| where queue_depth > 1000\n| table host, name, queue_depth",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Ingestion backlog or lag causes delayed alerting and search. Monitoring lag per source ensures data freshness and pipeline health.",
+  "value": "Ingestion backlog or lag causes delayed alerting and search. Monitoring lag per source ensures data freshness and pipeline health.",
+  "implementation": "Monitor forwarder and indexer queue metrics. Alert when queue depth or event lag (now - event time) exceeds threshold. Report on lag by source and index.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk _internal, forwarder metrics.\n• Ensure the following data sources are available: Indexer acknowledgment, forwarder queue depth, event timestamps.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor forwarder and indexer queue metrics. Alert when queue depth or event lag (now - event time) exceeds threshold. Report on lag by source and index.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal source=*metrics* group=queue\n| stats latest(current_size) as queue_depth by host, name\n| where queue_depth > 1000\n| table host, name, queue_depth\n```\n\nUnderstanding this SPL\n\n**Log Ingestion Backlog and Lag** — Ingestion backlog or lag causes delayed alerting and search. Monitoring lag per source ensures data freshness and pipeline health.\n\nDocumented **Data sources**: Indexer acknowledgment, forwarder queue depth, event timestamps. **App/TA** (typical add-on context): Splunk _internal, forwarder metrics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where queue_depth > 1000` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Log Ingestion Backlog and Lag**): table host, name, queue_depth\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (hosts with backlog), Single value (max lag minutes), Line chart (queue depth trend).",
+  "visualization": "Table (hosts with backlog), Single value (max lag minutes), Line chart (queue depth trend).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

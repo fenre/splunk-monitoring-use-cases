@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "16.1.27",
+  "title": "On-Hold Time Impact on Resolution SLA",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=itsm` `sourcetype=\"snow:incident\"` (`on_hold_duration`, `category`, `assignment_group`, `priority`)",
+  "app": "`Splunk_TA_snow`",
+  "spl": "index=itsm sourcetype=\"snow:incident\" earliest=-30d state IN (\"closed\",\"resolved\",\"6\",\"7\")\n| eval hold_hrs=round(coalesce(on_hold_duration,0)/3600,2)\n| eval resolve_hrs=round((resolved_at-opened_at)/3600,2)\n| stats sum(hold_hrs) as total_hold_hrs, sum(resolve_hrs) as total_resolve_hrs, count as tickets by category\n| eval hold_share_pct=round(100*total_hold_hrs/nullif(total_resolve_hrs,0),1)\n| sort -hold_share_pct",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.category | sort - count",
+  "cimModels": [
+    "Ticket_Management"
+  ],
+  "description": "Excessive on-hold time often explains resolution SLA misses without reflecting true work effort; measuring hold hours by category supports ITIL incident lifecycle controls and customer communication quality.",
+  "value": "Excessive on-hold time often explains resolution SLA misses without reflecting true work effort; measuring hold hours by category supports ITIL incident lifecycle controls and customer communication quality.",
+  "implementation": "(1) Confirm whether `on_hold_duration` is seconds from ServiceNow or use `business_stc`/`calendar_stc` fields if your instance stores pause separately; (2) Exclude incidents with invalid timestamps; (3) Alert when `hold_share_pct` exceeds agreed thresholds for customer-facing categories.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow`.\n• Ensure the following data sources are available: `index=itsm` `sourcetype=\"snow:incident\"` (`on_hold_duration`, `category`, `assignment_group`, `priority`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Confirm whether `on_hold_duration` is seconds from ServiceNow or use `business_stc`/`calendar_stc` fields if your instance stores pause separately; (2) Exclude incidents with invalid timestamps; (3) Alert when `hold_share_pct` exceeds agreed thresholds for customer-facing categories.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:incident\" earliest=-30d state IN (\"closed\",\"resolved\",\"6\",\"7\")\n| eval hold_hrs=round(coalesce(on_hold_duration,0)/3600,2)\n| eval resolve_hrs=round((resolved_at-opened_at)/3600,2)\n| stats sum(hold_hrs) as total_hold_hrs, sum(resolve_hrs) as total_resolve_hrs, count as tickets by category\n| eval hold_share_pct=round(100*total_hold_hrs/nullif(total_resolve_hrs,0),1)\n| sort -hold_share_pct\n```\n\nUnderstanding this SPL\n\n**On-Hold Time Impact on Resolution SLA** — Excessive on-hold time often explains resolution SLA misses without reflecting true work effort; measuring hold hours by category supports ITIL incident lifecycle controls and customer communication quality.\n\nDocumented **Data sources**: `index=itsm` `sourcetype=\"snow:incident\"` (`on_hold_duration`, `category`, `assignment_group`, `priority`). **App/TA** (typical add-on context): `Splunk_TA_snow`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:incident. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:incident\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **hold_hrs** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **resolve_hrs** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by category** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **hold_share_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.category | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**On-Hold Time Impact on Resolution SLA** — Excessive on-hold time often explains resolution SLA misses without reflecting true work effort; measuring hold hours by category supports ITIL incident lifecycle controls and customer communication quality.\n\nDocumented **Data sources**: `index=itsm` `sourcetype=\"snow:incident\"` (`on_hold_duration`, `category`, `assignment_group`, `priority`). **App/TA** (typical add-on context): `Splunk_TA_snow`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Ticket_Management.All_Ticket_Management` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (hold share % by category), Table (top categories), Line chart (weekly hold hours trend).",
+  "visualization": "Bar chart (hold share % by category), Table (top categories), Line chart (weekly hold hours trend).",
+  "references": [
+    {
+      "title": "Splunk_TA_snow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "CIM: Ticket_Management",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Ticket_Management"
+    }
+  ],
+  "equipment": [
+    "servicenow"
+  ]
+}

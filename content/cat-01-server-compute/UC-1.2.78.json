@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.78",
+  "title": "DSRM Account Usage",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4794, 4624 with DSRM)",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\"\n  (EventCode=4794 OR (EventCode=4624 TargetUserName=\"Administrator\" LogonType=10 AuthenticationPackageName=\"Negotiate\"))\n| eval alert_type=case(EventCode=4794,\"DSRM password changed\",EventCode=4624,\"Possible DSRM logon\")\n| table _time, host, alert_type, SubjectUserName, IpAddress\n| sort -_time",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "The Directory Services Restore Mode (DSRM) account is a local admin on every DC with a rarely-changed password. Its use outside restores indicates compromise.",
+  "value": "The Directory Services Restore Mode (DSRM) account is a local admin on every DC with a rarely-changed password. Its use outside restores indicates compromise.",
+  "implementation": "EventCode 4794=DSRM password change (should only happen during planned maintenance). DSRM logons appear as local \"Administrator\" logons on the DC. Since Windows Server 2008 R2, registry key DsrmAdminLogonBehavior allows DSRM logon while AD is running (value=2). Alert on any DSRM password change and any local admin logon to a DC. Set DsrmAdminLogonBehavior=0 (default, deny DSRM logon while AD running).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 4794, 4624 with DSRM).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEventCode 4794=DSRM password change (should only happen during planned maintenance). DSRM logons appear as local \"Administrator\" logons on the DC. Since Windows Server 2008 R2, registry key DsrmAdminLogonBehavior allows DSRM logon while AD is running (value=2). Alert on any DSRM password change and any local admin logon to a DC. Set DsrmAdminLogonBehavior=0 (default, deny DSRM logon while AD running).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\"\n  (EventCode=4794 OR (EventCode=4624 TargetUserName=\"Administrator\" LogonType=10 AuthenticationPackageName=\"Negotiate\"))\n| eval alert_type=case(EventCode=4794,\"DSRM password changed\",EventCode=4624,\"Possible DSRM logon\")\n| table _time, host, alert_type, SubjectUserName, IpAddress\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**DSRM Account Usage** — The Directory Services Restore Mode (DSRM) account is a local admin on every DC with a rarely-changed password. Its use outside restores indicates compromise.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4794, 4624 with DSRM). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **alert_type** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **DSRM Account Usage**): table _time, host, alert_type, SubjectUserName, IpAddress\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (DSRM events), Single value (count — target: 0 outside restore operations), Alert.",
+  "visualization": "Table (DSRM events), Single value (count — target: 0 outside restore operations), Alert.",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

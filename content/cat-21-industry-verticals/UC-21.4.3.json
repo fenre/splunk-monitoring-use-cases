@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.4.3",
+  "title": "Fuel Consumption Anomaly Detection",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Transportation and Logistics",
+  "dataSources": "`index=logistics` `sourcetype=\"fuel:consumption\"` fields `vehicle_id`, `fuel_liters`, `distance_km`",
+  "app": "Fuel management system / telematics via HEC",
+  "spl": "index=logistics sourcetype=\"fuel:consumption\"\n| eval fuel_rate=fuel_liters/nullif(distance_km,0)*100\n| eventstats avg(fuel_rate) as fleet_avg, stdev(fuel_rate) as fleet_stdev by vehicle_type\n| eval z_score=abs(fuel_rate-fleet_avg)/nullif(fleet_stdev,0)\n| where z_score > 2\n| table vehicle_id, fuel_rate, fleet_avg, z_score, distance_km",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Unusual fuel consumption patterns indicate theft, mechanical issues (injectors, tires), or inefficient routing. Early detection reduces operating costs.",
+  "value": "Unusual fuel consumption patterns indicate theft, mechanical issues (injectors, tires), or inefficient routing. Early detection reduces operating costs.",
+  "implementation": "Normalize fuel consumption by distance and load. Baseline per vehicle type. Alert on sustained deviations. Correlate with maintenance records and route data. **Domain context:** Fuel theft and inefficient routing show as outliers; `vehicle_type` should feed `eventstats`—without it, mixed fleets skew z-scores. **Splunk:** Ensure `distance_km` > 0 excludes idling-only rows or `fuel_rate` explodes.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Fuel management system / telematics via HEC.\n• Ensure the following data sources are available: `index=logistics` `sourcetype=\"fuel:consumption\"` fields `vehicle_id`, `fuel_liters`, `distance_km`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize fuel consumption by distance and load. Baseline per vehicle type. Alert on sustained deviations. Correlate with maintenance records and route data. **Domain context:** Fuel theft and inefficient routing show as outliers; `vehicle_type` should feed `eventstats`—without it, mixed fleets skew z-scores. **Splunk:** Ensure `distance_km` > 0 excludes idling-only rows or `fuel_rate` explodes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=logistics sourcetype=\"fuel:consumption\"\n| eval fuel_rate=fuel_liters/nullif(distance_km,0)*100\n| eventstats avg(fuel_rate) as fleet_avg, stdev(fuel_rate) as fleet_stdev by vehicle_type\n| eval z_score=abs(fuel_rate-fleet_avg)/nullif(fleet_stdev,0)\n| where z_score > 2\n| table vehicle_id, fuel_rate, fleet_avg, z_score, distance_km\n```\n\nUnderstanding this SPL\n\n**Fuel Consumption Anomaly Detection** — Unusual fuel consumption patterns indicate theft, mechanical issues (injectors, tires), or inefficient routing. Early detection reduces operating costs.\n\nDocumented **Data sources**: `index=logistics` `sourcetype=\"fuel:consumption\"` fields `vehicle_id`, `fuel_liters`, `distance_km`. **App/TA** (typical add-on context): Fuel management system / telematics via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: logistics; **sourcetype**: fuel:consumption. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=logistics, sourcetype=\"fuel:consumption\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **fuel_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eventstats` rolls up events into metrics; results are split **by vehicle_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **z_score** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where z_score > 2` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Fuel Consumption Anomaly Detection**): table vehicle_id, fuel_rate, fleet_avg, z_score, distance_km\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Scatter plot (fuel rate vs distance), Bar chart (outliers), Line chart (fuel rate trend).",
+  "visualization": "Scatter plot (fuel rate vs distance), Bar chart (outliers), Line chart (fuel rate trend).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

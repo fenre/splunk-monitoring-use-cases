@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.8.2",
+  "title": "Core Network Element Health (MME, SGW, PGW)",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`index=telecom` `sourcetype=\"core:element\"` (element_id, element_type, cpu_pct, active_sessions, alarm_severity)",
+  "app": "Custom HEC (EPC/5GC performance counters)",
+  "spl": "index=telecom sourcetype=\"core:element\"\n| eval sev_score=case(lower(alarm_severity) IN (\"critical\",\"1\"),4, lower(alarm_severity) IN (\"major\",\"2\"),3, lower(alarm_severity) IN (\"minor\",\"3\"),2, true(),0)\n| where cpu_pct > 85 OR active_sessions > 800000 OR sev_score >= 3\n| bin _time span=5m\n| stats max(cpu_pct) as max_cpu, max(active_sessions) as max_sess, max(sev_score) as max_alarm by element_id, element_type, _time\n| table _time, element_id, element_type, max_cpu, max_sess, max_alarm",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Core packet gateways and mobility management anchor subscriber sessions; correlating CPU, session load, and alarm states helps capacity and incident teams isolate a degrading blade before mass detach.",
+  "value": "Core packet gateways and mobility management anchor subscriber sessions; correlating CPU, session load, and alarm states helps capacity and incident teams isolate a degrading blade before mass detach.",
+  "implementation": "Map vendor counter names into `cpu_pct` and `active_sessions` in transforms. Exclude planned maintenance windows via lookup on `element_id`. Thresholds vary by platform—tune per NE class and license limits. **Domain context:** 4G EPC (MME/SGW/PGW) vs 5GC (SMF/UPF/AMF) differ in counters and scale—tag `element_type` consistently for apples-to-apples dashboards. **Splunk:** `active_sessions > 800000` is illustrative; align with chassis capacity and license entitlements.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom HEC (EPC/5GC performance counters).\n• Ensure the following data sources are available: `index=telecom` `sourcetype=\"core:element\"` (element_id, element_type, cpu_pct, active_sessions, alarm_severity).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap vendor counter names into `cpu_pct` and `active_sessions` in transforms. Exclude planned maintenance windows via lookup on `element_id`. Thresholds vary by platform—tune per NE class and license limits. **Domain context:** 4G EPC (MME/SGW/PGW) vs 5GC (SMF/UPF/AMF) differ in counters and scale—tag `element_type` consistently for apples-to-apples dashboards. **Splunk:** `active_sessions > 800000` is illustrative; align with chassis capacity and license entitlements.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=telecom sourcetype=\"core:element\"\n| eval sev_score=case(lower(alarm_severity) IN (\"critical\",\"1\"),4, lower(alarm_severity) IN (\"major\",\"2\"),3, lower(alarm_severity) IN (\"minor\",\"3\"),2, true(),0)\n| where cpu_pct > 85 OR active_sessions > 800000 OR sev_score >= 3\n| bin _time span=5m\n| stats max(cpu_pct) as max_cpu, max(active_sessions) as max_sess, max(sev_score) as max_alarm by element_id, element_type, _time\n| table _time, element_id, element_type, max_cpu, max_sess, max_alarm\n```\n\nUnderstanding this SPL\n\n**Core Network Element Health (MME, SGW, PGW)** — Core packet gateways and mobility management anchor subscriber sessions; correlating CPU, session load, and alarm states helps capacity and incident teams isolate a degrading blade before mass detach.\n\nDocumented **Data sources**: `index=telecom` `sourcetype=\"core:element\"` (element_id, element_type, cpu_pct, active_sessions, alarm_severity). **App/TA** (typical add-on context): Custom HEC (EPC/5GC performance counters). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: telecom; **sourcetype**: core:element. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=telecom, sourcetype=\"core:element\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **sev_score** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where cpu_pct > 85 OR active_sessions > 800000 OR sev_score >= 3` — typically the threshold or rule expression for this monitoring goal.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by element_id, element_type, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Pipeline stage (see **Core Network Element Health (MME, SGW, PGW)**): table _time, element_id, element_type, max_cpu, max_sess, max_alarm\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (CPU and sessions by element), Table (top loaded nodes), Single value (elements in alarm).",
+  "visualization": "Line chart (CPU and sessions by element), Table (top loaded nodes), Single value (elements in alarm).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

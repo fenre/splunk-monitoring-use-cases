@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.2.10",
+  "title": "HCI Hypervisor and AOS Version Compliance",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Node AOS version, hypervisor version, compliance baseline",
+  "app": "Nutanix Prism, vSphere/vCenter API",
+  "spl": "index=hci sourcetype=\"nutanix:cluster\"\n| stats latest(aos_version) as aos, latest(hypervisor_version) as hv by node\n| lookup hci_compliance_baseline.csv env OUTPUT target_aos, target_hv\n| where aos!=target_aos OR hv!=target_hv\n| table node, aos, target_aos, hv, target_hv",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Mixed hypervisor or AOS versions can cause compatibility and support issues. Tracking version compliance supports upgrade planning and support eligibility.",
+  "value": "Mixed hypervisor or AOS versions can cause compatibility and support issues. Tracking version compliance supports upgrade planning and support eligibility.",
+  "implementation": "Ingest cluster and node version data. Maintain baseline by environment. Alert on version drift. Report on compliance percentage and nodes due for upgrade.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Nutanix Prism, vSphere/vCenter API.\n• Ensure the following data sources are available: Node AOS version, hypervisor version, compliance baseline.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest cluster and node version data. Maintain baseline by environment. Alert on version drift. Report on compliance percentage and nodes due for upgrade.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=hci sourcetype=\"nutanix:cluster\"\n| stats latest(aos_version) as aos, latest(hypervisor_version) as hv by node\n| lookup hci_compliance_baseline.csv env OUTPUT target_aos, target_hv\n| where aos!=target_aos OR hv!=target_hv\n| table node, aos, target_aos, hv, target_hv\n```\n\nUnderstanding this SPL\n\n**HCI Hypervisor and AOS Version Compliance** — Mixed hypervisor or AOS versions can cause compatibility and support issues. Tracking version compliance supports upgrade planning and support eligibility.\n\nDocumented **Data sources**: Node AOS version, hypervisor version, compliance baseline. **App/TA** (typical add-on context): Nutanix Prism, vSphere/vCenter API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: hci; **sourcetype**: nutanix:cluster. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=hci, sourcetype=\"nutanix:cluster\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by node** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where aos!=target_aos OR hv!=target_hv` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **HCI Hypervisor and AOS Version Compliance**): table node, aos, target_aos, hv, target_hv\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (non-compliant nodes), Pie chart (version distribution), Single value (compliance %).",
+  "visualization": "Table (non-compliant nodes), Pie chart (version distribution), Single value (compliance %).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "nutanix",
+    "vmware"
+  ],
+  "equipmentModels": [
+    "vmware_vcenter",
+    "vmware_vsphere"
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "15.2.18",
+  "title": "Data Center Humidity & Condensation Risk",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=edge-hub-data` tag=humidity tag=temperature, `sourcetype=edge_hub`",
+  "app": "Splunk Edge Hub (humidity + temperature sensors), Splunk OT Intelligence",
+  "premiumApps": [
+    "Splunk Edge Hub",
+    "Splunk OT Intelligence"
+  ],
+  "spl": "| mstats avg(Humidity), avg(Temperature) as temp by host\n| eval dew_point=(243.04*(ln(Humidity/100)+((17.625*temp)/(243.04+temp))))/(17.625-ln(Humidity/100)-((17.625*temp)/(243.04+temp)))\n| eval condensation_risk=case(temp<=dew_point, \"CRITICAL\", temp-dew_point<2, \"HIGH\", 1=1, \"NORMAL\")\n| where condensation_risk!=\"NORMAL\"",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Prevents equipment failure by detecting dew point conditions before condensation forms on servers and network infrastructure.",
+  "value": "Prevents equipment failure by detecting dew point conditions before condensation forms on servers and network infrastructure.",
+  "implementation": "Deploy Edge Hub in raised floor or ceiling-mounted configuration with humidity sensor exposed to air circulation. Configure Advanced Settings → Sensor Polling interval to 30 seconds for real-time dew point calculation. Use local SQLite backlog to ensure no readings are lost during Splunk connectivity outages.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (humidity + temperature sensors), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-data` tag=humidity tag=temperature, `sourcetype=edge_hub`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Edge Hub in raised floor or ceiling-mounted configuration with humidity sensor exposed to air circulation. Configure Advanced Settings → Sensor Polling interval to 30 seconds for real-time dew point calculation. Use local SQLite backlog to ensure no readings are lost during Splunk connectivity outages.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| mstats avg(Humidity), avg(Temperature) as temp by host\n| eval dew_point=(243.04*(ln(Humidity/100)+((17.625*temp)/(243.04+temp))))/(17.625-ln(Humidity/100)-((17.625*temp)/(243.04+temp)))\n| eval condensation_risk=case(temp<=dew_point, \"CRITICAL\", temp-dew_point<2, \"HIGH\", 1=1, \"NORMAL\")\n| where condensation_risk!=\"NORMAL\"\n```\n\nUnderstanding this SPL\n\n**Data Center Humidity & Condensation Risk** — Prevents equipment failure by detecting dew point conditions before condensation forms on servers and network infrastructure.\n\nDocumented **Data sources**: `index=edge-hub-data` tag=humidity tag=temperature, `sourcetype=edge_hub`. **App/TA** (typical add-on context): Splunk Edge Hub (humidity + temperature sensors), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `mstats` to query metrics indexes (pre-aggregated metric data).\n• `eval` defines or adjusts **dew_point** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **condensation_risk** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where condensation_risk!=\"NORMAL\"` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (dew point vs actual temp), time-series overlay, condensation risk heatmap.",
+  "visualization": "Gauge (dew point vs actual temp), time-series overlay, condensation risk heatmap.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "edge_hub"
+  ]
+}

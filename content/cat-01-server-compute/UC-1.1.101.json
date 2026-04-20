@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.1.101",
+  "title": "Context Switch Anomalies Detection",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=vmstat`",
+  "app": "`Splunk_TA_nix`",
+  "spl": "index=os sourcetype=vmstat host=*\n| stats avg(cs) as baseline\n| eventstats stdev(cs) as stddev\n| where cs > baseline + 3*stddev",
+  "cimSpl": "| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct\n                        avg(Performance.swap_used_percent) as swap_pct\n  from datamodel=Performance where nodename=Performance.Memory\n  by Performance.host span=5m\n| where mem_pct > 95 OR swap_pct > 20",
+  "cimModels": [
+    "Performance"
+  ],
+  "description": "Context switch anomalies indicate scheduler issues or unexpected process workload changes.",
+  "value": "Context switch anomalies indicate scheduler issues or unexpected process workload changes.",
+  "implementation": "Use vmstat context switch field with statistical anomaly detection. Alert on 3-sigma deviations from baseline. Include process state analysis to identify cause.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`.\n• Ensure the following data sources are available: `sourcetype=vmstat`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse vmstat context switch field with statistical anomaly detection. Alert on 3-sigma deviations from baseline. Include process state analysis to identify cause.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=vmstat host=*\n| stats avg(cs) as baseline\n| eventstats stdev(cs) as stddev\n| where cs > baseline + 3*stddev\n```\n\nUnderstanding this SPL\n\n**Context Switch Anomalies Detection** — Context switch anomalies indicate scheduler issues or unexpected process workload changes.\n\nDocumented **Data sources**: `sourcetype=vmstat`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: vmstat. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=vmstat. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• Filters the current rows with `where cs > baseline + 3*stddev` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct\n                        avg(Performance.swap_used_percent) as swap_pct\n  from datamodel=Performance where nodename=Performance.Memory\n  by Performance.host span=5m\n| where mem_pct > 95 OR swap_pct > 20\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Context Switch Anomalies Detection** — Context switch anomalies indicate scheduler issues or unexpected process workload changes.\n\nDocumented **Data sources**: `sourcetype=vmstat`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.\n• Filters the current rows with `where mem_pct > 95 OR swap_pct > 20` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart, Anomaly Detector",
+  "visualization": "Timechart, Anomaly Detector",
+  "references": [
+    {
+      "title": "Splunk_TA_nix",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+    }
+  ],
+  "equipment": [
+    "linux"
+  ]
+}

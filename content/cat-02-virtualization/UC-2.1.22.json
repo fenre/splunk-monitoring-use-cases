@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.1.22",
+  "title": "vCenter Service Health",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=vmware:events`, vCenter VAMI health API, vCenter syslog (`/var/log/vmware/vpxd/vpxd.log`)",
+  "app": "`Splunk_TA_vmware`, vCenter syslog",
+  "spl": "index=vmware sourcetype=\"syslog\" source=\"/var/log/vmware/vpxd/*\" (\"ERROR\" OR \"CRITICAL\" OR \"FATAL\")\n| stats count as errors by host, source\n| where errors > 10\n| sort -errors\n| table host, source, errors",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "vCenter is the management plane for the entire VMware environment. If VPXD, SSO, or the content library service fails, you lose visibility into your VMs and cannot perform management operations. Monitoring vCenter appliance health ensures the control plane is operational.",
+  "value": "vCenter is the management plane for the entire VMware environment. If VPXD, SSO, or the content library service fails, you lose visibility into your VMs and cannot perform management operations. Monitoring vCenter appliance health ensures the control plane is operational.",
+  "implementation": "Forward vCenter appliance syslog to Splunk. Monitor VPXD, STS (SSO), content library, and PostgreSQL logs. Also create a scripted input to poll the VAMI health API (`https://vcsa:5480/rest/applmgmt/health`). Alert when any service reports unhealthy status. Monitor vCenter disk space (database growth).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`, vCenter syslog.\n• Ensure the following data sources are available: `sourcetype=vmware:events`, vCenter VAMI health API, vCenter syslog (`/var/log/vmware/vpxd/vpxd.log`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward vCenter appliance syslog to Splunk. Monitor VPXD, STS (SSO), content library, and PostgreSQL logs. Also create a scripted input to poll the VAMI health API (`https://vcsa:5480/rest/applmgmt/health`). Alert when any service reports unhealthy status. Monitor vCenter disk space (database growth).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"syslog\" source=\"/var/log/vmware/vpxd/*\" (\"ERROR\" OR \"CRITICAL\" OR \"FATAL\")\n| stats count as errors by host, source\n| where errors > 10\n| sort -errors\n| table host, source, errors\n```\n\nUnderstanding this SPL\n\n**vCenter Service Health** — vCenter is the management plane for the entire VMware environment. If VPXD, SSO, or the content library service fails, you lose visibility into your VMs and cannot perform management operations. Monitoring vCenter appliance health ensures the control plane is operational.\n\nDocumented **Data sources**: `sourcetype=vmware:events`, vCenter VAMI health API, vCenter syslog (`/var/log/vmware/vpxd/vpxd.log`). **App/TA** (typical add-on context): `Splunk_TA_vmware`, vCenter syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"syslog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, source** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where errors > 10` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **vCenter Service Health**): table host, source, errors\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (service health), Line chart (error rate over time), Table (recent errors).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Status grid (service health), Line chart (error rate over time), Table (recent errors).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "syslog",
+    "vmware"
+  ],
+  "equipmentModels": [
+    "vmware_ta_vmware",
+    "vmware_vcenter"
+  ]
+}

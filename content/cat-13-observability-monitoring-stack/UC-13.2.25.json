@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.2.25",
+  "title": "MLTK Custom Anomaly Detection on KPI Data",
+  "criticality": "medium",
+  "difficulty": "expert",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`itsi_summary`, MLTK models",
+  "app": "Splunk ITSI, Splunk Machine Learning Toolkit (MLTK)",
+  "premiumApps": [
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    }
+  ],
+  "spl": "index=itsi_summary is_service_aggregate=0 kpi_name IN (\"CPU Utilization\", \"Memory Usage\", \"Response Time\")\n| timechart span=5m avg(alert_value) by kpi_name\n| fit DensityFunction \"CPU Utilization\" \"Memory Usage\" \"Response Time\" into itsi_multivariate_model\n| where isOutlier > 0",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Combining MLTK with ITSI KPI data enables custom anomaly models that detect multi-dimensional patterns (e.g., CPU+memory+latency correlation) impossible with single-KPI thresholds.",
+  "value": "Combining MLTK with ITSI KPI data enables custom anomaly models that detect multi-dimensional patterns (e.g., CPU+memory+latency correlation) impossible with single-KPI thresholds.",
+  "implementation": "Extract KPI data from `itsi_summary`. Build MLTK models (DensityFunction for outlier detection, RandomForestRegressor for prediction). Create residual KPIs: predicted vs actual values. Feed MLTK output back as ITSI KPIs for service health scoring. Retrain models monthly or on significant infrastructure changes.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI, Splunk Machine Learning Toolkit (MLTK).\n• Ensure the following data sources are available: `itsi_summary`, MLTK models.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExtract KPI data from `itsi_summary`. Build MLTK models (DensityFunction for outlier detection, RandomForestRegressor for prediction). Create residual KPIs: predicted vs actual values. Feed MLTK output back as ITSI KPIs for service health scoring. Retrain models monthly or on significant infrastructure changes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsi_summary is_service_aggregate=0 kpi_name IN (\"CPU Utilization\", \"Memory Usage\", \"Response Time\")\n| timechart span=5m avg(alert_value) by kpi_name\n| fit DensityFunction \"CPU Utilization\" \"Memory Usage\" \"Response Time\" into itsi_multivariate_model\n| where isOutlier > 0\n```\n\nUnderstanding this SPL\n\n**MLTK Custom Anomaly Detection on KPI Data** — Combining MLTK with ITSI KPI data enables custom anomaly models that detect multi-dimensional patterns (e.g., CPU+memory+latency correlation) impossible with single-KPI thresholds.\n\nDocumented **Data sources**: `itsi_summary`, MLTK models. **App/TA** (typical add-on context): Splunk ITSI, Splunk Machine Learning Toolkit (MLTK). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsi_summary.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsi_summary. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by kpi_name** — ideal for trending and alerting on this use case.\n• Pipeline stage (see **MLTK Custom Anomaly Detection on KPI Data**): fit DensityFunction \"CPU Utilization\" \"Memory Usage\" \"Response Time\" into itsi_multivariate_model\n• Filters the current rows with `where isOutlier > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Scatter plot (multi-dimensional KPI space with outliers highlighted), Line chart (residual KPI over time).",
+  "visualization": "Scatter plot (multi-dimensional KPI space with outliers highlighted), Line chart (residual KPI over time).",
+  "references": [
+    {
+      "title": "Splunk ITSI",
+      "url": "https://splunkbase.splunk.com/app/1841"
+    }
+  ],
+  "equipment": [
+    "itsi"
+  ]
+}

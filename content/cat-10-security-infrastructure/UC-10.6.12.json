@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.6.12",
+  "title": "MCP Github Suspicious Operation",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "MCP Server",
+  "app": "Splunk Security Essentials / ESCU",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "`mcp_server` direction=inbound\n    | eval dest=host\n    | eval\n        query_lower=lower('params.query'),\n        file_path_lower=lower('params.path'),\n        search_query='params.query',\n        file_path='params.path',\n        target_owner='params.owner',\n        is_secret_hunting=if(method=\"search_code\" AND (like(query_lower, \"%password%\") OR like(query_lower, \"%api_key%\") OR like(query_lower, \"%secret%\") OR like(query_lower, \"%token%\") OR like(query_lower, \"%aws_%\") OR like(query_lower, \"%private_key%\") OR like(query_lower, \"%credential%\") OR like(query_lower, \"%.env%\") OR like(query_lower, \"%config%\")), 1, 0),\n        is_org_recon=if(method IN (\"list_repositories\", \"get_repository\", \"get_organization\", \"list_organization_members\", \"get_collaborators\", \"list_forks\", \"fork_repository\"), 1, 0),\n        is_branch_protection_abuse=if(method IN (\"update_branch_protection\", \"delete_branch_protection\"), 1, 0),\n        is_workflow_manipulation=if((method IN (\"create_or_update_file\", \"push_files\")) AND like(file_path_lower, \"%github/workflows%\"), 1, 0),\n        is_sensitive_file_access=if((method IN (\"create_or_update_file\", \"push_files\", \"get_file_contents\")) AND (like(file_path_lower, \"%dockerfile%\") OR like(file_path_lower, \"%package.json%\") OR like(file_path_lower, \"%requirements.txt%\") OR like(file_path_lower, \"%.env%\") OR like(file_path_lower, \"%settings.py%\") OR like(file_path_lower, \"%config%\")), 1, 0),\n        is_issue_intel=if(method IN (\"list_issues\", \"search_issues\") AND (like(query_lower, \"%vulnerability%\") OR like(query_lower, \"%cve%\") OR like(query_lower, \"%security%\") OR like(query_lower, \"%exploit%\") OR like(query_lower, \"%bug%\")), 1, 0)\n    | where is_secret_hunting=1 OR is_org_recon=1 OR is_branch_protection_abuse=1 OR is_workflow_manipulation=1 OR is_sensitive_file_access=1 OR is_issue_intel=1\n    | eval attack_type=case(\n        is_secret_hunting=1, \"Secret Hunting\",\n        is_branch_protection_abuse=1, \"Branch Protection Abuse\",\n        is_workflow_manipulation=1, \"Workflow Manipulation\",\n        is_sensitive_file_access=1, \"Sensitive File Access\",\n        is_issue_intel=1, \"Vulnerability Intelligence Gathering\",\n        is_org_recon=1, \"Organization Reconnaissance\",\n        1=1, \"Unknown\")\n    | stats count min(_time) as firstTime max(_time) as lastTime values(method) as methods values(search_query) as search_queries values(file_path) as file_paths values(target_owner) as target_owners values(attack_type) as attack_types dc(attack_type) as attack_diversity by dest\n    | `security_content_ctime(firstTime)`\n    | `security_content_ctime(lastTime)`\n    | table dest firstTime lastTime count attack_diversity attack_types methods search_queries file_paths target_owners\n    | `mcp_github_suspicious_operation_filter`",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "This detection identifies potentially malicious activity through MCP GitHub server connections, monitoring for secret hunting in code searches, organization and repository reconnaissance, branch protection abuse, CI/CD workflow manipulation, sensitive file access, and vulnerability intelligence gathering. These patterns indicate potential supply chain attacks, credential harvesting, or pre-attack reconnaissance.",
+  "value": "This detection identifies potentially malicious activity through MCP GitHub server connections, monitoring for secret hunting in code searches, organization and repository reconnaissance, branch protection abuse, CI/CD workflow manipulation, sensitive file access, and vulnerability intelligence gathering. These patterns indicate potential supply chain attacks, credential harvesting, or pre-attack reconnaissance.",
+  "implementation": "ESCU Hunting detection — not designed for automated alerting. Run ad-hoc or on a low-frequency schedule from Splunk Enterprise Security for analyst-driven investigation. Requires MCP Server ingested and CIM-normalized.",
+  "detailedImplementation": "Enterprise Security Detection Rule\n\n\"MCP Github Suspicious Operation\" is a Hunting detection designed for analyst-driven threat hunting rather than automated alerting, sourced from the Splunk Enterprise Security Content Update (ESCU). Hunting detections are not intended for automated alerting. They are run on-demand or on a low-frequency schedule by security analysts investigating specific threat hypotheses.\n\nPrerequisites\n\n• Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.\n• Data sources: MCP Server. Must be ingested into Splunk and normalized to the Common Information Model (CIM) via the appropriate Technology Add-on.\n• MITRE ATT&CK: T1552.001. Review the ATT&CK matrix for adjacent techniques to identify detection coverage gaps in your environment.\n\nDeployment\n\n1. In Enterprise Security, navigate to Configure → Content → Content Management.\n2. Search for \"MCP Github Suspicious Operation\" or filter by Analytic Story.\n3. Hunting detections are typically left disabled for automated scheduling. Instead, run them on-demand from the Search bar or schedule at low frequency (daily or weekly).\n4. Review results manually — hunting detections cast a wider net and expect analyst judgment to separate signal from noise.\n5. When results warrant further investigation, create a Notable Event manually or initiate your incident response workflow.\n\nTuning and False Positive Management\n\nKnown false positives for this detection: Legitimate developers searching code for refactoring purposes, security teams conducting authorized secret scanning, DevOps engineers modifying workflow files, and repository administrators managing branch protection settings.\n\n• Hunting detections are expected to produce broader result sets that require analyst interpretation. Focus on refining the search scope (time range, specific hosts or users) rather than eliminating all noise.\n• Maintain a hunting journal documenting hypotheses tested, results found, and detection improvements identified.\n• Share high-fidelity findings with the detection engineering team to convert recurring hunting patterns into automated TTP or Anomaly detections.\n\nAnalyst Response Workflow\n\nWhen reviewing Hunting results:\n\n1. Run the search manually or review scheduled results. Evaluate each returned event against your threat hypothesis — not every result indicates compromise.\n2. Cross-reference findings with current threat intelligence, recent security advisories, and outputs from other detection sources.\n3. If suspicious activity is confirmed, create a Notable Event or escalate directly to your incident response process with the supporting evidence.\n4. Document the hunting exercise: hypothesis, data sources queried, time range, findings, and any detection engineering improvements identified.\n\nValidation\n\nConfirm the required data sources are flowing:\n\n```spl\n| tstats count where index=* by index, sourcetype | sort -count\n```\n\nVerify the detection is enabled and firing:\n\n```spl\nindex=_audit action=\"alert_fired\" ss_name=\"*\"\n| stats count by ss_name, trigger_time | sort -trigger_time\n```",
+  "visualization": "Table, Timeline (from ESCU).",
+  "references": [
+    {
+      "url": "https://splunkbase.splunk.com/app/8377"
+    },
+    {
+      "url": "https://www.docker.com/blog/mcp-horror-stories-github-prompt-injection/"
+    },
+    {
+      "url": "https://www.splunk.com/en_us/blog/security/securing-ai-agents-model-context-protocol.html"
+    }
+  ],
+  "knownFalsePositives": "Legitimate developers searching code for refactoring purposes, security teams conducting authorized secret scanning, DevOps engineers modifying workflow files, and repository administrators managing branch protection settings.",
+  "mitreAttack": [
+    "T1552.001"
+  ],
+  "detectionType": "Hunting",
+  "equipment": [
+    "security_essentials"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.1.27",
+  "title": "Splunk Web UI Errors (_internal)",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=_internal` `sourcetype=splunk_web_access` / `splunkd_ui` / `splunkd` Web UI",
+  "app": "Monitoring Console",
+  "spl": "index=_internal sourcetype IN (\"splunk_web_access\",\"splunkd_ui\",\"splunkd\") uri_path=\"*\"\n| search status>=500 OR match(_raw,\"(?i)(error|exception|timeout)\")\n| stats count by status, uri_path, clientip\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Web UI 5xx/timeout errors block analysts during incidents. Tracking errors isolates SHC vs load balancer vs app issues.",
+  "value": "Web UI 5xx/timeout errors block analysts during incidents. Tracking errors isolates SHC vs load balancer vs app issues.",
+  "implementation": "Ensure access logs include HTTP status. Alert on 5xx rate above baseline. Correlate with KV Store and SHC captain during UI-wide failures.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Monitoring Console.\n• Ensure the following data sources are available: `index=_internal` `sourcetype=splunk_web_access` / `splunkd_ui` / `splunkd` Web UI.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure access logs include HTTP status. Alert on 5xx rate above baseline. Correlate with KV Store and SHC captain during UI-wide failures.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal sourcetype IN (\"splunk_web_access\",\"splunkd_ui\",\"splunkd\") uri_path=\"*\"\n| search status>=500 OR match(_raw,\"(?i)(error|exception|timeout)\")\n| stats count by status, uri_path, clientip\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Splunk Web UI Errors (_internal)** — Web UI 5xx/timeout errors block analysts during incidents. Tracking errors isolates SHC vs load balancer vs app issues.\n\nDocumented **Data sources**: `index=_internal` `sourcetype=splunk_web_access` / `splunkd_ui` / `splunkd` Web UI. **App/TA** (typical add-on context): Monitoring Console. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by status, uri_path, clientip** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (5xx rate), Table (top failing URIs).",
+  "visualization": "Line chart (5xx rate), Table (top failing URIs).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

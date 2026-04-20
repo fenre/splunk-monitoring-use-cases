@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.36",
+  "title": "Netskope Private Access (NPA) Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Availability"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=netskope:connection` or `netskope:network` (NPA connection events)",
+  "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
+  "spl": "index=casb sourcetype=\"netskope:connection\" earliest=-24h\n| eval healthy=if(match(lower(status),\"(?i)success|established|active\") AND latency_ms<1000,1,0)\n| stats count sum(healthy) as ok by publisher_name, private_app\n| eval error_pct=round(100*(count-ok)/count,1)\n| where error_pct > 5\n| sort -error_pct",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Netskope Private Access (NPA) is the ZTNA component — replacing VPN for private application access. Publisher (connector) health, error rates, and latency determine whether users can reach internal apps.",
+  "value": "Netskope Private Access (NPA) is the ZTNA component — replacing VPN for private application access. Publisher (connector) health, error rates, and latency determine whether users can reach internal apps.",
+  "implementation": "Map `publisher_name` to datacenter/region. Alert when any publisher shows >10% error rate or latency p95 exceeds 2s. Report on NPA adoption vs legacy VPN.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Netskope Add-on for Splunk (Splunkbase 3808).\n• Ensure the following data sources are available: `sourcetype=netskope:connection` or `netskope:network` (NPA connection events).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap `publisher_name` to datacenter/region. Alert when any publisher shows >10% error rate or latency p95 exceeds 2s. Report on NPA adoption vs legacy VPN.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=casb sourcetype=\"netskope:connection\" earliest=-24h\n| eval healthy=if(match(lower(status),\"(?i)success|established|active\") AND latency_ms<1000,1,0)\n| stats count sum(healthy) as ok by publisher_name, private_app\n| eval error_pct=round(100*(count-ok)/count,1)\n| where error_pct > 5\n| sort -error_pct\n```\n\nUnderstanding this SPL\n\n**Netskope Private Access (NPA) Health** — Netskope Private Access (NPA) is the ZTNA component — replacing VPN for private application access. Publisher (connector) health, error rates, and latency determine whether users can reach internal apps.\n\nDocumented **Data sources**: `sourcetype=netskope:connection` or `netskope:network` (NPA connection events). **App/TA** (typical add-on context): Netskope Add-on for Splunk (Splunkbase 3808). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: casb; **sourcetype**: netskope:connection. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=casb, sourcetype=\"netskope:connection\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **healthy** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by publisher_name, private_app** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **error_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where error_pct > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unhealthy publishers), Single value (publishers in error), Line chart (error rate trend), Bar chart (latency by app).",
+  "visualization": "Table (unhealthy publishers), Single value (publishers in error), Line chart (error rate trend), Bar chart (latency by app).",
+  "references": [
+    {
+      "title": "Netskope Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/3808"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1133"
+  ],
+  "equipment": [
+    "netskope"
+  ],
+  "hardware": "Netskope Security Cloud, Netskope Publisher (on-prem connector), Netskope Client"
+}

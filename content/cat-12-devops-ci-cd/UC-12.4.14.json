@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.4.14",
+  "title": "Ansible Playbook Failure Tracking",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Per-play `failed`, `unreachable`, `playbook`",
+  "app": "Ansible Splunk callback, ARA",
+  "spl": "index=iac sourcetype=\"ansible:result\"\n| stats sum(failed) as fails, sum(unreachable) as unreach, count as runs by playbook\n| eval fail_rate=round((fails+unreach)/runs*100,2)\n| where fail_rate > 5\n| sort -fail_rate",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Failure rate per playbook and run—trending layer on top of UC-12.4.3 outcomes.",
+  "value": "Failure rate per playbook and run—trending layer on top of UC-12.4.3 outcomes.",
+  "implementation": "Alert when fail_rate >5% over 24h. Page for security baseline playbooks. Host-level drilldown from same data.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Ansible Splunk callback, ARA.\n• Ensure the following data sources are available: Per-play `failed`, `unreachable`, `playbook`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlert when fail_rate >5% over 24h. Page for security baseline playbooks. Host-level drilldown from same data.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=iac sourcetype=\"ansible:result\"\n| stats sum(failed) as fails, sum(unreachable) as unreach, count as runs by playbook\n| eval fail_rate=round((fails+unreach)/runs*100,2)\n| where fail_rate > 5\n| sort -fail_rate\n```\n\nUnderstanding this SPL\n\n**Ansible Playbook Failure Tracking** — Failure rate per playbook and run—trending layer on top of UC-12.4.3 outcomes.\n\nDocumented **Data sources**: Per-play `failed`, `unreachable`, `playbook`. **App/TA** (typical add-on context): Ansible Splunk callback, ARA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: iac; **sourcetype**: ansible:result. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=iac, sourcetype=\"ansible:result\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by playbook** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **fail_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where fail_rate > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (fail rate trend), Table (worst playbooks), Bar chart (by team).",
+  "visualization": "Line chart (fail rate trend), Table (worst playbooks), Bar chart (by team).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "ansible"
+  ]
+}

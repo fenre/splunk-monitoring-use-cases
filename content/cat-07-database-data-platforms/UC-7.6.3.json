@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.6.3",
+  "title": "Replication Lag Trending",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=db` `sourcetype=mysql:slave`, `sourcetype=postgresql:replication`, `sourcetype=oracle:dg`, `sourcetype=mssql:ag`",
+  "app": "MySQL replica status, PostgreSQL replication, Oracle Data Guard, SQL Server AG metrics",
+  "spl": "index=db sourcetype IN (\"mysql:slave\",\"postgresql:replication\",\"oracle:dg\",\"mssql:ag\")\n| eval lag_sec=coalesce(seconds_behind_source, replay_lag_seconds, commit_lag_sec, ag_synchronization_health_seconds)\n| timechart span=1d max(lag_sec) as max_replica_lag_sec avg(lag_sec) as avg_replica_lag_sec by replica_host limit=15",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Maximum and average replication lag by replica over 30 days validates disaster-recovery readiness and read-consistency expectations. Gradual lag growth can signal network, disk, or write-volume problems before replica promotion fails.",
+  "value": "Maximum and average replication lag by replica over 30 days validates disaster-recovery readiness and read-consistency expectations. Gradual lag growth can signal network, disk, or write-volume problems before replica promotion fails.",
+  "implementation": "For SQL Server AG, prefer `database_replica` lag fields consistent with your sync mode. Filter out replicas in paused maintenance. Correlate spikes with large index builds or log chain breaks. Use the same clock source (NTP) across primary and replicas to avoid false lag. Cloud replicas may expose lag in milliseconds—normalize to seconds in `eval`.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: MySQL replica status, PostgreSQL replication, Oracle Data Guard, SQL Server AG metrics.\n• Ensure the following data sources are available: `index=db` `sourcetype=mysql:slave`, `sourcetype=postgresql:replication`, `sourcetype=oracle:dg`, `sourcetype=mssql:ag`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFor SQL Server AG, prefer `database_replica` lag fields consistent with your sync mode. Filter out replicas in paused maintenance. Correlate spikes with large index builds or log chain breaks. Use the same clock source (NTP) across primary and replicas to avoid false lag. Cloud replicas may expose lag in milliseconds—normalize to seconds in `eval`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=db sourcetype IN (\"mysql:slave\",\"postgresql:replication\",\"oracle:dg\",\"mssql:ag\")\n| eval lag_sec=coalesce(seconds_behind_source, replay_lag_seconds, commit_lag_sec, ag_synchronization_health_seconds)\n| timechart span=1d max(lag_sec) as max_replica_lag_sec avg(lag_sec) as avg_replica_lag_sec by replica_host limit=15\n```\n\nUnderstanding this SPL\n\n**Replication Lag Trending** — Maximum and average replication lag by replica over 30 days validates disaster-recovery readiness and read-consistency expectations. Gradual lag growth can signal network, disk, or write-volume problems before replica promotion fails.\n\nDocumented **Data sources**: `index=db` `sourcetype=mysql:slave`, `sourcetype=postgresql:replication`, `sourcetype=oracle:dg`, `sourcetype=mssql:ag`. **App/TA** (typical add-on context): MySQL replica status, PostgreSQL replication, Oracle Data Guard, SQL Server AG metrics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: db.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=db. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **lag_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by replica_host limit=15** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (max lag per replica), area chart (avg lag), single value (worst replica lag now).",
+  "visualization": "Line chart (max lag per replica), area chart (avg lag), single value (worst replica lag now).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "mssql",
+    "mysql",
+    "oracle",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "oracle_oracle_db",
+    "postgresql_pg"
+  ]
+}

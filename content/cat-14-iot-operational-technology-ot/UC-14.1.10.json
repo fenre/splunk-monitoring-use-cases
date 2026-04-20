@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.1.10",
+  "title": "SNMP Trap Storm Detection",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=network` `sourcetype=\"snmp:trap\"` or `snmptrapd:syslog`",
+  "app": "SNMP trap receiver, `snmptrapd` → syslog",
+  "spl": "index=network sourcetype IN (\"snmp:trap\",\"snmptrapd:syslog\")\n| timechart span=1m count as trap_rate by device_ip\n| where trap_rate > 500",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Trap floods overwhelm collectors and obscure real faults; rapid detection enables rate limiting and upstream device triage.",
+  "value": "Trap floods overwhelm collectors and obscure real faults; rapid detection enables rate limiting and upstream device triage.",
+  "implementation": "Baseline traps/min per agent IP. Alert when rate exceeds 5× baseline or absolute threshold. Correlate with link flaps or misconfigured threshold on managed device.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP trap receiver, `snmptrapd` → syslog.\n• Ensure the following data sources are available: `index=network` `sourcetype=\"snmp:trap\"` or `snmptrapd:syslog`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBaseline traps/min per agent IP. Alert when rate exceeds 5× baseline or absolute threshold. Correlate with link flaps or misconfigured threshold on managed device.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype IN (\"snmp:trap\",\"snmptrapd:syslog\")\n| timechart span=1m count as trap_rate by device_ip\n| where trap_rate > 500\n```\n\nUnderstanding this SPL\n\n**SNMP Trap Storm Detection** — Trap floods overwhelm collectors and obscure real faults; rapid detection enables rate limiting and upstream device triage.\n\nDocumented **Data sources**: `index=network` `sourcetype=\"snmp:trap\"` or `snmptrapd:syslog`. **App/TA** (typical add-on context): SNMP trap receiver, `snmptrapd` → syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1m** buckets with a separate series **by device_ip** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where trap_rate > 500` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (trap rate by device), Single value (peak traps/min), Table (top storm sources).",
+  "visualization": "Line chart (trap rate by device), Single value (peak traps/min), Table (top storm sources).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "snmp",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "snmp_generic"
+  ]
+}

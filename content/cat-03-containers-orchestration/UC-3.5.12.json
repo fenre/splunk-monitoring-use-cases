@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.5.12",
+  "title": "Rate Limiting and Traffic Policy Compliance",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=envoy:access` or `sourcetype=otel:metrics`",
+  "app": "Splunk OTel Collector (Envoy local rate limit / RLS metrics), Envoy access logs",
+  "spl": "index=containers sourcetype=\"envoy:access\"\n| eval denied=if(response_code=429 OR match(response_flags, \"RL\"), 1, 0)\n| stats count as total, sum(denied) as rate_limited by route_name, cluster_name\n| eval rl_pct=round(100*rate_limited/total, 3)\n| where rate_limited>0\n| sort -rate_limited",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Confirms quotas and Istio `RateLimitService`/Local rate limit configs actually throttle abuse; drift between policy and observed denials indicates misconfiguration or bypass attempts.",
+  "value": "Confirms quotas and Istio `RateLimitService`/Local rate limit configs actually throttle abuse; drift between policy and observed denials indicates misconfiguration or bypass attempts.",
+  "implementation": "Ensure access logs include `response_code` 429 and Envoy `response_flags` (e.g. `RL` for rate limited). For global RLS, scrape `ratelimit_service_*` or service metrics. Dashboard expected 429 share per route against policy (e.g. per-API key). Alert on unexpected absence of throttling during attacks or sudden spikes in 429s indicating config errors.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk OTel Collector (Envoy local rate limit / RLS metrics), Envoy access logs.\n• Ensure the following data sources are available: `sourcetype=envoy:access` or `sourcetype=otel:metrics`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure access logs include `response_code` 429 and Envoy `response_flags` (e.g. `RL` for rate limited). For global RLS, scrape `ratelimit_service_*` or service metrics. Dashboard expected 429 share per route against policy (e.g. per-API key). Alert on unexpected absence of throttling during attacks or sudden spikes in 429s indicating config errors.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=containers sourcetype=\"envoy:access\"\n| eval denied=if(response_code=429 OR match(response_flags, \"RL\"), 1, 0)\n| stats count as total, sum(denied) as rate_limited by route_name, cluster_name\n| eval rl_pct=round(100*rate_limited/total, 3)\n| where rate_limited>0\n| sort -rate_limited\n```\n\nUnderstanding this SPL\n\n**Rate Limiting and Traffic Policy Compliance** — Confirms quotas and Istio `RateLimitService`/Local rate limit configs actually throttle abuse; drift between policy and observed denials indicates misconfiguration or bypass attempts.\n\nDocumented **Data sources**: `sourcetype=envoy:access` or `sourcetype=otel:metrics`. **App/TA** (typical add-on context): Splunk OTel Collector (Envoy local rate limit / RLS metrics), Envoy access logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: containers; **sourcetype**: envoy:access. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=containers, sourcetype=\"envoy:access\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **denied** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by route_name, cluster_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **rl_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where rate_limited>0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Time chart (429 rate by route), Table (routes with throttle events), Stacked bar (allowed vs rate-limited volume).",
+  "visualization": "Time chart (429 rate by route), Table (routes with throttle events), Stacked bar (allowed vs rate-limited volume).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "envoy",
+    "opentelemetry"
+  ]
+}

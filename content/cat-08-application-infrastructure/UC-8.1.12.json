@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.1.12",
+  "title": "Apache mod_security WAF Blocks",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`modsec_audit.log`, `SecRule` action deny entries",
+  "app": "`Splunk_TA_apache`, modsec audit log",
+  "spl": "index=web sourcetype=\"apache:modsec\"\n| search action=\"denied\" OR intercept_phase=\"phase:2\"\n| stats count by rule_id, uri_path, src\n| sort -count\n| head 30",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Web.Web by Web.src | sort - count",
+  "cimModels": [
+    "Web"
+  ],
+  "description": "Tracks ModSecurity rule IDs and scores for blocked requests. Supports tuning false positives and detecting attack campaigns.",
+  "value": "Tracks ModSecurity rule IDs and scores for blocked requests. Supports tuning false positives and detecting attack campaigns.",
+  "implementation": "Ingest JSON or native ModSecurity audit format. Extract `rule_id`, `msg`. Alert on spike in unique IPs or new rule_id firing at high volume.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_apache`, modsec audit log.\n• Ensure the following data sources are available: `modsec_audit.log`, `SecRule` action deny entries.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest JSON or native ModSecurity audit format. Extract `rule_id`, `msg`. Alert on spike in unique IPs or new rule_id firing at high volume.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"apache:modsec\"\n| search action=\"denied\" OR intercept_phase=\"phase:2\"\n| stats count by rule_id, uri_path, src\n| sort -count\n| head 30\n```\n\nUnderstanding this SPL\n\n**Apache mod_security WAF Blocks** — Tracks ModSecurity rule IDs and scores for blocked requests. Supports tuning false positives and detecting attack campaigns.\n\nDocumented **Data sources**: `modsec_audit.log`, `SecRule` action deny entries. **App/TA** (typical add-on context): `Splunk_TA_apache`, modsec audit log. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: web; **sourcetype**: apache:modsec. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=web, sourcetype=\"apache:modsec\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by rule_id, uri_path, src** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Web.Web by Web.src | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Apache mod_security WAF Blocks** — Tracks ModSecurity rule IDs and scores for blocked requests. Supports tuning false positives and detecting attack campaigns.\n\nDocumented **Data sources**: `modsec_audit.log`, `SecRule` action deny entries. **App/TA** (typical add-on context): `Splunk_TA_apache`, modsec audit log. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Web.Web` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (rule, URI, count), Bar chart (blocks by rule), Map (src).",
+  "visualization": "Table (rule, URI, count), Bar chart (blocks by rule), Map (src).",
+  "references": [
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    }
+  ],
+  "equipment": [
+    "apache"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ]
+}

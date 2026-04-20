@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "16.2.14",
+  "title": "CI Lifecycle Management",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Configuration"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=snow:cmdb_ci` (`install_status`, `operational_status`)",
+  "app": "`Splunk_TA_snow`",
+  "spl": "index=itsm sourcetype=\"snow:cmdb_ci\"\n| where match(lower(install_status),\"on order|pending install|received\")\n| eval created_epoch=coalesce(sys_created_on, sys_updated_on, _time)\n| eval age_days=round((now()-created_epoch)/86400,0)\n| where age_days>90\n| table name, install_status, operational_status, age_days, support_group",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Monitors CI lifecycle state transitions (ordered → received → in production → retired) for stuck states and policy compliance.",
+  "value": "Monitors CI lifecycle state transitions (ordered → received → in production → retired) for stuck states and policy compliance.",
+  "implementation": "Adjust `install_status` values to your list. Flag CIs stuck in procurement or “pending install” beyond SLA. Report retired CIs still `operational` in error.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow`.\n• Ensure the following data sources are available: `sourcetype=snow:cmdb_ci` (`install_status`, `operational_status`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAdjust `install_status` values to your list. Flag CIs stuck in procurement or “pending install” beyond SLA. Report retired CIs still `operational` in error.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:cmdb_ci\"\n| where match(lower(install_status),\"on order|pending install|received\")\n| eval created_epoch=coalesce(sys_created_on, sys_updated_on, _time)\n| eval age_days=round((now()-created_epoch)/86400,0)\n| where age_days>90\n| table name, install_status, operational_status, age_days, support_group\n```\n\nUnderstanding this SPL\n\n**CI Lifecycle Management** — Monitors CI lifecycle state transitions (ordered → received → in production → retired) for stuck states and policy compliance.\n\nDocumented **Data sources**: `sourcetype=snow:cmdb_ci` (`install_status`, `operational_status`). **App/TA** (typical add-on context): `Splunk_TA_snow`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:cmdb_ci. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:cmdb_ci\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where match(lower(install_status),\"on order|pending install|received\")` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **created_epoch** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **age_days** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where age_days>90` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **CI Lifecycle Management**): table name, install_status, operational_status, age_days, support_group\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (stuck lifecycles), Bar chart (count by stuck state), Line chart (backlog trend).",
+  "visualization": "Table (stuck lifecycles), Bar chart (count by stuck state), Line chart (backlog trend).",
+  "references": [
+    {
+      "title": "Splunk_TA_snow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "equipment": [
+    "servicenow"
+  ]
+}

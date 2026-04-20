@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "23.2.8",
+  "title": "Win–Loss Reason Coding and Competitive Rate",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Business"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Cross-industry",
+  "dataSources": "`index=business` `sourcetype=\"dbx:crm_opportunities\"` (stage, loss_reason, win_reason, competitor, amount, region)",
+  "app": "Splunk DB Connect (Splunkbase 2686)",
+  "spl": "index=business sourcetype=\"dbx:crm_opportunities\" stage=\"Closed Lost\" earliest=-180d\n| where isnotnull(loss_reason)\n| stats count as deals, sum(amount) as pipeline by loss_reason, competitor\n| eventstats sum(deals) as total_lost\n| eval share_pct=round(100*deals/total_lost,1)\n| sort - deals\n| head 30\n| table loss_reason, competitor, deals, pipeline, share_pct",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Summarises why deals are won or lost and how often named competitors appear so product and enablement invest in the right battlecards. We help you reduce repeated losses to the same objection without relying on anecdotal win stories alone.",
+  "value": "Summarises why deals are won or lost and how often named competitors appear so product and enablement invest in the right battlecards. We help you reduce repeated losses to the same objection without relying on anecdotal win stories alone.",
+  "implementation": "(1) Enforce structured loss and competitor picklists in your customer relationship management close workflow; (2) replicate closed opportunity rows including reasons via DB Connect; (3) run a bi-weekly review with product marketing when any single loss reason exceeds ten percent of losses for two periods in a row.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk DB Connect (Splunkbase 2686).\n• Ensure the following data sources are available: `index=business` `sourcetype=\"dbx:crm_opportunities\"` (stage, loss_reason, win_reason, competitor, amount, region).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Enforce structured loss and competitor picklists in your customer relationship management close workflow; (2) replicate closed opportunity rows including reasons via DB Connect; (3) run a bi-weekly review with product marketing when any single loss reason exceeds ten percent of losses for two periods in a row.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=business sourcetype=\"dbx:crm_opportunities\" stage=\"Closed Lost\" earliest=-180d\n| where isnotnull(loss_reason)\n| stats count as deals, sum(amount) as pipeline by loss_reason, competitor\n| eventstats sum(deals) as total_lost\n| eval share_pct=round(100*deals/total_lost,1)\n| sort - deals\n| head 30\n| table loss_reason, competitor, deals, pipeline, share_pct\n```\n\nUnderstanding this SPL\n\n**Win–Loss Reason Coding and Competitive Rate** — Summarises why deals are won or lost and how often named competitors appear so product and enablement invest in the right battlecards. We help you reduce repeated losses to the same objection without relying on anecdotal win stories alone.\n\nDocumented **Data sources**: `index=business` `sourcetype=\"dbx:crm_opportunities\"` (stage, loss_reason, win_reason, competitor, amount, region). **App/TA** (typical add-on context): Splunk DB Connect (Splunkbase 2686). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: business; **sourcetype**: dbx:crm_opportunities. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=business, sourcetype=\"dbx:crm_opportunities\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where isnotnull(loss_reason)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by loss_reason, competitor** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **share_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n• Pipeline stage (see **Win–Loss Reason Coding and Competitive Rate**): table loss_reason, competitor, deals, pipeline, share_pct\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (top loss reasons), Table (competitor × reason), Pie chart (loss reason mix), Single value (losses with competitor tagged percent).",
+  "visualization": "Bar chart (top loss reasons), Table (competitor × reason), Pie chart (loss reason mix), Single value (losses with competitor tagged percent).",
+  "references": [
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    },
+    {
+      "title": "Splunk Add-on for Apache Web Server",
+      "url": "https://splunkbase.splunk.com/app/3186"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ]
+}

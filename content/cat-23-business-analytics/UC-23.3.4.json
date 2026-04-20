@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "23.3.4",
+  "title": "Website Traffic Source and SEO Performance",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Business"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Cross-industry",
+  "dataSources": "`index=web` `sourcetype=\"access_combined\"` (clientip, uri, referer, status, bytes)",
+  "app": "Splunk Add-on for Apache Web Server (Splunkbase 3186)",
+  "spl": "index=web sourcetype=\"access_combined\" status=200 NOT uri IN (\"/favicon.ico\",\"robots.txt\",\"/health\") earliest=-7d\n| eval session=clientip.\"_\".useragent\n| eval source=case(\n    match(referer,\"(?i)google\\.(com|co\\.\\w+)/search\"), \"Organic — Google\",\n    match(referer,\"(?i)bing\\.com/search\"), \"Organic — Bing\",\n    match(referer,\"(?i)(facebook|linkedin|twitter|instagram)\\.com\"), \"Social\",\n    match(uri,\"[?&]utm_medium=cpc\"), \"Paid Search\",\n    match(uri,\"[?&]utm_medium=email\"), \"Email\",\n    isnull(referer) OR referer=\"-\", \"Direct\",\n    1=1, \"Referral\")\n| stats dc(session) as sessions, dc(clientip) as visitors, count as pageviews by source\n| eval pages_per_session=round(pageviews/sessions, 1)\n| sort - sessions\n| table source, visitors, sessions, pageviews, pages_per_session",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Breaks down website traffic by source — organic search, paid search, social, direct, referral — showing which channels drive the most visitors and which produce the highest quality engagement (measured by pages per session and time on site). Marketing teams see SEO effectiveness alongside paid performance.",
+  "value": "Breaks down website traffic by source — organic search, paid search, social, direct, referral — showing which channels drive the most visitors and which produce the highest quality engagement (measured by pages per session and time on site). Marketing teams see SEO effectiveness alongside paid performance.",
+  "implementation": "(1) Ensure web server logs capture referer and full URI including query strings; (2) customise source classification for your UTM conventions; (3) schedule daily and weekly comparisons; (4) alert on significant organic traffic drops (possible SEO issue or algorithm change); (5) add landing page analysis by cross-referencing source with first URI per session.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Apache Web Server (Splunkbase 3186).\n• Ensure the following data sources are available: `index=web` `sourcetype=\"access_combined\"` (clientip, uri, referer, status, bytes).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ensure web server logs capture referer and full URI including query strings; (2) customise source classification for your UTM conventions; (3) schedule daily and weekly comparisons; (4) alert on significant organic traffic drops (possible SEO issue or algorithm change); (5) add landing page analysis by cross-referencing source with first URI per session.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"access_combined\" status=200 NOT uri IN (\"/favicon.ico\",\"robots.txt\",\"/health\") earliest=-7d\n| eval session=clientip.\"_\".useragent\n| eval source=case(\n    match(referer,\"(?i)google\\.(com|co\\.\\w+)/search\"), \"Organic — Google\",\n    match(referer,\"(?i)bing\\.com/search\"), \"Organic — Bing\",\n    match(referer,\"(?i)(facebook|linkedin|twitter|instagram)\\.com\"), \"Social\",\n    match(uri,\"[?&]utm_medium=cpc\"), \"Paid Search\",\n    match(uri,\"[?&]utm_medium=email\"), \"Email\",\n    isnull(referer) OR referer=\"-\", \"Direct\",\n    1=1, \"Referral\")\n| stats dc(session) as sessions, dc(clientip) as visitors, count as pageviews by source\n| eval pages_per_session=round(pageviews/sessions, 1)\n| sort - sessions\n| table source, visitors, sessions, pageviews, pages_per_session\n```\n\nUnderstanding this SPL\n\n**Website Traffic Source and SEO Performance** — Breaks down website traffic by source — organic search, paid search, social, direct, referral — showing which channels drive the most visitors and which produce the highest quality engagement (measured by pages per session and time on site). Marketing teams see SEO effectiveness alongside paid performance.\n\nDocumented **Data sources**: `index=web` `sourcetype=\"access_combined\"` (clientip, uri, referer, status, bytes). **App/TA** (typical add-on context): Splunk Add-on for Apache Web Server (Splunkbase 3186). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: web; **sourcetype**: access_combined. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=web, sourcetype=\"access_combined\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **session** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **source** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by source** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **pages_per_session** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Website Traffic Source and SEO Performance**): table source, visitors, sessions, pageviews, pages_per_session\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart (sessions by source), Bar chart (visitors by source), Table (quality metrics per source), Line chart (daily traffic by source).",
+  "visualization": "Pie chart (sessions by source), Bar chart (visitors by source), Table (quality metrics per source), Line chart (daily traffic by source).",
+  "references": [
+    {
+      "title": "Splunk Add-on for Apache Web Server",
+      "url": "https://splunkbase.splunk.com/app/3186"
+    }
+  ],
+  "equipment": [
+    "apache"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ]
+}

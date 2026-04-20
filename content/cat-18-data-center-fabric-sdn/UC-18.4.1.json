@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "18.4.1",
+  "title": "Nexus Dashboard Insights Anomaly Monitoring",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "NDI anomaly exports (webhook/syslog), `cisco:ndi:anomaly`",
+  "app": "Cisco DC Networking Application (Splunkbase 7777), NDI webhook / syslog export",
+  "spl": "index=cisco_dc sourcetype=\"cisco:ndi:anomaly\" earliest=-24h\n| stats count by severity, category, anomaly_type, fabric_name\n| where severity IN (\"critical\",\"major\")\n| sort -count",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity | sort - count",
+  "cimModels": [
+    "Alerts"
+  ],
+  "description": "Nexus Dashboard Insights (NDI) uses ML-driven baselining to detect anomalies across hardware, capacity, compliance, connectivity, and configuration. Forwarding these anomalies to Splunk enables correlation with application and security events that NDI cannot see, and provides long-term trending beyond NDI retention.",
+  "value": "Nexus Dashboard Insights (NDI) uses ML-driven baselining to detect anomalies across hardware, capacity, compliance, connectivity, and configuration. Forwarding these anomalies to Splunk enables correlation with application and security events that NDI cannot see, and provides long-term trending beyond NDI retention.",
+  "implementation": "Configure NDI to export anomalies via webhook to a Splunk HEC endpoint, or forward syslog. Map severity and category fields. Alert on critical/major anomalies. Use NDI anomaly correlation data to distinguish root causes from symptoms.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cisco DC Networking Application (Splunkbase 7777), NDI webhook / syslog export.\n• Ensure the following data sources are available: NDI anomaly exports (webhook/syslog), `cisco:ndi:anomaly`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure NDI to export anomalies via webhook to a Splunk HEC endpoint, or forward syslog. Map severity and category fields. Alert on critical/major anomalies. Use NDI anomaly correlation data to distinguish root causes from symptoms.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cisco_dc sourcetype=\"cisco:ndi:anomaly\" earliest=-24h\n| stats count by severity, category, anomaly_type, fabric_name\n| where severity IN (\"critical\",\"major\")\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Nexus Dashboard Insights Anomaly Monitoring** — Nexus Dashboard Insights (NDI) uses ML-driven baselining to detect anomalies across hardware, capacity, compliance, connectivity, and configuration. Forwarding these anomalies to Splunk enables correlation with application and security events that NDI cannot see, and provides long-term trending beyond NDI retention.\n\nDocumented **Data sources**: NDI anomaly exports (webhook/syslog), `cisco:ndi:anomaly`. **App/TA** (typical add-on context): Cisco DC Networking Application (Splunkbase 7777), NDI webhook / syslog export. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cisco_dc; **sourcetype**: cisco:ndi:anomaly. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cisco_dc, sourcetype=\"cisco:ndi:anomaly\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by severity, category, anomaly_type, fabric_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where severity IN (\"critical\",\"major\")` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Nexus Dashboard Insights Anomaly Monitoring** — Nexus Dashboard Insights (NDI) uses ML-driven baselining to detect anomalies across hardware, capacity, compliance, connectivity, and configuration. Forwarding these anomalies to Splunk enables correlation with application and security events that NDI cannot see, and provides long-term trending beyond NDI retention.\n\nDocumented **Data sources**: NDI anomaly exports (webhook/syslog), `cisco:ndi:anomaly`. **App/TA** (typical add-on context): Cisco DC Networking Application (Splunkbase 7777), NDI webhook / syslog export. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Alerts.Alerts` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (anomalies by category), Bar chart (anomaly count by severity), Timeline (anomaly events), Single value (open criticals).",
+  "visualization": "Table (anomalies by category), Bar chart (anomaly count by severity), Timeline (anomaly events), Single value (open criticals).",
+  "references": [
+    {
+      "title": "Cisco DC Networking Application",
+      "url": "https://splunkbase.splunk.com/app/7777"
+    },
+    {
+      "title": "CIM: Alerts",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts"
+    }
+  ],
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_nexus"
+  ],
+  "hardware": "Nexus Dashboard, Nexus 9300, Nexus 9500, APIC (ACI mode)"
+}

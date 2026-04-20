@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.1.24",
+  "title": "SQS Queue Depth and Age of Oldest Message",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "CloudWatch SQS metrics (ApproximateNumberOfMessagesVisible, ApproximateAgeOfOldestMessage)",
+  "app": "`Splunk_TA_aws`",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SQS\" (metric_name=\"ApproximateNumberOfMessagesVisible\" OR metric_name=\"ApproximateAgeOfOldestMessage\")\n| bin _time span=5m\n| eval depth=if(metric_name=\"ApproximateNumberOfMessagesVisible\", Average, null()),\n       age_s=if(metric_name=\"ApproximateAgeOfOldestMessage\", Average, null())\n| stats avg(depth) as depth, avg(age_s) as age_s by _time, QueueName\n| where depth > 1000 OR age_s > 300",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Growing queue depth or old messages indicate consumers are falling behind or failing. Prevents backlog and SLA breaches.",
+  "value": "Growing queue depth or old messages indicate consumers are falling behind or failing. Prevents backlog and SLA breaches.",
+  "implementation": "Collect SQS metrics. Alert when queue depth exceeds threshold (e.g. 1000) or age of oldest message > 5 minutes. Monitor dead-letter queue (ApproximateNumberOfMessagesDelayed) separately.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: CloudWatch SQS metrics (ApproximateNumberOfMessagesVisible, ApproximateAgeOfOldestMessage).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect SQS metrics. Alert when queue depth exceeds threshold (e.g. 1000) or age of oldest message > 5 minutes. Monitor dead-letter queue (ApproximateNumberOfMessagesDelayed) separately.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SQS\" (metric_name=\"ApproximateNumberOfMessagesVisible\" OR metric_name=\"ApproximateAgeOfOldestMessage\")\n| bin _time span=5m\n| eval depth=if(metric_name=\"ApproximateNumberOfMessagesVisible\", Average, null()),\n       age_s=if(metric_name=\"ApproximateAgeOfOldestMessage\", Average, null())\n| stats avg(depth) as depth, avg(age_s) as age_s by _time, QueueName\n| where depth > 1000 OR age_s > 300\n```\n\nUnderstanding this SPL\n\n**SQS Queue Depth and Age of Oldest Message** — Growing queue depth or old messages indicate consumers are falling behind or failing. Prevents backlog and SLA breaches.\n\nDocumented **Data sources**: CloudWatch SQS metrics (ApproximateNumberOfMessagesVisible, ApproximateAgeOfOldestMessage). **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `eval` defines or adjusts **depth** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by _time, QueueName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where depth > 1000 OR age_s > 300` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (depth, age by queue), Single value (oldest message age), Table (queue, depth).",
+  "visualization": "Line chart (depth, age by queue), Single value (oldest message age), Table (queue, depth).",
+  "references": [
+    {
+      "title": "Splunk_TA_aws",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    }
+  ],
+  "equipment": [
+    "aws"
+  ]
+}

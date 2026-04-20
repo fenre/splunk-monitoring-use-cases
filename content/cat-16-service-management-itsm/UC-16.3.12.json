@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "16.3.12",
+  "title": "Control-M Job Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Control-M /run/jobs/status, job history",
+  "app": "Custom (Control-M Automation API)",
+  "spl": "index=cicd sourcetype=\"controlm:job\"\n| where status=\"Failed\" OR status=\"Ended Not OK\" OR (sla_met=\"false\" AND status=\"Ended OK\")\n| table _time, job_id, job_name, folder, status, order_date, run_as, end_time, sla_met\n| sort -_time",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Batch job success/failure and SLA compliance are critical for data pipelines and scheduled workloads. Failed or late jobs can cascade to downstream systems and reporting.",
+  "value": "Batch job success/failure and SLA compliance are critical for data pipelines and scheduled workloads. Failed or late jobs can cascade to downstream systems and reporting.",
+  "implementation": "Poll Control-M Automation API for job status and history. Ingest job_id, job_name, status, order_date, end_time, sla_met. Alert on Failed or Ended Not OK. Alert on SLA violations. Track success rate by folder and job. Report on batch job health and SLA compliance percentage.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Control-M Automation API).\n• Ensure the following data sources are available: Control-M /run/jobs/status, job history.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll Control-M Automation API for job status and history. Ingest job_id, job_name, status, order_date, end_time, sla_met. Alert on Failed or Ended Not OK. Alert on SLA violations. Track success rate by folder and job. Report on batch job health and SLA compliance percentage.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"controlm:job\"\n| where status=\"Failed\" OR status=\"Ended Not OK\" OR (sla_met=\"false\" AND status=\"Ended OK\")\n| table _time, job_id, job_name, folder, status, order_date, run_as, end_time, sla_met\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Control-M Job Monitoring** — Batch job success/failure and SLA compliance are critical for data pipelines and scheduled workloads. Failed or late jobs can cascade to downstream systems and reporting.\n\nDocumented **Data sources**: Control-M /run/jobs/status, job history. **App/TA** (typical add-on context): Custom (Control-M Automation API). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: controlm:job. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"controlm:job\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where status=\"Failed\" OR status=\"Ended Not OK\" OR (sla_met=\"false\" AND status=\"Ended OK\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Control-M Job Monitoring**): table _time, job_id, job_name, folder, status, order_date, run_as, end_time, sla_met\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed/late jobs), Single value (success rate %), Timeline (job outcomes), Bar chart (failures by folder).",
+  "visualization": "Table (failed/late jobs), Single value (success rate %), Timeline (job outcomes), Bar chart (failures by folder).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "controlm"
+  ]
+}

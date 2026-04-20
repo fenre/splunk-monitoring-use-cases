@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.1.3",
+  "title": "Forwarder Connectivity",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`_internal` (metrics.log — tcpin_connections)",
+  "app": "Monitoring Console, Deployment Monitor app",
+  "spl": "index=_internal sourcetype=splunkd group=tcpin_connections\n| stats latest(_time) as last_seen by hostname, sourceIp\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since > 1\n| table hostname, sourceIp, hours_since\n| sort -hours_since",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Silent forwarder failures mean data gaps that may not be noticed until an investigation fails. Detection ensures data completeness.",
+  "value": "Silent forwarder failures mean data gaps that may not be noticed until an investigation fails. Detection ensures data completeness.",
+  "implementation": "Track last-seen timestamp per forwarder from `_internal`. Alert when any forwarder hasn't reported in >1 hour. Maintain forwarder inventory for coverage analysis. Cross-reference with host downtime events.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Monitoring Console, Deployment Monitor app.\n• Ensure the following data sources are available: `_internal` (metrics.log — tcpin_connections).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTrack last-seen timestamp per forwarder from `_internal`. Alert when any forwarder hasn't reported in >1 hour. Maintain forwarder inventory for coverage analysis. Cross-reference with host downtime events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal sourcetype=splunkd group=tcpin_connections\n| stats latest(_time) as last_seen by hostname, sourceIp\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since > 1\n| table hostname, sourceIp, hours_since\n| sort -hours_since\n```\n\nUnderstanding this SPL\n\n**Forwarder Connectivity** — Silent forwarder failures mean data gaps that may not be noticed until an investigation fails. Detection ensures data completeness.\n\nDocumented **Data sources**: `_internal` (metrics.log — tcpin_connections). **App/TA** (typical add-on context): Monitoring Console, Deployment Monitor app. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal; **sourcetype**: splunkd. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, sourcetype=splunkd. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by hostname, sourceIp** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **hours_since** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where hours_since > 1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Forwarder Connectivity**): table hostname, sourceIp, hours_since\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (silent forwarders), Single value (forwarders reporting), Status grid (forwarder × health), Bar chart (silent by location).",
+  "visualization": "Table (silent forwarders), Single value (forwarders reporting), Status grid (forwarder × health), Bar chart (silent by location).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

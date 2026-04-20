@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.23",
+  "title": "Custom Python Container for Data Transformation & Enrichment",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=edge-hub-data` all metrics post-transformation, `index=edge-hub-logs` container_event_log",
+  "app": "Splunk Edge Hub (custom container), gRPC SDK",
+  "premiumApps": [
+    "Splunk Edge Hub"
+  ],
+  "spl": "index=edge-hub-logs sourcetype=splunk_edge_hub_log container_name=transform_enrichment\n| stats count as successful_transforms, count(eval(error_code!=0)) as failed_transforms by host\n| eval transform_success_rate = (successful_transforms / (successful_transforms + failed_transforms)) * 100",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Pre-processes edge sensor data locally before forwarding to Splunk, reducing bandwidth and enabling offline analytics.",
+  "value": "Pre-processes edge sensor data locally before forwarding to Splunk, reducing bandwidth and enabling offline analytics.",
+  "implementation": "Build custom ARM64 Python container (requires Dockerfile with Python 3.9+ and gRPC client library) to read sensor data via Edge Hub gRPC API. Implement custom enrichment logic (e.g., add facility ID, shift code, operator ID). Redact PII or sensitive fields before forwarding to cloud. Configure edge.json manifest with resource limits (memory: 512MB, CPU: 2 cores). Container runs as non-root (v2.0+). Deploy via Advanced Settings → Containers tab. Local SQLite backlog absorbs data if container crashes.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (custom container), gRPC SDK.\n• Ensure the following data sources are available: `index=edge-hub-data` all metrics post-transformation, `index=edge-hub-logs` container_event_log.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBuild custom ARM64 Python container (requires Dockerfile with Python 3.9+ and gRPC client library) to read sensor data via Edge Hub gRPC API. Implement custom enrichment logic (e.g., add facility ID, shift code, operator ID). Redact PII or sensitive fields before forwarding to cloud. Configure edge.json manifest with resource limits (memory: 512MB, CPU: 2 cores). Container runs as non-root (v2.0+). Deploy via Advanced Settings → Containers tab. Local SQLite backlog absorbs data if container cras…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=splunk_edge_hub_log container_name=transform_enrichment\n| stats count as successful_transforms, count(eval(error_code!=0)) as failed_transforms by host\n| eval transform_success_rate = (successful_transforms / (successful_transforms + failed_transforms)) * 100\n```\n\nUnderstanding this SPL\n\n**Custom Python Container for Data Transformation & Enrichment** — Pre-processes edge sensor data locally before forwarding to Splunk, reducing bandwidth and enabling offline analytics.\n\nDocumented **Data sources**: `index=edge-hub-data` all metrics post-transformation, `index=edge-hub-logs` container_event_log. **App/TA** (typical add-on context): Splunk Edge Hub (custom container), gRPC SDK. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: splunk_edge_hub_log. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=splunk_edge_hub_log. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **transform_success_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Transform success rate trend, processing latency histogram, error frequency chart.",
+  "visualization": "Transform success rate trend, processing latency histogram, error frequency chart.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "edge_hub"
+  ]
+}

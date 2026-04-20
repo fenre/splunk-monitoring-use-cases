@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.2.12",
+  "title": "GitLab Pipeline Duration Trending",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "GitLab /api/v4/projects/:id/pipelines",
+  "app": "Custom (GitLab API)",
+  "spl": "index=cicd sourcetype=\"gitlab:pipeline\"\n| eval duration_sec=coalesce(duration, 0)\n| timechart span=1d avg(duration_sec) as avg_duration, percentile(duration_sec, 95) as p95_duration by ref\n| where avg_duration > 0",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Pipeline getting slower over time indicates growing tech debt or resource constraints. Trending enables proactive optimization before developer velocity degrades.",
+  "value": "Pipeline getting slower over time indicates growing tech debt or resource constraints. Trending enables proactive optimization before developer velocity degrades.",
+  "implementation": "Poll GitLab pipelines API per project. Ingest id, ref, status, duration, created_at. Calculate duration for completed pipelines. Track 7-day rolling average. Alert when avg duration increases >25% week-over-week. Correlate with runner capacity and stage-level timings.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (GitLab API).\n• Ensure the following data sources are available: GitLab /api/v4/projects/:id/pipelines.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll GitLab pipelines API per project. Ingest id, ref, status, duration, created_at. Calculate duration for completed pipelines. Track 7-day rolling average. Alert when avg duration increases >25% week-over-week. Correlate with runner capacity and stage-level timings.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"gitlab:pipeline\"\n| eval duration_sec=coalesce(duration, 0)\n| timechart span=1d avg(duration_sec) as avg_duration, percentile(duration_sec, 95) as p95_duration by ref\n| where avg_duration > 0\n```\n\nUnderstanding this SPL\n\n**GitLab Pipeline Duration Trending** — Pipeline getting slower over time indicates growing tech debt or resource constraints. Trending enables proactive optimization before developer velocity degrades.\n\nDocumented **Data sources**: GitLab /api/v4/projects/:id/pipelines. **App/TA** (typical add-on context): Custom (GitLab API). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: gitlab:pipeline. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"gitlab:pipeline\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **duration_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by ref** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where avg_duration > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (pipeline duration trend by branch), Bar chart (avg duration by project), Table (slowest pipelines this week), Single value (p95 duration).",
+  "visualization": "Line chart (pipeline duration trend by branch), Bar chart (avg duration by project), Table (slowest pipelines this week), Single value (p95 duration).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "gitlab"
+  ]
+}

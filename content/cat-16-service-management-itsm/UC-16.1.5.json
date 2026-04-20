@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "16.1.5",
+  "title": "Change Collision Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Configuration"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Change calendar, CI relationships",
+  "app": "`Splunk_TA_snow`",
+  "spl": "index=itsm sourcetype=\"snow:change_request\" state=\"scheduled\"\n| eval change_window_start=start_date, change_window_end=end_date\n| join type=inner max=1 cmdb_ci [| search index=itsm sourcetype=\"snow:change_request\" state=\"scheduled\"]\n| where change_window_start < end_date AND change_window_end > start_date AND change_id!=other_change_id",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Overlapping changes on related systems increase outage risk. Detection enables coordination and conflict resolution.",
+  "value": "Overlapping changes on related systems increase outage risk. Detection enables coordination and conflict resolution.",
+  "implementation": "Analyze scheduled change windows for overlapping CIs. Cross-reference CI relationships for dependent systems. Alert when changes to related systems overlap. Create change calendar view for CAB review.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow`.\n• Ensure the following data sources are available: Change calendar, CI relationships.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAnalyze scheduled change windows for overlapping CIs. Cross-reference CI relationships for dependent systems. Alert when changes to related systems overlap. Create change calendar view for CAB review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:change_request\" state=\"scheduled\"\n| eval change_window_start=start_date, change_window_end=end_date\n| join type=inner max=1 cmdb_ci [| search index=itsm sourcetype=\"snow:change_request\" state=\"scheduled\"]\n| where change_window_start < end_date AND change_window_end > start_date AND change_id!=other_change_id\n```\n\nUnderstanding this SPL\n\n**Change Collision Detection** — Overlapping changes on related systems increase outage risk. Detection enables coordination and conflict resolution.\n\nDocumented **Data sources**: Change calendar, CI relationships. **App/TA** (typical add-on context): `Splunk_TA_snow`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:change_request. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:change_request\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **change_window_start** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where change_window_start < end_date AND change_window_end > start_date AND change_id!=other_change_id` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Calendar view (change windows), Table (colliding changes), Gantt chart (change timeline).",
+  "visualization": "Calendar view (change windows), Table (colliding changes), Gantt chart (change timeline).",
+  "references": [
+    {
+      "title": "Splunk_TA_snow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "equipment": [
+    "servicenow"
+  ]
+}

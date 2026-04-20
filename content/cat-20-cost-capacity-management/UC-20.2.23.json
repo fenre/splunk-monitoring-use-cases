@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "20.2.23",
+  "title": "VM Sprawl Detection",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`vmware:inv:vm`",
+  "app": "vCenter inventory",
+  "spl": "index=virtualization sourcetype=\"vmware:inv:vm\" earliest=-1d\n| where power_state=\"poweredOn\"\n| stats count as vm_count by folder, owner\n| eventstats avg(vm_count) as fleet_avg\n| where vm_count > fleet_avg*3 AND vm_count>50\n| sort -vm_count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Count of powered-on VMs per app owner vs license and growth rate — finds unchecked provisioning.",
+  "value": "Count of powered-on VMs per app owner vs license and growth rate — finds unchecked provisioning.",
+  "implementation": "Map `owner` from folder or tags. Review quarterly for consolidation. Correlate with cost (UC-20.1).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: vCenter inventory.\n• Ensure the following data sources are available: `vmware:inv:vm`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap `owner` from folder or tags. Review quarterly for consolidation. Correlate with cost (UC-20.1).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=virtualization sourcetype=\"vmware:inv:vm\" earliest=-1d\n| where power_state=\"poweredOn\"\n| stats count as vm_count by folder, owner\n| eventstats avg(vm_count) as fleet_avg\n| where vm_count > fleet_avg*3 AND vm_count>50\n| sort -vm_count\n```\n\nUnderstanding this SPL\n\n**VM Sprawl Detection** — Count of powered-on VMs per app owner vs license and growth rate — finds unchecked provisioning.\n\nDocumented **Data sources**: `vmware:inv:vm`. **App/TA** (typical add-on context): vCenter inventory. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: virtualization; **sourcetype**: vmware:inv:vm. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=virtualization, sourcetype=\"vmware:inv:vm\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where power_state=\"poweredOn\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by folder, owner** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• Filters the current rows with `where vm_count > fleet_avg*3 AND vm_count>50` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (VM count by owner), Table (sprawl candidates), Line chart (VM growth).",
+  "visualization": "Bar chart (VM count by owner), Table (sprawl candidates), Line chart (VM growth).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "vmware"
+  ],
+  "equipmentModels": [
+    "vmware_vcenter"
+  ]
+}

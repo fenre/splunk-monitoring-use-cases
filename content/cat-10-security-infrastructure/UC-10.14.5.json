@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.14.5",
+  "title": "Data Historian Compromise Indicators",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=ot_security` `sourcetype=\"ics:historian\"` DB/OS logs for historian hosts",
+  "app": "OT Security Add-on for Splunk (Splunkbase 5151)",
+  "premiumApps": [
+    "Splunk OT Security Add-on"
+  ],
+  "spl": "index=ot_security sourcetype=\"ics:historian\"\n| bin _time span=1h\n| stats count sum(rows_returned) as rows dc(client_ip) as clients by _time, historian_host\n| eventstats avg(count) as avg_count by historian_host\n| where count>avg_count*3 OR rows>10000 OR clients>5\n| table _time, historian_host, count, rows, clients, avg_count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Detects anomalous queries, bulk exports, or new clients against historian servers (T0815), which can hide sabotage or exfiltrate operational data.",
+  "value": "Detects anomalous queries, bulk exports, or new clients against historian servers (T0815), which can hide sabotage or exfiltrate operational data.",
+  "implementation": "Whitelist backup and reporting hosts. Create thresholds for off-hours bulk reads and new ODBC/JDBC clients. Tag with T0815 for threat intel alignment.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: OT Security Add-on for Splunk (Splunkbase 5151).\n• Ensure the following data sources are available: `index=ot_security` `sourcetype=\"ics:historian\"` DB/OS logs for historian hosts.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nWhitelist backup and reporting hosts. Create thresholds for off-hours bulk reads and new ODBC/JDBC clients. Tag with T0815 for threat intel alignment.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot_security sourcetype=\"ics:historian\"\n| bin _time span=1h\n| stats count sum(rows_returned) as rows dc(client_ip) as clients by _time, historian_host\n| eventstats avg(count) as avg_count by historian_host\n| where count>avg_count*3 OR rows>10000 OR clients>5\n| table _time, historian_host, count, rows, clients, avg_count\n```\n\nUnderstanding this SPL\n\n**Data Historian Compromise Indicators** — Detects anomalous queries, bulk exports, or new clients against historian servers (T0815), which can hide sabotage or exfiltrate operational data.\n\nDocumented **Data sources**: `index=ot_security` `sourcetype=\"ics:historian\"` DB/OS logs for historian hosts. **App/TA** (typical add-on context): OT Security Add-on for Splunk (Splunkbase 5151). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot_security; **sourcetype**: ics:historian. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot_security, sourcetype=\"ics:historian\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, historian_host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eventstats` rolls up events into metrics; results are split **by historian_host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count>avg_count*3 OR rows>10000 OR clients>5` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Data Historian Compromise Indicators**): table _time, historian_host, count, rows, clients, avg_count\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart of query volume vs baseline, Scatter of rows vs clients, Table of anomalous source IPs.",
+  "visualization": "Timechart of query volume vs baseline, Scatter of rows vs clients, Table of anomalous source IPs.",
+  "references": [
+    {
+      "title": "OT Security Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/5151"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

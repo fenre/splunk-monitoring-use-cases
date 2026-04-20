@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.2.26",
+  "title": "etcd Health and Latency",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=kube:etcd`",
+  "app": "Splunk OTel Collector",
+  "spl": "index=k8s sourcetype=\"kube:etcd\"\n| timechart span=5m avg(etcd_network_peer_round_trip_time_seconds) as rtt, avg(etcd_disk_backend_commit_duration_seconds) as commit\n| where rtt>0.05 OR commit>0.1",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "etcd request latency and raft health predict API slowness and split-brain risk; early warning preserves control plane stability.",
+  "value": "etcd request latency and raft health predict API slowness and split-brain risk; early warning preserves control plane stability.",
+  "implementation": "Scrape etcd `/metrics` from members (managed clusters: use cloud metrics export if direct scrape is blocked). Alert on rising commit duration, peer RTT, or leader election counters.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk OTel Collector.\n• Ensure the following data sources are available: `sourcetype=kube:etcd`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nScrape etcd `/metrics` from members (managed clusters: use cloud metrics export if direct scrape is blocked). Alert on rising commit duration, peer RTT, or leader election counters.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=k8s sourcetype=\"kube:etcd\"\n| timechart span=5m avg(etcd_network_peer_round_trip_time_seconds) as rtt, avg(etcd_disk_backend_commit_duration_seconds) as commit\n| where rtt>0.05 OR commit>0.1\n```\n\nUnderstanding this SPL\n\n**etcd Health and Latency** — etcd request latency and raft health predict API slowness and split-brain risk; early warning preserves control plane stability.\n\nDocumented **Data sources**: `sourcetype=kube:etcd`. **App/TA** (typical add-on context): Splunk OTel Collector. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: k8s; **sourcetype**: kube:etcd. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=k8s, sourcetype=\"kube:etcd\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=5m** buckets — ideal for trending and alerting on this use case.\n• Filters the current rows with `where rtt>0.05 OR commit>0.1` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (latency, DB size), Single value (leader changes), Table (member ID, health).",
+  "visualization": "Line chart (latency, DB size), Single value (leader changes), Table (member ID, health).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "opentelemetry"
+  ]
+}

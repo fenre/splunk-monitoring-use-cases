@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.9.17",
+  "title": "Weak Encryption Detection in OT Communications",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"PROTOCOL-CIPHER\")",
+  "app": "`Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)",
+  "spl": "index=nozomi sourcetype=\"nozomi:alert\" type_id=\"PROTOCOL-CIPHER*\"\n| stats count as occurrences, dc(dst_ip) as affected_targets by src_ip, name, zone\n| sort -occurrences\n| table src_ip, name, occurrences, affected_targets, zone",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "description": "Many OT protocols use weak or no encryption. OT security platforms identify flows using deprecated TLS versions, weak ciphers, or unencrypted protocols where encryption should be used. This supports IEC 62443 compliance and prioritizes protocol hardening efforts.",
+  "value": "Many OT protocols use weak or no encryption. OT security platforms identify flows using deprecated TLS versions, weak ciphers, or unencrypted protocols where encryption should be used. This supports IEC 62443 compliance and prioritizes protocol hardening efforts.",
+  "implementation": "Both platforms detect weak encryption in OT communications. Inventory all findings. Prioritize remediation by criticality of affected assets. Track progress toward encryption upgrade milestones. Report on IEC 62443 encryption compliance per zone.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905).\n• Ensure the following data sources are available: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"PROTOCOL-CIPHER\").\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBoth platforms detect weak encryption in OT communications. Inventory all findings. Prioritize remediation by criticality of affected assets. Track progress toward encryption upgrade milestones. Report on IEC 62443 encryption compliance per zone.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nozomi sourcetype=\"nozomi:alert\" type_id=\"PROTOCOL-CIPHER*\"\n| stats count as occurrences, dc(dst_ip) as affected_targets by src_ip, name, zone\n| sort -occurrences\n| table src_ip, name, occurrences, affected_targets, zone\n```\n\nUnderstanding this SPL\n\n**Weak Encryption Detection in OT Communications** — Many OT protocols use weak or no encryption. OT security platforms identify flows using deprecated TLS versions, weak ciphers, or unencrypted protocols where encryption should be used. This supports IEC 62443 compliance and prioritizes protocol hardening efforts.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"PROTOCOL-CIPHER\"). **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nozomi; **sourcetype**: nozomi:alert. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nozomi, sourcetype=\"nozomi:alert\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by src_ip, name, zone** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Weak Encryption Detection in OT Communications**): table src_ip, name, occurrences, affected_targets, zone\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Weak Encryption Detection in OT Communications** — Many OT protocols use weak or no encryption. OT security platforms identify flows using deprecated TLS versions, weak ciphers, or unencrypted protocols where encryption should be used. This supports IEC 62443 compliance and prioritizes protocol hardening efforts.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"PROTOCOL-CIPHER\"). **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Weak encryption finding table; affected asset count; compliance progress gauge; protocol breakdown.",
+  "visualization": "Weak encryption finding table; affected asset count; compliance progress gauge; protocol breakdown.",
+  "references": [
+    {
+      "title": "Splunkbase app 5748",
+      "url": "https://splunkbase.splunk.com/app/5748"
+    },
+    {
+      "title": "Splunkbase app 6905",
+      "url": "https://splunkbase.splunk.com/app/6905"
+    },
+    {
+      "title": "CIM: Network Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "cisco"
+  ]
+}

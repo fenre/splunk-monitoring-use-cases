@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.4.9",
+  "title": "HAProxy Backend and Frontend Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "HAProxy stats CSV (`/haproxy?stats;csv`), syslog",
+  "app": "Custom (HAProxy stats socket/CSV, syslog)",
+  "spl": "index=haproxy sourcetype=\"haproxy:stats\"\n| eval backend_status=case(status==\"UP\",1, status==\"DOWN\",0, 1=1,null())\n| stats latest(backend_status) as up, latest(qcur) as queue_depth, latest(scur) as sessions by pxname, svname, type\n| where type==\"backend\" AND (up==0 OR queue_depth>10)\n| table pxname, svname, up, queue_depth, sessions",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Backend server state, connection queue depth, and HTTP response distribution indicate load balancer effectiveness and backend capacity. Detection of DOWN backends or saturated queues enables rapid failover and scaling decisions.",
+  "value": "Backend server state, connection queue depth, and HTTP response distribution indicate load balancer effectiveness and backend capacity. Detection of DOWN backends or saturated queues enables rapid failover and scaling decisions.",
+  "implementation": "Enable HAProxy stats via `stats uri /haproxy?stats` and `stats enable` in the frontend. Poll stats CSV via scripted input (curl or socket) every 30–60 seconds. Parse backend/frontend rows; extract status (UP/DOWN), qcur (current queued requests), scur (current sessions), and response code distribution. Forward to Splunk via HEC. Alert when any backend is DOWN or queue_depth exceeds 10. Correlate with syslog for connection errors and backend health transitions.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (HAProxy stats socket/CSV, syslog).\n• Ensure the following data sources are available: HAProxy stats CSV (`/haproxy?stats;csv`), syslog.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable HAProxy stats via `stats uri /haproxy?stats` and `stats enable` in the frontend. Poll stats CSV via scripted input (curl or socket) every 30–60 seconds. Parse backend/frontend rows; extract status (UP/DOWN), qcur (current queued requests), scur (current sessions), and response code distribution. Forward to Splunk via HEC. Alert when any backend is DOWN or queue_depth exceeds 10. Correlate with syslog for connection errors and backend health transitions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=haproxy sourcetype=\"haproxy:stats\"\n| eval backend_status=case(status==\"UP\",1, status==\"DOWN\",0, 1=1,null())\n| stats latest(backend_status) as up, latest(qcur) as queue_depth, latest(scur) as sessions by pxname, svname, type\n| where type==\"backend\" AND (up==0 OR queue_depth>10)\n| table pxname, svname, up, queue_depth, sessions\n```\n\nUnderstanding this SPL\n\n**HAProxy Backend and Frontend Health** — Backend server state, connection queue depth, and HTTP response distribution indicate load balancer effectiveness and backend capacity. Detection of DOWN backends or saturated queues enables rapid failover and scaling decisions.\n\nDocumented **Data sources**: HAProxy stats CSV (`/haproxy?stats;csv`), syslog. **App/TA** (typical add-on context): Custom (HAProxy stats socket/CSV, syslog). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: haproxy; **sourcetype**: haproxy:stats. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=haproxy, sourcetype=\"haproxy:stats\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **backend_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by pxname, svname, type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where type==\"backend\" AND (up==0 OR queue_depth>10)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **HAProxy Backend and Frontend Health**): table pxname, svname, up, queue_depth, sessions\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (backend × health), Table (backends with queue depth), Line chart (queue depth over time), Single value (DOWN backends count).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Status grid (backend × health), Table (backends with queue depth), Line chart (queue depth over time), Single value (DOWN backends count).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "haproxy",
+    "syslog"
+  ]
+}

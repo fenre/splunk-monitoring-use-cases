@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.3.36",
+  "title": "Memorystore (Redis) Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=google:gcp:monitoring` (`redis.googleapis.com/stats/memory/usage_ratio`, `replication/role`, `cpu/utilization`)",
+  "app": "`Splunk_TA_google-cloudplatform`",
+  "spl": "index=gcp sourcetype=\"google:gcp:monitoring\" metric.type=\"redis.googleapis.com/stats/memory/usage_ratio\"\n| stats latest(value) as mem_ratio by resource.labels.instance_id, bin(_time, 5m)\n| where mem_ratio > 0.9\n| sort - mem_ratio",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Redis backs sessions and caches; memory pressure and replication lag cause timeouts and stale reads.",
+  "value": "Redis backs sessions and caches; memory pressure and replication lag cause timeouts and stale reads.",
+  "implementation": "Alert on memory usage above 90%, high CPU, or replica lag metrics. Plan tier upgrades or key eviction policies. Monitor persistence (RDB/AOF) failures if enabled.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_google-cloudplatform`.\n• Ensure the following data sources are available: `sourcetype=google:gcp:monitoring` (`redis.googleapis.com/stats/memory/usage_ratio`, `replication/role`, `cpu/utilization`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlert on memory usage above 90%, high CPU, or replica lag metrics. Plan tier upgrades or key eviction policies. Monitor persistence (RDB/AOF) failures if enabled.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gcp sourcetype=\"google:gcp:monitoring\" metric.type=\"redis.googleapis.com/stats/memory/usage_ratio\"\n| stats latest(value) as mem_ratio by resource.labels.instance_id, bin(_time, 5m)\n| where mem_ratio > 0.9\n| sort - mem_ratio\n```\n\nUnderstanding this SPL\n\n**Memorystore (Redis) Health** — Redis backs sessions and caches; memory pressure and replication lag cause timeouts and stale reads.\n\nDocumented **Data sources**: `sourcetype=google:gcp:monitoring` (`redis.googleapis.com/stats/memory/usage_ratio`, `replication/role`, `cpu/utilization`). **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gcp; **sourcetype**: google:gcp:monitoring. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gcp, sourcetype=\"google:gcp:monitoring\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by resource.labels.instance_id, bin(_time, 5m)** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where mem_ratio > 0.9` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (memory ratio, CPU), Table (instance, tier), Single value (evictions if exported).",
+  "visualization": "Line chart (memory ratio, CPU), Table (instance, tier), Single value (evictions if exported).",
+  "references": [
+    {
+      "title": "Splunk_TA_google-cloudplatform",
+      "url": "https://splunkbase.splunk.com/app/3088"
+    }
+  ],
+  "equipment": [
+    "gcp"
+  ]
+}

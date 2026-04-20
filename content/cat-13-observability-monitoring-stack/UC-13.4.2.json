@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.4.2",
+  "title": "Token Usage and Cost per Model and Application",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity",
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=openai:api`, `sourcetype=azure:openai`",
+  "app": "Custom billing export, OpenAI Usage API → HEC",
+  "spl": "index=ai_ops (sourcetype=\"openai:api\" OR sourcetype=\"azure:openai\")\n| eval prompt_tokens=coalesce(prompt_tokens,0), completion_tokens=coalesce(completion_tokens,0)\n| eval total_tokens=prompt_tokens+completion_tokens\n| eval est_cost_usd=round((total_tokens/1000)*coalesce(price_per_1k_tokens,0.002),4)\n| stats sum(total_tokens) as tokens sum(est_cost_usd) as cost_usd by app_id, model\n| sort -cost_usd",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Token spend ties directly to budget and chargeback; per-application and per-model views prevent surprise bills and highlight inefficient prompts or runaway automation.",
+  "value": "Token spend ties directly to budget and chargeback; per-application and per-model views prevent surprise bills and highlight inefficient prompts or runaway automation.",
+  "implementation": "Ensure each request carries `app_id` or API key alias. Ingest usage records with token counts; join a lookup table for price per model per 1k tokens (refresh monthly). Schedule daily cost reports and threshold alerts for tenants or apps.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom billing export, OpenAI Usage API → HEC.\n• Ensure the following data sources are available: `sourcetype=openai:api`, `sourcetype=azure:openai`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure each request carries `app_id` or API key alias. Ingest usage records with token counts; join a lookup table for price per model per 1k tokens (refresh monthly). Schedule daily cost reports and threshold alerts for tenants or apps.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ai_ops (sourcetype=\"openai:api\" OR sourcetype=\"azure:openai\")\n| eval prompt_tokens=coalesce(prompt_tokens,0), completion_tokens=coalesce(completion_tokens,0)\n| eval total_tokens=prompt_tokens+completion_tokens\n| eval est_cost_usd=round((total_tokens/1000)*coalesce(price_per_1k_tokens,0.002),4)\n| stats sum(total_tokens) as tokens sum(est_cost_usd) as cost_usd by app_id, model\n| sort -cost_usd\n```\n\nUnderstanding this SPL\n\n**Token Usage and Cost per Model and Application** — Token spend ties directly to budget and chargeback; per-application and per-model views prevent surprise bills and highlight inefficient prompts or runaway automation.\n\nDocumented **Data sources**: `sourcetype=openai:api`, `sourcetype=azure:openai`. **App/TA** (typical add-on context): Custom billing export, OpenAI Usage API → HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ai_ops; **sourcetype**: openai:api, azure:openai. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ai_ops, sourcetype=\"openai:api\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **prompt_tokens** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **total_tokens** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **est_cost_usd** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by app_id, model** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (cost by app), Treemap (cost by model), Table (tokens and cost detail).",
+  "visualization": "Bar chart (cost by app), Treemap (cost by model), Table (tokens and cost detail).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.1.24",
+  "title": "SmartStore Cache Hit/Miss Ratio (_internal)",
+  "criticality": "high",
+  "difficulty": "expert",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=_internal` `sourcetype=splunkd` (SmartStore, remote storage metrics)",
+  "app": "Monitoring Console",
+  "spl": "index=_internal sourcetype=splunkd (SmartStore OR \"remote_storage\" OR S2Bucket)\n| search (\"cache\" OR \"download\" OR \"hit\" OR \"miss\")\n| rex \"(?<metric>hit|miss|download)_count=(?<cnt>\\d+)\"\n| stats sum(eval(if(match(metric,\"hit\"),cnt,0))) as hits, sum(eval(if(match(metric,\"miss\"),cnt,0))) as misses by host\n| eval hit_ratio=if((hits+misses)>0, round(100*hits/(hits+misses),2), null())\n| where hit_ratio < 70 OR isnull(hit_ratio)",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Low cache hit rates increase S3/API latency and search cost. Trending hit/miss guides cache sizing and bucket locality.",
+  "value": "Low cache hit rates increase S3/API latency and search cost. Trending hit/miss guides cache sizing and bucket locality.",
+  "implementation": "Parse vendor-specific SmartStore metrics or use `metrics.log` patterns for remote fetch vs cache serve. Baseline hit ratio per indexer. Alert on sustained drops after upgrades or index changes.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Monitoring Console.\n• Ensure the following data sources are available: `index=_internal` `sourcetype=splunkd` (SmartStore, remote storage metrics).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nParse vendor-specific SmartStore metrics or use `metrics.log` patterns for remote fetch vs cache serve. Baseline hit ratio per indexer. Alert on sustained drops after upgrades or index changes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal sourcetype=splunkd (SmartStore OR \"remote_storage\" OR S2Bucket)\n| search (\"cache\" OR \"download\" OR \"hit\" OR \"miss\")\n| rex \"(?<metric>hit|miss|download)_count=(?<cnt>\\d+)\"\n| stats sum(eval(if(match(metric,\"hit\"),cnt,0))) as hits, sum(eval(if(match(metric,\"miss\"),cnt,0))) as misses by host\n| eval hit_ratio=if((hits+misses)>0, round(100*hits/(hits+misses),2), null())\n| where hit_ratio < 70 OR isnull(hit_ratio)\n```\n\nUnderstanding this SPL\n\n**SmartStore Cache Hit/Miss Ratio (_internal)** — Low cache hit rates increase S3/API latency and search cost. Trending hit/miss guides cache sizing and bucket locality.\n\nDocumented **Data sources**: `index=_internal` `sourcetype=splunkd` (SmartStore, remote storage metrics). **App/TA** (typical add-on context): Monitoring Console. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal; **sourcetype**: splunkd. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, sourcetype=splunkd. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **hit_ratio** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where hit_ratio < 70 OR isnull(hit_ratio)` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (hit ratio over time), Single value (cluster avg hit %).",
+  "visualization": "Line chart (hit ratio over time), Single value (cluster avg hit %).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

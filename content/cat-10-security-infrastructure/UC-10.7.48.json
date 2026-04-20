@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.7.48",
+  "title": "Okta Multiple Failed Requests to Access Applications",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Okta",
+  "app": "Splunk Security Essentials / ESCU",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "`okta` target{}.type=AppInstance (eventType=policy.evaluate_sign_on outcome.result=CHALLENGE) OR (eventType=user.authentication.sso outcome.result=SUCCESS) | eval targets=mvzip('target{}.type', 'target{}.displayName', \\\": \\\") | eval targets=mvfilter(targets LIKE \\\"AppInstance%\\\") | stats count min(_time) as _time values(outcome.result) as outcome.result dc(eval(if(eventType=\\\"policy.evaluate_sign_on\\\",targets,NULL))) as total_challenges sum(eval(if(eventType=\\\"user.authentication.sso\\\",1,0))) as total_successes by authenticationContext.externalSessionId targets actor.alternateId client.ipAddress | search total_challenges > 0 | stats min(_time) as _time values(*) as * sum(total_challenges) as total_challenges sum(total_successes) as total_successes values(eval(if(\\\"outcome.result\\\"=\\\"SUCCESS\\\",targets,NULL))) as success_apps values(eval(if(\\\":outcome.result\\\"!=\\\"SUCCESS\\\",targets,NULL))) as no_success_apps by authenticationContext.externalSessionId actor.alternateId client.ipAddress | fillnull | eval ratio=round(total_successes/total_challenges,2), severity=\\\"HIGH\\\", mitre_technique_id=\\\"T1538\\\", description=\\\"actor.alternateId\\\". \\\" from \\\" . \\\"client.ipAddress\\\" . \\\" seen opening \\\" . total_challenges . \\\" chiclets/apps with \\\" . total_successes . \\\" challenges successfully passed\\\" | fields - count, targets | search ratio < 0.5 total_challenges > 2 | `okta_multiple_failed_requests_to_access_applications_filter`",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "The following analytic detects multiple failed attempts to access applications in Okta, potentially indicating the reuse of a stolen web session cookie. It leverages Okta logs to evaluate policy and SSO events, aggregating data by user, session, and IP. The detection triggers when more than half of the app sign-on attempts are unsuccessful across multiple applications. This activity is significant as it may indicate an attempt to bypass authentication mechanisms. If confirmed malicious, it could…",
+  "value": "The following analytic detects multiple failed attempts to access applications in Okta, potentially indicating the reuse of a stolen web session cookie. It leverages Okta logs to evaluate policy and SSO events, aggregating data by user, session, and IP. The detection triggers when more than half of the app sign-on attempts are unsuccessful across multiple applications. This activity is significant as it may indicate an attempt to bypass authentication mechanisms. If confirmed malicious, it could…",
+  "implementation": "This analytic is specific to Okta and requires Okta:im2 logs to be ingested.",
+  "detailedImplementation": "Enterprise Security Detection Rule\n\n\"Okta Multiple Failed Requests to Access Applications\" is a Hunting detection designed for analyst-driven threat hunting rather than automated alerting, sourced from the Splunk Enterprise Security Content Update (ESCU). Hunting detections are not intended for automated alerting. They are run on-demand or on a low-frequency schedule by security analysts investigating specific threat hypotheses.\n\nPrerequisites\n\n• Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.\n• Data sources: Okta. Must be ingested into Splunk and normalized to the Common Information Model (CIM) via the appropriate Technology Add-on.\n• MITRE ATT&CK: T1550.004, T1538. Review the ATT&CK matrix for adjacent techniques to identify detection coverage gaps in your environment.\n\nDeployment\n\n1. In Enterprise Security, navigate to Configure → Content → Content Management.\n2. Search for \"Okta Multiple Failed Requests to Access Applications\" or filter by Analytic Story.\n3. Hunting detections are typically left disabled for automated scheduling. Instead, run them on-demand from the Search bar or schedule at low frequency (daily or weekly).\n4. Review results manually — hunting detections cast a wider net and expect analyst judgment to separate signal from noise.\n5. When results warrant further investigation, create a Notable Event manually or initiate your incident response workflow.\n\nTuning and False Positive Management\n\nKnown false positives for this detection: False positives may be present based on organization size and configuration of Okta.\n\n• Hunting detections are expected to produce broader result sets that require analyst interpretation. Focus on refining the search scope (time range, specific hosts or users) rather than eliminating all noise.\n• Maintain a hunting journal documenting hypotheses tested, results found, and detection improvements identified.\n• Share high-fidelity findings with the detection engineering team to convert recurring hunting patterns into automated TTP or Anomaly detections.\n\nAnalyst Response Workflow\n\nWhen reviewing Hunting results:\n\n1. Run the search manually or review scheduled results. Evaluate each returned event against your threat hypothesis — not every result indicates compromise.\n2. Cross-reference findings with current threat intelligence, recent security advisories, and outputs from other detection sources.\n3. If suspicious activity is confirmed, create a Notable Event or escalate directly to your incident response process with the supporting evidence.\n4. Document the hunting exercise: hypothesis, data sources queried, time range, findings, and any detection engineering improvements identified.\n\nValidation\n\nConfirm the required data sources are flowing:\n\n```spl\n| tstats count where index=* by index, sourcetype | sort -count\n```\n\nVerify the detection is enabled and firing:\n\n```spl\nindex=_audit action=\"alert_fired\" ss_name=\"*\"\n| stats count by ss_name, trigger_time | sort -trigger_time\n```",
+  "visualization": "Table, Timeline (from ESCU).",
+  "references": [
+    {
+      "url": "https://attack.mitre.org/techniques/T1538"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1550/004"
+    }
+  ],
+  "knownFalsePositives": "False positives may be present based on organization size and configuration of Okta.",
+  "mitreAttack": [
+    "T1550.004",
+    "T1538"
+  ],
+  "detectionType": "Hunting",
+  "equipment": [
+    "security_essentials"
+  ]
+}

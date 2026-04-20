@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "11.3.27",
+  "title": "RTP MOS Score Monitoring (ThousandEyes)",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (RTP tests)",
+  "app": "`Cisco ThousandEyes App for Splunk` (Splunkbase 7719)",
+  "spl": "`stream_index` thousandeyes.test.type=\"rtp\"\n| stats avg(rtp.client.request.mos) as avg_mos avg(rtp.client.request.loss) as avg_loss avg(rtp.client.request.pdv) as avg_pdv_s avg(rtp.client.request.discards) as avg_discards by thousandeyes.test.name, thousandeyes.source.agent.name\n| eval avg_pdv_ms=round(avg_pdv_s*1000,1)\n| where avg_mos < 3.5\n| sort avg_mos",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Mean Opinion Score (MOS) is the standard measure of voice call quality on a scale of 1 to 5. ThousandEyes RTP tests provide MOS alongside packet loss, discards, and delay variation, enabling continuous voice quality assurance from the network perspective.",
+  "value": "Mean Opinion Score (MOS) is the standard measure of voice call quality on a scale of 1 to 5. ThousandEyes RTP tests provide MOS alongside packet loss, discards, and delay variation, enabling continuous voice quality assurance from the network perspective.",
+  "implementation": "Create RTP (Voice Layer) tests in ThousandEyes targeting voice infrastructure. RTP tests are paired with SIP Server tests. The OTel metric `rtp.client.request.mos` reports MOS (1-5), `rtp.client.request.loss` reports packet loss percentage, `rtp.client.request.pdv` reports Packet Delay Variation in seconds, and `rtp.client.request.discards` reports discarded packets percentage. The Splunk App Voice dashboard includes \"RTP MOS\" and \"RTP Loss (%)\" panels. MOS below 3.5 indicates poor call quality.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco ThousandEyes App for Splunk` (Splunkbase 7719).\n• Ensure the following data sources are available: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (RTP tests).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate RTP (Voice Layer) tests in ThousandEyes targeting voice infrastructure. RTP tests are paired with SIP Server tests. The OTel metric `rtp.client.request.mos` reports MOS (1-5), `rtp.client.request.loss` reports packet loss percentage, `rtp.client.request.pdv` reports Packet Delay Variation in seconds, and `rtp.client.request.discards` reports discarded packets percentage. The Splunk App Voice dashboard includes \"RTP MOS\" and \"RTP Loss (%)\" panels. MOS below 3.5 indicates poor call quality.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n`stream_index` thousandeyes.test.type=\"rtp\"\n| stats avg(rtp.client.request.mos) as avg_mos avg(rtp.client.request.loss) as avg_loss avg(rtp.client.request.pdv) as avg_pdv_s avg(rtp.client.request.discards) as avg_discards by thousandeyes.test.name, thousandeyes.source.agent.name\n| eval avg_pdv_ms=round(avg_pdv_s*1000,1)\n| where avg_mos < 3.5\n| sort avg_mos\n```\n\nUnderstanding this SPL\n\n**RTP MOS Score Monitoring (ThousandEyes)** — Mean Opinion Score (MOS) is the standard measure of voice call quality on a scale of 1 to 5. ThousandEyes RTP tests provide MOS alongside packet loss, discards, and delay variation, enabling continuous voice quality assurance from the network perspective.\n\nDocumented **Data sources**: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (RTP tests). **App/TA** (typical add-on context): `Cisco ThousandEyes App for Splunk` (Splunkbase 7719). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Invokes macro `stream_index` — in Search, use the UI or expand to inspect the underlying SPL.\n• `stats` rolls up events into metrics; results are split **by thousandeyes.test.name, thousandeyes.source.agent.name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **avg_pdv_ms** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where avg_mos < 3.5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (MOS over time), Single value (current MOS), Table (test, agent, MOS, loss, PDV, discards).",
+  "visualization": "Line chart (MOS over time), Single value (current MOS), Table (test, agent, MOS, loss, PDV, discards).",
+  "references": [
+    {
+      "title": "Splunkbase app 7719",
+      "url": "https://splunkbase.splunk.com/app/7719"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_thousandeyes"
+  ]
+}

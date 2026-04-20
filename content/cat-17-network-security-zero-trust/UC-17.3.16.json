@@ -1,0 +1,54 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.16",
+  "title": "Identity-Aware Proxy Access Anomalies",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=iap:access`, `zscaler:zpa`",
+  "app": "Google IAP, `Splunk_TA_microsoft-cloudservices` (Azure AD App Proxy), `Splunk_TA_zscaler` (ZPA), Cloudflare App for Splunk (Splunkbase 4501), Netskope Add-on for Splunk (Splunkbase 3808)",
+  "spl": "index=zt sourcetype=\"zscaler:zpa\" earliest=-30d\n| eval day=strftime(_time,\"%Y-%m-%d\")\n| stats dc(application) as apps_today by user, day\n| eventstats avg(apps_today) as baseline by user\n| where apps_today > baseline*3 AND apps_today>5\n| table user, day, apps_today, baseline",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  by Authentication.user Authentication.app span=1d",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Baselines per-user access to internal apps via IAP/ZTNA; flags new apps, odd hours, or geos.",
+  "value": "Baselines per-user access to internal apps via IAP/ZTNA; flags new apps, odd hours, or geos.",
+  "implementation": "Adapt to Google IAP JSON logs. Whitelist break-glass accounts.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Google IAP, `Splunk_TA_microsoft-cloudservices` (Azure AD App Proxy), `Splunk_TA_zscaler` (ZPA), Cloudflare App for Splunk (Splunkbase 4501), Netskope Add-on for Splunk (Splunkbase 3808).\n• Ensure the following data sources are available: `sourcetype=iap:access`, `zscaler:zpa`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAdapt to Google IAP JSON logs. Whitelist break-glass accounts.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=zt sourcetype=\"zscaler:zpa\" earliest=-30d\n| eval day=strftime(_time,\"%Y-%m-%d\")\n| stats dc(application) as apps_today by user, day\n| eventstats avg(apps_today) as baseline by user\n| where apps_today > baseline*3 AND apps_today>5\n| table user, day, apps_today, baseline\n```\n\nUnderstanding this SPL\n\n**Identity-Aware Proxy Access Anomalies** — Baselines per-user access to internal apps via IAP/ZTNA; flags new apps, odd hours, or geos.\n\nDocumented **Data sources**: `sourcetype=iap:access`, `zscaler:zpa`. **App/TA** (typical add-on context): Google IAP, `Splunk_TA_microsoft-cloudservices` (Azure AD App Proxy), `Splunk_TA_zscaler` (ZPA), Cloudflare App for Splunk (Splunkbase 4501), Netskope Add-on for Splunk (Splunkbase 3808). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: zt; **sourcetype**: zscaler:zpa. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=zt, sourcetype=\"zscaler:zpa\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **day** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by user, day** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eventstats` rolls up events into metrics; results are split **by user** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where apps_today > baseline*3 AND apps_today>5` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Identity-Aware Proxy Access Anomalies**): table user, day, apps_today, baseline\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  by Authentication.user Authentication.app span=1d\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Identity-Aware Proxy Access Anomalies** — Baselines per-user access to internal apps via IAP/ZTNA; flags new apps, odd hours, or geos.\n\nDocumented **Data sources**: `sourcetype=iap:access`, `zscaler:zpa`. **App/TA** (typical add-on context): Google IAP, `Splunk_TA_microsoft-cloudservices` (Azure AD App Proxy), `Splunk_TA_zscaler` (ZPA), Cloudflare App for Splunk (Splunkbase 4501), Netskope Add-on for Splunk (Splunkbase 3808). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (anomalies), Line chart (apps accessed per user), Heatmap (user × app).",
+  "visualization": "Table (anomalies), Line chart (apps accessed per user), Heatmap (user × app).",
+  "references": [
+    {
+      "title": "Cloudflare App for Splunk",
+      "url": "https://splunkbase.splunk.com/app/4501"
+    },
+    {
+      "title": "Netskope Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/3808"
+    },
+    {
+      "title": "Splunk_TA_microsoft-cloudservices",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1090",
+    "T1071.001",
+    "T1021"
+  ],
+  "equipment": [
+    "azure",
+    "cloudflare",
+    "m365",
+    "netskope",
+    "zscaler"
+  ]
+}

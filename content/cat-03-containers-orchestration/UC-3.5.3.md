@@ -1,0 +1,82 @@
+---
+id: "3.5.3"
+title: "mTLS Certificate Expiry"
+criticality: "critical"
+splunkPillar: "Security"
+---
+
+# UC-3.5.3 · mTLS Certificate Expiry
+
+## Description
+
+Expired Istio workload or gateway certs break mTLS between services; proactive expiry tracking avoids sudden mesh-wide authentication failures.
+
+## Value
+
+Expired Istio workload or gateway certs break mTLS between services; proactive expiry tracking avoids sudden mesh-wide authentication failures.
+
+## Implementation
+
+Schedule `istioctl proxy-config secret` or Citadel/istiod cert status exports and send JSON to Splunk (HEC). Include `not_after` for each SPIFFE identity. Alternatively parse cert-manager Certificate resources’ status. Alert at 30/14/7 days and page on any cert already expired.
+
+## Detailed Implementation
+
+Prerequisites
+• Install and configure the required add-on or app: Custom script or `istioctl proxy-config secret` output to HEC, optional cert-manager logs.
+• Ensure the following data sources are available: `sourcetype=istio:cert_status` or `sourcetype=kubernetes:audit`.
+• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+Step 1 — Configure data collection
+Schedule `istioctl proxy-config secret` or Citadel/istiod cert status exports and send JSON to Splunk (HEC). Include `not_after` for each SPIFFE identity. Alternatively parse cert-manager Certificate resources’ status. Alert at 30/14/7 days and page on any cert already expired.
+
+Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+index=containers sourcetype="istio:cert_status"
+| eval days_left=round((strptime(not_after, "%Y-%m-%dT%H:%M:%SZ")-now())/86400, 0)
+| where days_left < 30 OR isnull(days_left)
+| stats min(days_left) as soonest_expiry by workload_name, namespace, serial
+| sort soonest_expiry
+```
+
+Understanding this SPL
+
+**mTLS Certificate Expiry** — Expired Istio workload or gateway certs break mTLS between services; proactive expiry tracking avoids sudden mesh-wide authentication failures.
+
+Documented **Data sources**: `sourcetype=istio:cert_status` or `sourcetype=kubernetes:audit`. **App/TA** (typical add-on context): Custom script or `istioctl proxy-config secret` output to HEC, optional cert-manager logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: containers; **sourcetype**: istio:cert_status. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+• Scopes the data: index=containers, sourcetype="istio:cert_status". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+• `eval` defines or adjusts **days_left** — often to normalize units, derive a ratio, or prepare for thresholds.
+• Filters the current rows with `where days_left < 30 OR isnull(days_left)` — typically the threshold or rule expression for this monitoring goal.
+• `stats` rolls up events into metrics; results are split **by workload_name, namespace, serial** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+
+Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (workload, namespace, soonest expiry days), Single value (minimum days to expiry), Gauge per cluster.
+
+## SPL
+
+```spl
+index=containers sourcetype="istio:cert_status"
+| eval days_left=round((strptime(not_after, "%Y-%m-%dT%H:%M:%SZ")-now())/86400, 0)
+| where days_left < 30 OR isnull(days_left)
+| stats min(days_left) as soonest_expiry by workload_name, namespace, serial
+| sort soonest_expiry
+```
+
+## Visualization
+
+Table (workload, namespace, soonest expiry days), Single value (minimum days to expiry), Gauge per cluster.
+
+## References
+
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

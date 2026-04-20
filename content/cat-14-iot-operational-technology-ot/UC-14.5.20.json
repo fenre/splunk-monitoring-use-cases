@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.5.20",
+  "title": "HiveMQ Extension Execution Errors",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=ot` `sourcetype=\"hivemq:log\"` extension error lines",
+  "app": "HiveMQ Splunk Extension, HiveMQ broker logs",
+  "spl": "index=ot sourcetype=\"hivemq:log\"\n| where match(_raw, \"(?i)extension\") AND (match(_raw, \"(?i)error|exception|failed\") OR match(_raw,\" ERROR \"))\n| rex field=_raw \"(?i)extension[:\\s]+(?<extension_id>[^\\s\\]\\[]+)\"\n| rex field=_raw \"(?i)(?<ex_type>[A-Za-z0-9_.]+Exception)\"\n| stats count by host, extension_id, ex_type\n| sort - count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "HiveMQ extensions (enterprise integrations, custom interceptors) can fail independently; tracking exceptions prevents silent drops in policy enforcement and data enrichment.",
+  "value": "HiveMQ extensions (enterprise integrations, custom interceptors) can fail independently; tracking exceptions prevents silent drops in policy enforcement and data enrichment.",
+  "implementation": "Ensure HiveMQ log level captures extension exceptions. Create suppressions for known benign stack signatures via a lookup table. Consider separate alerts for WARN vs ERROR thresholds.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HiveMQ Splunk Extension, HiveMQ broker logs.\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"hivemq:log\"` extension error lines.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure HiveMQ log level captures extension exceptions. Create suppressions for known benign stack signatures via a lookup table. Consider separate alerts for WARN vs ERROR thresholds.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"hivemq:log\"\n| where match(_raw, \"(?i)extension\") AND (match(_raw, \"(?i)error|exception|failed\") OR match(_raw,\" ERROR \"))\n| rex field=_raw \"(?i)extension[:\\s]+(?<extension_id>[^\\s\\]\\[]+)\"\n| rex field=_raw \"(?i)(?<ex_type>[A-Za-z0-9_.]+Exception)\"\n| stats count by host, extension_id, ex_type\n| sort - count\n```\n\nUnderstanding this SPL\n\n**HiveMQ Extension Execution Errors** — HiveMQ extensions (enterprise integrations, custom interceptors) can fail independently; tracking exceptions prevents silent drops in policy enforcement and data enrichment.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"hivemq:log\"` extension error lines. **App/TA** (typical add-on context): HiveMQ Splunk Extension, HiveMQ broker logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: hivemq:log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"hivemq:log\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where match(_raw, \"(?i)extension\") AND (match(_raw, \"(?i)error|exception|failed\") OR match(_raw,\" ERROR \"))` — typically the threshold or rule expression for this monitoring goal.\n• Extracts fields with `rex` (regular expression).\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by host, extension_id, ex_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (top extensions by errors), Line chart (error rate over time), Bar chart (errors by host).",
+  "visualization": "Table (top extensions by errors), Line chart (error rate over time), Bar chart (errors by host).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "mqtt"
+  ]
+}

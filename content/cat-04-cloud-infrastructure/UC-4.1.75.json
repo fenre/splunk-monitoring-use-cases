@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.1.75",
+  "title": "AWS Backup Job Status",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=aws:cloudwatch:events` (Backup Job State Change), Backup notifications",
+  "app": "`Splunk_TA_aws`",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Backup Job State Change\"\n| eval ok=if(detail.state=\"COMPLETED\",1,0)\n| stats count(eval(ok=0)) as failed, count as total by detail.backupVaultArn, detail.resourceArn\n| where failed>0",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Centralized backup vault jobs must complete on schedule; failed jobs leave RPO gaps across EC2, EFS, and databases.",
+  "value": "Centralized backup vault jobs must complete on schedule; failed jobs leave RPO gaps across EC2, EFS, and databases.",
+  "implementation": "Parse job states COMPLETED, FAILED, EXPIRED. Alert on FAILED. Track partial completion for large resources. Cross-check with UC-4.4.29 restore drills for end-to-end assurance.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch:events` (Backup Job State Change), Backup notifications.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nParse job states COMPLETED, FAILED, EXPIRED. Alert on FAILED. Track partial completion for large resources. Cross-check with UC-4.4.29 restore drills for end-to-end assurance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Backup Job State Change\"\n| eval ok=if(detail.state=\"COMPLETED\",1,0)\n| stats count(eval(ok=0)) as failed, count as total by detail.backupVaultArn, detail.resourceArn\n| where failed>0\n```\n\nUnderstanding this SPL\n\n**AWS Backup Job Status** — Centralized backup vault jobs must complete on schedule; failed jobs leave RPO gaps across EC2, EFS, and databases.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch:events` (Backup Job State Change), Backup notifications. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch:events. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **ok** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by detail.backupVaultArn, detail.resourceArn** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where failed>0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (vault, resource, status), Timeline (job outcomes), Single value (failed jobs 24h).",
+  "visualization": "Table (vault, resource, status), Timeline (job outcomes), Single value (failed jobs 24h).",
+  "references": [
+    {
+      "title": "Splunk_TA_aws",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    }
+  ],
+  "equipment": [
+    "aws"
+  ]
+}

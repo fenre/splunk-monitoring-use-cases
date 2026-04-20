@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.1.19",
+  "title": "Repository Webhook Health",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`delivery` records with `status_code`, `error_message`",
+  "app": "GitHub Webhook deliveries API, Splunk HEC receiver logs",
+  "spl": "index=devops sourcetype=\"github:webhook_delivery\"\n| where status_code>=400 OR delivered=\"false\"\n| stats count by repository, hook_id, status_code\n| where count > 5\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Failed webhook deliveries break CI, security scanning, and Splunk ingestion—monitor delivery logs and HTTP status.",
+  "value": "Failed webhook deliveries break CI, security scanning, and Splunk ingestion—monitor delivery logs and HTTP status.",
+  "implementation": "Poll recent deliveries or ingest GitHub Enterprise audit. Alert on sustained 4xx/5xx to Splunk HEC. Verify TLS cert on endpoint.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: GitHub Webhook deliveries API, Splunk HEC receiver logs.\n• Ensure the following data sources are available: `delivery` records with `status_code`, `error_message`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll recent deliveries or ingest GitHub Enterprise audit. Alert on sustained 4xx/5xx to Splunk HEC. Verify TLS cert on endpoint.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops sourcetype=\"github:webhook_delivery\"\n| where status_code>=400 OR delivered=\"false\"\n| stats count by repository, hook_id, status_code\n| where count > 5\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Repository Webhook Health** — Failed webhook deliveries break CI, security scanning, and Splunk ingestion—monitor delivery logs and HTTP status.\n\nDocumented **Data sources**: `delivery` records with `status_code`, `error_message`. **App/TA** (typical add-on context): GitHub Webhook deliveries API, Splunk HEC receiver logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops; **sourcetype**: github:webhook_delivery. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, sourcetype=\"github:webhook_delivery\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where status_code>=400 OR delivered=\"false\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by repository, hook_id, status_code** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failing hooks), Line chart (failure rate), Single value (open incidents).",
+  "visualization": "Table (failing hooks), Line chart (failure rate), Single value (open incidents).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "github"
+  ]
+}

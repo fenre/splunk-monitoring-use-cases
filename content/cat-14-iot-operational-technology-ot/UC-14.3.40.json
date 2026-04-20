@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.40",
+  "title": "Device Location Tracking via GNSS",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=edge-hub-logs` sourcetype=edge_hub gnss_position, `index=edge-hub-health` sourcetype=edge_hub location_heartbeat",
+  "app": "Splunk Edge Hub (cellular + GNSS), Splunk OT Intelligence",
+  "premiumApps": [
+    "Splunk Edge Hub",
+    "Splunk OT Intelligence"
+  ],
+  "spl": "index=edge-hub-logs sourcetype=edge_hub gnss_position=true\n| stats latest(latitude) as lat, latest(longitude) as lon, latest(accuracy_meters) as accuracy by device_id\n| join max=1 device_id [| rest /services/data-model/indexes/edge_hub_location_baseline | fields device_id, expected_latitude, expected_longitude, geofence_radius_meters]\n| eval distance=sqrt(((lat - expected_latitude)*111111)^2 + ((lon - expected_longitude)*111111*cos(expected_latitude*pi()/180))^2)\n| where distance > geofence_radius_meters\n| eval location_drift=\"ALERT\"",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Monitors Edge Hub physical location for mobile/outdoor deployments to verify proper coverage and detect theft/unauthorized movement.",
+  "value": "Monitors Edge Hub physical location for mobile/outdoor deployments to verify proper coverage and detect theft/unauthorized movement.",
+  "implementation": "Edge Hub with cellular module (LTE/4G) includes integrated GNSS receiver. Enable GNSS in Advanced Settings (requires clear sky line-of-sight). Edge Hub logs GPS position (latitude, longitude, accuracy_meters) to edge-hub-logs every 15 minutes. Store expected location + geofence radius per device. Alert if device moves outside geofence (e.g., trailer theft detection, equipment relocation). For outdoor industrial sites, track GNSS acquisition time and accuracy metrics (typically 5-20m accuracy in open sky). Local SQLite stores 30+ days of position history.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (cellular + GNSS), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-logs` sourcetype=edge_hub gnss_position, `index=edge-hub-health` sourcetype=edge_hub location_heartbeat.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEdge Hub with cellular module (LTE/4G) includes integrated GNSS receiver. Enable GNSS in Advanced Settings (requires clear sky line-of-sight). Edge Hub logs GPS position (latitude, longitude, accuracy_meters) to edge-hub-logs every 15 minutes. Store expected location + geofence radius per device. Alert if device moves outside geofence (e.g., trailer theft detection, equipment relocation). For outdoor industrial sites, track GNSS acquisition time and accuracy metrics (typically 5-20m accuracy in …\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=edge_hub gnss_position=true\n| stats latest(latitude) as lat, latest(longitude) as lon, latest(accuracy_meters) as accuracy by device_id\n| join max=1 device_id [| rest /services/data-model/indexes/edge_hub_location_baseline | fields device_id, expected_latitude, expected_longitude, geofence_radius_meters]\n| eval distance=sqrt(((lat - expected_latitude)*111111)^2 + ((lon - expected_longitude)*111111*cos(expected_latitude*pi()/180))^2)\n| where distance > geofence_radius_meters\n| eval location_drift=\"ALERT\"\n```\n\nUnderstanding this SPL\n\n**Device Location Tracking via GNSS** — Monitors Edge Hub physical location for mobile/outdoor deployments to verify proper coverage and detect theft/unauthorized movement.\n\nDocumented **Data sources**: `index=edge-hub-logs` sourcetype=edge_hub gnss_position, `index=edge-hub-health` sourcetype=edge_hub location_heartbeat. **App/TA** (typical add-on context): Splunk Edge Hub (cellular + GNSS), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: edge_hub. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=edge_hub. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by device_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **distance** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where distance > geofence_radius_meters` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **location_drift** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Device location map, geofence status indicator, movement timeline.",
+  "visualization": "Device location map, geofence status indicator, movement timeline.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "edge_hub"
+  ]
+}

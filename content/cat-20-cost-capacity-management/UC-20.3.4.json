@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "20.3.4",
+  "title": "License Compliance Gap Detection",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=inventory:software`, `sourcetype=license:usage`",
+  "app": "SAM inventory, Adobe/Microsoft portal exports",
+  "spl": "index=software sourcetype=\"inventory:software\"\n| search is_licensed=\"false\" OR compliance_status=\"unlicensed\"\n| stats count by host, software_name, version, last_seen\n| lookup license_entitlements software_name OUTPUT entitlement_qty\n| eval breach=if(count>entitlement_qty OR isnull(entitlement_qty),1,0)\n| where breach=1\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Unlicensed use of enterprise software creates legal and financial exposure; continuous gap detection supports proactive remediation.",
+  "value": "Unlicensed use of enterprise software creates legal and financial exposure; continuous gap detection supports proactive remediation.",
+  "implementation": "Flag installs without matching entitlement rows in a KV store refreshed from purchases. Reconcile named-user products with IdP group membership. Alert on new breaches weekly; assign owners by `cost_center`.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SAM inventory, Adobe/Microsoft portal exports.\n• Ensure the following data sources are available: `sourcetype=inventory:software`, `sourcetype=license:usage`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFlag installs without matching entitlement rows in a KV store refreshed from purchases. Reconcile named-user products with IdP group membership. Alert on new breaches weekly; assign owners by `cost_center`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=software sourcetype=\"inventory:software\"\n| search is_licensed=\"false\" OR compliance_status=\"unlicensed\"\n| stats count by host, software_name, version, last_seen\n| lookup license_entitlements software_name OUTPUT entitlement_qty\n| eval breach=if(count>entitlement_qty OR isnull(entitlement_qty),1,0)\n| where breach=1\n| sort -count\n```\n\nUnderstanding this SPL\n\n**License Compliance Gap Detection** — Unlicensed use of enterprise software creates legal and financial exposure; continuous gap detection supports proactive remediation.\n\nDocumented **Data sources**: `sourcetype=inventory:software`, `sourcetype=license:usage`. **App/TA** (typical add-on context): SAM inventory, Adobe/Microsoft portal exports. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: software; **sourcetype**: inventory:software. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=software, sourcetype=\"inventory:software\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by host, software_name, version, last_seen** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **breach** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where breach=1` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (compliance gaps), Single value (open violations), Bar chart (gaps by department).",
+  "visualization": "Table (compliance gaps), Single value (open violations), Bar chart (gaps by department).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

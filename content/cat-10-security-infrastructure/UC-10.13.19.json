@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.13.19",
+  "title": "Endpoint Malware Coverage",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`Malware_Attacks.dest` distinct vs. `endpoint:inventory`",
+  "app": "Malware + Endpoint inventory",
+  "spl": "index=security tag=malware earliest=-30d\n| stats dc(dest) as reporting_hosts\n| appendcols [| inputlookup cmdb_servers.csv | stats dc(hostname) as total_managed ]\n| eval coverage_pct=round(reporting_hosts/total_managed*100,1)",
+  "cimSpl": "| tstats `summariesonly` dc(Malware_Attacks.dest) as h from datamodel=Malware.Malware_Attacks",
+  "cimModels": [
+    "Malware"
+  ],
+  "description": "Hosts with no malware events in 30d may be offline, mis-deployed agents, or blind spots — compare to CMDB.",
+  "value": "Hosts with no malware events in 30d may be offline, mis-deployed agents, or blind spots — compare to CMDB.",
+  "implementation": "Left join finds gaps; alert on critical servers missing telemetry.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Malware + Endpoint inventory.\n• Ensure the following data sources are available: `Malware_Attacks.dest` distinct vs. `endpoint:inventory`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nLeft join finds gaps; alert on critical servers missing telemetry.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=security tag=malware earliest=-30d\n| stats dc(dest) as reporting_hosts\n| appendcols [| inputlookup cmdb_servers.csv | stats dc(hostname) as total_managed ]\n| eval coverage_pct=round(reporting_hosts/total_managed*100,1)\n```\n\nUnderstanding this SPL\n\n**Endpoint Malware Coverage** — Hosts with no malware events in 30d may be offline, mis-deployed agents, or blind spots — compare to CMDB.\n\nDocumented **Data sources**: `Malware_Attacks.dest` distinct vs. `endpoint:inventory`. **App/TA** (typical add-on context): Malware + Endpoint inventory. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: security.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=security, time bounds, tags. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• Adds columns from a subsearch with `appendcols`.\n• `eval` defines or adjusts **coverage_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` dc(Malware_Attacks.dest) as h from datamodel=Malware.Malware_Attacks\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Endpoint Malware Coverage** — Hosts with no malware events in 30d may be offline, mis-deployed agents, or blind spots — compare to CMDB.\n\nDocumented **Data sources**: `Malware_Attacks.dest` distinct vs. `endpoint:inventory`. **App/TA** (typical add-on context): Malware + Endpoint inventory. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Malware.Malware_Attacks` — enable acceleration for that model.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (coverage %), Table (missing hosts).",
+  "visualization": "Single value (coverage %), Table (missing hosts).",
+  "references": [
+    {
+      "title": "CIM: Malware",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Malware"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

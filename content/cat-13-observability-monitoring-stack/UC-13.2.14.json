@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.2.14",
+  "title": "Glass Table SLA Breaches",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ITSI KPIs, `itsi_summary`, SLA lookup",
+  "app": "Splunk ITSI Glass Tables",
+  "premiumApps": [
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    }
+  ],
+  "spl": "index=itsi_summary\n| lookup sla_targets service_name OUTPUT kpi_name, sla_target\n| where health_score < sla_target OR severity_value>=4\n| stats count by service_name, kpi_name\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Glass Tables for NOC must reflect SLA-backed KPIs; breaches on the wallboard drive incident prioritization.",
+  "value": "Glass Tables for NOC must reflect SLA-backed KPIs; breaches on the wallboard drive incident prioritization.",
+  "implementation": "Maintain `sla_targets` lookup with minimum health score or max severity per service. Drive Glass Table color thresholds from the same search. Alert when executive-facing services breach SLA for >15 minutes.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI Glass Tables.\n• Ensure the following data sources are available: ITSI KPIs, `itsi_summary`, SLA lookup.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain `sla_targets` lookup with minimum health score or max severity per service. Drive Glass Table color thresholds from the same search. Alert when executive-facing services breach SLA for >15 minutes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsi_summary\n| lookup sla_targets service_name OUTPUT kpi_name, sla_target\n| where health_score < sla_target OR severity_value>=4\n| stats count by service_name, kpi_name\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Glass Table SLA Breaches** — Glass Tables for NOC must reflect SLA-backed KPIs; breaches on the wallboard drive incident prioritization.\n\nDocumented **Data sources**: ITSI KPIs, `itsi_summary`, SLA lookup. **App/TA** (typical add-on context): Splunk ITSI Glass Tables. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsi_summary.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsi_summary. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where health_score < sla_target OR severity_value>=4` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by service_name, kpi_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Glass Table (SLA status), KPI ticker (breached services), Table (breach duration).",
+  "visualization": "Glass Table (SLA status), KPI ticker (breached services), Table (breach duration).",
+  "references": [
+    {
+      "title": "Splunk ITSI",
+      "url": "https://splunkbase.splunk.com/app/1841"
+    }
+  ],
+  "equipment": [
+    "itsi"
+  ]
+}

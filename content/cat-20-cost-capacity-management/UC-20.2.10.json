@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "20.2.10",
+  "title": "Anomalous Cost Spike by Service or Account",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Cost"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Daily cost by service, account, region",
+  "app": "Cloud cost TAs, billing exports",
+  "spl": "index=cloud_cost sourcetype=\"cost:daily\"\n| bin _time span=1d\n| stats sum(cost) as daily_cost by service, account_id, _time\n| eventstats avg(daily_cost) as avg_cost, stdev(daily_cost) as std_cost by service, account_id\n| where daily_cost > (avg_cost + (3*std_cost))\n| table service, account_id, daily_cost, avg_cost, std_cost",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Sudden cost spikes may indicate runaway resources, misconfiguration, or abuse. Early detection limits bill shock and supports incident response.",
+  "value": "Sudden cost spikes may indicate runaway resources, misconfiguration, or abuse. Early detection limits bill shock and supports incident response.",
+  "implementation": "Ingest daily cost by dimensions. Compute baseline and standard deviation. Alert when cost exceeds 3× std dev. Report on top anomalies and trend. Correlate with resource and usage data.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cloud cost TAs, billing exports.\n• Ensure the following data sources are available: Daily cost by service, account, region.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest daily cost by dimensions. Compute baseline and standard deviation. Alert when cost exceeds 3× std dev. Report on top anomalies and trend. Correlate with resource and usage data.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud_cost sourcetype=\"cost:daily\"\n| bin _time span=1d\n| stats sum(cost) as daily_cost by service, account_id, _time\n| eventstats avg(daily_cost) as avg_cost, stdev(daily_cost) as std_cost by service, account_id\n| where daily_cost > (avg_cost + (3*std_cost))\n| table service, account_id, daily_cost, avg_cost, std_cost\n```\n\nUnderstanding this SPL\n\n**Anomalous Cost Spike by Service or Account** — Sudden cost spikes may indicate runaway resources, misconfiguration, or abuse. Early detection limits bill shock and supports incident response.\n\nDocumented **Data sources**: Daily cost by service, account, region. **App/TA** (typical add-on context): Cloud cost TAs, billing exports. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud_cost; **sourcetype**: cost:daily. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud_cost, sourcetype=\"cost:daily\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by service, account_id, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eventstats` rolls up events into metrics; results are split **by service, account_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where daily_cost > (avg_cost + (3*std_cost))` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Anomalous Cost Spike by Service or Account**): table service, account_id, daily_cost, avg_cost, std_cost\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (anomalous services/accounts), Line chart (cost vs baseline), Bar chart (spike magnitude).",
+  "visualization": "Table (anomalous services/accounts), Line chart (cost vs baseline), Bar chart (spike magnitude).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

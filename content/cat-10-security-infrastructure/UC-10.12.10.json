@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.12.10",
+  "title": "Trade Settlement Failure Monitoring",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operations",
+    "Risk"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial Services",
+  "dataSources": "`sourcetype=\"fix:exec\"`, `sourcetype=\"settlement:status\"`",
+  "app": "OMS/EMS, clearing TA",
+  "spl": "index=trading (sourcetype=\"settlement:status\" OR sourcetype=\"fix:exec\")\n| search settlement_status IN (\"FAIL\",\"PARTIAL\") OR ExecType IN (\"8\",\"9\")\n| stats count, sum(quantity*price) as notional by symbol, contra_broker, trade_date\n| sort -notional",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Failed or partial settlements create counterparty and liquidity risk; early detection supports regulatory reporting.",
+  "value": "Failed or partial settlements create counterparty and liquidity risk; early detection supports regulatory reporting.",
+  "implementation": "Correlate FIX ExecType with back-office settlement files; alert on fails above threshold or concentrated by broker.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: OMS/EMS, clearing TA.\n• Ensure the following data sources are available: `sourcetype=\"fix:exec\"`, `sourcetype=\"settlement:status\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCorrelate FIX ExecType with back-office settlement files; alert on fails above threshold or concentrated by broker.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=trading (sourcetype=\"settlement:status\" OR sourcetype=\"fix:exec\")\n| search settlement_status IN (\"FAIL\",\"PARTIAL\") OR ExecType IN (\"8\",\"9\")\n| stats count, sum(quantity*price) as notional by symbol, contra_broker, trade_date\n| sort -notional\n```\n\nUnderstanding this SPL\n\n**Trade Settlement Failure Monitoring** — Failed or partial settlements create counterparty and liquidity risk; early detection supports regulatory reporting.\n\nDocumented **Data sources**: `sourcetype=\"fix:exec\"`, `sourcetype=\"settlement:status\"`. **App/TA** (typical add-on context): OMS/EMS, clearing TA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: trading; **sourcetype**: settlement:status, fix:exec. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=trading, sourcetype=\"settlement:status\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by symbol, contra_broker, trade_date** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed trades), Bar chart (fails by symbol), Timeline (settlement chain).",
+  "visualization": "Table (failed trades), Bar chart (fails by symbol), Timeline (settlement chain).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.22",
+  "title": "Citrix ADC SSL Offload Performance (NetScaler)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=network` `sourcetype=\"citrix:netscaler:ssl\"` fields `ssl_tps`, `ssl_sessions`, `ssl_new_sessions`, `ssl_session_reuse_pct`, `ssl_protocol_version`, `cipher_suite`",
+  "app": "Custom scripted input polling Citrix ADC NITRO API",
+  "spl": "index=network sourcetype=\"citrix:netscaler:ssl\" metric_type=\"ssl_stats\"\n| bin _time span=5m\n| stats avg(ssl_tps) as avg_tps, max(ssl_tps) as peak_tps, avg(ssl_session_reuse_pct) as reuse_pct by host, _time\n| where peak_tps > 5000 OR reuse_pct < 50\n| table _time, host, avg_tps, peak_tps, reuse_pct",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Citrix ADC offloads SSL/TLS processing from back-end servers, handling certificate exchange, cipher negotiation, and encryption/decryption. SSL transactions per second (TPS) is a capacity-bound metric — hardware ADC models have fixed SSL TPS limits, and VPX instances are licensed by throughput tier. Approaching the SSL TPS ceiling causes SSL handshake delays and new connection failures. Monitoring SSL performance ensures cryptographic operations do not become a bottleneck.",
+  "value": "Citrix ADC offloads SSL/TLS processing from back-end servers, handling certificate exchange, cipher negotiation, and encryption/decryption. SSL transactions per second (TPS) is a capacity-bound metric — hardware ADC models have fixed SSL TPS limits, and VPX instances are licensed by throughput tier. Approaching the SSL TPS ceiling causes SSL handshake delays and new connection failures. Monitoring SSL performance ensures cryptographic operations do not become a bottleneck.",
+  "implementation": "Poll the NITRO API `ssl` statistics endpoint for SSL transaction counters: `ssltotsessions`, `ssltotnewsessions`, `ssltottlsv12sessions`, `ssltottlsv13sessions`, and session reuse rates. Calculate TPS as delta of `ssltotsessions` over the poll interval. Key thresholds: SSL TPS approaching 80% of licensed/hardware capacity (plan upgrade), session reuse rate below 50% (misconfigured session caching — excessive full handshakes), and TLS 1.0/1.1 session count > 0 (deprecated protocols in use). Track cipher suite distribution to ensure compliance with security policies (disable weak ciphers like RC4, DES, 3DES).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input polling Citrix ADC NITRO API.\n• Ensure the following data sources are available: `index=network` `sourcetype=\"citrix:netscaler:ssl\"` fields `ssl_tps`, `ssl_sessions`, `ssl_new_sessions`, `ssl_session_reuse_pct`, `ssl_protocol_version`, `cipher_suite`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll the NITRO API `ssl` statistics endpoint for SSL transaction counters: `ssltotsessions`, `ssltotnewsessions`, `ssltottlsv12sessions`, `ssltottlsv13sessions`, and session reuse rates. Calculate TPS as delta of `ssltotsessions` over the poll interval. Key thresholds: SSL TPS approaching 80% of licensed/hardware capacity (plan upgrade), session reuse rate below 50% (misconfigured session caching — excessive full handshakes), and TLS 1.0/1.1 session count > 0 (deprecated protocols in use). Track…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"citrix:netscaler:ssl\" metric_type=\"ssl_stats\"\n| bin _time span=5m\n| stats avg(ssl_tps) as avg_tps, max(ssl_tps) as peak_tps, avg(ssl_session_reuse_pct) as reuse_pct by host, _time\n| where peak_tps > 5000 OR reuse_pct < 50\n| table _time, host, avg_tps, peak_tps, reuse_pct\n```\n\nUnderstanding this SPL\n\n**Citrix ADC SSL Offload Performance (NetScaler)** — Citrix ADC offloads SSL/TLS processing from back-end servers, handling certificate exchange, cipher negotiation, and encryption/decryption. SSL transactions per second (TPS) is a capacity-bound metric — hardware ADC models have fixed SSL TPS limits, and VPX instances are licensed by throughput tier. Approaching the SSL TPS ceiling causes SSL handshake delays and new connection failures. Monitoring SSL performance ensures cryptographic operations do not become a bottleneck.\n\nDocumented **Data sources**: `index=network` `sourcetype=\"citrix:netscaler:ssl\"` fields `ssl_tps`, `ssl_sessions`, `ssl_new_sessions`, `ssl_session_reuse_pct`, `ssl_protocol_version`, `cipher_suite`. **App/TA** (typical add-on context): Custom scripted input polling Citrix ADC NITRO API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: citrix:netscaler:ssl. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"citrix:netscaler:ssl\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by host, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where peak_tps > 5000 OR reuse_pct < 50` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Citrix ADC SSL Offload Performance (NetScaler)**): table _time, host, avg_tps, peak_tps, reuse_pct\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (SSL TPS over time), Gauge (current TPS vs capacity), Pie chart (protocol version distribution).",
+  "visualization": "Line chart (SSL TPS over time), Gauge (current TPS vs capacity), Pie chart (protocol version distribution).",
+  "references": [
+    {
+      "title": "Aruba Networks Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/4668"
+    },
+    {
+      "title": "HPE Aruba ClearPass App for Splunk",
+      "url": "https://splunkbase.splunk.com/app/7865"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki",
+      "url": "https://splunkbase.splunk.com/app/5580"
+    }
+  ],
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_netscaler"
+  ]
+}

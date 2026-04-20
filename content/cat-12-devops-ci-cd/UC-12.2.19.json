@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.2.19",
+  "title": "Flaky Test Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Test case name, suite, result per run",
+  "app": "JUnit XML ingest, Buildkite/GitHub Actions annotations",
+  "spl": "index=cicd sourcetype=\"junit:result\"\n| stats count(eval(result=\"SUCCESS\")) as pass, count(eval(result=\"FAILURE\")) as fail, count as runs by test_case, class_name\n| eval flake_rate=round(fail/runs*100,1)\n| where runs>10 AND flake_rate>10 AND flake_rate<90\n| sort -flake_rate",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Tests that pass/fail without code changes waste time and hide real failures; quarantine candidates identified by pass rate variance.",
+  "value": "Tests that pass/fail without code changes waste time and hide real failures; quarantine candidates identified by pass rate variance.",
+  "implementation": "Minimum 10 runs for statistics. File Jira for quarantine when flake_rate >25%. Track fix SLA.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: JUnit XML ingest, Buildkite/GitHub Actions annotations.\n• Ensure the following data sources are available: Test case name, suite, result per run.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMinimum 10 runs for statistics. File Jira for quarantine when flake_rate >25%. Track fix SLA.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"junit:result\"\n| stats count(eval(result=\"SUCCESS\")) as pass, count(eval(result=\"FAILURE\")) as fail, count as runs by test_case, class_name\n| eval flake_rate=round(fail/runs*100,1)\n| where runs>10 AND flake_rate>10 AND flake_rate<90\n| sort -flake_rate\n```\n\nUnderstanding this SPL\n\n**Flaky Test Detection** — Tests that pass/fail without code changes waste time and hide real failures; quarantine candidates identified by pass rate variance.\n\nDocumented **Data sources**: Test case name, suite, result per run. **App/TA** (typical add-on context): JUnit XML ingest, Buildkite/GitHub Actions annotations. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: junit:result. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"junit:result\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by test_case, class_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **flake_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where runs>10 AND flake_rate>10 AND flake_rate<90` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (flaky tests), Bar chart (flake rate), Line chart (trend after fix).",
+  "visualization": "Table (flaky tests), Bar chart (flake rate), Line chart (trend after fix).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "github"
+  ]
+}

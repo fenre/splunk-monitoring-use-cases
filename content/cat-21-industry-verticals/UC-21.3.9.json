@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.3.9",
+  "title": "Clinical Trial Data Integrity Monitoring",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Healthcare",
+  "dataSources": "`index=healthcare` `sourcetype=\"ctms:audit\"` fields `study_id`, `site_id`, `user`, `action`, `field_changed`, `old_value`, `new_value`",
+  "app": "CTMS/EDC system audit exports via HEC",
+  "spl": "index=healthcare sourcetype=\"ctms:audit\"\n| where action IN (\"modify\", \"delete\", \"unblind\")\n| stats count as modifications, dc(field_changed) as fields_changed, dc(user) as users by study_id, site_id\n| where modifications > 100 OR fields_changed > 20\n| sort - modifications\n| table study_id, site_id, modifications, fields_changed, users",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Clinical trial data requires ALCOA+ principles (Attributable, Legible, Contemporaneous, Original, Accurate). Monitoring audit trails ensures data integrity for regulatory submissions.",
+  "value": "Clinical trial data requires ALCOA+ principles (Attributable, Legible, Contemporaneous, Original, Accurate). Monitoring audit trails ensures data integrity for regulatory submissions.",
+  "implementation": "Export EDC/CTMS audit trails to Splunk. Flag excessive modifications, unusual data patterns, and retrospective changes. Generate risk-based monitoring reports for clinical operations. **Domain context:** ICH E6(R2) encourages risk-based monitoring; ALCOA+ applies to source data—blind-breaking `unblind` actions require heightened scrutiny. **Splunk:** De-identify subjects in dashboards; use `study_id`/`site_id` only per protocol privacy plan.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: CTMS/EDC system audit exports via HEC.\n• Ensure the following data sources are available: `index=healthcare` `sourcetype=\"ctms:audit\"` fields `study_id`, `site_id`, `user`, `action`, `field_changed`, `old_value`, `new_value`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExport EDC/CTMS audit trails to Splunk. Flag excessive modifications, unusual data patterns, and retrospective changes. Generate risk-based monitoring reports for clinical operations. **Domain context:** ICH E6(R2) encourages risk-based monitoring; ALCOA+ applies to source data—blind-breaking `unblind` actions require heightened scrutiny. **Splunk:** De-identify subjects in dashboards; use `study_id`/`site_id` only per protocol privacy plan.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=healthcare sourcetype=\"ctms:audit\"\n| where action IN (\"modify\", \"delete\", \"unblind\")\n| stats count as modifications, dc(field_changed) as fields_changed, dc(user) as users by study_id, site_id\n| where modifications > 100 OR fields_changed > 20\n| sort - modifications\n| table study_id, site_id, modifications, fields_changed, users\n```\n\nUnderstanding this SPL\n\n**Clinical Trial Data Integrity Monitoring** — Clinical trial data requires ALCOA+ principles (Attributable, Legible, Contemporaneous, Original, Accurate). Monitoring audit trails ensures data integrity for regulatory submissions.\n\nDocumented **Data sources**: `index=healthcare` `sourcetype=\"ctms:audit\"` fields `study_id`, `site_id`, `user`, `action`, `field_changed`, `old_value`, `new_value`. **App/TA** (typical add-on context): CTMS/EDC system audit exports via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: healthcare; **sourcetype**: ctms:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=healthcare, sourcetype=\"ctms:audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where action IN (\"modify\", \"delete\", \"unblind\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by study_id, site_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where modifications > 100 OR fields_changed > 20` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Clinical Trial Data Integrity Monitoring**): table study_id, site_id, modifications, fields_changed, users\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (sites by modification count), Bar chart (changes by study), Timeline (high-activity periods).",
+  "visualization": "Table (sites by modification count), Bar chart (changes by study), Timeline (high-activity periods).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

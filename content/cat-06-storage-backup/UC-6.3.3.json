@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "6.3.3",
+  "title": "Missed Backup Detection",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Backup scheduler logs, expected schedule lookup",
+  "app": "Vendor TA, custom correlation",
+  "spl": "| inputlookup backup_schedule.csv\n| join type=left max=1 job_name\n    [search index=backup sourcetype=\"veeam:job\" earliest=-24h\n     | stats latest(_time) as last_run by job_name]\n| where isnull(last_run) OR last_run < relative_time(now(), \"-26h\")\n| table job_name, expected_schedule, last_run",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "A backup that doesn't run at all is worse than one that fails — it's invisible. Detection ensures no system is left unprotected.",
+  "value": "A backup that doesn't run at all is worse than one that fails — it's invisible. Detection ensures no system is left unprotected.",
+  "implementation": "Maintain a lookup table of expected backup schedules. Run a scheduled search comparing expected vs actual runs. Alert when any job misses its window. Correlate with backup server health events.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Vendor TA, custom correlation.\n• Ensure the following data sources are available: Backup scheduler logs, expected schedule lookup.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain a lookup table of expected backup schedules. Run a scheduled search comparing expected vs actual runs. Alert when any job misses its window. Correlate with backup server health events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup backup_schedule.csv\n| join type=left max=1 job_name\n    [search index=backup sourcetype=\"veeam:job\" earliest=-24h\n     | stats latest(_time) as last_run by job_name]\n| where isnull(last_run) OR last_run < relative_time(now(), \"-26h\")\n| table job_name, expected_schedule, last_run\n```\n\nUnderstanding this SPL\n\n**Missed Backup Detection** — A backup that doesn't run at all is worse than one that fails — it's invisible. Detection ensures no system is left unprotected.\n\nDocumented **Data sources**: Backup scheduler logs, expected schedule lookup. **App/TA** (typical add-on context): Vendor TA, custom correlation. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(last_run) OR last_run < relative_time(now(), \"-26h\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Missed Backup Detection**): table job_name, expected_schedule, last_run\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (missed jobs with schedule details), Single value (number of missed jobs), Status grid (job name × date).",
+  "visualization": "Table (missed jobs with schedule details), Single value (number of missed jobs), Status grid (job name × date).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

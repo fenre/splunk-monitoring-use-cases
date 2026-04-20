@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.3",
+  "title": "Disk Space Monitoring (Windows)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=Perfmon:LogicalDisk`",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=perfmon sourcetype=\"Perfmon:LogicalDisk\" counter=\"% Free Space\" instance!=\"_Total\"\n| stats latest(Value) as free_pct by host, instance\n| eval used_pct = 100 - free_pct\n| where used_pct > 85\n| sort -used_pct",
+  "cimSpl": "| tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct\n  from datamodel=Performance where nodename=Performance.Storage\n  by Performance.host Performance.mount span=1h\n| where disk_pct > 85",
+  "cimModels": [
+    "Performance"
+  ],
+  "description": "Full disks crash applications, stop logging, and corrupt databases. Windows can become unbootable if the system drive fills.",
+  "value": "Full disks crash applications, stop logging, and corrupt databases. Windows can become unbootable if the system drive fills.",
+  "implementation": "Perfmon input: LogicalDisk, counters = `% Free Space`, `Free Megabytes`. Alert at 85%/90%/95% thresholds. Use `predict` for forecasting.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=Perfmon:LogicalDisk`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPerfmon input: LogicalDisk, counters = `% Free Space`, `Free Megabytes`. Alert at 85%/90%/95% thresholds. Use `predict` for forecasting.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=perfmon sourcetype=\"Perfmon:LogicalDisk\" counter=\"% Free Space\" instance!=\"_Total\"\n| stats latest(Value) as free_pct by host, instance\n| eval used_pct = 100 - free_pct\n| where used_pct > 85\n| sort -used_pct\n```\n\nUnderstanding this SPL\n\n**Disk Space Monitoring (Windows)** — Full disks crash applications, stop logging, and corrupt databases. Windows can become unbootable if the system drive fills.\n\nDocumented **Data sources**: `sourcetype=Perfmon:LogicalDisk`. **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: perfmon; **sourcetype**: Perfmon:LogicalDisk. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=perfmon, sourcetype=\"Perfmon:LogicalDisk\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, instance** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **used_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where used_pct > 85` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct\n  from datamodel=Performance where nodename=Performance.Storage\n  by Performance.host Performance.mount span=1h\n| where disk_pct > 85\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Disk Space Monitoring (Windows)** — Full disks crash applications, stop logging, and corrupt databases. Windows can become unbootable if the system drive fills.\n\nDocumented **Data sources**: `sourcetype=Perfmon:LogicalDisk`. **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.\n• Filters the current rows with `where disk_pct > 85` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table sorted by usage, Gauge per drive, Line chart trend per volume.",
+  "visualization": "Table sorted by usage, Gauge per drive, Line chart trend per volume.",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.10.2",
+  "title": "Diameter Subscriber Data Accounting",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`sourcetype=stream:diameter`",
+  "app": "`Splunk App for Stream` (Splunkbase #1809)",
+  "spl": "sourcetype=\"stream:diameter\" command_code=271\n| eval total_bytes=acct_input_octets+acct_output_octets\n| eval total_MB=round(total_bytes/1048576, 2)\n| stats sum(total_MB) as total_data_MB, count as session_count by calling_station_id, origin_host\n| sort -total_data_MB\n| head 100",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Aggregates Diameter accounting records to track data usage per subscriber and session, enabling detection of high-usage anomalies, billing reconciliation, and capacity planning.",
+  "value": "Aggregates Diameter accounting records to track data usage per subscriber and session, enabling detection of high-usage anomalies, billing reconciliation, and capacity planning.",
+  "implementation": "Configure Splunk App for Stream to capture Diameter Accounting-Request (ACR, command_code 271) and Accounting-Answer (ACA, command_code 271) messages. The fields `acct_input_octets` and `acct_output_octets` provide byte counts per session. Correlate with `calling_station_id` (subscriber MSISDN/IMSI) to build per-subscriber usage profiles. Set alerts for subscribers exceeding data thresholds.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk App for Stream` (Splunkbase #1809).\n• Ensure the following data sources are available: `sourcetype=stream:diameter`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure Splunk App for Stream to capture Diameter Accounting-Request (ACR, command_code 271) and Accounting-Answer (ACA, command_code 271) messages. The fields `acct_input_octets` and `acct_output_octets` provide byte counts per session. Correlate with `calling_station_id` (subscriber MSISDN/IMSI) to build per-subscriber usage profiles. Set alerts for subscribers exceeding data thresholds.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nsourcetype=\"stream:diameter\" command_code=271\n| eval total_bytes=acct_input_octets+acct_output_octets\n| eval total_MB=round(total_bytes/1048576, 2)\n| stats sum(total_MB) as total_data_MB, count as session_count by calling_station_id, origin_host\n| sort -total_data_MB\n| head 100\n```\n\nUnderstanding this SPL\n\n**Diameter Subscriber Data Accounting** — Aggregates Diameter accounting records to track data usage per subscriber and session, enabling detection of high-usage anomalies, billing reconciliation, and capacity planning.\n\nDocumented **Data sources**: `sourcetype=stream:diameter`. **App/TA** (typical add-on context): `Splunk App for Stream` (Splunkbase #1809). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **sourcetype**: stream:diameter. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: sourcetype=\"stream:diameter\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **total_bytes** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **total_MB** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by calling_station_id, origin_host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (top 20 subscribers by data usage in MB), Table (calling_station_id, origin_host, total_data_MB, session_count — sortable), Line chart (aggregate data volume trend over 7 days), Single value (total Diameter accounting sessions).",
+  "visualization": "Bar chart (top 20 subscribers by data usage in MB), Table (calling_station_id, origin_host, total_data_MB, session_count — sortable), Line chart (aggregate data volume trend over 7 days), Single value (total Diameter accounting sessions).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "stream"
+  ],
+  "telcoUseCase": "Broadband Service Optimization (50 Ways #17)"
+}

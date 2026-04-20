@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.4.6",
+  "title": "Ollama Local LLM Abuse Detection (ESCU)",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=ollama:logs`",
+  "app": "ESCU (Analytic Story: Local LLM abuse patterns), Ollama HTTP logs",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=ai_ops sourcetype=\"ollama:logs\"\n| search path IN (\"/api/generate\",\"/api/chat\")\n| eventstats count as reqs_per_src by src\n| where status>=400 OR duration_ms>60000 OR reqs_per_src>100\n| eval suspicious=if(reqs_per_src>100,\"high_volume\",if(match(user_agent,\"curl|python-requests\"),\"scripted\",\"normal\"))\n| stats count, dc(path) as paths, values(user_agent) as ua by src, host, suspicious\n| where count>50 OR match(ua,\"(?i)(scanner|masscan)\")",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Self-hosted Ollama endpoints can be probed or misused for bulk generation; correlating ESCU-style analytics with local logs catches abuse before resource exhaustion or data leakage.",
+  "value": "Self-hosted Ollama endpoints can be probed or misused for bulk generation; correlating ESCU-style analytics with local logs catches abuse before resource exhaustion or data leakage.",
+  "implementation": "Forward Ollama access logs with client IP, path, model, duration, and status. Tune ESCU detections for unusual volume, off-hours spikes, and known scanner user agents. Block or rate-limit at the network edge based on Splunk alerts. Enrich with asset and identity lookups where available.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: ESCU (Analytic Story: Local LLM abuse patterns), Ollama HTTP logs.\n• Ensure the following data sources are available: `sourcetype=ollama:logs`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward Ollama access logs with client IP, path, model, duration, and status. Tune ESCU detections for unusual volume, off-hours spikes, and known scanner user agents. Block or rate-limit at the network edge based on Splunk alerts. Enrich with asset and identity lookups where available.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ai_ops sourcetype=\"ollama:logs\"\n| search path IN (\"/api/generate\",\"/api/chat\")\n| eventstats count as reqs_per_src by src\n| where status>=400 OR duration_ms>60000 OR reqs_per_src>100\n| eval suspicious=if(reqs_per_src>100,\"high_volume\",if(match(user_agent,\"curl|python-requests\"),\"scripted\",\"normal\"))\n| stats count, dc(path) as paths, values(user_agent) as ua by src, host, suspicious\n| where count>50 OR match(ua,\"(?i)(scanner|masscan)\")\n```\n\nUnderstanding this SPL\n\n**Ollama Local LLM Abuse Detection (ESCU)** — Self-hosted Ollama endpoints can be probed or misused for bulk generation; correlating ESCU-style analytics with local logs catches abuse before resource exhaustion or data leakage.\n\nDocumented **Data sources**: `sourcetype=ollama:logs`. **App/TA** (typical add-on context): ESCU (Analytic Story: Local LLM abuse patterns), Ollama HTTP logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ai_ops; **sourcetype**: ollama:logs. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ai_ops, sourcetype=\"ollama:logs\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `eventstats` rolls up events into metrics; results are split **by src** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where status>=400 OR duration_ms>60000 OR reqs_per_src>100` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **suspicious** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by src, host, suspicious** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count>50 OR match(ua,\"(?i)(scanner|masscan)\")` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Map (source IPs), Table (suspicious sessions), Timeline (request bursts).",
+  "visualization": "Map (source IPs), Table (suspicious sessions), Timeline (request bursts).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "security_essentials"
+  ]
+}

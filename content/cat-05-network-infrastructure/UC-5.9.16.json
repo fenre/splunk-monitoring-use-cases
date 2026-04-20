@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.9.16",
+  "title": "DNS Provider Comparison",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (DNS tests)",
+  "app": "`Cisco ThousandEyes App for Splunk` (Splunkbase 7719)",
+  "spl": "`stream_index` thousandeyes.test.type=\"dns-server\"\n| stats avg(dns.lookup.duration) as avg_duration_s avg(dns.lookup.availability) as avg_availability by server.address, dns.question.name\n| eval avg_duration_ms=round(avg_duration_s*1000,1)\n| sort dns.question.name, avg_duration_ms",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Comparing resolution times across DNS providers (internal recursive resolvers, external providers like Cloudflare, Google, ISP resolvers) helps optimize DNS configuration for lowest latency.",
+  "value": "Comparing resolution times across DNS providers (internal recursive resolvers, external providers like Cloudflare, Google, ISP resolvers) helps optimize DNS configuration for lowest latency.",
+  "implementation": "Create DNS Server tests in ThousandEyes for the same domain against multiple DNS server addresses. Each test targets a different resolver. Compare `dns.lookup.duration` and `dns.lookup.availability` across server addresses.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco ThousandEyes App for Splunk` (Splunkbase 7719).\n• Ensure the following data sources are available: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (DNS tests).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate DNS Server tests in ThousandEyes for the same domain against multiple DNS server addresses. Each test targets a different resolver. Compare `dns.lookup.duration` and `dns.lookup.availability` across server addresses.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n`stream_index` thousandeyes.test.type=\"dns-server\"\n| stats avg(dns.lookup.duration) as avg_duration_s avg(dns.lookup.availability) as avg_availability by server.address, dns.question.name\n| eval avg_duration_ms=round(avg_duration_s*1000,1)\n| sort dns.question.name, avg_duration_ms\n```\n\nUnderstanding this SPL\n\n**DNS Provider Comparison** — Comparing resolution times across DNS providers (internal recursive resolvers, external providers like Cloudflare, Google, ISP resolvers) helps optimize DNS configuration for lowest latency.\n\nDocumented **Data sources**: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (DNS tests). **App/TA** (typical add-on context): `Cisco ThousandEyes App for Splunk` (Splunkbase 7719). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Invokes macro `stream_index` — in Search, use the UI or expand to inspect the underlying SPL.\n• `stats` rolls up events into metrics; results are split **by server.address, dns.question.name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **avg_duration_ms** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Column chart (resolution time by provider), Table (provider, domain, duration, availability), Comparison dashboard.",
+  "visualization": "Column chart (resolution time by provider), Table (provider, domain, duration, availability), Comparison dashboard.",
+  "references": [
+    {
+      "title": "Splunkbase app 7719",
+      "url": "https://splunkbase.splunk.com/app/7719"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_thousandeyes"
+  ]
+}

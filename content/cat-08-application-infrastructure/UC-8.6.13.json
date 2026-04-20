@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.6.13",
+  "title": "HashiCorp Nomad Job and Allocation Status",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Nomad `/v1/jobs`, `/v1/allocations`",
+  "app": "Custom (Nomad HTTP API)",
+  "spl": "index=nomad sourcetype=\"nomad:allocations\"\n| where ClientStatus==\"failed\" OR (DesiredStatus==\"run\" AND ClientStatus!=\"running\")\n| stats count by JobID, TaskGroup, ClientStatus\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Failed allocations and job deployment health indicate Nomad scheduler and workload availability. Failed allocations mean tasks are not running; deployment failures block rollouts.",
+  "value": "Failed allocations and job deployment health indicate Nomad scheduler and workload availability. Failed allocations mean tasks are not running; deployment failures block rollouts.",
+  "implementation": "Poll Nomad `/v1/jobs` and `/v1/allocations` via scripted input every 5 minutes. Parse JobID, TaskGroup, ClientStatus, DesiredStatus, CreateIndex. Forward to Splunk via HEC. Alert when ClientStatus==failed or allocations are pending/running when desired is stop. Track deployment status (job version, allocation placement). Correlate with node availability.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Nomad HTTP API).\n• Ensure the following data sources are available: Nomad `/v1/jobs`, `/v1/allocations`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll Nomad `/v1/jobs` and `/v1/allocations` via scripted input every 5 minutes. Parse JobID, TaskGroup, ClientStatus, DesiredStatus, CreateIndex. Forward to Splunk via HEC. Alert when ClientStatus==failed or allocations are pending/running when desired is stop. Track deployment status (job version, allocation placement). Correlate with node availability.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nomad sourcetype=\"nomad:allocations\"\n| where ClientStatus==\"failed\" OR (DesiredStatus==\"run\" AND ClientStatus!=\"running\")\n| stats count by JobID, TaskGroup, ClientStatus\n| sort -count\n```\n\nUnderstanding this SPL\n\n**HashiCorp Nomad Job and Allocation Status** — Failed allocations and job deployment health indicate Nomad scheduler and workload availability. Failed allocations mean tasks are not running; deployment failures block rollouts.\n\nDocumented **Data sources**: Nomad `/v1/jobs`, `/v1/allocations`. **App/TA** (typical add-on context): Custom (Nomad HTTP API). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nomad; **sourcetype**: nomad:allocations. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nomad, sourcetype=\"nomad:allocations\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where ClientStatus==\"failed\" OR (DesiredStatus==\"run\" AND ClientStatus!=\"running\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by JobID, TaskGroup, ClientStatus** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed allocations by job), Single value (failed allocation count), Status grid (job × allocation status), Timeline (allocation events).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Table (failed allocations by job), Single value (failed allocation count), Status grid (job × allocation status), Timeline (allocation events).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "hashicorp"
+  ],
+  "equipmentModels": [
+    "hashicorp_nomad"
+  ]
+}

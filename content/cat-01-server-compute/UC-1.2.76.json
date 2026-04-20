@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.76",
+  "title": "AdminSDHolder Modification",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 5136)",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=5136\n  ObjectDN=\"*AdminSDHolder*\"\n| table _time, host, SubjectUserName, AttributeLDAPDisplayName, AttributeValue, OperationType\n| sort -_time",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=success\n  by Authentication.user Authentication.src Authentication.dest span=1h\n| search Authentication.user=*admin* OR Authentication.user=root",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "The AdminSDHolder container controls ACLs on all privileged AD groups. Modifying it grants persistent hidden admin access that survives permission resets.",
+  "value": "The AdminSDHolder container controls ACLs on all privileged AD groups. Modifying it grants persistent hidden admin access that survives permission resets.",
+  "implementation": "Enable \"Audit Directory Service Changes\" on domain controllers. EventCode 5136=directory object modified. Filter for ObjectDN containing \"AdminSDHolder\". Any modification to this container is highly suspicious — it should only change via approved security hardening. The SDProp process propagates AdminSDHolder ACLs to all protected groups every 60 minutes. Alert immediately with critical priority.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 5136).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable \"Audit Directory Service Changes\" on domain controllers. EventCode 5136=directory object modified. Filter for ObjectDN containing \"AdminSDHolder\". Any modification to this container is highly suspicious — it should only change via approved security hardening. The SDProp process propagates AdminSDHolder ACLs to all protected groups every 60 minutes. Alert immediately with critical priority.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=5136\n  ObjectDN=\"*AdminSDHolder*\"\n| table _time, host, SubjectUserName, AttributeLDAPDisplayName, AttributeValue, OperationType\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**AdminSDHolder Modification** — The AdminSDHolder container controls ACLs on all privileged AD groups. Modifying it grants persistent hidden admin access that survives permission resets.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 5136). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **AdminSDHolder Modification**): table _time, host, SubjectUserName, AttributeLDAPDisplayName, AttributeValue, OperationType\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=success\n  by Authentication.user Authentication.src Authentication.dest span=1h\n| search Authentication.user=*admin* OR Authentication.user=root\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**AdminSDHolder Modification** — The AdminSDHolder container controls ACLs on all privileged AD groups. Modifying it grants persistent hidden admin access that survives permission resets.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 5136). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Applies an explicit `search` filter to narrow the current result set.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (modifications), Single value (count — target: 0), Alert with SOC escalation.",
+  "visualization": "Table (modifications), Single value (count — target: 0), Alert with SOC escalation.",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

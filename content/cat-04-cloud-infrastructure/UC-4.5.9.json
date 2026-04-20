@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.5.9",
+  "title": "Serverless Cost Tracking by Function",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Cost"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=aws:billing`, `sourcetype=azure:costmanagement`, `sourcetype=gcp:billing`",
+  "app": "`Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`",
+  "spl": "index=aws sourcetype=\"aws:billing\" OR index=azure sourcetype=\"azure:costmanagement\" OR index=gcp sourcetype=\"gcp:billing\"\n| eval cloud=case(index==\"aws\",\"AWS\", index==\"azure\",\"Azure\", index==\"gcp\",\"GCP\")\n| eval line_cost=coalesce(BlendedCost, UnblendedCost, cost, CostInBillingCurrency)\n| eval fn=coalesce(resourceId, ResourceId, labels.value)\n| where match(lower(ProductName).lower(service).lower(resource_type), \"(lambda|function|cloudfunctions|functions)\")\n| stats sum(line_cost) as spend by cloud, fn\n| sort -spend",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Function-level spend exposes expensive handlers, mis-scaled concurrency, and test sandboxes left running—essential for FinOps and chargeback.",
+  "value": "Function-level spend exposes expensive handlers, mis-scaled concurrency, and test sandboxes left running—essential for FinOps and chargeback.",
+  "implementation": "Ingest CUR or cost exports with resource-level granularity and tags (`aws:createdBy`, Azure resource name, GCP labels). Normalize into a common schema. Filter to serverless SKUs (Lambda, Azure Functions, Cloud Functions). Schedule weekly reports and alerts for top-N spenders or day-over-day spikes per function.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`.\n• Ensure the following data sources are available: `sourcetype=aws:billing`, `sourcetype=azure:costmanagement`, `sourcetype=gcp:billing`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest CUR or cost exports with resource-level granularity and tags (`aws:createdBy`, Azure resource name, GCP labels). Normalize into a common schema. Filter to serverless SKUs (Lambda, Azure Functions, Cloud Functions). Schedule weekly reports and alerts for top-N spenders or day-over-day spikes per function.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:billing\" OR index=azure sourcetype=\"azure:costmanagement\" OR index=gcp sourcetype=\"gcp:billing\"\n| eval cloud=case(index==\"aws\",\"AWS\", index==\"azure\",\"Azure\", index==\"gcp\",\"GCP\")\n| eval line_cost=coalesce(BlendedCost, UnblendedCost, cost, CostInBillingCurrency)\n| eval fn=coalesce(resourceId, ResourceId, labels.value)\n| where match(lower(ProductName).lower(service).lower(resource_type), \"(lambda|function|cloudfunctions|functions)\")\n| stats sum(line_cost) as spend by cloud, fn\n| sort -spend\n```\n\nUnderstanding this SPL\n\n**Serverless Cost Tracking by Function** — Function-level spend exposes expensive handlers, mis-scaled concurrency, and test sandboxes left running—essential for FinOps and chargeback.\n\nDocumented **Data sources**: `sourcetype=aws:billing`, `sourcetype=azure:costmanagement`, `sourcetype=gcp:billing`. **App/TA** (typical add-on context): `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws, azure, gcp; **sourcetype**: aws:billing, azure:costmanagement, gcp:billing. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, index=azure, index=gcp, sourcetype=\"aws:billing\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **cloud** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **line_cost** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **fn** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where match(lower(ProductName).lower(service).lower(resource_type), \"(lambda|function|cloudfunctions|functions)\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by cloud, fn** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (spend by function), Treemap (cost by cloud and service), Table (cloud, function, spend, % of total).",
+  "visualization": "Bar chart (spend by function), Treemap (cost by cloud and service), Table (cloud, function, spend, % of total).",
+  "references": [
+    {
+      "title": "Splunk_TA_aws",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk_TA_microsoft-cloudservices",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "Splunk_TA_google-cloudplatform",
+      "url": "https://splunkbase.splunk.com/app/3088"
+    }
+  ],
+  "equipment": [
+    "aws",
+    "azure",
+    "gcp",
+    "m365"
+  ]
+}

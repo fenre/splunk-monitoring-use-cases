@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.1.9",
+  "title": "Slow POST Detection",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Access logs with response time",
+  "app": "`Splunk_TA_apache`, `TA-nginx`",
+  "spl": "index=web sourcetype=\"access_combined\" method=POST\n| where response_time > 5000\n| stats count, avg(response_time) as avg_rt by uri_path\n| sort -avg_rt",
+  "cimSpl": "| tstats `summariesonly` perc95(Web.duration) as p95_ms count\n  from datamodel=Web.Web\n  where Web.http_method=\"POST\"\n  by Web.uri_path span=5m\n| where p95_ms > 5000",
+  "cimModels": [
+    "Web"
+  ],
+  "description": "Slow POST requests often indicate application-level performance issues (large form submissions, file uploads, database writes) distinct from slow GETs.",
+  "value": "Slow POST requests often indicate application-level performance issues (large form submissions, file uploads, database writes) distinct from slow GETs.",
+  "implementation": "Filter access logs for POST requests with high response times. Track by endpoint to identify specific bottlenecks. Correlate with backend database/API latency. Report top slow POST endpoints weekly.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_apache`, `TA-nginx`.\n• Ensure the following data sources are available: Access logs with response time.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFilter access logs for POST requests with high response times. Track by endpoint to identify specific bottlenecks. Correlate with backend database/API latency. Report top slow POST endpoints weekly.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"access_combined\" method=POST\n| where response_time > 5000\n| stats count, avg(response_time) as avg_rt by uri_path\n| sort -avg_rt\n```\n\nUnderstanding this SPL\n\n**Slow POST Detection** — Slow POST requests often indicate application-level performance issues (large form submissions, file uploads, database writes) distinct from slow GETs.\n\nDocumented **Data sources**: Access logs with response time. **App/TA** (typical add-on context): `Splunk_TA_apache`, `TA-nginx`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: web; **sourcetype**: access_combined. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=web, sourcetype=\"access_combined\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where response_time > 5000` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by uri_path** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` perc95(Web.duration) as p95_ms count\n  from datamodel=Web.Web\n  where Web.http_method=\"POST\"\n  by Web.uri_path span=5m\n| where p95_ms > 5000\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Slow POST Detection** — Slow POST requests often indicate application-level performance issues (large form submissions, file uploads, database writes) distinct from slow GETs.\n\nDocumented **Data sources**: Access logs with response time. **App/TA** (typical add-on context): `Splunk_TA_apache`, `TA-nginx`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Web.Web` — enable acceleration for that model.\n• Filters the current rows with `where p95_ms > 5000` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (slow POST endpoints), Bar chart (avg response time by URI), Line chart (slow POST count trend).",
+  "visualization": "Table (slow POST endpoints), Bar chart (avg response time by URI), Line chart (slow POST count trend).",
+  "references": [
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "nginx"
+  ],
+  "equipmentModels": [
+    "apache_httpd",
+    "nginx_open"
+  ]
+}

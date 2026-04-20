@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.7.43",
+  "title": "Okta MFA Exhaustion Hunt",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Okta",
+  "app": "Splunk Security Essentials / ESCU",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "`okta` eventType=system.push.send_factor_verify_push OR ((legacyEventType=core.user.factor.attempt_success) AND (debugContext.debugData.factor=OKTA_VERIFY_PUSH)) OR ((legacyEventType=core.user.factor.attempt_fail) AND (debugContext.debugData.factor=OKTA_VERIFY_PUSH))\n      | stats count(eval(legacyEventType=\"core.user.factor.attempt_success\"))  as successes count(eval(legacyEventType=\"core.user.factor.attempt_fail\")) as failures count(eval(eventType=\"system.push.send_factor_verify_push\")) as pushes\n        BY user,_time\n      | stats latest(_time) as lasttime earliest(_time) as firsttime sum(successes) as successes sum(failures) as failures sum(pushes) as pushes\n        BY user\n      | eval seconds=lasttime-firsttime\n      | eval lasttime=strftime(lasttime, \"%c\")\n      | search (pushes>1)\n      | eval totalattempts=successes+failures\n      | eval finding=\"Normal authentication pattern\"\n      | eval finding=if(failures==pushes AND pushes>1,\"Authentication attempts not successful because multiple pushes denied\",finding)\n      | eval finding=if(totalattempts==0,\"Multiple pushes sent and ignored\",finding)\n      | eval finding=if(successes>0 AND pushes>3,\"Probably should investigate. Multiple pushes sent, eventual successful authentication!\",finding)\n      | `okta_mfa_exhaustion_hunt_filter`",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "The following analytic detects patterns of successful and failed Okta MFA push attempts to identify potential MFA exhaustion attacks. It leverages Okta event logs, specifically focusing on push verification events, and uses statistical evaluations to determine suspicious activity. This activity is significant as it may indicate an attacker attempting to bypass MFA by overwhelming the user with push notifications. If confirmed malicious, this could lead to unauthorized access, compromising the se…",
+  "value": "The following analytic detects patterns of successful and failed Okta MFA push attempts to identify potential MFA exhaustion attacks. It leverages Okta event logs, specifically focusing on push verification events, and uses statistical evaluations to determine suspicious activity. This activity is significant as it may indicate an attacker attempting to bypass MFA by overwhelming the user with push notifications. If confirmed malicious, this could lead to unauthorized access, compromising the se…",
+  "implementation": "ESCU Hunting detection — not designed for automated alerting. Run ad-hoc or on a low-frequency schedule from Splunk Enterprise Security for analyst-driven investigation. Requires Okta ingested and CIM-normalized.",
+  "detailedImplementation": "Enterprise Security Detection Rule\n\n\"Okta MFA Exhaustion Hunt\" is a Hunting detection designed for analyst-driven threat hunting rather than automated alerting, sourced from the Splunk Enterprise Security Content Update (ESCU). Hunting detections are not intended for automated alerting. They are run on-demand or on a low-frequency schedule by security analysts investigating specific threat hypotheses.\n\nPrerequisites\n\n• Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.\n• Data sources: Okta. Must be ingested into Splunk and normalized to the Common Information Model (CIM) via the appropriate Technology Add-on.\n• MITRE ATT&CK: T1110. Review the ATT&CK matrix for adjacent techniques to identify detection coverage gaps in your environment.\n\nDeployment\n\n1. In Enterprise Security, navigate to Configure → Content → Content Management.\n2. Search for \"Okta MFA Exhaustion Hunt\" or filter by Analytic Story.\n3. Hunting detections are typically left disabled for automated scheduling. Instead, run them on-demand from the Search bar or schedule at low frequency (daily or weekly).\n4. Review results manually — hunting detections cast a wider net and expect analyst judgment to separate signal from noise.\n5. When results warrant further investigation, create a Notable Event manually or initiate your incident response workflow.\n\nTuning and False Positive Management\n\nKnown false positives for this detection: False positives may be present. Tune Okta and tune the analytic to ensure proper fidelity. Modify risk score as needed. Drop to anomaly until tuning is complete.\n\n• Hunting detections are expected to produce broader result sets that require analyst interpretation. Focus on refining the search scope (time range, specific hosts or users) rather than eliminating all noise.\n• Maintain a hunting journal documenting hypotheses tested, results found, and detection improvements identified.\n• Share high-fidelity findings with the detection engineering team to convert recurring hunting patterns into automated TTP or Anomaly detections.\n\nAnalyst Response Workflow\n\nWhen reviewing Hunting results:\n\n1. Run the search manually or review scheduled results. Evaluate each returned event against your threat hypothesis — not every result indicates compromise.\n2. Cross-reference findings with current threat intelligence, recent security advisories, and outputs from other detection sources.\n3. If suspicious activity is confirmed, create a Notable Event or escalate directly to your incident response process with the supporting evidence.\n4. Document the hunting exercise: hypothesis, data sources queried, time range, findings, and any detection engineering improvements identified.\n\nValidation\n\nConfirm the required data sources are flowing:\n\n```spl\n| tstats count where index=* by index, sourcetype | sort -count\n```\n\nVerify the detection is enabled and firing:\n\n```spl\nindex=_audit action=\"alert_fired\" ss_name=\"*\"\n| stats count by ss_name, trigger_time | sort -trigger_time\n```",
+  "visualization": "Table, Timeline (from ESCU).",
+  "references": [
+    {
+      "url": "https://developer.okta.com/docs/reference/api/event-types/?q=user.acount.lock"
+    },
+    {
+      "url": "https://splunkbase.splunk.com/app/6553"
+    }
+  ],
+  "knownFalsePositives": "False positives may be present. Tune Okta and tune the analytic to ensure proper fidelity. Modify risk score as needed. Drop to anomaly until tuning is complete.",
+  "mitreAttack": [
+    "T1110"
+  ],
+  "detectionType": "Hunting",
+  "equipment": [
+    "security_essentials"
+  ]
+}

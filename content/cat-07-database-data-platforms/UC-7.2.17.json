@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.2.17",
+  "title": "CouchDB Replication Conflicts",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Replication task errors, document conflict counts (custom view or `_changes` sampling)",
+  "app": "CouchDB `_stats`, `_active_tasks` API",
+  "spl": "index=database sourcetype=\"couchdb:replication\"\n| where conflict_count > 0 OR error IS NOT NULL\n| stats sum(conflict_count) as conflicts, latest(error) as err by database_name, source, target\n| sort -conflicts",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Growing `_conflicts` document count indicates divergent replicas and data quality issues. Early detection prevents silent wrong reads.",
+  "value": "Growing `_conflicts` document count indicates divergent replicas and data quality issues. Early detection prevents silent wrong reads.",
+  "implementation": "Ingest replication task status from `_active_tasks` and periodic conflict counts from a map view. Alert on replication errors or conflict_count increase week-over-week.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: CouchDB `_stats`, `_active_tasks` API.\n• Ensure the following data sources are available: Replication task errors, document conflict counts (custom view or `_changes` sampling).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest replication task status from `_active_tasks` and periodic conflict counts from a map view. Alert on replication errors or conflict_count increase week-over-week.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"couchdb:replication\"\n| where conflict_count > 0 OR error IS NOT NULL\n| stats sum(conflict_count) as conflicts, latest(error) as err by database_name, source, target\n| sort -conflicts\n```\n\nUnderstanding this SPL\n\n**CouchDB Replication Conflicts** — Growing `_conflicts` document count indicates divergent replicas and data quality issues. Early detection prevents silent wrong reads.\n\nDocumented **Data sources**: Replication task errors, document conflict counts (custom view or `_changes` sampling). **App/TA** (typical add-on context): CouchDB `_stats`, `_active_tasks` API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: couchdb:replication. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"couchdb:replication\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where conflict_count > 0 OR error IS NOT NULL` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by database_name, source, target** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (DB, conflicts, error), Line chart (conflict trend), Single value (total conflicts).",
+  "visualization": "Table (DB, conflicts, error), Line chart (conflict trend), Single value (total conflicts).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

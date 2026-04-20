@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.2.1",
+  "title": "Overall Equipment Effectiveness (OEE) Calculation",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Manufacturing",
+  "dataSources": "`index=mfg` `sourcetype=\"mes:production\"` (line_id, planned_time_min, run_time_min, ideal_cycle_sec, units_good, units_total)",
+  "app": "Splunk OT Intelligence, Splunk Edge Hub",
+  "premiumApps": [
+    "Splunk Edge Hub",
+    "Splunk OT Intelligence"
+  ],
+  "spl": "index=mfg sourcetype=\"mes:production\"\n| eval availability=if(planned_time_min>0, run_time_min/planned_time_min, null)\n| eval performance=if(run_time_min>0 AND ideal_cycle_sec>0 AND units_total>0, (units_total*ideal_cycle_sec/60)/run_time_min, null)\n| eval quality=if(units_total>0, units_good/units_total, null)\n| eval oee=availability*performance*quality\n| bin _time span=1h\n| stats avg(availability) as avg_a, avg(performance) as avg_p, avg(quality) as avg_q, avg(oee) as avg_oee by line_id, _time\n| where avg_oee < 0.65 OR avg_a < 0.9 OR avg_q < 0.95\n| table _time, line_id, avg_a, avg_p, avg_q, avg_oee",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "OEE exposes hidden capacity losses across availability, speed, and quality; plant leadership uses it to prioritize capital and lean projects on the constraint line.",
+  "value": "OEE exposes hidden capacity losses across availability, speed, and quality; plant leadership uses it to prioritize capital and lean projects on the constraint line.",
+  "implementation": "Ingest MES counters from each line via HEC; validate ideal cycle time from routing master data lookup. Edge Hub can supply machine states if MES gaps exist. Schedule hourly OEE and daily rollups for plant reviews. **Domain context:** OEE = Availability × Performance × Quality (ISO 22400 / TPM); world-class plants often target ~85% OEE on bottlenecks—thresholds in the SPL are illustrative. **Splunk:** Ensure `planned_time_min` and `run_time_min` share the same accounting period; exclude changeover if your MES encodes it separately or OEE will be biased.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk OT Intelligence, Splunk Edge Hub.\n• Ensure the following data sources are available: `index=mfg` `sourcetype=\"mes:production\"` (line_id, planned_time_min, run_time_min, ideal_cycle_sec, units_good, units_total).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest MES counters from each line via HEC; validate ideal cycle time from routing master data lookup. Edge Hub can supply machine states if MES gaps exist. Schedule hourly OEE and daily rollups for plant reviews. **Domain context:** OEE = Availability × Performance × Quality (ISO 22400 / TPM); world-class plants often target ~85% OEE on bottlenecks—thresholds in the SPL are illustrative. **Splunk:** Ensure `planned_time_min` and `run_time_min` share the same accounting period; exclude changeove…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=mfg sourcetype=\"mes:production\"\n| eval availability=if(planned_time_min>0, run_time_min/planned_time_min, null)\n| eval performance=if(run_time_min>0 AND ideal_cycle_sec>0 AND units_total>0, (units_total*ideal_cycle_sec/60)/run_time_min, null)\n| eval quality=if(units_total>0, units_good/units_total, null)\n| eval oee=availability*performance*quality\n| bin _time span=1h\n| stats avg(availability) as avg_a, avg(performance) as avg_p, avg(quality) as avg_q, avg(oee) as avg_oee by line_id, _time\n| where avg_oee < 0.65 OR avg_a < 0.9 OR avg_q < 0.95\n| table _time, line_id, avg_a, avg_p, avg_q, avg_oee\n```\n\nUnderstanding this SPL\n\n**Overall Equipment Effectiveness (OEE) Calculation** — OEE exposes hidden capacity losses across availability, speed, and quality; plant leadership uses it to prioritize capital and lean projects on the constraint line.\n\nDocumented **Data sources**: `index=mfg` `sourcetype=\"mes:production\"` (line_id, planned_time_min, run_time_min, ideal_cycle_sec, units_good, units_total). **App/TA** (typical add-on context): Splunk OT Intelligence, Splunk Edge Hub. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: mfg; **sourcetype**: mes:production. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=mfg, sourcetype=\"mes:production\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **availability** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **performance** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **quality** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **oee** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by line_id, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where avg_oee < 0.65 OR avg_a < 0.9 OR avg_q < 0.95` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Overall Equipment Effectiveness (OEE) Calculation**): table _time, line_id, avg_a, avg_p, avg_q, avg_oee\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (OEE trend), Breakdown bar (A, P, Q), Table (line ranking), Single value (plant OEE).",
+  "visualization": "Line chart (OEE trend), Breakdown bar (A, P, Q), Table (line ranking), Single value (plant OEE).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "edge_hub"
+  ]
+}

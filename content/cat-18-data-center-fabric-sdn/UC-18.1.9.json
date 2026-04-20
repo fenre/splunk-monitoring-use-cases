@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "18.1.9",
+  "title": "ACI Contract Hit/Miss Ratio Analysis",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=cisco:aci:contracts` or APIC API contract stats",
+  "app": "`TA_cisco-ACI`, APIC contract statistics",
+  "spl": "index=cisco_aci sourcetype=\"cisco:aci:contracts\"\n| timechart span=1h sum(permit_count) as permit sum(deny_count) as deny by contract_name\n| eval miss_ratio=round(100*deny/(deny+permit+0.001),2)",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Complements raw contract hits (UC-18.1.4) with **permit vs deny/miss** ratios over time to catch mis-tuned filters and unexpected drops before workloads fail.",
+  "value": "Complements raw contract hits (UC-18.1.4) with **permit vs deny/miss** ratios over time to catch mis-tuned filters and unexpected drops before workloads fail.",
+  "implementation": "Poll contract counters on the same interval as UC-18.1.4. Alert when `miss_ratio` jumps vs 24h baseline for business-critical contracts. Map `contract_name` to owning team.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA_cisco-ACI`, APIC contract statistics.\n• Ensure the following data sources are available: `sourcetype=cisco:aci:contracts` or APIC API contract stats.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll contract counters on the same interval as UC-18.1.4. Alert when `miss_ratio` jumps vs 24h baseline for business-critical contracts. Map `contract_name` to owning team.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cisco_aci sourcetype=\"cisco:aci:contracts\"\n| timechart span=1h sum(permit_count) as permit sum(deny_count) as deny by contract_name\n| eval miss_ratio=round(100*deny/(deny+permit+0.001),2)\n```\n\nUnderstanding this SPL\n\n**ACI Contract Hit/Miss Ratio Analysis** — Complements raw contract hits (UC-18.1.4) with **permit vs deny/miss** ratios over time to catch mis-tuned filters and unexpected drops before workloads fail.\n\nDocumented **Data sources**: `sourcetype=cisco:aci:contracts` or APIC API contract stats. **App/TA** (typical add-on context): `TA_cisco-ACI`, APIC contract statistics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cisco_aci; **sourcetype**: cisco:aci:contracts. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cisco_aci, sourcetype=\"cisco:aci:contracts\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by contract_name** — ideal for trending and alerting on this use case.\n• `eval` defines or adjusts **miss_ratio** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (permit vs deny), Single value (miss ratio %), Table (worst contracts).",
+  "visualization": "Line chart (permit vs deny), Single value (miss ratio %), Table (worst contracts).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_aci"
+  ],
+  "hardware": "Cisco APIC, Nexus 9000 (ACI mode)"
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.51",
+  "title": "Temperature & Humidity Sensor Calibration Drift Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Configuration"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=edge-hub-health` sourcetype=edge_hub sensor_calibration_status, `index=edge-hub-data` sensor_drift_metric",
+  "app": "Splunk Edge Hub (temperature + humidity sensors), Splunk OT Intelligence",
+  "premiumApps": [
+    "Splunk Edge Hub",
+    "Splunk OT Intelligence"
+  ],
+  "spl": "index=edge-hub-health sourcetype=edge_hub sensor_type=temperature OR sensor_type=humidity\n| stats latest(last_calibration_date) as last_cal, latest(sensor_drift_percent) as drift by sensor_type, host\n| eval days_since_calibration=(now() - strptime(last_cal, \"%Y-%m-%d\")) / 86400\n| eval calibration_status=case(\n    drift > 5 OR days_since_calibration > 365, \"OUT_OF_SPEC\",\n    drift > 2 OR days_since_calibration > 180, \"MARGINAL\",\n    1=1, \"GOOD\")\n| where calibration_status!=\"GOOD\"",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Detects when sensors exceed acceptable calibration drift to trigger preventive recalibration and ensure measurement accuracy.",
+  "value": "Detects when sensors exceed acceptable calibration drift to trigger preventive recalibration and ensure measurement accuracy.",
+  "implementation": "Edge Hub firmware tracks sensor calibration date and calculates drift estimate (comparison to stable reference or statistical baseline). Temperature sensor nominal accuracy ±0.2°C; alert if drift exceeds ±0.5°C (±2.5x drift). Humidity sensor nominal accuracy ±2%; alert if drift exceeds ±5% RH (±2.5x drift). Report calibration status to edge-hub-health every week. Recommend recalibration every 12 months or after >2% drift detected. Store calibration history in edge-hub-logs for audit trail. For critical environments (pharmaceutical, food), set more aggressive drift thresholds (±1% per year).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (temperature + humidity sensors), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-health` sourcetype=edge_hub sensor_calibration_status, `index=edge-hub-data` sensor_drift_metric.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEdge Hub firmware tracks sensor calibration date and calculates drift estimate (comparison to stable reference or statistical baseline). Temperature sensor nominal accuracy ±0.2°C; alert if drift exceeds ±0.5°C (±2.5x drift). Humidity sensor nominal accuracy ±2%; alert if drift exceeds ±5% RH (±2.5x drift). Report calibration status to edge-hub-health every week. Recommend recalibration every 12 months or after >2% drift detected. Store calibration history in edge-hub-logs for audit trail. For c…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-health sourcetype=edge_hub sensor_type=temperature OR sensor_type=humidity\n| stats latest(last_calibration_date) as last_cal, latest(sensor_drift_percent) as drift by sensor_type, host\n| eval days_since_calibration=(now() - strptime(last_cal, \"%Y-%m-%d\")) / 86400\n| eval calibration_status=case(\n    drift > 5 OR days_since_calibration > 365, \"OUT_OF_SPEC\",\n    drift > 2 OR days_since_calibration > 180, \"MARGINAL\",\n    1=1, \"GOOD\")\n| where calibration_status!=\"GOOD\"\n```\n\nUnderstanding this SPL\n\n**Temperature & Humidity Sensor Calibration Drift Detection** — Detects when sensors exceed acceptable calibration drift to trigger preventive recalibration and ensure measurement accuracy.\n\nDocumented **Data sources**: `index=edge-hub-health` sourcetype=edge_hub sensor_calibration_status, `index=edge-hub-data` sensor_drift_metric. **App/TA** (typical add-on context): Splunk Edge Hub (temperature + humidity sensors), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-health; **sourcetype**: edge_hub. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-health, sourcetype=edge_hub. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by sensor_type, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **days_since_calibration** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **calibration_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where calibration_status!=\"GOOD\"` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sensor drift gauge, calibration status list, recalibration due timeline.",
+  "visualization": "Sensor drift gauge, calibration status list, recalibration due timeline.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "edge_hub"
+  ]
+}

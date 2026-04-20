@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.14",
+  "title": "Warehouse Inventory Light-Based Shelf Monitoring",
+  "criticality": "medium",
+  "difficulty": "expert",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=edge-hub-data` metric_name=light, `sourcetype=edge_hub`",
+  "app": "Splunk Edge Hub (light sensor array), custom container for pattern recognition",
+  "premiumApps": [
+    "Splunk Edge Hub"
+  ],
+  "spl": "| mstats avg(light_level) as lux by host, rack_id, shelf_position, _time span=5m\n| delta lux as lux_change\n| eval significant_change=if(abs(lux_change) > 20, \"YES\", \"NO\")\n| stats count(eval(significant_change=\"YES\")) as change_events, avg(lux) as avg_lux by host, rack_id, shelf_position\n| where change_events > 5\n| eval inventory_status=case(avg_lux > 1000, \"EMPTY\", avg_lux > 500, \"LOW\", 1=1, \"STOCKED\")",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Detects empty or partially depleted shelves in real-time by monitoring light pattern changes in high-bay storage.",
+  "value": "Detects empty or partially depleted shelves in real-time by monitoring light pattern changes in high-bay storage.",
+  "implementation": "Mount Edge Hub light sensor facing shelving unit. Deploy custom Python container that learns baseline light patterns for each shelf over 1-week baseline period. Use machine learning to detect sustained light increases (empty shelf) vs brief shadows (restocking activity). Reference Advanced Settings → Containers tab to set container polling interval to 5 minutes. Store 3M light data points locally for historical baseline calculation.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (light sensor array), custom container for pattern recognition.\n• Ensure the following data sources are available: `index=edge-hub-data` metric_name=light, `sourcetype=edge_hub`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMount Edge Hub light sensor facing shelving unit. Deploy custom Python container that learns baseline light patterns for each shelf over 1-week baseline period. Use machine learning to detect sustained light increases (empty shelf) vs brief shadows (restocking activity). Reference Advanced Settings → Containers tab to set container polling interval to 5 minutes. Store 3M light data points locally for historical baseline calculation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| mstats avg(light_level) as lux by host, rack_id, shelf_position, _time span=5m\n| delta lux as lux_change\n| eval significant_change=if(abs(lux_change) > 20, \"YES\", \"NO\")\n| stats count(eval(significant_change=\"YES\")) as change_events, avg(lux) as avg_lux by host, rack_id, shelf_position\n| where change_events > 5\n| eval inventory_status=case(avg_lux > 1000, \"EMPTY\", avg_lux > 500, \"LOW\", 1=1, \"STOCKED\")\n```\n\nUnderstanding this SPL\n\n**Warehouse Inventory Light-Based Shelf Monitoring** — Detects empty or partially depleted shelves in real-time by monitoring light pattern changes in high-bay storage.\n\nDocumented **Data sources**: `index=edge-hub-data` metric_name=light, `sourcetype=edge_hub`. **App/TA** (typical add-on context): Splunk Edge Hub (light sensor array), custom container for pattern recognition. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `mstats` to query metrics indexes (pre-aggregated metric data).\n• Pipeline stage (see **Warehouse Inventory Light-Based Shelf Monitoring**): delta lux as lux_change\n• `eval` defines or adjusts **significant_change** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, rack_id, shelf_position** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where change_events > 5` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **inventory_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Shelf occupancy heatmap, light level trend by shelf, inventory status dashboard.",
+  "visualization": "Shelf occupancy heatmap, light level trend by shelf, inventory status dashboard.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.",
+  "equipment": [
+    "edge_hub"
+  ]
+}

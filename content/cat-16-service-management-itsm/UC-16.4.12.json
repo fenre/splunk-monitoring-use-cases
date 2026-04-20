@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "16.4.12",
+  "title": "Standard Change Volume and Mix Guardrail",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=itsm` `sourcetype=\"snow:change_request\"` (`type`, `category`, `assignment_group`, `opened_at`)",
+  "app": "`Splunk_TA_snow`",
+  "spl": "index=itsm sourcetype=\"snow:change_request\" earliest=-90d\n| eval is_standard=if(match(lower(type),\"(?i)standard\"),1,0)\n| eval _time=coalesce(opened_at, sys_created_on, _time)\n| bin _time span=1w\n| stats count as chg_total, sum(is_standard) as std_total by _time, assignment_group\n| eval std_mix_pct=round(100*std_total/nullif(chg_total,0),1)\n| eventstats median(std_mix_pct) as med_mix by assignment_group\n| where std_mix_pct > med_mix*1.4 AND chg_total>=10\n| sort -std_mix_pct",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user span=1w | sort - count",
+  "cimModels": [
+    "Change"
+  ],
+  "description": "A sudden spike in standard changes may indicate bypassing normal scrutiny; monitoring volume and mix supports ITIL delegated authority models without eroding risk controls.",
+  "value": "A sudden spike in standard changes may indicate bypassing normal scrutiny; monitoring volume and mix supports ITIL delegated authority models without eroding risk controls.",
+  "implementation": "(1) Align `type` values with your change models; (2) Tune the 1.4 multiplier to your risk appetite; (3) Pair with UC-16.4.5 emergency trends to distinguish healthy pre-approval uptake from policy drift.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow`.\n• Ensure the following data sources are available: `index=itsm` `sourcetype=\"snow:change_request\"` (`type`, `category`, `assignment_group`, `opened_at`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Align `type` values with your change models; (2) Tune the 1.4 multiplier to your risk appetite; (3) Pair with UC-16.4.5 emergency trends to distinguish healthy pre-approval uptake from policy drift.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:change_request\" earliest=-90d\n| eval is_standard=if(match(lower(type),\"(?i)standard\"),1,0)\n| eval _time=coalesce(opened_at, sys_created_on, _time)\n| bin _time span=1w\n| stats count as chg_total, sum(is_standard) as std_total by _time, assignment_group\n| eval std_mix_pct=round(100*std_total/nullif(chg_total,0),1)\n| eventstats median(std_mix_pct) as med_mix by assignment_group\n| where std_mix_pct > med_mix*1.4 AND chg_total>=10\n| sort -std_mix_pct\n```\n\nUnderstanding this SPL\n\n**Standard Change Volume and Mix Guardrail** — A sudden spike in standard changes may indicate bypassing normal scrutiny; monitoring volume and mix supports ITIL delegated authority models without eroding risk controls.\n\nDocumented **Data sources**: `index=itsm` `sourcetype=\"snow:change_request\"` (`type`, `category`, `assignment_group`, `opened_at`). **App/TA** (typical add-on context): `Splunk_TA_snow`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:change_request. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:change_request\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **is_standard** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **_time** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, assignment_group** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **std_mix_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eventstats` rolls up events into metrics; results are split **by assignment_group** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where std_mix_pct > med_mix*1.4 AND chg_total>=10` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user span=1w | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Standard Change Volume and Mix Guardrail** — A sudden spike in standard changes may indicate bypassing normal scrutiny; monitoring volume and mix supports ITIL delegated authority models without eroding risk controls.\n\nDocumented **Data sources**: `index=itsm` `sourcetype=\"snow:change_request\"` (`type`, `category`, `assignment_group`, `opened_at`). **App/TA** (typical add-on context): `Splunk_TA_snow`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (standard % by week), Table (groups exceeding mix guardrail), Stacked bar (change type mix).",
+  "visualization": "Line chart (standard % by week), Table (groups exceeding mix guardrail), Stacked bar (change type mix).",
+  "references": [
+    {
+      "title": "Splunk_TA_snow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "equipment": [
+    "servicenow"
+  ]
+}

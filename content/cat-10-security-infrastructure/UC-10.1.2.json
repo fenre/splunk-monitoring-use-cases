@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.1.2",
+  "title": "Wildfire / Sandbox Verdicts",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Wildfire submission logs, sandbox analysis results",
+  "app": "`Splunk_TA_paloalto`",
+  "spl": "index=pan sourcetype=\"pan:wildfire\"\n| stats count by verdict, filetype\n| eval verdict_label=case(verdict=0,\"benign\", verdict=1,\"malware\", verdict=2,\"grayware\", verdict=4,\"phishing\")",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Malware.Malware_Attacks\n  by Malware_Attacks.signature Malware_Attacks.dest Malware_Attacks.file_name span=1h\n| sort -count",
+  "cimModels": [
+    "Malware"
+  ],
+  "description": "Tracks zero-day and unknown malware detection effectiveness. Malicious verdicts require immediate investigation of affected hosts.",
+  "value": "Tracks zero-day and unknown malware detection effectiveness. Malicious verdicts require immediate investigation of affected hosts.",
+  "implementation": "Enable Wildfire logging on NGFW. Forward submission results to Splunk. Alert immediately on malware verdicts. Track affected users/hosts for investigation. Report on submission volumes and malicious file types.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_paloalto`.\n• Ensure the following data sources are available: Wildfire submission logs, sandbox analysis results.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Wildfire logging on NGFW. Forward submission results to Splunk. Alert immediately on malware verdicts. Track affected users/hosts for investigation. Report on submission volumes and malicious file types.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=pan sourcetype=\"pan:wildfire\"\n| stats count by verdict, filetype\n| eval verdict_label=case(verdict=0,\"benign\", verdict=1,\"malware\", verdict=2,\"grayware\", verdict=4,\"phishing\")\n```\n\nUnderstanding this SPL\n\n**Wildfire / Sandbox Verdicts** — Tracks zero-day and unknown malware detection effectiveness. Malicious verdicts require immediate investigation of affected hosts.\n\nDocumented **Data sources**: Wildfire submission logs, sandbox analysis results. **App/TA** (typical add-on context): `Splunk_TA_paloalto`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: pan; **sourcetype**: pan:wildfire. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Detection type** for this use case: TTP — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=pan, sourcetype=\"pan:wildfire\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by verdict, filetype** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **verdict_label** — often to normalize units, derive a ratio, or prepare for thresholds.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Malware.Malware_Attacks\n  by Malware_Attacks.signature Malware_Attacks.dest Malware_Attacks.file_name span=1h\n| sort -count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Wildfire / Sandbox Verdicts** — Tracks zero-day and unknown malware detection effectiveness. Malicious verdicts require immediate investigation of affected hosts.\n\nDocumented **Data sources**: Wildfire submission logs, sandbox analysis results. **App/TA** (typical add-on context): `Splunk_TA_paloalto`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Detection type** for this use case: TTP — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Malware.Malware_Attacks` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart (verdict distribution), Table (malware verdicts with details), Line chart (submissions over time), Bar chart (by file type).",
+  "visualization": "Pie chart (verdict distribution), Table (malware verdicts with details), Line chart (submissions over time), Bar chart (by file type).",
+  "references": [
+    {
+      "title": "Splunk_TA_paloalto",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Malware",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Malware"
+    }
+  ],
+  "knownFalsePositives": "Legitimate file submissions for scanning (e.g. sandbox testing, IR) can trigger; correlate with policy and submitter.",
+  "detectionType": "TTP",
+  "securityDomain": "threat",
+  "equipment": [
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall"
+  ]
+}

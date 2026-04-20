@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.13.4",
+  "title": "Service Account Interactive Login (CIM)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Event 4624 with logon type mapped to `signature` or `user`",
+  "app": "Windows TA → Authentication",
+  "spl": "index=security tag=authentication user=\"svc_*\" OR user=\"*-svc\"\n| search signature=\"*Interactive*\" OR app=\"WinLogon:Interactive\"\n| stats count by user, src, host",
+  "cimSpl": "| tstats `summariesonly` count from datamodel=Authentication.Authentication where (Authentication.user=\"svc_*\" OR match(Authentication.user,\".*-svc\")) AND match(Authentication.signature,\"(?i)interactive|remote.?interactive\") by Authentication.user, Authentication.src, Authentication.dest",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Service accounts should not have interactive / remote-interactive logons; indicates credential theft or misconfiguration.",
+  "value": "Service accounts should not have interactive / remote-interactive logons; indicates credential theft or misconfiguration.",
+  "implementation": "Maintain `lookup service_accounts_noninteractive.csv`; exclude break-glass; alert on first-seen interactive.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Windows TA → Authentication.\n• Ensure the following data sources are available: Event 4624 with logon type mapped to `signature` or `user`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain `lookup service_accounts_noninteractive.csv`; exclude break-glass; alert on first-seen interactive.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=security tag=authentication user=\"svc_*\" OR user=\"*-svc\"\n| search signature=\"*Interactive*\" OR app=\"WinLogon:Interactive\"\n| stats count by user, src, host\n```\n\nUnderstanding this SPL\n\n**Service Account Interactive Login (CIM)** — Service accounts should not have interactive / remote-interactive logons; indicates credential theft or misconfiguration.\n\nDocumented **Data sources**: Event 4624 with logon type mapped to `signature` or `user`. **App/TA** (typical add-on context): Windows TA → Authentication. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: security.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=security, tags. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by user, src, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count from datamodel=Authentication.Authentication where (Authentication.user=\"svc_*\" OR match(Authentication.user,\".*-svc\")) AND match(Authentication.signature,\"(?i)interactive|remote.?interactive\") by Authentication.user, Authentication.src, Authentication.dest\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Service Account Interactive Login (CIM)** — Service accounts should not have interactive / remote-interactive logons; indicates credential theft or misconfiguration.\n\nDocumented **Data sources**: Event 4624 with logon type mapped to `signature` or `user`. **App/TA** (typical add-on context): Windows TA → Authentication. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (violations), Timeline.",
+  "visualization": "Table (violations), Timeline.",
+  "references": [
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

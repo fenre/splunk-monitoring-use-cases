@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.4.5",
+  "title": "Cloud Resource Inventory and Drift Summary",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "AWS Config, Azure Resource Graph, GCP Asset Inventory (or provider APIs)",
+  "app": "Combined cloud TAs, Config/Policy exports, or third-party CSPM",
+  "spl": "index=aws OR index=azure OR index=gcp\n| eval cloud=case(index=\"aws\",\"AWS\", index=\"azure\",\"Azure\", index=\"gcp\",\"GCP\")\n| eval resource_type=coalesce(resourceType, type, resource.type)\n| stats dc(resourceId) as resource_count values(cloud) as clouds by resource_type\n| sort -resource_count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Unified inventory of resources across AWS/Azure/GCP supports compliance, cost, and drift detection. Drift summary highlights resources changed outside IaC.",
+  "value": "Unified inventory of resources across AWS/Azure/GCP supports compliance, cost, and drift detection. Drift summary highlights resources changed outside IaC.",
+  "implementation": "Export resource inventory from each provider (Config snapshot, Resource Graph query, Asset Inventory API) to S3/storage or stream to Splunk. Normalize resource type and tags. Dashboard resource count by type and cloud. Compare with IaC state for drift.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Combined cloud TAs, Config/Policy exports, or third-party CSPM.\n• Ensure the following data sources are available: AWS Config, Azure Resource Graph, GCP Asset Inventory (or provider APIs).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExport resource inventory from each provider (Config snapshot, Resource Graph query, Asset Inventory API) to S3/storage or stream to Splunk. Normalize resource type and tags. Dashboard resource count by type and cloud. Compare with IaC state for drift.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws OR index=azure OR index=gcp\n| eval cloud=case(index=\"aws\",\"AWS\", index=\"azure\",\"Azure\", index=\"gcp\",\"GCP\")\n| eval resource_type=coalesce(resourceType, type, resource.type)\n| stats dc(resourceId) as resource_count values(cloud) as clouds by resource_type\n| sort -resource_count\n```\n\nUnderstanding this SPL\n\n**Cloud Resource Inventory and Drift Summary** — Unified inventory of resources across AWS/Azure/GCP supports compliance, cost, and drift detection. Drift summary highlights resources changed outside IaC.\n\nDocumented **Data sources**: AWS Config, Azure Resource Graph, GCP Asset Inventory (or provider APIs). **App/TA** (typical add-on context): Combined cloud TAs, Config/Policy exports, or third-party CSPM. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws, azure, gcp.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, index=azure, index=gcp. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **cloud** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **resource_type** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by resource_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (type, cloud, count), Stacked bar (resources by cloud), Pie chart (resource distribution).",
+  "visualization": "Table (type, cloud, count), Stacked bar (resources by cloud), Pie chart (resource distribution).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "mitreAttack": [
+    "T1580",
+    "T1526"
+  ]
+}

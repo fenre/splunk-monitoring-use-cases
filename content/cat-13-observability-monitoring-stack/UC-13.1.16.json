@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.1.16",
+  "title": "Parsing Queue Health (_internal)",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=_internal` `sourcetype=splunkd` `group=queue` (parsingqueue)",
+  "app": "Monitoring Console",
+  "spl": "index=_internal sourcetype=splunkd group=queue name=*parsing*\n| eval fill_pct=if(max_size>0, round(current_size/max_size*100,1), null())\n| where fill_pct > 70 OR is_blocked=1\n| timechart span=5m max(fill_pct) as max_fill by host, name",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "A saturated parsing queue delays ingestion and increases `_indextime` lag. Tracking fill ratio and blocked state isolates pipeline bottlenecks before data loss.",
+  "value": "A saturated parsing queue delays ingestion and increases `_indextime` lag. Tracking fill ratio and blocked state isolates pipeline bottlenecks before data loss.",
+  "implementation": "Filter `metrics.log` queue metrics for parsing queue names. Alert on sustained fill >70% or `is_blocked`. Correlate with new sourcetypes, regex-heavy props, or indexer CPU.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Monitoring Console.\n• Ensure the following data sources are available: `index=_internal` `sourcetype=splunkd` `group=queue` (parsingqueue).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFilter `metrics.log` queue metrics for parsing queue names. Alert on sustained fill >70% or `is_blocked`. Correlate with new sourcetypes, regex-heavy props, or indexer CPU.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal sourcetype=splunkd group=queue name=*parsing*\n| eval fill_pct=if(max_size>0, round(current_size/max_size*100,1), null())\n| where fill_pct > 70 OR is_blocked=1\n| timechart span=5m max(fill_pct) as max_fill by host, name\n```\n\nUnderstanding this SPL\n\n**Parsing Queue Health (_internal)** — A saturated parsing queue delays ingestion and increases `_indextime` lag. Tracking fill ratio and blocked state isolates pipeline bottlenecks before data loss.\n\nDocumented **Data sources**: `index=_internal` `sourcetype=splunkd` `group=queue` (parsingqueue). **App/TA** (typical add-on context): Monitoring Console. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal; **sourcetype**: splunkd. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, sourcetype=splunkd. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **fill_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where fill_pct > 70 OR is_blocked=1` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by host, name** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (parsing fill %), Line chart (fill by host), Table (queues above threshold).",
+  "visualization": "Gauge (parsing fill %), Line chart (fill by host), Table (queues above threshold).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

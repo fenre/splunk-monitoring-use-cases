@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.1.12",
+  "title": "Lambda Error Rate Monitoring",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=aws:cloudwatch` (Lambda namespace), Lambda logs",
+  "app": "`Splunk_TA_aws`",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/Lambda\" (metric_name=\"Errors\" OR metric_name=\"Throttles\" OR metric_name=\"Duration\")\n| timechart span=5m sum(Sum) by metric_name, FunctionName",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Lambda errors affect serverless application reliability. Timeouts indicate functions need more memory/time. Throttling means concurrency limits are hit.",
+  "value": "Lambda errors affect serverless application reliability. Timeouts indicate functions need more memory/time. Throttling means concurrency limits are hit.",
+  "implementation": "Ingest CloudWatch metrics (namespace `AWS/Lambda`, metrics `Errors`, `Invocations`, `Throttles`) via the Splunk Add-on for AWS. Compute error rate as `Errors/Invocations` over a 5-minute window; alert when rate exceeds 5% AND invocations exceed 50 (to avoid low-traffic false positives). For throttles, alert on any non-zero value. Forward Lambda CloudWatch Logs for stack trace correlation.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch` (Lambda namespace), Lambda logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest CloudWatch metrics (namespace `AWS/Lambda`, metrics `Errors`, `Invocations`, `Throttles`) via the Splunk Add-on for AWS. Compute error rate as `Errors/Invocations` over a 5-minute window; alert when rate exceeds 5% AND invocations exceed 50 (to avoid low-traffic false positives). For throttles, alert on any non-zero value. Forward Lambda CloudWatch Logs for stack trace correlation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/Lambda\" (metric_name=\"Errors\" OR metric_name=\"Throttles\" OR metric_name=\"Duration\")\n| timechart span=5m sum(Sum) by metric_name, FunctionName\n```\n\nUnderstanding this SPL\n\n**Lambda Error Rate Monitoring** — Lambda errors affect serverless application reliability. Timeouts indicate functions need more memory/time. Throttling means concurrency limits are hit.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch` (Lambda namespace), Lambda logs. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by metric_name, FunctionName** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (errors/invocations over time), Bar chart (top error functions), Single value (error rate %).",
+  "visualization": "Line chart (errors/invocations over time), Bar chart (top error functions), Single value (error rate %).",
+  "references": [
+    {
+      "title": "Splunk_TA_aws",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    }
+  ],
+  "equipment": [
+    "aws"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.7.8",
+  "title": "Detect Password Spray Attempts",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Windows Security Event Log (4625), LDAP, authentication logs",
+  "app": "Splunk Security Essentials, Splunk_TA_windows, Splunk_TA_nix",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=windows sourcetype=\"WinEventLog:Security\" EventCode=4625\n| stats dc(Account) as unique_accounts count as attempt_count by Computer, IpAddress, _time\n| where unique_accounts >= 5 AND attempt_count < 50\n| table _time, Computer, IpAddress, unique_accounts, attempt_count",
+  "cimSpl": "| tstats summariesonly=t dc(Authentication.user) as agg_value from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - agg_value",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Identifies password spray attacks across accounts: many accounts targeted with few attempts each to avoid lockout. Early detection prevents credential compromise and account takeover.",
+  "value": "Identifies password spray attacks across accounts: many accounts targeted with few attempts each to avoid lockout. Early detection prevents credential compromise and account takeover.",
+  "implementation": "Ingest Windows 4625 (failed logon) and/or IdP logs. Deploy the ESCU detection from security_content; tune threshold (unique_accounts, attempt_count) for your environment.",
+  "detailedImplementation": "Enterprise Security Detection Rule\n\n\"Detect Password Spray Attempts\" is a TTP (Tactics, Techniques, and Procedures) detection that identifies known adversary behaviors with high fidelity, sourced from the Splunk Enterprise Security Content Update (ESCU). When triggered, it creates a Notable Event in the Incident Review dashboard for analyst triage.\n\nPrerequisites\n\n• Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.\n• Data sources: Windows Security Event Log (4625), LDAP, authentication logs. Must be ingested into Splunk and normalized to the Common Information Model (CIM) via the appropriate Technology Add-on.\n• Data Model Acceleration: enable DMA for Authentication under Settings → Data Models. Set the acceleration summary range to cover the detection’s lookback window (typically 7 days minimum).\n• Security domain (identity): Ensure authentication and identity logs are ingested. Configure the Asset and Identity framework with your CMDB and HR data sources for entity enrichment.\n• MITRE ATT&CK: T1110.003. Review the ATT&CK matrix for adjacent techniques to identify detection coverage gaps in your environment.\n\nDeployment\n\n1. In Enterprise Security, navigate to Configure → Content → Content Management.\n2. Search for \"Detect Password Spray Attempts\" or filter by Analytic Story.\n3. Review the detection configuration — verify the scheduling interval and throttling settings match your operational tempo.\n4. Enable the detection as a Correlation Search. It will create Notable Events directly when triggered.\n5. Set the Notable Event severity and urgency appropriate to your environment’s risk posture.\n6. Configure Adaptive Response Actions: email notifications, ServiceNow ticket creation, SOAR playbook triggers, or other response workflows.\n\nTuning and False Positive Management\n\nKnown false positives for this detection: Legitimate lockouts or lab/testing; tune by source IP and account set.\n\n• Review the detection’s filter criteria and adjust for known-good activity in your environment.\n• Configure throttling in Content Management to prevent duplicate Notable Events for the same entity within a configurable window (typically 1–24 hours depending on detection frequency).\n• Use Notable Event Suppression for entities or patterns that are consistently benign after investigation.\n\nAnalyst Response Workflow\n\nWhen this detection generates a Notable Event:\n\n1. Open the Notable Event in Incident Review. Review the triggering event details, affected entities, and assigned severity.\n2. Investigate the involved entities using the Asset Investigator and Identity Investigator dashboards for historical context and behavioral patterns.\n3. Correlate with related Notable Events and threat intelligence to assess whether this is an isolated event or part of a broader campaign.\n4. Take appropriate response actions: contain, remediate, and recover. Leverage SOAR playbooks where available for consistent and rapid response.\n5. Update the Notable Event status and document investigation findings for post-incident review and compliance.\n\nValidation\n\nConfirm the required data sources are flowing:\n\n```spl\n| tstats count where index=* by index, sourcetype | sort -count\n```\n\nVerify the detection is enabled and firing:\n\n```spl\nindex=_audit action=\"alert_fired\" ss_name=\"*\"\n| stats count by ss_name, trigger_time | sort -trigger_time\n```",
+  "visualization": "Table (source IP, unique accounts, attempts), Timeline.",
+  "references": [
+    {
+      "url": "https://attack.mitre.org/techniques/T1110/003/"
+    }
+  ],
+  "knownFalsePositives": "Legitimate lockouts or lab/testing; tune by source IP and account set.",
+  "mitreAttack": [
+    "T1110.003"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "identity",
+  "equipment": [
+    "linux",
+    "security_essentials",
+    "windows"
+  ]
+}

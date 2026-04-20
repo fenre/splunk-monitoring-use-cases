@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "6.1.27",
+  "title": "MDS Inter-Switch Link (ISL) Utilization",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "SNMP IF-MIB (ifHCInOctets/ifHCOutOctets on ISL ports), MDS syslog",
+  "app": "SNMP TA, `cisco:mds` syslog",
+  "spl": "index=network sourcetype=\"snmp:if\" host=\"mds*\" port_type=\"ISL\"\n| eval util_pct=round((ifHCInOctets_delta+ifHCOutOctets_delta)*8/speed/poll_interval*100,1)\n| timechart span=5m avg(util_pct) as avg_util by switch, port\n| where avg_util > 70",
+  "cimSpl": "| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.Network by Performance.host span=5m | sort - agg_value",
+  "cimModels": [
+    "Performance"
+  ],
+  "description": "ISLs carry all inter-switch SAN traffic. Saturated ISLs cause frame queuing, slow drain propagation, and storage latency spikes. Proactive monitoring prevents cascading congestion before hosts see I/O timeouts.",
+  "value": "ISLs carry all inter-switch SAN traffic. Saturated ISLs cause frame queuing, slow drain propagation, and storage latency spikes. Proactive monitoring prevents cascading congestion before hosts see I/O timeouts.",
+  "implementation": "Poll ISL port counters via SNMP every 60 seconds. Tag ISL ports in a lookup. Alert at 70% sustained utilization (5-min average). Correlate with storage latency (UC-6.1.2) and FC port errors (UC-6.1.9).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP TA, `cisco:mds` syslog.\n• Ensure the following data sources are available: SNMP IF-MIB (ifHCInOctets/ifHCOutOctets on ISL ports), MDS syslog.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll ISL port counters via SNMP every 60 seconds. Tag ISL ports in a lookup. Alert at 70% sustained utilization (5-min average). Correlate with storage latency (UC-6.1.2) and FC port errors (UC-6.1.9).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"snmp:if\" host=\"mds*\" port_type=\"ISL\"\n| eval util_pct=round((ifHCInOctets_delta+ifHCOutOctets_delta)*8/speed/poll_interval*100,1)\n| timechart span=5m avg(util_pct) as avg_util by switch, port\n| where avg_util > 70\n```\n\nUnderstanding this SPL\n\n**MDS Inter-Switch Link (ISL) Utilization** — ISLs carry all inter-switch SAN traffic. Saturated ISLs cause frame queuing, slow drain propagation, and storage latency spikes. Proactive monitoring prevents cascading congestion before hosts see I/O timeouts.\n\nDocumented **Data sources**: SNMP IF-MIB (ifHCInOctets/ifHCOutOctets on ISL ports), MDS syslog. **App/TA** (typical add-on context): SNMP TA, `cisco:mds` syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:if; **host** filter: mds*. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"snmp:if\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **util_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by switch, port** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where avg_util > 70` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.Network by Performance.host span=5m | sort - agg_value\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**MDS Inter-Switch Link (ISL) Utilization** — ISLs carry all inter-switch SAN traffic. Saturated ISLs cause frame queuing, slow drain propagation, and storage latency spikes. Proactive monitoring prevents cascading congestion before hosts see I/O timeouts.\n\nDocumented **Data sources**: SNMP IF-MIB (ifHCInOctets/ifHCOutOctets on ISL ports), MDS syslog. **App/TA** (typical add-on context): SNMP TA, `cisco:mds` syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Performance.Network` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (ISL utilization over time), Heatmap (switch x ISL port), Single value (peak ISL utilization), Topology map.",
+  "visualization": "Line chart (ISL utilization over time), Heatmap (switch x ISL port), Single value (peak ISL utilization), Topology map.",
+  "references": [
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+    }
+  ],
+  "equipment": [
+    "cisco",
+    "snmp",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_nexus",
+    "snmp_generic"
+  ],
+  "hardware": "Cisco MDS 9132T, MDS 9148T, MDS 9396T, MDS 9700, MDS 9706, MDS 9710"
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.4.9",
+  "title": "Feature Flag and Experiment Rollout Monitoring",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Flag evaluation logs, rollout events, error rates by flag",
+  "app": "Feature flag provider logs, app telemetry",
+  "spl": "index=app sourcetype=\"feature_flag:eval\"\n| bin _time span=1h\n| stats count, sum(eval(if(error=\"true\",1,0))) as errors by flag_name, variant, _time\n| eval error_rate=round((errors/count)*100, 2)\n| where error_rate > 5",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Feature flags and experiments affect user experience. Monitoring rollout percentage and error rate per flag supports safe rollouts and rollback.",
+  "value": "Feature flags and experiments affect user experience. Monitoring rollout percentage and error rate per flag supports safe rollouts and rollback.",
+  "implementation": "Ingest flag evaluation and error data. Track rollout % and error rate per flag/variant. Alert on error rate spike after rollout. Report on flag adoption and performance by variant.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Feature flag provider logs, app telemetry.\n• Ensure the following data sources are available: Flag evaluation logs, rollout events, error rates by flag.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest flag evaluation and error data. Track rollout % and error rate per flag/variant. Alert on error rate spike after rollout. Report on flag adoption and performance by variant.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=app sourcetype=\"feature_flag:eval\"\n| bin _time span=1h\n| stats count, sum(eval(if(error=\"true\",1,0))) as errors by flag_name, variant, _time\n| eval error_rate=round((errors/count)*100, 2)\n| where error_rate > 5\n```\n\nUnderstanding this SPL\n\n**Feature Flag and Experiment Rollout Monitoring** — Feature flags and experiments affect user experience. Monitoring rollout percentage and error rate per flag supports safe rollouts and rollback.\n\nDocumented **Data sources**: Flag evaluation logs, rollout events, error rates by flag. **App/TA** (typical add-on context): Feature flag provider logs, app telemetry. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: app; **sourcetype**: feature_flag:eval. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=app, sourcetype=\"feature_flag:eval\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by flag_name, variant, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **error_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where error_rate > 5` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (error rate by flag), Table (flags with high errors), Bar chart (rollout % by variant).",
+  "visualization": "Line chart (error rate by flag), Table (flags with high errors), Bar chart (rollout % by variant).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

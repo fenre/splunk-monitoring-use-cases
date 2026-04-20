@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "16.1.19",
+  "title": "Problem Management Root Cause Linking",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=snow:incident`, `sourcetype=snow:problem`",
+  "app": "`Splunk_TA_snow`",
+  "spl": "index=itsm sourcetype=\"snow:incident\" state=\"closed\" earliest=-90d\n| eval has_pr=if(isnotnull(problem_id) AND problem_id!=\"\",\"1\",\"0\")\n| stats count as closed_inc, sum(eval(if(has_pr=\"1\",1,0))) as with_pr by category\n| eval link_pct=round(100*with_pr/closed_inc,1)\n| where closed_inc>20 AND link_pct < 30\n| sort link_pct",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Ensures resolved incidents are tied to problem records with root cause when repeat patterns exist — closing the loop for ITIL problem management.",
+  "value": "Ensures resolved incidents are tied to problem records with root cause when repeat patterns exist — closing the loop for ITIL problem management.",
+  "implementation": "Map `problem_id` or `caused_by` from incident to problem. Report link rate by category and assignment group. Alert when categories with high volume have low problem linkage. Exclude categories excluded by policy.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow`.\n• Ensure the following data sources are available: `sourcetype=snow:incident`, `sourcetype=snow:problem`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap `problem_id` or `caused_by` from incident to problem. Report link rate by category and assignment group. Alert when categories with high volume have low problem linkage. Exclude categories excluded by policy.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:incident\" state=\"closed\" earliest=-90d\n| eval has_pr=if(isnotnull(problem_id) AND problem_id!=\"\",\"1\",\"0\")\n| stats count as closed_inc, sum(eval(if(has_pr=\"1\",1,0))) as with_pr by category\n| eval link_pct=round(100*with_pr/closed_inc,1)\n| where closed_inc>20 AND link_pct < 30\n| sort link_pct\n```\n\nUnderstanding this SPL\n\n**Problem Management Root Cause Linking** — Ensures resolved incidents are tied to problem records with root cause when repeat patterns exist — closing the loop for ITIL problem management.\n\nDocumented **Data sources**: `sourcetype=snow:incident`, `sourcetype=snow:problem`. **App/TA** (typical add-on context): `Splunk_TA_snow`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:incident. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:incident\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **has_pr** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by category** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **link_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where closed_inc>20 AND link_pct < 30` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (problem link % by category), Table (gaps), Single value (overall link %).",
+  "visualization": "Bar chart (problem link % by category), Table (gaps), Single value (overall link %).",
+  "references": [
+    {
+      "title": "Splunk_TA_snow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "equipment": [
+    "servicenow"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.2.13",
+  "title": "WildFly / JBoss Datasource Pool Usage",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "JMX MBeans (`jboss.as:subsystem=datasources,data-source=*`)",
+  "app": "Custom JMX input (Jolokia)",
+  "spl": "index=jmx sourcetype=\"jmx:wildfly:datasource\"\n| eval pool_pct=round(AvailableCount/(AvailableCount+InUseCount)*100,1), wait_pct=round(WaitingCount/(AvailableCount+InUseCount+WaitingCount)*100,1)\n| where pool_pct < 20 OR WaitingCount > 0\n| timechart span=5m max(pool_pct) as avail_pct, avg(WaitingCount) as waiting by host, data_source",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "JMX datasource pool active/idle/wait connections indicate database connectivity health. Exhausted pools cause application errors and slow transactions.",
+  "value": "JMX datasource pool active/idle/wait connections indicate database connectivity health. Exhausted pools cause application errors and slow transactions.",
+  "implementation": "Deploy Jolokia on WildFly/JBoss. Poll `jboss.as:subsystem=datasources,data-source=*` for AvailableCount, InUseCount, WaitingCount, MaxUsedCount. Poll every 5 minutes. Alert when pool availability drops below 20% or WaitingCount >0 (indicating connection starvation). Track MaxUsedCount for capacity planning.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom JMX input (Jolokia).\n• Ensure the following data sources are available: JMX MBeans (`jboss.as:subsystem=datasources,data-source=*`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Jolokia on WildFly/JBoss. Poll `jboss.as:subsystem=datasources,data-source=*` for AvailableCount, InUseCount, WaitingCount, MaxUsedCount. Poll every 5 minutes. Alert when pool availability drops below 20% or WaitingCount >0 (indicating connection starvation). Track MaxUsedCount for capacity planning.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=jmx sourcetype=\"jmx:wildfly:datasource\"\n| eval pool_pct=round(AvailableCount/(AvailableCount+InUseCount)*100,1), wait_pct=round(WaitingCount/(AvailableCount+InUseCount+WaitingCount)*100,1)\n| where pool_pct < 20 OR WaitingCount > 0\n| timechart span=5m max(pool_pct) as avail_pct, avg(WaitingCount) as waiting by host, data_source\n```\n\nUnderstanding this SPL\n\n**WildFly / JBoss Datasource Pool Usage** — JMX datasource pool active/idle/wait connections indicate database connectivity health. Exhausted pools cause application errors and slow transactions.\n\nDocumented **Data sources**: JMX MBeans (`jboss.as:subsystem=datasources,data-source=*`). **App/TA** (typical add-on context): Custom JMX input (Jolokia). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: jmx; **sourcetype**: jmx:wildfly:datasource. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=jmx, sourcetype=\"jmx:wildfly:datasource\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **pool_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where pool_pct < 20 OR WaitingCount > 0` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by host, data_source** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (% pool available), Line chart (active vs idle over time), Table (datasources with waiting connections), Single value (total waiting).",
+  "visualization": "Gauge (% pool available), Line chart (active vs idle over time), Table (datasources with waiting connections), Single value (total waiting).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

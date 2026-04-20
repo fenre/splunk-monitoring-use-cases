@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.1.15",
+  "title": "CODEOWNERS File Modification Monitoring",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "PR `files[]` paths",
+  "app": "GitHub pull_request webhook",
+  "spl": "index=devops sourcetype=\"github:pull_request\" action IN (\"opened\",\"synchronize\")\n| where mvjoin(commit_files{},\",\") LIKE \"%CODEOWNERS%\"\n| table _time, repository, author, title, commit_files",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Attackers may weaken review requirements by editing `CODEOWNERS` or `.github/CODEOWNERS`.",
+  "value": "Attackers may weaken review requirements by editing `CODEOWNERS` or `.github/CODEOWNERS`.",
+  "implementation": "Parse file lists from PR payloads. Require CODEOWNER approval for CODEOWNERS changes via branch rules; alert on any edit pending rule rollout.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: GitHub pull_request webhook.\n• Ensure the following data sources are available: PR `files[]` paths.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nParse file lists from PR payloads. Require CODEOWNER approval for CODEOWNERS changes via branch rules; alert on any edit pending rule rollout.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops sourcetype=\"github:pull_request\" action IN (\"opened\",\"synchronize\")\n| where mvjoin(commit_files{},\",\") LIKE \"%CODEOWNERS%\"\n| table _time, repository, author, title, commit_files\n```\n\nUnderstanding this SPL\n\n**CODEOWNERS File Modification Monitoring** — Attackers may weaken review requirements by editing `CODEOWNERS` or `.github/CODEOWNERS`.\n\nDocumented **Data sources**: PR `files[]` paths. **App/TA** (typical add-on context): GitHub pull_request webhook. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops; **sourcetype**: github:pull_request. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, sourcetype=\"github:pull_request\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where mvjoin(commit_files{},\",\") LIKE \"%CODEOWNERS%\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **CODEOWNERS File Modification Monitoring**): table _time, repository, author, title, commit_files\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (PRs touching CODEOWNERS), Timeline, Single value (changes per quarter).",
+  "visualization": "Table (PRs touching CODEOWNERS), Timeline, Single value (changes per quarter).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "github"
+  ]
+}

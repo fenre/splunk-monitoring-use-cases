@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.5.10",
+  "title": "Tank Farm Level Monitoring and Overflow Prevention",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Oil, Gas, and Mining",
+  "dataSources": "`index=ot` `sourcetype=\"tankfarm:level\"` fields `tank_id`, `level_pct`, `high_alarm_pct`, `fill_rate_m3_h`",
+  "app": "Tank gauging / DCS via HEC",
+  "spl": "index=ot sourcetype=\"tankfarm:level\"\n| eval risk=if(level_pct >= high_alarm_pct OR (level_pct > 85 AND fill_rate_m3_h > 0), 1, 0)\n| where risk=1\n| stats latest(level_pct) as current_level, latest(fill_rate_m3_h) as fill_rate by tank_id\n| sort - current_level\n| table tank_id, current_level, fill_rate",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Tank overfills cause environmental incidents and safety hazards. Monitoring levels and fill rates enables proactive response and inventory reconciliation.",
+  "value": "Tank overfills cause environmental incidents and safety hazards. Monitoring levels and fill rates enables proactive response and inventory reconciliation.",
+  "implementation": "Keep primary alarms in BPCS/SIS. Splunk provides visibility and trending. Add roof and temperature for floating-roof tanks if available. **Domain context:** API 2350 / EEMUA 159 inform tank overfill prevention; high-high alarms and independent layers remain on the SIS—Splunk is supplementary visibility. **Splunk:** `eval risk` thresholds should match alarm setpoints from the tank table, not arbitrary constants, for consistency.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Tank gauging / DCS via HEC.\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"tankfarm:level\"` fields `tank_id`, `level_pct`, `high_alarm_pct`, `fill_rate_m3_h`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nKeep primary alarms in BPCS/SIS. Splunk provides visibility and trending. Add roof and temperature for floating-roof tanks if available. **Domain context:** API 2350 / EEMUA 159 inform tank overfill prevention; high-high alarms and independent layers remain on the SIS—Splunk is supplementary visibility. **Splunk:** `eval risk` thresholds should match alarm setpoints from the tank table, not arbitrary constants, for consistency.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"tankfarm:level\"\n| eval risk=if(level_pct >= high_alarm_pct OR (level_pct > 85 AND fill_rate_m3_h > 0), 1, 0)\n| where risk=1\n| stats latest(level_pct) as current_level, latest(fill_rate_m3_h) as fill_rate by tank_id\n| sort - current_level\n| table tank_id, current_level, fill_rate\n```\n\nUnderstanding this SPL\n\n**Tank Farm Level Monitoring and Overflow Prevention** — Tank overfills cause environmental incidents and safety hazards. Monitoring levels and fill rates enables proactive response and inventory reconciliation.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"tankfarm:level\"` fields `tank_id`, `level_pct`, `high_alarm_pct`, `fill_rate_m3_h`. **App/TA** (typical add-on context): Tank gauging / DCS via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: tankfarm:level. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"tankfarm:level\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **risk** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where risk=1` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by tank_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Tank Farm Level Monitoring and Overflow Prevention**): table tank_id, current_level, fill_rate\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Tank-style gauge, Time chart (level), Trend (fill rate).",
+  "visualization": "Tank-style gauge, Time chart (level), Trend (fill rate).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "9.3.8",
+  "title": "SAML Assertion Replay Detection",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "SAML response logs with `AssertionID`, `InResponseTo`, `NotOnOrAfter`",
+  "app": "IdP logs, application SAML trace (e.g., Shibboleth, Okta, ADFS)",
+  "spl": "index=saml sourcetype=\"saml:assertion\"\n| stats count by assertion_id, sp_entity_id\n| where count > 1\n| table assertion_id, sp_entity_id, count",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Replayed SAML assertions can grant access without fresh authentication. Correlating assertion IDs and NotOnOrAfter windows catches reuse.",
+  "value": "Replayed SAML assertions can grant access without fresh authentication. Correlating assertion IDs and NotOnOrAfter windows catches reuse.",
+  "implementation": "Ingest assertion IDs from IdP or SP debug logs (privacy-safe hashing if needed). Alert on duplicate assertion_id for same SP. Enforce short assertion lifetimes at IdP.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: IdP logs, application SAML trace (e.g., Shibboleth, Okta, ADFS).\n• Ensure the following data sources are available: SAML response logs with `AssertionID`, `InResponseTo`, `NotOnOrAfter`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest assertion IDs from IdP or SP debug logs (privacy-safe hashing if needed). Alert on duplicate assertion_id for same SP. Enforce short assertion lifetimes at IdP.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=saml sourcetype=\"saml:assertion\"\n| stats count by assertion_id, sp_entity_id\n| where count > 1\n| table assertion_id, sp_entity_id, count\n```\n\nUnderstanding this SPL\n\n**SAML Assertion Replay Detection** — Replayed SAML assertions can grant access without fresh authentication. Correlating assertion IDs and NotOnOrAfter windows catches reuse.\n\nDocumented **Data sources**: SAML response logs with `AssertionID`, `InResponseTo`, `NotOnOrAfter`. **App/TA** (typical add-on context): IdP logs, application SAML trace (e.g., Shibboleth, Okta, ADFS). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: saml; **sourcetype**: saml:assertion. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=saml, sourcetype=\"saml:assertion\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by assertion_id, sp_entity_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count > 1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SAML Assertion Replay Detection**): table assertion_id, sp_entity_id, count\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**SAML Assertion Replay Detection** — Replayed SAML assertions can grant access without fresh authentication. Correlating assertion IDs and NotOnOrAfter windows catches reuse.\n\nDocumented **Data sources**: SAML response logs with `AssertionID`, `InResponseTo`, `NotOnOrAfter`. **App/TA** (typical add-on context): IdP logs, application SAML trace (e.g., Shibboleth, Okta, ADFS). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (duplicate assertions), Timeline, Single value (replay attempts).",
+  "visualization": "Table (duplicate assertions), Timeline, Single value (replay attempts).",
+  "references": [
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1550.001"
+  ],
+  "equipment": [
+    "okta"
+  ]
+}

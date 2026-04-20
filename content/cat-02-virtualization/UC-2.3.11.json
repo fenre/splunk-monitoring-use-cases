@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.3.11",
+  "title": "Proxmox Backup Server Job Status",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Proxmox Backup Server API, `/var/log/proxmox-backup/tasks/`",
+  "app": "Custom API input, Proxmox syslog",
+  "spl": "index=virtualization sourcetype=\"proxmox_backup\"\n| eval duration_min=round(duration_sec/60, 1)\n| eval status_ok=if(status=\"OK\", 1, 0)\n| stats latest(status) as last_status, latest(duration_min) as last_duration_min, latest(backup_size_gb) as size_gb, latest(dedup_ratio) as dedup by vm_name, backup_type\n| where last_status!=\"OK\"\n| table vm_name, backup_type, last_status, last_duration_min, size_gb, dedup",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Proxmox Backup Server (PBS) provides incremental, deduplicated VM backups. Failed backup jobs mean VMs have no recovery point. Monitoring backup status, duration, and deduplication ratio ensures recoverability and optimizes storage efficiency.",
+  "value": "Proxmox Backup Server (PBS) provides incremental, deduplicated VM backups. Failed backup jobs mean VMs have no recovery point. Monitoring backup status, duration, and deduplication ratio ensures recoverability and optimizes storage efficiency.",
+  "implementation": "Poll the PBS API (`/api2/json/nodes/{node}/tasks`) or forward PBS task logs to Splunk. Track backup success/failure per VM, backup duration, transferred size, and deduplication factor. Alert on any failed backup. Also alert when no backup has been taken for a VM in >24 hours. Monitor datastore capacity on PBS.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom API input, Proxmox syslog.\n• Ensure the following data sources are available: Proxmox Backup Server API, `/var/log/proxmox-backup/tasks/`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll the PBS API (`/api2/json/nodes/{node}/tasks`) or forward PBS task logs to Splunk. Track backup success/failure per VM, backup duration, transferred size, and deduplication factor. Alert on any failed backup. Also alert when no backup has been taken for a VM in >24 hours. Monitor datastore capacity on PBS.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=virtualization sourcetype=\"proxmox_backup\"\n| eval duration_min=round(duration_sec/60, 1)\n| eval status_ok=if(status=\"OK\", 1, 0)\n| stats latest(status) as last_status, latest(duration_min) as last_duration_min, latest(backup_size_gb) as size_gb, latest(dedup_ratio) as dedup by vm_name, backup_type\n| where last_status!=\"OK\"\n| table vm_name, backup_type, last_status, last_duration_min, size_gb, dedup\n```\n\nUnderstanding this SPL\n\n**Proxmox Backup Server Job Status** — Proxmox Backup Server (PBS) provides incremental, deduplicated VM backups. Failed backup jobs mean VMs have no recovery point. Monitoring backup status, duration, and deduplication ratio ensures recoverability and optimizes storage efficiency.\n\nDocumented **Data sources**: Proxmox Backup Server API, `/var/log/proxmox-backup/tasks/`. **App/TA** (typical add-on context): Custom API input, Proxmox syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: virtualization; **sourcetype**: proxmox_backup. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=virtualization, sourcetype=\"proxmox_backup\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **duration_min** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **status_ok** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by vm_name, backup_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where last_status!=\"OK\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Proxmox Backup Server Job Status**): table vm_name, backup_type, last_status, last_duration_min, size_gb, dedup\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (VM, status, duration, size), Bar chart (backup success rate), Timechart (backup duration trending).",
+  "visualization": "Table (VM, status, duration, size), Bar chart (backup success rate), Timechart (backup duration trending).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "proxmox",
+    "syslog"
+  ]
+}

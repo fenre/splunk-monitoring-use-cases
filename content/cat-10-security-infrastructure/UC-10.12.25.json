@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.12.25",
+  "title": "FHIR API Error Rate",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Healthcare",
+  "dataSources": "`sourcetype=\"apigee:fhir\"`, `sourcetype=\"hapi:fhir\"`",
+  "app": "API gateway, EHR FHIR logs",
+  "spl": "index=healthcare sourcetype IN (\"apigee:fhir\",\"hapi:fhir\")\n| eval err=if(status>=400,1,0)\n| timechart span=5m sum(err) as errors, count as reqs\n| eval err_pct=round(errors/reqs*100,2)\n| where err_pct > 2",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "High 4xx/5xx on FHIR hurts patient apps and partner integrations (ONC interoperability).",
+  "value": "High 4xx/5xx on FHIR hurts patient apps and partner integrations (ONC interoperability).",
+  "implementation": "Break out by client_id and resource; rate-limit abusive partners; SLO dashboards for Patient/$everything bulk exports.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: API gateway, EHR FHIR logs.\n• Ensure the following data sources are available: `sourcetype=\"apigee:fhir\"`, `sourcetype=\"hapi:fhir\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBreak out by client_id and resource; rate-limit abusive partners; SLO dashboards for Patient/$everything bulk exports.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=healthcare sourcetype IN (\"apigee:fhir\",\"hapi:fhir\")\n| eval err=if(status>=400,1,0)\n| timechart span=5m sum(err) as errors, count as reqs\n| eval err_pct=round(errors/reqs*100,2)\n| where err_pct > 2\n```\n\nUnderstanding this SPL\n\n**FHIR API Error Rate** — High 4xx/5xx on FHIR hurts patient apps and partner integrations (ONC interoperability).\n\nDocumented **Data sources**: `sourcetype=\"apigee:fhir\"`, `sourcetype=\"hapi:fhir\"`. **App/TA** (typical add-on context): API gateway, EHR FHIR logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: healthcare.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=healthcare. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **err** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=5m** buckets — ideal for trending and alerting on this use case.\n• `eval` defines or adjusts **err_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where err_pct > 2` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (error %), Bar chart (errors by route), Table (top clients).",
+  "visualization": "Line chart (error %), Bar chart (errors by route), Table (top clients).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows."
+}

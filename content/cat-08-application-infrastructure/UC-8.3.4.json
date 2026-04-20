@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.3.4",
+  "title": "Under-Replicated Partitions",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Kafka JMX (`UnderReplicatedPartitions`, `UnderMinIsrPartitionCount`)",
+  "app": "`Splunk Connect for Kafka` (Splunkbase 3862), JMX",
+  "spl": "index=kafka sourcetype=\"kafka:broker\"\n| where UnderReplicatedPartitions > 0\n| stats sum(UnderReplicatedPartitions) as total_under_replicated by _time\n| timechart span=5m max(total_under_replicated) as under_replicated",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Under-replicated partitions mean data is at risk of loss if additional brokers fail. Immediate remediation is required.",
+  "value": "Under-replicated partitions mean data is at risk of loss if additional brokers fail. Immediate remediation is required.",
+  "implementation": "Poll Kafka broker JMX metrics. Alert immediately on any under-replicated partitions. Track duration of under-replication. Correlate with broker disk usage and network metrics to identify root cause.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk Connect for Kafka` (Splunkbase 3862), JMX.\n• Ensure the following data sources are available: Kafka JMX (`UnderReplicatedPartitions`, `UnderMinIsrPartitionCount`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll Kafka broker JMX metrics. Alert immediately on any under-replicated partitions. Track duration of under-replication. Correlate with broker disk usage and network metrics to identify root cause.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=kafka sourcetype=\"kafka:broker\"\n| where UnderReplicatedPartitions > 0\n| stats sum(UnderReplicatedPartitions) as total_under_replicated by _time\n| timechart span=5m max(total_under_replicated) as under_replicated\n```\n\nUnderstanding this SPL\n\n**Under-Replicated Partitions** — Under-replicated partitions mean data is at risk of loss if additional brokers fail. Immediate remediation is required.\n\nDocumented **Data sources**: Kafka JMX (`UnderReplicatedPartitions`, `UnderMinIsrPartitionCount`). **App/TA** (typical add-on context): `Splunk Connect for Kafka` (Splunkbase 3862), JMX. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: kafka; **sourcetype**: kafka:broker. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=kafka, sourcetype=\"kafka:broker\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where UnderReplicatedPartitions > 0` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `timechart` plots the metric over time using **span=5m** buckets — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (under-replicated count — target: 0), Line chart (under-replicated over time), Table (affected topics/partitions).",
+  "visualization": "Single value (under-replicated count — target: 0), Line chart (under-replicated over time), Table (affected topics/partitions).",
+  "references": [
+    {
+      "title": "Splunkbase app 3862",
+      "url": "https://splunkbase.splunk.com/app/3862"
+    }
+  ],
+  "equipment": [
+    "kafka"
+  ]
+}

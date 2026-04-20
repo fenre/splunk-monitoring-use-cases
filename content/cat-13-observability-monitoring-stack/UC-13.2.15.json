@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.2.15",
+  "title": "Service Dependency Health Propagation",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "ITSI service topology, `itsi_summary`",
+  "app": "Splunk ITSI Service Analyzer",
+  "premiumApps": [
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    }
+  ],
+  "spl": "| inputlookup itsi_services\n| search is_enabled=1\n| join type=left max=1 service_name [\n  search index=itsi_summary is_service_in_maintenance=0\n  | stats latest(health_score) as health by service_name\n]\n| where health < 50\n| table service_name, health, dependent_services",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Upstream dependency failure should roll up to dependent services; missing links cause wrong prioritization.",
+  "value": "Upstream dependency failure should roll up to dependent services; missing links cause wrong prioritization.",
+  "implementation": "Validate service dependencies in ITSI. When a dependency drops below threshold, confirm dependent service health reflects impact (or use entity rules). Run weekly health of dependency graph completeness.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI Service Analyzer.\n• Ensure the following data sources are available: ITSI service topology, `itsi_summary`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nValidate service dependencies in ITSI. When a dependency drops below threshold, confirm dependent service health reflects impact (or use entity rules). Run weekly health of dependency graph completeness.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup itsi_services\n| search is_enabled=1\n| join type=left max=1 service_name [\n  search index=itsi_summary is_service_in_maintenance=0\n  | stats latest(health_score) as health by service_name\n]\n| where health < 50\n| table service_name, health, dependent_services\n```\n\nUnderstanding this SPL\n\n**Service Dependency Health Propagation** — Upstream dependency failure should roll up to dependent services; missing links cause wrong prioritization.\n\nDocumented **Data sources**: ITSI service topology, `itsi_summary`. **App/TA** (typical add-on context): Splunk ITSI Service Analyzer. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Applies an explicit `search` filter to narrow the current result set.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where health < 50` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Service Dependency Health Propagation**): table service_name, health, dependent_services\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Service Analyzer tree, Sankey (dependency impact), Table (dependency × health).",
+  "visualization": "Service Analyzer tree, Sankey (dependency impact), Table (dependency × health).",
+  "references": [
+    {
+      "title": "Splunk ITSI",
+      "url": "https://splunkbase.splunk.com/app/1841"
+    }
+  ],
+  "equipment": [
+    "itsi"
+  ]
+}

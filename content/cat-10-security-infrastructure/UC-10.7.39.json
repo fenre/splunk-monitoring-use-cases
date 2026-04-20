@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.7.39",
+  "title": "MCP Filesystem Server Suspicious Extension Write",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "MCP Server",
+  "app": "Splunk Security Essentials / ESCU",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "`mcp_server` method IN (\"write_file\", \"create_file\") direction=inbound\n    | spath output=file_path path=params.path\n    | spath output=file_content path=params.content\n    | eval dest=host\n    | eval file_extension=lower(mvindex(split(file_path, \".\"), -1))\n    | where file_extension IN (\n        \"exe\", \"dll\", \"ps1\", \"bat\", \"cmd\", \"vbs\", \"js\", \"scr\", \"msi\", \"hta\", \"wsf\", \"wsh\", \"pif\", \"com\", \"cpl\",\n        \"sh\", \"bash\", \"zsh\", \"ksh\", \"csh\", \"tcsh\", \"fish\",\n        \"py\", \"pl\", \"rb\", \"php\", \"lua\", \"awk\",\n        \"so\", \"dylib\", \"bin\", \"elf\", \"run\", \"AppImage\",\n        \"deb\", \"rpm\", \"pkg\", \"dmg\",\n        \"plist\", \"service\", \"timer\", \"socket\", \"conf\"\n        )\n    | eval\n        file_path_lower=lower(file_path),\n        is_system_path = if(match(file_path_lower, \"(windows|system32|syswow64|program files|/usr|/bin|/sbin|/lib|/lib64|/etc|/opt)\"), 1, 0),\n        is_startup_path = if(match(file_path_lower, \"(startup|autorun|cron\\.d|crontab|launchd|launchagents|launchdaemons|systemd|init\\.d|rc\\.d|rc\\.local|profile\\.d|bashrc|zshrc|bash_profile)\"), 1, 0),\n        is_hidden_unix = if(match(file_path, \"/\\.[^/]+$\"), 1, 0),\n        content_length=len(file_content)\n    | stats count min(_time) as firstTime max(_time) as lastTime values(file_path) as file_paths values(file_extension) as extensions max(is_system_path) as targets_system_path max(is_startup_path) as targets_startup_path max(is_hidden_unix) as targets_hidden_file avg(content_length) as avg_content_size by dest, method\n    | eval\n        targets_system_path=if(isnull(targets_system_path), 0, targets_system_path),\n        targets_startup_path=if(isnull(targets_startup_path), 0, targets_startup_path),\n        targets_hidden_file=if(isnull(targets_hidden_file), 0, targets_hidden_file)\n    | sort - targets_startup_path, - targets_system_path, - targets_hidden_file, - count\n    | `security_content_ctime(firstTime)`\n    | `security_content_ctime(lastTime)`\n    | table dest firstTime lastTime count method extensions file_paths targets_system_path targets_startup_path targets_hidden_file avg_content_size\n    | `mcp_filesystem_server_suspicious_extension_write_filter`",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "This detection identifies attempts to create executable or script files through MCP filesystem server connections. Threat actors leveraging LLM-based tools may attempt to write malicious executables, scripts, or batch files to disk for persistence or code execution. The detection prioritizes files written to system directories or startup locations which indicate higher likelihood of malicious intent.",
+  "value": "This detection identifies attempts to create executable or script files through MCP filesystem server connections. Threat actors leveraging LLM-based tools may attempt to write malicious executables, scripts, or batch files to disk for persistence or code execution. The detection prioritizes files written to system directories or startup locations which indicate higher likelihood of malicious intent.",
+  "implementation": "ESCU Hunting detection — not designed for automated alerting. Run ad-hoc or on a low-frequency schedule from Splunk Enterprise Security for analyst-driven investigation. Requires MCP Server ingested and CIM-normalized.",
+  "detailedImplementation": "Enterprise Security Detection Rule\n\n\"MCP Filesystem Server Suspicious Extension Write\" is a Hunting detection designed for analyst-driven threat hunting rather than automated alerting, sourced from the Splunk Enterprise Security Content Update (ESCU). Hunting detections are not intended for automated alerting. They are run on-demand or on a low-frequency schedule by security analysts investigating specific threat hypotheses.\n\nPrerequisites\n\n• Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.\n• Data sources: MCP Server. Must be ingested into Splunk and normalized to the Common Information Model (CIM) via the appropriate Technology Add-on.\n• MITRE ATT&CK: T1059. Review the ATT&CK matrix for adjacent techniques to identify detection coverage gaps in your environment.\n\nDeployment\n\n1. In Enterprise Security, navigate to Configure → Content → Content Management.\n2. Search for \"MCP Filesystem Server Suspicious Extension Write\" or filter by Analytic Story.\n3. Hunting detections are typically left disabled for automated scheduling. Instead, run them on-demand from the Search bar or schedule at low frequency (daily or weekly).\n4. Review results manually — hunting detections cast a wider net and expect analyst judgment to separate signal from noise.\n5. When results warrant further investigation, create a Notable Event manually or initiate your incident response workflow.\n\nTuning and False Positive Management\n\nKnown false positives for this detection: Legitimate developers using LLM assistants to generate scripts or automation tools, DevOps engineers creating deployment scripts, and system administrators generating batch files for maintenance tasks.\n\n• Hunting detections are expected to produce broader result sets that require analyst interpretation. Focus on refining the search scope (time range, specific hosts or users) rather than eliminating all noise.\n• Maintain a hunting journal documenting hypotheses tested, results found, and detection improvements identified.\n• Share high-fidelity findings with the detection engineering team to convert recurring hunting patterns into automated TTP or Anomaly detections.\n\nAnalyst Response Workflow\n\nWhen reviewing Hunting results:\n\n1. Run the search manually or review scheduled results. Evaluate each returned event against your threat hypothesis — not every result indicates compromise.\n2. Cross-reference findings with current threat intelligence, recent security advisories, and outputs from other detection sources.\n3. If suspicious activity is confirmed, create a Notable Event or escalate directly to your incident response process with the supporting evidence.\n4. Document the hunting exercise: hypothesis, data sources queried, time range, findings, and any detection engineering improvements identified.\n\nValidation\n\nConfirm the required data sources are flowing:\n\n```spl\n| tstats count where index=* by index, sourcetype | sort -count\n```\n\nVerify the detection is enabled and firing:\n\n```spl\nindex=_audit action=\"alert_fired\" ss_name=\"*\"\n| stats count by ss_name, trigger_time | sort -trigger_time\n```",
+  "visualization": "Table, Timeline (from ESCU).",
+  "references": [
+    {
+      "url": "https://splunkbase.splunk.com/app/8377"
+    },
+    {
+      "url": "https://cymulate.com/blog/cve-2025-53109-53110-escaperoute-anthropic/"
+    },
+    {
+      "url": "https://www.splunk.com/en_us/blog/security/securing-ai-agents-model-context-protocol.html"
+    }
+  ],
+  "knownFalsePositives": "Legitimate developers using LLM assistants to generate scripts or automation tools, DevOps engineers creating deployment scripts, and system administrators generating batch files for maintenance tasks.",
+  "mitreAttack": [
+    "T1059"
+  ],
+  "detectionType": "Hunting",
+  "equipment": [
+    "security_essentials"
+  ]
+}

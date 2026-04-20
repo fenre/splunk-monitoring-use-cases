@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.1.74",
+  "title": "IAM Access Analyzer Findings",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Access Analyzer findings export (EventBridge, Security Hub), `sourcetype=aws:cloudwatch:events`",
+  "app": "`Splunk_TA_aws`",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Access Analyzer Finding\" detail.status=\"ACTIVE\"\n| stats count by detail.resourceType, detail.principal.awsAccountId, detail.isPublic\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Access Analyzer identifies unintended external access to S3, IAM roles, KMS keys, and other resources—reducing public exposure risk.",
+  "value": "Access Analyzer identifies unintended external access to S3, IAM roles, KMS keys, and other resources—reducing public exposure risk.",
+  "implementation": "Enable organization-wide analyzer. Send findings to EventBridge and Splunk. Auto-remediate public S3 where policy allows or ticket owners. Weekly review of new external access paths.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: Access Analyzer findings export (EventBridge, Security Hub), `sourcetype=aws:cloudwatch:events`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable organization-wide analyzer. Send findings to EventBridge and Splunk. Auto-remediate public S3 where policy allows or ticket owners. Weekly review of new external access paths.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Access Analyzer Finding\" detail.status=\"ACTIVE\"\n| stats count by detail.resourceType, detail.principal.awsAccountId, detail.isPublic\n| sort -count\n```\n\nUnderstanding this SPL\n\n**IAM Access Analyzer Findings** — Access Analyzer identifies unintended external access to S3, IAM roles, KMS keys, and other resources—reducing public exposure risk.\n\nDocumented **Data sources**: Access Analyzer findings export (EventBridge, Security Hub), `sourcetype=aws:cloudwatch:events`. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch:events. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by detail.resourceType, detail.principal.awsAccountId, detail.isPublic** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (resource type, account, public), Bar chart (findings by type), Single value (active findings).",
+  "visualization": "Table (resource type, account, public), Bar chart (findings by type), Single value (active findings).",
+  "references": [
+    {
+      "title": "Splunk_TA_aws",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    }
+  ],
+  "mitreAttack": [
+    "T1087.004",
+    "T1580"
+  ],
+  "equipment": [
+    "aws"
+  ]
+}

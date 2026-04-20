@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "15.1.21",
+  "title": "Electrical Panel Phase Balancing",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=\"panel:phase\"` (main_l1_a, main_l2_a, main_l3_a)",
+  "app": "Main distribution panel meters",
+  "spl": "index=power sourcetype=\"panel:phase\" panel_type=\"main\"\n| eval avg_a=(main_l1_a+main_l2_a+main_l3_a)/3\n| eval dev=max(abs(main_l1_a-avg_a), abs(main_l2_a-avg_a), abs(main_l3_a-avg_a))\n| where dev > avg_a*0.2\n| table panel_id, main_l1_a, main_l2_a, main_l3_a, dev",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Panel-level phase balance differs from rack PDU balance; both matter for neutral harmonics and breaker life.",
+  "value": "Panel-level phase balance differs from rack PDU balance; both matter for neutral harmonics and breaker life.",
+  "implementation": "Alert when any phase deviates >20% from mean. Schedule rebalancing with facilities during maintenance.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Main distribution panel meters.\n• Ensure the following data sources are available: `sourcetype=\"panel:phase\"` (main_l1_a, main_l2_a, main_l3_a).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlert when any phase deviates >20% from mean. Schedule rebalancing with facilities during maintenance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=power sourcetype=\"panel:phase\" panel_type=\"main\"\n| eval avg_a=(main_l1_a+main_l2_a+main_l3_a)/3\n| eval dev=max(abs(main_l1_a-avg_a), abs(main_l2_a-avg_a), abs(main_l3_a-avg_a))\n| where dev > avg_a*0.2\n| table panel_id, main_l1_a, main_l2_a, main_l3_a, dev\n```\n\nUnderstanding this SPL\n\n**Electrical Panel Phase Balancing** — Panel-level phase balance differs from rack PDU balance; both matter for neutral harmonics and breaker life.\n\nDocumented **Data sources**: `sourcetype=\"panel:phase\"` (main_l1_a, main_l2_a, main_l3_a). **App/TA** (typical add-on context): Main distribution panel meters. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: power; **sourcetype**: panel:phase. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=power, sourcetype=\"panel:phase\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **avg_a** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **dev** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where dev > avg_a*0.2` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Electrical Panel Phase Balancing**): table panel_id, main_l1_a, main_l2_a, main_l3_a, dev\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (phase currents), Gauge (max deviation), Table (panels out of balance).",
+  "visualization": "Line chart (phase currents), Gauge (max deviation), Table (panels out of balance).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

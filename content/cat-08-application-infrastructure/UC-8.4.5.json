@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.4.5",
+  "title": "Service-to-Service Call Failures",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Envoy access logs (upstream_cluster, response_code), Istio telemetry",
+  "app": "Istio/Envoy access logs, Linkerd tap",
+  "spl": "index=mesh sourcetype=\"envoy:access\"\n| where response_code >= 500\n| stats count by upstream_cluster, downstream_cluster, response_code\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Inter-service communication failures in microservices architectures cascade quickly. Detection enables rapid isolation of failing services.",
+  "value": "Inter-service communication failures in microservices architectures cascade quickly. Detection enables rapid isolation of failing services.",
+  "implementation": "Configure Envoy/Istio to export access logs to Splunk. Parse source service, destination service, status code, and latency. Build service dependency map. Alert on inter-service error rate spikes. Track per-service error budgets.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Istio/Envoy access logs, Linkerd tap.\n• Ensure the following data sources are available: Envoy access logs (upstream_cluster, response_code), Istio telemetry.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure Envoy/Istio to export access logs to Splunk. Parse source service, destination service, status code, and latency. Build service dependency map. Alert on inter-service error rate spikes. Track per-service error budgets.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=mesh sourcetype=\"envoy:access\"\n| where response_code >= 500\n| stats count by upstream_cluster, downstream_cluster, response_code\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Service-to-Service Call Failures** — Inter-service communication failures in microservices architectures cascade quickly. Detection enables rapid isolation of failing services.\n\nDocumented **Data sources**: Envoy access logs (upstream_cluster, response_code), Istio telemetry. **App/TA** (typical add-on context): Istio/Envoy access logs, Linkerd tap. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: mesh; **sourcetype**: envoy:access. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=mesh, sourcetype=\"envoy:access\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where response_code >= 500` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by upstream_cluster, downstream_cluster, response_code** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Service dependency map (with error highlighting), Table (failing service pairs), Heatmap (service × service error rate).",
+  "visualization": "Service dependency map (with error highlighting), Table (failing service pairs), Heatmap (service × service error rate).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "envoy"
+  ]
+}

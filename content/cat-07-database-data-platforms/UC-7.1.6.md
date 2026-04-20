@@ -1,0 +1,109 @@
+---
+id: "7.1.6"
+title: "Backup Success Verification"
+criticality: "critical"
+splunkPillar: "Observability"
+---
+
+# UC-7.1.6 · Backup Success Verification
+
+## Description
+
+Database backups are the last line of defense. Verifying success prevents discovering backup failures during a crisis.
+
+## Value
+
+Database backups are the last line of defense. Verifying success prevents discovering backup failures during a crisis.
+
+## Implementation
+
+Query backup history tables via DB Connect daily. Alert on any database without a successful backup in the expected window. Cross-reference with CMDB for backup classification (full/diff/log) requirements.
+
+## Detailed Implementation
+
+Prerequisites
+• Install and configure the required add-on or app: DB Connect, Splunk_TA_microsoft-sqlserver.
+• Ensure the following data sources are available: `msdb.dbo.backupset` (SQL Server), `v$rman_backup_job_details` (Oracle), PostgreSQL `pg_basebackup` logs.
+• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+Step 1 — Configure data collection
+Query backup history tables via DB Connect daily. Alert on any database without a successful backup in the expected window. Cross-reference with CMDB for backup classification (full/diff/log) requirements.
+
+Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+index=database sourcetype="dbconnect:backup_history"
+| stats latest(backup_finish_date) as last_backup, latest(type) as backup_type by database_name, server_name
+| eval hours_since=round((now()-strptime(last_backup,"%Y-%m-%d %H:%M:%S"))/3600,1)
+| where hours_since > 24
+| table server_name, database_name, last_backup, backup_type, hours_since
+```
+
+Understanding this SPL
+
+**Backup Success Verification** — Database backups are the last line of defense. Verifying success prevents discovering backup failures during a crisis.
+
+Documented **Data sources**: `msdb.dbo.backupset` (SQL Server), `v$rman_backup_job_details` (Oracle), PostgreSQL `pg_basebackup` logs. **App/TA** (typical add-on context): DB Connect, Splunk_TA_microsoft-sqlserver. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: database; **sourcetype**: dbconnect:backup_history. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+
+**Pipeline walkthrough**
+
+• Scopes the data: index=database, sourcetype="dbconnect:backup_history". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+• `stats` rolls up events into metrics; results are split **by database_name, server_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `eval` defines or adjusts **hours_since** — often to normalize units, derive a ratio, or prepare for thresholds.
+• Filters the current rows with `where hours_since > 24` — typically the threshold or rule expression for this monitoring goal.
+• Pipeline stage (see **Backup Success Verification**): table server_name, database_name, last_backup, backup_type, hours_since
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
+```
+
+Understanding this CIM / accelerated SPL
+
+**Backup Success Verification** — Database backups are the last line of defense. Verifying success prevents discovering backup failures during a crisis.
+
+Documented **Data sources**: `msdb.dbo.backupset` (SQL Server), `v$rman_backup_job_details` (Oracle), PostgreSQL `pg_basebackup` logs. **App/TA** (typical add-on context): DB Connect, Splunk_TA_microsoft-sqlserver. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` against accelerated summaries for data model `Databases.Instance_Stats` — enable acceleration for that model.
+• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+
+
+Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (databases with backup status), Single value (databases missing backup), Status grid (database × backup type).
+
+## SPL
+
+```spl
+index=database sourcetype="dbconnect:backup_history"
+| stats latest(backup_finish_date) as last_backup, latest(type) as backup_type by database_name, server_name
+| eval hours_since=round((now()-strptime(last_backup,"%Y-%m-%d %H:%M:%S"))/3600,1)
+| where hours_since > 24
+| table server_name, database_name, last_backup, backup_type, hours_since
+```
+
+## CIM SPL
+
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
+```
+
+## Visualization
+
+Table (databases with backup status), Single value (databases missing backup), Status grid (database × backup type).
+
+## References
+
+- [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)

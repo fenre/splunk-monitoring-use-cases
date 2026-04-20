@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.100",
+  "title": "PKI / Certificate Authority Health",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4886, 4887, 4888), `sourcetype=WinEventLog:Application`",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog EventCode IN (4886, 4887, 4888, 4890, 4891, 4893)\n| eval Action=case(EventCode=4886,\"CertRequest_Received\", EventCode=4887,\"CertRequest_Approved\", EventCode=4888,\"CertRequest_Denied\", EventCode=4890,\"CA_Settings_Changed\", EventCode=4891,\"CA_Config_Changed\", EventCode=4893,\"CA_Archived_Key\", 1=1,\"Other\")\n| stats count by Action, host, SubjectUserName, RequesterName\n| sort -count",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=failure\n  by Authentication.user Authentication.src Authentication.dest span=1h\n| where count > 5",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "An enterprise CA issues certificates for authentication, encryption, and code signing. CA failures break SSO, VPN, Wi-Fi, and TLS across the organization.",
+  "value": "An enterprise CA issues certificates for authentication, encryption, and code signing. CA failures break SSO, VPN, Wi-Fi, and TLS across the organization.",
+  "implementation": "Enable CA-specific audit events via certsrv MMC. Monitor certificate request lifecycle: received (4886), approved (4887), denied (4888). Alert on CA configuration changes (4890/4891) and key archival (4893). Track CRL publishing failures in Application log. Monitor CA certificate expiration (alert 90/60/30 days before). Detect ESC1-ESC8 ADCS attack patterns (misconfigurations in certificate templates).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 4886, 4887, 4888), `sourcetype=WinEventLog:Application`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable CA-specific audit events via certsrv MMC. Monitor certificate request lifecycle: received (4886), approved (4887), denied (4888). Alert on CA configuration changes (4890/4891) and key archival (4893). Track CRL publishing failures in Application log. Monitor CA certificate expiration (alert 90/60/30 days before). Detect ESC1-ESC8 ADCS attack patterns (misconfigurations in certificate templates).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog EventCode IN (4886, 4887, 4888, 4890, 4891, 4893)\n| eval Action=case(EventCode=4886,\"CertRequest_Received\", EventCode=4887,\"CertRequest_Approved\", EventCode=4888,\"CertRequest_Denied\", EventCode=4890,\"CA_Settings_Changed\", EventCode=4891,\"CA_Config_Changed\", EventCode=4893,\"CA_Archived_Key\", 1=1,\"Other\")\n| stats count by Action, host, SubjectUserName, RequesterName\n| sort -count\n```\n\nUnderstanding this SPL\n\n**PKI / Certificate Authority Health** — An enterprise CA issues certificates for authentication, encryption, and code signing. CA failures break SSO, VPN, Wi-Fi, and TLS across the organization.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4886, 4887, 4888), `sourcetype=WinEventLog:Application`. **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **Action** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by Action, host, SubjectUserName, RequesterName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=failure\n  by Authentication.user Authentication.src Authentication.dest span=1h\n| where count > 5\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**PKI / Certificate Authority Health** — An enterprise CA issues certificates for authentication, encryption, and code signing. CA failures break SSO, VPN, Wi-Fi, and TLS across the organization.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4886, 4887, 4888), `sourcetype=WinEventLog:Application`. **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart (cert requests), Table (CA changes), Alert on config changes and template modifications.",
+  "visualization": "Timechart (cert requests), Table (CA changes), Alert on config changes and template modifications.",
+  "references": [
+    {
+      "title": "received",
+      "url": "https://splunkbase.splunk.com/app/4886"
+    },
+    {
+      "title": "approved",
+      "url": "https://splunkbase.splunk.com/app/4887"
+    },
+    {
+      "title": "denied",
+      "url": "https://splunkbase.splunk.com/app/4888"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

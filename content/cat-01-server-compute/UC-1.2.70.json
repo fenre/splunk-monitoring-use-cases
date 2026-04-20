@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.70",
+  "title": "Context Switch Rate Anomalies (Windows)",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=Perfmon:System` (counter: Context Switches/sec)",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=perfmon sourcetype=\"Perfmon:System\" counter=\"Context Switches/sec\"\n| timechart span=5m avg(Value) as ctx_switches by host\n| streamstats window=48 avg(ctx_switches) as baseline by host\n| eval deviation = (ctx_switches - baseline) / baseline * 100\n| where deviation > 100",
+  "cimSpl": "| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu\n  from datamodel=Performance where nodename=Performance.CPU\n  by Performance.host span=1h\n| where avg_cpu > 90",
+  "cimModels": [
+    "Performance"
+  ],
+  "description": "Abnormally high context switch rates indicate excessive threading, poor application design, or kernel-mode driver issues. Degrades overall system performance.",
+  "value": "Abnormally high context switch rates indicate excessive threading, poor application design, or kernel-mode driver issues. Degrades overall system performance.",
+  "implementation": "Add `Context Switches/sec` to Perfmon System inputs (interval=60). Normal range varies by workload — establish per-host baselines. >15,000/sec per CPU core is generally concerning. Alert when rate exceeds 2x the rolling baseline. Correlate with `Processor Queue Length` and `% Interrupt Time` to distinguish user-mode threading issues from driver/hardware interrupt storms.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=Perfmon:System` (counter: Context Switches/sec).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAdd `Context Switches/sec` to Perfmon System inputs (interval=60). Normal range varies by workload — establish per-host baselines. >15,000/sec per CPU core is generally concerning. Alert when rate exceeds 2x the rolling baseline. Correlate with `Processor Queue Length` and `% Interrupt Time` to distinguish user-mode threading issues from driver/hardware interrupt storms.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=perfmon sourcetype=\"Perfmon:System\" counter=\"Context Switches/sec\"\n| timechart span=5m avg(Value) as ctx_switches by host\n| streamstats window=48 avg(ctx_switches) as baseline by host\n| eval deviation = (ctx_switches - baseline) / baseline * 100\n| where deviation > 100\n```\n\nUnderstanding this SPL\n\n**Context Switch Rate Anomalies (Windows)** — Abnormally high context switch rates indicate excessive threading, poor application design, or kernel-mode driver issues. Degrades overall system performance.\n\nDocumented **Data sources**: `sourcetype=Perfmon:System` (counter: Context Switches/sec). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: perfmon; **sourcetype**: Perfmon:System. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=perfmon, sourcetype=\"Perfmon:System\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by host** — ideal for trending and alerting on this use case.\n• `streamstats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **deviation** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where deviation > 100` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu\n  from datamodel=Performance where nodename=Performance.CPU\n  by Performance.host span=1h\n| where avg_cpu > 90\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Context Switch Rate Anomalies (Windows)** — Abnormally high context switch rates indicate excessive threading, poor application design, or kernel-mode driver issues. Degrades overall system performance.\n\nDocumented **Data sources**: `sourcetype=Perfmon:System` (counter: Context Switches/sec). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.\n• Filters the current rows with `where avg_cpu > 90` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (context switch rate with baseline), Heatmap (hosts × rate), Single value (anomalous hosts).",
+  "visualization": "Line chart (context switch rate with baseline), Heatmap (hosts × rate), Single value (anomalous hosts).",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

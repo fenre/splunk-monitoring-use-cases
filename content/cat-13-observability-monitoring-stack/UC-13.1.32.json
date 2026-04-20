@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.1.32",
+  "title": "Search Scheduler Fill Ratio (_internal)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=_internal` `sourcetype=scheduler` / `splunkd` `group=scheduler`",
+  "app": "Monitoring Console",
+  "spl": "index=_internal sourcetype=scheduler\n| stats count(eval(status=\"skipped\")) as skipped, count as total\n| eval fill_skip_pct=round(100*skipped/total,2)\n| where fill_skip_pct > 5",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Scheduler at capacity skips searches—blind spots for alerts and summaries.",
+  "value": "Scheduler at capacity skips searches—blind spots for alerts and summaries.",
+  "implementation": "Track skipped vs completed over sliding windows. Break down by app and user. Add concurrency or split heavy searches when fill ratio grows.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Monitoring Console.\n• Ensure the following data sources are available: `index=_internal` `sourcetype=scheduler` / `splunkd` `group=scheduler`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTrack skipped vs completed over sliding windows. Break down by app and user. Add concurrency or split heavy searches when fill ratio grows.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal sourcetype=scheduler\n| stats count(eval(status=\"skipped\")) as skipped, count as total\n| eval fill_skip_pct=round(100*skipped/total,2)\n| where fill_skip_pct > 5\n```\n\nUnderstanding this SPL\n\n**Search Scheduler Fill Ratio (_internal)** — Scheduler at capacity skips searches—blind spots for alerts and summaries.\n\nDocumented **Data sources**: `index=_internal` `sourcetype=scheduler` / `splunkd` `group=scheduler`. **App/TA** (typical add-on context): Monitoring Console. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal; **sourcetype**: scheduler. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, sourcetype=scheduler. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **fill_skip_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where fill_skip_pct > 5` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (scheduler skip %), Table (top skipped searches).",
+  "visualization": "Line chart (scheduler skip %), Table (top skipped searches).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

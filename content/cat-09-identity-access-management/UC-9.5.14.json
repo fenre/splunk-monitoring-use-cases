@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "9.5.14",
+  "title": "Duo Push Fraud Detection",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=duo:authentication`",
+  "app": "Cisco Duo TA",
+  "spl": "index=duo sourcetype=\"duo:authentication\" factor=\"push\"\n| bin _time span=5m\n| stats count by user, _time\n| where count > 5\n| sort -count",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user span=5m | sort - count",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Push bombing and fraudulent approve taps are common MFA bypass techniques; correlating push volume and user behavior stops approval fatigue attacks.",
+  "value": "Push bombing and fraudulent approve taps are common MFA bypass techniques; correlating push volume and user behavior stops approval fatigue attacks.",
+  "implementation": "Track push attempts per user per short window. Alert on high-frequency pushes (fatigue) or pushes with `result=\"fraud\"` or Duo fraud reasons. Integrate with Duo Risk-Based Authentication. Pair with Okta MFA events for dual IdP visibility.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cisco Duo TA.\n• Ensure the following data sources are available: `sourcetype=duo:authentication`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTrack push attempts per user per short window. Alert on high-frequency pushes (fatigue) or pushes with `result=\"fraud\"` or Duo fraud reasons. Integrate with Duo Risk-Based Authentication. Pair with Okta MFA events for dual IdP visibility.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=duo sourcetype=\"duo:authentication\" factor=\"push\"\n| bin _time span=5m\n| stats count by user, _time\n| where count > 5\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Duo Push Fraud Detection** — Push bombing and fraudulent approve taps are common MFA bypass techniques; correlating push volume and user behavior stops approval fatigue attacks.\n\nDocumented **Data sources**: `sourcetype=duo:authentication`. **App/TA** (typical add-on context): Cisco Duo TA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: duo; **sourcetype**: duo:authentication. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=duo, sourcetype=\"duo:authentication\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by user, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user span=5m | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Duo Push Fraud Detection** — Push bombing and fraudulent approve taps are common MFA bypass techniques; correlating push volume and user behavior stops approval fatigue attacks.\n\nDocumented **Data sources**: `sourcetype=duo:authentication`. **App/TA** (typical add-on context): Cisco Duo TA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (user, push count in window), Line chart (pushes per user), Timeline (fraud-marked events).",
+  "visualization": "Table (user, push count in window), Line chart (pushes per user), Timeline (fraud-marked events).",
+  "references": [
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1556"
+  ],
+  "equipment": [
+    "cisco"
+  ]
+}

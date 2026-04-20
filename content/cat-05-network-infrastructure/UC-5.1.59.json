@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.1.59",
+  "title": "Junos Virtual Chassis Health (Juniper)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=juniper:junos:structured`",
+  "app": "`Splunk_TA_juniper`, syslog",
+  "spl": "index=network sourcetype=\"juniper:junos:structured\"\n| search VCCPD OR \"Virtual Chassis\" OR \"vcp-\" OR \"member.*state\" OR \"VC member\"\n| rex field=_raw \"(?i)member\\s+(?<member_id>\\d+)\"\n| stats count as vc_events, dc(member_id) as members_seen, latest(_raw) as last_event by host\n| sort -vc_events",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Virtual Chassis merges multiple switches into one control plane; a member disconnect or role churn can blackhole VLANs or split forwarding across members. VCCP and member state messages are the earliest signal of stack cable, power, or software issues. Centralized monitoring reduces time to detect partial stack failures that users report as intermittent “random” connectivity loss.",
+  "value": "Virtual Chassis merges multiple switches into one control plane; a member disconnect or role churn can blackhole VLANs or split forwarding across members. VCCP and member state messages are the earliest signal of stack cable, power, or software issues. Centralized monitoring reduces time to detect partial stack failures that users report as intermittent “random” connectivity loss.",
+  "implementation": "Baseline normal VCCP chatter; alert on member disconnect, not-primary transitions, or split-brain indicators per Juniper KB wording in your release. Correlate with interface errors on VCP ports. Map `host` to stack ID in a lookup for faster operator response.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_juniper`, syslog.\n• Ensure the following data sources are available: `sourcetype=juniper:junos:structured`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBaseline normal VCCP chatter; alert on member disconnect, not-primary transitions, or split-brain indicators per Juniper KB wording in your release. Correlate with interface errors on VCP ports. Map `host` to stack ID in a lookup for faster operator response.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"juniper:junos:structured\"\n| search VCCPD OR \"Virtual Chassis\" OR \"vcp-\" OR \"member.*state\" OR \"VC member\"\n| rex field=_raw \"(?i)member\\s+(?<member_id>\\d+)\"\n| stats count as vc_events, dc(member_id) as members_seen, latest(_raw) as last_event by host\n| sort -vc_events\n```\n\nUnderstanding this SPL\n\n**Junos Virtual Chassis Health (Juniper)** — Virtual Chassis merges multiple switches into one control plane; a member disconnect or role churn can blackhole VLANs or split forwarding across members. VCCP and member state messages are the earliest signal of stack cable, power, or software issues. Centralized monitoring reduces time to detect partial stack failures that users report as intermittent “random” connectivity loss.\n\nDocumented **Data sources**: `sourcetype=juniper:junos:structured`. **App/TA** (typical add-on context): `Splunk_TA_juniper`, syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: juniper:junos:structured. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"juniper:junos:structured\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: VC member status matrix; event timeline for stack role changes; table of stacks with elevated event rate.",
+  "visualization": "VC member status matrix; event timeline for stack role changes; table of stacks with elevated event rate.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "syslog"
+  ],
+  "hardware": "Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5110/5120"
+}

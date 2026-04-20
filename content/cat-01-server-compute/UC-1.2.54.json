@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.54",
+  "title": "Windows Event Forwarding (WEF) Health",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Forwarding/Operational` (EventCode 100, 102, 103, 105, 111)",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-Forwarding/Operational\"\n  EventCode IN (102, 103, 105, 111)\n| eval issue=case(EventCode=102,\"Subscription connected\",EventCode=103,\"Subscription error\",EventCode=105,\"Access denied\",EventCode=111,\"Collector unreachable\")\n| stats count by host, issue, SubscriptionName\n| where issue!=\"Subscription connected\"\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "WEF collects events from thousands of endpoints to central collectors. Forwarding failures create visibility gaps across the security monitoring pipeline.",
+  "value": "WEF collects events from thousands of endpoints to central collectors. Forwarding failures create visibility gaps across the security monitoring pipeline.",
+  "implementation": "Enable Forwarding/Operational log on WEF collectors and clients. EventCode 103=subscription-level error, 105=access denied (Kerberos/permission issue), 111=cannot reach collector. Monitor for expected forwarders going silent — compare against CMDB endpoint list. Alert when error rate exceeds 5% of clients. Use `wecutil gr <subscription>` via scripted input for precise subscription health.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-Forwarding/Operational` (EventCode 100, 102, 103, 105, 111).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Forwarding/Operational log on WEF collectors and clients. EventCode 103=subscription-level error, 105=access denied (Kerberos/permission issue), 111=cannot reach collector. Monitor for expected forwarders going silent — compare against CMDB endpoint list. Alert when error rate exceeds 5% of clients. Use `wecutil gr <subscription>` via scripted input for precise subscription health.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog source=\"WinEventLog:Microsoft-Windows-Forwarding/Operational\"\n  EventCode IN (102, 103, 105, 111)\n| eval issue=case(EventCode=102,\"Subscription connected\",EventCode=103,\"Subscription error\",EventCode=105,\"Access denied\",EventCode=111,\"Collector unreachable\")\n| stats count by host, issue, SubscriptionName\n| where issue!=\"Subscription connected\"\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Windows Event Forwarding (WEF) Health** — WEF collects events from thousands of endpoints to central collectors. Forwarding failures create visibility gaps across the security monitoring pipeline.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-Forwarding/Operational` (EventCode 100, 102, 103, 105, 111). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **issue** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, issue, SubscriptionName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where issue!=\"Subscription connected\"` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (subscription × host), Pie chart (healthy vs. error), Table (error details), Single value (connected clients).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Status grid (subscription × host), Pie chart (healthy vs. error), Table (error details), Single value (connected clients).",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

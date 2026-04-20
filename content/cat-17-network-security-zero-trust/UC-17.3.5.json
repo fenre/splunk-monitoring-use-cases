@@ -1,0 +1,60 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.5",
+  "title": "Posture Assessment Trending",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ZT posture assessment data",
+  "app": "`Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `Splunk_TA_microsoft-cloudservices` (Entra ID / Intune)",
+  "spl": "index=zt sourcetype=\"zt:posture\"\n| timechart span=1d avg(compliance_pct) as compliance by check_type",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=failure\n  by Authentication.user Authentication.src Authentication.dest span=1h\n| where count > 5",
+  "cimModels": [
+    "Authentication",
+    "Network_Traffic"
+  ],
+  "description": "Endpoint posture compliance rates over time measure security improvement and identify persistent non-compliance areas.",
+  "value": "Endpoint posture compliance rates over time measure security improvement and identify persistent non-compliance areas.",
+  "implementation": "Track posture assessment results over time by check type (AV, encryption, OS patch, firewall). Report on compliance improvement trends. Alert when compliance drops below target. Identify persistent non-compliance patterns.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `Splunk_TA_microsoft-cloudservices` (Entra ID / Intune).\n• Ensure the following data sources are available: ZT posture assessment data.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTrack posture assessment results over time by check type (AV, encryption, OS patch, firewall). Report on compliance improvement trends. Alert when compliance drops below target. Identify persistent non-compliance patterns.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=zt sourcetype=\"zt:posture\"\n| timechart span=1d avg(compliance_pct) as compliance by check_type\n```\n\nUnderstanding this SPL\n\n**Posture Assessment Trending** — Endpoint posture compliance rates over time measure security improvement and identify persistent non-compliance areas.\n\nDocumented **Data sources**: ZT posture assessment data. **App/TA** (typical add-on context): `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `Splunk_TA_microsoft-cloudservices` (Entra ID / Intune). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: zt; **sourcetype**: zt:posture. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=zt, sourcetype=\"zt:posture\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by check_type** — ideal for trending and alerting on this use case.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=failure\n  by Authentication.user Authentication.src Authentication.dest span=1h\n| where count > 5\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Posture Assessment Trending** — Endpoint posture compliance rates over time measure security improvement and identify persistent non-compliance areas.\n\nDocumented **Data sources**: ZT posture assessment data. **App/TA** (typical add-on context): `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `Splunk_TA_microsoft-cloudservices` (Entra ID / Intune). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (compliance trend by check), Bar chart (compliance by OS), Single value (overall compliance %), Table (non-compliant checks).",
+  "visualization": "Line chart (compliance trend by check), Bar chart (compliance by OS), Single value (overall compliance %), Table (non-compliant checks).",
+  "references": [
+    {
+      "title": "Netskope Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/3808"
+    },
+    {
+      "title": "Splunk_TA_paloalto",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "Splunk_TA_microsoft-cloudservices",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1078",
+    "T1133"
+  ],
+  "equipment": [
+    "azure",
+    "m365",
+    "netskope",
+    "nutanix",
+    "paloalto",
+    "zscaler"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall",
+    "paloalto_prisma"
+  ]
+}

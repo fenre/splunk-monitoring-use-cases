@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "18.1.2",
+  "title": "Fault Trending by Severity",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "APIC faults API (`/api/node/class/faultInst.json`), APIC syslog",
+  "app": "`TA_cisco-ACI`, APIC syslog",
+  "spl": "index=cisco_aci sourcetype=\"cisco:aci:faults\"\n| eval severity_order=case(severity==\"critical\", 4, severity==\"major\", 3, severity==\"minor\", 2, severity==\"warning\", 1, 1==1, 0)\n| timechart span=1h count by severity\n| fields _time critical major minor warning",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "ACI faults are the primary operational signal from the fabric. Trending faults by severity helps identify worsening conditions, recurring hardware issues, and configuration problems before they cascade into outages.",
+  "value": "ACI faults are the primary operational signal from the fabric. Trending faults by severity helps identify worsening conditions, recurring hardware issues, and configuration problems before they cascade into outages.",
+  "implementation": "Poll APIC fault instance class every 5 minutes. Parse severity, fault code, affected DN, and lifecycle state. Track fault creation/clearing patterns. Alert on critical/major fault count spikes. Build fault code frequency reports for proactive maintenance.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA_cisco-ACI`, APIC syslog.\n• Ensure the following data sources are available: APIC faults API (`/api/node/class/faultInst.json`), APIC syslog.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll APIC fault instance class every 5 minutes. Parse severity, fault code, affected DN, and lifecycle state. Track fault creation/clearing patterns. Alert on critical/major fault count spikes. Build fault code frequency reports for proactive maintenance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cisco_aci sourcetype=\"cisco:aci:faults\"\n| eval severity_order=case(severity==\"critical\", 4, severity==\"major\", 3, severity==\"minor\", 2, severity==\"warning\", 1, 1==1, 0)\n| timechart span=1h count by severity\n| fields _time critical major minor warning\n```\n\nUnderstanding this SPL\n\n**Fault Trending by Severity** — ACI faults are the primary operational signal from the fabric. Trending faults by severity helps identify worsening conditions, recurring hardware issues, and configuration problems before they cascade into outages.\n\nDocumented **Data sources**: APIC faults API (`/api/node/class/faultInst.json`), APIC syslog. **App/TA** (typical add-on context): `TA_cisco-ACI`, APIC syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cisco_aci; **sourcetype**: cisco:aci:faults. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cisco_aci, sourcetype=\"cisco:aci:faults\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **severity_order** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by severity** — ideal for trending and alerting on this use case.\n• Keeps or drops fields with `fields` to shape columns and size.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart (fault trends by severity), Bar chart (top fault codes), Table (active critical faults), Single value (open critical faults count).",
+  "visualization": "Timechart (fault trends by severity), Bar chart (top fault codes), Table (active critical faults), Single value (open critical faults count).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_aci"
+  ],
+  "hardware": "Cisco APIC, Nexus 9332C (ACI), Nexus 93180YC-FX (ACI), Nexus 9364C (ACI), Nexus 9504 (ACI), Nexus 9508 (ACI)"
+}

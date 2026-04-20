@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "18.3.13",
+  "title": "Fabric Upgrade Compliance",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`network:inventory`",
+  "app": "Inventory scripted input, SNMP",
+  "spl": "index=inventory sourcetype=\"network:inventory\" role IN (\"leaf\",\"spine\")\n| lookup fabric_target_version.csv platform OUTPUT target_version\n| where os_version!=target_version\n| stats count by site, os_version, target_version\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Tracks switch OS / ACI firmware versions against approved upgrade wave — identifies stragglers and unsupported trains.",
+  "value": "Tracks switch OS / ACI firmware versions against approved upgrade wave — identifies stragglers and unsupported trains.",
+  "implementation": "Refresh inventory daily. Drive remediation campaigns for nodes not on target.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Inventory scripted input, SNMP.\n• Ensure the following data sources are available: `network:inventory`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRefresh inventory daily. Drive remediation campaigns for nodes not on target.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=inventory sourcetype=\"network:inventory\" role IN (\"leaf\",\"spine\")\n| lookup fabric_target_version.csv platform OUTPUT target_version\n| where os_version!=target_version\n| stats count by site, os_version, target_version\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Fabric Upgrade Compliance** — Tracks switch OS / ACI firmware versions against approved upgrade wave — identifies stragglers and unsupported trains.\n\nDocumented **Data sources**: `network:inventory`. **App/TA** (typical add-on context): Inventory scripted input, SNMP. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: inventory; **sourcetype**: network:inventory. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=inventory, sourcetype=\"network:inventory\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where os_version!=target_version` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by site, os_version, target_version** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (non-compliant nodes), Pie chart (compliance %), Bar chart (by site).",
+  "visualization": "Table (non-compliant nodes), Pie chart (compliance %), Bar chart (by site).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_generic"
+  ],
+  "hardware": "Leaf/spine switches"
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.118",
+  "title": "ASR (Attack Surface Reduction) Rule Monitoring",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Windows Defender/Operational` (EventID 1121, 1122)",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-Windows Defender/Operational\" EventCode IN (1121, 1122)\n| eval Mode=case(EventCode=1121,\"Blocked\", EventCode=1122,\"Audit\", 1=1,\"Other\")\n| lookup asr_rule_names ID as RuleId OUTPUT RuleName\n| stats count by host, RuleName, Mode, Path, ProcessName\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "ASR rules block common attack techniques (Office macro code, credential theft, ransomware). Monitoring ASR ensures rules are enforced and detects blocked attacks.",
+  "value": "ASR rules block common attack techniques (Office macro code, credential theft, ransomware). Monitoring ASR ensures rules are enforced and detects blocked attacks.",
+  "implementation": "Enable ASR rules in Block or Audit mode. EventCode 1121 (blocked) and 1122 (audit) log ASR triggers. Map rule GUIDs to names via lookup table (e.g., 75668C1F = \"Block Office from creating executable content\"). Track most-triggered rules for tuning. Alert on: high block counts (active attack), blocks suddenly stopping (rules disabled), and audit-mode triggers on sensitive rules that should be in block mode.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-Windows Defender/Operational` (EventID 1121, 1122).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable ASR rules in Block or Audit mode. EventCode 1121 (blocked) and 1122 (audit) log ASR triggers. Map rule GUIDs to names via lookup table (e.g., 75668C1F = \"Block Office from creating executable content\"). Track most-triggered rules for tuning. Alert on: high block counts (active attack), blocks suddenly stopping (rules disabled), and audit-mode triggers on sensitive rules that should be in block mode.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog source=\"WinEventLog:Microsoft-Windows-Windows Defender/Operational\" EventCode IN (1121, 1122)\n| eval Mode=case(EventCode=1121,\"Blocked\", EventCode=1122,\"Audit\", 1=1,\"Other\")\n| lookup asr_rule_names ID as RuleId OUTPUT RuleName\n| stats count by host, RuleName, Mode, Path, ProcessName\n| sort -count\n```\n\nUnderstanding this SPL\n\n**ASR (Attack Surface Reduction) Rule Monitoring** — ASR rules block common attack techniques (Office macro code, credential theft, ransomware). Monitoring ASR ensures rules are enforced and detects blocked attacks.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-Windows Defender/Operational` (EventID 1121, 1122). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **Mode** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `stats` rolls up events into metrics; results are split **by host, RuleName, Mode, Path, ProcessName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (blocks by rule), Timechart (block trends), Table (event details).",
+  "visualization": "Bar chart (blocks by rule), Timechart (block trends), Table (event details).",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

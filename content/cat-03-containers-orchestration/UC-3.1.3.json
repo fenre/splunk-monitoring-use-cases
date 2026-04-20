@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.1.3",
+  "title": "Container CPU Throttling",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=docker:stats`, cgroup `cpu.stat`",
+  "app": "Custom scripted input (cgroup stats), Splunk OpenTelemetry Collector",
+  "spl": "index=containers sourcetype=\"docker:stats\"\n| eval throttle_pct = round(nr_throttled / nr_periods * 100, 1)\n| where throttle_pct > 25\n| stats avg(throttle_pct) as avg_throttle by container_name\n| sort -avg_throttle",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "CPU throttling means the container is hitting its CPU limit and being artificially slowed. Causes latency spikes invisible to standard CPU utilization metrics.",
+  "value": "CPU throttling means the container is hitting its CPU limit and being artificially slowed. Causes latency spikes invisible to standard CPU utilization metrics.",
+  "implementation": "Collect Docker stats via `docker stats --format '{{json .}}'` or read cgroup files directly (`/sys/fs/cgroup/cpu/docker/<id>/cpu.stat`). Monitor `throttled_time` and `nr_throttled`. Alert when >25% of periods are throttled.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (cgroup stats), Splunk OpenTelemetry Collector.\n• Ensure the following data sources are available: `sourcetype=docker:stats`, cgroup `cpu.stat`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect Docker stats via `docker stats --format '{{json .}}'` or read cgroup files directly (`/sys/fs/cgroup/cpu/docker/<id>/cpu.stat`). Monitor `throttled_time` and `nr_throttled`. Alert when >25% of periods are throttled.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=containers sourcetype=\"docker:stats\"\n| eval throttle_pct = round(nr_throttled / nr_periods * 100, 1)\n| where throttle_pct > 25\n| stats avg(throttle_pct) as avg_throttle by container_name\n| sort -avg_throttle\n```\n\nUnderstanding this SPL\n\n**Container CPU Throttling** — CPU throttling means the container is hitting its CPU limit and being artificially slowed. Causes latency spikes invisible to standard CPU utilization metrics.\n\nDocumented **Data sources**: `sourcetype=docker:stats`, cgroup `cpu.stat`. **App/TA** (typical add-on context): Custom scripted input (cgroup stats), Splunk OpenTelemetry Collector. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: containers; **sourcetype**: docker:stats. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=containers, sourcetype=\"docker:stats\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **throttle_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where throttle_pct > 25` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by container_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (throttle % over time), Table (container, throttle %, CPU limit), Bar chart.",
+  "visualization": "Line chart (throttle % over time), Table (container, throttle %, CPU limit), Bar chart.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "opentelemetry"
+  ]
+}

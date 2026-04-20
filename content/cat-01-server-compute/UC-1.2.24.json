@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.24",
+  "title": "Network Interface Utilization (Windows)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=Perfmon:Network_Interface`",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=perfmon sourcetype=\"Perfmon:Network_Interface\" counter=\"Bytes Total/sec\"\n| eval bandwidth_Mbps = (Value * 8) / 1000000\n| timechart span=5m avg(bandwidth_Mbps) as avg_Mbps by host, instance\n| where avg_Mbps > 800",
+  "cimSpl": "| tstats `summariesonly` sum(Performance.bytes_in) as bytes_in\n                        sum(Performance.bytes_out) as bytes_out\n  from datamodel=Performance where nodename=Performance.Network\n  by Performance.host Performance.interface span=5m",
+  "cimModels": [
+    "Performance"
+  ],
+  "description": "Saturated network interfaces cause packet drops, retransmissions, and application timeouts. Often missed when only CPU/memory are monitored.",
+  "value": "Saturated network interfaces cause packet drops, retransmissions, and application timeouts. Often missed when only CPU/memory are monitored.",
+  "implementation": "Configure Perfmon Network Interface inputs: counters `Bytes Total/sec`, `Packets Outbound Errors`, `Output Queue Length` (interval=60). For 1Gbps NICs, alert at 80% (~800Mbps). Also monitor `Output Queue Length >2` for congestion even below bandwidth saturation. Exclude loopback and virtual adapters from monitoring.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=Perfmon:Network_Interface`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure Perfmon Network Interface inputs: counters `Bytes Total/sec`, `Packets Outbound Errors`, `Output Queue Length` (interval=60). For 1Gbps NICs, alert at 80% (~800Mbps). Also monitor `Output Queue Length >2` for congestion even below bandwidth saturation. Exclude loopback and virtual adapters from monitoring.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=perfmon sourcetype=\"Perfmon:Network_Interface\" counter=\"Bytes Total/sec\"\n| eval bandwidth_Mbps = (Value * 8) / 1000000\n| timechart span=5m avg(bandwidth_Mbps) as avg_Mbps by host, instance\n| where avg_Mbps > 800\n```\n\nUnderstanding this SPL\n\n**Network Interface Utilization (Windows)** — Saturated network interfaces cause packet drops, retransmissions, and application timeouts. Often missed when only CPU/memory are monitored.\n\nDocumented **Data sources**: `sourcetype=Perfmon:Network_Interface`. **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: perfmon; **sourcetype**: Perfmon:Network_Interface. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=perfmon, sourcetype=\"Perfmon:Network_Interface\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **bandwidth_Mbps** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by host, instance** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where avg_Mbps > 800` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` sum(Performance.bytes_in) as bytes_in\n                        sum(Performance.bytes_out) as bytes_out\n  from datamodel=Performance where nodename=Performance.Network\n  by Performance.host Performance.interface span=5m\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Network Interface Utilization (Windows)** — Saturated network interfaces cause packet drops, retransmissions, and application timeouts. Often missed when only CPU/memory are monitored.\n\nDocumented **Data sources**: `sourcetype=Perfmon:Network_Interface`. **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (bandwidth by interface), Dual-axis (bandwidth + errors), Table (top talkers).",
+  "visualization": "Line chart (bandwidth by interface), Dual-axis (bandwidth + errors), Table (top talkers).",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

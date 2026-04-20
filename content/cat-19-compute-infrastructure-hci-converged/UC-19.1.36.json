@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.1.36",
+  "title": "Service Profile vNIC Redundancy and Failover Audit",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Configuration",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=cisco_ucs` `sourcetype=\"cisco:ucs:config\"` with fields `sp_name`, `vnic_name`, `redundancy_pair`, `peer_vnic`, `switch_id`",
+  "app": "`Splunk_TA_cisco-ucs`",
+  "spl": "index=cisco_ucs sourcetype=\"cisco:ucs:config\" object_type=\"vnic\" earliest=-24h\n| stats dc(vnic_name) as vnic_count, values(redundancy_pair) as pairs by sp_name\n| eval has_pair=if(vnic_count>=2 OR mvcount(pairs)>0, \"Yes\", \"No\")\n| where has_pair==\"No\"\n| table sp_name, vnic_count, pairs, has_pair",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "A service profile with a single active vNIC or mismatched failover policy removes network redundancy for VMs. Auditing template-derived settings reduces surprise outages during single-path failures.",
+  "value": "A service profile with a single active vNIC or mismatched failover policy removes network redundancy for VMs. Auditing template-derived settings reduces surprise outages during single-path failures.",
+  "implementation": "(1) Poll vNIC objects for each production service profile; (2) flag profiles with fewer than two data vNICs or empty redundancy pair; (3) integrate with CMDB to exclude intentionally single-NIC appliance profiles via lookup.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_cisco-ucs`.\n• Ensure the following data sources are available: `index=cisco_ucs` `sourcetype=\"cisco:ucs:config\"` with fields `sp_name`, `vnic_name`, `redundancy_pair`, `peer_vnic`, `switch_id`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Poll vNIC objects for each production service profile; (2) flag profiles with fewer than two data vNICs or empty redundancy pair; (3) integrate with CMDB to exclude intentionally single-NIC appliance profiles via lookup.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cisco_ucs sourcetype=\"cisco:ucs:config\" object_type=\"vnic\" earliest=-24h\n| stats dc(vnic_name) as vnic_count, values(redundancy_pair) as pairs by sp_name\n| eval has_pair=if(vnic_count>=2 OR mvcount(pairs)>0, \"Yes\", \"No\")\n| where has_pair==\"No\"\n| table sp_name, vnic_count, pairs, has_pair\n```\n\nUnderstanding this SPL\n\n**Service Profile vNIC Redundancy and Failover Audit** — A service profile with a single active vNIC or mismatched failover policy removes network redundancy for VMs. Auditing template-derived settings reduces surprise outages during single-path failures.\n\nDocumented **Data sources**: `index=cisco_ucs` `sourcetype=\"cisco:ucs:config\"` with fields `sp_name`, `vnic_name`, `redundancy_pair`, `peer_vnic`, `switch_id`. **App/TA** (typical add-on context): `Splunk_TA_cisco-ucs`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cisco_ucs; **sourcetype**: cisco:ucs:config. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cisco_ucs, sourcetype=\"cisco:ucs:config\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by sp_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **has_pair** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where has_pair==\"No\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Service Profile vNIC Redundancy and Failover Audit**): table sp_name, vnic_count, pairs, has_pair\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (profiles lacking redundancy), Pie chart (redundant vs single-path), Bar chart (by org).",
+  "visualization": "Table (profiles lacking redundancy), Pie chart (redundant vs single-path), Bar chart (by org).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ucs"
+  ],
+  "hardware": "Cisco UCS B-Series, X-Series compute"
+}

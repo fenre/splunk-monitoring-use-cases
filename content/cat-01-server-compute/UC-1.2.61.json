@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.61",
+  "title": "Data Deduplication Health",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Deduplication/Operational` (EventCode 6153, 6155, 12800, 12802)",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-Deduplication*\"\n  EventCode IN (6153, 6155, 12800, 12802)\n| eval status=case(EventCode=6153,\"Optimization completed\",EventCode=6155,\"Optimization failed\",EventCode=12800,\"Scrubbing completed\",EventCode=12802,\"Corruption detected\")\n| table _time, host, status, VolumeName, SavingsRate, CorruptionCount\n| sort -_time",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Windows Data Deduplication saves significant storage on file servers. Job failures or savings degradation indicate volume corruption or configuration issues.",
+  "value": "Windows Data Deduplication saves significant storage on file servers. Job failures or savings degradation indicate volume corruption or configuration issues.",
+  "implementation": "Enable Deduplication Operational log on file servers with dedup enabled. EventCode 6155=optimization job failure, 12802=data corruption detected. Monitor savings rate trending — declining rates suggest changing data patterns or dedup overhead. Alert on any corruption detection (12802) immediately. Track optimization duration — increasing times indicate volume growth outpacing dedup capacity.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-Deduplication/Operational` (EventCode 6153, 6155, 12800, 12802).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Deduplication Operational log on file servers with dedup enabled. EventCode 6155=optimization job failure, 12802=data corruption detected. Monitor savings rate trending — declining rates suggest changing data patterns or dedup overhead. Alert on any corruption detection (12802) immediately. Track optimization duration — increasing times indicate volume growth outpacing dedup capacity.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog source=\"WinEventLog:Microsoft-Windows-Deduplication*\"\n  EventCode IN (6153, 6155, 12800, 12802)\n| eval status=case(EventCode=6153,\"Optimization completed\",EventCode=6155,\"Optimization failed\",EventCode=12800,\"Scrubbing completed\",EventCode=12802,\"Corruption detected\")\n| table _time, host, status, VolumeName, SavingsRate, CorruptionCount\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Data Deduplication Health** — Windows Data Deduplication saves significant storage on file servers. Job failures or savings degradation indicate volume corruption or configuration issues.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-Deduplication/Operational` (EventCode 6153, 6155, 12800, 12802). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Data Deduplication Health**): table _time, host, status, VolumeName, SavingsRate, CorruptionCount\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (savings rate over time), Table (job results), Single value (current savings %), Alert on corruption.",
+  "visualization": "Line chart (savings rate over time), Table (job results), Single value (current savings %), Alert on corruption.",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

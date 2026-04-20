@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.6.82",
+  "title": "Windows DLL Search Order Hijacking Hunt with Sysmon",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Sysmon EventID 7",
+  "app": "Splunk Security Essentials / ESCU",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "`sysmon` EventCode=7 NOT (process_path IN (\"*\\\\system32\\\\*\", \"*\\\\syswow64\\\\*\",\"*\\\\winsxs\\\\*\",\"*\\\\wbem\\\\*\")) | lookup hijacklibs library AS loaded_file OUTPUT islibrary | search islibrary = True | stats count min(_time) as firstTime max(_time) as lastTime by Image ImageLoaded dest loaded_file loaded_file_path original_file_name process_exec process_guid process_hash process_id process_name process_path service_dll_signature_exists service_dll_signature_verified signature signature_id user_id vendor_product | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)` | `windows_dll_search_order_hijacking_hunt_with_sysmon_filter`",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "The following analytic identifies potential DLL search order hijacking or DLL sideloading by detecting known Windows libraries loaded from non-standard directories. It leverages Sysmon EventCode 7 to monitor DLL loads and cross-references them with a lookup of known hijackable libraries. This activity is significant as it may indicate an attempt to execute malicious code by exploiting DLL search order vulnerabilities. If confirmed malicious, this could allow attackers to gain code execution, esc…",
+  "value": "The following analytic identifies potential DLL search order hijacking or DLL sideloading by detecting known Windows libraries loaded from non-standard directories. It leverages Sysmon EventCode 7 to monitor DLL loads and cross-references them with a lookup of known hijackable libraries. This activity is significant as it may indicate an attempt to execute malicious code by exploiting DLL search order vulnerabilities. If confirmed malicious, this could allow attackers to gain code execution, esc…",
+  "implementation": "The search is written against the latest Sysmon TA 4.0 https://splunkbase.splunk.com/app/5709. For this specific event ID 7, the sysmon TA will extract the ImageLoaded name to the loaded_file field which is used in the search to compare against the hijacklibs lookup.",
+  "detailedImplementation": "Enterprise Security Detection Rule\n\n\"Windows DLL Search Order Hijacking Hunt with Sysmon\" is a Hunting detection designed for analyst-driven threat hunting rather than automated alerting, sourced from the Splunk Enterprise Security Content Update (ESCU). Hunting detections are not intended for automated alerting. They are run on-demand or on a low-frequency schedule by security analysts investigating specific threat hypotheses.\n\nPrerequisites\n\n• Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.\n• Data sources: Sysmon EventID 7. Must be ingested into Splunk and normalized to the Common Information Model (CIM) via the appropriate Technology Add-on.\n• MITRE ATT&CK: T1574.001. Review the ATT&CK matrix for adjacent techniques to identify detection coverage gaps in your environment.\n\nDeployment\n\n1. In Enterprise Security, navigate to Configure → Content → Content Management.\n2. Search for \"Windows DLL Search Order Hijacking Hunt with Sysmon\" or filter by Analytic Story.\n3. Hunting detections are typically left disabled for automated scheduling. Instead, run them on-demand from the Search bar or schedule at low frequency (daily or weekly).\n4. Review results manually — hunting detections cast a wider net and expect analyst judgment to separate signal from noise.\n5. When results warrant further investigation, create a Notable Event manually or initiate your incident response workflow.\n\nTuning and False Positive Management\n\nKnown false positives for this detection: False positives will be present based on paths. Filter or add other paths to the exclusion as needed. Some applications may legitimately load libraries from non-standard paths.\n\n• Hunting detections are expected to produce broader result sets that require analyst interpretation. Focus on refining the search scope (time range, specific hosts or users) rather than eliminating all noise.\n• Maintain a hunting journal documenting hypotheses tested, results found, and detection improvements identified.\n• Share high-fidelity findings with the detection engineering team to convert recurring hunting patterns into automated TTP or Anomaly detections.\n\nAnalyst Response Workflow\n\nWhen reviewing Hunting results:\n\n1. Run the search manually or review scheduled results. Evaluate each returned event against your threat hypothesis — not every result indicates compromise.\n2. Cross-reference findings with current threat intelligence, recent security advisories, and outputs from other detection sources.\n3. If suspicious activity is confirmed, create a Notable Event or escalate directly to your incident response process with the supporting evidence.\n4. Document the hunting exercise: hypothesis, data sources queried, time range, findings, and any detection engineering improvements identified.\n\nValidation\n\nConfirm the required data sources are flowing:\n\n```spl\n| tstats count where index=* by index, sourcetype | sort -count\n```\n\nVerify the detection is enabled and firing:\n\n```spl\nindex=_audit action=\"alert_fired\" ss_name=\"*\"\n| stats count by ss_name, trigger_time | sort -trigger_time\n```",
+  "visualization": "Table, Timeline (from ESCU).",
+  "references": [
+    {
+      "url": "https://hijacklibs.net"
+    }
+  ],
+  "knownFalsePositives": "False positives will be present based on paths. Filter or add other paths to the exclusion as needed. Some applications may legitimately load libraries from non-standard paths.",
+  "mitreAttack": [
+    "T1574.001"
+  ],
+  "detectionType": "Hunting",
+  "equipment": [
+    "security_essentials"
+  ]
+}

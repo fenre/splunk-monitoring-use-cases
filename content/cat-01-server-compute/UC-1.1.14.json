@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.1.14",
+  "title": "File Descriptor Exhaustion",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=openfiles` (custom) or `/proc/sys/fs/file-nr`",
+  "app": "`Splunk_TA_nix`, custom scripted input",
+  "spl": "index=os sourcetype=openfiles host=*\n| eval usage_pct = round(open_fds / max_fds * 100, 1)\n| where usage_pct > 80\n| sort -usage_pct\n| table host process open_fds max_fds usage_pct",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "File descriptor exhaustion causes \"too many open files\" errors, breaking network connections, log writing, and inter-process communication. Common in Java apps and databases.",
+  "value": "File descriptor exhaustion causes \"too many open files\" errors, breaking network connections, log writing, and inter-process communication. Common in Java apps and databases.",
+  "implementation": "Create scripted input: `cat /proc/sys/fs/file-nr` (system-wide) or `ls /proc/<pid>/fd | wc -l` for per-process tracking. Alert at 80% of system or per-process limit.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`, custom scripted input.\n• Ensure the following data sources are available: `sourcetype=openfiles` (custom) or `/proc/sys/fs/file-nr`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate scripted input: `cat /proc/sys/fs/file-nr` (system-wide) or `ls /proc/<pid>/fd | wc -l` for per-process tracking. Alert at 80% of system or per-process limit.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=openfiles host=*\n| eval usage_pct = round(open_fds / max_fds * 100, 1)\n| where usage_pct > 80\n| sort -usage_pct\n| table host process open_fds max_fds usage_pct\n```\n\nUnderstanding this SPL\n\n**File Descriptor Exhaustion** — File descriptor exhaustion causes \"too many open files\" errors, breaking network connections, log writing, and inter-process communication. Common in Java apps and databases.\n\nDocumented **Data sources**: `sourcetype=openfiles` (custom) or `/proc/sys/fs/file-nr`. **App/TA** (typical add-on context): `Splunk_TA_nix`, custom scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: openfiles. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=openfiles. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **usage_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where usage_pct > 80` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **File Descriptor Exhaustion**): table host process open_fds max_fds usage_pct\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (system-wide), Table per process, Line chart trend.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Gauge (system-wide), Table per process, Line chart trend.",
+  "references": [
+    {
+      "title": "Splunk_TA_nix",
+      "url": "https://splunkbase.splunk.com/app/833"
+    }
+  ],
+  "equipment": [
+    "linux"
+  ]
+}

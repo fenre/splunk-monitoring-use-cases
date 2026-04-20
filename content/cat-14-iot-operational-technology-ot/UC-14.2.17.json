@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.2.17",
+  "title": "ICS Network Segmentation Violations",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=\"pan:traffic\"` `zone_pair` or `sourcetype=\"flow:ics\"`",
+  "app": "Firewall, switch NetFlow, ARP tables",
+  "spl": "index=network sourcetype=\"flow:ics\"\n| where src_zone!=dest_zone AND allowed_pair=\"false\"\n| stats count by src, dest, dest_port, app\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Hosts in wrong VLANs or east-west traffic across zones violates Purdue model and IEC 62443.",
+  "value": "Hosts in wrong VLANs or east-west traffic across zones violates Purdue model and IEC 62443.",
+  "implementation": "Maintain `allowed_pair` lookup for zone-to-zone. Alert on any deny or unexpected allow. Quarterly review.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Firewall, switch NetFlow, ARP tables.\n• Ensure the following data sources are available: `sourcetype=\"pan:traffic\"` `zone_pair` or `sourcetype=\"flow:ics\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain `allowed_pair` lookup for zone-to-zone. Alert on any deny or unexpected allow. Quarterly review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"flow:ics\"\n| where src_zone!=dest_zone AND allowed_pair=\"false\"\n| stats count by src, dest, dest_port, app\n| sort -count\n```\n\nUnderstanding this SPL\n\n**ICS Network Segmentation Violations** — Hosts in wrong VLANs or east-west traffic across zones violates Purdue model and IEC 62443.\n\nDocumented **Data sources**: `sourcetype=\"pan:traffic\"` `zone_pair` or `sourcetype=\"flow:ics\"`. **App/TA** (typical add-on context): Firewall, switch NetFlow, ARP tables. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: flow:ics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"flow:ics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where src_zone!=dest_zone AND allowed_pair=\"false\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src, dest, dest_port, app** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sankey (zones), Table (violations), Single value (open violations).",
+  "visualization": "Sankey (zones), Table (violations), Single value (open violations).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "netflow"
+  ],
+  "equipmentModels": [
+    "netflow_netflow"
+  ]
+}

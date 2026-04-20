@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.82",
+  "title": "Credential Guard Status Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-DeviceGuard/Operational` (EventCode 13, 14, 15)",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-DeviceGuard*\"\n| stats latest(EventCode) as status by host\n| eval cg_status=case(status=13,\"Running\",status=14,\"Stopped\",status=15,\"Not configured\",1=1,\"Unknown\")\n| table host, cg_status\n| where cg_status!=\"Running\"",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=failure\n  by Authentication.user Authentication.src Authentication.dest span=1h\n| where count > 5",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Credential Guard protects NTLM hashes and Kerberos tickets in an isolated container. Monitoring ensures it remains enabled and isn't bypassed.",
+  "value": "Credential Guard protects NTLM hashes and Kerberos tickets in an isolated container. Monitoring ensures it remains enabled and isn't bypassed.",
+  "implementation": "Device Guard/Credential Guard Operational log reports VBS (Virtualization Based Security) status. EventCode 13=VBS running with Credential Guard, 14=stopped, 15=not configured. All domain-joined Windows 10/11 and Server 2016+ should have Credential Guard enabled. Alert when any previously-enabled host reports stopped or not configured. Requires UEFI Secure Boot, TPM 2.0, and compatible hardware.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-DeviceGuard/Operational` (EventCode 13, 14, 15).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDevice Guard/Credential Guard Operational log reports VBS (Virtualization Based Security) status. EventCode 13=VBS running with Credential Guard, 14=stopped, 15=not configured. All domain-joined Windows 10/11 and Server 2016+ should have Credential Guard enabled. Alert when any previously-enabled host reports stopped or not configured. Requires UEFI Secure Boot, TPM 2.0, and compatible hardware.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog source=\"WinEventLog:Microsoft-Windows-DeviceGuard*\"\n| stats latest(EventCode) as status by host\n| eval cg_status=case(status=13,\"Running\",status=14,\"Stopped\",status=15,\"Not configured\",1=1,\"Unknown\")\n| table host, cg_status\n| where cg_status!=\"Running\"\n```\n\nUnderstanding this SPL\n\n**Credential Guard Status Monitoring** — Credential Guard protects NTLM hashes and Kerberos tickets in an isolated container. Monitoring ensures it remains enabled and isn't bypassed.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-DeviceGuard/Operational` (EventCode 13, 14, 15). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **cg_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Credential Guard Status Monitoring**): table host, cg_status\n• Filters the current rows with `where cg_status!=\"Running\"` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=failure\n  by Authentication.user Authentication.src Authentication.dest span=1h\n| where count > 5\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Credential Guard Status Monitoring** — Credential Guard protects NTLM hashes and Kerberos tickets in an isolated container. Monitoring ensures it remains enabled and isn't bypassed.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-DeviceGuard/Operational` (EventCode 13, 14, 15). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart (fleet CG status), Table (non-compliant hosts), Single value (% compliant).",
+  "visualization": "Pie chart (fleet CG status), Table (non-compliant hosts), Single value (% compliant).",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

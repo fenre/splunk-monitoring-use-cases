@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "18.1.3",
+  "title": "Endpoint Mobility Tracking",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "APIC endpoint tracker, ACI endpoint move events",
+  "app": "`TA_cisco-ACI`, APIC endpoint tracker",
+  "spl": "index=cisco_aci sourcetype=\"cisco:aci:endpoint\"\n| where action=\"move\"\n| stats count as move_count, values(from_leaf) as from_leaves, values(to_leaf) as to_leaves, latest(_time) as last_move by mac, ip, tenant, epg\n| where move_count > 5\n| sort -move_count\n| eval alert=if(move_count>20, \"Anomalous\", \"Normal\")",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Endpoint mobility in ACI tracks workload movement across leaf switches. Anomalous mobility (rapid moves, unexpected locations) can indicate misconfigurations, loops, or security issues like MAC spoofing.",
+  "value": "Endpoint mobility in ACI tracks workload movement across leaf switches. Anomalous mobility (rapid moves, unexpected locations) can indicate misconfigurations, loops, or security issues like MAC spoofing.",
+  "implementation": "Enable endpoint tracker on APIC. Ingest endpoint move events via syslog or API polling. Baseline normal mobility rates per EPG. Alert on endpoints with excessive moves (>20/hour). Investigate rapid moves for potential loops or spoofing. Correlate with contract hits.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA_cisco-ACI`, APIC endpoint tracker.\n• Ensure the following data sources are available: APIC endpoint tracker, ACI endpoint move events.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable endpoint tracker on APIC. Ingest endpoint move events via syslog or API polling. Baseline normal mobility rates per EPG. Alert on endpoints with excessive moves (>20/hour). Investigate rapid moves for potential loops or spoofing. Correlate with contract hits.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cisco_aci sourcetype=\"cisco:aci:endpoint\"\n| where action=\"move\"\n| stats count as move_count, values(from_leaf) as from_leaves, values(to_leaf) as to_leaves, latest(_time) as last_move by mac, ip, tenant, epg\n| where move_count > 5\n| sort -move_count\n| eval alert=if(move_count>20, \"Anomalous\", \"Normal\")\n```\n\nUnderstanding this SPL\n\n**Endpoint Mobility Tracking** — Endpoint mobility in ACI tracks workload movement across leaf switches. Anomalous mobility (rapid moves, unexpected locations) can indicate misconfigurations, loops, or security issues like MAC spoofing.\n\nDocumented **Data sources**: APIC endpoint tracker, ACI endpoint move events. **App/TA** (typical add-on context): `TA_cisco-ACI`, APIC endpoint tracker. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cisco_aci; **sourcetype**: cisco:aci:endpoint. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cisco_aci, sourcetype=\"cisco:aci:endpoint\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where action=\"move\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by mac, ip, tenant, epg** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where move_count > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• `eval` defines or adjusts **alert** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (high-mobility endpoints), Timechart (move rate trending), Sankey diagram (leaf-to-leaf moves), Single value (anomalous endpoints).",
+  "visualization": "Table (high-mobility endpoints), Timechart (move rate trending), Sankey diagram (leaf-to-leaf moves), Single value (anomalous endpoints).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_aci"
+  ],
+  "hardware": "Cisco APIC, Nexus 9332C (ACI), Nexus 93180YC-FX (ACI), Nexus 9364C (ACI), Nexus 9504 (ACI), Nexus 9508 (ACI)"
+}

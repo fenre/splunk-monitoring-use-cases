@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "20.2.27",
+  "title": "Object Storage Bucket Growth Forecast",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity",
+    "Cost"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=cloud_storage` `sourcetype=\"aws:s3:bucket_metrics\"`",
+  "app": "`Splunk Add-on for AWS`, Azure Storage metrics, GCP monitoring export",
+  "spl": "index=cloud_storage sourcetype=\"aws:s3:bucket_metrics\" earliest=-90d\n| eval gb=tonumber(coalesce(size_bytes, BucketSizeBytes))/1024/1024/1024\n| bin _time span=1d\n| stats latest(gb) as used_gb by _time, bucket_name, account_id\n| timechart span=1d latest(used_gb) as used_gb by bucket_name\n| predict used_gb as forecast_gb algorithm=LLP5 future_timespan=60\n| where 'forecast_gb+60d' > used_gb*1.25\n| table bucket_name, used_gb, 'forecast_gb+60d'",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Object storage growth from logs, images, and backups drives recurring invoices. Forecasting gigabytes by bucket supports lifecycle policies, intelligent tiering, and archive capacity before ingest jobs fail.",
+  "value": "Object storage growth from logs, images, and backups drives recurring invoices. Forecasting gigabytes by bucket supports lifecycle policies, intelligent tiering, and archive capacity before ingest jobs fail.",
+  "implementation": "(1) Collect bucket size daily from CloudWatch `BucketSizeBytes`, Storage Lens, or vendor export. (2) Exclude buckets with heavy lifecycle churn unless using MLTK for seasonality. (3) Alert owners when the 60-day forecast exceeds 125% of current size.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk Add-on for AWS`, Azure Storage metrics, GCP monitoring export.\n• Ensure the following data sources are available: `index=cloud_storage` `sourcetype=\"aws:s3:bucket_metrics\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Collect bucket size daily from CloudWatch `BucketSizeBytes`, Storage Lens, or vendor export. (2) Exclude buckets with heavy lifecycle churn unless using MLTK for seasonality. (3) Alert owners when the 60-day forecast exceeds 125% of current size.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud_storage sourcetype=\"aws:s3:bucket_metrics\" earliest=-90d\n| eval gb=tonumber(coalesce(size_bytes, BucketSizeBytes))/1024/1024/1024\n| bin _time span=1d\n| stats latest(gb) as used_gb by _time, bucket_name, account_id\n| timechart span=1d latest(used_gb) as used_gb by bucket_name\n| predict used_gb as forecast_gb algorithm=LLP5 future_timespan=60\n| where 'forecast_gb+60d' > used_gb*1.25\n| table bucket_name, used_gb, 'forecast_gb+60d'\n```\n\nUnderstanding this SPL\n\n**Object Storage Bucket Growth Forecast** — Object storage growth from logs, images, and backups drives recurring invoices. Forecasting gigabytes by bucket supports lifecycle policies, intelligent tiering, and archive capacity before ingest jobs fail.\n\nDocumented **Data sources**: `index=cloud_storage` `sourcetype=\"aws:s3:bucket_metrics\"`. **App/TA** (typical add-on context): `Splunk Add-on for AWS`, Azure Storage metrics, GCP monitoring export. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud_storage; **sourcetype**: aws:s3:bucket_metrics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud_storage, sourcetype=\"aws:s3:bucket_metrics\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **gb** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, bucket_name, account_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by bucket_name** — ideal for trending and alerting on this use case.\n• Pipeline stage (see **Object Storage Bucket Growth Forecast**): predict used_gb as forecast_gb algorithm=LLP5 future_timespan=60\n• Filters the current rows with `where 'forecast_gb+60d' > used_gb*1.25` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Object Storage Bucket Growth Forecast**): table bucket_name, used_gb, 'forecast_gb+60d'\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (actual versus forecast per bucket), Table (fastest-growing buckets), Single value (total forecasted terabytes).",
+  "visualization": "Line chart (actual versus forecast per bucket), Table (fastest-growing buckets), Single value (total forecasted terabytes).",
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    }
+  ],
+  "equipment": [
+    "aws",
+    "azure",
+    "gcp"
+  ]
+}

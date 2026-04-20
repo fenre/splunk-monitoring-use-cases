@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.2.25",
+  "title": "Entra ID Conditional Access Blocked Sign-Ins",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Entra ID sign-in logs (resultType=0 for success; filter for blocks)",
+  "app": "`Splunk_TA_microsoft-cloudservices`",
+  "spl": "index=azure sourcetype=\"mscs:azure:signinlog\" status.errorCode!=\"0\"\n| stats count by userPrincipalName appDisplayName status.errorCode location\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Blocked sign-ins by Conditional Access indicate policy enforcement. Tracking blocks helps tune policies and detect bypass attempts.",
+  "value": "Blocked sign-ins by Conditional Access indicate policy enforcement. Tracking blocks helps tune policies and detect bypass attempts.",
+  "implementation": "Forward sign-in logs. Filter for resultType or status indicating block (e.g. conditional access block). Alert on spike in blocks or blocks for sensitive apps. Correlate with risk and device compliance.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices`.\n• Ensure the following data sources are available: Entra ID sign-in logs (resultType=0 for success; filter for blocks).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward sign-in logs. Filter for resultType or status indicating block (e.g. conditional access block). Alert on spike in blocks or blocks for sensitive apps. Correlate with risk and device compliance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=azure sourcetype=\"mscs:azure:signinlog\" status.errorCode!=\"0\"\n| stats count by userPrincipalName appDisplayName status.errorCode location\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Entra ID Conditional Access Blocked Sign-Ins** — Blocked sign-ins by Conditional Access indicate policy enforcement. Tracking blocks helps tune policies and detect bypass attempts.\n\nDocumented **Data sources**: Entra ID sign-in logs (resultType=0 for success; filter for blocks). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: azure; **sourcetype**: mscs:azure:signinlog. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=azure, sourcetype=\"mscs:azure:signinlog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by userPrincipalName appDisplayName status.errorCode location** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (user, app, error, location), Bar chart (blocks by reason), Timeline.",
+  "visualization": "Table (user, app, error, location), Bar chart (blocks by reason), Timeline.",
+  "references": [
+    {
+      "title": "Splunk_TA_microsoft-cloudservices",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    }
+  ],
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "equipment": [
+    "azure",
+    "m365"
+  ]
+}

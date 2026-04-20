@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.1.129",
+  "title": "Linux Softirq / Hardirq Time",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`/proc/interrupts`, `/proc/softirqs`, `mpstat` output",
+  "app": "`Splunk_TA_nix` (scripted input)",
+  "spl": "index=os sourcetype=irq_stats host=* cpu=*\n| stats latest(softirq_pct) as softirq, latest(hardirq_pct) as hardirq by host, cpu\n| where softirq > 30 OR hardirq > 15",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host span=5m | sort - count",
+  "cimModels": [
+    "Performance"
+  ],
+  "description": "Detect interrupt storms (softirq/hardirq) that degrade system performance. High IRQ time indicates network, block I/O, or timer storms.",
+  "value": "Detect interrupt storms (softirq/hardirq) that degrade system performance. High IRQ time indicates network, block I/O, or timer storms.",
+  "implementation": "Create a scripted input that parses `/proc/softirqs` and `/proc/interrupts` (or use `mpstat -I SUM` for softirq/hardirq percentages). Calculate softirq and hardirq as percentage of CPU time. Run every 60 seconds. Alert when combined IRQ time exceeds 20% sustained for 10 minutes. Correlate with network/block device activity.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix` (scripted input).\n• Ensure the following data sources are available: `/proc/interrupts`, `/proc/softirqs`, `mpstat` output.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate a scripted input that parses `/proc/softirqs` and `/proc/interrupts` (or use `mpstat -I SUM` for softirq/hardirq percentages). Calculate softirq and hardirq as percentage of CPU time. Run every 60 seconds. Alert when combined IRQ time exceeds 20% sustained for 10 minutes. Correlate with network/block device activity.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=irq_stats host=* cpu=*\n| stats latest(softirq_pct) as softirq, latest(hardirq_pct) as hardirq by host, cpu\n| where softirq > 30 OR hardirq > 15\n```\n\nUnderstanding this SPL\n\n**Linux Softirq / Hardirq Time** — Detect interrupt storms (softirq/hardirq) that degrade system performance. High IRQ time indicates network, block I/O, or timer storms.\n\nDocumented **Data sources**: `/proc/interrupts`, `/proc/softirqs`, `mpstat` output. **App/TA** (typical add-on context): `Splunk_TA_nix` (scripted input). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: irq_stats. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=irq_stats. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, cpu** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where softirq > 30 OR hardirq > 15` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host span=5m | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Linux Softirq / Hardirq Time** — Detect interrupt storms (softirq/hardirq) that degrade system performance. High IRQ time indicates network, block I/O, or timer storms.\n\nDocumented **Data sources**: `/proc/interrupts`, `/proc/softirqs`, `mpstat` output. **App/TA** (typical add-on context): `Splunk_TA_nix` (scripted input). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Performance.CPU` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (softirq/hardirq % over time), Table of hosts with elevated IRQ, Stacked area chart by IRQ type.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Line chart (softirq/hardirq % over time), Table of hosts with elevated IRQ, Stacked area chart by IRQ type.",
+  "references": [
+    {
+      "title": "Splunk_TA_nix",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+    }
+  ],
+  "equipment": [
+    "linux"
+  ]
+}

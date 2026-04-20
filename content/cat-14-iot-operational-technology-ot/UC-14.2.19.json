@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.2.19",
+  "title": "OT Asset External Communication Detection",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=\"flow:ics\"`, `sourcetype=\"pan:traffic\"` with OT zone tags",
+  "app": "Firewall, OT NetFlow, passive tap (Zeek OT)",
+  "spl": "index=ot sourcetype=\"flow:ics\" src_zone=\"OT_L3\"\n| lookup ot_asset_inventory ip as src OUTPUT asset_class\n| lookup vendor_update_nets network as dest OUTPUT network as vendor_net\n| where NOT cidrmatch(\"10.0.0.0/8\",dest) AND isnull(vendor_net)\n| stats count, values(dest_port) as ports by src, dest, app\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "PLCs, HMIs, or sensors initiating outbound sessions to the internet or untrusted zones indicate misconfiguration, malware, or pivot from IT — a top IEC 62443 / NERC CIP concern.",
+  "value": "PLCs, HMIs, or sensors initiating outbound sessions to the internet or untrusted zones indicate misconfiguration, malware, or pivot from IT — a top IEC 62443 / NERC CIP concern.",
+  "implementation": "Maintain allowlisted update CDNs and remote-support jump hosts; default-deny egress from L3 devices. Alert on first-seen external `dest`.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Firewall, OT NetFlow, passive tap (Zeek OT).\n• Ensure the following data sources are available: `sourcetype=\"flow:ics\"`, `sourcetype=\"pan:traffic\"` with OT zone tags.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain allowlisted update CDNs and remote-support jump hosts; default-deny egress from L3 devices. Alert on first-seen external `dest`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"flow:ics\" src_zone=\"OT_L3\"\n| lookup ot_asset_inventory ip as src OUTPUT asset_class\n| lookup vendor_update_nets network as dest OUTPUT network as vendor_net\n| where NOT cidrmatch(\"10.0.0.0/8\",dest) AND isnull(vendor_net)\n| stats count, values(dest_port) as ports by src, dest, app\n| sort -count\n```\n\nUnderstanding this SPL\n\n**OT Asset External Communication Detection** — PLCs, HMIs, or sensors initiating outbound sessions to the internet or untrusted zones indicate misconfiguration, malware, or pivot from IT — a top IEC 62443 / NERC CIP concern.\n\nDocumented **Data sources**: `sourcetype=\"flow:ics\"`, `sourcetype=\"pan:traffic\"` with OT zone tags. **App/TA** (typical add-on context): Firewall, OT NetFlow, passive tap (Zeek OT). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: flow:ics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"flow:ics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where NOT cidrmatch(\"10.0.0.0/8\",dest) AND isnull(vendor_net)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src, dest, app** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Map (flows), Table (assets), Sankey (zone → egress).",
+  "visualization": "Map (flows), Table (assets), Sankey (zone → egress).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "netflow"
+  ],
+  "equipmentModels": [
+    "netflow_netflow"
+  ]
+}

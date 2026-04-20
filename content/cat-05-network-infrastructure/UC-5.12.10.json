@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.12.10",
+  "title": "Toll Fraud Detection",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Fraud",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Telecommunications",
+  "dataSources": "`sourcetype=\"cdr:voip\"` with `rate_class`, `destination`",
+  "app": "SBC CDR, fraud scoring apps",
+  "spl": "index=voip sourcetype=\"cdr:voip\"\n| lookup premium_and_high_risk_prefixes called_number OUTPUT risk_tier\n| where risk_tier IN (\"premium\",\"satellite\",\"high_cost_geo\")\n| stats sum(toll_charge) as cost, count, dc(calling_party) as sources by src, hour\n| where cost>500 OR count>100\n| sort -cost",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Premium-rate, international, or short-duration high-cost patterns from compromised PBX or SIP credentials — classic CDR analytics use case.",
+  "value": "Premium-rate, international, or short-duration high-cost patterns from compromised PBX or SIP credentials — classic CDR analytics use case.",
+  "implementation": "Hotline to NOC + auto-block high-risk destinations on SBC after threshold; require PIN for international on suspect trunks.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SBC CDR, fraud scoring apps.\n• Ensure the following data sources are available: `sourcetype=\"cdr:voip\"` with `rate_class`, `destination`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nHotline to NOC + auto-block high-risk destinations on SBC after threshold; require PIN for international on suspect trunks.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=voip sourcetype=\"cdr:voip\"\n| lookup premium_and_high_risk_prefixes called_number OUTPUT risk_tier\n| where risk_tier IN (\"premium\",\"satellite\",\"high_cost_geo\")\n| stats sum(toll_charge) as cost, count, dc(calling_party) as sources by src, hour\n| where cost>500 OR count>100\n| sort -cost\n```\n\nUnderstanding this SPL\n\n**Toll Fraud Detection** — Premium-rate, international, or short-duration high-cost patterns from compromised PBX or SIP credentials — classic CDR analytics use case.\n\nDocumented **Data sources**: `sourcetype=\"cdr:voip\"` with `rate_class`, `destination`. **App/TA** (typical add-on context): SBC CDR, fraud scoring apps. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: voip; **sourcetype**: cdr:voip. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=voip, sourcetype=\"cdr:voip\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where risk_tier IN (\"premium\",\"satellite\",\"high_cost_geo\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src, hour** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where cost>500 OR count>100` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (top fraud legs), Map (destination countries), Timeline (attack window).",
+  "visualization": "Table (top fraud legs), Map (destination countries), Timeline (attack window).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

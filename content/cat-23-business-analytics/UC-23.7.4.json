@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "23.7.4",
+  "title": "Backlog Age and Breach Risk Forecast",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Business"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Cross-industry",
+  "dataSources": "`index=itsm` `sourcetype=\"snow:incident\"` (number, opened_at, closed_at, priority, assignment_group)",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+  "spl": "index=itsm sourcetype=\"snow:incident\" state!=\"Closed\" earliest=-30d\n| eval opened_epoch=strptime(opened_at, \"%Y-%m-%d %H:%M:%S\")\n| eval age_hours=round((now()-opened_epoch)/3600,1)\n| eval sla_target_hours=case(priority=\"1\",4, priority=\"2\",8, priority=\"3\",24, 1=1,72)\n| eval pct_of_sla=round(100*age_hours/sla_target_hours,0)\n| eval breach_risk=case(pct_of_sla>=100,\"BREACHED\", pct_of_sla>=80,\"AT RISK\", 1=1,\"OK\")\n| stats count as tickets, avg(age_hours) as avg_age_h, max(age_hours) as max_age_h by assignment_group, breach_risk\n| sort assignment_group, breach_risk\n| table assignment_group, breach_risk, tickets, avg_age_h, max_age_h",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Highlights tickets that have been open longer than your policy allows before they breach service promises. We help capacity planners see how much work is aging so they can add shifts or shift topics before customers feel ignored.",
+  "value": "Highlights tickets that have been open longer than your policy allows before they breach service promises. We help capacity planners see how much work is aging so they can add shifts or shift topics before customers feel ignored.",
+  "implementation": "(1) Ingest open incidents with accurate opened timestamps from ServiceNow; (2) align `sla_target_hours` with your contractual response and resolve clocks; (3) schedule every two hours and route “AT RISK” queues to team leads before breaches hit customer reports.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for ServiceNow (Splunkbase 1928).\n• Ensure the following data sources are available: `index=itsm` `sourcetype=\"snow:incident\"` (number, opened_at, closed_at, priority, assignment_group).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest open incidents with accurate opened timestamps from ServiceNow; (2) align `sla_target_hours` with your contractual response and resolve clocks; (3) schedule every two hours and route “AT RISK” queues to team leads before breaches hit customer reports.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:incident\" state!=\"Closed\" earliest=-30d\n| eval opened_epoch=strptime(opened_at, \"%Y-%m-%d %H:%M:%S\")\n| eval age_hours=round((now()-opened_epoch)/3600,1)\n| eval sla_target_hours=case(priority=\"1\",4, priority=\"2\",8, priority=\"3\",24, 1=1,72)\n| eval pct_of_sla=round(100*age_hours/sla_target_hours,0)\n| eval breach_risk=case(pct_of_sla>=100,\"BREACHED\", pct_of_sla>=80,\"AT RISK\", 1=1,\"OK\")\n| stats count as tickets, avg(age_hours) as avg_age_h, max(age_hours) as max_age_h by assignment_group, breach_risk\n| sort assignment_group, breach_risk\n| table assignment_group, breach_risk, tickets, avg_age_h, max_age_h\n```\n\nUnderstanding this SPL\n\n**Backlog Age and Breach Risk Forecast** — Highlights tickets that have been open longer than your policy allows before they breach service promises. We help capacity planners see how much work is aging so they can add shifts or shift topics before customers feel ignored.\n\nDocumented **Data sources**: `index=itsm` `sourcetype=\"snow:incident\"` (number, opened_at, closed_at, priority, assignment_group). **App/TA** (typical add-on context): Splunk Add-on for ServiceNow (Splunkbase 1928). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:incident. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:incident\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **opened_epoch** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **age_hours** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **sla_target_hours** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **pct_of_sla** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **breach_risk** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by assignment_group, breach_risk** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Backlog Age and Breach Risk Forecast**): table assignment_group, breach_risk, tickets, avg_age_h, max_age_h\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar (tickets by risk band and team), Table (oldest tickets), Single value (count at risk), Line chart (backlog age trend).",
+  "visualization": "Stacked bar (tickets by risk band and team), Table (oldest tickets), Single value (count at risk), Line chart (backlog age trend).",
+  "references": [
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "equipment": [
+    "servicenow"
+  ]
+}

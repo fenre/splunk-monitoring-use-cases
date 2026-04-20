@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.1.57",
+  "title": "ARP Table Overflow Detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=custom:arp, /proc/net/arp`",
+  "app": "`Splunk_TA_nix, custom scripted input`",
+  "spl": "index=os sourcetype=custom:arp host=*\n| stats count as arp_entry_count by host\n| eval max_entries=1024\n| where arp_entry_count > (max_entries * 0.8)",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "ARP table overflow causes network connectivity issues and may indicate ARP spoofing attacks or network misconfiguration.",
+  "value": "ARP table overflow causes network connectivity issues and may indicate ARP spoofing attacks or network misconfiguration.",
+  "implementation": "Create a scripted input that counts /proc/net/arp entries and monitors /proc/sys/net/ipv4/neigh/*/gc_thresh* limits. Alert when ARP table approaches limits. Correlate with network scans or spoofing indicators.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=custom:arp, /proc/net/arp`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate a scripted input that counts /proc/net/arp entries and monitors /proc/sys/net/ipv4/neigh/*/gc_thresh* limits. Alert when ARP table approaches limits. Correlate with network scans or spoofing indicators.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=custom:arp host=*\n| stats count as arp_entry_count by host\n| eval max_entries=1024\n| where arp_entry_count > (max_entries * 0.8)\n```\n\nUnderstanding this SPL\n\n**ARP Table Overflow Detection** — ARP table overflow causes network connectivity issues and may indicate ARP spoofing attacks or network misconfiguration.\n\nDocumented **Data sources**: `sourcetype=custom:arp, /proc/net/arp`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: custom:arp. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=custom:arp. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **max_entries** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where arp_entry_count > (max_entries * 0.8)` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge, Alert\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Gauge, Alert",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "linux"
+  ]
+}

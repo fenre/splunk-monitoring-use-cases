@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.2.15",
+  "title": "VPN Tunnel Keepalive Failure Analysis",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Availability"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "VPN/IKE syslog (`cisco:asa`, `pan:system`)",
+  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`",
+  "spl": "index=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:system\") earliest=-24h\n| search \"IKE\" OR \"keepalive\" OR \"DPD\" OR \"dead peer\"\n| stats count by tunnel_id, peer_ip, message_signature\n| sort 40 -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Tracks DPD/keepalive failures and tunnel teardown reasons for site-to-site and remote-access — isolates path MTU, NAT, and idle timeout issues.",
+  "value": "Tracks DPD/keepalive failures and tunnel teardown reasons for site-to-site and remote-access — isolates path MTU, NAT, and idle timeout issues.",
+  "implementation": "Normalize `message_signature` with `rex` or `cluster` on raw. Correlate with UC-17.2.5 stability metrics.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`.\n• Ensure the following data sources are available: VPN/IKE syslog (`cisco:asa`, `pan:system`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize `message_signature` with `rex` or `cluster` on raw. Correlate with UC-17.2.5 stability metrics.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:system\") earliest=-24h\n| search \"IKE\" OR \"keepalive\" OR \"DPD\" OR \"dead peer\"\n| stats count by tunnel_id, peer_ip, message_signature\n| sort 40 -count\n```\n\nUnderstanding this SPL\n\n**VPN Tunnel Keepalive Failure Analysis** — Tracks DPD/keepalive failures and tunnel teardown reasons for site-to-site and remote-access — isolates path MTU, NAT, and idle timeout issues.\n\nDocumented **Data sources**: VPN/IKE syslog (`cisco:asa`, `pan:system`). **App/TA** (typical add-on context): `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vpn; **sourcetype**: cisco:asa, pan:system. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vpn, sourcetype=\"cisco:asa\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by tunnel_id, peer_ip, message_signature** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (failures by peer), Table (top messages), Line chart (failure rate).",
+  "visualization": "Bar chart (failures by peer), Table (top messages), Line chart (failure rate).",
+  "references": [
+    {
+      "title": "Splunk_TA_paloalto",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1133"
+  ],
+  "equipment": [
+    "cisco",
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "cisco_asa",
+    "paloalto_pan_firewall"
+  ],
+  "hardware": "ASA, Palo Alto IPsec"
+}

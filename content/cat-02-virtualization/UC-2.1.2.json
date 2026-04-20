@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.1.2",
+  "title": "ESXi Host Memory Ballooning",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=vmware:perf:mem`, vCenter performance metrics",
+  "app": "`TA-vmware`",
+  "spl": "index=vmware sourcetype=\"vmware:perf:mem\" (counter=\"mem.vmmemctl.average\" OR counter=\"mem.swapped.average\")\n| eval metric=case(counter=\"mem.vmmemctl.average\", \"Balloon_KB\", counter=\"mem.swapped.average\", \"Swap_KB\")\n| stats avg(Value) as avg_value by host, vm_name, metric\n| where avg_value > 0\n| sort -avg_value",
+  "cimSpl": "| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct\n                        avg(Performance.swap_used_percent) as swap_pct\n  from datamodel=Performance where nodename=Performance.Memory\n  by Performance.host span=5m\n| where mem_pct > 95 OR swap_pct > 20",
+  "cimModels": [
+    "Performance"
+  ],
+  "description": "Memory ballooning means the hypervisor is reclaiming memory from VMs. Swapping at the hypervisor level is worse — causes severe VM performance degradation invisible to the guest OS.",
+  "value": "Memory ballooning means the hypervisor is reclaiming memory from VMs. Swapping at the hypervisor level is worse — causes severe VM performance degradation invisible to the guest OS.",
+  "implementation": "Collected automatically by TA-vmware via vCenter API. Alert when balloon or swap values are >0 for extended periods. Investigate by comparing total VM memory allocation vs. host physical memory.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:perf:mem`, vCenter performance metrics.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollected automatically by TA-vmware via vCenter API. Alert when balloon or swap values are >0 for extended periods. Investigate by comparing total VM memory allocation vs. host physical memory.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:perf:mem\" (counter=\"mem.vmmemctl.average\" OR counter=\"mem.swapped.average\")\n| eval metric=case(counter=\"mem.vmmemctl.average\", \"Balloon_KB\", counter=\"mem.swapped.average\", \"Swap_KB\")\n| stats avg(Value) as avg_value by host, vm_name, metric\n| where avg_value > 0\n| sort -avg_value\n```\n\nUnderstanding this SPL\n\n**ESXi Host Memory Ballooning** — Memory ballooning means the hypervisor is reclaiming memory from VMs. Swapping at the hypervisor level is worse — causes severe VM performance degradation invisible to the guest OS.\n\nDocumented **Data sources**: `sourcetype=vmware:perf:mem`, vCenter performance metrics. **App/TA** (typical add-on context): `TA-vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:perf:mem. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:perf:mem\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **metric** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, vm_name, metric** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where avg_value > 0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct\n                        avg(Performance.swap_used_percent) as swap_pct\n  from datamodel=Performance where nodename=Performance.Memory\n  by Performance.host span=5m\n| where mem_pct > 95 OR swap_pct > 20\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**ESXi Host Memory Ballooning** — Memory ballooning means the hypervisor is reclaiming memory from VMs. Swapping at the hypervisor level is worse — causes severe VM performance degradation invisible to the guest OS.\n\nDocumented **Data sources**: `sourcetype=vmware:perf:mem`, vCenter performance metrics. **App/TA** (typical add-on context): `TA-vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.\n• Filters the current rows with `where mem_pct > 95 OR swap_pct > 20` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart for balloon/swap trend over time per VM; stacked bar for top 10 VMs by current balloon size; table drill-down to worst offenders with columns for VM name, balloon MB, swap MB, and host.",
+  "visualization": "Line chart for balloon/swap trend over time per VM; stacked bar for top 10 VMs by current balloon size; table drill-down to worst offenders with columns for VM name, balloon MB, swap MB, and host.",
+  "references": [
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+    }
+  ],
+  "equipment": [
+    "vmware"
+  ],
+  "equipmentModels": [
+    "vmware_ta_vmware"
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.4.35",
+  "title": "Aruba Air Monitor — WIDS/WIPS Events (HPE Aruba)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=aruba:syslog`",
+  "app": "`Aruba Networks Add-on for Splunk` (Splunkbase 4668)",
+  "premiumApps": [
+    {
+      "name": "Splunk User Behavior Analytics",
+      "displayName": "Splunk User Behavior Analytics",
+      "note": "UBA"
+    }
+  ],
+  "spl": "index=network sourcetype=\"aruba:syslog\" (category=\"SECURITY\" OR subsystem=\"wids\" OR subsystem=\"WIDS\" OR match(_raw, \"(?i)(rogue|evil.twin|ad-hoc|deauth|disassoc).*(flood|detected|attack|alert)\"))\n| eval threat_type=coalesce(wids_classification, threat_name, intrusion_type, ids_signature, alert_type)\n| eval sev=coalesce(severity, threat_severity, priority)\n| stats count by threat_type, sev, ap_name, channel, detecting_ap, bssid\n| sort -count",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Intrusion_Detection\n  by IDS_Attacks.signature, IDS_Attacks.severity, IDS_Attacks.src, IDS_Attacks.dest span=1h\n| where count > 0\n| sort -count",
+  "cimModels": [
+    "Intrusion_Detection"
+  ],
+  "description": "Aruba's Wireless Intrusion Detection and Prevention System (WIDS/WIPS) detects rogue APs, evil twin attacks, ad-hoc networks, unauthorized bridges, and DoS attacks (deauthentication floods, association floods). Air Monitor (AM) mode APs or hybrid APs provide dedicated RF security scanning.",
+  "value": "Aruba's Wireless Intrusion Detection and Prevention System (WIDS/WIPS) detects rogue APs, evil twin attacks, ad-hoc networks, unauthorized bridges, and DoS attacks (deauthentication floods, association floods). Air Monitor (AM) mode APs or hybrid APs provide dedicated RF security scanning.",
+  "implementation": "Enable WIDS/WIPS and AM-capable APs per Aruba design guide; ensure security-class syslog messages are forwarded with TA parsing for threat category and severity. Tune alerts for critical classes (rogue AP, evil twin, deauth flood). Correlate with physical site/AP layout for containment workflows.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Aruba Networks Add-on for Splunk` (Splunkbase 4668).\n• Ensure the following data sources are available: `sourcetype=aruba:syslog`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable WIDS/WIPS and AM-capable APs per Aruba design guide; ensure security-class syslog messages are forwarded with TA parsing for threat category and severity. Tune alerts for critical classes (rogue AP, evil twin, deauth flood). Correlate with physical site/AP layout for containment workflows.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"aruba:syslog\" (category=\"SECURITY\" OR subsystem=\"wids\" OR subsystem=\"WIDS\" OR match(_raw, \"(?i)(rogue|evil.twin|ad-hoc|deauth|disassoc).*(flood|detected|attack|alert)\"))\n| eval threat_type=coalesce(wids_classification, threat_name, intrusion_type, ids_signature, alert_type)\n| eval sev=coalesce(severity, threat_severity, priority)\n| stats count by threat_type, sev, ap_name, channel, detecting_ap, bssid\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Aruba Air Monitor — WIDS/WIPS Events (HPE Aruba)** — Aruba's Wireless Intrusion Detection and Prevention System (WIDS/WIPS) detects rogue APs, evil twin attacks, ad-hoc networks, unauthorized bridges, and DoS attacks (deauthentication floods, association floods). Air Monitor (AM) mode APs or hybrid APs provide dedicated RF security scanning.\n\nDocumented **Data sources**: `sourcetype=aruba:syslog`. **App/TA** (typical add-on context): `Aruba Networks Add-on for Splunk` (Splunkbase 4668). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: aruba:syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"aruba:syslog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **threat_type** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **sev** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by threat_type, sev, ap_name, channel, detecting_ap, bssid** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Intrusion_Detection\n  by IDS_Attacks.signature, IDS_Attacks.severity, IDS_Attacks.src, IDS_Attacks.dest span=1h\n| where count > 0\n| sort -count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Aruba Air Monitor — WIDS/WIPS Events (HPE Aruba)** — Aruba's Wireless Intrusion Detection and Prevention System (WIDS/WIPS) detects rogue APs, evil twin attacks, ad-hoc networks, unauthorized bridges, and DoS attacks (deauthentication floods, association floods). Air Monitor (AM) mode APs or hybrid APs provide dedicated RF security scanning.\n\nDocumented **Data sources**: `sourcetype=aruba:syslog`. **App/TA** (typical add-on context): `Aruba Networks Add-on for Splunk` (Splunkbase 4668). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Intrusion_Detection` — enable acceleration for that model.\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (threat type, severity, channel, detecting AP), Bar chart (threats by type), Timeline (WIDS event rate), Map or floor plan overlay when location fields exist.",
+  "visualization": "Table (threat type, severity, channel, detecting AP), Bar chart (threats by type), Timeline (WIDS event rate), Map or floor plan overlay when location fields exist.",
+  "references": [
+    {
+      "title": "Splunkbase app 4668",
+      "url": "https://splunkbase.splunk.com/app/4668"
+    },
+    {
+      "title": "CIM: Intrusion_Detection",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection"
+    }
+  ],
+  "hardware": "HPE Aruba AP-505/AP-515/AP-535/AP-555/AP-635 (Air Monitor mode), Aruba 7000/7200 Mobility Controllers"
+}

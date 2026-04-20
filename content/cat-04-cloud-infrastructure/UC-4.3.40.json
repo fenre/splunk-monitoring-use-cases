@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.3.40",
+  "title": "GCP Cloud Run Task Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=google:gcp:pubsub:message` or `sourcetype=gcp:monitoring:timeseries`",
+  "app": "`Splunk_TA_google-cloudplatform` (Pub/Sub logging/metrics) or OTel export from Cloud Ops",
+  "spl": "index=cloud sourcetype=\"gcp:monitoring:timeseries\"\n| where like(metric.type, \"run.googleapis.com%\")\n| stats avg(value) as val_avg, max(value) as val_max by metric.type\n| where match(metric.type, \"(?i)request|latency|instance|container\")\n| sort -val_max",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Cloud Run scales to zero and on demand; tracking request latency, instance count, and error ratio catches cold-start and quota issues before customers notice.",
+  "value": "Cloud Run scales to zero and on demand; tracking request latency, instance count, and error ratio catches cold-start and quota issues before customers notice.",
+  "implementation": "Export Cloud Run request, latency, and instance metrics via GCP monitoring sink to Pub/Sub and ingest with `Splunk_TA_google-cloudplatform`, or forward OpenTelemetry from a sidecar/collector if you run hybrid instrumentation. Ensure `service_name` and `revision_name` are extracted. Alert on elevated `server_request_latencies` and `5xx` ratio versus SLO.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_google-cloudplatform` (Pub/Sub logging/metrics) or OTel export from Cloud Ops.\n• Ensure the following data sources are available: `sourcetype=google:gcp:pubsub:message` or `sourcetype=gcp:monitoring:timeseries`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExport Cloud Run request, latency, and instance metrics via GCP monitoring sink to Pub/Sub and ingest with `Splunk_TA_google-cloudplatform`, or forward OpenTelemetry from a sidecar/collector if you run hybrid instrumentation. Ensure `service_name` and `revision_name` are extracted. Alert on elevated `server_request_latencies` and `5xx` ratio versus SLO.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"gcp:monitoring:timeseries\"\n| where like(metric.type, \"run.googleapis.com%\")\n| stats avg(value) as val_avg, max(value) as val_max by metric.type\n| where match(metric.type, \"(?i)request|latency|instance|container\")\n| sort -val_max\n```\n\nUnderstanding this SPL\n\n**GCP Cloud Run Task Health** — Cloud Run scales to zero and on demand; tracking request latency, instance count, and error ratio catches cold-start and quota issues before customers notice.\n\nDocumented **Data sources**: `sourcetype=google:gcp:pubsub:message` or `sourcetype=gcp:monitoring:timeseries`. **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform` (Pub/Sub logging/metrics) or OTel export from Cloud Ops. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: gcp:monitoring:timeseries. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"gcp:monitoring:timeseries\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where like(metric.type, \"run.googleapis.com%\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by metric.type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where match(metric.type, \"(?i)request|latency|instance|container\")` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Time chart (p95 latency, request rate), Table (service, revision, error rate), Single value (active instances).",
+  "visualization": "Time chart (p95 latency, request rate), Table (service, revision, error rate), Single value (active instances).",
+  "references": [
+    {
+      "title": "Splunk_TA_google-cloudplatform",
+      "url": "https://splunkbase.splunk.com/app/3088"
+    }
+  ],
+  "equipment": [
+    "gcp"
+  ]
+}

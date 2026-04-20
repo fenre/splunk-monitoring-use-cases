@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.2.41",
+  "title": "Service Endpoint Health",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=kube:metrics`",
+  "app": "kube-state-metrics",
+  "spl": "index=k8s sourcetype=\"kube:metrics\" metric_name=\"kube_endpoint_address_available\"\n| stats latest(_value) as avail by namespace, service\n| join type=left max=1 namespace service [\n    search index=k8s sourcetype=\"kube:metrics\" metric_name=\"kube_endpoint_address_not_ready\"\n    | stats latest(_value) as not_ready by namespace, service\n]\n| where avail=0 OR not_ready>0\n| table namespace service avail not_ready",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Services with zero ready endpoints drop traffic for ClusterIP clients; fast detection isolates label selector and readiness probe issues.",
+  "value": "Services with zero ready endpoints drop traffic for ClusterIP clients; fast detection isolates label selector and readiness probe issues.",
+  "implementation": "Scrape EndpointSlice metrics (`kube_endpoint_*`). Exclude headless where appropriate. Alert when `available==0` for production Services.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: kube-state-metrics.\n• Ensure the following data sources are available: `sourcetype=kube:metrics`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nScrape EndpointSlice metrics (`kube_endpoint_*`). Exclude headless where appropriate. Alert when `available==0` for production Services.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=k8s sourcetype=\"kube:metrics\" metric_name=\"kube_endpoint_address_available\"\n| stats latest(_value) as avail by namespace, service\n| join type=left max=1 namespace service [\n    search index=k8s sourcetype=\"kube:metrics\" metric_name=\"kube_endpoint_address_not_ready\"\n    | stats latest(_value) as not_ready by namespace, service\n]\n| where avail=0 OR not_ready>0\n| table namespace service avail not_ready\n```\n\nUnderstanding this SPL\n\n**Service Endpoint Health** — Services with zero ready endpoints drop traffic for ClusterIP clients; fast detection isolates label selector and readiness probe issues.\n\nDocumented **Data sources**: `sourcetype=kube:metrics`. **App/TA** (typical add-on context): kube-state-metrics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: k8s; **sourcetype**: kube:metrics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=k8s, sourcetype=\"kube:metrics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by namespace, service** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where avail=0 OR not_ready>0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Service Endpoint Health**): table namespace service avail not_ready\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (service, endpoints), Status grid, Line chart (ready endpoints).",
+  "visualization": "Table (service, endpoints), Status grid, Line chart (ready endpoints).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "kubernetes"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ]
+}

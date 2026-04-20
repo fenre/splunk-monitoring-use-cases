@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "18.1.4",
+  "title": "Contract/Filter Hit Analysis",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "APIC contract hit counters, ACI flow telemetry",
+  "app": "`TA_cisco-ACI`, APIC flow logs",
+  "spl": "index=cisco_aci sourcetype=\"cisco:aci:contracts\"\n| stats sum(permit_count) as permitted, sum(deny_count) as denied by src_epg, dst_epg, contract_name, filter_name\n| eval total=permitted+denied\n| eval deny_pct=round((denied/total)*100, 2)\n| sort -total\n| table src_epg, dst_epg, contract_name, filter_name, permitted, denied, deny_pct",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "ACI contracts control EPG-to-EPG communication. Analyzing contract hits reveals traffic patterns, identifies overly permissive or unused contracts, and helps validate micro-segmentation policies are working as designed.",
+  "value": "ACI contracts control EPG-to-EPG communication. Analyzing contract hits reveals traffic patterns, identifies overly permissive or unused contracts, and helps validate micro-segmentation policies are working as designed.",
+  "implementation": "Enable contract statistics on APIC. Poll contract hit counters via API every 5 minutes. Track permit vs deny ratios per contract. Identify contracts with zero hits (candidates for cleanup). Alert on unexpected deny spikes indicating policy or application issues.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA_cisco-ACI`, APIC flow logs.\n• Ensure the following data sources are available: APIC contract hit counters, ACI flow telemetry.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable contract statistics on APIC. Poll contract hit counters via API every 5 minutes. Track permit vs deny ratios per contract. Identify contracts with zero hits (candidates for cleanup). Alert on unexpected deny spikes indicating policy or application issues.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cisco_aci sourcetype=\"cisco:aci:contracts\"\n| stats sum(permit_count) as permitted, sum(deny_count) as denied by src_epg, dst_epg, contract_name, filter_name\n| eval total=permitted+denied\n| eval deny_pct=round((denied/total)*100, 2)\n| sort -total\n| table src_epg, dst_epg, contract_name, filter_name, permitted, denied, deny_pct\n```\n\nUnderstanding this SPL\n\n**Contract/Filter Hit Analysis** — ACI contracts control EPG-to-EPG communication. Analyzing contract hits reveals traffic patterns, identifies overly permissive or unused contracts, and helps validate micro-segmentation policies are working as designed.\n\nDocumented **Data sources**: APIC contract hit counters, ACI flow telemetry. **App/TA** (typical add-on context): `TA_cisco-ACI`, APIC flow logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cisco_aci; **sourcetype**: cisco:aci:contracts. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cisco_aci, sourcetype=\"cisco:aci:contracts\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by src_epg, dst_epg, contract_name, filter_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **total** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **deny_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Contract/Filter Hit Analysis**): table src_epg, dst_epg, contract_name, filter_name, permitted, denied, deny_pct\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (contract hit summary), Bar chart (top contracts by hits), Timechart (deny trends), Sankey diagram (EPG-to-EPG flows).",
+  "visualization": "Table (contract hit summary), Bar chart (top contracts by hits), Timechart (deny trends), Sankey diagram (EPG-to-EPG flows).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_aci"
+  ],
+  "hardware": "Cisco APIC, Nexus 9332C (ACI), Nexus 93180YC-FX (ACI), Nexus 9364C (ACI), Nexus 9504 (ACI), Nexus 9508 (ACI)"
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.10.4",
+  "title": "Subrogation Recovery Tracking",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Insurance and Financial Services",
+  "dataSources": "`index=insurance` `sourcetype=\"subrogation:recovery\"` (claim_id, demand_amt, recovered_amt, opened_epoch, closed_epoch, outcome)",
+  "app": "Subrogation module via HEC",
+  "spl": "index=insurance sourcetype=\"subrogation:recovery\"\n| eval recovery_pct=if(demand_amt>0, round(100*recovered_amt/demand_amt,2), null)\n| eval age_days=round((now()-opened_epoch)/86400,1)\n| where recovery_pct < 30 AND age_days > 180 AND lower(outcome)!=\"closed_no_recovery\"\n| table claim_id, demand_amt, recovered_amt, recovery_pct, age_days, outcome",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Subrogation dollars recovered reduce net loss ratio; tracking recovery rate and aging by claim type validates vendor performance and statute-of-limitations risk.",
+  "value": "Subrogation dollars recovered reduce net loss ratio; tracking recovery rate and aging by claim type validates vendor performance and statute-of-limitations risk.",
+  "implementation": "Clarify accounting for partial payments in `recovered_amt`. Schedule weekly for aged inventory. Legal holds may restrict fields—mask PII per policy. **Domain context:** Subrogation success depends on liability findings and statute of limitations—`recovery_pct` thresholds should be counsel-reviewed, not purely operational. **Splunk:** `now()-opened_epoch` uses search-time clock—prefer `closed_epoch` or event time for aging if backfilled.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Subrogation module via HEC.\n• Ensure the following data sources are available: `index=insurance` `sourcetype=\"subrogation:recovery\"` (claim_id, demand_amt, recovered_amt, opened_epoch, closed_epoch, outcome).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nClarify accounting for partial payments in `recovered_amt`. Schedule weekly for aged inventory. Legal holds may restrict fields—mask PII per policy. **Domain context:** Subrogation success depends on liability findings and statute of limitations—`recovery_pct` thresholds should be counsel-reviewed, not purely operational. **Splunk:** `now()-opened_epoch` uses search-time clock—prefer `closed_epoch` or event time for aging if backfilled.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=insurance sourcetype=\"subrogation:recovery\"\n| eval recovery_pct=if(demand_amt>0, round(100*recovered_amt/demand_amt,2), null)\n| eval age_days=round((now()-opened_epoch)/86400,1)\n| where recovery_pct < 30 AND age_days > 180 AND lower(outcome)!=\"closed_no_recovery\"\n| table claim_id, demand_amt, recovered_amt, recovery_pct, age_days, outcome\n```\n\nUnderstanding this SPL\n\n**Subrogation Recovery Tracking** — Subrogation dollars recovered reduce net loss ratio; tracking recovery rate and aging by claim type validates vendor performance and statute-of-limitations risk.\n\nDocumented **Data sources**: `index=insurance` `sourcetype=\"subrogation:recovery\"` (claim_id, demand_amt, recovered_amt, opened_epoch, closed_epoch, outcome). **App/TA** (typical add-on context): Subrogation module via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: insurance; **sourcetype**: subrogation:recovery. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=insurance, sourcetype=\"subrogation:recovery\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **recovery_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **age_days** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where recovery_pct < 30 AND age_days > 180 AND lower(outcome)!=\"closed_no_recovery\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Subrogation Recovery Tracking**): table claim_id, demand_amt, recovered_amt, recovery_pct, age_days, outcome\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (recovery rate trend), Bar chart (aging buckets), Table (low-recovery claims).",
+  "visualization": "Line chart (recovery rate trend), Bar chart (aging buckets), Table (low-recovery claims).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.5.6",
+  "title": "MQTT Retain and Last Will Message Audit",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Broker audit log (publish with retain=1, will payload)",
+  "app": "MQTT broker (access log, audit log)",
+  "spl": "index=ot sourcetype=mqtt_broker_audit (retain=1 OR \"last_will\" OR \"will_message\")\n| bin _time span=1h\n| stats count by client_id, topic, action, _time\n| where count > 0\n| table _time client_id topic action count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Retained messages and Last Will payloads can contain sensitive state. Auditing who published retain/LWT and when supports change control and security review.",
+  "value": "Retained messages and Last Will payloads can contain sensitive state. Auditing who published retain/LWT and when supports change control and security review.",
+  "implementation": "Enable broker audit or access logging for MQTT publish (include retain flag and will payload if logged). Forward to Splunk. Alert on new retain on sensitive topics or LWT changes. Dashboard retain/LWT events by client and topic.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: MQTT broker (access log, audit log).\n• Ensure the following data sources are available: Broker audit log (publish with retain=1, will payload).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable broker audit or access logging for MQTT publish (include retain flag and will payload if logged). Forward to Splunk. Alert on new retain on sensitive topics or LWT changes. Dashboard retain/LWT events by client and topic.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=mqtt_broker_audit (retain=1 OR \"last_will\" OR \"will_message\")\n| bin _time span=1h\n| stats count by client_id, topic, action, _time\n| where count > 0\n| table _time client_id topic action count\n```\n\nUnderstanding this SPL\n\n**MQTT Retain and Last Will Message Audit** — Retained messages and Last Will payloads can contain sensitive state. Auditing who published retain/LWT and when supports change control and security review.\n\nDocumented **Data sources**: Broker audit log (publish with retain=1, will payload). **App/TA** (typical add-on context): MQTT broker (access log, audit log). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: mqtt_broker_audit. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=mqtt_broker_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by client_id, topic, action, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **MQTT Retain and Last Will Message Audit**): table _time client_id topic action count\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (client, topic, retain/LWT events), Timeline (audit events).",
+  "visualization": "Table (client, topic, retain/LWT events), Timeline (audit events).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "mqtt"
+  ]
+}

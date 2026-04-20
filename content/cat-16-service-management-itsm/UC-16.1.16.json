@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "16.1.16",
+  "title": "Ticket Aging by Priority",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Open incidents (`sourcetype=snow:incident`)",
+  "app": "`Splunk_TA_snow`",
+  "spl": "index=itsm sourcetype=\"snow:incident\" state IN (\"new\",\"in_progress\",\"on_hold\")\n| eval age_days=round((now()-opened_at)/86400,1)\n| eval bucket=case(age_days<=1,\"0-1d\", age_days<=7,\"2-7d\", age_days<=30,\"8-30d\", true(),\"30d+\")\n| eval pri=case(priority=1,\"P1\", priority=2,\"P2\", priority=3,\"P3\", priority=4,\"P4\", true(),\"Other\")\n| stats count by pri, bucket\n| sort pri, bucket",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Distribution of open ticket age by priority highlights backlog imbalance (e.g., many old P3s) and supports capacity and escalation decisions.",
+  "value": "Distribution of open ticket age by priority highlights backlog imbalance (e.g., many old P3s) and supports capacity and escalation decisions.",
+  "implementation": "Normalize priority labels. Bucket age for open tickets only. Report stacked bar or pivot table (priority × age bucket). Alert when count in `30d+` for P1/P2 exceeds policy.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow`.\n• Ensure the following data sources are available: Open incidents (`sourcetype=snow:incident`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize priority labels. Bucket age for open tickets only. Report stacked bar or pivot table (priority × age bucket). Alert when count in `30d+` for P1/P2 exceeds policy.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:incident\" state IN (\"new\",\"in_progress\",\"on_hold\")\n| eval age_days=round((now()-opened_at)/86400,1)\n| eval bucket=case(age_days<=1,\"0-1d\", age_days<=7,\"2-7d\", age_days<=30,\"8-30d\", true(),\"30d+\")\n| eval pri=case(priority=1,\"P1\", priority=2,\"P2\", priority=3,\"P3\", priority=4,\"P4\", true(),\"Other\")\n| stats count by pri, bucket\n| sort pri, bucket\n```\n\nUnderstanding this SPL\n\n**Ticket Aging by Priority** — Distribution of open ticket age by priority highlights backlog imbalance (e.g., many old P3s) and supports capacity and escalation decisions.\n\nDocumented **Data sources**: Open incidents (`sourcetype=snow:incident`). **App/TA** (typical add-on context): `Splunk_TA_snow`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:incident. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:incident\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **age_days** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **bucket** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **pri** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by pri, bucket** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar (age buckets by priority), Heatmap (priority × bucket), Table (raw counts).",
+  "visualization": "Stacked bar (age buckets by priority), Heatmap (priority × bucket), Table (raw counts).",
+  "references": [
+    {
+      "title": "Splunk_TA_snow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "equipment": [
+    "servicenow"
+  ]
+}

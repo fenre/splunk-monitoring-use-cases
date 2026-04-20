@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.1.33",
+  "title": "Knowledge Bundle Size Monitoring (_internal)",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=_internal` `sourcetype=splunkd` (bundles, `KnowledgeBundle`)",
+  "app": "Monitoring Console",
+  "spl": "index=_internal sourcetype=splunkd \"bundle\" (\"MB\" OR \"KB\" OR \"size\")\n| rex \"(?<bundle_mb>\\d+(\\.\\d+)?)\\s*MB\"\n| where bundle_mb > 200\n| stats count by host, user, app\n| sort -bundle_mb",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Oversized knowledge bundles slow search distribution and SHC replication.",
+  "value": "Oversized knowledge bundles slow search distribution and SHC replication.",
+  "implementation": "Prefer REST or scripted checks of bundle sizes on search heads. Alert when bundle size exceeds policy. Audit large lookups and unused apps.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Monitoring Console.\n• Ensure the following data sources are available: `index=_internal` `sourcetype=splunkd` (bundles, `KnowledgeBundle`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPrefer REST or scripted checks of bundle sizes on search heads. Alert when bundle size exceeds policy. Audit large lookups and unused apps.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal sourcetype=splunkd \"bundle\" (\"MB\" OR \"KB\" OR \"size\")\n| rex \"(?<bundle_mb>\\d+(\\.\\d+)?)\\s*MB\"\n| where bundle_mb > 200\n| stats count by host, user, app\n| sort -bundle_mb\n```\n\nUnderstanding this SPL\n\n**Knowledge Bundle Size Monitoring (_internal)** — Oversized knowledge bundles slow search distribution and SHC replication.\n\nDocumented **Data sources**: `index=_internal` `sourcetype=splunkd` (bundles, `KnowledgeBundle`). **App/TA** (typical add-on context): Monitoring Console. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal; **sourcetype**: splunkd. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, sourcetype=splunkd. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• Filters the current rows with `where bundle_mb > 200` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by host, user, app** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (largest bundles), Bar chart (size by app).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Table (largest bundles), Bar chart (size by app).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

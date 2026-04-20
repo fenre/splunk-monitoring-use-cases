@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.12.11",
+  "title": "Market Data Feed Latency",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial Services",
+  "dataSources": "`sourcetype=\"mktdata:itch\"`, `sourcetype=\"mktdata:bbo\"`",
+  "app": "Feed handler logs, hardware timestamping",
+  "spl": "index=marketdata sourcetype=\"mktdata:bbo\"\n| eval latency_ms=(ingest_time - exchange_send_time)*1000\n| timechart span=1m perc95(latency_ms) as p95_lat by feed\n| where p95_lat > 5",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Stale ticks distort pricing and execution; required for exchange member obligations and best-ex policies.",
+  "value": "Stale ticks distort pricing and execution; required for exchange member obligations and best-ex policies.",
+  "implementation": "Use PTP-synced clocks; alert on gap messages, sequence breaks, or latency SLO breach per venue.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Feed handler logs, hardware timestamping.\n• Ensure the following data sources are available: `sourcetype=\"mktdata:itch\"`, `sourcetype=\"mktdata:bbo\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse PTP-synced clocks; alert on gap messages, sequence breaks, or latency SLO breach per venue.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=marketdata sourcetype=\"mktdata:bbo\"\n| eval latency_ms=(ingest_time - exchange_send_time)*1000\n| timechart span=1m perc95(latency_ms) as p95_lat by feed\n| where p95_lat > 5\n```\n\nUnderstanding this SPL\n\n**Market Data Feed Latency** — Stale ticks distort pricing and execution; required for exchange member obligations and best-ex policies.\n\nDocumented **Data sources**: `sourcetype=\"mktdata:itch\"`, `sourcetype=\"mktdata:bbo\"`. **App/TA** (typical add-on context): Feed handler logs, hardware timestamping. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: marketdata; **sourcetype**: mktdata:bbo. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=marketdata, sourcetype=\"mktdata:bbo\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **latency_ms** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1m** buckets with a separate series **by feed** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where p95_lat > 5` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (p95 latency by feed), Single value (max gap), Heatmap (symbol × latency).",
+  "visualization": "Line chart (p95 latency by feed), Single value (max gap), Heatmap (symbol × latency).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows."
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "18.1.22",
+  "title": "Fabric Port-Channel and Member Link Imbalance",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=cisco_aci` `sourcetype=\"cisco:aci:interface_stats\"` with fields `node`, `interface`, `port_channel`, `bytesRate`, `speed`",
+  "app": "`TA_cisco-ACI`, APIC interface statistics",
+  "spl": "index=cisco_aci sourcetype=\"cisco:aci:interface_stats\" earliest=-2h\n| where isnotnull(port_channel)\n| stats sum(bytesRate) as br by node, port_channel, interface\n| eventstats sum(br) as pc_total by node, port_channel\n| eval member_pct=round(100*br/pc_total,2)\n| eventstats range(member_pct) as spread by node, port_channel\n| where spread > 35\n| table node, port_channel, interface, member_pct, spread\n| sort node, port_channel, -member_pct",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Uneven distribution across port-channel members defeats ECMP assumptions and can saturate individual uplinks while siblings stay idle. Detecting imbalance protects spine-leaf oversubscription models and avoids tail latency for storage and replication traffic.",
+  "value": "Uneven distribution across port-channel members defeats ECMP assumptions and can saturate individual uplinks while siblings stay idle. Detecting imbalance protects spine-leaf oversubscription models and avoids tail latency for storage and replication traffic.",
+  "implementation": "(1) Ensure `port_channel` is extracted from interface DN or API; map orphan physical members. (2) Alert when member spread exceeds policy (for example 35%). (3) Validate hashing and down-members with operational state feed.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA_cisco-ACI`, APIC interface statistics.\n• Ensure the following data sources are available: `index=cisco_aci` `sourcetype=\"cisco:aci:interface_stats\"` with fields `node`, `interface`, `port_channel`, `bytesRate`, `speed`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ensure `port_channel` is extracted from interface DN or API; map orphan physical members. (2) Alert when member spread exceeds policy (for example 35%). (3) Validate hashing and down-members with operational state feed.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cisco_aci sourcetype=\"cisco:aci:interface_stats\" earliest=-2h\n| where isnotnull(port_channel)\n| stats sum(bytesRate) as br by node, port_channel, interface\n| eventstats sum(br) as pc_total by node, port_channel\n| eval member_pct=round(100*br/pc_total,2)\n| eventstats range(member_pct) as spread by node, port_channel\n| where spread > 35\n| table node, port_channel, interface, member_pct, spread\n| sort node, port_channel, -member_pct\n```\n\nUnderstanding this SPL\n\n**Fabric Port-Channel and Member Link Imbalance** — Uneven distribution across port-channel members defeats ECMP assumptions and can saturate individual uplinks while siblings stay idle. Detecting imbalance protects spine-leaf oversubscription models and avoids tail latency for storage and replication traffic.\n\nDocumented **Data sources**: `index=cisco_aci` `sourcetype=\"cisco:aci:interface_stats\"` with fields `node`, `interface`, `port_channel`, `bytesRate`, `speed`. **App/TA** (typical add-on context): `TA_cisco-ACI`, APIC interface statistics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cisco_aci; **sourcetype**: cisco:aci:interface_stats. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cisco_aci, sourcetype=\"cisco:aci:interface_stats\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where isnotnull(port_channel)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by node, port_channel, interface** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eventstats` rolls up events into metrics; results are split **by node, port_channel** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **member_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eventstats` rolls up events into metrics; results are split **by node, port_channel** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where spread > 35` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Fabric Port-Channel and Member Link Imbalance**): table node, port_channel, interface, member_pct, spread\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (member_pct by interface), Table (imbalanced PCs), Heatmap (node × port_channel).",
+  "visualization": "Bar chart (member_pct by interface), Table (imbalanced PCs), Heatmap (node × port_channel).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_aci"
+  ],
+  "hardware": "Cisco Nexus 9300/9500 (ACI leaf/spine)"
+}

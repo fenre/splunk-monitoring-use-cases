@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "11.3.29",
+  "title": "Microsoft Teams Network Readiness (ThousandEyes)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Agent-to-Server tests)",
+  "app": "`Cisco ThousandEyes App for Splunk` (Splunkbase 7719)",
+  "spl": "`stream_index` thousandeyes.test.type=\"agent-to-server\"\n| search thousandeyes.test.name=\"*Teams*\" OR thousandeyes.test.name=\"*M365*\"\n| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter by thousandeyes.source.agent.name, server.address\n| eval avg_latency_ms=round(avg_latency_s*1000,1)\n| eval teams_ready=if(avg_latency_ms<50 AND avg_loss<1 AND avg_jitter<30, \"Ready\", \"Not Ready\")\n| sort teams_ready, -avg_latency_ms",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Validates that each office location meets Microsoft's network quality requirements for Teams calls and meetings (latency <50ms, loss <1%, jitter <30ms). ThousandEyes tests the actual network path to Microsoft 365 endpoints.",
+  "value": "Validates that each office location meets Microsoft's network quality requirements for Teams calls and meetings (latency <50ms, loss <1%, jitter <30ms). ThousandEyes tests the actual network path to Microsoft 365 endpoints.",
+  "implementation": "Create Agent-to-Server tests targeting Microsoft Teams media relay IPs and Microsoft 365 front-door endpoints from each office Enterprise Agent. Microsoft publishes recommended network requirements: latency <50ms, loss <1%, jitter <30ms for optimal Teams quality. ThousandEyes provides Microsoft 365 monitoring best practices. Name tests with \"Teams\" or \"M365\" for easy filtering.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco ThousandEyes App for Splunk` (Splunkbase 7719).\n• Ensure the following data sources are available: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Agent-to-Server tests).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate Agent-to-Server tests targeting Microsoft Teams media relay IPs and Microsoft 365 front-door endpoints from each office Enterprise Agent. Microsoft publishes recommended network requirements: latency <50ms, loss <1%, jitter <30ms for optimal Teams quality. ThousandEyes provides Microsoft 365 monitoring best practices. Name tests with \"Teams\" or \"M365\" for easy filtering.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n`stream_index` thousandeyes.test.type=\"agent-to-server\"\n| search thousandeyes.test.name=\"*Teams*\" OR thousandeyes.test.name=\"*M365*\"\n| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter by thousandeyes.source.agent.name, server.address\n| eval avg_latency_ms=round(avg_latency_s*1000,1)\n| eval teams_ready=if(avg_latency_ms<50 AND avg_loss<1 AND avg_jitter<30, \"Ready\", \"Not Ready\")\n| sort teams_ready, -avg_latency_ms\n```\n\nUnderstanding this SPL\n\n**Microsoft Teams Network Readiness (ThousandEyes)** — Validates that each office location meets Microsoft's network quality requirements for Teams calls and meetings (latency <50ms, loss <1%, jitter <30ms). ThousandEyes tests the actual network path to Microsoft 365 endpoints.\n\nDocumented **Data sources**: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Agent-to-Server tests). **App/TA** (typical add-on context): `Cisco ThousandEyes App for Splunk` (Splunkbase 7719). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Invokes macro `stream_index` — in Search, use the UI or expand to inspect the underlying SPL.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by thousandeyes.source.agent.name, server.address** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **avg_latency_ms** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **teams_ready** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (agent, latency, loss, jitter, readiness status), Single value (sites meeting requirements), Map (readiness by location).",
+  "visualization": "Table (agent, latency, loss, jitter, readiness status), Single value (sites meeting requirements), Map (readiness by location).",
+  "references": [
+    {
+      "title": "Splunkbase app 7719",
+      "url": "https://splunkbase.splunk.com/app/7719"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_thousandeyes"
+  ]
+}

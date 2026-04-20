@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.11",
+  "title": "Posture Assessment Failure Trends",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ISE posture assessment logs (`cisco:ise:posture`)",
+  "app": "Splunk_TA_cisco-ise",
+  "spl": "index=nac sourcetype=\"cisco:ise:posture\" earliest=-30d\n| where posture_status=\"NonCompliant\"\n| timechart span=1d count by failure_reason",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=failure\n  by Authentication.src span=1d",
+  "cimModels": [
+    "Authentication",
+    "Network_Sessions"
+  ],
+  "description": "Time-series view of posture failures by policy and reason — distinguishes one-off issues from worsening fleet hygiene or a bad policy rollout.",
+  "value": "Time-series view of posture failures by policy and reason — distinguishes one-off issues from worsening fleet hygiene or a bad policy rollout.",
+  "implementation": "Normalize `failure_reason` from ISE. Alert when daily failures exceed 7-day baseline by >50%. Segment by AD group or location if extracted.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk_TA_cisco-ise.\n• Ensure the following data sources are available: ISE posture assessment logs (`cisco:ise:posture`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize `failure_reason` from ISE. Alert when daily failures exceed 7-day baseline by >50%. Segment by AD group or location if extracted.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nac sourcetype=\"cisco:ise:posture\" earliest=-30d\n| where posture_status=\"NonCompliant\"\n| timechart span=1d count by failure_reason\n```\n\nUnderstanding this SPL\n\n**Posture Assessment Failure Trends** — Time-series view of posture failures by policy and reason — distinguishes one-off issues from worsening fleet hygiene or a bad policy rollout.\n\nDocumented **Data sources**: ISE posture assessment logs (`cisco:ise:posture`). **App/TA** (typical add-on context): Splunk_TA_cisco-ise. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nac; **sourcetype**: cisco:ise:posture. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nac, sourcetype=\"cisco:ise:posture\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where posture_status=\"NonCompliant\"` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by failure_reason** — ideal for trending and alerting on this use case.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=failure\n  by Authentication.src span=1d\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Posture Assessment Failure Trends** — Time-series view of posture failures by policy and reason — distinguishes one-off issues from worsening fleet hygiene or a bad policy rollout.\n\nDocumented **Data sources**: ISE posture assessment logs (`cisco:ise:posture`). **App/TA** (typical add-on context): Splunk_TA_cisco-ise. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (failures over time by reason), Stacked area (failures by policy), Single value (failures vs prior week).",
+  "visualization": "Line chart (failures over time by reason), Stacked area (failures by policy), Single value (failures vs prior week).",
+  "references": [
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "hardware": "Cisco ISE 3515–3695, ISE Virtual Appliance"
+}

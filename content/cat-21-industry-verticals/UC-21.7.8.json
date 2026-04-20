@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.7.8",
+  "title": "Gate Allocation Optimization Analytics",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Aviation",
+  "dataSources": "`index=airport` `sourcetype=\"gate:allocation\"` (flight_id, gate_id, planned_gate, actual_gate, change_count, tow_required_flag)",
+  "app": "AODB / gate management via HEC",
+  "spl": "index=airport sourcetype=\"gate:allocation\"\n| eval gate_mismatch=if(planned_gate!=actual_gate,1,0)\n| stats sum(gate_mismatch) as changes, sum(tow_required_flag) as tows, count as flights by gate_id\n| eval change_rate=round(100*changes/nullif(flights,0),2)\n| where change_rate > 25 OR tows > 10\n| sort - change_rate\n| table gate_id, flights, changes, change_rate, tows",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Gate churn and long towing distances waste ground time; analyzing assigned vs actual gate usage supports stand planning and reduces conflicts.",
+  "value": "Gate churn and long towing distances waste ground time; analyzing assigned vs actual gate usage supports stand planning and reduces conflicts.",
+  "implementation": "Refresh from AODB snapshots or event stream on gate changes. Join aircraft size class if available to explain constraints. Use monthly reports for planning rather than minute-by-minute alerts. **Domain context:** Gate changes drive towing and turnaround—ICAO Doc 9644 addresses apron management coordination. **Splunk:** `gate_mismatch` counts per `gate_id` may mix cause (airline swap vs airport reassignment)—add `reason_code` if available.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: AODB / gate management via HEC.\n• Ensure the following data sources are available: `index=airport` `sourcetype=\"gate:allocation\"` (flight_id, gate_id, planned_gate, actual_gate, change_count, tow_required_flag).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRefresh from AODB snapshots or event stream on gate changes. Join aircraft size class if available to explain constraints. Use monthly reports for planning rather than minute-by-minute alerts. **Domain context:** Gate changes drive towing and turnaround—ICAO Doc 9644 addresses apron management coordination. **Splunk:** `gate_mismatch` counts per `gate_id` may mix cause (airline swap vs airport reassignment)—add `reason_code` if available.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=airport sourcetype=\"gate:allocation\"\n| eval gate_mismatch=if(planned_gate!=actual_gate,1,0)\n| stats sum(gate_mismatch) as changes, sum(tow_required_flag) as tows, count as flights by gate_id\n| eval change_rate=round(100*changes/nullif(flights,0),2)\n| where change_rate > 25 OR tows > 10\n| sort - change_rate\n| table gate_id, flights, changes, change_rate, tows\n```\n\nUnderstanding this SPL\n\n**Gate Allocation Optimization Analytics** — Gate churn and long towing distances waste ground time; analyzing assigned vs actual gate usage supports stand planning and reduces conflicts.\n\nDocumented **Data sources**: `index=airport` `sourcetype=\"gate:allocation\"` (flight_id, gate_id, planned_gate, actual_gate, change_count, tow_required_flag). **App/TA** (typical add-on context): AODB / gate management via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: airport; **sourcetype**: gate:allocation. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=airport, sourcetype=\"gate:allocation\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **gate_mismatch** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by gate_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **change_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where change_rate > 25 OR tows > 10` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Gate Allocation Optimization Analytics**): table gate_id, flights, changes, change_rate, tows\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (change rate by gate), Stacked bar (tows vs no tow), Table (top volatile gates).",
+  "visualization": "Bar chart (change rate by gate), Stacked bar (tows vs no tow), Table (top volatile gates).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

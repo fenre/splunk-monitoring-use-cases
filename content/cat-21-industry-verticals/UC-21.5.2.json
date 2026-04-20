@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.5.2",
+  "title": "Wellhead Telemetry Data Gap Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Oil, Gas, and Mining",
+  "dataSources": "`index=ot` `sourcetype=\"wellhead:telemetry\"` fields `well_id`, `expected_interval_sec`",
+  "app": "Edge Hub / RTU feeds via HEC",
+  "premiumApps": [
+    "Splunk Edge Hub"
+  ],
+  "spl": "index=ot sourcetype=\"wellhead:telemetry\"\n| stats latest(_time) as last_seen by well_id\n| eval gap_sec=now()-last_seen\n| where gap_sec > 900\n| eval gap_min=round(gap_sec/60,1)\n| sort - gap_sec\n| table well_id, last_seen, gap_min",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Missing wellhead measurements indicate communication failures. Quick detection ensures SCADA and field teams can restore data continuity.",
+  "value": "Missing wellhead measurements indicate communication failures. Quick detection ensures SCADA and field teams can restore data continuity.",
+  "implementation": "Include expected interval on each event or use 3x scan rate as threshold. Verify against planned shutdowns via a maintenance lookup. **Domain context:** Wellhead SCADA gaps can mask unsafe operating conditions or production loss—align thresholds with RTU poll schedule (minutes vs seconds). **Splunk:** `now()-last_seen` in scheduled searches uses search time; use `latest(_time)` from a summarization for fleet-wide freshness.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Edge Hub / RTU feeds via HEC.\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"wellhead:telemetry\"` fields `well_id`, `expected_interval_sec`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nInclude expected interval on each event or use 3x scan rate as threshold. Verify against planned shutdowns via a maintenance lookup. **Domain context:** Wellhead SCADA gaps can mask unsafe operating conditions or production loss—align thresholds with RTU poll schedule (minutes vs seconds). **Splunk:** `now()-last_seen` in scheduled searches uses search time; use `latest(_time)` from a summarization for fleet-wide freshness.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"wellhead:telemetry\"\n| stats latest(_time) as last_seen by well_id\n| eval gap_sec=now()-last_seen\n| where gap_sec > 900\n| eval gap_min=round(gap_sec/60,1)\n| sort - gap_sec\n| table well_id, last_seen, gap_min\n```\n\nUnderstanding this SPL\n\n**Wellhead Telemetry Data Gap Monitoring** — Missing wellhead measurements indicate communication failures. Quick detection ensures SCADA and field teams can restore data continuity.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"wellhead:telemetry\"` fields `well_id`, `expected_interval_sec`. **App/TA** (typical add-on context): Edge Hub / RTU feeds via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: wellhead:telemetry. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"wellhead:telemetry\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by well_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **gap_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where gap_sec > 900` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **gap_min** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Wellhead Telemetry Data Gap Monitoring**): table well_id, last_seen, gap_min\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (wells by gap), Single value (stale well count), Timeline (last seen).",
+  "visualization": "Table (wells by gap), Single value (stale well count), Timeline (last seen).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "edge_hub"
+  ]
+}

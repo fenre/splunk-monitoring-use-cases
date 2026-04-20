@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.1.16",
+  "title": "IOM Uplink Utilization",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`cisco:ucs:iom_stats`",
+  "app": "`Splunk_TA_cisco-ucs`",
+  "spl": "index=cisco_ucs sourcetype=\"cisco:ucs:iom_stats\" earliest=-1h\n| eval util_pct=round((rx_bps+tx_bps)*8/link_speed_bps*100,1)\n| where util_pct>70\n| stats max(util_pct) as peak_util by chassis_id, iom_slot, port\n| sort -peak_util",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "IOM-to-FI uplink saturation causes east-west congestion for blade traffic.",
+  "value": "IOM-to-FI uplink saturation causes east-west congestion for blade traffic.",
+  "implementation": "Poll IOM port counters. Alert at 70%/85%. Plan additional uplinks or rebalance servers.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_cisco-ucs`.\n• Ensure the following data sources are available: `cisco:ucs:iom_stats`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll IOM port counters. Alert at 70%/85%. Plan additional uplinks or rebalance servers.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cisco_ucs sourcetype=\"cisco:ucs:iom_stats\" earliest=-1h\n| eval util_pct=round((rx_bps+tx_bps)*8/link_speed_bps*100,1)\n| where util_pct>70\n| stats max(util_pct) as peak_util by chassis_id, iom_slot, port\n| sort -peak_util\n```\n\nUnderstanding this SPL\n\n**IOM Uplink Utilization** — IOM-to-FI uplink saturation causes east-west congestion for blade traffic.\n\nDocumented **Data sources**: `cisco:ucs:iom_stats`. **App/TA** (typical add-on context): `Splunk_TA_cisco-ucs`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cisco_ucs; **sourcetype**: cisco:ucs:iom_stats. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cisco_ucs, sourcetype=\"cisco:ucs:iom_stats\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **util_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where util_pct>70` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by chassis_id, iom_slot, port** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap (IOM × port util), Table (hot uplinks), Line chart (trend).",
+  "visualization": "Heatmap (IOM × port util), Table (hot uplinks), Line chart (trend).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ucs"
+  ],
+  "hardware": "UCS IOM modules"
+}

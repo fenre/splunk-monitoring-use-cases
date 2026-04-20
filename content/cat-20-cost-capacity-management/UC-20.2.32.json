@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "20.2.32",
+  "title": "GPU Pool Utilization for ML Workload Capacity",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=ml_infra` `sourcetype=\"dcgm:gpu\"`",
+  "app": "NVIDIA DCGM exporter, Kubernetes GPU metrics, cloud GPU monitoring",
+  "spl": "index=ml_infra sourcetype=\"dcgm:gpu\" earliest=-7d\n| eval util=tonumber(coalesce(gpu_sm_utilization, sm_util_pct))\n| bin _time span=1h\n| stats avg(util) as avg_sm perc95(util) as p95_sm by _time, host, gpu_index\n| stats avg(avg_sm) as fleet_avg max(p95_sm) as fleet_p95 by host\n| eval underused=if(fleet_avg<35 AND fleet_p95<70,1,0)\n| where underused=1 OR fleet_p95>92\n| table host, fleet_avg, fleet_p95",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "GPU nodes are expensive; low average utilization wastes capital while queue spikes delay training service levels. Tracking streaming-multiprocessor utilization and peak load by host informs autoscaler bounds and purchase versus spot decisions.",
+  "value": "GPU nodes are expensive; low average utilization wastes capital while queue spikes delay training service levels. Tracking streaming-multiprocessor utilization and peak load by host informs autoscaler bounds and purchase versus spot decisions.",
+  "implementation": "(1) Deploy DCGM on GPU nodes and normalize `gpu_index`. (2) Tag hosts with workload type such as training versus inference. (3) Right-size node pools when underused persists fourteen days; scale out when fleet_p95 exceeds ninety-two.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: NVIDIA DCGM exporter, Kubernetes GPU metrics, cloud GPU monitoring.\n• Ensure the following data sources are available: `index=ml_infra` `sourcetype=\"dcgm:gpu\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Deploy DCGM on GPU nodes and normalize `gpu_index`. (2) Tag hosts with workload type such as training versus inference. (3) Right-size node pools when underused persists fourteen days; scale out when fleet_p95 exceeds ninety-two.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ml_infra sourcetype=\"dcgm:gpu\" earliest=-7d\n| eval util=tonumber(coalesce(gpu_sm_utilization, sm_util_pct))\n| bin _time span=1h\n| stats avg(util) as avg_sm perc95(util) as p95_sm by _time, host, gpu_index\n| stats avg(avg_sm) as fleet_avg max(p95_sm) as fleet_p95 by host\n| eval underused=if(fleet_avg<35 AND fleet_p95<70,1,0)\n| where underused=1 OR fleet_p95>92\n| table host, fleet_avg, fleet_p95\n```\n\nUnderstanding this SPL\n\n**GPU Pool Utilization for ML Workload Capacity** — GPU nodes are expensive; low average utilization wastes capital while queue spikes delay training service levels. Tracking streaming-multiprocessor utilization and peak load by host informs autoscaler bounds and purchase versus spot decisions.\n\nDocumented **Data sources**: `index=ml_infra` `sourcetype=\"dcgm:gpu\"`. **App/TA** (typical add-on context): NVIDIA DCGM exporter, Kubernetes GPU metrics, cloud GPU monitoring. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ml_infra; **sourcetype**: dcgm:gpu. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ml_infra, sourcetype=\"dcgm:gpu\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **util** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, host, gpu_index** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **underused** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where underused=1 OR fleet_p95>92` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **GPU Pool Utilization for ML Workload Capacity**): table host, fleet_avg, fleet_p95\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Box plot (utilization distribution), Table (underused hosts), Timechart (job queue depth if ingested).",
+  "visualization": "Box plot (utilization distribution), Table (underused hosts), Timechart (job queue depth if ingested).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "kubernetes"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ]
+}

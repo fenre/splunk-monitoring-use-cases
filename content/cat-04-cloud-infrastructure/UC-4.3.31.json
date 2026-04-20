@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.3.31",
+  "title": "Cloud KMS Key Rotation Compliance",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=google:gcp:pubsub:message` (cloudkms.googleapis.com audit), Asset Inventory key metadata",
+  "app": "`Splunk_TA_google-cloudplatform`",
+  "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"cloudkms.googleapis.com\" protoPayload.methodName=\"*CryptoKey*\"\n| stats latest(protoPayload.request.nextRotationTime) as next_rot by resource.labels.key_ring_id, resource.labels.crypto_key_id\n| eval days=round((strptime(next_rot,\"%Y-%m-%dT%H:%M:%SZ\")-now())/86400,0)\n| where days < 30 OR isnull(days)",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Crypto policy often mandates rotation; tracking next rotation time avoids audit findings and forced emergency rotations.",
+  "value": "Crypto policy often mandates rotation; tracking next rotation time avoids audit findings and forced emergency rotations.",
+  "implementation": "Nightly sync key metadata including rotation period and next rotation. Alert when rotation overdue or manual rotation gaps detected. Include CMEK keys for BigQuery and GCS.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_google-cloudplatform`.\n• Ensure the following data sources are available: `sourcetype=google:gcp:pubsub:message` (cloudkms.googleapis.com audit), Asset Inventory key metadata.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNightly sync key metadata including rotation period and next rotation. Alert when rotation overdue or manual rotation gaps detected. Include CMEK keys for BigQuery and GCS.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"cloudkms.googleapis.com\" protoPayload.methodName=\"*CryptoKey*\"\n| stats latest(protoPayload.request.nextRotationTime) as next_rot by resource.labels.key_ring_id, resource.labels.crypto_key_id\n| eval days=round((strptime(next_rot,\"%Y-%m-%dT%H:%M:%SZ\")-now())/86400,0)\n| where days < 30 OR isnull(days)\n```\n\nUnderstanding this SPL\n\n**Cloud KMS Key Rotation Compliance** — Crypto policy often mandates rotation; tracking next rotation time avoids audit findings and forced emergency rotations.\n\nDocumented **Data sources**: `sourcetype=google:gcp:pubsub:message` (cloudkms.googleapis.com audit), Asset Inventory key metadata. **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gcp; **sourcetype**: google:gcp:pubsub:message. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gcp, sourcetype=\"google:gcp:pubsub:message\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by resource.labels.key_ring_id, resource.labels.crypto_key_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **days** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days < 30 OR isnull(days)` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (key, days to rotation), Timeline (rotation events), Single value (keys out of compliance).",
+  "visualization": "Table (key, days to rotation), Timeline (rotation events), Single value (keys out of compliance).",
+  "references": [
+    {
+      "title": "Splunk_TA_google-cloudplatform",
+      "url": "https://splunkbase.splunk.com/app/3088"
+    }
+  ],
+  "mitreAttack": [
+    "T1098.001"
+  ],
+  "equipment": [
+    "gcp"
+  ]
+}

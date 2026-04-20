@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.5.20",
+  "title": "Hub-and-Spoke vs Full-Mesh Topology Validation",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Configuration"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "vManage BFD sessions, OMP routes, `sourcetype=cisco:sdwan:bfd`",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API",
+  "spl": "index=sdwan sourcetype=\"cisco:sdwan:bfd\" state=\"up\"\n| stats dc(remote_system_ip) as peer_count, values(remote_system_ip) as peers by local_system_ip, site_id\n| eventstats avg(peer_count) as avg_peers\n| eval topology=case(peer_count>avg_peers*1.5,\"full-mesh candidate\",peer_count<=2,\"spoke\",1=1,\"partial-mesh\")\n| table site_id local_system_ip peer_count topology\n| sort -peer_count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "SD-WAN overlay topology determines traffic flow patterns. Validating that the actual tunnel mesh matches the intended design prevents asymmetric routing, hairpinning through hubs, and suboptimal site-to-site paths that add latency and waste hub bandwidth.",
+  "value": "SD-WAN overlay topology determines traffic flow patterns. Validating that the actual tunnel mesh matches the intended design prevents asymmetric routing, hairpinning through hubs, and suboptimal site-to-site paths that add latency and waste hub bandwidth.",
+  "implementation": "Map the active tunnel mesh by enumerating BFD sessions per device. Compare against the intended topology (hub-and-spoke, regional hub, full-mesh). Identify sites with fewer tunnels than expected (potential reachability gaps) or more tunnels than intended (resource waste). Review when deploying new sites or changing control policies.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API.\n• Ensure the following data sources are available: vManage BFD sessions, OMP routes, `sourcetype=cisco:sdwan:bfd`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap the active tunnel mesh by enumerating BFD sessions per device. Compare against the intended topology (hub-and-spoke, regional hub, full-mesh). Identify sites with fewer tunnels than expected (potential reachability gaps) or more tunnels than intended (resource waste). Review when deploying new sites or changing control policies.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=sdwan sourcetype=\"cisco:sdwan:bfd\" state=\"up\"\n| stats dc(remote_system_ip) as peer_count, values(remote_system_ip) as peers by local_system_ip, site_id\n| eventstats avg(peer_count) as avg_peers\n| eval topology=case(peer_count>avg_peers*1.5,\"full-mesh candidate\",peer_count<=2,\"spoke\",1=1,\"partial-mesh\")\n| table site_id local_system_ip peer_count topology\n| sort -peer_count\n```\n\nUnderstanding this SPL\n\n**Hub-and-Spoke vs Full-Mesh Topology Validation** — SD-WAN overlay topology determines traffic flow patterns. Validating that the actual tunnel mesh matches the intended design prevents asymmetric routing, hairpinning through hubs, and suboptimal site-to-site paths that add latency and waste hub bandwidth.\n\nDocumented **Data sources**: vManage BFD sessions, OMP routes, `sourcetype=cisco:sdwan:bfd`. **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: sdwan; **sourcetype**: cisco:sdwan:bfd. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=sdwan, sourcetype=\"cisco:sdwan:bfd\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by local_system_ip, site_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **topology** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Hub-and-Spoke vs Full-Mesh Topology Validation**): table site_id local_system_ip peer_count topology\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Network graph (nodes = sites, edges = tunnels), Table (site, peer count, topology type), Bar chart (topology distribution).",
+  "visualization": "Network graph (nodes = sites, edges = tunnels), Table (site, peer count, topology type), Bar chart (topology distribution).",
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    }
+  ],
+  "knownFalsePositives": "On-demand dynamic tunnels (TLOC extension) may create temporary additional peers that do not indicate misconfiguration.",
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_sdwan"
+  ],
+  "hardware": "Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart"
+}

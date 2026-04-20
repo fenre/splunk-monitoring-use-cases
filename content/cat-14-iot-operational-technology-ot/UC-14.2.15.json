@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.2.15",
+  "title": "Control Loop Deviation",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=\"opcua:control\"` (pv, sp, out)",
+  "app": "OPC-UA process tags",
+  "spl": "index=ot sourcetype=\"opcua:control\"\n| eval err=abs(pv-sp)\n| where err > deadband*5 OR (abs(out)>95 AND err>deadband)\n| timechart span=1m avg(err) by loop_id",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "PV diverging from SP with saturated output indicates tuning issues or actuator faults.",
+  "value": "PV diverging from SP with saturated output indicates tuning issues or actuator faults.",
+  "implementation": "Define deadband per loop. Alert when sustained error exceeds threshold or output pegs. Integrate with maintenance CMMS.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: OPC-UA process tags.\n• Ensure the following data sources are available: `sourcetype=\"opcua:control\"` (pv, sp, out).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDefine deadband per loop. Alert when sustained error exceeds threshold or output pegs. Integrate with maintenance CMMS.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"opcua:control\"\n| eval err=abs(pv-sp)\n| where err > deadband*5 OR (abs(out)>95 AND err>deadband)\n| timechart span=1m avg(err) by loop_id\n```\n\nUnderstanding this SPL\n\n**Control Loop Deviation** — PV diverging from SP with saturated output indicates tuning issues or actuator faults.\n\nDocumented **Data sources**: `sourcetype=\"opcua:control\"` (pv, sp, out). **App/TA** (typical add-on context): OPC-UA process tags. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: opcua:control. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"opcua:control\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **err** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where err > deadband*5 OR (abs(out)>95 AND err>deadband)` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=1m** buckets with a separate series **by loop_id** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (PV vs SP), Gauge (loop error), Table (loops in alarm).",
+  "visualization": "Line chart (PV vs SP), Gauge (loop error), Table (loops in alarm).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.",
+  "equipment": [
+    "opcua"
+  ]
+}

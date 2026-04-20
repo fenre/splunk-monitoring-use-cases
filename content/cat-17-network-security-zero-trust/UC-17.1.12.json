@@ -1,0 +1,54 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.12",
+  "title": "Rogue Device Detection",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ISE authentication logs, profiling",
+  "app": "`Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog",
+  "premiumApps": [
+    {
+      "name": "Splunk User Behavior Analytics",
+      "displayName": "Splunk User Behavior Analytics",
+      "note": "UBA"
+    }
+  ],
+  "spl": "index=nac sourcetype=\"cisco:ise:auth\" earliest=-24h\n| eval mac=upper(replace(endpoint_mac,\":\",\"-\"))\n| lookup corp_device_inventory.csv mac OUTPUT asset_tag\n| where isnull(asset_tag) AND match(auth_status,\"(?i)success|pass\")\n| stats count by mac, switch, location\n| where count>=3\n| sort -count",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  by Authentication.src span=1h\n| where count > 20",
+  "cimModels": [
+    "Authentication",
+    "Network_Sessions"
+  ],
+  "description": "Identifies MACs or devices that authenticate or probe but are not in the corporate device inventory — common NAC use case for unauthorized hardware.",
+  "value": "Identifies MACs or devices that authenticate or probe but are not in the corporate device inventory — common NAC use case for unauthorized hardware.",
+  "implementation": "Maintain `corp_device_inventory.csv` from MDM/CMDB (MAC, owner). Tune minimum event count to reduce noise. Correlate with port-security and DHCP snooping if available.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog.\n• Ensure the following data sources are available: ISE authentication logs, profiling.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain `corp_device_inventory.csv` from MDM/CMDB (MAC, owner). Tune minimum event count to reduce noise. Correlate with port-security and DHCP snooping if available.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nac sourcetype=\"cisco:ise:auth\" earliest=-24h\n| eval mac=upper(replace(endpoint_mac,\":\",\"-\"))\n| lookup corp_device_inventory.csv mac OUTPUT asset_tag\n| where isnull(asset_tag) AND match(auth_status,\"(?i)success|pass\")\n| stats count by mac, switch, location\n| where count>=3\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Rogue Device Detection** — Identifies MACs or devices that authenticate or probe but are not in the corporate device inventory — common NAC use case for unauthorized hardware.\n\nDocumented **Data sources**: ISE authentication logs, profiling. **App/TA** (typical add-on context): `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nac; **sourcetype**: cisco:ise:auth. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nac, sourcetype=\"cisco:ise:auth\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **mac** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(asset_tag) AND match(auth_status,\"(?i)success|pass\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by mac, switch, location** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count>=3` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  by Authentication.src span=1h\n| where count > 20\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Rogue Device Detection** — Identifies MACs or devices that authenticate or probe but are not in the corporate device inventory — common NAC use case for unauthorized hardware.\n\nDocumented **Data sources**: ISE authentication logs, profiling. **App/TA** (typical add-on context): `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Filters the current rows with `where count > 20` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unknown MACs), Bar chart (rogue events by site), Timeline (first seen).",
+  "visualization": "Table (unknown MACs), Bar chart (rogue events by site), Timeline (first seen).",
+  "references": [
+    {
+      "title": "Splunk_TA_cisco-ise",
+      "url": "https://splunkbase.splunk.com/app/1915"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1200"
+  ],
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_ios",
+    "cisco_ise"
+  ],
+  "hardware": "Cisco ISE, switch/WLC syslog"
+}

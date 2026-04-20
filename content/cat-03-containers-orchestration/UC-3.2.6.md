@@ -1,0 +1,76 @@
+---
+id: "3.2.6"
+title: "Deployment Rollout Failures"
+criticality: "critical"
+splunkPillar: "Observability"
+---
+
+# UC-3.2.6 · Deployment Rollout Failures
+
+## Description
+
+A failed rollout means new code isn't deploying successfully. Pods may be crash-looping, image pulls failing, or health checks not passing.
+
+## Value
+
+A failed rollout means new code isn't deploying successfully. Pods may be crash-looping, image pulls failing, or health checks not passing.
+
+## Implementation
+
+Monitor deployment events. Alert on `ProgressDeadlineExceeded` which means the deployment failed to complete within its configured deadline. Correlate with pod events for root cause.
+
+## Detailed Implementation
+
+Prerequisites
+• Install and configure the required add-on or app: Splunk OTel Collector, Kubernetes events.
+• Ensure the following data sources are available: `sourcetype=kube:events`.
+• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+Step 1 — Configure data collection
+Monitor deployment events. Alert on `ProgressDeadlineExceeded` which means the deployment failed to complete within its configured deadline. Correlate with pod events for root cause.
+
+Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+index=k8s sourcetype="kube:events" involvedObject.kind="Deployment" (reason="ProgressDeadlineExceeded" OR reason="ReplicaSetUpdated" OR reason="FailedCreate")
+| table _time namespace involvedObject.name reason message
+| sort -_time
+```
+
+Understanding this SPL
+
+**Deployment Rollout Failures** — A failed rollout means new code isn't deploying successfully. Pods may be crash-looping, image pulls failing, or health checks not passing.
+
+Documented **Data sources**: `sourcetype=kube:events`. **App/TA** (typical add-on context): Splunk OTel Collector, Kubernetes events. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: k8s; **sourcetype**: kube:events. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+• Scopes the data: index=k8s, sourcetype="kube:events". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+• Pipeline stage (see **Deployment Rollout Failures**): table _time namespace involvedObject.name reason message
+• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+
+Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (deployment, namespace, reason), Timeline, Status panel.
+
+## SPL
+
+```spl
+index=k8s sourcetype="kube:events" involvedObject.kind="Deployment" (reason="ProgressDeadlineExceeded" OR reason="ReplicaSetUpdated" OR reason="FailedCreate")
+| table _time namespace involvedObject.name reason message
+| sort -_time
+```
+
+## Visualization
+
+Table (deployment, namespace, reason), Timeline, Status panel.
+
+## References
+
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

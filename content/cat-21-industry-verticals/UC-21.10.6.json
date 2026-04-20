@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.10.6",
+  "title": "Insurance Fraud Ring Detection",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Fault"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Insurance and Financial Services",
+  "dataSources": "`index=insurance` `sourcetype=\"fraud:network\"` (claim_id, entity_id, entity_type, edge_type, related_claim_id)",
+  "app": "Splunk App for Fraud Analytics, graph enrichment via HEC",
+  "premiumApps": [
+    "Splunk App for Fraud Analytics"
+  ],
+  "spl": "index=insurance sourcetype=\"fraud:network\"\n| stats dc(claim_id) as claim_cnt, dc(related_claim_id) as rel_cnt, values(entity_type) as types by entity_id\n| eval fanout=claim_cnt+rel_cnt\n| where fanout >= 5 AND mvcount(types) >= 2\n| sort - fanout\n| table entity_id, fanout, claim_cnt, rel_cnt, types",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Graph-style links among claimants, body shops, and payees reveal staged-loss rings distinct from generic payment fraud in banking; supports SIU prioritization when combined with Fraud Analytics scores.",
+  "value": "Graph-style links among claimants, body shops, and payees reveal staged-loss rings distinct from generic payment fraud in banking; supports SIU prioritization when combined with Fraud Analytics scores.",
+  "implementation": "Build nightly entity extracts from claims and vendor data; load into Splunk or external graph with summaries back. Coordinate with legal for PII handling. Pair with Behavioral Profiling App scores for triage. **Domain context:** SIU investigations blend fraud scoring with privileged legal strategy—Splunk supports prioritization, not case disposition. **Splunk:** `stats dc(claim_id)` dedupes per entity—tune `fanout` thresholds; consider Splunk App for Fraud Analytics for graph-assisted workflows.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk App for Fraud Analytics, graph enrichment via HEC.\n• Ensure the following data sources are available: `index=insurance` `sourcetype=\"fraud:network\"` (claim_id, entity_id, entity_type, edge_type, related_claim_id).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBuild nightly entity extracts from claims and vendor data; load into Splunk or external graph with summaries back. Coordinate with legal for PII handling. Pair with Behavioral Profiling App scores for triage. **Domain context:** SIU investigations blend fraud scoring with privileged legal strategy—Splunk supports prioritization, not case disposition. **Splunk:** `stats dc(claim_id)` dedupes per entity—tune `fanout` thresholds; consider Splunk App for Fraud Analytics for graph-assisted workflows.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=insurance sourcetype=\"fraud:network\"\n| stats dc(claim_id) as claim_cnt, dc(related_claim_id) as rel_cnt, values(entity_type) as types by entity_id\n| eval fanout=claim_cnt+rel_cnt\n| where fanout >= 5 AND mvcount(types) >= 2\n| sort - fanout\n| table entity_id, fanout, claim_cnt, rel_cnt, types\n```\n\nUnderstanding this SPL\n\n**Insurance Fraud Ring Detection** — Graph-style links among claimants, body shops, and payees reveal staged-loss rings distinct from generic payment fraud in banking; supports SIU prioritization when combined with Fraud Analytics scores.\n\nDocumented **Data sources**: `index=insurance` `sourcetype=\"fraud:network\"` (claim_id, entity_id, entity_type, edge_type, related_claim_id). **App/TA** (typical add-on context): Splunk App for Fraud Analytics, graph enrichment via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: insurance; **sourcetype**: fraud:network. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=insurance, sourcetype=\"fraud:network\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by entity_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **fanout** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where fanout >= 5 AND mvcount(types) >= 2` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Insurance Fraud Ring Detection**): table entity_id, fanout, claim_cnt, rel_cnt, types\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Node-link diagram (external viz or custom), Table (high-fanout entities), Bar chart (claims per entity).",
+  "visualization": "Node-link diagram (external viz or custom), Table (high-fanout entities), Bar chart (claims per entity).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

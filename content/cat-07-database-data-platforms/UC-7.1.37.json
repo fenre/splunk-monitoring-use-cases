@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.37",
+  "subcategory": "7.4",
+  "title": "Temp Tablespace Usage (Oracle TEMP)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`V$TEMPSEG_USAGE`, `DBA_TEMP_FREE_SPACE`",
+  "app": "DB Connect",
+  "spl": "index=database sourcetype=\"dbconnect:oracle_temp\"\n| stats sum(blocks_used) as used_blocks by tablespace_name, session_addr\n| eventstats sum(used_blocks) as total_used by tablespace_name\n| lookup oracle_temp_space tablespace_name OUTPUT max_blocks\n| where total_used > max_blocks*0.85\n| table tablespace_name total_used max_blocks",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Databases.Lock_Stats by Lock_Stats.host, Lock_Stats.action | sort - count",
+  "cimModels": [
+    "Databases"
+  ],
+  "description": "High `TEMP` usage for sorts and hashes causes ORA-1652. Tracks session temp consumption vs temp tablespace limits.",
+  "value": "High `TEMP` usage for sorts and hashes causes ORA-1652. Tracks session temp consumption vs temp tablespace limits.",
+  "implementation": "Poll `V$TEMPSEG_USAGE` every 5m. Alert at 85% of temp max. Identify top SQL by `sql_id` from same view.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: DB Connect.\n• Ensure the following data sources are available: `V$TEMPSEG_USAGE`, `DBA_TEMP_FREE_SPACE`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll `V$TEMPSEG_USAGE` every 5m. Alert at 85% of temp max. Identify top SQL by `sql_id` from same view.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"dbconnect:oracle_temp\"\n| stats sum(blocks_used) as used_blocks by tablespace_name, session_addr\n| eventstats sum(used_blocks) as total_used by tablespace_name\n| lookup oracle_temp_space tablespace_name OUTPUT max_blocks\n| where total_used > max_blocks*0.85\n| table tablespace_name total_used max_blocks\n```\n\nUnderstanding this SPL\n\n**Temp Tablespace Usage (Oracle TEMP)** — High `TEMP` usage for sorts and hashes causes ORA-1652. Tracks session temp consumption vs temp tablespace limits.\n\nDocumented **Data sources**: `V$TEMPSEG_USAGE`, `DBA_TEMP_FREE_SPACE`. **App/TA** (typical add-on context): DB Connect. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: dbconnect:oracle_temp. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"dbconnect:oracle_temp\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by tablespace_name, session_addr** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eventstats` rolls up events into metrics; results are split **by tablespace_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where total_used > max_blocks*0.85` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Temp Tablespace Usage (Oracle TEMP)**): table tablespace_name total_used max_blocks\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Databases.Lock_Stats by Lock_Stats.host, Lock_Stats.action | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Temp Tablespace Usage (Oracle TEMP)** — High `TEMP` usage for sorts and hashes causes ORA-1652. Tracks session temp consumption vs temp tablespace limits.\n\nDocumented **Data sources**: `V$TEMPSEG_USAGE`, `DBA_TEMP_FREE_SPACE`. **App/TA** (typical add-on context): DB Connect. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Databases.Lock_Stats` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (temp usage %), Table (sessions using temp), Single value (peak temp GB).",
+  "visualization": "Line chart (temp usage %), Table (sessions using temp), Single value (peak temp GB).",
+  "references": [
+    {
+      "title": "CIM: Databases",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Databases"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ]
+}

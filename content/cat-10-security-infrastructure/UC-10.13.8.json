@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.13.8",
+  "title": "Password Spray Detection via CIM",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`action=failure` with `signature` password-related",
+  "app": "AD, IdP → Authentication",
+  "spl": "index=security tag=authentication action=failure\n| stats dc(user) as ucount by src\n| where ucount>20",
+  "cimSpl": "| tstats `summariesonly` dc(Authentication.user) as u from datamodel=Authentication.Authentication where Authentication.action=\"failure\" by Authentication.src\n| where u>20",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Many users with single failure from same `src` — classic spray pattern visible after CIM normalization.",
+  "value": "Many users with single failure from same `src` — classic spray pattern visible after CIM normalization.",
+  "implementation": "Require minimum event volume per `src`; correlate with geo ASN blocklist.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: AD, IdP → Authentication.\n• Ensure the following data sources are available: `action=failure` with `signature` password-related.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRequire minimum event volume per `src`; correlate with geo ASN blocklist.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=security tag=authentication action=failure\n| stats dc(user) as ucount by src\n| where ucount>20\n```\n\nUnderstanding this SPL\n\n**Password Spray Detection via CIM** — Many users with single failure from same `src` — classic spray pattern visible after CIM normalization.\n\nDocumented **Data sources**: `action=failure` with `signature` password-related. **App/TA** (typical add-on context): AD, IdP → Authentication. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: security.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=security, tags. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by src** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where ucount>20` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` dc(Authentication.user) as u from datamodel=Authentication.Authentication where Authentication.action=\"failure\" by Authentication.src\n| where u>20\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Password Spray Detection via CIM** — Many users with single failure from same `src` — classic spray pattern visible after CIM normalization.\n\nDocumented **Data sources**: `action=failure` with `signature` password-related. **App/TA** (typical add-on context): AD, IdP → Authentication. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Filters the current rows with `where u>20` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (spray sources), Map.",
+  "visualization": "Table (spray sources), Map.",
+  "references": [
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

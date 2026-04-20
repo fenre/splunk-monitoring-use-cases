@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.2.48",
+  "title": "Azure ExpressRoute Circuit Health",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=azure:monitor:metric` (Microsoft.Network/expressRouteCircuits)",
+  "app": "`Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics)",
+  "spl": "index=cloud sourcetype=\"azure:monitor:metric\" resource_type=\"microsoft.network/expressroutecircuits\"\n| eval metric=metric_name\n| where metric IN (\"BgpAvailability\",\"ArpAvailability\",\"BitsInPerSecond\",\"BitsOutPerSecond\")\n| timechart span=5m avg(average) as value by metric, resource_name",
+  "cimSpl": "| tstats summariesonly=t avg(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=5m | sort - agg_value",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "description": "ExpressRoute provides dedicated private connectivity to Azure for large enterprises. Circuit degradation or BGP peer loss causes failover to backup paths or complete connectivity loss to Azure services.",
+  "value": "ExpressRoute provides dedicated private connectivity to Azure for large enterprises. Circuit degradation or BGP peer loss causes failover to backup paths or complete connectivity loss to Azure services.",
+  "implementation": "Collect metrics for ExpressRoute circuits: `BgpAvailability` and `ArpAvailability` (should be 100%), `BitsInPerSecond`/`BitsOutPerSecond` for throughput trending. Alert when BGP availability drops below 100% or throughput drops to zero. Track circuit utilization against provisioned bandwidth to plan capacity upgrades.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics).\n• Ensure the following data sources are available: `sourcetype=azure:monitor:metric` (Microsoft.Network/expressRouteCircuits).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect metrics for ExpressRoute circuits: `BgpAvailability` and `ArpAvailability` (should be 100%), `BitsInPerSecond`/`BitsOutPerSecond` for throughput trending. Alert when BGP availability drops below 100% or throughput drops to zero. Track circuit utilization against provisioned bandwidth to plan capacity upgrades.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"azure:monitor:metric\" resource_type=\"microsoft.network/expressroutecircuits\"\n| eval metric=metric_name\n| where metric IN (\"BgpAvailability\",\"ArpAvailability\",\"BitsInPerSecond\",\"BitsOutPerSecond\")\n| timechart span=5m avg(average) as value by metric, resource_name\n```\n\nUnderstanding this SPL\n\n**Azure ExpressRoute Circuit Health** — ExpressRoute provides dedicated private connectivity to Azure for large enterprises. Circuit degradation or BGP peer loss causes failover to backup paths or complete connectivity loss to Azure services.\n\nDocumented **Data sources**: `sourcetype=azure:monitor:metric` (Microsoft.Network/expressRouteCircuits). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: azure:monitor:metric. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"azure:monitor:metric\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **metric** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where metric IN (\"BgpAvailability\",\"ArpAvailability\",\"BitsInPerSecond\",\"BitsOutPerSecond\")` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by metric, resource_name** — ideal for trending and alerting on this use case.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t avg(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=5m | sort - agg_value\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Azure ExpressRoute Circuit Health** — ExpressRoute provides dedicated private connectivity to Azure for large enterprises. Circuit degradation or BGP peer loss causes failover to backup paths or complete connectivity loss to Azure services.\n\nDocumented **Data sources**: `sourcetype=azure:monitor:metric` (Microsoft.Network/expressRouteCircuits). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (BGP/ARP availability %), Line chart (throughput), Single value (circuit status).",
+  "visualization": "Line chart (BGP/ARP availability %), Line chart (throughput), Single value (circuit status).",
+  "references": [
+    {
+      "title": "Splunk_TA_microsoft-cloudservices",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "CIM: Network Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "equipment": [
+    "azure",
+    "m365"
+  ]
+}

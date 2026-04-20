@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.1.54",
+  "title": "Kinesis Data Stream Iterator Age and Throttling",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "CloudWatch Kinesis metrics (GetRecords.IteratorAgeMilliseconds, WriteProvisionedThroughputExceeded)",
+  "app": "`Splunk_TA_aws`",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/Kinesis\" metric_name=\"GetRecords.IteratorAgeMilliseconds\"\n| where Average > 60000\n| timechart span=1m avg(Average) by StreamName",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "High iterator age means consumers are falling behind. Throttling indicates producers exceed shard capacity. Both cause lag and potential data loss.",
+  "value": "High iterator age means consumers are falling behind. Throttling indicates producers exceed shard capacity. Both cause lag and potential data loss.",
+  "implementation": "Collect Kinesis metrics. Alert when iterator age > 60 seconds (consumer lag). Alert on WriteProvisionedThroughputExceeded (add shards or reduce write rate). Monitor IncomingRecords/OutgoingRecords for throughput.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: CloudWatch Kinesis metrics (GetRecords.IteratorAgeMilliseconds, WriteProvisionedThroughputExceeded).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect Kinesis metrics. Alert when iterator age > 60 seconds (consumer lag). Alert on WriteProvisionedThroughputExceeded (add shards or reduce write rate). Monitor IncomingRecords/OutgoingRecords for throughput.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/Kinesis\" metric_name=\"GetRecords.IteratorAgeMilliseconds\"\n| where Average > 60000\n| timechart span=1m avg(Average) by StreamName\n```\n\nUnderstanding this SPL\n\n**Kinesis Data Stream Iterator Age and Throttling** — High iterator age means consumers are falling behind. Throttling indicates producers exceed shard capacity. Both cause lag and potential data loss.\n\nDocumented **Data sources**: CloudWatch Kinesis metrics (GetRecords.IteratorAgeMilliseconds, WriteProvisionedThroughputExceeded). **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where Average > 60000` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=1m** buckets with a separate series **by StreamName** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (iterator age, throttles by stream), Table (stream, age ms), Single value (max lag).",
+  "visualization": "Line chart (iterator age, throttles by stream), Table (stream, age ms), Single value (max lag).",
+  "references": [
+    {
+      "title": "Splunk_TA_aws",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    }
+  ],
+  "equipment": [
+    "aws"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.3.11",
+  "title": "Cloud Storage (GCS) Request Metrics and Cost",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Cloud Monitoring (storage.googleapis.com/request_count), Billing export",
+  "app": "`Splunk_TA_google-cloudplatform`",
+  "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"storage.googleapis.com\"\n| spath output=method path=protoPayload.methodName\n| stats count by method resource.labels.bucket_name\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "GCS request count and latency support performance tuning. Cost tracking by bucket/class prevents bill shock.",
+  "value": "GCS request count and latency support performance tuning. Cost tracking by bucket/class prevents bill shock.",
+  "implementation": "Enable GCS request logging to Cloud Logging; sink to Pub/Sub for Splunk. Collect storage metrics. Ingest billing export for cost by bucket. Alert on anomalous request volume or cost spike.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_google-cloudplatform`.\n• Ensure the following data sources are available: Cloud Monitoring (storage.googleapis.com/request_count), Billing export.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable GCS request logging to Cloud Logging; sink to Pub/Sub for Splunk. Collect storage metrics. Ingest billing export for cost by bucket. Alert on anomalous request volume or cost spike.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"storage.googleapis.com\"\n| spath output=method path=protoPayload.methodName\n| stats count by method resource.labels.bucket_name\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Cloud Storage (GCS) Request Metrics and Cost** — GCS request count and latency support performance tuning. Cost tracking by bucket/class prevents bill shock.\n\nDocumented **Data sources**: Cloud Monitoring (storage.googleapis.com/request_count), Billing export. **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gcp; **sourcetype**: google:gcp:pubsub:message. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gcp, sourcetype=\"google:gcp:pubsub:message\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• `stats` rolls up events into metrics; results are split **by method resource.labels.bucket_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (requests, cost by bucket), Table (bucket, method, count), Bar chart (cost by bucket).",
+  "visualization": "Line chart (requests, cost by bucket), Table (bucket, method, count), Bar chart (cost by bucket).",
+  "references": [
+    {
+      "title": "Splunk_TA_google-cloudplatform",
+      "url": "https://splunkbase.splunk.com/app/3088"
+    }
+  ],
+  "mitreAttack": [
+    "T1619",
+    "T1530"
+  ],
+  "equipment": [
+    "gcp"
+  ]
+}

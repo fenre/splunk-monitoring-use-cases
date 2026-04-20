@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.36",
+  "title": "DCSync Attack Detection",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4662)",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4662\n  AccessMask=\"0x100\"\n  (Properties=\"*1131f6aa*\" OR Properties=\"*1131f6ad*\" OR Properties=\"*89e95b76*\")\n| where NOT match(SubjectUserName, \"(?i)(\\\\$$)\")\n| table _time, host, SubjectUserName, SubjectDomainName, ObjectName\n| sort -_time",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "DCSync uses Directory Replication Service permissions to extract password hashes remotely. Detecting non-DC replication requests catches this attack before credential theft completes.",
+  "value": "DCSync uses Directory Replication Service permissions to extract password hashes remotely. Detecting non-DC replication requests catches this attack before credential theft completes.",
+  "implementation": "Enable Directory Service Access auditing on domain controllers. EventCode 4662 with GUID 1131f6aa (DS-Replication-Get-Changes) or 1131f6ad (DS-Replication-Get-Changes-All) from a non-machine account (not ending in $) is a DCSync indicator. Alert immediately with critical priority. Legitimate replication only occurs between DCs (machine accounts). MITRE ATT&CK T1003.006.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 4662).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Directory Service Access auditing on domain controllers. EventCode 4662 with GUID 1131f6aa (DS-Replication-Get-Changes) or 1131f6ad (DS-Replication-Get-Changes-All) from a non-machine account (not ending in $) is a DCSync indicator. Alert immediately with critical priority. Legitimate replication only occurs between DCs (machine accounts). MITRE ATT&CK T1003.006.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4662\n  AccessMask=\"0x100\"\n  (Properties=\"*1131f6aa*\" OR Properties=\"*1131f6ad*\" OR Properties=\"*89e95b76*\")\n| where NOT match(SubjectUserName, \"(?i)(\\\\$$)\")\n| table _time, host, SubjectUserName, SubjectDomainName, ObjectName\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**DCSync Attack Detection** — DCSync uses Directory Replication Service permissions to extract password hashes remotely. Detecting non-DC replication requests catches this attack before credential theft completes.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4662). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where NOT match(SubjectUserName, \"(?i)(\\\\$$)\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **DCSync Attack Detection**): table _time, host, SubjectUserName, SubjectDomainName, ObjectName\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (replication requests from non-DCs), Single value (count — target: 0), Alert with analyst playbook.",
+  "visualization": "Table (replication requests from non-DCs), Single value (count — target: 0), Alert with analyst playbook.",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.2.21",
+  "title": "Azure Stack HCI Cluster Health",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`azurestackhci:health`",
+  "app": "Windows Admin Center, Azure Monitor connector",
+  "spl": "index=hci sourcetype=\"azurestackhci:health\" earliest=-4h\n| where overall_status!=\"healthy\" OR storage_pool_status!=\"ok\" OR arc_connected=0\n| stats latest(overall_status) as st, latest(storage_pool_status) as pool by cluster_name\n| table cluster_name, st, pool",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Cluster validation, storage pool health, and Azure Arc connection state for Azure Stack HCI.",
+  "value": "Cluster validation, storage pool health, and Azure Arc connection state for Azure Stack HCI.",
+  "implementation": "Ingest WAC/OMS JSON. Alert on any non-healthy or Arc disconnect. Correlate with Windows Update pauses.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Windows Admin Center, Azure Monitor connector.\n• Ensure the following data sources are available: `azurestackhci:health`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest WAC/OMS JSON. Alert on any non-healthy or Arc disconnect. Correlate with Windows Update pauses.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=hci sourcetype=\"azurestackhci:health\" earliest=-4h\n| where overall_status!=\"healthy\" OR storage_pool_status!=\"ok\" OR arc_connected=0\n| stats latest(overall_status) as st, latest(storage_pool_status) as pool by cluster_name\n| table cluster_name, st, pool\n```\n\nUnderstanding this SPL\n\n**Azure Stack HCI Cluster Health** — Cluster validation, storage pool health, and Azure Arc connection state for Azure Stack HCI.\n\nDocumented **Data sources**: `azurestackhci:health`. **App/TA** (typical add-on context): Windows Admin Center, Azure Monitor connector. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: hci; **sourcetype**: azurestackhci:health. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=hci, sourcetype=\"azurestackhci:health\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where overall_status!=\"healthy\" OR storage_pool_status!=\"ok\" OR arc_connected=0` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by cluster_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Pipeline stage (see **Azure Stack HCI Cluster Health**): table cluster_name, st, pool\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (HCI clusters), Table (issues), Timeline.",
+  "visualization": "Status grid (HCI clusters), Table (issues), Timeline.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "azure"
+  ],
+  "hardware": "Azure Stack HCI validated nodes"
+}

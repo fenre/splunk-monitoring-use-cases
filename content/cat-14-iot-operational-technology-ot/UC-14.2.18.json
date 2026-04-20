@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.2.18",
+  "title": "Engineering Workstation Anomaly",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=\"sysmon:windows\"` `tag=ews`",
+  "app": "EDR on EWS, Windows Security / Sysmon",
+  "spl": "index=ot sourcetype=\"sysmon:windows\" host_tag=\"EWS\"\n| search EventCode=1 OR EventCode=11\n| where NOT match(Image,\"(?i)(approved\\\\\\\\path)\")\n| stats count by Computer, Image, ParentImage\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "USB inserts, new binaries, or remote sessions on EWS workstations are high-risk in OT.",
+  "value": "USB inserts, new binaries, or remote sessions on EWS workstations are high-risk in OT.",
+  "implementation": "Lock down EWS to approved paths. Alert on new process or driver load. Correlate with maintenance windows.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: EDR on EWS, Windows Security / Sysmon.\n• Ensure the following data sources are available: `sourcetype=\"sysmon:windows\"` `tag=ews`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nLock down EWS to approved paths. Alert on new process or driver load. Correlate with maintenance windows.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"sysmon:windows\" host_tag=\"EWS\"\n| search EventCode=1 OR EventCode=11\n| where NOT match(Image,\"(?i)(approved\\\\\\\\path)\")\n| stats count by Computer, Image, ParentImage\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Engineering Workstation Anomaly** — USB inserts, new binaries, or remote sessions on EWS workstations are high-risk in OT.\n\nDocumented **Data sources**: `sourcetype=\"sysmon:windows\"` `tag=ews`. **App/TA** (typical add-on context): EDR on EWS, Windows Security / Sysmon. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: sysmon:windows. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"sysmon:windows\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Filters the current rows with `where NOT match(Image,\"(?i)(approved\\\\\\\\path)\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by Computer, Image, ParentImage** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (suspicious processes), Timeline (EWS events).",
+  "visualization": "Table (suspicious processes), Timeline (EWS events).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.4.1",
+  "title": "Hardware Sensor Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "IPMI sensor data via scripted input, `sourcetype=ipmi:sensor` (custom)",
+  "app": "Custom scripted input (`ipmitool`), SNMP",
+  "spl": "index=hardware sourcetype=ipmi:sensor\n| eval is_critical = if(status=\"Critical\" OR status=\"Non-Recoverable\", 1, 0)\n| where is_critical=1\n| table _time host sensor_name reading unit status\n| sort -_time",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Temperature, voltage, and fan speed anomalies predict impending hardware failures before they cause unplanned downtime.",
+  "value": "Temperature, voltage, and fan speed anomalies predict impending hardware failures before they cause unplanned downtime.",
+  "implementation": "Install `ipmitool` on hosts. Create scripted input: `ipmitool sensor list` (interval=300). Parse sensor name, reading, unit, and status. Alert on Critical/Non-Recoverable status. Alternatively, use SNMP to poll vendor-specific MIBs (Dell iDRAC, HP iLO, Lenovo IMM).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`ipmitool`), SNMP.\n• Ensure the following data sources are available: IPMI sensor data via scripted input, `sourcetype=ipmi:sensor` (custom).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nInstall `ipmitool` on hosts. Create scripted input: `ipmitool sensor list` (interval=300). Parse sensor name, reading, unit, and status. Alert on Critical/Non-Recoverable status. Alternatively, use SNMP to poll vendor-specific MIBs (Dell iDRAC, HP iLO, Lenovo IMM).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=hardware sourcetype=ipmi:sensor\n| eval is_critical = if(status=\"Critical\" OR status=\"Non-Recoverable\", 1, 0)\n| where is_critical=1\n| table _time host sensor_name reading unit status\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Hardware Sensor Monitoring** — Temperature, voltage, and fan speed anomalies predict impending hardware failures before they cause unplanned downtime.\n\nDocumented **Data sources**: IPMI sensor data via scripted input, `sourcetype=ipmi:sensor` (custom). **App/TA** (typical add-on context): Custom scripted input (`ipmitool`), SNMP. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: hardware; **sourcetype**: ipmi:sensor. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=hardware, sourcetype=ipmi:sensor. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **is_critical** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where is_critical=1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Hardware Sensor Monitoring**): table _time host sensor_name reading unit status\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of critical sensors, Gauge per sensor type, Heatmap across hosts.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Table of critical sensors, Gauge per sensor type, Heatmap across hosts.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "hardware_bmc",
+    "snmp"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_ipmi",
+    "snmp_generic"
+  ]
+}

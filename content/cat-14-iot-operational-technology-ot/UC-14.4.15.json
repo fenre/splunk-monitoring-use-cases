@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.4.15",
+  "title": "MQTT Broker Overload",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=\"mqtt:broker_metrics\"`",
+  "app": "Mosquitto/HiveMQ/AWS IoT metrics",
+  "spl": "index=iot sourcetype=\"mqtt:broker_metrics\"\n| where connections > max_connections*0.9 OR cpu_pct > 85 OR dropped_messages > 0\n| timechart span=1m avg(connections) as conn, avg(cpu_pct) as cpu, sum(dropped_messages) as drops",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Broker CPU, connection count, and retained message backlog indicate need to shard or scale.",
+  "value": "Broker CPU, connection count, and retained message backlog indicate need to shard or scale.",
+  "implementation": "Scrape Prometheus or vendor API. Alert on sustained high utilization or any dropped messages. Correlate with misbehaving clients publishing at high QoS0 rate.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Mosquitto/HiveMQ/AWS IoT metrics.\n• Ensure the following data sources are available: `sourcetype=\"mqtt:broker_metrics\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nScrape Prometheus or vendor API. Alert on sustained high utilization or any dropped messages. Correlate with misbehaving clients publishing at high QoS0 rate.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=iot sourcetype=\"mqtt:broker_metrics\"\n| where connections > max_connections*0.9 OR cpu_pct > 85 OR dropped_messages > 0\n| timechart span=1m avg(connections) as conn, avg(cpu_pct) as cpu, sum(dropped_messages) as drops\n```\n\nUnderstanding this SPL\n\n**MQTT Broker Overload** — Broker CPU, connection count, and retained message backlog indicate need to shard or scale.\n\nDocumented **Data sources**: `sourcetype=\"mqtt:broker_metrics\"`. **App/TA** (typical add-on context): Mosquitto/HiveMQ/AWS IoT metrics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: iot; **sourcetype**: mqtt:broker_metrics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=iot, sourcetype=\"mqtt:broker_metrics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where connections > max_connections*0.9 OR cpu_pct > 85 OR dropped_messages > 0` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=1m** buckets — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (connections and CPU), Table (brokers with drops), Gauge (connection %).",
+  "visualization": "Line chart (connections and CPU), Table (brokers with drops), Gauge (connection %).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.",
+  "equipment": [
+    "aws",
+    "mqtt"
+  ]
+}

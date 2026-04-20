@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.3.10",
+  "title": "Radiology Reading Turnaround Time",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Healthcare",
+  "dataSources": "`index=healthcare` `sourcetype=\"ris:report\"` fields `accession`, `modality`, `priority`, `exam_complete_time`, `report_finalized_time`",
+  "app": "RIS/PACS integration via HL7 or HEC",
+  "spl": "index=healthcare sourcetype=\"ris:report\"\n| eval tat_min=round((report_finalized_time-exam_complete_time)/60,1)\n| where tat_min > 0\n| stats avg(tat_min) as avg_tat, perc95(tat_min) as p95_tat by modality, priority\n| sort priority, -p95_tat\n| table modality, priority, avg_tat, p95_tat",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Radiology report TAT affects clinical decisions and patient discharge timing. Tracking by modality and priority ensures SLA compliance and identifies workflow bottlenecks.",
+  "value": "Radiology report TAT affects clinical decisions and patient discharge timing. Tracking by modality and priority ensures SLA compliance and identifies workflow bottlenecks.",
+  "implementation": "Parse RIS events for exam completion and report finalization timestamps. Track by modality (CT, MR, XR) and priority (stat, urgent, routine). Alert on stat studies exceeding 1-hour TAT. **Domain context:** Joint Commission and operational targets often use modality-specific TAT; peer review and resident reads can skew distributions—segment when possible. **Splunk:** Use `strptime` if times are strings; ensure `exam_complete_time` reflects acquisition end, not order start.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: RIS/PACS integration via HL7 or HEC.\n• Ensure the following data sources are available: `index=healthcare` `sourcetype=\"ris:report\"` fields `accession`, `modality`, `priority`, `exam_complete_time`, `report_finalized_time`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nParse RIS events for exam completion and report finalization timestamps. Track by modality (CT, MR, XR) and priority (stat, urgent, routine). Alert on stat studies exceeding 1-hour TAT. **Domain context:** Joint Commission and operational targets often use modality-specific TAT; peer review and resident reads can skew distributions—segment when possible. **Splunk:** Use `strptime` if times are strings; ensure `exam_complete_time` reflects acquisition end, not order start.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=healthcare sourcetype=\"ris:report\"\n| eval tat_min=round((report_finalized_time-exam_complete_time)/60,1)\n| where tat_min > 0\n| stats avg(tat_min) as avg_tat, perc95(tat_min) as p95_tat by modality, priority\n| sort priority, -p95_tat\n| table modality, priority, avg_tat, p95_tat\n```\n\nUnderstanding this SPL\n\n**Radiology Reading Turnaround Time** — Radiology report TAT affects clinical decisions and patient discharge timing. Tracking by modality and priority ensures SLA compliance and identifies workflow bottlenecks.\n\nDocumented **Data sources**: `index=healthcare` `sourcetype=\"ris:report\"` fields `accession`, `modality`, `priority`, `exam_complete_time`, `report_finalized_time`. **App/TA** (typical add-on context): RIS/PACS integration via HL7 or HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: healthcare; **sourcetype**: ris:report. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=healthcare, sourcetype=\"ris:report\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **tat_min** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where tat_min > 0` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by modality, priority** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Radiology Reading Turnaround Time**): table modality, priority, avg_tat, p95_tat\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (TAT by modality), Line chart (TAT trend), Table (exams exceeding SLA).",
+  "visualization": "Bar chart (TAT by modality), Line chart (TAT trend), Table (exams exceeding SLA).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

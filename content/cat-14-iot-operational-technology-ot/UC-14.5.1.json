@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.5.1",
+  "title": "MQTT Topic Message Rate and Subscription Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=edge-hub-data` (metrics by topic), broker stats API or log-derived metrics",
+  "app": "Splunk Edge Hub (MQTT broker), MQTT broker metrics (Mosquitto, HiveMQ)",
+  "premiumApps": [
+    "Splunk Edge Hub"
+  ],
+  "spl": "index=edge-hub-data OR index=ot sourcetype=mqtt OR sourcetype=edge_hub\n| bin _time span=5m\n| stats count as msg_count, latest(_time) as last_seen by topic, host, _time\n| eval age_sec = now() - last_seen\n| where age_sec > 600 OR msg_count < 1\n| table topic host msg_count last_seen age_sec",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Per-topic message rate and subscriber count indicate whether sensors and downstream consumers are healthy. Sudden drops mean a publisher or subscription failed; spikes can indicate a runaway device or replay.",
+  "value": "Per-topic message rate and subscriber count indicate whether sensors and downstream consumers are healthy. Sudden drops mean a publisher or subscription failed; spikes can indicate a runaway device or replay.",
+  "implementation": "Use Edge Hub MQTT topic subscriptions with metric extraction (topic as dimension). Or ingest broker metrics (e.g. Mosquitto stats, HiveMQ REST API) for messages per topic. Alert when a critical topic has no messages for >10 minutes or rate drops below baseline. Dashboard message rate by topic and subscriber count.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (MQTT broker), MQTT broker metrics (Mosquitto, HiveMQ).\n• Ensure the following data sources are available: `index=edge-hub-data` (metrics by topic), broker stats API or log-derived metrics.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse Edge Hub MQTT topic subscriptions with metric extraction (topic as dimension). Or ingest broker metrics (e.g. Mosquitto stats, HiveMQ REST API) for messages per topic. Alert when a critical topic has no messages for >10 minutes or rate drops below baseline. Dashboard message rate by topic and subscriber count.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-data OR index=ot sourcetype=mqtt OR sourcetype=edge_hub\n| bin _time span=5m\n| stats count as msg_count, latest(_time) as last_seen by topic, host, _time\n| eval age_sec = now() - last_seen\n| where age_sec > 600 OR msg_count < 1\n| table topic host msg_count last_seen age_sec\n```\n\nUnderstanding this SPL\n\n**MQTT Topic Message Rate and Subscription Health** — Per-topic message rate and subscriber count indicate whether sensors and downstream consumers are healthy. Sudden drops mean a publisher or subscription failed; spikes can indicate a runaway device or replay.\n\nDocumented **Data sources**: `index=edge-hub-data` (metrics by topic), broker stats API or log-derived metrics. **App/TA** (typical add-on context): Splunk Edge Hub (MQTT broker), MQTT broker metrics (Mosquitto, HiveMQ). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-data, ot; **sourcetype**: mqtt, edge_hub. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-data, index=ot, sourcetype=mqtt. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by topic, host, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **age_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where age_sec > 600 OR msg_count < 1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **MQTT Topic Message Rate and Subscription Health**): table topic host msg_count last_seen age_sec\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (message rate by topic), Table (topics with no recent data), Single value (topics healthy %).",
+  "visualization": "Line chart (message rate by topic), Table (topics with no recent data), Single value (topics healthy %).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.",
+  "equipment": [
+    "edge_hub",
+    "mqtt"
+  ]
+}

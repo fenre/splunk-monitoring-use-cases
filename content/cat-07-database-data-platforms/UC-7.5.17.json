@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.5.17",
+  "title": "Elasticsearch Pending Cluster Tasks",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=elasticsearch:pending_tasks`",
+  "app": "Custom REST scripted input (`_cluster/pending_tasks`)",
+  "spl": "index=database sourcetype=\"elasticsearch:pending_tasks\"\n| stats max(insert_order) as queue_depth, max(time_in_queue_millis) as max_wait_ms\n| where queue_depth > 5 OR max_wait_ms > 30000",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "A growing backlog of pending cluster tasks indicates the master node cannot process cluster state updates fast enough. This delays shard allocation, mapping updates, and index creation.",
+  "value": "A growing backlog of pending cluster tasks indicates the master node cannot process cluster state updates fast enough. This delays shard allocation, mapping updates, and index creation.",
+  "implementation": "Poll `GET _cluster/pending_tasks` every minute. Track the number of tasks and the `time_in_queue_millis` for the oldest task. Alert when queue depth stays above 5 for multiple consecutive samples or any task waits longer than 30 seconds. Common causes include frequent mapping changes, too many small indices, or an overloaded master node.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom REST scripted input (`_cluster/pending_tasks`).\n• Ensure the following data sources are available: `sourcetype=elasticsearch:pending_tasks`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll `GET _cluster/pending_tasks` every minute. Track the number of tasks and the `time_in_queue_millis` for the oldest task. Alert when queue depth stays above 5 for multiple consecutive samples or any task waits longer than 30 seconds. Common causes include frequent mapping changes, too many small indices, or an overloaded master node.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"elasticsearch:pending_tasks\"\n| stats max(insert_order) as queue_depth, max(time_in_queue_millis) as max_wait_ms\n| where queue_depth > 5 OR max_wait_ms > 30000\n```\n\nUnderstanding this SPL\n\n**Elasticsearch Pending Cluster Tasks** — A growing backlog of pending cluster tasks indicates the master node cannot process cluster state updates fast enough. This delays shard allocation, mapping updates, and index creation.\n\nDocumented **Data sources**: `sourcetype=elasticsearch:pending_tasks`. **App/TA** (typical add-on context): Custom REST scripted input (`_cluster/pending_tasks`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: elasticsearch:pending_tasks. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"elasticsearch:pending_tasks\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• Filters the current rows with `where queue_depth > 5 OR max_wait_ms > 30000` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (pending task count), Single value (current queue depth), Table (pending tasks with wait time).",
+  "visualization": "Line chart (pending task count), Single value (current queue depth), Table (pending tasks with wait time).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

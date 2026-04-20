@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.2.18",
+  "title": "Threat Prevention Signature Coverage",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=pan:system`, `sourcetype=fgt_event`",
+  "app": "`Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)",
+  "spl": "index=network sourcetype=\"pan:system\" \"threat version\" OR \"content update\"\n| rex \"installed (?<content_type>threats|antivirus|wildfire) version (?<version>\\S+)\"\n| stats latest(version) as current_version, latest(_time) as last_update by dvc, content_type\n| eval days_since_update=round((now()-last_update)/86400,0)\n| where days_since_update > 7",
+  "cimSpl": "| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out\n  from datamodel=Network_Traffic.All_Traffic\n  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h\n| eval bytes=bytes_in+bytes_out\n| sort -bytes",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "description": "Outdated threat signatures leave the firewall blind to new attacks. Monitoring signature versions ensures security posture is current.",
+  "value": "Outdated threat signatures leave the firewall blind to new attacks. Monitoring signature versions ensures security posture is current.",
+  "implementation": "Forward system logs. Alert when signature updates are >7 days old. Compare across firewalls to detect update failures. Schedule weekly compliance reports.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX).\n• Ensure the following data sources are available: `sourcetype=pan:system`, `sourcetype=fgt_event`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward system logs. Alert when signature updates are >7 days old. Compare across firewalls to detect update failures. Schedule weekly compliance reports.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"pan:system\" \"threat version\" OR \"content update\"\n| rex \"installed (?<content_type>threats|antivirus|wildfire) version (?<version>\\S+)\"\n| stats latest(version) as current_version, latest(_time) as last_update by dvc, content_type\n| eval days_since_update=round((now()-last_update)/86400,0)\n| where days_since_update > 7\n```\n\nUnderstanding this SPL\n\n**Threat Prevention Signature Coverage** — Outdated threat signatures leave the firewall blind to new attacks. Monitoring signature versions ensures security posture is current.\n\nDocumented **Data sources**: `sourcetype=pan:system`, `sourcetype=fgt_event`. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: pan:system. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"pan:system\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by dvc, content_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **days_since_update** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days_since_update > 7` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out\n  from datamodel=Network_Traffic.All_Traffic\n  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h\n| eval bytes=bytes_in+bytes_out\n| sort -bytes\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Threat Prevention Signature Coverage** — Outdated threat signatures leave the firewall blind to new attacks. Monitoring signature versions ensures security posture is current.\n\nDocumented **Data sources**: `sourcetype=pan:system`, `sourcetype=fgt_event`. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• `eval` defines or adjusts **bytes** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (firewall, content type, version, days since update), Single value (outdated count).",
+  "visualization": "Table (firewall, content type, version, days since update), Single value (outdated count).",
+  "references": [
+    {
+      "title": "Splunk_TA_paloalto",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "equipment": [
+    "cisco",
+    "fortinet",
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "cisco_firepower",
+    "fortinet_fortigate",
+    "paloalto_pan_firewall"
+  ],
+  "hardware": "Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)"
+}

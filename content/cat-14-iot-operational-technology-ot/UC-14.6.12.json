@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.6.12",
+  "title": "EtherNet/IP Unregistered Session Detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Fault"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Manufacturing",
+  "dataSources": "`index=ot` `sourcetype=\"zeek:enip:json\"` (`enip_command`, `session_handle`, `uid`, `source_h`, `destination_h`)",
+  "app": "TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)",
+  "spl": "index=ot sourcetype=\"zeek:enip:json\"\n| stats earliest(enip_command) as first_cmd values(enip_command) as cmds dc(enip_command) as cmd_variety by uid source_h destination_h\n| where first_cmd!=\"Register_Session\" AND (like(enip_command,\"%SendRRData%\") OR like(enip_command,\"%Unit%\") OR mvindex(cmds,0)!=first_cmd)\n| table uid source_h destination_h first_cmd cmds",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "EtherNet/IP sessions are normally established with explicit registration; traffic that skips expected session setup may indicate tooling errors, bypass attempts, or non-compliant devices on the plant floor.",
+  "value": "EtherNet/IP sessions are normally established with explicit registration; traffic that skips expected session setup may indicate tooling errors, bypass attempts, or non-compliant devices on the plant floor.",
+  "implementation": "Ingest `enip.log` from Zeek on EtherNet/IP segments. Validate ordering with known-good PLC/HMI captures; tune exclusions for vendor-specific handshake quirks. Combine with asset roles so HMIs are not false-positive flagged incorrectly.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884).\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"zeek:enip:json\"` (`enip_command`, `session_handle`, `uid`, `source_h`, `destination_h`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest `enip.log` from Zeek on EtherNet/IP segments. Validate ordering with known-good PLC/HMI captures; tune exclusions for vendor-specific handshake quirks. Combine with asset roles so HMIs are not false-positive flagged incorrectly.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"zeek:enip:json\"\n| stats earliest(enip_command) as first_cmd values(enip_command) as cmds dc(enip_command) as cmd_variety by uid source_h destination_h\n| where first_cmd!=\"Register_Session\" AND (like(enip_command,\"%SendRRData%\") OR like(enip_command,\"%Unit%\") OR mvindex(cmds,0)!=first_cmd)\n| table uid source_h destination_h first_cmd cmds\n```\n\nUnderstanding this SPL\n\n**EtherNet/IP Unregistered Session Detection** — EtherNet/IP sessions are normally established with explicit registration; traffic that skips expected session setup may indicate tooling errors, bypass attempts, or non-compliant devices on the plant floor.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"zeek:enip:json\"` (`enip_command`, `session_handle`, `uid`, `source_h`, `destination_h`). **App/TA** (typical add-on context): TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: zeek:enip:json. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"zeek:enip:json\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by uid source_h destination_h** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where first_cmd!=\"Register_Session\" AND (like(enip_command,\"%SendRRData%\") OR like(enip_command,\"%Unit%\") OR mvindex(cmds,0…` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **EtherNet/IP Unregistered Session Detection**): table uid source_h destination_h first_cmd cmds\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (sessions with anomalous first command), Timeline (connection uid), Bar chart (count by destination_h).",
+  "visualization": "Table (sessions with anomalous first command), Timeline (connection uid), Bar chart (count by destination_h).",
+  "references": [
+    {
+      "title": "TA for Zeek",
+      "url": "https://splunkbase.splunk.com/app/5466"
+    },
+    {
+      "title": "Corelight App for Splunk",
+      "url": "https://splunkbase.splunk.com/app/3884"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

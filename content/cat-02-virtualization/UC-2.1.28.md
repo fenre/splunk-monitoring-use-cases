@@ -1,0 +1,91 @@
+---
+id: "2.1.28"
+title: "Thin-Provisioned Disk Growth Rate"
+criticality: "high"
+splunkPillar: "Observability"
+---
+
+# UC-2.1.28 · Thin-Provisioned Disk Growth Rate
+
+## Description
+
+Thin-provisioned disks start small but grow to their provisioned maximum as the guest writes data. If the total provisioned size of all thin disks on a datastore exceeds physical capacity (over-provisioning), the datastore can fill unexpectedly. Tracking actual growth rate predicts when this will happen.
+
+## Value
+
+Thin-provisioned disks start small but grow to their provisioned maximum as the guest writes data. If the total provisioned size of all thin disks on a datastore exceeds physical capacity (over-provisioning), the datastore can fill unexpectedly. Tracking actual growth rate predicts when this will happen.
+
+## Implementation
+
+Collect VM storage inventory via Splunk_TA_vmware. Calculate total provisioned vs. total physical per datastore to determine over-provisioning ratio. Track committed bytes over time to calculate daily growth rate. Alert when datastore over-provisioning ratio exceeds 200% and growth rate will fill physical capacity within 30 days.
+
+## Detailed Implementation
+
+Prerequisites
+• Install and configure the required add-on or app: `Splunk_TA_vmware`.
+• Ensure the following data sources are available: `sourcetype=vmware:inv:vm` (storage_committed, storage_uncommitted).
+• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+Step 1 — Configure data collection
+Collect VM storage inventory via Splunk_TA_vmware. Calculate total provisioned vs. total physical per datastore to determine over-provisioning ratio. Track committed bytes over time to calculate daily growth rate. Alert when datastore over-provisioning ratio exceeds 200% and growth rate will fill physical capacity within 30 days.
+
+Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+index=vmware sourcetype="vmware:inv:vm"
+| eval committed_gb=round(storage_committed/1073741824, 1)
+| eval provisioned_gb=round((storage_committed+storage_uncommitted)/1073741824, 1)
+| eval thin_ratio=round(committed_gb/provisioned_gb*100, 1)
+| stats latest(committed_gb) as used_gb, latest(provisioned_gb) as provisioned_gb, latest(thin_ratio) as thin_pct by vm_name, datastore
+| where thin_pct < 80
+| sort thin_pct
+| table vm_name, datastore, used_gb, provisioned_gb, thin_pct
+```
+
+Understanding this SPL
+
+**Thin-Provisioned Disk Growth Rate** — Thin-provisioned disks start small but grow to their provisioned maximum as the guest writes data. If the total provisioned size of all thin disks on a datastore exceeds physical capacity (over-provisioning), the datastore can fill unexpectedly. Tracking actual growth rate predicts when this will happen.
+
+Documented **Data sources**: `sourcetype=vmware:inv:vm` (storage_committed, storage_uncommitted). **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:inv:vm. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+• Scopes the data: index=vmware, sourcetype="vmware:inv:vm". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+• `eval` defines or adjusts **committed_gb** — often to normalize units, derive a ratio, or prepare for thresholds.
+• `eval` defines or adjusts **provisioned_gb** — often to normalize units, derive a ratio, or prepare for thresholds.
+• `eval` defines or adjusts **thin_ratio** — often to normalize units, derive a ratio, or prepare for thresholds.
+• `stats` rolls up events into metrics; results are split **by vm_name, datastore** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• Filters the current rows with `where thin_pct < 80` — typically the threshold or rule expression for this monitoring goal.
+• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+• Pipeline stage (see **Thin-Provisioned Disk Growth Rate**): table vm_name, datastore, used_gb, provisioned_gb, thin_pct
+
+
+Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (VM, used vs provisioned), Gauge (datastore over-provisioning ratio), Line chart (growth trend with prediction).
+
+## SPL
+
+```spl
+index=vmware sourcetype="vmware:inv:vm"
+| eval committed_gb=round(storage_committed/1073741824, 1)
+| eval provisioned_gb=round((storage_committed+storage_uncommitted)/1073741824, 1)
+| eval thin_ratio=round(committed_gb/provisioned_gb*100, 1)
+| stats latest(committed_gb) as used_gb, latest(provisioned_gb) as provisioned_gb, latest(thin_ratio) as thin_pct by vm_name, datastore
+| where thin_pct < 80
+| sort thin_pct
+| table vm_name, datastore, used_gb, provisioned_gb, thin_pct
+```
+
+## Visualization
+
+Table (VM, used vs provisioned), Gauge (datastore over-provisioning ratio), Line chart (growth trend with prediction).
+
+## References
+
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

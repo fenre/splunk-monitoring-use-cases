@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.2.36",
+  "title": "Azure Log Analytics Workspace Ingestion Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=azure:monitor:metric` (Microsoft.OperationalInsights/workspaces)",
+  "app": "`Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics)",
+  "spl": "index=cloud sourcetype=\"azure:monitor:metric\" resource_type=\"microsoft.operationalinsights/workspaces\"\n| where metric_name IN (\"IngestionRate\",\"IngestionLatencyInSeconds\",\"DataBytes\",\"BillableDataGB\")\n| timechart span=5m avg(average) as value by metric_name, resource_name",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Azure Log Analytics Workspace is the central logging destination for Azure Monitor, Defender for Cloud, and Sentinel. Ingestion lag or data cap throttling silently breaks alerting and investigation workflows across the entire Azure monitoring stack.",
+  "value": "Azure Log Analytics Workspace is the central logging destination for Azure Monitor, Defender for Cloud, and Sentinel. Ingestion lag or data cap throttling silently breaks alerting and investigation workflows across the entire Azure monitoring stack.",
+  "implementation": "Collect Azure Monitor metrics for Log Analytics workspaces. Key metrics: `IngestionLatencyInSeconds` (alert >300s — indicates data delay for all downstream analytics), `IngestionRate` (sudden drops mean data sources stopped sending), and `BillableDataGB` versus daily cap (when cap is hit, ingestion stops until reset). Track per-table ingestion volume using workspace diagnostic settings to identify data spikes.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics).\n• Ensure the following data sources are available: `sourcetype=azure:monitor:metric` (Microsoft.OperationalInsights/workspaces).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect Azure Monitor metrics for Log Analytics workspaces. Key metrics: `IngestionLatencyInSeconds` (alert >300s — indicates data delay for all downstream analytics), `IngestionRate` (sudden drops mean data sources stopped sending), and `BillableDataGB` versus daily cap (when cap is hit, ingestion stops until reset). Track per-table ingestion volume using workspace diagnostic settings to identify data spikes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"azure:monitor:metric\" resource_type=\"microsoft.operationalinsights/workspaces\"\n| where metric_name IN (\"IngestionRate\",\"IngestionLatencyInSeconds\",\"DataBytes\",\"BillableDataGB\")\n| timechart span=5m avg(average) as value by metric_name, resource_name\n```\n\nUnderstanding this SPL\n\n**Azure Log Analytics Workspace Ingestion Health** — Azure Log Analytics Workspace is the central logging destination for Azure Monitor, Defender for Cloud, and Sentinel. Ingestion lag or data cap throttling silently breaks alerting and investigation workflows across the entire Azure monitoring stack.\n\nDocumented **Data sources**: `sourcetype=azure:monitor:metric` (Microsoft.OperationalInsights/workspaces). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: azure:monitor:metric. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"azure:monitor:metric\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where metric_name IN (\"IngestionRate\",\"IngestionLatencyInSeconds\",\"DataBytes\",\"BillableDataGB\")` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by metric_name, resource_name** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (ingestion latency and rate), Gauge (daily volume vs. cap), Table (top tables by volume).",
+  "visualization": "Line chart (ingestion latency and rate), Gauge (daily volume vs. cap), Table (top tables by volume).",
+  "references": [
+    {
+      "title": "Splunk_TA_microsoft-cloudservices",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    }
+  ],
+  "equipment": [
+    "azure",
+    "m365"
+  ]
+}

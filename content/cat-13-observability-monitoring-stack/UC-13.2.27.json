@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.2.27",
+  "title": "Observability Cloud Alert Ingestion",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Observability Cloud webhooks, `itsi_tracked_alerts`",
+  "app": "Splunk ITSI, Splunk Observability Cloud",
+  "premiumApps": [
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    }
+  ],
+  "spl": "index=itsi_tracked_alerts source=\"*observability*\" OR source=\"*o11y*\"\n| stats count by service_name severity source\n| sort -count",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity, Alerts.signature, Alerts.app | sort - count",
+  "cimModels": [
+    "Alerts"
+  ],
+  "description": "Ingesting Splunk Observability Cloud alerts into ITSI unifies cloud-native and on-prem monitoring into a single episode management workflow, eliminating tool-switching.",
+  "value": "Ingesting Splunk Observability Cloud alerts into ITSI unifies cloud-native and on-prem monitoring into a single episode management workflow, eliminating tool-switching.",
+  "implementation": "Configure Observability Cloud to forward alerts via webhook to Splunk HEC. Normalize alert payloads into the ITSI Universal Alerting schema. Create a Universal Correlation Search to convert incoming alerts into notable events. Configure NEAPs to group O11y alerts with infrastructure alerts into unified episodes. Track alert volume and false positive rate.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI, Splunk Observability Cloud.\n• Ensure the following data sources are available: Observability Cloud webhooks, `itsi_tracked_alerts`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure Observability Cloud to forward alerts via webhook to Splunk HEC. Normalize alert payloads into the ITSI Universal Alerting schema. Create a Universal Correlation Search to convert incoming alerts into notable events. Configure NEAPs to group O11y alerts with infrastructure alerts into unified episodes. Track alert volume and false positive rate.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsi_tracked_alerts source=\"*observability*\" OR source=\"*o11y*\"\n| stats count by service_name severity source\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Observability Cloud Alert Ingestion** — Ingesting Splunk Observability Cloud alerts into ITSI unifies cloud-native and on-prem monitoring into a single episode management workflow, eliminating tool-switching.\n\nDocumented **Data sources**: Observability Cloud webhooks, `itsi_tracked_alerts`. **App/TA** (typical add-on context): Splunk ITSI, Splunk Observability Cloud. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsi_tracked_alerts.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsi_tracked_alerts. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by service_name severity source** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity, Alerts.signature, Alerts.app | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Observability Cloud Alert Ingestion** — Ingesting Splunk Observability Cloud alerts into ITSI unifies cloud-native and on-prem monitoring into a single episode management workflow, eliminating tool-switching.\n\nDocumented **Data sources**: Observability Cloud webhooks, `itsi_tracked_alerts`. **App/TA** (typical add-on context): Splunk ITSI, Splunk Observability Cloud. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Alerts.Alerts` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (O11y alert source, count, severity), Time chart (alert volume over time).",
+  "visualization": "Table (O11y alert source, count, severity), Time chart (alert volume over time).",
+  "references": [
+    {
+      "title": "Splunk ITSI",
+      "url": "https://splunkbase.splunk.com/app/1841"
+    },
+    {
+      "title": "CIM: Alerts",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts"
+    }
+  ],
+  "equipment": [
+    "itsi"
+  ]
+}

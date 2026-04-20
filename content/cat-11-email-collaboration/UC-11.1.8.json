@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "11.1.8",
+  "title": "Inbox Rule Monitoring",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "O365 audit log (New-InboxRule, Set-InboxRule)",
+  "app": "`Splunk_TA_MS_O365`",
+  "spl": "index=o365 sourcetype=\"ms:o365:management\" Operation IN (\"New-InboxRule\",\"Set-InboxRule\")\n| spath output=forward Parameters{}.Value\n| search forward=\"*@*\" NOT forward=\"*@yourdomain.com\"\n| table _time, UserId, Operation, forward",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Malicious inbox rules (auto-forward to external, auto-delete) are a key post-compromise technique for data exfiltration.",
+  "value": "Malicious inbox rules (auto-forward to external, auto-delete) are a key post-compromise technique for data exfiltration.",
+  "implementation": "Monitor inbox rule creation events. Alert on rules that forward to external addresses, delete messages, or move to uncommon folders. These are high-confidence indicators of account compromise. Trigger immediate investigation.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_MS_O365`.\n• Ensure the following data sources are available: O365 audit log (New-InboxRule, Set-InboxRule).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor inbox rule creation events. Alert on rules that forward to external addresses, delete messages, or move to uncommon folders. These are high-confidence indicators of account compromise. Trigger immediate investigation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=o365 sourcetype=\"ms:o365:management\" Operation IN (\"New-InboxRule\",\"Set-InboxRule\")\n| spath output=forward Parameters{}.Value\n| search forward=\"*@*\" NOT forward=\"*@yourdomain.com\"\n| table _time, UserId, Operation, forward\n```\n\nUnderstanding this SPL\n\n**Inbox Rule Monitoring** — Malicious inbox rules (auto-forward to external, auto-delete) are a key post-compromise technique for data exfiltration.\n\nDocumented **Data sources**: O365 audit log (New-InboxRule, Set-InboxRule). **App/TA** (typical add-on context): `Splunk_TA_MS_O365`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: o365; **sourcetype**: ms:o365:management. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=o365, sourcetype=\"ms:o365:management\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **Inbox Rule Monitoring**): table _time, UserId, Operation, forward\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (suspicious inbox rules), Single value (external forwarding rules — target: 0), Timeline (rule creation events).",
+  "visualization": "Table (suspicious inbox rules), Single value (external forwarding rules — target: 0), Timeline (rule creation events).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "m365"
+  ]
+}

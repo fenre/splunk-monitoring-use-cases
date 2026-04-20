@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.22",
+  "title": "NAC Quarantine and Remediation Duration",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Quarantine start/end, remediation outcome",
+  "app": "NAC platform logs",
+  "spl": "index=nac sourcetype=\"nac:quarantine\"\n| eval duration_min=(released_time - quarantine_time)/60\n| stats avg(duration_min) as avg_mins, count by posture_violation, remediation_result\n| where avg_mins > 60\n| table posture_violation, remediation_result, count, avg_mins",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Long quarantine or remediation times affect user productivity. Monitoring duration supports process improvement and exception handling.",
+  "value": "Long quarantine or remediation times affect user productivity. Monitoring duration supports process improvement and exception handling.",
+  "implementation": "Ingest NAC quarantine and release events. Compute time in quarantine and remediation success. Alert when average duration exceeds threshold. Report on violation types and remediation rate.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: NAC platform logs.\n• Ensure the following data sources are available: Quarantine start/end, remediation outcome.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest NAC quarantine and release events. Compute time in quarantine and remediation success. Alert when average duration exceeds threshold. Report on violation types and remediation rate.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nac sourcetype=\"nac:quarantine\"\n| eval duration_min=(released_time - quarantine_time)/60\n| stats avg(duration_min) as avg_mins, count by posture_violation, remediation_result\n| where avg_mins > 60\n| table posture_violation, remediation_result, count, avg_mins\n```\n\nUnderstanding this SPL\n\n**NAC Quarantine and Remediation Duration** — Long quarantine or remediation times affect user productivity. Monitoring duration supports process improvement and exception handling.\n\nDocumented **Data sources**: Quarantine start/end, remediation outcome. **App/TA** (typical add-on context): NAC platform logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nac; **sourcetype**: nac:quarantine. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nac, sourcetype=\"nac:quarantine\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **duration_min** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by posture_violation, remediation_result** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where avg_mins > 60` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **NAC Quarantine and Remediation Duration**): table posture_violation, remediation_result, count, avg_mins\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (quarantine duration by violation), Bar chart (avg duration), Pie chart (remediation outcome).",
+  "visualization": "Table (quarantine duration by violation), Bar chart (avg duration), Pie chart (remediation outcome).",
+  "references": [
+    {
+      "title": "Splunkbase app 2846",
+      "url": "https://splunkbase.splunk.com/app/2846"
+    },
+    {
+      "title": "Splunkbase app 2847",
+      "url": "https://splunkbase.splunk.com/app/2847"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows."
+}

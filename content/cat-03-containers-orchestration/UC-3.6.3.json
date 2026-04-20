@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.6.3",
+  "title": "Deployment Velocity Trending",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=containers sourcetype=kube:audit` or `sourcetype=kube:controller`",
+  "app": "Splunk Connect for Kubernetes, Argo CD / Flux logs",
+  "spl": "index=containers sourcetype=\"kube:audit\"\n| search objectRef.resource=\"deployments\" verb IN (\"create\", \"patch\", \"update\")\n| eval namespace=coalesce('objectRef.namespace', namespace)\n| timechart span=1d dc(objectRef.name) as deployments by namespace",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Deployments per day or week by namespace show delivery cadence and whether release practices are steady or chaotic. Sudden drops or spikes often correlate with code freezes, incidents, or CI/CD automation changes.",
+  "value": "Deployments per day or week by namespace show delivery cadence and whether release practices are steady or chaotic. Sudden drops or spikes often correlate with code freezes, incidents, or CI/CD automation changes.",
+  "implementation": "Ingest Kubernetes audit logs that record Deployment changes. Map objectRef.resource, verb, and namespace fields. If audit logs are unavailable, use Argo CD or Flux application sync events with the same grouping. Use span=1d or span=1w depending on whether you want daily or weekly velocity. Exclude system namespaces that skew the chart.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Connect for Kubernetes, Argo CD / Flux logs.\n• Ensure the following data sources are available: `index=containers sourcetype=kube:audit` or `sourcetype=kube:controller`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest Kubernetes audit logs that record Deployment changes. Map objectRef.resource, verb, and namespace fields. If audit logs are unavailable, use Argo CD or Flux application sync events with the same grouping. Use span=1d or span=1w depending on whether you want daily or weekly velocity. Exclude system namespaces that skew the chart.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=containers sourcetype=\"kube:audit\"\n| search objectRef.resource=\"deployments\" verb IN (\"create\", \"patch\", \"update\")\n| eval namespace=coalesce('objectRef.namespace', namespace)\n| timechart span=1d dc(objectRef.name) as deployments by namespace\n```\n\nUnderstanding this SPL\n\n**Deployment Velocity Trending** — Deployments per day or week by namespace show delivery cadence and whether release practices are steady or chaotic. Sudden drops or spikes often correlate with code freezes, incidents, or CI/CD automation changes.\n\nDocumented **Data sources**: `index=containers sourcetype=kube:audit` or `sourcetype=kube:controller`. **App/TA** (typical add-on context): Splunk Connect for Kubernetes, Argo CD / Flux logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: containers; **sourcetype**: kube:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=containers, sourcetype=\"kube:audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `eval` defines or adjusts **namespace** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by namespace** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Column chart (deployments per period by namespace), line chart (weekly total velocity trend).",
+  "visualization": "Column chart (deployments per period by namespace), line chart (weekly total velocity trend).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "argocd",
+    "kubernetes"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.2.27",
+  "title": "Pipeline Resource Utilization",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`container_cpu_usage_seconds`, `job_duration`, resource requests",
+  "app": "Kubernetes metrics, Jenkins Prometheus plugin",
+  "spl": "index=infra sourcetype=\"kube:pod_metrics\" label_app=\"ci-runner\"\n| bin _time span=5m\n| stats avg(cpu_cores) as avg_cpu by pod_name\n| join max=1 pod_name [search index=cicd sourcetype=\"jenkins:build\" | stats avg(duration) as job_dur by executor_pod]\n| table pod_name, avg_cpu, job_dur",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "CPU/memory per runner job—right-sizing and spot vs on-demand mix.",
+  "value": "CPU/memory per runner job—right-sizing and spot vs on-demand mix.",
+  "implementation": "Correlate runner pods with jobs. Identify over-provisioned runners. Recommend requests/limits tuning.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Kubernetes metrics, Jenkins Prometheus plugin.\n• Ensure the following data sources are available: `container_cpu_usage_seconds`, `job_duration`, resource requests.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCorrelate runner pods with jobs. Identify over-provisioned runners. Recommend requests/limits tuning.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=infra sourcetype=\"kube:pod_metrics\" label_app=\"ci-runner\"\n| bin _time span=5m\n| stats avg(cpu_cores) as avg_cpu by pod_name\n| join max=1 pod_name [search index=cicd sourcetype=\"jenkins:build\" | stats avg(duration) as job_dur by executor_pod]\n| table pod_name, avg_cpu, job_dur\n```\n\nUnderstanding this SPL\n\n**Pipeline Resource Utilization** — CPU/memory per runner job—right-sizing and spot vs on-demand mix.\n\nDocumented **Data sources**: `container_cpu_usage_seconds`, `job_duration`, resource requests. **App/TA** (typical add-on context): Kubernetes metrics, Jenkins Prometheus plugin. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: infra; **sourcetype**: kube:pod_metrics. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=infra, sourcetype=\"kube:pod_metrics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by pod_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Pipeline stage (see **Pipeline Resource Utilization**): table pod_name, avg_cpu, job_dur\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (utilization by runner), Bar chart (avg CPU per job type), Line chart (efficiency trend).",
+  "visualization": "Table (utilization by runner), Bar chart (avg CPU per job type), Line chart (efficiency trend).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "jenkins",
+    "kubernetes",
+    "prometheus"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ]
+}

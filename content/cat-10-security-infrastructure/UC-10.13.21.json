@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.13.21",
+  "title": "Signature Hit Analysis",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`IDS_Attacks.signature`",
+  "app": "IDS CIM",
+  "spl": "index=security tag=ids\n| stats count by signature, category\n| sort 50 -count",
+  "cimSpl": "| tstats `summariesonly` count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.signature, IDS_Attacks.category\n| sort 50 -count",
+  "cimModels": [
+    "Intrusion_Detection"
+  ],
+  "description": "Top `signature` hits drive tuning priority and threat hunting focus.",
+  "value": "Top `signature` hits drive tuning priority and threat hunting focus.",
+  "implementation": "Join CVE reference lookup for prioritization.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: IDS CIM.\n• Ensure the following data sources are available: `IDS_Attacks.signature`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nJoin CVE reference lookup for prioritization.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=security tag=ids\n| stats count by signature, category\n| sort 50 -count\n```\n\nUnderstanding this SPL\n\n**Signature Hit Analysis** — Top `signature` hits drive tuning priority and threat hunting focus.\n\nDocumented **Data sources**: `IDS_Attacks.signature`. **App/TA** (typical add-on context): IDS CIM. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: security.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=security, tags. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by signature, category** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.signature, IDS_Attacks.category\n| sort 50 -count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Signature Hit Analysis** — Top `signature` hits drive tuning priority and threat hunting focus.\n\nDocumented **Data sources**: `IDS_Attacks.signature`. **App/TA** (typical add-on context): IDS CIM. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Intrusion_Detection.IDS_Attacks` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (top signatures), Table.",
+  "visualization": "Bar chart (top signatures), Table.",
+  "references": [
+    {
+      "title": "CIM: Intrusion_Detection",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

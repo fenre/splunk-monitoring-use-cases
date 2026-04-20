@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.5.10",
+  "title": "Lambda Dead Letter Queue Depth and Message Rate",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Availability"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=aws:cloudwatch` (namespace `AWS/SQS`), optional `sourcetype=aws:cloudwatch:events`",
+  "app": "`Splunk_TA_aws`",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SQS\" metric_name=\"ApproximateNumberOfMessagesVisible\"\n| where match(QueueName, \"(?i)dlq|dead\")\n| timechart span=5m max(Maximum) as visible by QueueName\n| where visible > 0",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Messages landing in DLQs mean unprocessed events—often billing, inventory, or security actions—until replayed or dropped.",
+  "value": "Messages landing in DLQs mean unprocessed events—often billing, inventory, or security actions—until replayed or dropped.",
+  "implementation": "Tag or name DLQ queues consistently (`*dlq*`). Ingest SQS CloudWatch metrics per queue. Correlate queue to owning Lambda via Event Source Mapping inventory (lookup table). Alert on any sustained visible message count or sudden spikes after bad deployments.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch` (namespace `AWS/SQS`), optional `sourcetype=aws:cloudwatch:events`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTag or name DLQ queues consistently (`*dlq*`). Ingest SQS CloudWatch metrics per queue. Correlate queue to owning Lambda via Event Source Mapping inventory (lookup table). Alert on any sustained visible message count or sudden spikes after bad deployments.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SQS\" metric_name=\"ApproximateNumberOfMessagesVisible\"\n| where match(QueueName, \"(?i)dlq|dead\")\n| timechart span=5m max(Maximum) as visible by QueueName\n| where visible > 0\n```\n\nUnderstanding this SPL\n\n**Lambda Dead Letter Queue Depth and Message Rate** — Messages landing in DLQs mean unprocessed events—often billing, inventory, or security actions—until replayed or dropped.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch` (namespace `AWS/SQS`), optional `sourcetype=aws:cloudwatch:events`. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where match(QueueName, \"(?i)dlq|dead\")` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by QueueName** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where visible > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (DLQ depth), Line chart (visible messages by queue), Table (QueueName, linked function, visible).",
+  "visualization": "Single value (DLQ depth), Line chart (visible messages by queue), Table (QueueName, linked function, visible).",
+  "references": [
+    {
+      "title": "Splunk_TA_aws",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    }
+  ],
+  "mitreAttack": [
+    "T1610"
+  ],
+  "equipment": [
+    "aws"
+  ]
+}

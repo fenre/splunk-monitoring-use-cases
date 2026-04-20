@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.5.12",
+  "title": "Seismic Monitoring Data Quality Validation",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Oil, Gas, and Mining",
+  "dataSources": "`index=ot` `sourcetype=\"seismic:data\"` fields `station_id`, `samples_expected`, `samples_received`, `snr_db`",
+  "app": "Seismic acquisition system via HEC",
+  "spl": "index=ot sourcetype=\"seismic:data\"\n| eval completeness=round(samples_received/nullif(samples_expected,0)*100,2)\n| eval quality_ok=if(completeness >= 99 AND snr_db >= 10, 1, 0)\n| stats avg(quality_ok) as pass_rate by station_id\n| eval pass_pct=round(pass_rate*100,2)\n| where pass_pct < 98\n| table station_id, pass_pct",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Verifying seismic trace completeness and signal-to-noise ratio ensures monitoring programs meet technical specifications for reliable subsurface analysis.",
+  "value": "Verifying seismic trace completeness and signal-to-noise ratio ensures monitoring programs meet technical specifications for reliable subsurface analysis.",
+  "implementation": "Baseline SNR thresholds by site noise. Alert on missing traces or repeated gaps. Support field crew dispatch for sensor issues. **Domain context:** Seismic acquisition QC ties to contract specifications for mineral exploration or induced seismicity monitoring—completeness and SNR thresholds are survey-specific. **Splunk:** `pass_rate` from `avg(quality_ok)` needs representative event granularity; dedupe traces if ingested per file.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Seismic acquisition system via HEC.\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"seismic:data\"` fields `station_id`, `samples_expected`, `samples_received`, `snr_db`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBaseline SNR thresholds by site noise. Alert on missing traces or repeated gaps. Support field crew dispatch for sensor issues. **Domain context:** Seismic acquisition QC ties to contract specifications for mineral exploration or induced seismicity monitoring—completeness and SNR thresholds are survey-specific. **Splunk:** `pass_rate` from `avg(quality_ok)` needs representative event granularity; dedupe traces if ingested per file.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"seismic:data\"\n| eval completeness=round(samples_received/nullif(samples_expected,0)*100,2)\n| eval quality_ok=if(completeness >= 99 AND snr_db >= 10, 1, 0)\n| stats avg(quality_ok) as pass_rate by station_id\n| eval pass_pct=round(pass_rate*100,2)\n| where pass_pct < 98\n| table station_id, pass_pct\n```\n\nUnderstanding this SPL\n\n**Seismic Monitoring Data Quality Validation** — Verifying seismic trace completeness and signal-to-noise ratio ensures monitoring programs meet technical specifications for reliable subsurface analysis.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"seismic:data\"` fields `station_id`, `samples_expected`, `samples_received`, `snr_db`. **App/TA** (typical add-on context): Seismic acquisition system via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: seismic:data. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"seismic:data\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **completeness** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **quality_ok** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by station_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **pass_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where pass_pct < 98` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Seismic Monitoring Data Quality Validation**): table station_id, pass_pct\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Time chart (completeness), SNR distribution, Station ranking table.",
+  "visualization": "Time chart (completeness), SNR distribution, Station ranking table.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

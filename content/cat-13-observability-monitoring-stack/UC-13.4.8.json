@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.4.8",
+  "title": "Microsoft 365 Copilot Data Exfiltration Risk (ESCU)",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=o365:audit`",
+  "app": "Microsoft 365 Add-on, Microsoft Graph audit, ESCU (Microsoft Cloud content)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=o365 sourcetype=\"o365:audit\" Workload=\"Copilot\"\n| search (Operation=\"CopilotInteraction\" OR Operation=\"Search\") AND (match(SensitivityLabel,\"Highly Confidential\") OR match(ObjectId,\"(?i)export|download\"))\n| stats count by UserId, Operation, ObjectId\n| where count>20\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Copilot can surface sensitive content; monitoring risky prompts and large exports supports insider-threat and DLP alignment with Microsoft’s recommended logging.",
+  "value": "Copilot can surface sensitive content; monitoring risky prompts and large exports supports insider-threat and DLP alignment with Microsoft’s recommended logging.",
+  "implementation": "Ingest Copilot-related audit events and sensitivity labels from Purview where available. Tune for bulk retrieval, unusual Copilot sessions after privilege changes, and interactions with restricted sites. Align alerts with ESCU Microsoft 365 analytic stories and incident response playbooks.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Microsoft 365 Add-on, Microsoft Graph audit, ESCU (Microsoft Cloud content).\n• Ensure the following data sources are available: `sourcetype=o365:audit`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest Copilot-related audit events and sensitivity labels from Purview where available. Tune for bulk retrieval, unusual Copilot sessions after privilege changes, and interactions with restricted sites. Align alerts with ESCU Microsoft 365 analytic stories and incident response playbooks.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=o365 sourcetype=\"o365:audit\" Workload=\"Copilot\"\n| search (Operation=\"CopilotInteraction\" OR Operation=\"Search\") AND (match(SensitivityLabel,\"Highly Confidential\") OR match(ObjectId,\"(?i)export|download\"))\n| stats count by UserId, Operation, ObjectId\n| where count>20\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Microsoft 365 Copilot Data Exfiltration Risk (ESCU)** — Copilot can surface sensitive content; monitoring risky prompts and large exports supports insider-threat and DLP alignment with Microsoft’s recommended logging.\n\nDocumented **Data sources**: `sourcetype=o365:audit`. **App/TA** (typical add-on context): Microsoft 365 Add-on, Microsoft Graph audit, ESCU (Microsoft Cloud content). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: o365; **sourcetype**: o365:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=o365, sourcetype=\"o365:audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by UserId, Operation, ObjectId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count>20` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (users and operations), Bar chart (events by label), Timeline (Copilot activity spikes).",
+  "visualization": "Table (users and operations), Bar chart (events by label), Timeline (Copilot activity spikes).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "security_essentials"
+  ]
+}

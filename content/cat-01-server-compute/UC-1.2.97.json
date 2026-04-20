@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.97",
+  "title": "Print Spooler Vulnerability Monitoring (PrintNightmare)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-PrintService/Operational`, `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational`",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog ((source=\"WinEventLog:Microsoft-Windows-PrintService/Operational\" EventCode IN (316, 808, 811))\n  OR (EventCode=11 TargetFilename=\"*\\\\spool\\\\drivers\\\\*\"))\n| eval Indicator=case(EventCode=316,\"Driver_Install\", EventCode=808,\"RestrictDriverInstallation\", EventCode=11,\"Driver_File_Drop\", 1=1,\"Other\")\n| table _time, host, Indicator, UserName, DriverName, TargetFilename\n| sort -_time",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Print Spooler vulnerabilities (CVE-2021-34527, CVE-2021-1675) enable remote code execution and privilege escalation. Continuous monitoring ensures patches hold and exploitation attempts are caught.",
+  "value": "Print Spooler vulnerabilities (CVE-2021-34527, CVE-2021-1675) enable remote code execution and privilege escalation. Continuous monitoring ensures patches hold and exploitation attempts are caught.",
+  "implementation": "Audit Print Service Operational log for driver installations (316), and Sysmon for DLL drops into spool\\drivers directory (EventCode 11). On non-print servers, the Print Spooler service should be disabled — alert if running. On print servers, monitor for unsigned driver installations and remote driver additions. Alert on any spoolsv.exe spawning cmd.exe or powershell.exe.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-PrintService/Operational`, `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAudit Print Service Operational log for driver installations (316), and Sysmon for DLL drops into spool\\drivers directory (EventCode 11). On non-print servers, the Print Spooler service should be disabled — alert if running. On print servers, monitor for unsigned driver installations and remote driver additions. Alert on any spoolsv.exe spawning cmd.exe or powershell.exe.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog ((source=\"WinEventLog:Microsoft-Windows-PrintService/Operational\" EventCode IN (316, 808, 811))\n  OR (EventCode=11 TargetFilename=\"*\\\\spool\\\\drivers\\\\*\"))\n| eval Indicator=case(EventCode=316,\"Driver_Install\", EventCode=808,\"RestrictDriverInstallation\", EventCode=11,\"Driver_File_Drop\", 1=1,\"Other\")\n| table _time, host, Indicator, UserName, DriverName, TargetFilename\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Print Spooler Vulnerability Monitoring (PrintNightmare)** — Print Spooler vulnerabilities (CVE-2021-34527, CVE-2021-1675) enable remote code execution and privilege escalation. Continuous monitoring ensures patches hold and exploitation attempts are caught.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-PrintService/Operational`, `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational`. **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **Indicator** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Print Spooler Vulnerability Monitoring (PrintNightmare)**): table _time, host, Indicator, UserName, DriverName, TargetFilename\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (events), Single value (spooler running on non-print servers), Alert on exploitation indicators.",
+  "visualization": "Table (events), Single value (spooler running on non-print servers), Alert on exploitation indicators.",
+  "references": [
+    {
+      "title": "Audit Print Service Operational log for driver installations",
+      "url": "https://splunkbase.splunk.com/app/316"
+    },
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

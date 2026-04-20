@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.6.3",
+  "title": "Build Queue Wait Time Trending",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=devops` `sourcetype=\"jenkins:queue\"` or `sourcetype=\"jenkins:build\"` with `queue_wait_ms`; `sourcetype=\"gitlab:job\"` with `queued_duration`",
+  "app": "Jenkins metrics (`metrics` plugin), GitLab Runner metrics, GitHub Actions (job queue via API-derived events)",
+  "spl": "index=devops (sourcetype=\"jenkins:build\" OR sourcetype=\"gitlab:job\") earliest=-30d@d\n| eval wait_sec=coalesce(queue_wait_ms/1000, queued_duration, queue_time_sec)\n| where isnotnull(wait_sec)\n| timechart span=1d avg(wait_sec) as avg_wait_sec p95(wait_sec) as p95_wait_sec\n| eval avg_wait_min=round(avg_wait_sec/60,2)\n| trendline sma7(avg_wait_min) as wait_trend\n| eventstats median(avg_wait_min) as med_wait\n| eval backlog_pressure=if(avg_wait_min > med_wait*1.5,1,0)",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Queue wait reflects runner capacity and pipeline fan-in; rising waits delay feedback and release trains even when job success rates look fine.",
+  "value": "Queue wait reflects runner capacity and pipeline fan-in; rising waits delay feedback and release trains even when job success rates look fine.",
+  "implementation": "Ensure `wait_sec` excludes container provisioning if that is tracked separately. For GitHub-only shops, ingest workflow_job events with `queued_at` and `started_at` to derive wait. Split by `label` or `runner_group` to see constrained pools. Alert when p95 wait exceeds SLA for two consecutive days.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Jenkins metrics (`metrics` plugin), GitLab Runner metrics, GitHub Actions (job queue via API-derived events).\n• Ensure the following data sources are available: `index=devops` `sourcetype=\"jenkins:queue\"` or `sourcetype=\"jenkins:build\"` with `queue_wait_ms`; `sourcetype=\"gitlab:job\"` with `queued_duration`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure `wait_sec` excludes container provisioning if that is tracked separately. For GitHub-only shops, ingest workflow_job events with `queued_at` and `started_at` to derive wait. Split by `label` or `runner_group` to see constrained pools. Alert when p95 wait exceeds SLA for two consecutive days.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops (sourcetype=\"jenkins:build\" OR sourcetype=\"gitlab:job\") earliest=-30d@d\n| eval wait_sec=coalesce(queue_wait_ms/1000, queued_duration, queue_time_sec)\n| where isnotnull(wait_sec)\n| timechart span=1d avg(wait_sec) as avg_wait_sec p95(wait_sec) as p95_wait_sec\n| eval avg_wait_min=round(avg_wait_sec/60,2)\n| trendline sma7(avg_wait_min) as wait_trend\n| eventstats median(avg_wait_min) as med_wait\n| eval backlog_pressure=if(avg_wait_min > med_wait*1.5,1,0)\n```\n\nUnderstanding this SPL\n\n**Build Queue Wait Time Trending** — Queue wait reflects runner capacity and pipeline fan-in; rising waits delay feedback and release trains even when job success rates look fine.\n\nDocumented **Data sources**: `index=devops` `sourcetype=\"jenkins:queue\"` or `sourcetype=\"jenkins:build\"` with `queue_wait_ms`; `sourcetype=\"gitlab:job\"` with `queued_duration`. **App/TA** (typical add-on context): Jenkins metrics (`metrics` plugin), GitLab Runner metrics, GitHub Actions (job queue via API-derived events). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops; **sourcetype**: jenkins:build, gitlab:job. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, sourcetype=\"jenkins:build\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **wait_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnotnull(wait_sec)` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=1d** buckets — ideal for trending and alerting on this use case.\n• `eval` defines or adjusts **avg_wait_min** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Build Queue Wait Time Trending**): trendline sma7(avg_wait_min) as wait_trend\n• `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **backlog_pressure** — often to normalize units, derive a ratio, or prepare for thresholds.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (average and p95 wait in minutes), Area chart (wait distribution bands), Single value (current p95 wait).",
+  "visualization": "Line chart (average and p95 wait in minutes), Area chart (wait distribution bands), Single value (current p95 wait).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "github",
+    "gitlab",
+    "jenkins"
+  ]
+}

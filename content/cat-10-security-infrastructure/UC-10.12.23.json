@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.12.23",
+  "title": "Medical Device Network Segmentation",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Healthcare",
+  "dataSources": "`sourcetype=\"pan:traffic\"`, `sourcetype=\"ise:radius\"`",
+  "app": "Firewall, NAC",
+  "spl": "index=network sourcetype=\"pan:traffic\" src_zone=\"MED_DEVICE\"\n| lookup allowed_med_flows src dest_zone OUTPUT approved\n| where approved!=\"true\" AND dest_zone!=\"PACS\"\n| stats count by src, dest, dest_port, app\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Detects east-west traffic from device VLANs to corporate or internet against segmentation policy.",
+  "value": "Detects east-west traffic from device VLANs to corporate or internet against segmentation policy.",
+  "implementation": "Document clinical exceptions (vendor VPN); use dynamic lists for imaging modalities.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Firewall, NAC.\n• Ensure the following data sources are available: `sourcetype=\"pan:traffic\"`, `sourcetype=\"ise:radius\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDocument clinical exceptions (vendor VPN); use dynamic lists for imaging modalities.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"pan:traffic\" src_zone=\"MED_DEVICE\"\n| lookup allowed_med_flows src dest_zone OUTPUT approved\n| where approved!=\"true\" AND dest_zone!=\"PACS\"\n| stats count by src, dest, dest_port, app\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Medical Device Network Segmentation** — Detects east-west traffic from device VLANs to corporate or internet against segmentation policy.\n\nDocumented **Data sources**: `sourcetype=\"pan:traffic\"`, `sourcetype=\"ise:radius\"`. **App/TA** (typical add-on context): Firewall, NAC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: pan:traffic. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"pan:traffic\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where approved!=\"true\" AND dest_zone!=\"PACS\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src, dest, dest_port, app** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sankey (zone traffic), Table (violations), Single value (unique offending devices).",
+  "visualization": "Sankey (zone traffic), Table (violations), Single value (unique offending devices).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

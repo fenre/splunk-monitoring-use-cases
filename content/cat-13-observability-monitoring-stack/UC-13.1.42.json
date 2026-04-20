@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.1.42",
+  "title": "I/O Wait Bottleneck Detection (_introspection)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=_introspection` `sourcetype=splunk_resource_usage` (disk I/O fields) / host metrics",
+  "app": "Monitoring Console, OTel/node_exporter",
+  "spl": "index=_introspection sourcetype=splunk_resource_usage\n| where data.io_wait_pct > 25 OR data.disk_busy_pct > 80\n| timechart span=5m avg(data.io_wait_pct) by host",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "High I/O wait on indexers correlates with slow searches, bucket replication, and ingestion lag.",
+  "value": "High I/O wait on indexers correlates with slow searches, bucket replication, and ingestion lag.",
+  "implementation": "Field names depend on platform; normalize in `props`. Correlate with storage latency metrics from SAN/NVMe. Alert when sustained `io_wait` exceeds threshold.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Monitoring Console, OTel/node_exporter.\n• Ensure the following data sources are available: `index=_introspection` `sourcetype=splunk_resource_usage` (disk I/O fields) / host metrics.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nField names depend on platform; normalize in `props`. Correlate with storage latency metrics from SAN/NVMe. Alert when sustained `io_wait` exceeds threshold.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_introspection sourcetype=splunk_resource_usage\n| where data.io_wait_pct > 25 OR data.disk_busy_pct > 80\n| timechart span=5m avg(data.io_wait_pct) by host\n```\n\nUnderstanding this SPL\n\n**I/O Wait Bottleneck Detection (_introspection)** — High I/O wait on indexers correlates with slow searches, bucket replication, and ingestion lag.\n\nDocumented **Data sources**: `index=_introspection` `sourcetype=splunk_resource_usage` (disk I/O fields) / host metrics. **App/TA** (typical add-on context): Monitoring Console, OTel/node_exporter. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _introspection; **sourcetype**: splunk_resource_usage. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_introspection, sourcetype=splunk_resource_usage. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where data.io_wait_pct > 25 OR data.disk_busy_pct > 80` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by host** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (iowait %), Table (hosts with disk saturation).",
+  "visualization": "Line chart (iowait %), Table (hosts with disk saturation).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

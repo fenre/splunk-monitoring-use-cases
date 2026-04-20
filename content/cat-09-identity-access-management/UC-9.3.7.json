@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "9.3.7",
+  "title": "Session Hijacking Detection",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "IdP session activity logs, application session logs",
+  "app": "`Splunk_TA_okta`, IdP session logs",
+  "spl": "index=okta sourcetype=\"OktaIM2:log\"\n| stats dc(client.ipAddress) as unique_ips, values(client.ipAddress) as ips by authenticationContext.externalSessionId, actor.alternateId\n| where unique_ips > 2\n| table actor.alternateId, authenticationContext.externalSessionId, unique_ips, ips",
+  "cimSpl": "| tstats `summariesonly` dc(Authentication.src) as src_count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=\"success\"\n  by Authentication.user span=1h\n| where src_count > 3",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Sessions used from multiple locations simultaneously indicate session token theft. Detection prevents ongoing unauthorized access.",
+  "value": "Sessions used from multiple locations simultaneously indicate session token theft. Detection prevents ongoing unauthorized access.",
+  "implementation": "Track session IDs across events. Alert when a single session is used from multiple IP addresses simultaneously (excluding known VPN/proxy IPs). Correlate with user agent changes for additional confidence.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_okta`, IdP session logs.\n• Ensure the following data sources are available: IdP session activity logs, application session logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTrack session IDs across events. Alert when a single session is used from multiple IP addresses simultaneously (excluding known VPN/proxy IPs). Correlate with user agent changes for additional confidence.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=okta sourcetype=\"OktaIM2:log\"\n| stats dc(client.ipAddress) as unique_ips, values(client.ipAddress) as ips by authenticationContext.externalSessionId, actor.alternateId\n| where unique_ips > 2\n| table actor.alternateId, authenticationContext.externalSessionId, unique_ips, ips\n```\n\nUnderstanding this SPL\n\n**Session Hijacking Detection** — Sessions used from multiple locations simultaneously indicate session token theft. Detection prevents ongoing unauthorized access.\n\nDocumented **Data sources**: IdP session activity logs, application session logs. **App/TA** (typical add-on context): `Splunk_TA_okta`, IdP session logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: okta; **sourcetype**: OktaIM2:log. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=okta, sourcetype=\"OktaIM2:log\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by authenticationContext.externalSessionId, actor.alternateId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where unique_ips > 2` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Session Hijacking Detection**): table actor.alternateId, authenticationContext.externalSessionId, unique_ips, ips\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` dc(Authentication.src) as src_count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=\"success\"\n  by Authentication.user span=1h\n| where src_count > 3\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Session Hijacking Detection** — Sessions used from multiple locations simultaneously indicate session token theft. Detection prevents ongoing unauthorized access.\n\nDocumented **Data sources**: IdP session activity logs, application session logs. **App/TA** (typical add-on context): `Splunk_TA_okta`, IdP session logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Filters the current rows with `where src_count > 3` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (hijacked sessions), Timeline (suspicious session events), Bar chart (users with multi-IP sessions).",
+  "visualization": "Table (hijacked sessions), Timeline (suspicious session events), Bar chart (users with multi-IP sessions).",
+  "references": [
+    {
+      "title": "Splunk_TA_okta",
+      "url": "https://splunkbase.splunk.com/app/6553"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1539",
+    "T1550.001"
+  ],
+  "equipment": [
+    "okta"
+  ]
+}

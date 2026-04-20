@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.3.283",
+  "title": "Process Writing DynamicWrapperX",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Sysmon EventID 11",
+  "app": "Splunk Security Essentials / ESCU",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| tstats `security_content_summariesonly` count FROM datamodel=Endpoint.Filesystem\n      WHERE Filesystem.file_name=\"dynwrapx.dll\"\n      BY Filesystem.action Filesystem.dest Filesystem.file_access_time\n         Filesystem.file_create_time Filesystem.file_hash Filesystem.file_modify_time\n         Filesystem.file_name Filesystem.file_path Filesystem.file_acl\n         Filesystem.file_size Filesystem.process_guid Filesystem.process_id\n         Filesystem.user Filesystem.vendor_product\n    | `drop_dm_object_name(Filesystem)`\n    | `security_content_ctime(firstTime)`\n    | `security_content_ctime(lastTime)`\n    | `process_writing_dynamicwrapperx_filter`",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "The following analytic detects a process writing the dynwrapx.dll file to disk and registering it in the registry. It leverages data from the Endpoint datamodel, specifically monitoring process and filesystem events. This activity is significant because DynamicWrapperX is an ActiveX component often used in scripts to call Windows API functions, and its presence in non-standard locations is highly suspicious. If confirmed malicious, this could allow an attacker to execute arbitrary code, escalate…",
+  "value": "The following analytic detects a process writing the dynwrapx.dll file to disk and registering it in the registry. It leverages data from the Endpoint datamodel, specifically monitoring process and filesystem events. This activity is significant because DynamicWrapperX is an ActiveX component often used in scripts to call Windows API functions, and its presence in non-standard locations is highly suspicious. If confirmed malicious, this could allow an attacker to execute arbitrary code, escalate…",
+  "implementation": "ESCU Hunting detection — not designed for automated alerting. Run ad-hoc or on a low-frequency schedule from Splunk Enterprise Security for analyst-driven investigation. Requires Sysmon EventID 11 ingested and CIM-normalized.",
+  "detailedImplementation": "Enterprise Security Detection Rule\n\n\"Process Writing DynamicWrapperX\" is a Hunting detection designed for analyst-driven threat hunting rather than automated alerting, sourced from the Splunk Enterprise Security Content Update (ESCU). Hunting detections are not intended for automated alerting. They are run on-demand or on a low-frequency schedule by security analysts investigating specific threat hypotheses.\n\nPrerequisites\n\n• Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.\n• Data sources: Sysmon EventID 11. Must be ingested into Splunk and normalized to the Common Information Model (CIM) via the appropriate Technology Add-on.\n• MITRE ATT&CK: T1059, T1559.001. Review the ATT&CK matrix for adjacent techniques to identify detection coverage gaps in your environment.\n\nDeployment\n\n1. In Enterprise Security, navigate to Configure → Content → Content Management.\n2. Search for \"Process Writing DynamicWrapperX\" or filter by Analytic Story.\n3. Hunting detections are typically left disabled for automated scheduling. Instead, run them on-demand from the Search bar or schedule at low frequency (daily or weekly).\n4. Review results manually — hunting detections cast a wider net and expect analyst judgment to separate signal from noise.\n5. When results warrant further investigation, create a Notable Event manually or initiate your incident response workflow.\n\nTuning and False Positive Management\n\nKnown false positives for this detection: False positives should be limited, however it is possible to filter by Processes.process_name and specific processes (ex. wscript.exe). Filter as needed. This may need modification based on EDR telemetry and how it brings in registry data. For example, removal of (Default).\n\n• Hunting detections are expected to produce broader result sets that require analyst interpretation. Focus on refining the search scope (time range, specific hosts or users) rather than eliminating all noise.\n• Maintain a hunting journal documenting hypotheses tested, results found, and detection improvements identified.\n• Share high-fidelity findings with the detection engineering team to convert recurring hunting patterns into automated TTP or Anomaly detections.\n\nAnalyst Response Workflow\n\nWhen reviewing Hunting results:\n\n1. Run the search manually or review scheduled results. Evaluate each returned event against your threat hypothesis — not every result indicates compromise.\n2. Cross-reference findings with current threat intelligence, recent security advisories, and outputs from other detection sources.\n3. If suspicious activity is confirmed, create a Notable Event or escalate directly to your incident response process with the supporting evidence.\n4. Document the hunting exercise: hypothesis, data sources queried, time range, findings, and any detection engineering improvements identified.\n\nValidation\n\nConfirm the required data sources are flowing:\n\n```spl\n| tstats count where index=* by index, sourcetype | sort -count\n```\n\nVerify the detection is enabled and firing:\n\n```spl\nindex=_audit action=\"alert_fired\" ss_name=\"*\"\n| stats count by ss_name, trigger_time | sort -trigger_time\n```",
+  "visualization": "Table, Timeline (from ESCU).",
+  "references": [
+    {
+      "url": "https://blog.f-secure.com/hunting-for-koadic-a-com-based-rootkit/"
+    },
+    {
+      "url": "https://www.script-coding.com/dynwrapx_eng.html"
+    },
+    {
+      "url": "https://bohops.com/2018/06/28/abusing-com-registry-structure-clsid-localserver32-inprocserver32/"
+    },
+    {
+      "url": "https://tria.ge/210929-ap75vsddan"
+    },
+    {
+      "url": "https://www.virustotal.com/gui/file/cb77b93150cb0f7fe65ce8a7e2a5781e727419451355a7736db84109fa215a89"
+    }
+  ],
+  "knownFalsePositives": "False positives should be limited, however it is possible to filter by Processes.process_name and specific processes (ex. wscript.exe). Filter as needed. This may need modification based on EDR telemetry and how it brings in registry data. For example, removal of (Default).",
+  "mitreAttack": [
+    "T1059",
+    "T1559.001"
+  ],
+  "detectionType": "Hunting",
+  "equipment": [
+    "security_essentials"
+  ]
+}

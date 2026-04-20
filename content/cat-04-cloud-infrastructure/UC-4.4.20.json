@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.4.20",
+  "title": "Multi-Cloud DNS Resolution Latency",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "DNS query timing from multiple vantage points (AWS, Azure, GCP, on-prem)",
+  "app": "Custom scripted input (dig, nslookup)",
+  "spl": "index=cloud sourcetype=\"dns:resolution\" \n| stats avg(resolution_ms) as avg_ms, max(resolution_ms) as max_ms, count as queries by provider, vantage_point, domain\n| where avg_ms > 200 OR max_ms > 1000\n| eval avg_ms=round(avg_ms, 1), max_ms=round(max_ms, 1)\n| table provider vantage_point domain queries avg_ms max_ms\n| sort -avg_ms",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Cross-provider DNS query performance comparison. Slow or failed resolution causes application timeouts and user experience degradation.",
+  "value": "Cross-provider DNS query performance comparison. Slow or failed resolution causes application timeouts and user experience degradation.",
+  "implementation": "Run periodic DNS probes (dig, nslookup, or custom script) from Lambda, Azure Functions, Cloud Functions, or on-prem agents. Measure resolution time per domain. Ingest results via HEC with fields: provider, vantage_point, domain, resolution_ms, success. Alert when avg latency exceeds 200ms or failure rate > 5%. Compare providers for DNS migration decisions.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (dig, nslookup).\n• Ensure the following data sources are available: DNS query timing from multiple vantage points (AWS, Azure, GCP, on-prem).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRun periodic DNS probes (dig, nslookup, or custom script) from Lambda, Azure Functions, Cloud Functions, or on-prem agents. Measure resolution time per domain. Ingest results via HEC with fields: provider, vantage_point, domain, resolution_ms, success. Alert when avg latency exceeds 200ms or failure rate > 5%. Compare providers for DNS migration decisions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"dns:resolution\" \n| stats avg(resolution_ms) as avg_ms, max(resolution_ms) as max_ms, count as queries by provider, vantage_point, domain\n| where avg_ms > 200 OR max_ms > 1000\n| eval avg_ms=round(avg_ms, 1), max_ms=round(max_ms, 1)\n| table provider vantage_point domain queries avg_ms max_ms\n| sort -avg_ms\n```\n\nUnderstanding this SPL\n\n**Multi-Cloud DNS Resolution Latency** — Cross-provider DNS query performance comparison. Slow or failed resolution causes application timeouts and user experience degradation.\n\nDocumented **Data sources**: DNS query timing from multiple vantage points (AWS, Azure, GCP, on-prem). **App/TA** (typical add-on context): Custom scripted input (dig, nslookup). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: dns:resolution. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"dns:resolution\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by provider, vantage_point, domain** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where avg_ms > 200 OR max_ms > 1000` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **avg_ms** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Multi-Cloud DNS Resolution Latency**): table provider vantage_point domain queries avg_ms max_ms\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (resolution latency by provider and domain over time), Table (provider, domain, avg ms), Heat map (provider vs domain).",
+  "visualization": "Line chart (resolution latency by provider and domain over time), Table (provider, domain, avg ms), Heat map (provider vs domain).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

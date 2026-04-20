@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "9.3.10",
+  "title": "SSO Session Hijacking Indicators",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "IdP `user.authentication.sso` with session correlation ID, device fingerprint fields",
+  "app": "`Splunk_TA_okta`, Entra sign-in logs",
+  "spl": "index=okta sourcetype=\"OktaIM2:log\" eventType=\"user.authentication.sso\"\n| transaction authenticationContext.externalSessionId maxpause=300 maxevents=50\n| eval ua_change=if(mvcount(client.userAgent.rawUserAgent)>2,1,0)\n| where ua_change=1\n| table authenticationContext.externalSessionId, actor.alternateId, client.userAgent.rawUserAgent",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Complements session ID correlation with user-agent flips, ASN changes mid-session, and impossible concurrent SSO from IdP telemetry.",
+  "value": "Complements session ID correlation with user-agent flips, ASN changes mid-session, and impossible concurrent SSO from IdP telemetry.",
+  "implementation": "Flag sessions with multiple user agents or countries within short windows. Tune for corporate VPN that rotates egress. Pair with UC-9.3.7 for IP-based hijack detection.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_okta`, Entra sign-in logs.\n• Ensure the following data sources are available: IdP `user.authentication.sso` with session correlation ID, device fingerprint fields.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFlag sessions with multiple user agents or countries within short windows. Tune for corporate VPN that rotates egress. Pair with UC-9.3.7 for IP-based hijack detection.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=okta sourcetype=\"OktaIM2:log\" eventType=\"user.authentication.sso\"\n| transaction authenticationContext.externalSessionId maxpause=300 maxevents=50\n| eval ua_change=if(mvcount(client.userAgent.rawUserAgent)>2,1,0)\n| where ua_change=1\n| table authenticationContext.externalSessionId, actor.alternateId, client.userAgent.rawUserAgent\n```\n\nUnderstanding this SPL\n\n**SSO Session Hijacking Indicators** — Complements session ID correlation with user-agent flips, ASN changes mid-session, and impossible concurrent SSO from IdP telemetry.\n\nDocumented **Data sources**: IdP `user.authentication.sso` with session correlation ID, device fingerprint fields. **App/TA** (typical add-on context): `Splunk_TA_okta`, Entra sign-in logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: okta; **sourcetype**: OktaIM2:log. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=okta, sourcetype=\"OktaIM2:log\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Groups related events into transactions — prefer `maxspan`/`maxpause`/`maxevents` for bounded memory.\n• `eval` defines or adjusts **ua_change** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where ua_change=1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SSO Session Hijacking Indicators**): table authenticationContext.externalSessionId, actor.alternateId, client.userAgent.rawUserAgent\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**SSO Session Hijacking Indicators** — Complements session ID correlation with user-agent flips, ASN changes mid-session, and impossible concurrent SSO from IdP telemetry.\n\nDocumented **Data sources**: IdP `user.authentication.sso` with session correlation ID, device fingerprint fields. **App/TA** (typical add-on context): `Splunk_TA_okta`, Entra sign-in logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (suspicious sessions), Timeline, Bar chart (sessions with UA churn).",
+  "visualization": "Table (suspicious sessions), Timeline, Bar chart (sessions with UA churn).",
+  "references": [
+    {
+      "title": "Splunk_TA_okta",
+      "url": "https://splunkbase.splunk.com/app/6553"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1539",
+    "T1550.001"
+  ],
+  "equipment": [
+    "m365",
+    "okta"
+  ]
+}

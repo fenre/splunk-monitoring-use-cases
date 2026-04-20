@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.22",
+  "title": "Weather Station Data Integration & Altitude Compensation",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=edge-hub-data` metric_name=pressure, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log external_weather_device",
+  "app": "Splunk Edge Hub (optional pressure sensor), MQTT integration",
+  "premiumApps": [
+    "Splunk Edge Hub"
+  ],
+  "spl": "| mstats avg(pressure) as edge_press by host, _time span=1h\n| join max=1 host [| mstats avg(external_pressure) as ext_press by host, _time span=1h]\n| eval altitude_diff = (44330 * (1.0 - ((edge_press / ext_press)^(1/5.255))))\n| where altitude_diff != 0\n| eval altitude_compensated_reading = edge_press - (altitude_diff * 0.0001198)",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Provides pressure-altitude data for facility environmental baselines and corrects sensor readings for elevation changes.",
+  "value": "Provides pressure-altitude data for facility environmental baselines and corrects sensor readings for elevation changes.",
+  "implementation": "Deploy Edge Hub with optional pressure sensor at facility location. Subscribe to external MQTT weather station (Advanced Settings → MQTT Subscriptions) publishing atmospheric pressure. Use barometric formula to compute altitude or detect pressure sensor drift. Store readings in edge-hub-data metric index. Pressure range 300-1100 hPa covers sea-level to 3,000m elevation. Use local SQLite backlog for real-time compensation without cloud latency.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (optional pressure sensor), MQTT integration.\n• Ensure the following data sources are available: `index=edge-hub-data` metric_name=pressure, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log external_weather_device.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Edge Hub with optional pressure sensor at facility location. Subscribe to external MQTT weather station (Advanced Settings → MQTT Subscriptions) publishing atmospheric pressure. Use barometric formula to compute altitude or detect pressure sensor drift. Store readings in edge-hub-data metric index. Pressure range 300-1100 hPa covers sea-level to 3,000m elevation. Use local SQLite backlog for real-time compensation without cloud latency.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| mstats avg(pressure) as edge_press by host, _time span=1h\n| join max=1 host [| mstats avg(external_pressure) as ext_press by host, _time span=1h]\n| eval altitude_diff = (44330 * (1.0 - ((edge_press / ext_press)^(1/5.255))))\n| where altitude_diff != 0\n| eval altitude_compensated_reading = edge_press - (altitude_diff * 0.0001198)\n```\n\nUnderstanding this SPL\n\n**Weather Station Data Integration & Altitude Compensation** — Provides pressure-altitude data for facility environmental baselines and corrects sensor readings for elevation changes.\n\nDocumented **Data sources**: `index=edge-hub-data` metric_name=pressure, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log external_weather_device. **App/TA** (typical add-on context): Splunk Edge Hub (optional pressure sensor), MQTT integration. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `mstats` to query metrics indexes (pre-aggregated metric data).\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **altitude_diff** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where altitude_diff != 0` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **altitude_compensated_reading** — often to normalize units, derive a ratio, or prepare for thresholds.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Altitude vs time, pressure correction factor trend, weather correlation chart.",
+  "visualization": "Altitude vs time, pressure correction factor trend, weather correlation chart.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.",
+  "equipment": [
+    "edge_hub",
+    "mqtt"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.30",
+  "title": "Predictive Maintenance via NPU-Based Model Inference",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=edge-hub-data` raw sensor metrics, `index=edge-hub-logs` predictive_maintenance_inference",
+  "app": "Splunk Edge Hub (NPU + custom container), v2.1+, OT Intelligence",
+  "premiumApps": [
+    "Splunk Edge Hub",
+    "Splunk OT Intelligence"
+  ],
+  "spl": "index=edge-hub-logs sourcetype=splunk_edge_hub_log predictive_model_inference failure_risk_score>0.7\n| stats count as high_risk_predictions, avg(failure_risk_score) as avg_risk by equipment_id, host\n| eval maintenance_urgency=case(avg_risk > 0.85, \"CRITICAL\", avg_risk > 0.7, \"HIGH\", 1=1, \"MEDIUM\")",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Predicts equipment failures (bearing degradation, motor insulation breakdown) 7-30 days in advance using on-device ML inference.",
+  "value": "Predicts equipment failures (bearing degradation, motor insulation breakdown) 7-30 days in advance using on-device ML inference.",
+  "implementation": "Train XGBoost or TensorFlow Lite model offline using historical sensor data (temperature, vibration, power consumption trends). Quantize model to INT8 for NPU deployment. Build custom ARM64 container that streams sensor features (via gRPC API) into model inference pipeline running on NPU. Model outputs failure_risk_score (0-1 scale). If score > 0.7, trigger alert and log predictive maintenance event. Store raw feature vectors locally (3M backlog) for continuous model retraining. Configure edge.json: memory 512MB, CPU 2 cores, NPU enabled.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (NPU + custom container), v2.1+, OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-data` raw sensor metrics, `index=edge-hub-logs` predictive_maintenance_inference.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTrain XGBoost or TensorFlow Lite model offline using historical sensor data (temperature, vibration, power consumption trends). Quantize model to INT8 for NPU deployment. Build custom ARM64 container that streams sensor features (via gRPC API) into model inference pipeline running on NPU. Model outputs failure_risk_score (0-1 scale). If score > 0.7, trigger alert and log predictive maintenance event. Store raw feature vectors locally (3M backlog) for continuous model retraining. Configure edge.j…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=splunk_edge_hub_log predictive_model_inference failure_risk_score>0.7\n| stats count as high_risk_predictions, avg(failure_risk_score) as avg_risk by equipment_id, host\n| eval maintenance_urgency=case(avg_risk > 0.85, \"CRITICAL\", avg_risk > 0.7, \"HIGH\", 1=1, \"MEDIUM\")\n```\n\nUnderstanding this SPL\n\n**Predictive Maintenance via NPU-Based Model Inference** — Predicts equipment failures (bearing degradation, motor insulation breakdown) 7-30 days in advance using on-device ML inference.\n\nDocumented **Data sources**: `index=edge-hub-data` raw sensor metrics, `index=edge-hub-logs` predictive_maintenance_inference. **App/TA** (typical add-on context): Splunk Edge Hub (NPU + custom container), v2.1+, OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: splunk_edge_hub_log. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=splunk_edge_hub_log. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by equipment_id, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **maintenance_urgency** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Failure risk score trend, maintenance urgency gauge, prediction accuracy (post-hoc) scatter.",
+  "visualization": "Failure risk score trend, maintenance urgency gauge, prediction accuracy (post-hoc) scatter.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "edge_hub"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.40",
+  "title": "WHEA Hardware Error Reporting",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=WinEventLog:System` (Source=Microsoft-Windows-WHEA-Logger, EventCode 17, 18, 19, 20, 47)",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog sourcetype=\"WinEventLog:System\" Source=\"Microsoft-Windows-WHEA-Logger\"\n| eval severity=case(EventCode=18,\"Fatal\",EventCode=19,\"Corrected\",EventCode=20,\"Informational\",1=1,\"Other\")\n| stats count by host, severity, ErrorSource, ErrorType\n| sort -count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Windows Hardware Error Architecture (WHEA) reports CPU, memory, and PCIe hardware errors before they cause crashes. Enables proactive hardware replacement.",
+  "value": "Windows Hardware Error Architecture (WHEA) reports CPU, memory, and PCIe hardware errors before they cause crashes. Enables proactive hardware replacement.",
+  "implementation": "WHEA events are logged automatically by Windows on hardware error. EventCode 18=fatal (machine check, NMI), 19=corrected (ECC memory correction, CPU thermal), 47=informational. Track corrected error rates — rising counts predict imminent failure. Correlate with specific hardware component (CPU, memory DIMM, PCIe device) from ErrorSource field. Alert on any fatal errors and on corrected error rate >10/hour.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:System` (Source=Microsoft-Windows-WHEA-Logger, EventCode 17, 18, 19, 20, 47).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nWHEA events are logged automatically by Windows on hardware error. EventCode 18=fatal (machine check, NMI), 19=corrected (ECC memory correction, CPU thermal), 47=informational. Track corrected error rates — rising counts predict imminent failure. Correlate with specific hardware component (CPU, memory DIMM, PCIe device) from ErrorSource field. Alert on any fatal errors and on corrected error rate >10/hour.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:System\" Source=\"Microsoft-Windows-WHEA-Logger\"\n| eval severity=case(EventCode=18,\"Fatal\",EventCode=19,\"Corrected\",EventCode=20,\"Informational\",1=1,\"Other\")\n| stats count by host, severity, ErrorSource, ErrorType\n| sort -count\n```\n\nUnderstanding this SPL\n\n**WHEA Hardware Error Reporting** — Windows Hardware Error Architecture (WHEA) reports CPU, memory, and PCIe hardware errors before they cause crashes. Enables proactive hardware replacement.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:System` (Source=Microsoft-Windows-WHEA-Logger, EventCode 17, 18, 19, 20, 47). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:System. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:System\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **severity** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, severity, ErrorSource, ErrorType** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (errors by host and component), Line chart (corrected error trend), Single value (fatal errors — target: 0).",
+  "visualization": "Table (errors by host and component), Line chart (corrected error trend), Single value (fatal errors — target: 0).",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.13.48",
+  "title": "Installed Software Changes",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Software inventory events",
+  "app": "SCCM, Jamf inventory",
+  "spl": "index=security tag=endpoint tag=package action=install\n| where match(package_name,\"(?i)(miner|remote|vpn)\")\n| stats count by host, package_name, user",
+  "cimSpl": "| tstats `summariesonly` dc(Processes.process_path) as paths from datamodel=Endpoint.Processes by Processes.dest, _time span=1d\n| where paths>30",
+  "cimModels": [
+    "Endpoint"
+  ],
+  "description": "New or rare `process_path` / binaries on servers — inventory or package logs mapped to Endpoint.",
+  "value": "New or rare `process_path` / binaries on servers — inventory or package logs mapped to Endpoint.",
+  "implementation": "Prod servers should use golden images; alert on non-approved titles.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SCCM, Jamf inventory.\n• Ensure the following data sources are available: Software inventory events.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nProd servers should use golden images; alert on non-approved titles.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=security tag=endpoint tag=package action=install\n| where match(package_name,\"(?i)(miner|remote|vpn)\")\n| stats count by host, package_name, user\n```\n\nUnderstanding this SPL\n\n**Installed Software Changes** — New or rare `process_path` / binaries on servers — inventory or package logs mapped to Endpoint.\n\nDocumented **Data sources**: Software inventory events. **App/TA** (typical add-on context): SCCM, Jamf inventory. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: security.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=security, tags. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where match(package_name,\"(?i)(miner|remote|vpn)\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by host, package_name, user** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` dc(Processes.process_path) as paths from datamodel=Endpoint.Processes by Processes.dest, _time span=1d\n| where paths>30\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Installed Software Changes** — New or rare `process_path` / binaries on servers — inventory or package logs mapped to Endpoint.\n\nDocumented **Data sources**: Software inventory events. **App/TA** (typical add-on context): SCCM, Jamf inventory. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Endpoint.Processes` — enable acceleration for that model.\n• Filters the current rows with `where paths>30` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (new software), Bar chart.",
+  "visualization": "Table (new software), Bar chart.",
+  "references": [
+    {
+      "title": "CIM: Endpoint",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

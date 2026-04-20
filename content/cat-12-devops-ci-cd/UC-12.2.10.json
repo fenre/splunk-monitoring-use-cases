@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.2.10",
+  "title": "Jenkins Node Offline Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Jenkins /computer/api/json",
+  "app": "Custom (Jenkins API)",
+  "spl": "index=cicd sourcetype=\"jenkins:computer\"\n| where offline=\"true\" OR offline=true\n| table _time, displayName, offline, temporarilyOffline, numExecutors, idleExecutors\n| sort -_time",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Build agents going offline impacts CI capacity and causes job failures. Rapid detection enables agent recovery or failover before queue backlog grows.",
+  "value": "Build agents going offline impacts CI capacity and causes job failures. Rapid detection enables agent recovery or failover before queue backlog grows.",
+  "implementation": "Poll Jenkins /computer/api/json periodically (e.g., every 5 min). Ingest offline, temporarilyOffline, displayName per node. Alert immediately when any node goes offline. Exclude master if desired. Track offline duration and recurrence for capacity planning.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Jenkins API).\n• Ensure the following data sources are available: Jenkins /computer/api/json.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll Jenkins /computer/api/json periodically (e.g., every 5 min). Ingest offline, temporarilyOffline, displayName per node. Alert immediately when any node goes offline. Exclude master if desired. Track offline duration and recurrence for capacity planning.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"jenkins:computer\"\n| where offline=\"true\" OR offline=true\n| table _time, displayName, offline, temporarilyOffline, numExecutors, idleExecutors\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Jenkins Node Offline Detection** — Build agents going offline impacts CI capacity and causes job failures. Rapid detection enables agent recovery or failover before queue backlog grows.\n\nDocumented **Data sources**: Jenkins /computer/api/json. **App/TA** (typical add-on context): Custom (Jenkins API). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: jenkins:computer. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"jenkins:computer\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where offline=\"true\" OR offline=true` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Jenkins Node Offline Detection**): table _time, displayName, offline, temporarilyOffline, numExecutors, idleExecutors\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (offline nodes), Single value (offline node count — target: 0), Status grid (node × online/offline), Timeline (offline events).",
+  "visualization": "Table (offline nodes), Single value (offline node count — target: 0), Status grid (node × online/offline), Timeline (offline events).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "jenkins"
+  ]
+}

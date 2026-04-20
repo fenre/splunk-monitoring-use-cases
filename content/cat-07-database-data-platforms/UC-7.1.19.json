@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.19",
+  "subcategory": "7.4",
+  "title": "Table and Index Bloat and Maintenance Window",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "PostgreSQL `pg_stat_user_tables`/bloat estimates, SQL Server `sys.dm_db_index_physical_stats`, Oracle segment size",
+  "app": "`splunk_app_db_connect`, maintenance job logs",
+  "spl": "| dbxquery connection=\"pg_prod\" query=\"SELECT schemaname, relname, n_dead_tup, n_live_tup, last_vacuum, last_autovacuum FROM pg_stat_user_tables WHERE n_dead_tup > 10000\"\n| eval dead_ratio=round(n_dead_tup/n_live_tup*100, 2)\n| where dead_ratio > 5\n| table schemaname relname n_dead_tup last_autovacuum dead_ratio",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Table and index bloat (PostgreSQL) or fragmentation (SQL Server) degrades query performance and wastes space. Tracking bloat and last vacuum/rebuild supports maintenance scheduling.",
+  "value": "Table and index bloat (PostgreSQL) or fragmentation (SQL Server) degrades query performance and wastes space. Tracking bloat and last vacuum/rebuild supports maintenance scheduling.",
+  "implementation": "Poll table/index stats and last maintenance timestamps. Compute dead tuple ratio or fragmentation %. Alert when bloat exceeds threshold or last vacuum/rebuild is older than 7 days for critical tables.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `splunk_app_db_connect`, maintenance job logs.\n• Ensure the following data sources are available: PostgreSQL `pg_stat_user_tables`/bloat estimates, SQL Server `sys.dm_db_index_physical_stats`, Oracle segment size.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll table/index stats and last maintenance timestamps. Compute dead tuple ratio or fragmentation %. Alert when bloat exceeds threshold or last vacuum/rebuild is older than 7 days for critical tables.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| dbxquery connection=\"pg_prod\" query=\"SELECT schemaname, relname, n_dead_tup, n_live_tup, last_vacuum, last_autovacuum FROM pg_stat_user_tables WHERE n_dead_tup > 10000\"\n| eval dead_ratio=round(n_dead_tup/n_live_tup*100, 2)\n| where dead_ratio > 5\n| table schemaname relname n_dead_tup last_autovacuum dead_ratio\n```\n\nUnderstanding this SPL\n\n**Table and Index Bloat and Maintenance Window** — Table and index bloat (PostgreSQL) or fragmentation (SQL Server) degrades query performance and wastes space. Tracking bloat and last vacuum/rebuild supports maintenance scheduling.\n\nDocumented **Data sources**: PostgreSQL `pg_stat_user_tables`/bloat estimates, SQL Server `sys.dm_db_index_physical_stats`, Oracle segment size. **App/TA** (typical add-on context): `splunk_app_db_connect`, maintenance job logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Pipeline stage (see **Table and Index Bloat and Maintenance Window**): dbxquery connection=\"pg_prod\" query=\"SELECT schemaname, relname, n_dead_tup, n_live_tup, last_vacuum, last_autovacuum FROM pg_stat_user_t…\n• `eval` defines or adjusts **dead_ratio** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where dead_ratio > 5` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Table and Index Bloat and Maintenance Window**): table schemaname relname n_dead_tup last_autovacuum dead_ratio\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (table, bloat %, last vacuum), Bar chart (bloat by table), Single value (tables overdue for vacuum).",
+  "visualization": "Table (table, bloat %, last vacuum), Bar chart (bloat by table), Single value (tables overdue for vacuum).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ]
+}

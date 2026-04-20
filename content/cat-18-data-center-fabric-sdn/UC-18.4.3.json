@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "18.4.3",
+  "title": "Nexus Dashboard Advisory and Field Notice Alerts",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance",
+    "Risk"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "NDI advisory exports, `cisco:ndi:advisory`",
+  "app": "Cisco DC Networking Application (Splunkbase 7777), NDI webhook",
+  "spl": "index=cisco_dc sourcetype=\"cisco:ndi:advisory\"\n| stats count by advisory_id, advisory_type, severity, affected_switch_count\n| where severity IN (\"critical\",\"high\")\n| table advisory_id, advisory_type, severity, affected_switch_count\n| sort -severity",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity | sort - count",
+  "cimModels": [
+    "Alerts"
+  ],
+  "description": "Nexus Dashboard Insights identifies field notices, PSIRTs, and hardware advisories that affect switches in the fabric by matching device serial numbers and software versions. Forwarding these to Splunk provides a centralised risk view alongside other infrastructure advisories.",
+  "value": "Nexus Dashboard Insights identifies field notices, PSIRTs, and hardware advisories that affect switches in the fabric by matching device serial numbers and software versions. Forwarding these to Splunk provides a centralised risk view alongside other infrastructure advisories.",
+  "implementation": "Export NDI advisories to Splunk via webhook or scheduled API poll. Correlate with asset inventory to calculate exposure percentage. Alert on critical PSIRTs or field notices affecting production fabrics.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cisco DC Networking Application (Splunkbase 7777), NDI webhook.\n• Ensure the following data sources are available: NDI advisory exports, `cisco:ndi:advisory`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExport NDI advisories to Splunk via webhook or scheduled API poll. Correlate with asset inventory to calculate exposure percentage. Alert on critical PSIRTs or field notices affecting production fabrics.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cisco_dc sourcetype=\"cisco:ndi:advisory\"\n| stats count by advisory_id, advisory_type, severity, affected_switch_count\n| where severity IN (\"critical\",\"high\")\n| table advisory_id, advisory_type, severity, affected_switch_count\n| sort -severity\n```\n\nUnderstanding this SPL\n\n**Nexus Dashboard Advisory and Field Notice Alerts** — Nexus Dashboard Insights identifies field notices, PSIRTs, and hardware advisories that affect switches in the fabric by matching device serial numbers and software versions. Forwarding these to Splunk provides a centralised risk view alongside other infrastructure advisories.\n\nDocumented **Data sources**: NDI advisory exports, `cisco:ndi:advisory`. **App/TA** (typical add-on context): Cisco DC Networking Application (Splunkbase 7777), NDI webhook. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cisco_dc; **sourcetype**: cisco:ndi:advisory. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cisco_dc, sourcetype=\"cisco:ndi:advisory\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by advisory_id, advisory_type, severity, affected_switch_count** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where severity IN (\"critical\",\"high\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Nexus Dashboard Advisory and Field Notice Alerts**): table advisory_id, advisory_type, severity, affected_switch_count\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Nexus Dashboard Advisory and Field Notice Alerts** — Nexus Dashboard Insights identifies field notices, PSIRTs, and hardware advisories that affect switches in the fabric by matching device serial numbers and software versions. Forwarding these to Splunk provides a centralised risk view alongside other infrastructure advisories.\n\nDocumented **Data sources**: NDI advisory exports, `cisco:ndi:advisory`. **App/TA** (typical add-on context): Cisco DC Networking Application (Splunkbase 7777), NDI webhook. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Alerts.Alerts` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (active advisories), Single value (critical advisories), Bar chart (affected switches per advisory).",
+  "visualization": "Table (active advisories), Single value (critical advisories), Bar chart (affected switches per advisory).",
+  "references": [
+    {
+      "title": "Cisco DC Networking Application",
+      "url": "https://splunkbase.splunk.com/app/7777"
+    },
+    {
+      "title": "CIM: Alerts",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_nexus"
+  ],
+  "hardware": "Nexus Dashboard, all managed Nexus switches"
+}

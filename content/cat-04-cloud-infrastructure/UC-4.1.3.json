@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.1.3",
+  "title": "Security Group Changes",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=aws:cloudtrail`",
+  "app": "`Splunk_TA_aws`",
+  "spl": "index=aws sourcetype=\"aws:cloudtrail\" eventName=\"AuthorizeSecurityGroupIngress\" OR eventName=\"AuthorizeSecurityGroupEgress\" OR eventName=\"RevokeSecurityGroup*\"\n| spath output=rules path=requestParameters.ipPermissions.items{}\n| table _time userIdentity.arn eventName requestParameters.groupId rules sourceIPAddress\n| sort -_time",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  where All_Changes.object_category=\"security_group\" OR match(All_Changes.object, \"(?i)SecurityGroup\")\n  by All_Changes.user All_Changes.object All_Changes.action span=1h\n| sort -count",
+  "cimModels": [
+    "Change"
+  ],
+  "description": "Security group changes can expose services to the internet. Unauthorized modifications are a primary attack vector and compliance violation.",
+  "value": "Security group changes can expose services to the internet. Unauthorized modifications are a primary attack vector and compliance violation.",
+  "implementation": "Alert on any security group modification. Extra-critical alert when `0.0.0.0/0` is added as a source (exposes to internet). Correlate with change tickets.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudtrail`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlert on any security group modification. Extra-critical alert when `0.0.0.0/0` is added as a source (exposes to internet). Correlate with change tickets.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" eventName=\"AuthorizeSecurityGroupIngress\" OR eventName=\"AuthorizeSecurityGroupEgress\" OR eventName=\"RevokeSecurityGroup*\"\n| spath output=rules path=requestParameters.ipPermissions.items{}\n| table _time userIdentity.arn eventName requestParameters.groupId rules sourceIPAddress\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Security Group Changes** — Security group changes can expose services to the internet. Unauthorized modifications are a primary attack vector and compliance violation.\n\nDocumented **Data sources**: `sourcetype=aws:cloudtrail`. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudtrail. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudtrail\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• Pipeline stage (see **Security Group Changes**): table _time userIdentity.arn eventName requestParameters.groupId rules sourceIPAddress\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  where All_Changes.object_category=\"security_group\" OR match(All_Changes.object, \"(?i)SecurityGroup\")\n  by All_Changes.user All_Changes.object All_Changes.action span=1h\n| sort -count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Security Group Changes** — Security group changes can expose services to the internet. Unauthorized modifications are a primary attack vector and compliance violation.\n\nDocumented **Data sources**: `sourcetype=aws:cloudtrail`. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (who, what, when), Timeline, Single value (changes last 24h).",
+  "visualization": "Table (who, what, when), Timeline, Single value (changes last 24h).",
+  "references": [
+    {
+      "title": "Splunk_TA_aws",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "mitreAttack": [
+    "T1562.007",
+    "T1578"
+  ],
+  "equipment": [
+    "aws"
+  ]
+}

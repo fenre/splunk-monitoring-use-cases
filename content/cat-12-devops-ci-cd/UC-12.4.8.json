@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.4.8",
+  "title": "Release Gate and Approval Lag",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Gate and approval timestamps from release pipelines",
+  "app": "Release management / pipeline TAs",
+  "spl": "index=cicd sourcetype=\"release:gate\"\n| eval wait_sec=approved_time - submitted_time\n| stats avg(wait_sec) as avg_wait, max(wait_sec) as max_wait by stage_name, environment\n| where avg_wait > 3600",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Long approval or gate wait times delay releases. Monitoring gate duration and approval latency supports process improvement.",
+  "value": "Long approval or gate wait times delay releases. Monitoring gate duration and approval latency supports process improvement.",
+  "implementation": "Ingest gate and approval events from Azure DevOps, Spinnaker, or similar. Compute wait time per stage. Alert when average wait exceeds threshold. Report on approval latency by stage and approver.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Release management / pipeline TAs.\n• Ensure the following data sources are available: Gate and approval timestamps from release pipelines.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest gate and approval events from Azure DevOps, Spinnaker, or similar. Compute wait time per stage. Alert when average wait exceeds threshold. Report on approval latency by stage and approver.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"release:gate\"\n| eval wait_sec=approved_time - submitted_time\n| stats avg(wait_sec) as avg_wait, max(wait_sec) as max_wait by stage_name, environment\n| where avg_wait > 3600\n```\n\nUnderstanding this SPL\n\n**Release Gate and Approval Lag** — Long approval or gate wait times delay releases. Monitoring gate duration and approval latency supports process improvement.\n\nDocumented **Data sources**: Gate and approval timestamps from release pipelines. **App/TA** (typical add-on context): Release management / pipeline TAs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: release:gate. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"release:gate\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **wait_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by stage_name, environment** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where avg_wait > 3600` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (wait time by stage), Table (slow gates), Line chart (approval latency trend).",
+  "visualization": "Bar chart (wait time by stage), Table (slow gates), Line chart (approval latency trend).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

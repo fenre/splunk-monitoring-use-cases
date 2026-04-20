@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.16",
+  "title": "Door Open/Close Detection via Accelerometer Tilt",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=edge-hub-data` metric_name=acceleration_x OR acceleration_y OR acceleration_z, `sourcetype=edge_hub`",
+  "app": "Splunk Edge Hub (3-axis accelerometer with gravity component), custom edge.json container",
+  "premiumApps": [
+    "Splunk Edge Hub"
+  ],
+  "spl": "| mstats avg(acceleration_z) as az, avg(acceleration_y) as ay by host, _time span=100ms\n| eval tilt_angle=atan2(ay, az) * (180 / pi())\n| delta tilt_angle as tilt_change\n| eval door_event=if(abs(tilt_change) > 15 AND (tilt_change > 0 OR tilt_change < 0), \"SWING\", \"STATIC\")\n| stats count as swings by host, door_id\n| where swings > 0",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Monitors facility access by detecting door swing events without motion sensors or contact switches.",
+  "value": "Monitors facility access by detecting door swing events without motion sensors or contact switches.",
+  "implementation": "Mount Edge Hub vertically on doorframe with accelerometer Z-axis aligned to gravity. Configure 100ms sampling interval (Advanced Settings → Sensor Polling) to capture door swing signatures (typically 0.5-2 second transit). Build custom ARM64 container that implements state machine for distinguishing between single swing (door passing) vs sustained tilt (propped open). Store local SQLite events for 24+ hours via 100K event backlog.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (3-axis accelerometer with gravity component), custom edge.json container.\n• Ensure the following data sources are available: `index=edge-hub-data` metric_name=acceleration_x OR acceleration_y OR acceleration_z, `sourcetype=edge_hub`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMount Edge Hub vertically on doorframe with accelerometer Z-axis aligned to gravity. Configure 100ms sampling interval (Advanced Settings → Sensor Polling) to capture door swing signatures (typically 0.5-2 second transit). Build custom ARM64 container that implements state machine for distinguishing between single swing (door passing) vs sustained tilt (propped open). Store local SQLite events for 24+ hours via 100K event backlog.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| mstats avg(acceleration_z) as az, avg(acceleration_y) as ay by host, _time span=100ms\n| eval tilt_angle=atan2(ay, az) * (180 / pi())\n| delta tilt_angle as tilt_change\n| eval door_event=if(abs(tilt_change) > 15 AND (tilt_change > 0 OR tilt_change < 0), \"SWING\", \"STATIC\")\n| stats count as swings by host, door_id\n| where swings > 0\n```\n\nUnderstanding this SPL\n\n**Door Open/Close Detection via Accelerometer Tilt** — Monitors facility access by detecting door swing events without motion sensors or contact switches.\n\nDocumented **Data sources**: `index=edge-hub-data` metric_name=acceleration_x OR acceleration_y OR acceleration_z, `sourcetype=edge_hub`. **App/TA** (typical add-on context): Splunk Edge Hub (3-axis accelerometer with gravity component), custom edge.json container. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `mstats` to query metrics indexes (pre-aggregated metric data).\n• `eval` defines or adjusts **tilt_angle** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Door Open/Close Detection via Accelerometer Tilt**): delta tilt_angle as tilt_change\n• `eval` defines or adjusts **door_event** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, door_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where swings > 0` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Door swing timeline, access frequency histogram, anomalous access alert.",
+  "visualization": "Door swing timeline, access frequency histogram, anomalous access alert.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.",
+  "equipment": [
+    "edge_hub"
+  ]
+}

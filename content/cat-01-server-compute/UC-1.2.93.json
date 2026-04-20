@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.93",
+  "title": "Group Policy Object (GPO) Modification Auditing",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 5136, 5137)",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=wineventlog EventCode IN (5136, 5137) ObjectClass=\"groupPolicyContainer\"\n| eval Action=case(EventCode=5136,\"Modified\", EventCode=5137,\"Created\", 1=1,\"Other\")\n| table _time, host, SubjectUserName, Action, ObjectDN, AttributeLDAPDisplayName, AttributeValue\n| sort -_time",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.user All_Changes.object_category All_Changes.action span=1h\n| sort -count",
+  "cimModels": [
+    "Change"
+  ],
+  "description": "GPO changes affect all domain-joined systems. Unauthorized GPO modifications can deploy malware, weaken security, or exfiltrate credentials at scale.",
+  "value": "GPO changes affect all domain-joined systems. Unauthorized GPO modifications can deploy malware, weaken security, or exfiltrate credentials at scale.",
+  "implementation": "Enable Audit Directory Service Changes. Track GPO creation (5137) and modification (5136) on domain controllers. Alert on GPO changes outside change windows, by non-admin accounts, or modifications to security-sensitive GPOs (password policy, audit policy, software restriction). Correlate with change management tickets.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 5136, 5137).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Audit Directory Service Changes. Track GPO creation (5137) and modification (5136) on domain controllers. Alert on GPO changes outside change windows, by non-admin accounts, or modifications to security-sensitive GPOs (password policy, audit policy, software restriction). Correlate with change management tickets.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog EventCode IN (5136, 5137) ObjectClass=\"groupPolicyContainer\"\n| eval Action=case(EventCode=5136,\"Modified\", EventCode=5137,\"Created\", 1=1,\"Other\")\n| table _time, host, SubjectUserName, Action, ObjectDN, AttributeLDAPDisplayName, AttributeValue\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Group Policy Object (GPO) Modification Auditing** — GPO changes affect all domain-joined systems. Unauthorized GPO modifications can deploy malware, weaken security, or exfiltrate credentials at scale.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 5136, 5137). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **Action** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Group Policy Object (GPO) Modification Auditing**): table _time, host, SubjectUserName, Action, ObjectDN, AttributeLDAPDisplayName, AttributeValue\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.user All_Changes.object_category All_Changes.action span=1h\n| sort -count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Group Policy Object (GPO) Modification Auditing** — GPO changes affect all domain-joined systems. Unauthorized GPO modifications can deploy malware, weaken security, or exfiltrate credentials at scale.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 5136, 5137). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (GPO changes), Table (modification details), Alert on unauthorized changes.",
+  "visualization": "Timeline (GPO changes), Table (modification details), Alert on unauthorized changes.",
+  "references": [
+    {
+      "title": "Enable Audit Directory Service Changes. Track GPO creation",
+      "url": "https://splunkbase.splunk.com/app/5137"
+    },
+    {
+      "title": "and modification",
+      "url": "https://splunkbase.splunk.com/app/5136"
+    },
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

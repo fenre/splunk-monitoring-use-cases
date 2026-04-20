@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.2.14",
+  "title": "Nutanix CVM Resource and Service Health",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`nutanix:cvm:metrics`",
+  "app": "`TA-nutanix`, Prism metrics",
+  "spl": "index=hci sourcetype=\"nutanix:cvm:metrics\" earliest=-4h\n| where cpu_pct>85 OR mem_pct>90 OR stargate_latency_ms>5\n| stats max(cpu_pct) as max_cpu, max(mem_pct) as max_mem, max(stargate_latency_ms) as max_lat by node\n| sort -max_lat",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Deep-dive CVM CPU/memory pressure and Stargate latency vs UC-19.2.7 — for capacity and noisy-neighbor triage.",
+  "value": "Deep-dive CVM CPU/memory pressure and Stargate latency vs UC-19.2.7 — for capacity and noisy-neighbor triage.",
+  "implementation": "Poll Prism per-CVM metrics API. Alert on sustained high latency with high CPU (investigate disk/network). Correlate with storage rebuilds.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-nutanix`, Prism metrics.\n• Ensure the following data sources are available: `nutanix:cvm:metrics`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll Prism per-CVM metrics API. Alert on sustained high latency with high CPU (investigate disk/network). Correlate with storage rebuilds.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=hci sourcetype=\"nutanix:cvm:metrics\" earliest=-4h\n| where cpu_pct>85 OR mem_pct>90 OR stargate_latency_ms>5\n| stats max(cpu_pct) as max_cpu, max(mem_pct) as max_mem, max(stargate_latency_ms) as max_lat by node\n| sort -max_lat\n```\n\nUnderstanding this SPL\n\n**Nutanix CVM Resource and Service Health** — Deep-dive CVM CPU/memory pressure and Stargate latency vs UC-19.2.7 — for capacity and noisy-neighbor triage.\n\nDocumented **Data sources**: `nutanix:cvm:metrics`. **App/TA** (typical add-on context): `TA-nutanix`, Prism metrics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: hci; **sourcetype**: nutanix:cvm:metrics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=hci, sourcetype=\"nutanix:cvm:metrics\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where cpu_pct>85 OR mem_pct>90 OR stargate_latency_ms>5` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by node** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (hot CVMs), Line chart (latency vs CPU), Heatmap (node × time).",
+  "visualization": "Table (hot CVMs), Line chart (latency vs CPU), Heatmap (node × time).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "nutanix"
+  ],
+  "hardware": "Nutanix AOS nodes"
+}

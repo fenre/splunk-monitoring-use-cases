@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.13.26",
+  "title": "Remediation Velocity",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Risk"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "State change events or periodic snapshots",
+  "app": "Vulnerabilities CIM",
+  "spl": "index=security tag=vulnerability status=closed\n| eval mttr=(closed_time-first_found_epoch)/3600\n| stats median(mttr) as med_hrs by owner_team",
+  "cimSpl": "| tstats `summariesonly` count from datamodel=Vulnerabilities.Vulnerabilities where Vulnerabilities.status=\"closed\" by Vulnerabilities.dest",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "description": "Median time from `first_found` to `status=closed` by team — CIM-normalized across scanners.",
+  "value": "Median time from `first_found` to `status=closed` by team — CIM-normalized across scanners.",
+  "implementation": "Requires closed timestamp in data; else use ticket linkage.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Vulnerabilities CIM.\n• Ensure the following data sources are available: State change events or periodic snapshots.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRequires closed timestamp in data; else use ticket linkage.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=security tag=vulnerability status=closed\n| eval mttr=(closed_time-first_found_epoch)/3600\n| stats median(mttr) as med_hrs by owner_team\n```\n\nUnderstanding this SPL\n\n**Remediation Velocity** — Median time from `first_found` to `status=closed` by team — CIM-normalized across scanners.\n\nDocumented **Data sources**: State change events or periodic snapshots. **App/TA** (typical add-on context): Vulnerabilities CIM. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: security.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=security, tags. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **mttr** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by owner_team** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count from datamodel=Vulnerabilities.Vulnerabilities where Vulnerabilities.status=\"closed\" by Vulnerabilities.dest\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Remediation Velocity** — Median time from `first_found` to `status=closed` by team — CIM-normalized across scanners.\n\nDocumented **Data sources**: State change events or periodic snapshots. **App/TA** (typical add-on context): Vulnerabilities CIM. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Vulnerabilities.Vulnerabilities` — enable acceleration for that model.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (median MTTR by team), Trend.",
+  "visualization": "Bar chart (median MTTR by team), Trend.",
+  "references": [
+    {
+      "title": "CIM: Vulnerabilities",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

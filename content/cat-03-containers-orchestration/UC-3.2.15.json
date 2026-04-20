@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.2.15",
+  "title": "DaemonSet Completeness",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=kube:daemonset:meta`",
+  "app": "Splunk OTel Collector, kube-state-metrics",
+  "spl": "index=k8s sourcetype=\"kube:daemonset:meta\"\n| eval missing = desiredNumberScheduled - numberReady\n| where missing > 0\n| table namespace daemonset_name desiredNumberScheduled numberReady missing",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "DaemonSets (monitoring agents, log forwarders, network plugins) must run on every eligible node. Missing instances create monitoring or networking gaps.",
+  "value": "DaemonSets (monitoring agents, log forwarders, network plugins) must run on every eligible node. Missing instances create monitoring or networking gaps.",
+  "implementation": "kube-state-metrics reports DaemonSet status. Alert when `numberReady < desiredNumberScheduled` for >5 minutes. Critical for infrastructure DaemonSets (CNI plugins, OTel Collector, kube-proxy).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk OTel Collector, kube-state-metrics.\n• Ensure the following data sources are available: `sourcetype=kube:daemonset:meta`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nkube-state-metrics reports DaemonSet status. Alert when `numberReady < desiredNumberScheduled` for >5 minutes. Critical for infrastructure DaemonSets (CNI plugins, OTel Collector, kube-proxy).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=k8s sourcetype=\"kube:daemonset:meta\"\n| eval missing = desiredNumberScheduled - numberReady\n| where missing > 0\n| table namespace daemonset_name desiredNumberScheduled numberReady missing\n```\n\nUnderstanding this SPL\n\n**DaemonSet Completeness** — DaemonSets (monitoring agents, log forwarders, network plugins) must run on every eligible node. Missing instances create monitoring or networking gaps.\n\nDocumented **Data sources**: `sourcetype=kube:daemonset:meta`. **App/TA** (typical add-on context): Splunk OTel Collector, kube-state-metrics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: k8s; **sourcetype**: kube:daemonset:meta. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=k8s, sourcetype=\"kube:daemonset:meta\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **missing** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where missing > 0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **DaemonSet Completeness**): table namespace daemonset_name desiredNumberScheduled numberReady missing\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (DaemonSet, desired, ready, missing), Status indicator, Single value.",
+  "visualization": "Table (DaemonSet, desired, ready, missing), Status indicator, Single value.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "kubernetes",
+    "opentelemetry"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.4",
+  "title": "Replication Lag Monitoring",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "SQL Server AG DMVs (`sys.dm_hadr_database_replica_states`), MySQL `SHOW SLAVE STATUS`, PostgreSQL replication slots",
+  "app": "DB Connect, vendor-specific monitoring",
+  "spl": "index=database sourcetype=\"dbconnect:replication_status\"\n| eval lag_seconds=coalesce(seconds_behind_master, replication_lag_sec)\n| timechart span=5m max(lag_seconds) as max_lag by replica_name\n| where max_lag > 60",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action span=5m | sort - count",
+  "cimModels": [
+    "Databases"
+  ],
+  "description": "Replication lag affects data consistency and failover readiness. Monitoring ensures HA/DR objectives are met.",
+  "value": "Replication lag affects data consistency and failover readiness. Monitoring ensures HA/DR objectives are met.",
+  "implementation": "Poll replication status via DB Connect at 5-minute intervals. Alert when lag exceeds RPO (e.g., >60 seconds). Track lag trend over time. Correlate spikes with batch jobs or network events.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: DB Connect, vendor-specific monitoring.\n• Ensure the following data sources are available: SQL Server AG DMVs (`sys.dm_hadr_database_replica_states`), MySQL `SHOW SLAVE STATUS`, PostgreSQL replication slots.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll replication status via DB Connect at 5-minute intervals. Alert when lag exceeds RPO (e.g., >60 seconds). Track lag trend over time. Correlate spikes with batch jobs or network events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"dbconnect:replication_status\"\n| eval lag_seconds=coalesce(seconds_behind_master, replication_lag_sec)\n| timechart span=5m max(lag_seconds) as max_lag by replica_name\n| where max_lag > 60\n```\n\nUnderstanding this SPL\n\n**Replication Lag Monitoring** — Replication lag affects data consistency and failover readiness. Monitoring ensures HA/DR objectives are met.\n\nDocumented **Data sources**: SQL Server AG DMVs (`sys.dm_hadr_database_replica_states`), MySQL `SHOW SLAVE STATUS`, PostgreSQL replication slots. **App/TA** (typical add-on context): DB Connect, vendor-specific monitoring. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: dbconnect:replication_status. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"dbconnect:replication_status\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **lag_seconds** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by replica_name** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where max_lag > 60` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action span=5m | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Replication Lag Monitoring** — Replication lag affects data consistency and failover readiness. Monitoring ensures HA/DR objectives are met.\n\nDocumented **Data sources**: SQL Server AG DMVs (`sys.dm_hadr_database_replica_states`), MySQL `SHOW SLAVE STATUS`, PostgreSQL replication slots. **App/TA** (typical add-on context): DB Connect, vendor-specific monitoring. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Databases.Instance_Stats` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (lag over time by replica), Single value (current max lag), Table (replicas with lag status).",
+  "visualization": "Line chart (lag over time by replica), Single value (current max lag), Table (replicas with lag status).",
+  "references": [
+    {
+      "title": "CIM: Databases",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Databases"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ]
+}

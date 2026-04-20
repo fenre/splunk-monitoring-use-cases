@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.7.7",
+  "title": "Multi-Site Litmus Edge Fleet Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=ot` `sourcetype=\"litmus:health\"` fields `site_id`, `gateway_id`, `status`",
+  "app": "Litmus Edge (Splunk HEC connector)",
+  "spl": "index=ot sourcetype=\"litmus:health\"\n| eval site=coalesce(site_id, plant_id, \"unknown\")\n| eval is_ok=if(match(lower(status),\"online|up|connected|running\"), 1, 0)\n| stats count as events, sum(is_ok) as ok_events, dc(gateway_id) as gateways by site\n| eval health_pct=round(100*ok_events/events,1)\n| table site, gateways, health_pct, ok_events, events\n| sort health_pct",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Aggregating gateway health by site highlights WAN issues, deployment drift, and capacity hotspots across plants without per-host manual checks.",
+  "value": "Aggregating gateway health by site highlights WAN issues, deployment drift, and capacity hotspots across plants without per-host manual checks.",
+  "implementation": "Require site_id in every Litmus health payload. Schedule a nightly report by site for executive visibility.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Litmus Edge (Splunk HEC connector).\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"litmus:health\"` fields `site_id`, `gateway_id`, `status`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRequire site_id in every Litmus health payload. Schedule a nightly report by site for executive visibility.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"litmus:health\"\n| eval site=coalesce(site_id, plant_id, \"unknown\")\n| eval is_ok=if(match(lower(status),\"online|up|connected|running\"), 1, 0)\n| stats count as events, sum(is_ok) as ok_events, dc(gateway_id) as gateways by site\n| eval health_pct=round(100*ok_events/events,1)\n| table site, gateways, health_pct, ok_events, events\n| sort health_pct\n```\n\nUnderstanding this SPL\n\n**Multi-Site Litmus Edge Fleet Health** — Aggregating gateway health by site highlights WAN issues, deployment drift, and capacity hotspots across plants without per-host manual checks.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"litmus:health\"` fields `site_id`, `gateway_id`, `status`. **App/TA** (typical add-on context): Litmus Edge (Splunk HEC connector). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: litmus:health. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"litmus:health\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **site** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **is_ok** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by site** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **health_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Multi-Site Litmus Edge Fleet Health**): table site, gateways, health_pct, ok_events, events\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (health % by site), Table (site ranking), Treemap (gateways × site).",
+  "visualization": "Bar chart (health % by site), Table (site ranking), Treemap (gateways × site).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

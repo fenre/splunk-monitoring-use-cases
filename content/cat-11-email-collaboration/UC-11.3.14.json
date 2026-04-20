@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "11.3.14",
+  "title": "Webex Meeting Quality Degradation Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Webex Meeting Qualities API (audio/video/sharing quality per participant)",
+  "app": "`ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Meeting Qualities API (Pro Pack required)",
+  "spl": "index=webex sourcetype=\"webex:meeting_quality\"\n| eval quality_issue=case(audioMOS<3.5, \"Poor Audio MOS\", videoPacketLoss>5, \"High Video Packet Loss\", audioJitter>30, \"High Audio Jitter\", audioLatency>300, \"High Audio Latency\", 1==1, null())\n| where isnotnull(quality_issue)\n| stats count as incidents, avg(audioMOS) as avg_mos, avg(videoPacketLoss) as avg_pkt_loss, avg(audioJitter) as avg_jitter by meetingId, participantEmail, quality_issue\n| sort -incidents\n| table meetingId, participantEmail, quality_issue, incidents, avg_mos, avg_pkt_loss, avg_jitter",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Proactively detects poor meeting experiences by monitoring MOS scores, packet loss, jitter, and latency per participant. Enables IT to identify network segments, ISPs, or locations that consistently deliver degraded quality — before users start complaining. Supports SLA reporting and vendor accountability for Webex Calling and Meetings.",
+  "value": "Proactively detects poor meeting experiences by monitoring MOS scores, packet loss, jitter, and latency per participant. Enables IT to identify network segments, ISPs, or locations that consistently deliver degraded quality — before users start complaining. Supports SLA reporting and vendor accountability for Webex Calling and Meetings.",
+  "implementation": "Configure a modular input to poll the Webex Meeting Qualities API every 10 minutes (the minimum interval allowed). Requires Pro Pack licensing and an integration with the `analytics:read_all` scope. Quality data is available 10 minutes after a meeting starts and up to 7 days after. Set alert thresholds: MOS < 3.5, packet loss > 5%, jitter > 30 ms, latency > 300 ms. Correlate with participant location and network data to pinpoint root causes.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Meeting Qualities API (Pro Pack required).\n• Ensure the following data sources are available: Webex Meeting Qualities API (audio/video/sharing quality per participant).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure a modular input to poll the Webex Meeting Qualities API every 10 minutes (the minimum interval allowed). Requires Pro Pack licensing and an integration with the `analytics:read_all` scope. Quality data is available 10 minutes after a meeting starts and up to 7 days after. Set alert thresholds: MOS < 3.5, packet loss > 5%, jitter > 30 ms, latency > 300 ms. Correlate with participant location and network data to pinpoint root causes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=webex sourcetype=\"webex:meeting_quality\"\n| eval quality_issue=case(audioMOS<3.5, \"Poor Audio MOS\", videoPacketLoss>5, \"High Video Packet Loss\", audioJitter>30, \"High Audio Jitter\", audioLatency>300, \"High Audio Latency\", 1==1, null())\n| where isnotnull(quality_issue)\n| stats count as incidents, avg(audioMOS) as avg_mos, avg(videoPacketLoss) as avg_pkt_loss, avg(audioJitter) as avg_jitter by meetingId, participantEmail, quality_issue\n| sort -incidents\n| table meetingId, participantEmail, quality_issue, incidents, avg_mos, avg_pkt_loss, avg_jitter\n```\n\nUnderstanding this SPL\n\n**Webex Meeting Quality Degradation Detection** — Proactively detects poor meeting experiences by monitoring MOS scores, packet loss, jitter, and latency per participant. Enables IT to identify network segments, ISPs, or locations that consistently deliver degraded quality — before users start complaining. Supports SLA reporting and vendor accountability for Webex Calling and Meetings.\n\nDocumented **Data sources**: Webex Meeting Qualities API (audio/video/sharing quality per participant). **App/TA** (typical add-on context): `ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Meeting Qualities API (Pro Pack required). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: webex; **sourcetype**: webex:meeting_quality. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=webex, sourcetype=\"webex:meeting_quality\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **quality_issue** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnotnull(quality_issue)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by meetingId, participantEmail, quality_issue** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Webex Meeting Quality Degradation Detection**): table meetingId, participantEmail, quality_issue, incidents, avg_mos, avg_pkt_loss, avg_jitter\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (MOS trend over time), Heat map (quality by location/building), Table (worst participants by avg MOS), Single value panels (current avg MOS, packet loss).",
+  "visualization": "Line chart (MOS trend over time), Heat map (quality by location/building), Table (worst participants by avg MOS), Single value panels (current avg MOS, packet loss).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "cisco",
+    "github"
+  ],
+  "equipmentModels": [
+    "cisco_webex"
+  ],
+  "hardware": "Cisco Webex Meetings, Webex Calling, Webex Room Kit, Webex Room Kit Pro, Webex Board 55/70/85, Webex Desk, Webex Desk Pro"
+}

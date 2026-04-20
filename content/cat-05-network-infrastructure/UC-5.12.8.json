@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.12.8",
+  "title": "Number Portability Request Tracking",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`sourcetype=\"lnp:order\"`, `sourcetype=\"npac:soa\"`",
+  "app": "NP/BSS extracts, SOA APIs",
+  "spl": "index=telco sourcetype=\"lnp:order\"\n| where order_status IN (\"PENDING\",\"REJECTED\",\"TIMEOUT\")\n| stats count, avg((now()-submitted_epoch)/86400) as age_days by tn_range, losing_carrier\n| sort -age_days",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "LNP order status, NPAC responses, and port-out churn — operations and regulatory reporting for porting SLAs.",
+  "value": "LNP order status, NPAC responses, and port-out churn — operations and regulatory reporting for porting SLAs.",
+  "implementation": "SLA alerts for orders >72h in PENDING; root-cause codes joined to carrier contact list.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: NP/BSS extracts, SOA APIs.\n• Ensure the following data sources are available: `sourcetype=\"lnp:order\"`, `sourcetype=\"npac:soa\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSLA alerts for orders >72h in PENDING; root-cause codes joined to carrier contact list.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=telco sourcetype=\"lnp:order\"\n| where order_status IN (\"PENDING\",\"REJECTED\",\"TIMEOUT\")\n| stats count, avg((now()-submitted_epoch)/86400) as age_days by tn_range, losing_carrier\n| sort -age_days\n```\n\nUnderstanding this SPL\n\n**Number Portability Request Tracking** — LNP order status, NPAC responses, and port-out churn — operations and regulatory reporting for porting SLAs.\n\nDocumented **Data sources**: `sourcetype=\"lnp:order\"`, `sourcetype=\"npac:soa\"`. **App/TA** (typical add-on context): NP/BSS extracts, SOA APIs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: telco; **sourcetype**: lnp:order. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=telco, sourcetype=\"lnp:order\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where order_status IN (\"PENDING\",\"REJECTED\",\"TIMEOUT\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by tn_range, losing_carrier** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Funnel (order states), Table (aging ports), Bar chart (reject reasons).",
+  "visualization": "Funnel (order states), Table (aging ports), Bar chart (reject reasons).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.5.4",
+  "title": "Flare Stack Event Correlation and Emissions Tracking",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Oil, Gas, and Mining",
+  "dataSources": "`index=ot` `sourcetype=\"flare:event\"` fields `flare_id`, `duration_min`, `rate_mmscfd`, `site_id`",
+  "app": "Flare meter / CEMS via HEC",
+  "spl": "index=ot sourcetype=\"flare:event\"\n| eval day=strftime(_time,\"%Y-%m-%d\")\n| stats sum(duration_min) as total_minutes, count as flare_events by site_id, day\n| eval hours_flared=round(total_minutes/60,2)\n| sort - hours_flared\n| table site_id, day, flare_events, hours_flared",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Flare duration and intensity tracking supports environmental reporting and identifies operational events causing excessive flaring.",
+  "value": "Flare duration and intensity tracking supports environmental reporting and identifies operational events causing excessive flaring.",
+  "implementation": "Normalize flare start/stop events. Validate volume methods against regulatory calculation approach. Join wind or process tags for correlation. **Domain context:** Flaring reports often tie to air permits and GHG inventories (e.g. EPA flare monitoring requirements where applicable); mass balance vs duration-based estimates must match compliance methodology. **Splunk:** Deduplicate start/stop pairs; `duration_min` summation assumes one event per period—validate for overlapping flares.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Flare meter / CEMS via HEC.\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"flare:event\"` fields `flare_id`, `duration_min`, `rate_mmscfd`, `site_id`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize flare start/stop events. Validate volume methods against regulatory calculation approach. Join wind or process tags for correlation. **Domain context:** Flaring reports often tie to air permits and GHG inventories (e.g. EPA flare monitoring requirements where applicable); mass balance vs duration-based estimates must match compliance methodology. **Splunk:** Deduplicate start/stop pairs; `duration_min` summation assumes one event per period—validate for overlapping flares.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"flare:event\"\n| eval day=strftime(_time,\"%Y-%m-%d\")\n| stats sum(duration_min) as total_minutes, count as flare_events by site_id, day\n| eval hours_flared=round(total_minutes/60,2)\n| sort - hours_flared\n| table site_id, day, flare_events, hours_flared\n```\n\nUnderstanding this SPL\n\n**Flare Stack Event Correlation and Emissions Tracking** — Flare duration and intensity tracking supports environmental reporting and identifies operational events causing excessive flaring.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"flare:event\"` fields `flare_id`, `duration_min`, `rate_mmscfd`, `site_id`. **App/TA** (typical add-on context): Flare meter / CEMS via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: flare:event. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"flare:event\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **day** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by site_id, day** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **hours_flared** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Flare Stack Event Correlation and Emissions Tracking**): table site_id, day, flare_events, hours_flared\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Time chart (flare hours), Stacked bar by site, Correlation panel with permit limits.",
+  "visualization": "Time chart (flare hours), Stacked bar by site, Correlation panel with permit limits.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

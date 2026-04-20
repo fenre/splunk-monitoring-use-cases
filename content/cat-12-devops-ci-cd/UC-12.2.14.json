@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.2.14",
+  "title": "Jenkins Agent Offline Alerts",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`/computer/api/json` `offline=true`, agent heartbeat",
+  "app": "Splunk App for Jenkins, Jenkins API",
+  "spl": "index=cicd sourcetype=\"jenkins:computer\" (offline=\"true\" OR offline=true)\n| lookup jenkins_agent_tier displayName OUTPUT tier\n| where tier=\"production\"\n| table _time, displayName, offline, labels, numExecutors\n| sort -_time",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Operational paging when executors disappear—complements UC-12.2.10 with severity tiers and agent labels (prod vs dev).",
+  "value": "Operational paging when executors disappear—complements UC-12.2.10 with severity tiers and agent labels (prod vs dev).",
+  "implementation": "Tag agents in lookup. Page immediately for production-labeled offline agents. Auto-create incident if >30% of pool offline.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk App for Jenkins, Jenkins API.\n• Ensure the following data sources are available: `/computer/api/json` `offline=true`, agent heartbeat.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTag agents in lookup. Page immediately for production-labeled offline agents. Auto-create incident if >30% of pool offline.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"jenkins:computer\" (offline=\"true\" OR offline=true)\n| lookup jenkins_agent_tier displayName OUTPUT tier\n| where tier=\"production\"\n| table _time, displayName, offline, labels, numExecutors\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Jenkins Agent Offline Alerts** — Operational paging when executors disappear—complements UC-12.2.10 with severity tiers and agent labels (prod vs dev).\n\nDocumented **Data sources**: `/computer/api/json` `offline=true`, agent heartbeat. **App/TA** (typical add-on context): Splunk App for Jenkins, Jenkins API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: jenkins:computer. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"jenkins:computer\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where tier=\"production\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Jenkins Agent Offline Alerts**): table _time, displayName, offline, labels, numExecutors\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (offline prod agents), Single value (count), Status grid (agent × tier).",
+  "visualization": "Table (offline prod agents), Single value (count), Status grid (agent × tier).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "jenkins"
+  ]
+}

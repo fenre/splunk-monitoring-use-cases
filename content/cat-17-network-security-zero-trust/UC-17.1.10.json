@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.10",
+  "title": "RADIUS Accounting Discrepancies",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "RADIUS accounting records (Acct-Status-Type Start/Stop/Interim-Update)",
+  "app": "`Splunk_TA_cisco-ise`, `Splunk_TA_windows` (NPS), FreeRADIUS syslog, RADIUS accounting TA",
+  "spl": "index=nac sourcetype=\"radius:accounting\"\n| eval acct_status=case(\n  match(_raw,\"Acct-Status-Type.*Start\"), \"Start\",\n  match(_raw,\"Acct-Status-Type.*Stop\"), \"Stop\",\n  match(_raw,\"Acct-Status-Type.*Interim\"), \"Interim\",\n  1=1, \"Unknown\")\n| rex field=_raw \"Acct-Session-Id=(?<session_id>[^\\s]+)\"\n| rex field=_raw \"User-Name=(?<user>[^\\s]+)\"\n| rex field=_raw \"NAS-IP-Address=(?<nas>[^\\s]+)\"\n| where acct_status!=\"Unknown\" AND acct_status!=\"Interim\"\n| stats count(eval(acct_status=\"Start\")) as starts, count(eval(acct_status=\"Stop\")) as stops by session_id, user, nas\n| eval discrepancy=abs(starts - stops)\n| where discrepancy > 0\n| sort -discrepancy",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Start/stop mismatches indicating dropped sessions or potential abuse. Accounting discrepancies can hide unauthorized access, session hijacking, or billing/audit gaps.",
+  "value": "Start/stop mismatches indicating dropped sessions or potential abuse. Accounting discrepancies can hide unauthorized access, session hijacking, or billing/audit gaps.",
+  "implementation": "Ingest RADIUS accounting logs with Acct-Session-Id, Acct-Status-Type, User-Name, NAS-IP-Address. Build session state table: each Start should have exactly one Stop. Alert on sessions with Start but no Stop (orphaned sessions) or Stop without Start (potential replay). Report on discrepancy rate and top NAS/users. Use Interim-Update to validate long-running sessions.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_cisco-ise`, `Splunk_TA_windows` (NPS), FreeRADIUS syslog, RADIUS accounting TA.\n• Ensure the following data sources are available: RADIUS accounting records (Acct-Status-Type Start/Stop/Interim-Update).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest RADIUS accounting logs with Acct-Session-Id, Acct-Status-Type, User-Name, NAS-IP-Address. Build session state table: each Start should have exactly one Stop. Alert on sessions with Start but no Stop (orphaned sessions) or Stop without Start (potential replay). Report on discrepancy rate and top NAS/users. Use Interim-Update to validate long-running sessions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nac sourcetype=\"radius:accounting\"\n| eval acct_status=case(\n  match(_raw,\"Acct-Status-Type.*Start\"), \"Start\",\n  match(_raw,\"Acct-Status-Type.*Stop\"), \"Stop\",\n  match(_raw,\"Acct-Status-Type.*Interim\"), \"Interim\",\n  1=1, \"Unknown\")\n| rex field=_raw \"Acct-Session-Id=(?<session_id>[^\\s]+)\"\n| rex field=_raw \"User-Name=(?<user>[^\\s]+)\"\n| rex field=_raw \"NAS-IP-Address=(?<nas>[^\\s]+)\"\n| where acct_status!=\"Unknown\" AND acct_status!=\"Interim\"\n| stats count(eval(acct_status=\"Start\")) as starts, count(eval(acct_status=\"Stop\")) as stops by session_id, user, nas\n| eval discrepancy=abs(starts - stops)\n| where discrepancy > 0\n| sort -discrepancy\n```\n\nUnderstanding this SPL\n\n**RADIUS Accounting Discrepancies** — Start/stop mismatches indicating dropped sessions or potential abuse. Accounting discrepancies can hide unauthorized access, session hijacking, or billing/audit gaps.\n\nDocumented **Data sources**: RADIUS accounting records (Acct-Status-Type Start/Stop/Interim-Update). **App/TA** (typical add-on context): `Splunk_TA_cisco-ise`, `Splunk_TA_windows` (NPS), FreeRADIUS syslog, RADIUS accounting TA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nac; **sourcetype**: radius:accounting. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nac, sourcetype=\"radius:accounting\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **acct_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Extracts fields with `rex` (regular expression).\n• Extracts fields with `rex` (regular expression).\n• Extracts fields with `rex` (regular expression).\n• Filters the current rows with `where acct_status!=\"Unknown\" AND acct_status!=\"Interim\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by session_id, user, nas** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **discrepancy** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where discrepancy > 0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (sessions with discrepancies), Bar chart (discrepancy count by NAS), Single value (orphaned sessions), Line chart (discrepancy trend).",
+  "visualization": "Table (sessions with discrepancies), Bar chart (discrepancy count by NAS), Single value (orphaned sessions), Line chart (discrepancy trend).",
+  "references": [
+    {
+      "title": "Splunk_TA_cisco-ise",
+      "url": "https://splunkbase.splunk.com/app/1915"
+    },
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1090"
+  ],
+  "equipment": [
+    "cisco",
+    "syslog",
+    "windows"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "hardware": "Cisco ISE, Windows NPS, FreeRADIUS"
+}

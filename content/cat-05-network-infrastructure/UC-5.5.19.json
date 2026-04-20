@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.5.19",
+  "title": "Transport Circuit SLA Tracking",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=cisco:sdwan:bfd`, `sourcetype=cisco:sdwan:interface`",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API",
+  "spl": "index=sdwan sourcetype=\"cisco:sdwan:bfd\"\n| stats avg(latency) as avg_latency, perc95(latency) as p95_latency, avg(jitter) as avg_jitter, avg(loss_percentage) as avg_loss, count as samples by local_color, site_id, remote_system_ip\n| eval sla_latency=50, sla_loss=0.1\n| eval latency_breach=if(avg_latency>sla_latency,\"YES\",\"NO\"), loss_breach=if(avg_loss>sla_loss,\"YES\",\"NO\")\n| where latency_breach=\"YES\" OR loss_breach=\"YES\"\n| table site_id local_color avg_latency p95_latency avg_jitter avg_loss latency_breach loss_breach",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "ISPs commit to contractual SLAs for latency, jitter, loss, and uptime per circuit. SD-WAN BFD metrics provide continuous proof of whether carriers meet their commitments. SLA violation evidence supports service credits and carrier negotiations.",
+  "value": "ISPs commit to contractual SLAs for latency, jitter, loss, and uptime per circuit. SD-WAN BFD metrics provide continuous proof of whether carriers meet their commitments. SLA violation evidence supports service credits and carrier negotiations.",
+  "implementation": "Define contractual SLA thresholds per transport type (MPLS: latency <50ms, loss <0.1%; Internet: latency <80ms, loss <0.5%). Aggregate BFD metrics daily. Generate monthly SLA compliance reports per carrier per circuit. Include uptime percentage from interface state changes. Use as evidence for carrier escalations and service credit claims.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API.\n• Ensure the following data sources are available: `sourcetype=cisco:sdwan:bfd`, `sourcetype=cisco:sdwan:interface`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDefine contractual SLA thresholds per transport type (MPLS: latency <50ms, loss <0.1%; Internet: latency <80ms, loss <0.5%). Aggregate BFD metrics daily. Generate monthly SLA compliance reports per carrier per circuit. Include uptime percentage from interface state changes. Use as evidence for carrier escalations and service credit claims.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=sdwan sourcetype=\"cisco:sdwan:bfd\"\n| stats avg(latency) as avg_latency, perc95(latency) as p95_latency, avg(jitter) as avg_jitter, avg(loss_percentage) as avg_loss, count as samples by local_color, site_id, remote_system_ip\n| eval sla_latency=50, sla_loss=0.1\n| eval latency_breach=if(avg_latency>sla_latency,\"YES\",\"NO\"), loss_breach=if(avg_loss>sla_loss,\"YES\",\"NO\")\n| where latency_breach=\"YES\" OR loss_breach=\"YES\"\n| table site_id local_color avg_latency p95_latency avg_jitter avg_loss latency_breach loss_breach\n```\n\nUnderstanding this SPL\n\n**Transport Circuit SLA Tracking** — ISPs commit to contractual SLAs for latency, jitter, loss, and uptime per circuit. SD-WAN BFD metrics provide continuous proof of whether carriers meet their commitments. SLA violation evidence supports service credits and carrier negotiations.\n\nDocumented **Data sources**: `sourcetype=cisco:sdwan:bfd`, `sourcetype=cisco:sdwan:interface`. **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: sdwan; **sourcetype**: cisco:sdwan:bfd. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=sdwan, sourcetype=\"cisco:sdwan:bfd\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by local_color, site_id, remote_system_ip** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **sla_latency** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **latency_breach** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where latency_breach=\"YES\" OR loss_breach=\"YES\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Transport Circuit SLA Tracking**): table site_id local_color avg_latency p95_latency avg_jitter avg_loss latency_breach loss_breach\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (circuit SLA compliance), Line chart (latency trending per carrier), Single value (overall SLA compliance %).",
+  "visualization": "Table (circuit SLA compliance), Line chart (latency trending per carrier), Single value (overall SLA compliance %).",
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_sdwan"
+  ],
+  "hardware": "Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000"
+}

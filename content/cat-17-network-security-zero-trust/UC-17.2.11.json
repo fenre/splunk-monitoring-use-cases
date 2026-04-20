@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.2.11",
+  "title": "Split Tunnel Violation Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "VPN connect logs with `tunnel_type`, `split_include`, `default_gateway`",
+  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`",
+  "spl": "index=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:globalprotect\") action=\"session_connect\"\n| lookup vpn_policy_requirements.csv group_policy OUTPUT required_tunnel\n| eval violation=if(required_tunnel=\"full\" AND (tunnel_type=\"split\" OR match(lower(_raw),\"(?i)split.?tunnel\")),1,0)\n| where violation=1\n| stats count by user, group_policy, src\n| sort -count",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Network_Sessions.All_Sessions\n  by All_Sessions.user span=1h\n| where count > 100",
+  "cimModels": [
+    "Authentication",
+    "Network_Sessions"
+  ],
+  "description": "Flags sessions where observed routing or client flags indicate split tunnel when group policy mandates full tunnel — complements UC-17.2.4/17.2.9 with explicit **violation** logic.",
+  "value": "Flags sessions where observed routing or client flags indicate split tunnel when group policy mandates full tunnel — complements UC-17.2.4/17.2.9 with explicit **violation** logic.",
+  "implementation": "Align lookup with security architecture. Some vendors expose only group name — normalize in transforms.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`.\n• Ensure the following data sources are available: VPN connect logs with `tunnel_type`, `split_include`, `default_gateway`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlign lookup with security architecture. Some vendors expose only group name — normalize in transforms.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:globalprotect\") action=\"session_connect\"\n| lookup vpn_policy_requirements.csv group_policy OUTPUT required_tunnel\n| eval violation=if(required_tunnel=\"full\" AND (tunnel_type=\"split\" OR match(lower(_raw),\"(?i)split.?tunnel\")),1,0)\n| where violation=1\n| stats count by user, group_policy, src\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Split Tunnel Violation Detection** — Flags sessions where observed routing or client flags indicate split tunnel when group policy mandates full tunnel — complements UC-17.2.4/17.2.9 with explicit **violation** logic.\n\nDocumented **Data sources**: VPN connect logs with `tunnel_type`, `split_include`, `default_gateway`. **App/TA** (typical add-on context): `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vpn; **sourcetype**: cisco:asa, pan:globalprotect. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vpn, sourcetype=\"cisco:asa\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **violation** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where violation=1` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by user, group_policy, src** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Network_Sessions.All_Sessions\n  by All_Sessions.user span=1h\n| where count > 100\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Split Tunnel Violation Detection** — Flags sessions where observed routing or client flags indicate split tunnel when group policy mandates full tunnel — complements UC-17.2.4/17.2.9 with explicit **violation** logic.\n\nDocumented **Data sources**: VPN connect logs with `tunnel_type`, `split_include`, `default_gateway`. **App/TA** (typical add-on context): `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Sessions.All_Sessions` — enable acceleration for that model.\n• Filters the current rows with `where count > 100` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (violations), Bar chart (violations by group policy), Single value (violation sessions / day).",
+  "visualization": "Table (violations), Bar chart (violations by group policy), Single value (violation sessions / day).",
+  "references": [
+    {
+      "title": "Splunk_TA_paloalto",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1572",
+    "T1048.001"
+  ],
+  "equipment": [
+    "cisco",
+    "fortinet",
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "cisco_asa",
+    "fortinet_fortigate",
+    "paloalto_globalprotect",
+    "paloalto_pan_firewall"
+  ],
+  "hardware": "Cisco ASA/AnyConnect, GlobalProtect"
+}

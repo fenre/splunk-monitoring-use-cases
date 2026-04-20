@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.2.28",
+  "title": "Service Template Adoption and Consistency",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Configuration"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "ITSI REST API, `itsi_services` lookup",
+  "app": "Splunk ITSI",
+  "premiumApps": [
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    }
+  ],
+  "spl": "| rest /servicesNS/nobody/SA-ITOA/itoa_interface/service\n| rename title as service_name\n| eval has_template=if(isnotnull(base_service_template_id), \"yes\", \"no\")\n| stats count by has_template\n| eval adoption_pct=round(count/sum(count)*100, 1)",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Service templates ensure consistent KPI definitions, thresholds, and entity rules across environments (dev/staging/prod). Tracking adoption prevents configuration drift.",
+  "value": "Service templates ensure consistent KPI definitions, thresholds, and entity rules across environments (dev/staging/prod). Tracking adoption prevents configuration drift.",
+  "implementation": "Create service templates for standard service types (web app, database, message queue). Link services to templates for consistent KPI inheritance. Monitor template adherence — services that diverge from templates should be reviewed. Use ITSI REST API to programmatically create services from templates during CI/CD deployments.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI.\n• Ensure the following data sources are available: ITSI REST API, `itsi_services` lookup.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate service templates for standard service types (web app, database, message queue). Link services to templates for consistent KPI inheritance. Monitor template adherence — services that diverge from templates should be reviewed. Use ITSI REST API to programmatically create services from templates during CI/CD deployments.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| rest /servicesNS/nobody/SA-ITOA/itoa_interface/service\n| rename title as service_name\n| eval has_template=if(isnotnull(base_service_template_id), \"yes\", \"no\")\n| stats count by has_template\n| eval adoption_pct=round(count/sum(count)*100, 1)\n```\n\nUnderstanding this SPL\n\n**Service Template Adoption and Consistency** — Service templates ensure consistent KPI definitions, thresholds, and entity rules across environments (dev/staging/prod). Tracking adoption prevents configuration drift.\n\nDocumented **Data sources**: ITSI REST API, `itsi_services` lookup. **App/TA** (typical add-on context): Splunk ITSI. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Calls Splunk `rest` to read configuration or REST-exposed entities.\n• Renames fields with `rename` for clarity or joins.\n• `eval` defines or adjusts **has_template** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by has_template** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **adoption_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart (templated vs non-templated), Table (services diverging from template).",
+  "visualization": "Pie chart (templated vs non-templated), Table (services diverging from template).",
+  "references": [
+    {
+      "title": "Splunk ITSI",
+      "url": "https://splunkbase.splunk.com/app/1841"
+    }
+  ],
+  "equipment": [
+    "itsi"
+  ]
+}

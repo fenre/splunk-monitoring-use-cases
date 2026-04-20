@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.43",
+  "title": "FortiSASE Admin Configuration Audit (Fortinet)",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Configuration",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=fgt_event` subtype=system, logid related to admin/config",
+  "app": "`TA-fortinet_fortigate` (FortiSASE admin audit)",
+  "spl": "index=sase sourcetype=\"fgt_event\" subtype=\"system\" earliest=-30d\n| where match(lower(msg),\"(?i)config|policy|rule|admin.*login|object.*modified\")\n| stats count earliest(_time) as first latest(_time) as last values(msg) as actions by user, ui\n| sort -last",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.user All_Changes.object span=1d",
+  "cimModels": [
+    "Change"
+  ],
+  "description": "FortiSASE policies are centrally managed and affect all connected users globally. Configuration audit logs enable change tracking, compliance, and root-cause analysis when policies cause access issues.",
+  "value": "FortiSASE policies are centrally managed and affect all connected users globally. Configuration audit logs enable change tracking, compliance, and root-cause analysis when policies cause access issues.",
+  "implementation": "Forward FortiSASE management audit events. Alert on after-hours changes or bulk policy modifications. Correlate with ITSM change tickets.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-fortinet_fortigate` (FortiSASE admin audit).\n• Ensure the following data sources are available: `sourcetype=fgt_event` subtype=system, logid related to admin/config.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward FortiSASE management audit events. Alert on after-hours changes or bulk policy modifications. Correlate with ITSM change tickets.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=sase sourcetype=\"fgt_event\" subtype=\"system\" earliest=-30d\n| where match(lower(msg),\"(?i)config|policy|rule|admin.*login|object.*modified\")\n| stats count earliest(_time) as first latest(_time) as last values(msg) as actions by user, ui\n| sort -last\n```\n\nUnderstanding this SPL\n\n**FortiSASE Admin Configuration Audit (Fortinet)** — FortiSASE policies are centrally managed and affect all connected users globally. Configuration audit logs enable change tracking, compliance, and root-cause analysis when policies cause access issues.\n\nDocumented **Data sources**: `sourcetype=fgt_event` subtype=system, logid related to admin/config. **App/TA** (typical add-on context): `TA-fortinet_fortigate` (FortiSASE admin audit). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: sase; **sourcetype**: fgt_event. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=sase, sourcetype=\"fgt_event\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where match(lower(msg),\"(?i)config|policy|rule|admin.*login|object.*modified\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by user, ui** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.user All_Changes.object span=1d\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**FortiSASE Admin Configuration Audit (Fortinet)** — FortiSASE policies are centrally managed and affect all connected users globally. Configuration audit logs enable change tracking, compliance, and root-cause analysis when policies cause access issues.\n\nDocumented **Data sources**: `sourcetype=fgt_event` subtype=system, logid related to admin/config. **App/TA** (typical add-on context): `TA-fortinet_fortigate` (FortiSASE admin audit). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (admin changes), Timeline (configuration events), Bar chart (changes by admin).",
+  "visualization": "Table (admin changes), Timeline (configuration events), Bar chart (changes by admin).",
+  "references": [
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1562.004",
+    "T1133"
+  ],
+  "equipment": [
+    "fortinet"
+  ],
+  "equipmentModels": [
+    "fortinet_fortigate"
+  ],
+  "hardware": "FortiSASE (cloud management plane)"
+}

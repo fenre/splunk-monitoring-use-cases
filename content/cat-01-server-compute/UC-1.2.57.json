@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.57",
+  "title": "Thread Count Exhaustion",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=Perfmon:Process` (counter: Thread Count), `sourcetype=Perfmon:System` (counter: Threads)",
+  "app": "`Splunk_TA_windows`",
+  "spl": "index=perfmon sourcetype=\"Perfmon:Process\" counter=\"Thread Count\" instance!=\"_Total\" instance!=\"Idle\"\n| stats max(Value) as threads by host, instance\n| where threads > 500\n| sort -threads",
+  "cimSpl": "| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu\n  from datamodel=Performance where nodename=Performance.CPU\n  by Performance.host span=1h\n| where avg_cpu > 90",
+  "cimModels": [
+    "Performance"
+  ],
+  "description": "Thread leaks or excessive thread creation cause pool exhaustion and application hangs. Windows has a system-wide limit of ~65K threads that affects all processes.",
+  "value": "Thread leaks or excessive thread creation cause pool exhaustion and application hangs. Windows has a system-wide limit of ~65K threads that affects all processes.",
+  "implementation": "Configure Perfmon Process inputs with `Thread Count` counter (interval=300). Also monitor system-wide threads via Perfmon System → Threads. Alert when any single process exceeds 500 threads or system total exceeds 50K. Common offenders: IIS application pools (w3wp.exe), Java applications, .NET services with async leaks. Correlate with application response times.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=Perfmon:Process` (counter: Thread Count), `sourcetype=Perfmon:System` (counter: Threads).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure Perfmon Process inputs with `Thread Count` counter (interval=300). Also monitor system-wide threads via Perfmon System → Threads. Alert when any single process exceeds 500 threads or system total exceeds 50K. Common offenders: IIS application pools (w3wp.exe), Java applications, .NET services with async leaks. Correlate with application response times.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=perfmon sourcetype=\"Perfmon:Process\" counter=\"Thread Count\" instance!=\"_Total\" instance!=\"Idle\"\n| stats max(Value) as threads by host, instance\n| where threads > 500\n| sort -threads\n```\n\nUnderstanding this SPL\n\n**Thread Count Exhaustion** — Thread leaks or excessive thread creation cause pool exhaustion and application hangs. Windows has a system-wide limit of ~65K threads that affects all processes.\n\nDocumented **Data sources**: `sourcetype=Perfmon:Process` (counter: Thread Count), `sourcetype=Perfmon:System` (counter: Threads). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: perfmon; **sourcetype**: Perfmon:Process. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=perfmon, sourcetype=\"Perfmon:Process\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, instance** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where threads > 500` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu\n  from datamodel=Performance where nodename=Performance.CPU\n  by Performance.host span=1h\n| where avg_cpu > 90\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Thread Count Exhaustion** — Thread leaks or excessive thread creation cause pool exhaustion and application hangs. Windows has a system-wide limit of ~65K threads that affects all processes.\n\nDocumented **Data sources**: `sourcetype=Perfmon:Process` (counter: Thread Count), `sourcetype=Perfmon:System` (counter: Threads). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.\n• Filters the current rows with `where avg_cpu > 90` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (top thread consumers), Line chart (thread growth trend), Single value (system total).",
+  "visualization": "Bar chart (top thread consumers), Line chart (thread growth trend), Single value (system total).",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+    }
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

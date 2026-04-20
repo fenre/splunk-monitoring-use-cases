@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.4.23",
+  "title": "Multi-Cloud DNS Resolution Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Availability"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=dns:health`, `sourcetype=aws:route53resolverquerylog`, `sourcetype=mscs:azure:diagnostics` (DNS if enabled)",
+  "app": "Custom (synthetic probes, Route 53 Resolver / Azure DNS / Cloud DNS logs)",
+  "spl": "index=cloud (sourcetype=\"dns:health\" OR sourcetype=\"synthetic:dns\")\n| stats latest(success) as ok, avg(latency_ms) as avg_ms by provider, resolver_vantage, tested_fqdn\n| where ok=0 OR avg_ms>500\n| eval avg_ms=round(avg_ms,1)\n| sort provider tested_fqdn",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "DNS failures in one cloud or resolver path strand hybrid apps; proactive health checks catch resolver outages and split-horizon misconfiguration before user impact.",
+  "value": "DNS failures in one cloud or resolver path strand hybrid apps; proactive health checks catch resolver outages and split-horizon misconfiguration before user impact.",
+  "implementation": "Emit probe results from each cloud (success, latency_ms, NXDOMAIN rate) via HEC. Optionally join Route 53 Resolver query logs for SERVFAIL spikes. Page when any critical FQDN fails from two vantage points or latency doubles vs baseline.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (synthetic probes, Route 53 Resolver / Azure DNS / Cloud DNS logs).\n• Ensure the following data sources are available: `sourcetype=dns:health`, `sourcetype=aws:route53resolverquerylog`, `sourcetype=mscs:azure:diagnostics` (DNS if enabled).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEmit probe results from each cloud (success, latency_ms, NXDOMAIN rate) via HEC. Optionally join Route 53 Resolver query logs for SERVFAIL spikes. Page when any critical FQDN fails from two vantage points or latency doubles vs baseline.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud (sourcetype=\"dns:health\" OR sourcetype=\"synthetic:dns\")\n| stats latest(success) as ok, avg(latency_ms) as avg_ms by provider, resolver_vantage, tested_fqdn\n| where ok=0 OR avg_ms>500\n| eval avg_ms=round(avg_ms,1)\n| sort provider tested_fqdn\n```\n\nUnderstanding this SPL\n\n**Multi-Cloud DNS Resolution Health** — DNS failures in one cloud or resolver path strand hybrid apps; proactive health checks catch resolver outages and split-horizon misconfiguration before user impact.\n\nDocumented **Data sources**: `sourcetype=dns:health`, `sourcetype=aws:route53resolverquerylog`, `sourcetype=mscs:azure:diagnostics` (DNS if enabled). **App/TA** (typical add-on context): Custom (synthetic probes, Route 53 Resolver / Azure DNS / Cloud DNS logs). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: dns:health, synthetic:dns. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"dns:health\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by provider, resolver_vantage, tested_fqdn** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where ok=0 OR avg_ms>500` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **avg_ms** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (FQDN × provider), Line chart (success rate over time), Single value (failed probes).",
+  "visualization": "Status grid (FQDN × provider), Line chart (success rate over time), Single value (failed probes).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "mitreAttack": [
+    "T1580"
+  ],
+  "equipment": [
+    "azure"
+  ]
+}

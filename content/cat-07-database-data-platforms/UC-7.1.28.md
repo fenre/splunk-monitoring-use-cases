@@ -1,0 +1,111 @@
+---
+id: "7.1.28"
+title: "PostgreSQL Replication Lag (Streaming)"
+criticality: "critical"
+splunkPillar: "Observability"
+---
+
+# UC-7.1.28 · PostgreSQL Replication Lag (Streaming)
+
+## Description
+
+`pg_stat_replication` write/flush/replay lag bytes and seconds catch standby drift before read-your-writes violations. Complements generic replication UC with PostgreSQL-native metrics.
+
+## Value
+
+`pg_stat_replication` write/flush/replay lag bytes and seconds catch standby drift before read-your-writes violations. Complements generic replication UC with PostgreSQL-native metrics.
+
+## Implementation
+
+Poll replication view every 1m. Map `application_name` to replica. Alert on replay lag > RPO seconds or LSN gap >100MB. Correlate with `archive_command` and network.
+
+## Detailed Implementation
+
+Prerequisites
+• Install and configure the required add-on or app: DB Connect, `pg_stat_replication` scripted export.
+• Ensure the following data sources are available: `write_lag`, `flush_lag`, `replay_lag`, `sent_lsn`, `lsn_gap_bytes` (computed in DB Connect SQL via `pg_wal_lsn_diff(sent_lsn, replay_lsn)`).
+• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+Step 1 — Configure data collection
+Poll replication view every 1m. Map `application_name` to replica. Alert on replay lag > RPO seconds or LSN gap >100MB. Correlate with `archive_command` and network.
+
+Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+index=database sourcetype="dbconnect:pg_replication"
+| rex field=replay_lag "(?<replay_lag_sec>\d+)"
+| eval replay_lag_sec=tonumber(replay_lag_sec),
+       lsn_gap_bytes=tonumber(lsn_gap_bytes)
+| where replay_lag_sec > 60 OR lsn_gap_bytes > 104857600
+| table application_name client_addr replay_lag_sec lsn_gap_bytes state
+```
+
+Understanding this SPL
+
+**PostgreSQL Replication Lag (Streaming)** — `pg_stat_replication` write/flush/replay lag bytes and seconds catch standby drift before read-your-writes violations. Complements generic replication UC with PostgreSQL-native metrics.
+
+Documented **Data sources**: `write_lag`, `flush_lag`, `replay_lag`, `sent_lsn`, `lsn_gap_bytes` (computed in DB Connect SQL via `pg_wal_lsn_diff(sent_lsn, replay_lsn)`). **App/TA** (typical add-on context): DB Connect, `pg_stat_replication` scripted export. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: database; **sourcetype**: dbconnect:pg_replication. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+
+**Pipeline walkthrough**
+
+• Scopes the data: index=database, sourcetype="dbconnect:pg_replication". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+• Extracts fields with `rex` (regular expression).
+• `eval` defines or adjusts **replay_lag_sec** — often to normalize units, derive a ratio, or prepare for thresholds.
+• Filters the current rows with `where replay_lag_sec > 60 OR lsn_gap_bytes > 104857600` — typically the threshold or rule expression for this monitoring goal.
+• Pipeline stage (see **PostgreSQL Replication Lag (Streaming)**): table application_name client_addr replay_lag_sec lsn_gap_bytes state
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
+```
+
+Understanding this CIM / accelerated SPL
+
+**PostgreSQL Replication Lag (Streaming)** — `pg_stat_replication` write/flush/replay lag bytes and seconds catch standby drift before read-your-writes violations. Complements generic replication UC with PostgreSQL-native metrics.
+
+Documented **Data sources**: `write_lag`, `flush_lag`, `replay_lag`, `sent_lsn`, `lsn_gap_bytes` (computed in DB Connect SQL via `pg_wal_lsn_diff(sent_lsn, replay_lsn)`). **App/TA** (typical add-on context): DB Connect, `pg_stat_replication` scripted export. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` against accelerated summaries for data model `Databases.Instance_Stats` — enable acceleration for that model.
+• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+
+
+Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (replay lag per standby), Table (standby, lag sec), Single value (max lag).
+
+## SPL
+
+```spl
+index=database sourcetype="dbconnect:pg_replication"
+| rex field=replay_lag "(?<replay_lag_sec>\d+)"
+| eval replay_lag_sec=tonumber(replay_lag_sec),
+       lsn_gap_bytes=tonumber(lsn_gap_bytes)
+| where replay_lag_sec > 60 OR lsn_gap_bytes > 104857600
+| table application_name client_addr replay_lag_sec lsn_gap_bytes state
+```
+
+## CIM SPL
+
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
+```
+
+## Visualization
+
+Line chart (replay lag per standby), Table (standby, lag sec), Single value (max lag).
+
+## References
+
+- [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)

@@ -1,0 +1,82 @@
+---
+id: "7.5.11"
+title: "Elasticsearch Circuit Breaker Trips"
+criticality: "high"
+splunkPillar: "Observability"
+---
+
+# UC-7.5.11 · Elasticsearch Circuit Breaker Trips
+
+## Description
+
+Circuit breaker exceptions stop requests to protect the cluster; repeated trips indicate oversized aggregations, mapping issues, or undersized heap.
+
+## Value
+
+Circuit breaker exceptions stop requests to protect the cluster; repeated trips indicate oversized aggregations, mapping issues, or undersized heap.
+
+## Implementation
+
+Forward Elasticsearch logs with circuit breaker messages, or poll `_nodes/stats/breaker` and alert when `tripped` is true or estimated size exceeds limit. Group by `breaker_name` (parent, fielddata, request). Tie alerts to offending queries from slow logs.
+
+## Detailed Implementation
+
+Prerequisites
+• Install and configure the required add-on or app: Elasticsearch slow logs / server logs forwarded to Splunk, JMX or `_nodes/stats` breaker fields.
+• Ensure the following data sources are available: `sourcetype=elasticsearch:server`, `sourcetype=elasticsearch:circuit_breaker`.
+• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+Step 1 — Configure data collection
+Forward Elasticsearch logs with circuit breaker messages, or poll `_nodes/stats/breaker` and alert when `tripped` is true or estimated size exceeds limit. Group by `breaker_name` (parent, fielddata, request). Tie alerts to offending queries from slow logs.
+
+Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+index=database (sourcetype="elasticsearch:server" OR sourcetype="elasticsearch:circuit_breaker")
+| search "CircuitBreakingException" OR breaker_tripped=1
+| stats count by breaker_name, node_name, index
+| where count > 0
+| sort -count
+```
+
+Understanding this SPL
+
+**Elasticsearch Circuit Breaker Trips** — Circuit breaker exceptions stop requests to protect the cluster; repeated trips indicate oversized aggregations, mapping issues, or undersized heap.
+
+Documented **Data sources**: `sourcetype=elasticsearch:server`, `sourcetype=elasticsearch:circuit_breaker`. **App/TA** (typical add-on context): Elasticsearch slow logs / server logs forwarded to Splunk, JMX or `_nodes/stats` breaker fields. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: database; **sourcetype**: elasticsearch:server, elasticsearch:circuit_breaker. Those sourcetypes align with what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+• Scopes the data: index=database, sourcetype="elasticsearch:server". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+• Applies an explicit `search` filter to narrow the current result set.
+• `stats` rolls up events into metrics; results are split **by breaker_name, node_name, index** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
+• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+
+Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (trips by breaker type), Table (node, breaker, count), Line chart (breaker estimated size vs. limit).
+
+## SPL
+
+```spl
+index=database (sourcetype="elasticsearch:server" OR sourcetype="elasticsearch:circuit_breaker")
+| search "CircuitBreakingException" OR breaker_tripped=1
+| stats count by breaker_name, node_name, index
+| where count > 0
+| sort -count
+```
+
+## Visualization
+
+Bar chart (trips by breaker type), Table (node, breaker, count), Line chart (breaker estimated size vs. limit).
+
+## References
+
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

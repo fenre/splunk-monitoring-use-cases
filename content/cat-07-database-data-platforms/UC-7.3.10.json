@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.3.10",
+  "title": "Cloud Spanner Instance Health",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`spanner.googleapis.com/instance/cpu/utilization`, `transaction_count`, `streaming_pull_response_count`",
+  "app": "GCP Monitoring TA, scripted export",
+  "spl": "index=gcp sourcetype=\"gcp:monitoring\" metric_type=\"spanner.googleapis.com/instance/cpu/utilization\"\n| timechart span=5m avg(value) as cpu_util by instance_id\n| where cpu_util > 0.65",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "CPU utilization, hot spots, and replication delay for Spanner nodes indicate risk of write/read stalls on globally distributed data.",
+  "value": "CPU utilization, hot spots, and replication delay for Spanner nodes indicate risk of write/read stalls on globally distributed data.",
+  "implementation": "Ingest Spanner instance metrics per project. Alert on high CPU or increasing 99p latency metrics. Use query insights export for hot keys if enabled.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: GCP Monitoring TA, scripted export.\n• Ensure the following data sources are available: `spanner.googleapis.com/instance/cpu/utilization`, `transaction_count`, `streaming_pull_response_count`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest Spanner instance metrics per project. Alert on high CPU or increasing 99p latency metrics. Use query insights export for hot keys if enabled.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gcp sourcetype=\"gcp:monitoring\" metric_type=\"spanner.googleapis.com/instance/cpu/utilization\"\n| timechart span=5m avg(value) as cpu_util by instance_id\n| where cpu_util > 0.65\n```\n\nUnderstanding this SPL\n\n**Cloud Spanner Instance Health** — CPU utilization, hot spots, and replication delay for Spanner nodes indicate risk of write/read stalls on globally distributed data.\n\nDocumented **Data sources**: `spanner.googleapis.com/instance/cpu/utilization`, `transaction_count`, `streaming_pull_response_count`. **App/TA** (typical add-on context): GCP Monitoring TA, scripted export. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gcp; **sourcetype**: gcp:monitoring. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gcp, sourcetype=\"gcp:monitoring\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by instance_id** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where cpu_util > 0.65` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (CPU and latency), Table (instances over SLO), Heatmap (instance × region).",
+  "visualization": "Line chart (CPU and latency), Table (instances over SLO), Heatmap (instance × region).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "gcp"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "16.1.23",
+  "title": "Service Request Fulfillment Rate",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=snow:sc_request` or `snow:request`",
+  "app": "`Splunk_TA_snow`",
+  "spl": "index=itsm sourcetype=\"snow:sc_request\" earliest=-30d\n| eval fulfilled=if(lower(state) IN (\"closed\",\"complete\",\"fulfilled\") AND lower(close_code)!=\"cancel\",1,0)\n| stats count as total, sum(fulfilled) as fulfilled by cat_item\n| eval fulfill_rate=round(100*fulfilled/total,1)\n| where total>=5\n| sort fulfill_rate\n| head 20",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Percentage of catalog requests fulfilled successfully within the reporting period — distinct from average fulfillment time (UC-16.1.10).",
+  "value": "Percentage of catalog requests fulfilled successfully within the reporting period — distinct from average fulfillment time (UC-16.1.10).",
+  "implementation": "Map request `state` and `close_code` for cancelled vs fulfilled. Exclude duplicates. Report overall rate and bottom 20 catalog items by fulfill rate for remediation.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow`.\n• Ensure the following data sources are available: `sourcetype=snow:sc_request` or `snow:request`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap request `state` and `close_code` for cancelled vs fulfilled. Exclude duplicates. Report overall rate and bottom 20 catalog items by fulfill rate for remediation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:sc_request\" earliest=-30d\n| eval fulfilled=if(lower(state) IN (\"closed\",\"complete\",\"fulfilled\") AND lower(close_code)!=\"cancel\",1,0)\n| stats count as total, sum(fulfilled) as fulfilled by cat_item\n| eval fulfill_rate=round(100*fulfilled/total,1)\n| where total>=5\n| sort fulfill_rate\n| head 20\n```\n\nUnderstanding this SPL\n\n**Service Request Fulfillment Rate** — Percentage of catalog requests fulfilled successfully within the reporting period — distinct from average fulfillment time (UC-16.1.10).\n\nDocumented **Data sources**: `sourcetype=snow:sc_request` or `snow:request`. **App/TA** (typical add-on context): `Splunk_TA_snow`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:sc_request. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:sc_request\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **fulfilled** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by cat_item** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **fulfill_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where total>=5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (fulfill rate by catalog item), Single value (overall fulfill %), Table (bottom performers).",
+  "visualization": "Bar chart (fulfill rate by catalog item), Single value (overall fulfill %), Table (bottom performers).",
+  "references": [
+    {
+      "title": "Splunk_TA_snow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "equipment": [
+    "servicenow"
+  ]
+}

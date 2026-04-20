@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.4.8",
+  "title": "mTLS Certificate Expiration",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Istio/Linkerd certificate metadata, `istioctl proxy-config` output",
+  "app": "Service mesh metrics, scripted input",
+  "spl": "index=mesh sourcetype=\"istio:cert_status\"\n| eval days_until_expiry=round((cert_expiry_epoch-now())/86400)\n| where days_until_expiry < 7\n| table service, namespace, days_until_expiry, issuer\n| sort days_until_expiry",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Expired mTLS certificates break service-to-service communication, causing complete mesh failures. Proactive monitoring is essential.",
+  "value": "Expired mTLS certificates break service-to-service communication, causing complete mesh failures. Proactive monitoring is essential.",
+  "implementation": "Monitor Istio/Linkerd certificate lifetimes. For auto-rotated certs, verify rotation is working by tracking cert age. Alert when certs approach expiry or rotation fails. Monitor CA health (Citadel, cert-manager).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Service mesh metrics, scripted input.\n• Ensure the following data sources are available: Istio/Linkerd certificate metadata, `istioctl proxy-config` output.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor Istio/Linkerd certificate lifetimes. For auto-rotated certs, verify rotation is working by tracking cert age. Alert when certs approach expiry or rotation fails. Monitor CA health (Citadel, cert-manager).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=mesh sourcetype=\"istio:cert_status\"\n| eval days_until_expiry=round((cert_expiry_epoch-now())/86400)\n| where days_until_expiry < 7\n| table service, namespace, days_until_expiry, issuer\n| sort days_until_expiry\n```\n\nUnderstanding this SPL\n\n**mTLS Certificate Expiration** — Expired mTLS certificates break service-to-service communication, causing complete mesh failures. Proactive monitoring is essential.\n\nDocumented **Data sources**: Istio/Linkerd certificate metadata, `istioctl proxy-config` output. **App/TA** (typical add-on context): Service mesh metrics, scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: mesh; **sourcetype**: istio:cert_status. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=mesh, sourcetype=\"istio:cert_status\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **days_until_expiry** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days_until_expiry < 7` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **mTLS Certificate Expiration**): table service, namespace, days_until_expiry, issuer\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (certs with expiry), Single value (certs expiring within 7d), Timeline (cert rotation events).",
+  "visualization": "Table (certs with expiry), Single value (certs expiring within 7d), Timeline (cert rotation events).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

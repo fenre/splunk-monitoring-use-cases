@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.54",
+  "title": "Broadcom Symantec CASB Shadow IT Detection (Broadcom)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Symantec CloudSOC or WSS cloud app logs",
+  "app": "Symantec WSS Add-on for Splunk (Splunkbase 3856), Symantec CAS App (Splunkbase 5934)",
+  "spl": "index=proxy sourcetype=\"symantec:wss:accesslog\" earliest=-30d\n| where cs_threat_risk_level=\"High\" OR match(cs_categories,\"(?i)unsanctioned|shadow\")\n| stats dc(cs_userdn) as users sum(sc_bytes) as bytes by cs_host, cs_categories\n| eval gb=round(bytes/1073741824,2)\n| sort -users",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Web.Web\n  by Web.url Web.user span=1d\n| where count > 20",
+  "cimModels": [
+    "Web",
+    "Network_Traffic"
+  ],
+  "description": "Symantec CloudSOC CASB detects unsanctioned cloud application usage by analyzing web proxy and firewall logs. Shadow IT visibility identifies data exposure risks and supports SaaS governance.",
+  "value": "Symantec CloudSOC CASB detects unsanctioned cloud application usage by analyzing web proxy and firewall logs. Shadow IT visibility identifies data exposure risks and supports SaaS governance.",
+  "implementation": "Configure CloudSOC app discovery or filter WSS logs for unsanctioned category. Map cloud app names to your SaaS registry. Alert on new high-risk apps with >3 users. Report on shadow IT data volume.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Symantec WSS Add-on for Splunk (Splunkbase 3856), Symantec CAS App (Splunkbase 5934).\n• Ensure the following data sources are available: Symantec CloudSOC or WSS cloud app logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure CloudSOC app discovery or filter WSS logs for unsanctioned category. Map cloud app names to your SaaS registry. Alert on new high-risk apps with >3 users. Report on shadow IT data volume.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"symantec:wss:accesslog\" earliest=-30d\n| where cs_threat_risk_level=\"High\" OR match(cs_categories,\"(?i)unsanctioned|shadow\")\n| stats dc(cs_userdn) as users sum(sc_bytes) as bytes by cs_host, cs_categories\n| eval gb=round(bytes/1073741824,2)\n| sort -users\n```\n\nUnderstanding this SPL\n\n**Broadcom Symantec CASB Shadow IT Detection (Broadcom)** — Symantec CloudSOC CASB detects unsanctioned cloud application usage by analyzing web proxy and firewall logs. Shadow IT visibility identifies data exposure risks and supports SaaS governance.\n\nDocumented **Data sources**: Symantec CloudSOC or WSS cloud app logs. **App/TA** (typical add-on context): Symantec WSS Add-on for Splunk (Splunkbase 3856), Symantec CAS App (Splunkbase 5934). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: proxy; **sourcetype**: symantec:wss:accesslog. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=proxy, sourcetype=\"symantec:wss:accesslog\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where cs_threat_risk_level=\"High\" OR match(cs_categories,\"(?i)unsanctioned|shadow\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by cs_host, cs_categories** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **gb** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Web.Web\n  by Web.url Web.user span=1d\n| where count > 20\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Broadcom Symantec CASB Shadow IT Detection (Broadcom)** — Symantec CloudSOC CASB detects unsanctioned cloud application usage by analyzing web proxy and firewall logs. Shadow IT visibility identifies data exposure risks and supports SaaS governance.\n\nDocumented **Data sources**: Symantec CloudSOC or WSS cloud app logs. **App/TA** (typical add-on context): Symantec WSS Add-on for Splunk (Splunkbase 3856), Symantec CAS App (Splunkbase 5934). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Web.Web` — enable acceleration for that model.\n• Filters the current rows with `where count > 20` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unsanctioned apps), Bar chart (top apps by users), Pie chart (risk levels), Line chart (shadow IT trend).",
+  "visualization": "Table (unsanctioned apps), Bar chart (top apps by users), Pie chart (risk levels), Line chart (shadow IT trend).",
+  "references": [
+    {
+      "title": "Symantec WSS Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/3856"
+    },
+    {
+      "title": "Symantec CAS App",
+      "url": "https://splunkbase.splunk.com/app/5934"
+    },
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1102"
+  ],
+  "equipment": [
+    "broadcom_symantec"
+  ],
+  "hardware": "Symantec CloudSOC (cloud), Cloud SWG"
+}

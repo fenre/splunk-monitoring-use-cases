@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.11.71",
+  "title": "Tenable Nessus Vulnerability Scan Coverage Tracking",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=nessus:scan`",
+  "app": "`Splunk_TA_nessus`",
+  "spl": "index=vuln sourcetype=\"nessus:scan\"\n| stats latest(finish_time) as last_scan by asset_uuid, scan_name\n| eval overdue=if(now()-last_scan > 2592000,1,0)\n| where overdue=1",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.severity, Vulnerabilities.signature, Vulnerabilities.dest | sort - count",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "description": "Scan coverage ensures vulnerability data stays current for risk scoring.",
+  "value": "Scan coverage ensures vulnerability data stays current for risk scoring.",
+  "implementation": "Track last successful authenticated scan per asset group. Alert when assets exceed 30-day window.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nessus`.\n• Ensure the following data sources are available: `sourcetype=nessus:scan`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTrack last successful authenticated scan per asset group. Alert when assets exceed 30-day window.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vuln sourcetype=\"nessus:scan\"\n| stats latest(finish_time) as last_scan by asset_uuid, scan_name\n| eval overdue=if(now()-last_scan > 2592000,1,0)\n| where overdue=1\n```\n\nUnderstanding this SPL\n\n**Tenable Nessus Vulnerability Scan Coverage Tracking** — Scan coverage ensures vulnerability data stays current for risk scoring.\n\nDocumented **Data sources**: `sourcetype=nessus:scan`. **App/TA** (typical add-on context): `Splunk_TA_nessus`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vuln; **sourcetype**: nessus:scan. That sourcetype matches what this use case lists under Data sources.\n\n**Detection type** for this use case: TTP — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vuln, sourcetype=\"nessus:scan\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by asset_uuid, scan_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **overdue** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where overdue=1` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.severity, Vulnerabilities.signature, Vulnerabilities.dest | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Tenable Nessus Vulnerability Scan Coverage Tracking** — Scan coverage ensures vulnerability data stays current for risk scoring.\n\nDocumented **Data sources**: `sourcetype=nessus:scan`. **App/TA** (typical add-on context): `Splunk_TA_nessus`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Detection type** for this use case: TTP — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Vulnerabilities.Vulnerabilities` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (overdue assets), Single value (coverage %).",
+  "visualization": "Table (overdue assets), Single value (coverage %).",
+  "references": [
+    {
+      "title": "CIM: Vulnerabilities",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+    }
+  ],
+  "knownFalsePositives": "Legitimate use of dual-purpose administrative tools (e.g. PowerShell, SSH, cloud CLIs) during maintenance or deployment can match this pattern — correlate with change tickets, asset criticality and user role before escalating.",
+  "detectionType": "TTP",
+  "securityDomain": "threat",
+  "equipment": [
+    "tenable"
+  ]
+}

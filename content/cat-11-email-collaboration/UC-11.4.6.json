@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "11.4.6",
+  "title": "Outbound Mail Volume and Recipient Anomaly",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Postfix/Sendmail/Exchange outbound logs",
+  "app": "Mail server logs",
+  "spl": "index=mail sourcetype=mail_send\n| bin _time span=1h\n| stats dc(recipient) as recipients, count as msg_count by sender, _time\n| eventstats avg(msg_count) as avg_count, stdev(msg_count) as std_count by sender\n| eval z_score=if(std_count>0, (msg_count-avg_count)/std_count, 0)\n| where z_score > 3 OR recipients > 100\n| table _time sender msg_count recipients z_score",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Unusual outbound volume or new bulk recipients may indicate compromised account or phishing campaign. Baseline and anomaly detection support incident response.",
+  "value": "Unusual outbound volume or new bulk recipients may indicate compromised account or phishing campaign. Baseline and anomaly detection support incident response.",
+  "implementation": "Ingest outbound send events. Baseline message count and unique recipients per sender (hourly). Alert when volume or recipient count exceeds 3 standard deviations or recipient count >100 in one hour.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Mail server logs.\n• Ensure the following data sources are available: Postfix/Sendmail/Exchange outbound logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest outbound send events. Baseline message count and unique recipients per sender (hourly). Alert when volume or recipient count exceeds 3 standard deviations or recipient count >100 in one hour.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=mail sourcetype=mail_send\n| bin _time span=1h\n| stats dc(recipient) as recipients, count as msg_count by sender, _time\n| eventstats avg(msg_count) as avg_count, stdev(msg_count) as std_count by sender\n| eval z_score=if(std_count>0, (msg_count-avg_count)/std_count, 0)\n| where z_score > 3 OR recipients > 100\n| table _time sender msg_count recipients z_score\n```\n\nUnderstanding this SPL\n\n**Outbound Mail Volume and Recipient Anomaly** — Unusual outbound volume or new bulk recipients may indicate compromised account or phishing campaign. Baseline and anomaly detection support incident response.\n\nDocumented **Data sources**: Postfix/Sendmail/Exchange outbound logs. **App/TA** (typical add-on context): Mail server logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: mail; **sourcetype**: mail_send. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=mail, sourcetype=mail_send. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by sender, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eventstats` rolls up events into metrics; results are split **by sender** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **z_score** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where z_score > 3 OR recipients > 100` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Outbound Mail Volume and Recipient Anomaly**): table _time sender msg_count recipients z_score\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (sender, count, recipients, z-score), Line chart (volume by sender), Bar chart (top senders).",
+  "visualization": "Table (sender, count, recipients, z-score), Line chart (volume by sender), Bar chart (top senders).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.1.16",
+  "title": "Route Table Flapping",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=cisco:ios`",
+  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "premiumApps": [
+    {
+      "name": "Splunk User Behavior Analytics",
+      "displayName": "Splunk User Behavior Analytics",
+      "note": "UBA"
+    }
+  ],
+  "spl": "index=network sourcetype=\"cisco:ios\" \"ROUTING\" OR \"RT_ENTRY\" OR \"%DUAL-5-NBRCHANGE\" OR \"%BGP-5-ADJCHANGE\" OR \"%OSPF-5-ADJCHG\"\n| rex \"(?<protocol>BGP|OSPF|EIGRP).*?(?<prefix>\\d+\\.\\d+\\.\\d+\\.\\d+/?\\d*)\"\n| bin _time span=10m | stats count as changes by _time, host, protocol, prefix\n| where changes > 5 | sort -changes",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Unstable routes cause packet loss and reachability failures. Detecting flapping routes prevents cascading network outages across your infrastructure.",
+  "value": "Unstable routes cause packet loss and reachability failures. Detecting flapping routes prevents cascading network outages across your infrastructure.",
+  "implementation": "Collect syslog from all routers. Alert on >5 route changes for the same prefix in 10 minutes. Correlate with interface flaps. Use `streamstats` to detect patterns.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.\n• Ensure the following data sources are available: `sourcetype=cisco:ios`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect syslog from all routers. Alert on >5 route changes for the same prefix in 10 minutes. Correlate with interface flaps. Use `streamstats` to detect patterns.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"cisco:ios\" \"ROUTING\" OR \"RT_ENTRY\" OR \"%DUAL-5-NBRCHANGE\" OR \"%BGP-5-ADJCHANGE\" OR \"%OSPF-5-ADJCHG\"\n| rex \"(?<protocol>BGP|OSPF|EIGRP).*?(?<prefix>\\d+\\.\\d+\\.\\d+\\.\\d+/?\\d*)\"\n| bin _time span=10m | stats count as changes by _time, host, protocol, prefix\n| where changes > 5 | sort -changes\n```\n\nUnderstanding this SPL\n\n**Route Table Flapping** — Unstable routes cause packet loss and reachability failures. Detecting flapping routes prevents cascading network outages across your infrastructure.\n\nDocumented **Data sources**: `sourcetype=cisco:ios`. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"cisco:ios\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, host, protocol, prefix** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where changes > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (flapping events), Table (prefix, host, count), Line chart (change frequency).",
+  "visualization": "Timeline (flapping events), Table (prefix, host, count), Line chart (change frequency).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_ios"
+  ],
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+}

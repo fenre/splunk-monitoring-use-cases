@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "20.2.29",
+  "title": "Site-to-Site VPN Tunnel Bandwidth Headroom",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=network` `sourcetype=\"vpn:tunnel\"`",
+  "app": "SNMP, `Splunk Add-on for AWS` (VPN metrics), SD-WAN TA",
+  "spl": "index=network sourcetype=\"vpn:tunnel\" earliest=-7d\n| eval bps=tonumber(coalesce(ingress_bps, in_bps))+tonumber(coalesce(egress_bps, out_bps))\n| eval cap=tonumber(coalesce(negotiated_bandwidth_bps, tunnel_capacity_bps))\n| eval util_pct=round(100*bps/nullif(cap,0),2)\n| bin _time span=5m\n| stats perc95(util_pct) as p95_util by tunnel_id, site_name\n| eval headroom_pct=round(100-p95_util,1)\n| where headroom_pct < 20\n| sort headroom_pct",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "VPN tunnels to cloud and partners have fixed negotiated throughput. Sustained high utilization causes latency and drops during batch windows. Headroom reporting triggers circuit upgrades or traffic engineering before outages.",
+  "value": "VPN tunnels to cloud and partners have fixed negotiated throughput. Sustained high utilization causes latency and drops during batch windows. Headroom reporting triggers circuit upgrades or traffic engineering before outages.",
+  "implementation": "(1) Ingest per-tunnel throughput from SD-WAN or cloud VPN metrics. (2) Store negotiated capacity per tunnel in a lookup. (3) Alert when seven-day P95 utilization leaves less than twenty percent headroom.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP, `Splunk Add-on for AWS` (VPN metrics), SD-WAN TA.\n• Ensure the following data sources are available: `index=network` `sourcetype=\"vpn:tunnel\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest per-tunnel throughput from SD-WAN or cloud VPN metrics. (2) Store negotiated capacity per tunnel in a lookup. (3) Alert when seven-day P95 utilization leaves less than twenty percent headroom.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"vpn:tunnel\" earliest=-7d\n| eval bps=tonumber(coalesce(ingress_bps, in_bps))+tonumber(coalesce(egress_bps, out_bps))\n| eval cap=tonumber(coalesce(negotiated_bandwidth_bps, tunnel_capacity_bps))\n| eval util_pct=round(100*bps/nullif(cap,0),2)\n| bin _time span=5m\n| stats perc95(util_pct) as p95_util by tunnel_id, site_name\n| eval headroom_pct=round(100-p95_util,1)\n| where headroom_pct < 20\n| sort headroom_pct\n```\n\nUnderstanding this SPL\n\n**Site-to-Site VPN Tunnel Bandwidth Headroom** — VPN tunnels to cloud and partners have fixed negotiated throughput. Sustained high utilization causes latency and drops during batch windows. Headroom reporting triggers circuit upgrades or traffic engineering before outages.\n\nDocumented **Data sources**: `index=network` `sourcetype=\"vpn:tunnel\"`. **App/TA** (typical add-on context): SNMP, `Splunk Add-on for AWS` (VPN metrics), SD-WAN TA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: vpn:tunnel. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"vpn:tunnel\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **bps** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **cap** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **util_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by tunnel_id, site_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **headroom_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where headroom_pct < 20` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (headroom percent), Line chart (utilization trend), Table (tunnels sorted by risk).",
+  "visualization": "Gauge (headroom percent), Line chart (utilization trend), Table (tunnels sorted by risk).",
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    }
+  ],
+  "equipment": [
+    "aws",
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_generic"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.1.6",
+  "title": "Privileged Container Detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`docker inspect` output, Kubernetes pod security",
+  "app": "Docker events, custom audit input",
+  "spl": "index=containers sourcetype=\"docker:inspect\"\n| where Privileged=\"true\"\n| table container_name image host Privileged",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Privileged containers have full host access — a container escape gives root on the host. Should be flagged and justified in production.",
+  "value": "Privileged containers have full host access — a container escape gives root on the host. Should be flagged and justified in production.",
+  "implementation": "Create scripted input: `docker inspect --format '{{.Name}} {{.HostConfig.Privileged}}' $(docker ps -q)`. Run every 300 seconds. Alert on any privileged container in production. Maintain an allowlist for justified exceptions.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Docker events, custom audit input.\n• Ensure the following data sources are available: `docker inspect` output, Kubernetes pod security.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate scripted input: `docker inspect --format '{{.Name}} {{.HostConfig.Privileged}}' $(docker ps -q)`. Run every 300 seconds. Alert on any privileged container in production. Maintain an allowlist for justified exceptions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=containers sourcetype=\"docker:inspect\"\n| where Privileged=\"true\"\n| table container_name image host Privileged\n```\n\nUnderstanding this SPL\n\n**Privileged Container Detection** — Privileged containers have full host access — a container escape gives root on the host. Should be flagged and justified in production.\n\nDocumented **Data sources**: `docker inspect` output, Kubernetes pod security. **App/TA** (typical add-on context): Docker events, custom audit input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: containers; **sourcetype**: docker:inspect. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=containers, sourcetype=\"docker:inspect\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where Privileged=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Privileged Container Detection**): table container_name image host Privileged\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (container, image, host), Single value (count of privileged), Status indicator.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Table (container, image, host), Single value (count of privileged), Status indicator.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "docker"
+  ]
+}

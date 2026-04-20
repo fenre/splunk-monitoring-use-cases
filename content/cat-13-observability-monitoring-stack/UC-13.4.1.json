@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.4.1",
+  "title": "LLM API Latency and Error Rate (OpenAI, Azure OpenAI)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=openai:api`, `sourcetype=azure:openai`",
+  "app": "Azure Monitor Add-on, custom OpenAI proxy logs, HEC",
+  "spl": "index=ai_ops (sourcetype=\"openai:api\" OR sourcetype=\"azure:openai\")\n| eval failed=if(status>=400 OR isnotnull(error_code),1,0)\n| timechart span=5m avg(latency_ms) as avg_latency p99(latency_ms) as p99_latency sum(failed) as errors count as calls\n| eval error_rate_pct=round(100*errors/calls,2)",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "High latency or error rates on managed LLM endpoints directly impact user experience and SLOs; tracking both by model and region isolates provider issues versus client misuse.",
+  "value": "High latency or error rates on managed LLM endpoints directly impact user experience and SLOs; tracking both by model and region isolates provider issues versus client misuse.",
+  "implementation": "Ingest REST proxy or provider diagnostic logs with HTTP status, `latency_ms`, model id, deployment, and region. Normalize field names across OpenAI and Azure OpenAI. Alert when p99 latency or error rate exceeds baselines. Track 429 separately if you manage quota.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Azure Monitor Add-on, custom OpenAI proxy logs, HEC.\n• Ensure the following data sources are available: `sourcetype=openai:api`, `sourcetype=azure:openai`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest REST proxy or provider diagnostic logs with HTTP status, `latency_ms`, model id, deployment, and region. Normalize field names across OpenAI and Azure OpenAI. Alert when p99 latency or error rate exceeds baselines. Track 429 separately if you manage quota.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ai_ops (sourcetype=\"openai:api\" OR sourcetype=\"azure:openai\")\n| eval failed=if(status>=400 OR isnotnull(error_code),1,0)\n| timechart span=5m avg(latency_ms) as avg_latency p99(latency_ms) as p99_latency sum(failed) as errors count as calls\n| eval error_rate_pct=round(100*errors/calls,2)\n```\n\nUnderstanding this SPL\n\n**LLM API Latency and Error Rate (OpenAI, Azure OpenAI)** — High latency or error rates on managed LLM endpoints directly impact user experience and SLOs; tracking both by model and region isolates provider issues versus client misuse.\n\nDocumented **Data sources**: `sourcetype=openai:api`, `sourcetype=azure:openai`. **App/TA** (typical add-on context): Azure Monitor Add-on, custom OpenAI proxy logs, HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ai_ops; **sourcetype**: openai:api, azure:openai. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ai_ops, sourcetype=\"openai:api\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **failed** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=5m** buckets — ideal for trending and alerting on this use case.\n• `eval` defines or adjusts **error_rate_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (latency p99, error rate), Single value (SLO burn), Table (top failing models/regions).",
+  "visualization": "Line chart (latency p99, error rate), Single value (SLO burn), Table (top failing models/regions).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "azure"
+  ]
+}

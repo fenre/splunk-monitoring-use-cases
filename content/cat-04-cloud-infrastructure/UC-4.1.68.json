@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.1.68",
+  "title": "SQS Dead Letter Queue Growth",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=aws:cloudwatch` (AWS/SQS — ApproximateNumberOfMessagesVisible on DLQ ARNs)",
+  "app": "`Splunk_TA_aws`",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SQS\" metric_name=\"ApproximateNumberOfMessagesVisible\" QueueName=\"*dlq*\"\n| sort 0 _time\n| streamstats window=12 global=f first(Average) as prev by QueueName\n| eval growth=Average-prev\n| where growth > 10\n| table _time QueueName Average growth",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "DLQ depth growth means poison messages or downstream outages; rate-of-change highlights incidents faster than static thresholds.",
+  "value": "DLQ depth growth means poison messages or downstream outages; rate-of-change highlights incidents faster than static thresholds.",
+  "implementation": "Tag DLQs consistently for `*dlq*` matching or use explicit dimension. Alert on positive growth over 1h or depth exceeding SLO. Replay with caution after root-cause.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch` (AWS/SQS — ApproximateNumberOfMessagesVisible on DLQ ARNs).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTag DLQs consistently for `*dlq*` matching or use explicit dimension. Alert on positive growth over 1h or depth exceeding SLO. Replay with caution after root-cause.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SQS\" metric_name=\"ApproximateNumberOfMessagesVisible\" QueueName=\"*dlq*\"\n| sort 0 _time\n| streamstats window=12 global=f first(Average) as prev by QueueName\n| eval growth=Average-prev\n| where growth > 10\n| table _time QueueName Average growth\n```\n\nUnderstanding this SPL\n\n**SQS Dead Letter Queue Growth** — DLQ depth growth means poison messages or downstream outages; rate-of-change highlights incidents faster than static thresholds.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch` (AWS/SQS — ApproximateNumberOfMessagesVisible on DLQ ARNs). **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• `streamstats` rolls up events into metrics; results are split **by QueueName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **growth** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where growth > 10` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SQS Dead Letter Queue Growth**): table _time QueueName Average growth\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (DLQ depth), Single value (growth rate), Table (queue, depth).",
+  "visualization": "Line chart (DLQ depth), Single value (growth rate), Table (queue, depth).",
+  "references": [
+    {
+      "title": "Splunk_TA_aws",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    }
+  ],
+  "equipment": [
+    "aws"
+  ]
+}

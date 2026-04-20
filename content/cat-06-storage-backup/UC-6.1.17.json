@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "6.1.17",
+  "title": "RAID Rebuild Progress and Estimated Completion",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "mdadm --detail, vendor RAID CLI output (MegaCli, perccli)",
+  "app": "Custom scripted input (mdadm, MegaCli, perccli)",
+  "spl": "index=storage sourcetype=\"raid:rebuild\"\n| search state=\"rebuild\" OR state=\"resync\"\n| eval progress_pct=if(isnum(progress), progress, tonumber(replace(progress, \"%\", \"\")))\n| where progress_pct < 100\n| table _time, array_name, state, progress_pct, speed_mb_s, eta_hours, spare_disk\n| sort -_time",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "During array rebuilds, progress percentage and ETA help plan maintenance and detect stalled rebuilds. Stalled rebuilds increase risk of data loss if another disk fails.",
+  "value": "During array rebuilds, progress percentage and ETA help plan maintenance and detect stalled rebuilds. Stalled rebuilds increase risk of data loss if another disk fails.",
+  "implementation": "Create scripted input that runs `mdadm --detail /dev/md*` (Linux software RAID) or vendor CLIs (`MegaCli64 -AdpAllInfo -aAll`, `perccli64 /c0 show` for Dell PERC). Parse rebuild/resync state, progress %, speed, and ETA. Run every 5–15 minutes during rebuilds. Index to Splunk. Alert when rebuild is active and progress has not increased in 2+ hours (stalled). Track ETA for maintenance planning.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (mdadm, MegaCli, perccli).\n• Ensure the following data sources are available: mdadm --detail, vendor RAID CLI output (MegaCli, perccli).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate scripted input that runs `mdadm --detail /dev/md*` (Linux software RAID) or vendor CLIs (`MegaCli64 -AdpAllInfo -aAll`, `perccli64 /c0 show` for Dell PERC). Parse rebuild/resync state, progress %, speed, and ETA. Run every 5–15 minutes during rebuilds. Index to Splunk. Alert when rebuild is active and progress has not increased in 2+ hours (stalled). Track ETA for maintenance planning.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=storage sourcetype=\"raid:rebuild\"\n| search state=\"rebuild\" OR state=\"resync\"\n| eval progress_pct=if(isnum(progress), progress, tonumber(replace(progress, \"%\", \"\")))\n| where progress_pct < 100\n| table _time, array_name, state, progress_pct, speed_mb_s, eta_hours, spare_disk\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**RAID Rebuild Progress and Estimated Completion** — During array rebuilds, progress percentage and ETA help plan maintenance and detect stalled rebuilds. Stalled rebuilds increase risk of data loss if another disk fails.\n\nDocumented **Data sources**: mdadm --detail, vendor RAID CLI output (MegaCli, perccli). **App/TA** (typical add-on context): Custom scripted input (mdadm, MegaCli, perccli). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: storage; **sourcetype**: raid:rebuild. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=storage, sourcetype=\"raid:rebuild\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `eval` defines or adjusts **progress_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where progress_pct < 100` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **RAID Rebuild Progress and Estimated Completion**): table _time, array_name, state, progress_pct, speed_mb_s, eta_hours, spare_disk\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (rebuild progress %), Table (arrays in rebuild with ETA), Line chart (progress over time), Single value (hours until rebuild complete).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Gauge (rebuild progress %), Table (arrays in rebuild with ETA), Line chart (progress over time), Single value (hours until rebuild complete).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "hardware_bmc"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_megacli",
+    "hardware_bmc_perccli"
+  ]
+}

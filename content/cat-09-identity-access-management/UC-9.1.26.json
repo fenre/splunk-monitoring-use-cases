@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "9.1.26",
+  "title": "Certificate Template Abuse (ESC Attacks)",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Certificate Services (4886, 4887, 4888), AD CS template change auditing (5136 on `CN=Certificate Templates`)",
+  "app": "`Splunk_TA_windows`, AD CS logs",
+  "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4886\n| search Requester!=\"\" Template_OID=*\n| lookup cert_template_risk Template_OID OUTPUT risk_esc\n| where risk_esc IN (\"ESC1\",\"ESC8\")\n| table _time, Requester, Template_OID, risk_esc, ComputerName",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Misconfigured templates (ESC1/ESC8) allow domain escalation via certificate requests. Monitoring issuance and template edits reduces exposure.",
+  "value": "Misconfigured templates (ESC1/ESC8) allow domain escalation via certificate requests. Monitoring issuance and template edits reduces exposure.",
+  "implementation": "Enable CA and template auditing. Maintain lookup mapping template OIDs to ESC categories (per SpecterOps research). Alert on enrollment to high-risk templates and on template ACL/schema changes.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`, AD CS logs.\n• Ensure the following data sources are available: Certificate Services (4886, 4887, 4888), AD CS template change auditing (5136 on `CN=Certificate Templates`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable CA and template auditing. Maintain lookup mapping template OIDs to ESC categories (per SpecterOps research). Alert on enrollment to high-risk templates and on template ACL/schema changes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4886\n| search Requester!=\"\" Template_OID=*\n| lookup cert_template_risk Template_OID OUTPUT risk_esc\n| where risk_esc IN (\"ESC1\",\"ESC8\")\n| table _time, Requester, Template_OID, risk_esc, ComputerName\n```\n\nUnderstanding this SPL\n\n**Certificate Template Abuse (ESC Attacks)** — Misconfigured templates (ESC1/ESC8) allow domain escalation via certificate requests. Monitoring issuance and template edits reduces exposure.\n\nDocumented **Data sources**: Certificate Services (4886, 4887, 4888), AD CS template change auditing (5136 on `CN=Certificate Templates`). **App/TA** (typical add-on context): `Splunk_TA_windows`, AD CS logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where risk_esc IN (\"ESC1\",\"ESC8\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Certificate Template Abuse (ESC Attacks)**): table _time, Requester, Template_OID, risk_esc, ComputerName\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (risky enrollments), Bar chart (requests by template), Timeline.",
+  "visualization": "Table (risky enrollments), Bar chart (requests by template), Timeline.",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1552.004"
+  ],
+  "equipment": [
+    "windows"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "16.3.4",
+  "title": "Escalation and Handoff Latency",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Assignment change events, timestamps per group",
+  "app": "ITSM workflow logs, incident history",
+  "spl": "index=itsm sourcetype=\"incident:history\"\n| search type=assignment_change\n| eval handoff_hrs=(next_assignment_time - prev_assignment_time)/3600\n| stats avg(handoff_hrs) as avg_handoff, max(handoff_hrs) as max_handoff by from_group, to_group\n| where avg_handoff > 2",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Long escalation or handoff times delay resolution. Monitoring handoff duration supports SLA and identifies bottlenecks.",
+  "value": "Long escalation or handoff times delay resolution. Monitoring handoff duration supports SLA and identifies bottlenecks.",
+  "implementation": "Ingest assignment and state change history. Compute time between assignments. Alert when average handoff exceeds threshold. Report on escalation paths and slow handoffs.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: ITSM workflow logs, incident history.\n• Ensure the following data sources are available: Assignment change events, timestamps per group.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest assignment and state change history. Compute time between assignments. Alert when average handoff exceeds threshold. Report on escalation paths and slow handoffs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"incident:history\"\n| search type=assignment_change\n| eval handoff_hrs=(next_assignment_time - prev_assignment_time)/3600\n| stats avg(handoff_hrs) as avg_handoff, max(handoff_hrs) as max_handoff by from_group, to_group\n| where avg_handoff > 2\n```\n\nUnderstanding this SPL\n\n**Escalation and Handoff Latency** — Long escalation or handoff times delay resolution. Monitoring handoff duration supports SLA and identifies bottlenecks.\n\nDocumented **Data sources**: Assignment change events, timestamps per group. **App/TA** (typical add-on context): ITSM workflow logs, incident history. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: incident:history. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"incident:history\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `eval` defines or adjusts **handoff_hrs** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by from_group, to_group** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where avg_handoff > 2` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (handoff latency by path), Bar chart (avg handoff by group), Sankey (escalation flow).",
+  "visualization": "Table (handoff latency by path), Bar chart (avg handoff by group), Sankey (escalation flow).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ]
+}

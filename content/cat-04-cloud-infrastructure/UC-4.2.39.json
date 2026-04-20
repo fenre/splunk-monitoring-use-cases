@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.2.39",
+  "title": "Event Hub Capture Lag",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Event Hub metrics (`CaptureLag`, incoming messages), storage write diagnostics",
+  "app": "`Splunk_TA_microsoft-cloudservices`",
+  "spl": "index=azure sourcetype=\"mscs:azure:metrics\" resourceType=\"Microsoft.EventHub/namespaces\" metric_name=\"CaptureLag\"\n| stats latest(average) as lag_ms by resourceId, bin(_time, 5m)\n| where lag_ms > 600000\n| eval lag_min=round(lag_ms/60000,1)",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Capture to ADLS/Blob enables batch analytics; lag between enqueue and file availability delays downstream pipelines.",
+  "value": "Capture to ADLS/Blob enables batch analytics; lag between enqueue and file availability delays downstream pipelines.",
+  "implementation": "Ingest CaptureLag from Azure Monitor. Alert when lag exceeds SLA (for example 10 minutes). Check storage throttling and capture file naming collisions. Scale throughput units if needed.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices`.\n• Ensure the following data sources are available: Event Hub metrics (`CaptureLag`, incoming messages), storage write diagnostics.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest CaptureLag from Azure Monitor. Alert when lag exceeds SLA (for example 10 minutes). Check storage throttling and capture file naming collisions. Scale throughput units if needed.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=azure sourcetype=\"mscs:azure:metrics\" resourceType=\"Microsoft.EventHub/namespaces\" metric_name=\"CaptureLag\"\n| stats latest(average) as lag_ms by resourceId, bin(_time, 5m)\n| where lag_ms > 600000\n| eval lag_min=round(lag_ms/60000,1)\n```\n\nUnderstanding this SPL\n\n**Event Hub Capture Lag** — Capture to ADLS/Blob enables batch analytics; lag between enqueue and file availability delays downstream pipelines.\n\nDocumented **Data sources**: Event Hub metrics (`CaptureLag`, incoming messages), storage write diagnostics. **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: azure; **sourcetype**: mscs:azure:metrics, Microsoft.EventHub/namespaces. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=azure, sourcetype=\"mscs:azure:metrics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by resourceId, bin(_time, 5m)** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where lag_ms > 600000` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **lag_min** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (capture lag), Table (namespace, lag minutes), Single value (worst lag).",
+  "visualization": "Line chart (capture lag), Table (namespace, lag minutes), Single value (worst lag).",
+  "references": [
+    {
+      "title": "Splunk_TA_microsoft-cloudservices",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    }
+  ],
+  "equipment": [
+    "azure",
+    "m365"
+  ]
+}
