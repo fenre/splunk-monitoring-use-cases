@@ -336,7 +336,7 @@ The production site is **GitHub Pages** fronting the `main` branch root; the dep
 [`index.html`](../index.html) is a single HTML file containing:
 
 - Inline CSS (no external stylesheets; theme variables for light/dark).
-- Inline JS that consumes the globals exposed by [`data.js`](../data.js): `DATA`, `CAT_META`, `CAT_GROUPS`, `EQUIPMENT`, `RECENTLY_ADDED`, and the LLM-safe `NON_TECHNICAL` loaded from [`non-technical-view.js`](../non-technical-view.js).
+- Inline JS that consumes the globals exposed by [`data.js`](../data.js): `DATA`, `CAT_META`, `CAT_GROUPS`, `EQUIPMENT`, `RECENTLY_ADDED`, the optional `ROADMAP` (per-category crawl/walk/run rollout emitted when any UC declares a `wave`; see [`catalog-schema.md`](catalog-schema.md#implementationroadmap)), and the LLM-safe `NON_TECHNICAL` loaded from [`non-technical-view.js`](../non-technical-view.js).
 - A filter strip (pillar / criticality / difficulty / monitoring type / regulation / sort).
 - A virtualised list that only renders visible UCs — required because the catalog is ≥6,000 items.
 - A deep-link hash router: `#uc-10.1.5`, `#c-10`, `#s-10.1`, `#q=ransomware`.

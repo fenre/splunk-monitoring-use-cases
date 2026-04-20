@@ -184,6 +184,7 @@ Additional fields are available for security use cases (MITRE ATT&CK, detection 
 - **Mobile-first** with off-canvas sidebar drawer, safe-area support, and 44px touch targets
 - **Light/dark mode** with accessible contrast and ambient visual effects
 - **Expandable details** with full SPL, CIM queries, and step-by-step implementation guides
+- **Implementation roadmap** per category — UCs tagged with a `crawl` / `walk` / `run` wave and explicit prerequisite UCs so readers know what to build first and what each UC unlocks (see [docs/use-case-fields.md](docs/use-case-fields.md#implementation-ordering-optional-v14))
 
 ---
 

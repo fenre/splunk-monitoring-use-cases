@@ -247,17 +247,26 @@ Response shape:
       "title": "...",
       "equipment": ["azure"],
       "regulationIds": ["gdpr@2016-679", "hipaa@2013-final"],
-      "mitreAttack": ["T1110.003"]
+      "mitreAttack": ["T1110.003"],
+      "wave": "walk",
+      "prerequisiteUseCases": ["UC-1.1.1"]
     }
   ]
 }
 ```
 
+`wave` is one of `crawl` / `walk` / `run` (or an empty string when the
+UC has not been classified). `prerequisiteUseCases` lists upstream UCs
+in `UC-X.Y.Z` form that should be implemented first; use them to walk
+the dependency graph before answering "what do I build next?".
+
 ### `get_use_case`
 
 Return the full detail for one UC — SPL, implementation notes, known
-false positives, references, and the full `compliance[]` array (with
-clause, mode, assurance, and rationale for each regulatory citation).
+false positives, references, the full `compliance[]` array (with
+clause, mode, assurance, and rationale for each regulatory citation),
+and the implementation-ordering fields `wave` + `prerequisiteUseCases`
+mirrored from `search_use_cases`.
 
 ```json
 {"uc_id": "22.1.1"}

@@ -37,7 +37,18 @@ Each UC block is parsed from the `### UC-…` header until the next UC or EOF. `
 | **Visualization:** | Suggested views |
 | **CIM Models:** | Model name(s) or `N/A` |
 
-Common optional lines (not enforced by structure audit): **MITRE ATT&CK**, **CIM SPL** (see below), **References**.
+Common optional lines (not enforced by structure audit): **MITRE ATT&CK**, **CIM SPL** (see below), **References**, **Wave**, **Prerequisite UCs**.
+
+### Implementation ordering (optional)
+
+Curators can mark each UC with an **implementation wave** and list **UCs that must be implemented first** so readers know which order to roll things out:
+
+| Field | Values / format | Notes |
+|--------|------------------|-------|
+| **Wave:** | `🐢 crawl`, `🚶 walk`, `🏃 run` (emojis optional) | `crawl` = foundation (platform + data sources + primary TAs); `walk` = extends or correlates foundation data; `run` = cross-source correlation, ML, or multi-UC orchestration. |
+| **Prerequisite UCs:** | Comma-separated `UC-X.Y.Z` ids | UCs that must be implemented first (data sources, macros, lookups, upstream detections). Validated by `build.py` — unknown ids, self-references, and dependency cycles fail the build. |
+
+See [`docs/use-case-fields.md#implementation-ordering-optional-v14`](docs/use-case-fields.md#implementation-ordering-optional-v14) for display details.
 
 ## UC template
 
@@ -49,6 +60,8 @@ Copy verbatim shape; replace placeholders.
 ### UC-X.Y.Z · Short descriptive title
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🚶 walk
+- **Prerequisite UCs:** UC-1.1.1, UC-13.1.1
 - **Monitoring type:** Security
 - **Value:** One or two sentences on impact.
 - **App/TA:** `Your_TA_id`
@@ -106,7 +119,7 @@ python3 scripts/audit_uc_ids.py && python3 scripts/audit_uc_structure.py --full
 | `audit_non_technical_sync.py` | `non-technical-view.js` UC ids exist in markdown; every `cat-NN` category and `## X.Y` subcategory has JS coverage |
 | `audit_changelog_uc_refs.py` | `CHANGELOG.md` version headers (shape, dates, ordering, duplicates); `UC-*` references in markdown point to real headers |
 | `audit_repo_consistency.py` | `INDEX.md` vs `cat-NN-*.md`, icons vs `index.html` `SI_PATHS`, Quick Start UCs, `build.py` `CAT_GROUPS` / `SPLUNK_APPS` |
-| `audit_catalog_schema.py` | `catalog.json` schema validation: category/subcategory/UC structure, required fields, enum values |
+| `audit_catalog_schema.py` | `catalog.json` schema validation: category/subcategory/UC structure, required fields, enum values, optional `wv` (wave) / `pre` (prerequisite UC) fields, and the top-level `implementationRoadmap` block |
 
 Other `scripts/*` files are generators or one-off tools, not part of the default validation loop.
 

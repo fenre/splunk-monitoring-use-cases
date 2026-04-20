@@ -76,3 +76,36 @@ These match [Splunk Security Essentials](https://github.com/splunk/security_cont
 ### Backfilling 10.9.x from security_content
 
 The imported ESCU use cases (UC-10.9.x) were backfilled with Known false positives, References, MITRE ATT&CK, Detection type, and Security domain from the [security_content](https://github.com/splunk/security_content) YAMLs.
+
+## Implementation ordering (optional, v1.4+)
+
+Authors can mark each UC with a **wave** (crawl / walk / run) and list **prerequisite UCs** so readers can plan the rollout in the right order. Both fields are optional; absence means the UC has not yet been classified.
+
+| Field | Markdown key | Description |
+|-------|----------------|-------------|
+| Wave | **Wave:** | One of `🐢 crawl` (foundation — platform + data sources + primary TAs), `🚶 walk` (intermediate — extends or correlates foundation data), or `🏃 run` (advanced — cross-source correlation, ML, or multi-UC orchestration). Emojis are optional; `crawl` / `walk` / `run` on their own also parse. |
+| Prerequisite UCs | **Prerequisite UCs:** | Comma-separated list of UC IDs in `UC-X.Y.Z` form (e.g. `UC-1.1.1, UC-13.1.1`). These UCs must be implemented first because they provide data sources, macros, lookups, or upstream detections this one depends on. |
+
+### Validation
+
+`build.py` validates the graph after parsing:
+
+- Unknown UC IDs are errors.
+- Self-references (`UC-1.1.1` listing itself) are errors.
+- Cycles in the dependency graph are errors (reported using Kahn's topological sort).
+- A `walk` or `run` UC that lists a `crawl` prerequisite is expected; the reverse (a `crawl` UC depending on `run`) emits a warning to highlight likely mis-tags.
+
+Wave counts are printed in the build summary (e.g. `Waves: crawl=120, walk=85, run=37, unassigned=6230`) so curators can see coverage at a glance.
+
+### Display
+
+- **Detail view** (dashboard + static pages): the UC shows a wave badge, a clickable "Implement first" list, and a reverse "Enables" list of UCs that depend on it.
+- **Category/index view**: a `Crawl → Walk → Run` roadmap lists UCs per wave so curators can plan a rollout bottom-up.
+- **API**: both `/api/v1/recommender/uc-thin.json` and `/api/v1/compliance/ucs/index.json` carry `wave` and `prerequisiteUseCases`; per-UC JSON twins also include a top-level `implementationOrdering` object with `wave`, `prerequisiteUseCases`, and a derived `enabledBy` array.
+
+### Example (in a UC block)
+
+```markdown
+- **Wave:** 🚶 walk
+- **Prerequisite UCs:** UC-1.1.1, UC-13.1.1
+```

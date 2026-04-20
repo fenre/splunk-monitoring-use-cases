@@ -29,6 +29,10 @@ REQUIRED_TOP_LEVEL = (
 
 UC_ID_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 CAT_META_KEY_PATTERN = re.compile(r"^[0-9]+$")
+PREREQ_UC_PATTERN = re.compile(r"^UC-\d+\.\d+\.\d+$")
+
+VALID_WAVES = frozenset({"crawl", "walk", "run"})
+ROADMAP_WAVE_KEYS = ("crawl", "walk", "run", "unassigned")
 
 
 def err(issues: List[str], msg: str) -> None:
@@ -168,6 +172,68 @@ def main() -> int:
                                         f"{up}: {req!r} must be str, got {type(uc[req]).__name__}",
                                     )
 
+                            # Optional implementation-ordering fields: `wv`
+                            # (wave) and `pre` (UC-to-UC prerequisites).
+                            # Absence is fine; wrong shape or an unknown
+                            # enum value is an error.
+                            if "wv" in uc:
+                                wv = uc["wv"]
+                                if not is_str(wv):
+                                    err(
+                                        issues,
+                                        f"{up}: 'wv' must be str, got {type(wv).__name__}",
+                                    )
+                                elif wv not in VALID_WAVES:
+                                    err(
+                                        issues,
+                                        f"{up}: 'wv' must be one of "
+                                        f"{sorted(VALID_WAVES)}, got {wv!r}",
+                                    )
+
+                            if "pre" in uc:
+                                pre = uc["pre"]
+                                if not isinstance(pre, list):
+                                    err(
+                                        issues,
+                                        f"{up}: 'pre' must be a list, got "
+                                        f"{type(pre).__name__}",
+                                    )
+                                else:
+                                    self_full = (
+                                        f"UC-{uc['i']}"
+                                        if is_str(uc.get("i"))
+                                        else None
+                                    )
+                                    seen: set[str] = set()
+                                    for pi, dep in enumerate(pre):
+                                        if not is_str(dep):
+                                            err(
+                                                issues,
+                                                f"{up}: 'pre[{pi}]' must be str, "
+                                                f"got {type(dep).__name__}",
+                                            )
+                                            continue
+                                        if not PREREQ_UC_PATTERN.match(dep):
+                                            err(
+                                                issues,
+                                                f"{up}: 'pre[{pi}]' {dep!r} must match "
+                                                r"pattern ^UC-\d+\.\d+\.\d+$",
+                                            )
+                                            continue
+                                        if dep == self_full:
+                                            err(
+                                                issues,
+                                                f"{up}: 'pre' self-references "
+                                                f"{dep!r}",
+                                            )
+                                        if dep in seen:
+                                            err(
+                                                issues,
+                                                f"{up}: 'pre' contains duplicate "
+                                                f"entry {dep!r}",
+                                            )
+                                        seen.add(dep)
+
             if "u" in cat:
                 err(
                     issues,
@@ -191,6 +257,66 @@ def main() -> int:
                 "CAT_META has keys not present in DATA category id(s): "
                 + ", ".join(extra_meta),
             )
+
+    # Optional top-level implementationRoadmap block. The builder emits
+    # this whenever any UC declares a `wave`; absence is fine, but if
+    # present the shape must be stable (category → wave → UC id list)
+    # so consumers can safely render the crawl/walk/run rollout view.
+    roadmap = root.get("implementationRoadmap")
+    if roadmap is not None:
+        if not isinstance(roadmap, dict):
+            err(
+                issues,
+                "implementationRoadmap must be a dict, got "
+                f"{type(roadmap).__name__}",
+            )
+        else:
+            for cat_id, wave_map in roadmap.items():
+                rp = f"implementationRoadmap[{cat_id!r}]"
+                if not is_str(cat_id) or not CAT_META_KEY_PATTERN.match(cat_id):
+                    err(
+                        issues,
+                        f"{rp}: category id must be a numeric string",
+                    )
+                if not isinstance(wave_map, dict):
+                    err(
+                        issues,
+                        f"{rp}: value must be a dict, got "
+                        f"{type(wave_map).__name__}",
+                    )
+                    continue
+                unknown = sorted(set(wave_map.keys()) - set(ROADMAP_WAVE_KEYS))
+                if unknown:
+                    err(
+                        issues,
+                        f"{rp}: unknown wave bucket(s): {unknown}",
+                    )
+                for wave_key in ROADMAP_WAVE_KEYS:
+                    if wave_key not in wave_map:
+                        continue
+                    bucket = wave_map[wave_key]
+                    bp = f"{rp}[{wave_key!r}]"
+                    if not isinstance(bucket, list):
+                        err(
+                            issues,
+                            f"{bp}: wave bucket must be a list, got "
+                            f"{type(bucket).__name__}",
+                        )
+                        continue
+                    for ui, uc_full in enumerate(bucket):
+                        if not is_str(uc_full):
+                            err(
+                                issues,
+                                f"{bp}[{ui}]: must be str, got "
+                                f"{type(uc_full).__name__}",
+                            )
+                            continue
+                        if not PREREQ_UC_PATTERN.match(uc_full):
+                            err(
+                                issues,
+                                f"{bp}[{ui}]: {uc_full!r} must match pattern "
+                                r"^UC-\d+\.\d+\.\d+$",
+                            )
 
     if issues:
         _print_issues(issues)

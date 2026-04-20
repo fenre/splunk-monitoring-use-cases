@@ -9,6 +9,7 @@
 ### UC-1.1.1 · CPU Utilization Trending (Linux)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance, Capacity
 - **Value:** Detects overloaded hosts before they cause application degradation. Enables capacity planning and right-sizing.
 - **App/TA:** `Splunk_TA_nix`
@@ -41,6 +42,7 @@ index=os sourcetype=cpu host=*
 ### UC-1.1.2 · Memory Pressure Detection (Linux)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Value:** Prevents OOM kills, application crashes, and unresponsive systems by detecting memory exhaustion early.
 - **App/TA:** `Splunk_TA_nix`
@@ -69,6 +71,7 @@ index=os sourcetype=vmstat host=*
 ### UC-1.1.3 · Disk Capacity Forecasting (Linux)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Wave:** 🚶 walk
 - **Monitoring type:** Capacity
 - **Value:** Prevents outages caused by full filesystems. A full /var or / can bring down services, databases, and logging. Enables proactive storage procurement.
 - **App/TA:** `Splunk_TA_nix`
@@ -104,6 +107,7 @@ index=os sourcetype=df host=myserver Filesystem="/dev/sda1"
 ### UC-1.1.4 · Disk I/O Saturation (Linux)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🚶 walk
 - **Monitoring type:** Performance
 - **Value:** High I/O wait degrades application performance even when CPU and memory look healthy. Catches storage bottlenecks before users complain.
 - **App/TA:** `Splunk_TA_nix`
@@ -133,6 +137,8 @@ index=os sourcetype=iostat host=*
 ### UC-1.1.5 · System Load Anomalies
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Wave:** 🏃 run
+- **Prerequisite UCs:** UC-1.1.2
 - **Monitoring type:** Performance
 - **Value:** Load average exceeding CPU core count indicates process queuing. Useful as an early warning for runaway processes or unexpected workloads.
 - **App/TA:** `Splunk_TA_nix`
