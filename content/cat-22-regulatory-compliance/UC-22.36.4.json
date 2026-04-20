@@ -4,7 +4,6 @@
   "title": "DSAR identity-verification friction — failed-verification anomaly",
   "criticality": "high",
   "difficulty": "intermediate",
-  "subcategory": "22.36#1",
   "monitoringType": [
     "Compliance"
   ],
@@ -20,7 +19,11 @@
       "clause": "Art.12(6)",
       "mode": "detects-violation-of",
       "assurance": "partial",
-      "assurance_rationale": "Art.12(6) allows controllers to ask for identity confirmation but repeated failures can indicate a design that frustrates rights — the UC surfaces the pattern."
+      "assurance_rationale": "Art.12(6) allows controllers to ask for identity confirmation but repeated failures can indicate a design that frustrates rights — the UC surfaces the pattern.",
+      "controlObjective": "Detects violations of GDPR Art.12(6) — Splunk UC-22.36.4: DSAR identity-verification friction — failed-verification anomaly.",
+      "evidenceArtifact": "Saved search 'UC-22.36.4' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "gdpr@2016/679#Art.12(6)",
+      "requires_sme_review": true
     },
     {
       "regulation": "CCPA",
@@ -28,7 +31,11 @@
       "clause": "§1798.130(a)",
       "mode": "detects-violation-of",
       "assurance": "partial",
-      "assurance_rationale": "CCPA requires a verifiable consumer request process; excessive friction is an enforcement pattern."
+      "assurance_rationale": "CCPA requires a verifiable consumer request process; excessive friction is an enforcement pattern.",
+      "controlObjective": "Detects violations of CCPA §1798.130(a) — Splunk UC-22.36.4: DSAR identity-verification friction — failed-verification anomaly.",
+      "evidenceArtifact": "Saved search 'UC-22.36.4' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "ccpa@CPRA (as amended)#§1798.130(a)",
+      "requires_sme_review": true
     },
     {
       "regulation": "UK GDPR",
@@ -37,6 +44,10 @@
       "mode": "detects-violation-of",
       "assurance": "contributing",
       "assurance_rationale": "Derived from GDPR@2016/679 Art.12(6) (parent assurance='partial'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "controlObjective": "Detects violations of UK GDPR Art.12(6) — Splunk UC-22.36.4: DSAR identity-verification friction — failed-verification anomaly.",
+      "evidenceArtifact": "Saved search 'UC-22.36.4' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "uk-gdpr@post-Brexit#Art.12(6)",
+      "requires_sme_review": true,
       "provenance": "derived-from-parent",
       "derivationSource": {
         "parentRegulation": "gdpr",
@@ -55,15 +66,13 @@
   "dataSources": "DSAR platform identity-verification events (OneTrust, TrustArc, ServiceNow Privacy), IdP step-up audit logs, manual review tickets.",
   "app": "Splunk Enterprise / Splunk Cloud Platform",
   "spl": "index=dsar sourcetype=onetrust:dsar OR sourcetype=servicenow:privacy action=verification earliest=-14d\n| eval pass=if(result=\"success\",1,0), fail=if(result=\"failure\",1,0)\n| stats sum(pass) as passes sum(fail) as failures values(ticket_id) as ticket_ids by subject_token\n| where failures>=3 AND passes<1\n| table subject_token failures ticket_ids",
+  "description": "Surfaces data-subjects whose right-exercise attempts repeatedly fail verification, which — aggregated over time — is a reliable indicator either of a broken verification UX or of a deliberate design that frustrates rights. Either interpretation is a DPO priority.",
+  "value": "Takes the single most common enforcement narrative ('the verification process itself denied the right') and turns it into a measurable metric.",
+  "implementation": "(1) Ensure DSAR verification events emit subject_token and result; (2) run daily; (3) feed findings to a DPO review dashboard; (4) after a fixed threshold, escalate via SOAR for legal review.",
+  "visualization": "Bar chart of verification failure rate per channel, table of repeat-failure subjects, single-value 'repeat-failure subjects (14d)'.",
   "cimModels": [
     "Ticket_Management"
   ],
-  "description": "Surfaces data-subjects whose right-exercise attempts repeatedly fail verification, which — aggregated over time — is a reliable indicator either of a broken verification UX or of a deliberate design that frustrates rights. Either interpretation is a DPO priority.",
-  "value": "Takes the single most common enforcement narrative ('the verification process itself denied the right') and turns it into a measurable metric.",
-  "grandmaExplanation": "Takes the single most common enforcement narrative ('the verification process itself denied the right') and turns it into a measurable metric — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Ensure DSAR verification events emit subject_token and result; (2) run daily; (3) feed findings to a DPO review dashboard; (4) after a fixed threshold, escalate via SOAR for legal review.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: DSAR platform identity-verification events (OneTrust, TrustArc, ServiceNow Privacy), IdP step-up audit logs, manual review tickets..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ensure DSAR verification events emit subject_token and result; (2) run daily; (3) feed findings to a DPO review dashboard; (4) after a fixed threshold, escalate via SOAR for legal review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=dsar sourcetype=onetrust:dsar OR sourcetype=servicenow:privacy action=verification earliest=-14d\n| eval pass=if(result=\"success\",1,0), fail=if(result=\"failure\",1,0)\n| stats sum(pass) as passes sum(fail) as failures values(ticket_id) as ticket_ids by subject_token\n| where failures>=3 AND passes<1\n| table subject_token failures ticket_ids\n```\n\nUnderstanding this SPL\n\n**DSAR identity-verification friction — failed-verification anomaly** — Takes the single most common enforcement narrative ('the verification process itself denied the right') and turns it into a measurable metric.\n\nDocumented **Data sources**: DSAR platform identity-verification events (OneTrust, TrustArc, ServiceNow Privacy), IdP step-up audit logs, manual review tickets. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: dsar; **sourcetype**: onetrust:dsar, servicenow:privacy. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=dsar, sourcetype=onetrust:dsar, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **pass** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by subject_token** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where failures>=3 AND passes<1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **DSAR identity-verification friction — failed-verification anomaly**): table subject_token failures ticket_ids\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart of verification failure rate per channel, table of repeat-failure subjects, single-value 'repeat-failure subjects (14d)'.",
-  "visualization": "Bar chart of verification failure rate per channel, table of repeat-failure subjects, single-value 'repeat-failure subjects (14d)'.",
   "references": [
     {
       "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
@@ -93,5 +102,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Takes the single most common enforcement narrative ('the verification process itself denied the right') and turns it into a measurable metric — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: DSAR platform identity-verification events (OneTrust, TrustArc, ServiceNow Privacy), IdP step-up audit logs, manual review tickets..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ensure DSAR verification events emit subject_token and result; (2) run daily; (3) feed findings to a DPO review dashboard; (4) after a fixed threshold, escalate via SOAR for legal review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=dsar sourcetype=onetrust:dsar OR sourcetype=servicenow:privacy action=verification earliest=-14d\n| eval pass=if(result=\"success\",1,0), fail=if(result=\"failure\",1,0)\n| stats sum(pass) as passes sum(fail) as failures values(ticket_id) as ticket_ids by subject_token\n| where failures>=3 AND passes<1\n| table subject_token failures ticket_ids\n```\n\nUnderstanding this SPL\n\n**DSAR identity-verification friction — failed-verification anomaly** — Takes the single most common enforcement narrative ('the verification process itself denied the right') and turns it into a measurable metric.\n\nDocumented **Data sources**: DSAR platform identity-verification events (OneTrust, TrustArc, ServiceNow Privacy), IdP step-up audit logs, manual review tickets. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: dsar; **sourcetype**: onetrust:dsar, servicenow:privacy. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=dsar, sourcetype=onetrust:dsar, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **pass** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by subject_token** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where failures>=3 AND passes<1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **DSAR identity-verification friction — failed-verification anomaly**): table subject_token failures ticket_ids\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart of verification failure rate per channel, table of repeat-failure subjects, single-value 'repeat-failure subjects (14d)'.",
+  "subcategory": "22.36#1"
 }

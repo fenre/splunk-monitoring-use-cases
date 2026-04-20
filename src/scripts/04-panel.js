@@ -33,6 +33,55 @@ function fillPanelBody(e) {
     });
     html += '</div></div>';
   }
+  // Phase 3a — clause-level compliance table. Renders the structured
+  // ``uc.cmp[]`` projection when the UC sidecar has one (v1.6.0 schema,
+  // ~1,395 UCs at the time of writing). Columns reflect the three
+  // audiences the redesign targets:
+  //   * Clause  — what the regulator asks for (auditor/buyer anchor)
+  //   * Mode    — satisfies / detects-violation-of / assists-with
+  //   * Assurance — full / partial / contributing
+  //   * Control objective — implementer-facing "what this UC actually does"
+  //   * Evidence artefact — auditor-facing "what you can hand to the audit"
+  // UCs with a flat ``regs[]`` but no ``cmp[]`` continue to show only
+  // the flat chip list above, so no regression for pre-Phase-1 UCs.
+  if (Array.isArray(uc.cmp) && uc.cmp.length) {
+    html += '<div class="c-panel-section"><div class="c-panel-section-title">Compliance clauses</div><div class="c-panel-section-body">';
+    html += '<div class="uc-compliance-table-wrap"><table class="uc-compliance-table">';
+    html += '<thead><tr>';
+    html += '<th scope="col">Regulation</th>';
+    html += '<th scope="col">Clause</th>';
+    html += '<th scope="col">Mode</th>';
+    html += '<th scope="col">Assurance</th>';
+    html += '<th scope="col">Control objective</th>';
+    html += '<th scope="col">Evidence artefact</th>';
+    html += '</tr></thead><tbody>';
+    uc.cmp.forEach(function(row) {
+      if (!row) return;
+      var canonical = (row.v || '') + '#' + (row.cl || '');
+      var regEnc = encodeURIComponent(row.r || '').replace(/'/g, '%27');
+      var clauseEnc = encodeURIComponent(canonical).replace(/'/g, '%27');
+      var clauseCell = esc(row.cl || '');
+      if (row.u) {
+        // Deep-link to the regulator's own clause page when the sidecar
+        // provided one. External links always open in a new tab with
+        // noopener/noreferrer per OWASP link guidance — the catalogue
+        // is hosted on GitHub Pages and must not leak referrer data.
+        clauseCell = '<a href="' + esc(row.u) + '" target="_blank" rel="noopener noreferrer" title="Open in new tab">' + clauseCell + '</a>';
+      }
+      if (row.v) clauseCell += ' <span class="uc-compliance-ver">(' + esc(row.v) + ')</span>';
+      html += '<tr>';
+      html += '<td><button type="button" class="linkish" onclick="filterByRegEnc(\'' + regEnc + '\')">' + esc(row.r || '') + '</button></td>';
+      html += '<td>' + clauseCell + ' <button type="button" class="linkish uc-compliance-filter-clause" title="Filter catalogue by this clause" onclick="filterByClauseEnc(\'' + regEnc + '\',\'' + clauseEnc + '\')">filter</button></td>';
+      html += '<td>' + (row.m ? '<span class="uc-compliance-mode mode-' + esc(row.m) + '">' + esc(row.m) + '</span>' : '') + '</td>';
+      html += '<td>' + (row.a ? '<span class="uc-compliance-assurance assurance-' + esc(row.a) + '">' + esc(row.a) + '</span>' : '') + '</td>';
+      html += '<td>' + (row.co ? esc(row.co) : '<span class="uc-compliance-missing">—</span>') + '</td>';
+      html += '<td>' + (row.ea ? esc(row.ea) : '<span class="uc-compliance-missing">—</span>') + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    html += '<div class="uc-compliance-footnote">Clauses without a control objective or evidence artefact are flagged for SME review (Phase 4 migration).</div>';
+    html += '</div></div>';
+  }
   if (uc.a && uc.a.length) {
     html += '<div class="c-panel-section"><div class="c-panel-section-title">CIM models</div><div class="c-panel-section-body">';
     uc.a.forEach(function(m) {
@@ -225,6 +274,7 @@ function filterByMitreId(id) {
 function filterByReg(r) {
   closePanel();
   currentRegulationFilter = r;
+  currentClauseFilter = 'all';
   currentCat = null;
   currentSearch = '';
   document.getElementById('search-input').value = '';
@@ -234,6 +284,30 @@ function filterByReg(r) {
 
 function filterByRegEnc(enc) {
   try { filterByReg(decodeURIComponent(enc)); } catch (e) {}
+}
+
+function filterByClause(reg, clauseCanonical) {
+  // Jumps straight into the catalogue filtered by one specific
+  // (regulation, version, clause) tuple. Used by the clause-filter
+  // button on the UC detail panel's compliance table so an auditor
+  // reading "UC-X covers GDPR Art.5" can click through and see
+  // every other UC that also covers GDPR Art.5 without manually
+  // re-selecting both dropdowns. The regulation dropdown's
+  // ``onchange`` normally clears the clause filter, so we set
+  // regulation first and clause second.
+  closePanel();
+  currentRegulationFilter = reg;
+  currentClauseFilter = clauseCanonical || 'all';
+  currentCat = null;
+  currentSearch = '';
+  var siEl = document.getElementById('search-input');
+  if (siEl) siEl.value = '';
+  reRender();
+  updateHash(false);
+}
+
+function filterByClauseEnc(regEnc, clauseEnc) {
+  try { filterByClause(decodeURIComponent(regEnc), decodeURIComponent(clauseEnc)); } catch (e) {}
 }
 
 function openUCById(id) {

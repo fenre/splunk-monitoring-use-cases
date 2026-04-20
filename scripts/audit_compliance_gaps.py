@@ -63,7 +63,12 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 REGS_PATH = REPO_ROOT / "data" / "regulations.json"
-USE_CASES_DIR = REPO_ROOT / "use-cases"
+# v7.0 moved UC sidecars from ``use-cases/cat-*/uc-*.json`` to
+# ``content/cat-*/UC-*.json``.  The gap auditor must follow the new layout
+# or else report 0% coverage for every regulation (the sister
+# ``scripts/audit_compliance_mappings.py`` audit already walks
+# ``content/cat-*/UC-*.json`` — keep the two in sync).
+USE_CASES_DIR = REPO_ROOT / "content"
 REPORT_JSON = REPO_ROOT / "reports" / "compliance-gaps.json"
 REPORT_MD = REPO_ROOT / "docs" / "compliance-gaps.md"
 
@@ -243,7 +248,7 @@ class RegulationsCatalogue:
 
 
 def _iter_uc_sidecars() -> Iterable[pathlib.Path]:
-    return sorted(USE_CASES_DIR.glob("cat-*/uc-*.json"))
+    return sorted(USE_CASES_DIR.glob("cat-*/UC-*.json"))
 
 
 def _collect_uc_hits(

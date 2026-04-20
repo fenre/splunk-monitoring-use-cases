@@ -4,7 +4,6 @@
   "title": "PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts",
   "criticality": "high",
   "difficulty": "beginner",
-  "subcategory": "22.11#1",
   "monitoringType": [
     "Compliance"
   ],
@@ -21,7 +20,11 @@
       "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "PCI-DSS 10.4 Time synchronisation — directly evidenced."
+      "assurance_rationale": "PCI-DSS 10.4 Time synchronisation — directly evidenced.",
+      "controlObjective": "Evidence that PCI-DSS 10.4 (Time synchronised) is enforced — Splunk UC-22.11.100: PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts.",
+      "evidenceArtifact": "Saved search 'UC-22.11.100' running on index=windows sourcetype=w32time; index=linux sourcetype=chronyd OR sourcetype=ntpd; CDE lookup cde_hosts.csv., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "pci-dss@v4.0#10.4",
+      "requires_sme_review": true
     },
     {
       "regulation": "ISO/IEC 27001",
@@ -30,7 +33,11 @@
       "clauseUrl": "https://www.iso.org/standard/27001",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "ISO/IEC 27001:2022 A.8.17 Clock synchronisation — directly evidenced."
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.17 Clock synchronisation — directly evidenced.",
+      "controlObjective": "Evidence that ISO/IEC 27001 A.8.17 (Clock synchronisation) is enforced — Splunk UC-22.11.100: PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts.",
+      "evidenceArtifact": "Saved search 'UC-22.11.100' running on index=windows sourcetype=w32time; index=linux sourcetype=chronyd OR sourcetype=ntpd; CDE lookup cde_hosts.csv., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "iso-27001@2022#A.8.17",
+      "requires_sme_review": true
     },
     {
       "regulation": "NIST 800-53",
@@ -39,7 +46,11 @@
       "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "NIST 800-53 AU-8 Time Stamps — directly evidenced."
+      "assurance_rationale": "NIST 800-53 AU-8 Time Stamps — directly evidenced.",
+      "controlObjective": "Evidence that NIST 800-53 AU-8 (Time stamps) is enforced — Splunk UC-22.11.100: PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts.",
+      "evidenceArtifact": "Saved search 'UC-22.11.100' running on index=windows sourcetype=w32time; index=linux sourcetype=chronyd OR sourcetype=ntpd; CDE lookup cde_hosts.csv., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nist-800-53@Rev. 5#AU-8",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -50,15 +61,13 @@
   "dataSources": "`index=windows` sourcetype=w32time; `index=linux` sourcetype=chronyd OR sourcetype=ntpd; CDE lookup `cde_hosts.csv`.",
   "app": "Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833)",
   "spl": "search (index=windows sourcetype=w32time) OR (index=linux sourcetype IN (chronyd,ntpd)) earliest=-15m\n| stats latest(offset_ms) AS offset_ms latest(stratum) AS stratum latest(_time) AS last_ntp_sync BY hostname\n| lookup cde_hosts.csv hostname OUTPUT in_cde\n| where in_cde=\"yes\" AND (abs(offset_ms)>1000 OR last_ntp_sync<now()-3600)\n| table hostname offset_ms stratum last_ntp_sync",
+  "description": "PCI-DSS 10.4 requires time synchronisation across CDE systems. This UC flags drift > 1s or NTP sync gaps > 1h.",
+  "value": "Prevents the classic forensic nightmare of 'when exactly did the event occur' because the CDE clocks disagreed.",
+  "implementation": "(1) Enforce w32time/chrony logs to Splunk; (2) maintain cde_hosts.csv; (3) schedule UC every 15m; (4) drift opens a Platform ticket; (5) quarterly sampling for auditor.",
+  "visualization": "Scatter of offset_ms per host, table of drifted hosts, single value 'hosts over 1s drift'.",
   "cimModels": [
     "Performance"
   ],
-  "description": "PCI-DSS 10.4 requires time synchronisation across CDE systems. This UC flags drift > 1s or NTP sync gaps > 1h.",
-  "value": "Prevents the classic forensic nightmare of 'when exactly did the event occur' because the CDE clocks disagreed.",
-  "grandmaExplanation": "We help you prevent the classic forensic nightmare of 'when exactly did the event occur' because the CDE clocks disagreed — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Enforce w32time/chrony logs to Splunk; (2) maintain cde_hosts.csv; (3) schedule UC every 15m; (4) drift opens a Platform ticket; (5) quarterly sampling for auditor.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833).\n• Ensure the following data sources are available: `index=windows` sourcetype=w32time; `index=linux` sourcetype=chronyd OR sourcetype=ntpd; CDE lookup `cde_hosts.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Enforce w32time/chrony logs to Splunk; (2) maintain cde_hosts.csv; (3) schedule UC every 15m; (4) drift opens a Platform ticket; (5) quarterly sampling for auditor.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nsearch (index=windows sourcetype=w32time) OR (index=linux sourcetype IN (chronyd,ntpd)) earliest=-15m\n| stats latest(offset_ms) AS offset_ms latest(stratum) AS stratum latest(_time) AS last_ntp_sync BY hostname\n| lookup cde_hosts.csv hostname OUTPUT in_cde\n| where in_cde=\"yes\" AND (abs(offset_ms)>1000 OR last_ntp_sync<now()-3600)\n| table hostname offset_ms stratum last_ntp_sync\n```\n\nUnderstanding this SPL\n\n**PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts** — Prevents the classic forensic nightmare of 'when exactly did the event occur' because the CDE clocks disagreed.\n\nDocumented **Data sources**: `index=windows` sourcetype=w32time; `index=linux` sourcetype=chronyd OR sourcetype=ntpd; CDE lookup `cde_hosts.csv`. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: windows, linux; **sourcetype**: w32time. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by hostname** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where in_cde=\"yes\" AND (abs(offset_ms)>1000 OR last_ntp_sync<now()-3600)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts**): table hostname offset_ms stratum last_ntp_sync\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Scatter of offset_ms per host, table of drifted hosts, single value 'hosts over 1s drift'.",
-  "visualization": "Scatter of offset_ms per host, table of drifted hosts, single value 'hosts over 1s drift'.",
   "references": [
     {
       "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
@@ -91,5 +100,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "We help you prevent the classic forensic nightmare of 'when exactly did the event occur' because the CDE clocks disagreed — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833).\n• Ensure the following data sources are available: `index=windows` sourcetype=w32time; `index=linux` sourcetype=chronyd OR sourcetype=ntpd; CDE lookup `cde_hosts.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Enforce w32time/chrony logs to Splunk; (2) maintain cde_hosts.csv; (3) schedule UC every 15m; (4) drift opens a Platform ticket; (5) quarterly sampling for auditor.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nsearch (index=windows sourcetype=w32time) OR (index=linux sourcetype IN (chronyd,ntpd)) earliest=-15m\n| stats latest(offset_ms) AS offset_ms latest(stratum) AS stratum latest(_time) AS last_ntp_sync BY hostname\n| lookup cde_hosts.csv hostname OUTPUT in_cde\n| where in_cde=\"yes\" AND (abs(offset_ms)>1000 OR last_ntp_sync<now()-3600)\n| table hostname offset_ms stratum last_ntp_sync\n```\n\nUnderstanding this SPL\n\n**PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts** — Prevents the classic forensic nightmare of 'when exactly did the event occur' because the CDE clocks disagreed.\n\nDocumented **Data sources**: `index=windows` sourcetype=w32time; `index=linux` sourcetype=chronyd OR sourcetype=ntpd; CDE lookup `cde_hosts.csv`. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: windows, linux; **sourcetype**: w32time. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by hostname** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where in_cde=\"yes\" AND (abs(offset_ms)>1000 OR last_ntp_sync<now()-3600)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts**): table hostname offset_ms stratum last_ntp_sync\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Scatter of offset_ms per host, table of drifted hosts, single value 'hosts over 1s drift'.",
+  "subcategory": "22.11#1"
 }

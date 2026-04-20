@@ -4,7 +4,6 @@
   "title": "SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary",
   "criticality": "high",
   "difficulty": "intermediate",
-  "subcategory": "22.8#1",
   "monitoringType": [
     "Compliance",
     "Security"
@@ -22,7 +21,11 @@
       "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "CC6.6 Logical access security measures protect the boundary — cleartext crossing a trust boundary is the direct failure detected."
+      "assurance_rationale": "CC6.6 Logical access security measures protect the boundary — cleartext crossing a trust boundary is the direct failure detected.",
+      "controlObjective": "Evidence that SOC-2 CC6.6 (Encryption in transit) is enforced — Splunk UC-22.8.31: SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary.",
+      "evidenceArtifact": "Saved search 'UC-22.8.31' running on sourcetype stream:tcp and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "soc-2@2017 TSC#CC6.6",
+      "requires_sme_review": true
     },
     {
       "regulation": "PCI-DSS",
@@ -31,7 +34,11 @@
       "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "PCI-DSS 4.2.1 strong cryptography for transmission of cardholder data across open networks — directly evidenced."
+      "assurance_rationale": "PCI-DSS 4.2.1 strong cryptography for transmission of cardholder data across open networks — directly evidenced.",
+      "controlObjective": "Evidence that PCI-DSS 4.2.1 is enforced — Splunk UC-22.8.31: SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary.",
+      "evidenceArtifact": "Saved search 'UC-22.8.31' running on sourcetype stream:tcp and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "pci-dss@v4.0#4.2.1",
+      "requires_sme_review": true
     },
     {
       "regulation": "ISO/IEC 27001",
@@ -40,7 +47,11 @@
       "clauseUrl": "https://www.iso.org/standard/27001",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "ISO/IEC 27001:2022 A.8.24 Use of cryptography — directly evidenced."
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.24 Use of cryptography — directly evidenced.",
+      "controlObjective": "Evidence that ISO/IEC 27001 A.8.24 is enforced — Splunk UC-22.8.31: SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary.",
+      "evidenceArtifact": "Saved search 'UC-22.8.31' running on sourcetype stream:tcp and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "iso-27001@2022#A.8.24",
+      "requires_sme_review": true
     },
     {
       "regulation": "HIPAA Security Rule",
@@ -49,7 +60,11 @@
       "clauseUrl": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "HIPAA Security §164.312(e)(1) Transmission security — contributing."
+      "assurance_rationale": "HIPAA Security §164.312(e)(1) Transmission security — contributing.",
+      "controlObjective": "Evidence that HIPAA Security Rule §164.312(e)(1) (Transmission security) is enforced — Splunk UC-22.8.31: SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary.",
+      "evidenceArtifact": "Saved search 'UC-22.8.31' running on sourcetype stream:tcp and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "hipaa-security@2013-final#§164.312(e)(1)",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -61,16 +76,14 @@
   "dataSources": "`index=stream` sourcetype=stream:tcp OR sourcetype=stream:http OR sourcetype=stream:tls; trust-zone lookup `trust_zones.csv`.",
   "app": "Splunk Stream",
   "spl": "index=stream sourcetype=stream:tls earliest=-30m\n| rename src_ip AS src dest_ip AS dest\n| lookup trust_zones.csv ip=src OUTPUT zone AS src_zone\n| lookup trust_zones.csv ip=dest OUTPUT zone AS dest_zone\n| where src_zone!=dest_zone\n| eval is_deprecated=if(tls_version IN (\"SSLv3\",\"TLS1.0\",\"TLS1.1\"),1,0)\n| where is_deprecated=1 OR protocol IN (\"http\",\"ftp\",\"telnet\",\"smtp\")\n| stats count BY src dest dest_port protocol tls_version is_deprecated",
+  "description": "Detects sessions crossing trust-zone boundaries that negotiated plaintext or deprecated TLS (pre-TLS1.2). Under CC6.6 the service organisation must 'implement logical access security measures to protect against threats from sources outside its system boundaries'; plaintext at the boundary is the failure mode.",
+  "value": "Replaces annual TLS-compliance scans with a continuous signal, so drift (a new container accidentally exposing http) is caught within 30 minutes.",
+  "implementation": "(1) Onboard Splunk Stream TLS data; (2) maintain trust_zones.csv; (3) schedule UC every 30m; (4) each hit opens a Platform ticket with src/dest/dest_port; (5) SLA: remediate within 24h.",
+  "visualization": "Sankey of src_zone → dest_zone by protocol, table of deprecated sessions, single value 'deprecated TLS sessions right now'.",
   "cimModels": [
     "Network_Traffic",
     "Certificates"
   ],
-  "description": "Detects sessions crossing trust-zone boundaries that negotiated plaintext or deprecated TLS (pre-TLS1.2). Under CC6.6 the service organisation must 'implement logical access security measures to protect against threats from sources outside its system boundaries'; plaintext at the boundary is the failure mode.",
-  "value": "Replaces annual TLS-compliance scans with a continuous signal, so drift (a new container accidentally exposing http) is caught within 30 minutes.",
-  "grandmaExplanation": "Replaces annual secure connections-compliance scans with a continuous signal, so drift (a new container accidentally exposing http) is caught within 30 minutes — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Onboard Splunk Stream TLS data; (2) maintain trust_zones.csv; (3) schedule UC every 30m; (4) each hit opens a Platform ticket with src/dest/dest_port; (5) SLA: remediate within 24h.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Stream.\n• Ensure the following data sources are available: `index=stream` sourcetype=stream:tcp OR sourcetype=stream:http OR sourcetype=stream:tls; trust-zone lookup `trust_zones.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Onboard Splunk Stream TLS data; (2) maintain trust_zones.csv; (3) schedule UC every 30m; (4) each hit opens a Platform ticket with src/dest/dest_port; (5) SLA: remediate within 24h.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=stream sourcetype=stream:tls earliest=-30m\n| rename src_ip AS src dest_ip AS dest\n| lookup trust_zones.csv ip=src OUTPUT zone AS src_zone\n| lookup trust_zones.csv ip=dest OUTPUT zone AS dest_zone\n| where src_zone!=dest_zone\n| eval is_deprecated=if(tls_version IN (\"SSLv3\",\"TLS1.0\",\"TLS1.1\"),1,0)\n| where is_deprecated=1 OR protocol IN (\"http\",\"ftp\",\"telnet\",\"smtp\")\n| stats count BY src dest dest_port protocol tls_version is_deprecated\n```\n\nUnderstanding this SPL\n\n**SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary** — Replaces annual TLS-compliance scans with a continuous signal, so drift (a new container accidentally exposing http) is caught within 30 minutes.\n\nDocumented **Data sources**: `index=stream` sourcetype=stream:tcp OR sourcetype=stream:http OR sourcetype=stream:tls; trust-zone lookup `trust_zones.csv`. **App/TA** (typical add-on context): Splunk Stream. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: stream; **sourcetype**: stream:tls. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=stream, sourcetype=stream:tls, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Renames fields with `rename` for clarity or joins.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where src_zone!=dest_zone` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **is_deprecated** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where is_deprecated=1 OR protocol IN (\"http\",\"ftp\",\"telnet\",\"smtp\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src dest dest_port protocol tls_version is_deprecated** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sankey of src_zone → dest_zone by protocol, table of deprecated sessions, single value 'deprecated TLS sessions right now'.",
-  "visualization": "Sankey of src_zone → dest_zone by protocol, table of deprecated sessions, single value 'deprecated TLS sessions right now'.",
   "references": [
     {
       "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
@@ -121,5 +134,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Replaces annual secure connections-compliance scans with a continuous signal, so drift (a new container accidentally exposing http) is caught within 30 minutes — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Stream.\n• Ensure the following data sources are available: `index=stream` sourcetype=stream:tcp OR sourcetype=stream:http OR sourcetype=stream:tls; trust-zone lookup `trust_zones.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Onboard Splunk Stream TLS data; (2) maintain trust_zones.csv; (3) schedule UC every 30m; (4) each hit opens a Platform ticket with src/dest/dest_port; (5) SLA: remediate within 24h.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=stream sourcetype=stream:tls earliest=-30m\n| rename src_ip AS src dest_ip AS dest\n| lookup trust_zones.csv ip=src OUTPUT zone AS src_zone\n| lookup trust_zones.csv ip=dest OUTPUT zone AS dest_zone\n| where src_zone!=dest_zone\n| eval is_deprecated=if(tls_version IN (\"SSLv3\",\"TLS1.0\",\"TLS1.1\"),1,0)\n| where is_deprecated=1 OR protocol IN (\"http\",\"ftp\",\"telnet\",\"smtp\")\n| stats count BY src dest dest_port protocol tls_version is_deprecated\n```\n\nUnderstanding this SPL\n\n**SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary** — Replaces annual TLS-compliance scans with a continuous signal, so drift (a new container accidentally exposing http) is caught within 30 minutes.\n\nDocumented **Data sources**: `index=stream` sourcetype=stream:tcp OR sourcetype=stream:http OR sourcetype=stream:tls; trust-zone lookup `trust_zones.csv`. **App/TA** (typical add-on context): Splunk Stream. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: stream; **sourcetype**: stream:tls. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=stream, sourcetype=stream:tls, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Renames fields with `rename` for clarity or joins.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where src_zone!=dest_zone` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **is_deprecated** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where is_deprecated=1 OR protocol IN (\"http\",\"ftp\",\"telnet\",\"smtp\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src dest dest_port protocol tls_version is_deprecated** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sankey of src_zone → dest_zone by protocol, table of deprecated sessions, single value 'deprecated TLS sessions right now'.",
+  "subcategory": "22.8#1"
 }

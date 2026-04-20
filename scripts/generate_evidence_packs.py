@@ -514,6 +514,18 @@ def _render_markdown_pack(
                  "and flags gaps. Interpretation stays with counsel.")
     lines.append("")
 
+    # Audience cross-links — surface the browser-first views for users who
+    # want to click through clauses and UCs rather than read the markdown.
+    # Keep these immediately after the lead blockquote so an auditor opening
+    # the pack sees them before scrolling into the static tables below.
+    lines.append(
+        f"> **Live views.** "
+        f"[Buyer narrative (`compliance-story.html?reg={reg_id}`)](../../compliance-story.html?reg={reg_id}) "
+        f"· [Auditor clause navigator (`clause-navigator.html#reg={reg_id}`)](../../clause-navigator.html#reg={reg_id}) "
+        f"· [JSON twin (`api/v1/compliance/story/{reg_id}.json`)](../../api/v1/compliance/story/{reg_id}.json)"
+    )
+    lines.append("")
+
     # Table of contents
     lines.append("## Table of contents")
     lines.append("")

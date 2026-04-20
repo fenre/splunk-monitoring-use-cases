@@ -519,6 +519,42 @@ html.dark .rp-badge.tier-t3 { background: rgba(170,178,189,0.14); border-color: 
 .rp-article td .rp-cov-contributing { color: var(--assur-contributing); font-weight: 700; }
 .rp-article td .rp-cov-none         { color: var(--text-tertiary); font-style: italic; }
 
+/* clause-code autolinks — inline <code> spans recognised as clause ids
+   are wrapped in an anchor that points at the clause navigator. The
+   underline is suppressed inside the anchor so the rendered cell still
+   looks like inline code; we hint that it's clickable with a coloured
+   left border that only appears on hover. */
+.rp-article a.rp-clause-link {
+  text-decoration: none;
+  border-radius: 3px;
+  transition: box-shadow .12s ease, background .12s ease;
+}
+.rp-article a.rp-clause-link:hover {
+  background: rgba(0,75,175,0.08);
+  box-shadow: inset 2px 0 0 var(--cisco-blue);
+}
+html.dark .rp-article a.rp-clause-link:hover {
+  background: rgba(109,164,242,0.12);
+  box-shadow: inset 2px 0 0 #6DA4F2;
+}
+.rp-article a.rp-clause-link > code {
+  cursor: pointer;
+}
+.rp-hero-clause-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  margin-top: 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.22);
+}
+
 /* ----- "callout" paragraphs: the section lead paragraphs in family/regulation entries ----- */
 .rp-article p.rp-callout {
   background: var(--bg-callout);
@@ -699,6 +735,8 @@ html.dark .rp-hero-stat .rp-hero-stat-num { color: var(--cisco-blue); }
   <div class="rp-header-spacer"></div>
   <nav aria-label="Primary">
     <a href="index.html" title="Back to the main catalogue">Catalogue</a>
+    <a href="clause-navigator.html" title="Clause navigator &mdash; browse every clause and its covering use cases">Clause navigator</a>
+    <a href="compliance-story.html" title="Buyer story &mdash; per-regulation narrative with highlights and gaps">Compliance story</a>
     <a href="scorecard.html" title="Compliance + quality scorecard">Scorecard</a>
     <a href="api-docs.html" title="REST API reference">API docs</a>
     <a href="docs/regulatory-primer.md" target="_blank" rel="noopener" title="View the source markdown on GitHub">View source</a>
@@ -732,6 +770,8 @@ html.dark .rp-hero-stat .rp-hero-stat-num { color: var(--cisco-blue); }
   <div><strong>Regulatory primer</strong> &mdash; rendered live from <a href="docs/regulatory-primer.md" target="_blank" rel="noopener"><code>docs/regulatory-primer.md</code></a>. Single source of truth for regulatory metadata is <a href="data/regulations.json" target="_blank" rel="noopener"><code>data/regulations.json</code></a>.</div>
   <div class="rp-footer-links">
     <a href="index.html">&larr; Back to catalogue</a>
+    <a href="clause-navigator.html">Clause navigator</a>
+    <a href="compliance-story.html">Compliance story</a>
     <a href="scorecard.html">Scorecard</a>
     <a href="api-docs.html">API docs</a>
     <a href="docs/coverage-methodology.md" target="_blank" rel="noopener">Coverage methodology</a>
@@ -1140,6 +1180,144 @@ html.dark .rp-hero-stat .rp-hero-stat-num { color: var(--cisco-blue); }
     });
   }
 
+  // Decorate clause-code inline <code> elements with deep-link anchors
+  // pointing at clause-navigator.html. Uses the clauses index
+  // (api/v1/compliance/clauses/index.json) as the source of truth so only
+  // clause tokens that map to a real clause receive a link — other
+  // `inline` code (like "full", "T1", numeric weights, SPL snippets) is
+  // untouched.
+  //
+  // Regulation context is inferred from the enclosing H2/H3 heading text:
+  //   "### 4.1 GDPR — ..."          -> regulationId = "gdpr"
+  //   "### 4.4 HIPAA Security — ..." -> regulationId = "hipaa-security"
+  //   "### 5.2 CCPA / CPRA ← GDPR"  -> regulationId = "ccpa-cpra" (then "gdpr" as fallback)
+  // When a heading yields no regulation match, we skip linking rather
+  // than guess. Callers can always use the sidebar filter on the
+  // clause navigator to disambiguate.
+  function decorateClauseLinks(article, clausesIndex) {
+    if (!clausesIndex || !Array.isArray(clausesIndex.clauses)) return;
+    // Build two lookups:
+    //   byRegClause[regId]                           -> Map<clauseText, clauseId>
+    //   shortNameToId[shortNameLC]                   -> regId
+    var byRegClause = Object.create(null);
+    var shortNameToId = Object.create(null);
+    clausesIndex.clauses.forEach(function (c) {
+      var rid = c.regulationId;
+      if (!rid) return;
+      if (!byRegClause[rid]) byRegClause[rid] = Object.create(null);
+      byRegClause[rid][c.clause] = c.clauseId;
+      if (c.regulationShortName) {
+        shortNameToId[String(c.regulationShortName).toLowerCase()] = rid;
+      }
+      shortNameToId[rid.toLowerCase()] = rid;
+    });
+
+    // Pre-compute id list (longest-first) so "hipaa-security" beats "hipaa"
+    // when matching against heading text.
+    var idKeys = Object.keys(shortNameToId).sort(function (a, b) {
+      return b.length - a.length;
+    });
+
+    function inferRegFromHeading(headingText) {
+      if (!headingText) return null;
+      var hay = String(headingText).toLowerCase();
+      // Explicit short names first (longest match wins).
+      for (var i = 0; i < idKeys.length; i += 1) {
+        var key = idKeys[i];
+        if (key.length < 3) continue; // skip noise
+        // Match on word boundaries so "sox" doesn't hit inside "soxtests".
+        var re = new RegExp('(^|[^a-z0-9])' + key.replace(/[-\/.]/g, '\\$&') + '([^a-z0-9]|$)');
+        if (re.test(hay)) return shortNameToId[key];
+      }
+      return null;
+    }
+
+    // Walk every H2/H3 and tag descendants with their inferred regulation.
+    var current = null;
+    var walker = document.createTreeWalker(article, NodeFilter.SHOW_ELEMENT, null);
+    var node;
+    while ((node = walker.nextNode())) {
+      if (node.tagName === 'H2' || node.tagName === 'H3') {
+        current = inferRegFromHeading(node.textContent || '');
+        // Propagate via data attribute so nested elements can look it up.
+        if (current) node.setAttribute('data-rp-reg', current);
+      } else if (current) {
+        // Only decorate elements that have no H2/H3 between them and the
+        // current heading — the tree walker is depth-first and headings
+        // reset `current`, so a sibling that introduces a new heading
+        // will replace the value before we reach its subtree.
+        node.setAttribute('data-rp-reg', current);
+      }
+    }
+
+    // Now wrap each inline <code> whose text matches a clause for the
+    // inferred regulation.
+    var codes = article.querySelectorAll('code');
+    var matched = 0;
+    codes.forEach(function (c) {
+      // Skip codes that already became badges or live inside a <pre>
+      // block (SPL, JSON examples, etc).
+      if (c.closest('pre')) return;
+      if (c.parentElement && c.parentElement.classList.contains('rp-badge')) return;
+      var text = (c.textContent || '').trim();
+      if (!text || text.length > 80) return;
+      // Cheap guard: if this is clearly not a clause (pure decimal <= 1.0,
+      // alpha word like "full" / "partial" / etc) skip.
+      if (/^[0-9]*\.?[0-9]+$/.test(text) && parseFloat(text) <= 1.0) return;
+      if (/^(full|partial|contributing|not authored|t1|t2|t3)$/i.test(text)) return;
+
+      // Find the enclosing reg context by walking up through ancestors.
+      var ctx = null;
+      for (var p = c.parentElement; p && p !== article; p = p.parentElement) {
+        var r = p.getAttribute && p.getAttribute('data-rp-reg');
+        if (r) { ctx = r; break; }
+      }
+      if (!ctx) return;
+
+      // Exact-match first. If the regulation has no obvious match, also
+      // look up derivative-parent regs listed on the index so e.g.
+      // "Art.5" under "CCPA ← GDPR" resolves via the derivative chain.
+      var clauseId = byRegClause[ctx] && byRegClause[ctx][text];
+      if (!clauseId) return;
+
+      var a = document.createElement('a');
+      a.className = 'rp-clause-link';
+      a.href = 'clause-navigator.html#clause=' + encodeURIComponent(clauseId);
+      a.setAttribute(
+        'title',
+        'Open this clause in the clause navigator'
+      );
+      a.setAttribute('data-rp-clause-id', clauseId);
+      // Preserve the original inline-code styling by wrapping rather than
+      // replacing the element.
+      c.parentNode.insertBefore(a, c);
+      a.appendChild(c);
+      matched += 1;
+    });
+
+    // Clean up the temporary marker attributes so the DOM stays tidy.
+    article.querySelectorAll('[data-rp-reg]').forEach(function (el) {
+      el.removeAttribute('data-rp-reg');
+    });
+
+    if (matched > 0) {
+      try {
+        // Stamp the hero so a user can see how many clauses were linked.
+        var hero = article.querySelector('.rp-hero');
+        if (hero && !hero.querySelector('.rp-hero-clause-count')) {
+          var chip = document.createElement('div');
+          chip.className = 'rp-hero-clause-count';
+          chip.setAttribute(
+            'title',
+            'Inline clause references that link to the clause navigator'
+          );
+          chip.textContent = matched + ' clauses linked';
+          hero.appendChild(chip);
+        }
+      } catch (_) { /* ignore */ }
+    }
+  }
+
   // Decorate tier tokens ("T1", "T2", "T3") anywhere they appear as
   // standalone inline <code> tags. The primer markdown wraps them in
   // backticks so this is precise and safe (no plain-text sweep needed).
@@ -1376,6 +1554,27 @@ html.dark .rp-hero-stat .rp-hero-stat-num { color: var(--cisco-blue); }
       decorateTables(article);
       decorateTierBadges(article);
       decorateAnchors(article);
+
+      // Clause autolinking runs asynchronously — it needs the clauses
+      // index. Render without links first, then upgrade in place once the
+      // fetch completes. A failure here must NOT break the primer, so the
+      // handler swallows errors.
+      var clausesCtrl = new AbortController();
+      var clausesTimer = setTimeout(function () { clausesCtrl.abort(); }, 10000);
+      fetch('api/v1/compliance/clauses/index.json', {
+        cache: 'default',
+        credentials: 'same-origin',
+        signal: clausesCtrl.signal
+      }).then(function (r) {
+        clearTimeout(clausesTimer);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).then(function (idx) {
+        decorateClauseLinks(article, idx);
+      }).catch(function () {
+        clearTimeout(clausesTimer);
+        // Silently ignore — primer remains readable without clause links.
+      });
 
       var items = buildTOC(article);
       wireTOCSearch();

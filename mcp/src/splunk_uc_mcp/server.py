@@ -46,6 +46,8 @@ from splunk_uc_mcp.resources.uri_scheme import ResourceUriError
 from splunk_uc_mcp.tools import (
     FIND_COMPLIANCE_GAP_OUTPUT_SCHEMA,
     FIND_COMPLIANCE_GAP_SCHEMA,
+    GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA,
+    GET_CLAUSE_COVERAGE_SCHEMA,
     GET_EQUIPMENT_OUTPUT_SCHEMA,
     GET_EQUIPMENT_SCHEMA,
     GET_REGULATION_OUTPUT_SCHEMA,
@@ -58,15 +60,19 @@ from splunk_uc_mcp.tools import (
     LIST_EQUIPMENT_SCHEMA,
     LIST_REGULATIONS_OUTPUT_SCHEMA,
     LIST_REGULATIONS_SCHEMA,
+    LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA,
+    LIST_UNCOVERED_CLAUSES_SCHEMA,
     SEARCH_USE_CASES_OUTPUT_SCHEMA,
     SEARCH_USE_CASES_SCHEMA,
     find_compliance_gap,
+    get_clause_coverage,
     get_equipment,
     get_regulation,
     get_use_case,
     list_categories,
     list_equipment,
     list_regulations,
+    list_uncovered_clauses,
     search_use_cases,
 )
 
@@ -85,10 +91,14 @@ SERVER_INSTRUCTIONS = (
     "ledger). Read-only. Use `search_use_cases` for discovery, "
     "`get_use_case` for the full SPL + compliance detail on a single UC, "
     "`list_regulations` / `get_regulation` for framework context, "
-    "`list_equipment` / `get_equipment` for deployment stacks, and "
-    "`find_compliance_gap` when an auditor asks which clauses are still "
-    "uncovered. The URI families `uc://`, `reg://`, `equipment://`, and "
-    "`ledger://` expose the same data as resources for agents that "
+    "`list_equipment` / `get_equipment` for deployment stacks, and the "
+    "compliance-story layer when an auditor asks which clauses are still "
+    "uncovered: `find_compliance_gap` for a regulation-level roll-up, "
+    "`get_clause_coverage` for a single clause's covering UCs / "
+    "assurance posture, and `list_uncovered_clauses` for a priority-"
+    "sorted worklist of not-authored clauses across one or more "
+    "regulations. The URI families `uc://`, `reg://`, `equipment://`, "
+    "and `ledger://` expose the same data as resources for agents that "
     "prefer a pull-based model."
 )
 
@@ -275,6 +285,33 @@ def _tool_definitions() -> list[Tool]:
             inputSchema=FIND_COMPLIANCE_GAP_SCHEMA,
             outputSchema=FIND_COMPLIANCE_GAP_OUTPUT_SCHEMA,
         ),
+        Tool(
+            name="get_clause_coverage",
+            description=(
+                "Return the clause-first coverage entry for one "
+                "regulator clause (regulation_id + clause, with optional "
+                "version). Reports coverageState (covered-full / -partial"
+                " / -contributing / not-authored), the covering UC IDs, "
+                "assurance breakdown, and a deep-link into the clause "
+                "navigator. Use this when an auditor asks 'which UCs "
+                "cover GDPR Art.5?'."
+            ),
+            inputSchema=GET_CLAUSE_COVERAGE_SCHEMA,
+            outputSchema=GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA,
+        ),
+        Tool(
+            name="list_uncovered_clauses",
+            description=(
+                "List clauses whose coverageState is 'not-authored' for "
+                "one or more regulations, sorted by descending priority "
+                "weight. Pass regulations=['*'] to sweep every "
+                "framework. Optional tier filter and common-clauses-only "
+                "toggle help scope the worklist. Use this to hand an "
+                "implementer a prioritised backlog of unmet obligations."
+            ),
+            inputSchema=LIST_UNCOVERED_CLAUSES_SCHEMA,
+            outputSchema=LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA,
+        ),
     ]
 
 
@@ -298,6 +335,12 @@ def _tool_dispatch(
         "list_equipment": lambda args: list_equipment(catalog=catalog, **args),
         "get_equipment": lambda args: get_equipment(catalog=catalog, **args),
         "find_compliance_gap": lambda args: find_compliance_gap(
+            catalog=catalog, **args
+        ),
+        "get_clause_coverage": lambda args: get_clause_coverage(
+            catalog=catalog, **args
+        ),
+        "list_uncovered_clauses": lambda args: list_uncovered_clauses(
             catalog=catalog, **args
         ),
     }

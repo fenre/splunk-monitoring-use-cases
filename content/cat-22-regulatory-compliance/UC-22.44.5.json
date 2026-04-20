@@ -4,7 +4,6 @@
   "title": "SBOM attestation completeness — critical vendors without signed SBOM",
   "criticality": "high",
   "difficulty": "beginner",
-  "subcategory": "22.44#1",
   "monitoringType": [
     "Compliance"
   ],
@@ -20,7 +19,11 @@
       "clause": "Art.13",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "EU CRA mandates SBOM provisioning and signature."
+      "assurance_rationale": "EU CRA mandates SBOM provisioning and signature.",
+      "controlObjective": "Evidence that EU-CRA Art.13 (Obligations of manufacturers) is enforced — Splunk UC-22.44.5: SBOM attestation completeness — critical vendors without signed SBOM.",
+      "evidenceArtifact": "Saved search 'UC-22.44.5' running on Vendor SBOM register (vendor_sbom.csv), signature-validation tooling outputs, VRM criticality., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "eu-cra@Regulation (EU) 2024/2847#Art.13",
+      "requires_sme_review": true
     },
     {
       "regulation": "NIS2",
@@ -28,7 +31,11 @@
       "clause": "Art.21(2)(d)",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "NIS2 supply-chain risk management is directly supported."
+      "assurance_rationale": "NIS2 supply-chain risk management is directly supported.",
+      "controlObjective": "Evidence that NIS2 Art.21(2)(d) (Supply-chain security) is enforced — Splunk UC-22.44.5: SBOM attestation completeness — critical vendors without signed SBOM.",
+      "evidenceArtifact": "Saved search 'UC-22.44.5' running on Vendor SBOM register (vendor_sbom.csv), signature-validation tooling outputs, VRM criticality., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(d)",
+      "requires_sme_review": true
     },
     {
       "regulation": "NIST-800-53",
@@ -36,7 +43,11 @@
       "clause": "SR-11(1)",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "SR-11(1) authenticity check of components."
+      "assurance_rationale": "SR-11(1) authenticity check of components.",
+      "controlObjective": "Evidence that NIST-800-53 SR-11(1) is enforced — Splunk UC-22.44.5: SBOM attestation completeness — critical vendors without signed SBOM.",
+      "evidenceArtifact": "Saved search 'UC-22.44.5' running on Vendor SBOM register (vendor_sbom.csv), signature-validation tooling outputs, VRM criticality., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nist-800-53@Rev. 5#SR-11(1)",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -47,15 +58,13 @@
   "dataSources": "Vendor SBOM register (vendor_sbom.csv), signature-validation tooling outputs, VRM criticality.",
   "app": "Splunk Enterprise / Splunk Cloud Platform",
   "spl": "| inputlookup vrm_attestations.csv\n| where criticality=\"critical\"\n| lookup vendor_sbom_attestations.csv vendor OUTPUT sbom_sha256 signed signed_by signed_at\n| eval age_days=round((now()-strptime(signed_at,\"%Y-%m-%d\"))/86400,0)\n| where isnull(sbom_sha256) OR signed!=\"true\" OR age_days>180\n| table vendor criticality sbom_sha256 signed signed_by age_days",
+  "description": "Surfaces critical vendors whose SBOM is absent, unsigned, or older than policy cadence (default 180 days).",
+  "value": "Makes the CRA/NIS2 SBOM requirement a tracked operational metric.",
+  "implementation": "(1) Onboard vendor SBOMs through procurement workflow; (2) validate signatures with sigstore or equivalent; (3) run weekly.",
+  "visualization": "Table of at-risk vendors, bar chart of signature freshness, single-value 'critical vendors with signed SBOM'.",
   "cimModels": [
     "N/A"
   ],
-  "description": "Surfaces critical vendors whose SBOM is absent, unsigned, or older than policy cadence (default 180 days).",
-  "value": "Makes the CRA/NIS2 SBOM requirement a tracked operational metric.",
-  "grandmaExplanation": "Makes the CRA/NIS2 SBOM requirement a tracked operational metric — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Onboard vendor SBOMs through procurement workflow; (2) validate signatures with sigstore or equivalent; (3) run weekly.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: Vendor SBOM register (vendor_sbom.csv), signature-validation tooling outputs, VRM criticality..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Onboard vendor SBOMs through procurement workflow; (2) validate signatures with sigstore or equivalent; (3) run weekly.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup vrm_attestations.csv\n| where criticality=\"critical\"\n| lookup vendor_sbom_attestations.csv vendor OUTPUT sbom_sha256 signed signed_by signed_at\n| eval age_days=round((now()-strptime(signed_at,\"%Y-%m-%d\"))/86400,0)\n| where isnull(sbom_sha256) OR signed!=\"true\" OR age_days>180\n| table vendor criticality sbom_sha256 signed signed_by age_days\n```\n\nUnderstanding this SPL\n\n**SBOM attestation completeness — critical vendors without signed SBOM** — Makes the CRA/NIS2 SBOM requirement a tracked operational metric.\n\nDocumented **Data sources**: Vendor SBOM register (vendor_sbom.csv), signature-validation tooling outputs, VRM criticality. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Filters the current rows with `where criticality=\"critical\"` — typically the threshold or rule expression for this monitoring goal.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **age_days** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnull(sbom_sha256) OR signed!=\"true\" OR age_days>180` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SBOM attestation completeness — critical vendors without signed SBOM**): table vendor criticality sbom_sha256 signed signed_by age_days\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of at-risk vendors, bar chart of signature freshness, single-value 'critical vendors with signed SBOM'.",
-  "visualization": "Table of at-risk vendors, bar chart of signature freshness, single-value 'critical vendors with signed SBOM'.",
   "references": [
     {
       "url": "https://digital-strategy.ec.europa.eu/en/policies/cyber-resilience-act",
@@ -87,5 +96,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Makes the CRA/NIS2 SBOM requirement a tracked operational metric — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: Vendor SBOM register (vendor_sbom.csv), signature-validation tooling outputs, VRM criticality..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Onboard vendor SBOMs through procurement workflow; (2) validate signatures with sigstore or equivalent; (3) run weekly.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup vrm_attestations.csv\n| where criticality=\"critical\"\n| lookup vendor_sbom_attestations.csv vendor OUTPUT sbom_sha256 signed signed_by signed_at\n| eval age_days=round((now()-strptime(signed_at,\"%Y-%m-%d\"))/86400,0)\n| where isnull(sbom_sha256) OR signed!=\"true\" OR age_days>180\n| table vendor criticality sbom_sha256 signed signed_by age_days\n```\n\nUnderstanding this SPL\n\n**SBOM attestation completeness — critical vendors without signed SBOM** — Makes the CRA/NIS2 SBOM requirement a tracked operational metric.\n\nDocumented **Data sources**: Vendor SBOM register (vendor_sbom.csv), signature-validation tooling outputs, VRM criticality. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Filters the current rows with `where criticality=\"critical\"` — typically the threshold or rule expression for this monitoring goal.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **age_days** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnull(sbom_sha256) OR signed!=\"true\" OR age_days>180` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SBOM attestation completeness — critical vendors without signed SBOM**): table vendor criticality sbom_sha256 signed signed_by age_days\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of at-risk vendors, bar chart of signature freshness, single-value 'critical vendors with signed SBOM'.",
+  "subcategory": "22.44#1"
 }

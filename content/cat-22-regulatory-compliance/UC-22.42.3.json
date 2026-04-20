@@ -4,7 +4,6 @@
   "title": "Change rollback execution evidence — declared rollback vs actual",
   "criticality": "medium",
   "difficulty": "intermediate",
-  "subcategory": "22.42#1",
   "monitoringType": [
     "Compliance"
   ],
@@ -20,7 +19,11 @@
       "clause": "CM-3",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "CM-3 configuration-change control requires tested rollback."
+      "assurance_rationale": "CM-3 configuration-change control requires tested rollback.",
+      "controlObjective": "Evidence that NIST-800-53 CM-3 is enforced — Splunk UC-22.42.3: Change rollback execution evidence — declared rollback vs actual.",
+      "evidenceArtifact": "Saved search 'UC-22.42.3' running on ITSM CR records (ServiceNow), CI/CD pipeline audit (rollback_test events)., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nist-800-53@Rev. 5#CM-3",
+      "requires_sme_review": true
     },
     {
       "regulation": "SOC-2",
@@ -28,7 +31,11 @@
       "clause": "CC8.1",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "CC8.1 change-management evidence requires tested rollback."
+      "assurance_rationale": "CC8.1 change-management evidence requires tested rollback.",
+      "controlObjective": "Evidence that SOC-2 CC8.1 (Change management) is enforced — Splunk UC-22.42.3: Change rollback execution evidence — declared rollback vs actual.",
+      "evidenceArtifact": "Saved search 'UC-22.42.3' running on ITSM CR records (ServiceNow), CI/CD pipeline audit (rollback_test events)., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "soc-2@2017 TSC#CC8.1",
+      "requires_sme_review": true
     },
     {
       "regulation": "SOX-ITGC",
@@ -36,7 +43,11 @@
       "clause": "ITGC.Change.Rollback",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "SOX ITGC rollback evidence is satisfied in a risk-based manner."
+      "assurance_rationale": "SOX ITGC rollback evidence is satisfied in a risk-based manner.",
+      "controlObjective": "Evidence that SOX-ITGC ITGC.Change.Rollback is enforced — Splunk UC-22.42.3: Change rollback execution evidence — declared rollback vs actual.",
+      "evidenceArtifact": "Saved search 'UC-22.42.3' running on ITSM CR records (ServiceNow), CI/CD pipeline audit (rollback_test events)., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "sox-itgc@PCAOB AS 2201#ITGC.Change.Rollback",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -47,15 +58,13 @@
   "dataSources": "ITSM CR records (ServiceNow), CI/CD pipeline audit (rollback_test events).",
   "app": "Splunk Enterprise / Splunk Cloud Platform",
   "spl": "| inputlookup itsm_changes.csv\n| where rollback_plan_required=\"true\"\n| lookup rollback_tests.csv change_id OUTPUT last_tested\n| eval age_days=round((now()-strptime(last_tested,\"%Y-%m-%d\"))/86400,0)\n| where isnull(last_tested) OR age_days>180\n| table change_id rollback_plan_required last_tested age_days",
+  "description": "Continuously verifies that every change with a declared rollback plan has exercised that plan within policy cadence (default 180 days).",
+  "value": "Turns rollback-plan existence from a documentation artefact into a tested capability.",
+  "implementation": "(1) Export CR metadata to itsm_changes.csv; (2) have CI/CD emit rollback_test events; (3) run weekly; (4) on miss, schedule a rollback rehearsal.",
+  "visualization": "Aging bar chart of changes without rollback test, table of at-risk CRs, single-value 'CRs with tested rollback'.",
   "cimModels": [
     "Change"
   ],
-  "description": "Continuously verifies that every change with a declared rollback plan has exercised that plan within policy cadence (default 180 days).",
-  "value": "Turns rollback-plan existence from a documentation artefact into a tested capability.",
-  "grandmaExplanation": "Turns rollback-plan existence from a documentation artefact into a tested capability — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Export CR metadata to itsm_changes.csv; (2) have CI/CD emit rollback_test events; (3) run weekly; (4) on miss, schedule a rollback rehearsal.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: ITSM CR records (ServiceNow), CI/CD pipeline audit (rollback_test events)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Export CR metadata to itsm_changes.csv; (2) have CI/CD emit rollback_test events; (3) run weekly; (4) on miss, schedule a rollback rehearsal.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup itsm_changes.csv\n| where rollback_plan_required=\"true\"\n| lookup rollback_tests.csv change_id OUTPUT last_tested\n| eval age_days=round((now()-strptime(last_tested,\"%Y-%m-%d\"))/86400,0)\n| where isnull(last_tested) OR age_days>180\n| table change_id rollback_plan_required last_tested age_days\n```\n\nUnderstanding this SPL\n\n**Change rollback execution evidence — declared rollback vs actual** — Turns rollback-plan existence from a documentation artefact into a tested capability.\n\nDocumented **Data sources**: ITSM CR records (ServiceNow), CI/CD pipeline audit (rollback_test events). **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Filters the current rows with `where rollback_plan_required=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **age_days** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnull(last_tested) OR age_days>180` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Change rollback execution evidence — declared rollback vs actual**): table change_id rollback_plan_required last_tested age_days\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Aging bar chart of changes without rollback test, table of at-risk CRs, single-value 'CRs with tested rollback'.",
-  "visualization": "Aging bar chart of changes without rollback test, table of at-risk CRs, single-value 'CRs with tested rollback'.",
   "references": [
     {
       "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
@@ -90,5 +99,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Turns rollback-plan existence from a documentation artefact into a tested capability — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: ITSM CR records (ServiceNow), CI/CD pipeline audit (rollback_test events)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Export CR metadata to itsm_changes.csv; (2) have CI/CD emit rollback_test events; (3) run weekly; (4) on miss, schedule a rollback rehearsal.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup itsm_changes.csv\n| where rollback_plan_required=\"true\"\n| lookup rollback_tests.csv change_id OUTPUT last_tested\n| eval age_days=round((now()-strptime(last_tested,\"%Y-%m-%d\"))/86400,0)\n| where isnull(last_tested) OR age_days>180\n| table change_id rollback_plan_required last_tested age_days\n```\n\nUnderstanding this SPL\n\n**Change rollback execution evidence — declared rollback vs actual** — Turns rollback-plan existence from a documentation artefact into a tested capability.\n\nDocumented **Data sources**: ITSM CR records (ServiceNow), CI/CD pipeline audit (rollback_test events). **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Filters the current rows with `where rollback_plan_required=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **age_days** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnull(last_tested) OR age_days>180` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Change rollback execution evidence — declared rollback vs actual**): table change_id rollback_plan_required last_tested age_days\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Aging bar chart of changes without rollback test, table of at-risk CRs, single-value 'CRs with tested rollback'.",
+  "subcategory": "22.42#1"
 }

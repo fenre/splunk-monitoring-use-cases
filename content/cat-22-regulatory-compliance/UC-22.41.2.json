@@ -20,7 +20,11 @@
       "clause": "4.2",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "PCI 4.2 requires strong cryptography and security protocols; the UC flags weak ciphers and outdated protocols."
+      "assurance_rationale": "PCI 4.2 requires strong cryptography and security protocols; the UC flags weak ciphers and outdated protocols.",
+      "controlObjective": "Evidence that PCI DSS 4.2 (Strong cryptography for CHD in transit) is enforced — Splunk UC-22.41.2: Certificate / TLS posture — weak cipher and expired-cert detection.",
+      "evidenceArtifact": "Saved search 'UC-22.41.2' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "pci-dss@v4.0#4.2",
+      "requires_sme_review": true
     },
     {
       "regulation": "HIPAA Security",
@@ -28,7 +32,11 @@
       "clause": "§164.312(e)(1)",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "§164.312(e)(1) transmission security; TLS posture is the primary evidence."
+      "assurance_rationale": "§164.312(e)(1) transmission security; TLS posture is the primary evidence.",
+      "controlObjective": "Evidence that HIPAA Security §164.312(e)(1) (Transmission security) is enforced — Splunk UC-22.41.2: Certificate / TLS posture — weak cipher and expired-cert detection.",
+      "evidenceArtifact": "Saved search 'UC-22.41.2' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "hipaa-security@2013-final#§164.312(e)(1)",
+      "requires_sme_review": true
     },
     {
       "regulation": "NIS2",
@@ -36,7 +44,11 @@
       "clause": "Art.21(2)(h)",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "Art.21(2)(h) cryptography — the UC continuously validates posture."
+      "assurance_rationale": "Art.21(2)(h) cryptography — the UC continuously validates posture.",
+      "controlObjective": "Evidence that NIS2 Art.21(2)(h) (Cryptography and encryption) is enforced — Splunk UC-22.41.2: Certificate / TLS posture — weak cipher and expired-cert detection.",
+      "evidenceArtifact": "Saved search 'UC-22.41.2' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(h)",
+      "requires_sme_review": true
     },
     {
       "regulation": "NIST 800-53",
@@ -44,7 +56,11 @@
       "clause": "SC-8",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "SC-8(1) transmission confidentiality and integrity — implemented via strong TLS."
+      "assurance_rationale": "SC-8(1) transmission confidentiality and integrity — implemented via strong TLS.",
+      "controlObjective": "Evidence that NIST 800-53 SC-8 (Transmission confidentiality and integrity) is enforced — Splunk UC-22.41.2: Certificate / TLS posture — weak cipher and expired-cert detection.",
+      "evidenceArtifact": "Saved search 'UC-22.41.2' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nist-800-53@Rev. 5#SC-8",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -55,15 +71,13 @@
   "dataSources": "See subcategory preamble.",
   "app": "Splunk Enterprise / Splunk Cloud Platform",
   "spl": "index=tls sourcetype=tls:scan earliest=-1h\n| eval days_to_expiry=round((expires-now())/86400,0)\n| where days_to_expiry<21 OR protocol!=\"TLSv1.2\" AND protocol!=\"TLSv1.3\" OR NOT match(cipher, \"^TLS_(AES|CHACHA20|ECDHE)\")\n| table host days_to_expiry protocol cipher",
+  "description": "Continuous TLS-posture audit replacing periodic scan spreadsheets. Any finding feeds remediation and the cipher-and-cert evidence pack.",
+  "value": "Moves TLS posture from 'we scan quarterly' to 'we proved every TLS endpoint was compliant for every day of the period'.",
+  "implementation": "(1) Run scanner (SSL Labs CLI, OpenSSL-based scripts, Qualys SSL Labs); (2) feed to Splunk; (3) schedule hourly; (4) on finding, ticket via SOAR.",
+  "visualization": "Table of non-compliant hosts, stacked bar of protocol distribution, single-value '% of endpoints with strong TLS'.",
   "cimModels": [
     "Certificates"
   ],
-  "description": "Continuous TLS-posture audit replacing periodic scan spreadsheets. Any finding feeds remediation and the cipher-and-cert evidence pack.",
-  "value": "Moves TLS posture from 'we scan quarterly' to 'we proved every TLS endpoint was compliant for every day of the period'.",
-  "grandmaExplanation": "Moves secure connections posture from 'we scan quarterly' to 'we proved every secure connections endpoint was compliant for every day of the period' — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Run scanner (SSL Labs CLI, OpenSSL-based scripts, Qualys SSL Labs); (2) feed to Splunk; (3) schedule hourly; (4) on finding, ticket via SOAR.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Run scanner (SSL Labs CLI, OpenSSL-based scripts, Qualys SSL Labs); (2) feed to Splunk; (3) schedule hourly; (4) on finding, ticket via SOAR.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=tls sourcetype=tls:scan earliest=-1h\n| eval days_to_expiry=round((expires-now())/86400,0)\n| where days_to_expiry<21 OR protocol!=\"TLSv1.2\" AND protocol!=\"TLSv1.3\" OR NOT match(cipher, \"^TLS_(AES|CHACHA20|ECDHE)\")\n| table host days_to_expiry protocol cipher\n```\n\nUnderstanding this SPL\n\n**Certificate / TLS posture — weak cipher and expired-cert detection** — Moves TLS posture from 'we scan quarterly' to 'we proved every TLS endpoint was compliant for every day of the period'.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: tls; **sourcetype**: tls:scan. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=tls, sourcetype=tls:scan, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **days_to_expiry** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days_to_expiry<21 OR protocol!=\"TLSv1.2\" AND protocol!=\"TLSv1.3\" OR NOT match(cipher, \"^TLS_(AES|CHACHA20|ECDHE)\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Certificate / TLS posture — weak cipher and expired-cert detection**): table host days_to_expiry protocol cipher\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of non-compliant hosts, stacked bar of protocol distribution, single-value '% of endpoints with strong TLS'.",
-  "visualization": "Table of non-compliant hosts, stacked bar of protocol distribution, single-value '% of endpoints with strong TLS'.",
   "references": [
     {
       "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
@@ -101,5 +115,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Moves secure connections posture from 'we scan quarterly' to 'we proved every secure connections endpoint was compliant for every day of the period' — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Run scanner (SSL Labs CLI, OpenSSL-based scripts, Qualys SSL Labs); (2) feed to Splunk; (3) schedule hourly; (4) on finding, ticket via SOAR.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=tls sourcetype=tls:scan earliest=-1h\n| eval days_to_expiry=round((expires-now())/86400,0)\n| where days_to_expiry<21 OR protocol!=\"TLSv1.2\" AND protocol!=\"TLSv1.3\" OR NOT match(cipher, \"^TLS_(AES|CHACHA20|ECDHE)\")\n| table host days_to_expiry protocol cipher\n```\n\nUnderstanding this SPL\n\n**Certificate / TLS posture — weak cipher and expired-cert detection** — Moves TLS posture from 'we scan quarterly' to 'we proved every TLS endpoint was compliant for every day of the period'.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: tls; **sourcetype**: tls:scan. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=tls, sourcetype=tls:scan, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **days_to_expiry** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days_to_expiry<21 OR protocol!=\"TLSv1.2\" AND protocol!=\"TLSv1.3\" OR NOT match(cipher, \"^TLS_(AES|CHACHA20|ECDHE)\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Certificate / TLS posture — weak cipher and expired-cert detection**): table host days_to_expiry protocol cipher\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of non-compliant hosts, stacked bar of protocol distribution, single-value '% of endpoints with strong TLS'."
 }

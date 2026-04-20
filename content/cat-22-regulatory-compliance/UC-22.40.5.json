@@ -4,7 +4,6 @@
   "title": "High-risk privileged-session command without JIT approval",
   "criticality": "critical",
   "difficulty": "advanced",
-  "subcategory": "22.40#1",
   "monitoringType": [
     "Compliance",
     "Security"
@@ -21,7 +20,11 @@
       "clause": "AC-6(9)",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "AC-6(9) auditing use of privileged functions is directly enforced; high-risk-command correlation provides evidence."
+      "assurance_rationale": "AC-6(9) auditing use of privileged functions is directly enforced; high-risk-command correlation provides evidence.",
+      "controlObjective": "Evidence that NIST-800-53 AC-6(9) is enforced — Splunk UC-22.40.5: High-risk privileged-session command without JIT approval.",
+      "evidenceArtifact": "Saved search 'UC-22.40.5' running on PAM session keystroke/command logs, GRC JIT ticketing events, high-risk command catalogue (high_risk_commands.csv)., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nist-800-53@Rev. 5#AC-6(9)",
+      "requires_sme_review": true
     },
     {
       "regulation": "PCI-DSS",
@@ -29,7 +32,11 @@
       "clause": "10.2.2",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "PCI 10.2.2 requires auditing of individual privileged user actions."
+      "assurance_rationale": "PCI 10.2.2 requires auditing of individual privileged user actions.",
+      "controlObjective": "Evidence that PCI-DSS 10.2.2 is enforced — Splunk UC-22.40.5: High-risk privileged-session command without JIT approval.",
+      "evidenceArtifact": "Saved search 'UC-22.40.5' running on PAM session keystroke/command logs, GRC JIT ticketing events, high-risk command catalogue (high_risk_commands.csv)., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "pci-dss@v4.0#10.2.2",
+      "requires_sme_review": true
     },
     {
       "regulation": "SOX-ITGC",
@@ -37,7 +44,11 @@
       "clause": "ITGC.Privileged.JIT",
       "mode": "detects-violation-of",
       "assurance": "full",
-      "assurance_rationale": "SOX-ITGC requires prevention or evidence of privileged changes; this UC provides evidence for unapproved JIT."
+      "assurance_rationale": "SOX-ITGC requires prevention or evidence of privileged changes; this UC provides evidence for unapproved JIT.",
+      "controlObjective": "Detects violations of SOX-ITGC ITGC.Privileged.JIT — Splunk UC-22.40.5: High-risk privileged-session command without JIT approval.",
+      "evidenceArtifact": "Saved search 'UC-22.40.5' running on PAM session keystroke/command logs, GRC JIT ticketing events, high-risk command catalogue (high_risk_commands.csv)., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "sox-itgc@PCAOB AS 2201#ITGC.Privileged.JIT",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -49,15 +60,13 @@
   "dataSources": "PAM session keystroke/command logs, GRC JIT ticketing events, high-risk command catalogue (high_risk_commands.csv).",
   "app": "Splunk Enterprise / Splunk Cloud Platform",
   "spl": "index=pam sourcetype=cyberark:command OR sourcetype=beyondtrust:command earliest=-5m\n| lookup high_risk_commands.csv command_pattern AS command OUTPUT risk_class\n| where risk_class IN (\"destructive\",\"mass-data\",\"security-control\")\n| join session_id [search index=grc sourcetype=jit:approval earliest=-1h | fields session_id ticket_id approver approved_at]\n| where isnull(ticket_id)\n| table _time session_id user command risk_class target_host",
+  "description": "Correlates privileged-session command execution against a catalogue of destructive, mass-data, or security-control commands and requires a matching JIT approval within the prior hour. Missing approvals are treated as a finding.",
+  "value": "Makes 'we require JIT approval for dangerous commands' an observable, always-on control.",
+  "implementation": "(1) Curate high_risk_commands.csv with regex patterns; (2) instrument GRC JIT to emit session_id; (3) run every 5 min; (4) SOAR auto-terminates session on hit.",
+  "visualization": "Table of unapproved high-risk commands, bar chart of commands by risk class, single-value 'high-risk commands approved (7d)'.",
   "cimModels": [
     "Change"
   ],
-  "description": "Correlates privileged-session command execution against a catalogue of destructive, mass-data, or security-control commands and requires a matching JIT approval within the prior hour. Missing approvals are treated as a finding.",
-  "value": "Makes 'we require JIT approval for dangerous commands' an observable, always-on control.",
-  "grandmaExplanation": "Makes 'we require JIT approval for dangerous commands' an observable, always-on control — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Curate high_risk_commands.csv with regex patterns; (2) instrument GRC JIT to emit session_id; (3) run every 5 min; (4) SOAR auto-terminates session on hit.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: PAM session keystroke/command logs, GRC JIT ticketing events, high-risk command catalogue (high_risk_commands.csv)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Curate high_risk_commands.csv with regex patterns; (2) instrument GRC JIT to emit session_id; (3) run every 5 min; (4) SOAR auto-terminates session on hit.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=pam sourcetype=cyberark:command OR sourcetype=beyondtrust:command earliest=-5m\n| lookup high_risk_commands.csv command_pattern AS command OUTPUT risk_class\n| where risk_class IN (\"destructive\",\"mass-data\",\"security-control\")\n| join session_id [search index=grc sourcetype=jit:approval earliest=-1h | fields session_id ticket_id approver approved_at]\n| where isnull(ticket_id)\n| table _time session_id user command risk_class target_host\n```\n\nUnderstanding this SPL\n\n**High-risk privileged-session command without JIT approval** — Makes 'we require JIT approval for dangerous commands' an observable, always-on control.\n\nDocumented **Data sources**: PAM session keystroke/command logs, GRC JIT ticketing events, high-risk command catalogue (high_risk_commands.csv). **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: pam; **sourcetype**: cyberark:command, beyondtrust:command. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=pam, sourcetype=cyberark:command, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where risk_class IN (\"destructive\",\"mass-data\",\"security-control\")` — typically the threshold or rule expression for this monitoring goal.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(ticket_id)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **High-risk privileged-session command without JIT approval**): table _time session_id user command risk_class target_host\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of unapproved high-risk commands, bar chart of commands by risk class, single-value 'high-risk commands approved (7d)'.",
-  "visualization": "Table of unapproved high-risk commands, bar chart of commands by risk class, single-value 'high-risk commands approved (7d)'.",
   "references": [
     {
       "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
@@ -101,5 +110,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Makes 'we require JIT approval for dangerous commands' an observable, always-on control — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: PAM session keystroke/command logs, GRC JIT ticketing events, high-risk command catalogue (high_risk_commands.csv)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Curate high_risk_commands.csv with regex patterns; (2) instrument GRC JIT to emit session_id; (3) run every 5 min; (4) SOAR auto-terminates session on hit.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=pam sourcetype=cyberark:command OR sourcetype=beyondtrust:command earliest=-5m\n| lookup high_risk_commands.csv command_pattern AS command OUTPUT risk_class\n| where risk_class IN (\"destructive\",\"mass-data\",\"security-control\")\n| join session_id [search index=grc sourcetype=jit:approval earliest=-1h | fields session_id ticket_id approver approved_at]\n| where isnull(ticket_id)\n| table _time session_id user command risk_class target_host\n```\n\nUnderstanding this SPL\n\n**High-risk privileged-session command without JIT approval** — Makes 'we require JIT approval for dangerous commands' an observable, always-on control.\n\nDocumented **Data sources**: PAM session keystroke/command logs, GRC JIT ticketing events, high-risk command catalogue (high_risk_commands.csv). **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: pam; **sourcetype**: cyberark:command, beyondtrust:command. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=pam, sourcetype=cyberark:command, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where risk_class IN (\"destructive\",\"mass-data\",\"security-control\")` — typically the threshold or rule expression for this monitoring goal.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(ticket_id)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **High-risk privileged-session command without JIT approval**): table _time session_id user command risk_class target_host\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of unapproved high-risk commands, bar chart of commands by risk class, single-value 'high-risk commands approved (7d)'.",
+  "subcategory": "22.40#1"
 }

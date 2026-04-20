@@ -4,7 +4,6 @@
   "title": "SOX-ITGC Operations.JobSchedule — Batch-schedule monitoring: financial-job exception visibility",
   "criticality": "medium",
   "difficulty": "intermediate",
-  "subcategory": "22.12#1",
   "monitoringType": [
     "Compliance",
     "Availability"
@@ -22,7 +21,11 @@
       "clauseUrl": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "SOX-ITGC Operations.JobSchedule — exception acknowledgement evidence."
+      "assurance_rationale": "SOX-ITGC Operations.JobSchedule — exception acknowledgement evidence.",
+      "controlObjective": "Evidence that SOX-ITGC ITGC.Operations.JobSchedule (Batch scheduling and monitoring) is enforced — Splunk UC-22.12.40: SOX-ITGC Operations.JobSchedule — Batch-schedule monitoring: financial-job exception visibility.",
+      "evidenceArtifact": "Saved search 'UC-22.12.40' running on sourcetype autosys:event and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "sox-itgc@PCAOB AS 2201#ITGC.Operations.JobSchedule",
+      "requires_sme_review": true
     },
     {
       "regulation": "SOC-2",
@@ -31,7 +34,11 @@
       "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "SOC 2 CC7.1 — contributing."
+      "assurance_rationale": "SOC 2 CC7.1 — contributing.",
+      "controlObjective": "Evidence that SOC-2 CC7.1 (System operations monitoring) is enforced — Splunk UC-22.12.40: SOX-ITGC Operations.JobSchedule — Batch-schedule monitoring: financial-job exception visibility.",
+      "evidenceArtifact": "Saved search 'UC-22.12.40' running on sourcetype autosys:event and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "soc-2@2017 TSC#CC7.1",
+      "requires_sme_review": true
     },
     {
       "regulation": "ISO/IEC 27001",
@@ -40,7 +47,11 @@
       "clauseUrl": "https://www.iso.org/standard/27001",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "ISO/IEC 27001:2022 A.8.30 Outsourced development (for outsourced batch) — contributing."
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.30 Outsourced development (for outsourced batch) — contributing.",
+      "controlObjective": "Evidence that ISO/IEC 27001 A.8.30 is enforced — Splunk UC-22.12.40: SOX-ITGC Operations.JobSchedule — Batch-schedule monitoring: financial-job exception visibility.",
+      "evidenceArtifact": "Saved search 'UC-22.12.40' running on sourcetype autosys:event and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "iso-27001@2022#A.8.30",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -51,16 +62,14 @@
   "dataSources": "`index=batch` sourcetype=autosys:event OR sourcetype=controlm:job; operator ack `index=ticketing` sourcetype=servicenow:incident (category=batch-ack).",
   "app": "Splunk Enterprise Security",
   "spl": "index=batch sourcetype IN (autosys:event,controlm:job) earliest=-30m\n| lookup financial_batch_jobs.csv job_id OUTPUT in_scope expected_window\n| where in_scope=\"yes\"\n| stats latest(state) AS state latest(_time) AS run_at BY job_id\n| where state IN (\"FAILED\",\"LATE\",\"WARNING\")\n| join type=outer job_id\n  [search index=ticketing sourcetype=servicenow:incident category=batch-ack earliest=-24h\n   | stats latest(assigned_to) AS ack_operator latest(_time) AS ack_at BY job_id]\n| eval ack_met=if(isnotnull(ack_operator) AND ack_at>=run_at AND ack_at<=run_at+4*3600,1,0)\n| where ack_met=0\n| table job_id run_at state ack_operator ack_at ack_met",
+  "description": "Measures per-job batch exceptions and requires operator acknowledgement within 4h. SOX-ITGC Operations.JobSchedule requires exception monitoring for financial batch jobs.",
+  "value": "Makes the typically-spreadsheet-based batch monitoring queryable — Ops has a live queue, auditors have a history.",
+  "implementation": "(1) Route Autosys/Control-M events; (2) maintain financial_batch_jobs.csv; (3) schedule UC every 30m; (4) unacked exceptions open an incident; (5) monthly CFO + Head of IT Ops review.",
+  "visualization": "Table of unacked exceptions, time chart of exception rate, single value 'open batch exceptions'.",
   "cimModels": [
     "Performance",
     "Alerts"
   ],
-  "description": "Measures per-job batch exceptions and requires operator acknowledgement within 4h. SOX-ITGC Operations.JobSchedule requires exception monitoring for financial batch jobs.",
-  "value": "Makes the typically-spreadsheet-based batch monitoring queryable — Ops has a live queue, auditors have a history.",
-  "grandmaExplanation": "Makes the typically-spreadsheet-based batch monitoring queryable — Ops has a live queue, auditors have a history — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Route Autosys/Control-M events; (2) maintain financial_batch_jobs.csv; (3) schedule UC every 30m; (4) unacked exceptions open an incident; (5) monthly CFO + Head of IT Ops review.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security.\n• Ensure the following data sources are available: `index=batch` sourcetype=autosys:event OR sourcetype=controlm:job; operator ack `index=ticketing` sourcetype=servicenow:incident (category=batch-ack)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Route Autosys/Control-M events; (2) maintain financial_batch_jobs.csv; (3) schedule UC every 30m; (4) unacked exceptions open an incident; (5) monthly CFO + Head of IT Ops review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=batch sourcetype IN (autosys:event,controlm:job) earliest=-30m\n| lookup financial_batch_jobs.csv job_id OUTPUT in_scope expected_window\n| where in_scope=\"yes\"\n| stats latest(state) AS state latest(_time) AS run_at BY job_id\n| where state IN (\"FAILED\",\"LATE\",\"WARNING\")\n| join type=outer job_id\n  [search index=ticketing sourcetype=servicenow:incident category=batch-ack earliest=-24h\n   | stats latest(assigned_to) AS ack_operator latest(_time) AS ack_at BY job_id]\n| eval ack_met=if(isnotnull(ack_operator) AND ack_at>=run_at AND ack_at<=run_at+4*3600,1,0)\n| where ack_met=0\n| table job_id run_at state ack_operator ack_at ack_met\n```\n\nUnderstanding this SPL\n\n**SOX-ITGC Operations.JobSchedule — Batch-schedule monitoring: financial-job exception visibility** — Makes the typically-spreadsheet-based batch monitoring queryable — Ops has a live queue, auditors have a history.\n\nDocumented **Data sources**: `index=batch` sourcetype=autosys:event OR sourcetype=controlm:job; operator ack `index=ticketing` sourcetype=servicenow:incident (category=batch-ack). **App/TA** (typical add-on context): Splunk Enterprise Security. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: batch.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=batch, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where in_scope=\"yes\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by job_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where state IN (\"FAILED\",\"LATE\",\"WARNING\")` — typically the threshold or rule expression for this monitoring goal.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **ack_met** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where ack_met=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SOX-ITGC Operations.JobSchedule — Batch-schedule monitoring: financial-job exception visibility**): table job_id run_at state ack_operator ack_at ack_met\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of unacked exceptions, time chart of exception rate, single value 'open batch exceptions'.",
-  "visualization": "Table of unacked exceptions, time chart of exception rate, single value 'open batch exceptions'.",
   "references": [
     {
       "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
@@ -99,5 +108,8 @@
   "reviewer": "N/A",
   "premiumApps": [
     "Splunk Enterprise Security"
-  ]
+  ],
+  "grandmaExplanation": "Makes the typically-spreadsheet-based batch monitoring queryable — Ops has a live queue, auditors have a history — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security.\n• Ensure the following data sources are available: `index=batch` sourcetype=autosys:event OR sourcetype=controlm:job; operator ack `index=ticketing` sourcetype=servicenow:incident (category=batch-ack)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Route Autosys/Control-M events; (2) maintain financial_batch_jobs.csv; (3) schedule UC every 30m; (4) unacked exceptions open an incident; (5) monthly CFO + Head of IT Ops review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=batch sourcetype IN (autosys:event,controlm:job) earliest=-30m\n| lookup financial_batch_jobs.csv job_id OUTPUT in_scope expected_window\n| where in_scope=\"yes\"\n| stats latest(state) AS state latest(_time) AS run_at BY job_id\n| where state IN (\"FAILED\",\"LATE\",\"WARNING\")\n| join type=outer job_id\n  [search index=ticketing sourcetype=servicenow:incident category=batch-ack earliest=-24h\n   | stats latest(assigned_to) AS ack_operator latest(_time) AS ack_at BY job_id]\n| eval ack_met=if(isnotnull(ack_operator) AND ack_at>=run_at AND ack_at<=run_at+4*3600,1,0)\n| where ack_met=0\n| table job_id run_at state ack_operator ack_at ack_met\n```\n\nUnderstanding this SPL\n\n**SOX-ITGC Operations.JobSchedule — Batch-schedule monitoring: financial-job exception visibility** — Makes the typically-spreadsheet-based batch monitoring queryable — Ops has a live queue, auditors have a history.\n\nDocumented **Data sources**: `index=batch` sourcetype=autosys:event OR sourcetype=controlm:job; operator ack `index=ticketing` sourcetype=servicenow:incident (category=batch-ack). **App/TA** (typical add-on context): Splunk Enterprise Security. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: batch.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=batch, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where in_scope=\"yes\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by job_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where state IN (\"FAILED\",\"LATE\",\"WARNING\")` — typically the threshold or rule expression for this monitoring goal.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **ack_met** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where ack_met=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SOX-ITGC Operations.JobSchedule — Batch-schedule monitoring: financial-job exception visibility**): table job_id run_at state ack_operator ack_at ack_met\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of unacked exceptions, time chart of exception rate, single value 'open batch exceptions'.",
+  "subcategory": "22.12#1"
 }

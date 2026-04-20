@@ -16,7 +16,11 @@
       "clauseUrl": "https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx",
       "mode": "detects-violation-of",
       "assurance": "partial",
-      "assurance_rationale": "NERC CIP-005-7 R1 Electronic security perimeter — unauthorized HMI access detection enforces the ESP restriction on Interactive Remote Access."
+      "assurance_rationale": "NERC CIP-005-7 R1 Electronic security perimeter — unauthorized HMI access detection enforces the ESP restriction on Interactive Remote Access.",
+      "controlObjective": "Detects violations of NERC CIP CIP-005-7 R1 (Electronic security perimeter) — Splunk UC-14.2.14: HMI Unauthorized Access.",
+      "evidenceArtifact": "Saved search 'UC-14.2.14' running on sourcetype=\"hmi:audit\" (login, operator action), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nerc-cip@current#CIP-005-7 R1",
+      "requires_sme_review": true
     },
     {
       "regulation": "NERC CIP",
@@ -25,7 +29,11 @@
       "clauseUrl": "https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx",
       "mode": "detects-violation-of",
       "assurance": "partial",
-      "assurance_rationale": "NERC CIP-007-6 R4 Security event monitoring — the UC is a canonical BES Cyber Asset security event and satisfies monitoring-of-cyber-events expectations."
+      "assurance_rationale": "NERC CIP-007-6 R4 Security event monitoring — the UC is a canonical BES Cyber Asset security event and satisfies monitoring-of-cyber-events expectations.",
+      "controlObjective": "Detects violations of NERC CIP CIP-007-6 R4 (Security event monitoring) — Splunk UC-14.2.14: HMI Unauthorized Access.",
+      "evidenceArtifact": "Saved search 'UC-14.2.14' running on sourcetype=\"hmi:audit\" (login, operator action), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nerc-cip@current#CIP-007-6 R4",
+      "requires_sme_review": true
     },
     {
       "regulation": "API RP 1164",
@@ -34,21 +42,23 @@
       "clauseUrl": "https://www.api.org/products-and-services/standards/important-standards-announcements/standard-1164",
       "mode": "detects-violation-of",
       "assurance": "partial",
-      "assurance_rationale": "API RP 1164 3rd edition 5.3 Access control — unauthorized HMI access is listed as a primary detectable violation of the pipeline access-control control."
+      "assurance_rationale": "API RP 1164 3rd edition 5.3 Access control — unauthorized HMI access is listed as a primary detectable violation of the pipeline access-control control.",
+      "controlObjective": "Detects violations of API RP 1164 5.3 (Access control) — Splunk UC-14.2.14: HMI Unauthorized Access.",
+      "evidenceArtifact": "Saved search 'UC-14.2.14' running on sourcetype=\"hmi:audit\" (login, operator action), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "api-rp-1164@3rd edition#5.3",
+      "requires_sme_review": true
     }
   ],
   "dataSources": "`sourcetype=\"hmi:audit\"` (login, operator action)",
   "app": "HMI audit logs, RDP/VNC syslog",
   "spl": "index=ot sourcetype=\"hmi:audit\"\n| where action=\"login\" AND NOT cidrmatch(\"10.50.0.0/16\",src)\n| stats count by src, hmi_name, user\n| sort -count",
+  "description": "HMIs should only be reachable from jump hosts; direct access from corporate networks is a red flag.",
+  "value": "HMIs should only be reachable from jump hosts; direct access from corporate networks is a red flag.",
+  "implementation": "Define allowed HMI source subnets. Alert on logins from outside. Correlate with physical access.",
+  "visualization": "Table (non-compliant logins), Map (source IP).",
   "cimModels": [
     "N/A"
   ],
-  "description": "HMIs should only be reachable from jump hosts; direct access from corporate networks is a red flag.",
-  "value": "HMIs should only be reachable from jump hosts; direct access from corporate networks is a red flag.",
-  "grandmaExplanation": "HMIs should only be reachable from jump hosts; direct access from corporate networks is a red flag — so faults, tampering, and safety issues are spotted right away.",
-  "implementation": "Define allowed HMI source subnets. Alert on logins from outside. Correlate with physical access.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HMI audit logs, RDP/VNC syslog.\n• Ensure the following data sources are available: `sourcetype=\"hmi:audit\"` (login, operator action).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDefine allowed HMI source subnets. Alert on logins from outside. Correlate with physical access.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"hmi:audit\"\n| where action=\"login\" AND NOT cidrmatch(\"10.50.0.0/16\",src)\n| stats count by src, hmi_name, user\n| sort -count\n```\n\nUnderstanding this SPL\n\n**HMI Unauthorized Access** — HMIs should only be reachable from jump hosts; direct access from corporate networks is a red flag.\n\nDocumented **Data sources**: `sourcetype=\"hmi:audit\"` (login, operator action). **App/TA** (typical add-on context): HMI audit logs, RDP/VNC syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: hmi:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"hmi:audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where action=\"login\" AND NOT cidrmatch(\"10.50.0.0/16\",src)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src, hmi_name, user** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (non-compliant logins), Map (source IP).",
-  "visualization": "Table (non-compliant logins), Map (source IP).",
   "references": [
     {
       "title": "Splunk Lantern — use case library",
@@ -56,5 +66,7 @@
     }
   ],
   "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
-  "status": "verified"
+  "status": "verified",
+  "grandmaExplanation": "HMIs should only be reachable from jump hosts; direct access from corporate networks is a red flag — so faults, tampering, and safety issues are spotted right away.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HMI audit logs, RDP/VNC syslog.\n• Ensure the following data sources are available: `sourcetype=\"hmi:audit\"` (login, operator action).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDefine allowed HMI source subnets. Alert on logins from outside. Correlate with physical access.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"hmi:audit\"\n| where action=\"login\" AND NOT cidrmatch(\"10.50.0.0/16\",src)\n| stats count by src, hmi_name, user\n| sort -count\n```\n\nUnderstanding this SPL\n\n**HMI Unauthorized Access** — HMIs should only be reachable from jump hosts; direct access from corporate networks is a red flag.\n\nDocumented **Data sources**: `sourcetype=\"hmi:audit\"` (login, operator action). **App/TA** (typical add-on context): HMI audit logs, RDP/VNC syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: hmi:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"hmi:audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where action=\"login\" AND NOT cidrmatch(\"10.50.0.0/16\",src)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src, hmi_name, user** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (non-compliant logins), Map (source IP)."
 }

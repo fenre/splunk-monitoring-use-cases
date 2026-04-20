@@ -4,7 +4,6 @@
   "title": "SOX-ITGC AccessMgmt.Provisioning — Financial-system user provisioning SLA & workflow adherence",
   "criticality": "high",
   "difficulty": "intermediate",
-  "subcategory": "22.12#1",
   "monitoringType": [
     "Security",
     "Compliance"
@@ -22,7 +21,11 @@
       "clauseUrl": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "SOX-ITGC AccessMgmt.Provisioning — approval + SLA evidence is the direct control output."
+      "assurance_rationale": "SOX-ITGC AccessMgmt.Provisioning — approval + SLA evidence is the direct control output.",
+      "controlObjective": "Evidence that SOX-ITGC ITGC.AccessMgmt.Provisioning (User provisioning) is enforced — Splunk UC-22.12.36: SOX-ITGC AccessMgmt.Provisioning — Financial-system user provisioning SLA & workflow adherence.",
+      "evidenceArtifact": "Saved search 'UC-22.12.36' running on sourcetype okta:system_log and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "sox-itgc@PCAOB AS 2201#ITGC.AccessMgmt.Provisioning",
+      "requires_sme_review": true
     },
     {
       "regulation": "SOC-2",
@@ -31,7 +34,11 @@
       "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "SOC 2 CC6.2 Logical access provisioning — contributing."
+      "assurance_rationale": "SOC 2 CC6.2 Logical access provisioning — contributing.",
+      "controlObjective": "Evidence that SOC-2 CC6.2 is enforced — Splunk UC-22.12.36: SOX-ITGC AccessMgmt.Provisioning — Financial-system user provisioning SLA & workflow adherence.",
+      "evidenceArtifact": "Saved search 'UC-22.12.36' running on sourcetype okta:system_log and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "soc-2@2017 TSC#CC6.2",
+      "requires_sme_review": true
     },
     {
       "regulation": "ISO/IEC 27001",
@@ -40,7 +47,11 @@
       "clauseUrl": "https://www.iso.org/standard/27001",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "ISO/IEC 27001:2022 A.5.18 Access rights — directly evidenced."
+      "assurance_rationale": "ISO/IEC 27001:2022 A.5.18 Access rights — directly evidenced.",
+      "controlObjective": "Evidence that ISO/IEC 27001 A.5.18 (Access rights review) is enforced — Splunk UC-22.12.36: SOX-ITGC AccessMgmt.Provisioning — Financial-system user provisioning SLA & workflow adherence.",
+      "evidenceArtifact": "Saved search 'UC-22.12.36' running on sourcetype okta:system_log and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "iso-27001@2022#A.5.18",
+      "requires_sme_review": true
     },
     {
       "regulation": "PCI-DSS",
@@ -49,7 +60,11 @@
       "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "PCI-DSS 8.2.4 User provisioning — contributing."
+      "assurance_rationale": "PCI-DSS 8.2.4 User provisioning — contributing.",
+      "controlObjective": "Evidence that PCI-DSS 8.2.4 is enforced — Splunk UC-22.12.36: SOX-ITGC AccessMgmt.Provisioning — Financial-system user provisioning SLA & workflow adherence.",
+      "evidenceArtifact": "Saved search 'UC-22.12.36' running on sourcetype okta:system_log and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "pci-dss@v4.0#8.2.4",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -61,16 +76,14 @@
   "dataSources": "`index=iam` sourcetype=okta:system_log OR sourcetype=ad:group_change; ticketing `index=ticketing` sourcetype=servicenow:request.",
   "app": "Splunk Add-on for Okta, Splunk Add-on for ServiceNow",
   "spl": "index=iam eventType=group.user_membership.add earliest=-7d\n| lookup financial_systems_groups.csv group OUTPUT in_scope\n| where in_scope=\"yes\"\n| rename actor AS added_by target.id AS user\n| eval added_at=_time\n| join type=outer user group\n  [search index=ticketing sourcetype=servicenow:request request_type=access_request state=approved earliest=-30d\n   | stats latest(ticket_id) AS ticket_id latest(approved_at) AS approved_at BY user target_group\n   | rename target_group AS group]\n| eval sla_met=if(isnotnull(approved_at) AND added_at<=approved_at+24*3600,1,0)\n| where sla_met=0\n| table group user added_at ticket_id approved_at sla_met",
+  "description": "For every add to a financial-system group, assert an approved ServiceNow request exists and provisioning happened within 24h of approval.",
+  "value": "Closes the #1 SOX deficiency 'access provisioned without an approved ticket'. Internal audit gets a daily report rather than a quarterly spot-check.",
+  "implementation": "(1) Maintain financial_systems_groups.csv; (2) enforce ServiceNow workflow; (3) schedule UC daily; (4) sla_met=0 opens a SOX deficiency record; (5) monthly CFO report.",
+  "visualization": "Table of provisioning without approval, bar chart by group, single value 'unapproved provisions (7d)'.",
   "cimModels": [
     "Change",
     "Authentication"
   ],
-  "description": "For every add to a financial-system group, assert an approved ServiceNow request exists and provisioning happened within 24h of approval.",
-  "value": "Closes the #1 SOX deficiency 'access provisioned without an approved ticket'. Internal audit gets a daily report rather than a quarterly spot-check.",
-  "grandmaExplanation": "Closes the #1 deficiency 'access provisioned without an approved ticket' — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Maintain financial_systems_groups.csv; (2) enforce ServiceNow workflow; (3) schedule UC daily; (4) sla_met=0 opens a SOX deficiency record; (5) monthly CFO report.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Okta, Splunk Add-on for ServiceNow.\n• Ensure the following data sources are available: `index=iam` sourcetype=okta:system_log OR sourcetype=ad:group_change; ticketing `index=ticketing` sourcetype=servicenow:request..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain financial_systems_groups.csv; (2) enforce ServiceNow workflow; (3) schedule UC daily; (4) sla_met=0 opens a SOX deficiency record; (5) monthly CFO report.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=iam eventType=group.user_membership.add earliest=-7d\n| lookup financial_systems_groups.csv group OUTPUT in_scope\n| where in_scope=\"yes\"\n| rename actor AS added_by target.id AS user\n| eval added_at=_time\n| join type=outer user group\n  [search index=ticketing sourcetype=servicenow:request request_type=access_request state=approved earliest=-30d\n   | stats latest(ticket_id) AS ticket_id latest(approved_at) AS approved_at BY user target_group\n   | rename target_group AS group]\n| eval sla_met=if(isnotnull(approved_at) AND added_at<=approved_at+24*3600,1,0)\n| where sla_met=0\n| table group user added_at ticket_id approved_at sla_met\n```\n\nUnderstanding this SPL\n\n**SOX-ITGC AccessMgmt.Provisioning — Financial-system user provisioning SLA & workflow adherence** — Closes the #1 SOX deficiency 'access provisioned without an approved ticket'. Internal audit gets a daily report rather than a quarterly spot-check.\n\nDocumented **Data sources**: `index=iam` sourcetype=okta:system_log OR sourcetype=ad:group_change; ticketing `index=ticketing` sourcetype=servicenow:request. **App/TA** (typical add-on context): Splunk Add-on for Okta, Splunk Add-on for ServiceNow. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: iam.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=iam, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where in_scope=\"yes\"` — typically the threshold or rule expression for this monitoring goal.\n• Renames fields with `rename` for clarity or joins.\n• `eval` defines or adjusts **added_at** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **sla_met** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where sla_met=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SOX-ITGC AccessMgmt.Provisioning — Financial-system user provisioning SLA & workflow adherence**): table group user added_at ticket_id approved_at sla_met\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of provisioning without approval, bar chart by group, single value 'unapproved provisions (7d)'.",
-  "visualization": "Table of provisioning without approval, bar chart by group, single value 'unapproved provisions (7d)'.",
   "references": [
     {
       "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
@@ -121,5 +134,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Closes the #1 deficiency 'access provisioned without an approved ticket' — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Okta, Splunk Add-on for ServiceNow.\n• Ensure the following data sources are available: `index=iam` sourcetype=okta:system_log OR sourcetype=ad:group_change; ticketing `index=ticketing` sourcetype=servicenow:request..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain financial_systems_groups.csv; (2) enforce ServiceNow workflow; (3) schedule UC daily; (4) sla_met=0 opens a SOX deficiency record; (5) monthly CFO report.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=iam eventType=group.user_membership.add earliest=-7d\n| lookup financial_systems_groups.csv group OUTPUT in_scope\n| where in_scope=\"yes\"\n| rename actor AS added_by target.id AS user\n| eval added_at=_time\n| join type=outer user group\n  [search index=ticketing sourcetype=servicenow:request request_type=access_request state=approved earliest=-30d\n   | stats latest(ticket_id) AS ticket_id latest(approved_at) AS approved_at BY user target_group\n   | rename target_group AS group]\n| eval sla_met=if(isnotnull(approved_at) AND added_at<=approved_at+24*3600,1,0)\n| where sla_met=0\n| table group user added_at ticket_id approved_at sla_met\n```\n\nUnderstanding this SPL\n\n**SOX-ITGC AccessMgmt.Provisioning — Financial-system user provisioning SLA & workflow adherence** — Closes the #1 SOX deficiency 'access provisioned without an approved ticket'. Internal audit gets a daily report rather than a quarterly spot-check.\n\nDocumented **Data sources**: `index=iam` sourcetype=okta:system_log OR sourcetype=ad:group_change; ticketing `index=ticketing` sourcetype=servicenow:request. **App/TA** (typical add-on context): Splunk Add-on for Okta, Splunk Add-on for ServiceNow. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: iam.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=iam, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where in_scope=\"yes\"` — typically the threshold or rule expression for this monitoring goal.\n• Renames fields with `rename` for clarity or joins.\n• `eval` defines or adjusts **added_at** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **sla_met** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where sla_met=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SOX-ITGC AccessMgmt.Provisioning — Financial-system user provisioning SLA & workflow adherence**): table group user added_at ticket_id approved_at sla_met\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of provisioning without approval, bar chart by group, single value 'unapproved provisions (7d)'.",
+  "subcategory": "22.12#1"
 }

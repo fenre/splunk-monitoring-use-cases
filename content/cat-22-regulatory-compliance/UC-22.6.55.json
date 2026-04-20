@@ -4,7 +4,6 @@
   "title": "ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence",
   "criticality": "medium",
   "difficulty": "intermediate",
-  "subcategory": "22.6#1",
   "monitoringType": [
     "Compliance"
   ],
@@ -21,7 +20,11 @@
       "clauseUrl": "https://www.iso.org/standard/27001",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "Clause 8.1 Operational planning and control — CAB approval adherence is the direct control signal."
+      "assurance_rationale": "Clause 8.1 Operational planning and control — CAB approval adherence is the direct control signal.",
+      "controlObjective": "Evidence that ISO/IEC 27001 8.1 (Operational planning) is enforced — Splunk UC-22.6.55: ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence.",
+      "evidenceArtifact": "Saved search 'UC-22.6.55' running on index=change sourcetype=servicenow:change; approver-role lookup cab_roles.csv., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "iso-27001@2022#8.1",
+      "requires_sme_review": true
     },
     {
       "regulation": "SOX-ITGC",
@@ -30,7 +33,11 @@
       "clauseUrl": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "SOX-ITGC ChangeMgmt.Approval — directly evidenced."
+      "assurance_rationale": "SOX-ITGC ChangeMgmt.Approval — directly evidenced.",
+      "controlObjective": "Evidence that SOX-ITGC ITGC.ChangeMgmt.Approval (Change approved) is enforced — Splunk UC-22.6.55: ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence.",
+      "evidenceArtifact": "Saved search 'UC-22.6.55' running on index=change sourcetype=servicenow:change; approver-role lookup cab_roles.csv., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "sox-itgc@PCAOB AS 2201#ITGC.ChangeMgmt.Approval",
+      "requires_sme_review": true
     },
     {
       "regulation": "SOC-2",
@@ -39,7 +46,11 @@
       "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "SOC 2 CC8.1 — change management — contributing."
+      "assurance_rationale": "SOC 2 CC8.1 — change management — contributing.",
+      "controlObjective": "Evidence that SOC-2 CC8.1 (Change management) is enforced — Splunk UC-22.6.55: ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence.",
+      "evidenceArtifact": "Saved search 'UC-22.6.55' running on index=change sourcetype=servicenow:change; approver-role lookup cab_roles.csv., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "soc-2@2017 TSC#CC8.1",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -50,15 +61,13 @@
   "dataSources": "`index=change` sourcetype=servicenow:change; approver-role lookup `cab_roles.csv`.",
   "app": "Splunk Add-on for ServiceNow",
   "spl": "index=change sourcetype=servicenow:change state IN (implemented,closed) earliest=-7d\n| stats latest(type) AS type latest(_time) AS implemented_at latest(approval_status) AS approval_status latest(approver) AS approver latest(approval_date) AS cab_approved_at BY change_id\n| lookup cab_roles.csv approver OUTPUT is_authorised_cab\n| eval approval_met=if(type=\"emergency\",1,if(approval_status=\"approved\" AND is_authorised_cab=1 AND cab_approved_at<=implemented_at,1,0))\n| where approval_met=0\n| table change_id type implemented_at cab_approved_at approver approval_met",
+  "description": "Flags implemented changes that were not approved by an authorised CAB member prior to implementation. Clause 8.1 requires the organisation to plan, implement and control processes to meet information-security requirements — CAB approval is the direct control.",
+  "value": "Turns the 'post-implementation review' into a pre-emptive signal. The Head of IT Operations sees the breach list within the hour.",
+  "implementation": "(1) Export ServiceNow change events; (2) maintain cab_roles.csv listing authorised approvers; (3) schedule UC hourly; (4) approval_met=0 opens a deficiency record with 7d remediation; (5) monthly Audit Committee report.",
+  "visualization": "Table of unapproved changes, bar chart of breach count by team, single value 'unapproved changes in last 7d'.",
   "cimModels": [
     "Change"
   ],
-  "description": "Flags implemented changes that were not approved by an authorised CAB member prior to implementation. Clause 8.1 requires the organisation to plan, implement and control processes to meet information-security requirements — CAB approval is the direct control.",
-  "value": "Turns the 'post-implementation review' into a pre-emptive signal. The Head of IT Operations sees the breach list within the hour.",
-  "grandmaExplanation": "Turns the 'post-implementation review' into a pre-emptive signal — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Export ServiceNow change events; (2) maintain cab_roles.csv listing authorised approvers; (3) schedule UC hourly; (4) approval_met=0 opens a deficiency record with 7d remediation; (5) monthly Audit Committee report.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for ServiceNow.\n• Ensure the following data sources are available: `index=change` sourcetype=servicenow:change; approver-role lookup `cab_roles.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Export ServiceNow change events; (2) maintain cab_roles.csv listing authorised approvers; (3) schedule UC hourly; (4) approval_met=0 opens a deficiency record with 7d remediation; (5) monthly Audit Committee report.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=change sourcetype=servicenow:change state IN (implemented,closed) earliest=-7d\n| stats latest(type) AS type latest(_time) AS implemented_at latest(approval_status) AS approval_status latest(approver) AS approver latest(approval_date) AS cab_approved_at BY change_id\n| lookup cab_roles.csv approver OUTPUT is_authorised_cab\n| eval approval_met=if(type=\"emergency\",1,if(approval_status=\"approved\" AND is_authorised_cab=1 AND cab_approved_at<=implemented_at,1,0))\n| where approval_met=0\n| table change_id type implemented_at cab_approved_at approver approval_met\n```\n\nUnderstanding this SPL\n\n**ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence** — Turns the 'post-implementation review' into a pre-emptive signal. The Head of IT Operations sees the breach list within the hour.\n\nDocumented **Data sources**: `index=change` sourcetype=servicenow:change; approver-role lookup `cab_roles.csv`. **App/TA** (typical add-on context): Splunk Add-on for ServiceNow. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: change; **sourcetype**: servicenow:change. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=change, sourcetype=servicenow:change, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by change_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **approval_met** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where approval_met=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence**): table change_id type implemented_at cab_approved_at approver approval_met\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of unapproved changes, bar chart of breach count by team, single value 'unapproved changes in last 7d'.",
-  "visualization": "Table of unapproved changes, bar chart of breach count by team, single value 'unapproved changes in last 7d'.",
   "references": [
     {
       "url": "https://www.iso.org/standard/27001",
@@ -95,5 +104,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Turns the 'post-implementation review' into a pre-emptive signal — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for ServiceNow.\n• Ensure the following data sources are available: `index=change` sourcetype=servicenow:change; approver-role lookup `cab_roles.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Export ServiceNow change events; (2) maintain cab_roles.csv listing authorised approvers; (3) schedule UC hourly; (4) approval_met=0 opens a deficiency record with 7d remediation; (5) monthly Audit Committee report.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=change sourcetype=servicenow:change state IN (implemented,closed) earliest=-7d\n| stats latest(type) AS type latest(_time) AS implemented_at latest(approval_status) AS approval_status latest(approver) AS approver latest(approval_date) AS cab_approved_at BY change_id\n| lookup cab_roles.csv approver OUTPUT is_authorised_cab\n| eval approval_met=if(type=\"emergency\",1,if(approval_status=\"approved\" AND is_authorised_cab=1 AND cab_approved_at<=implemented_at,1,0))\n| where approval_met=0\n| table change_id type implemented_at cab_approved_at approver approval_met\n```\n\nUnderstanding this SPL\n\n**ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence** — Turns the 'post-implementation review' into a pre-emptive signal. The Head of IT Operations sees the breach list within the hour.\n\nDocumented **Data sources**: `index=change` sourcetype=servicenow:change; approver-role lookup `cab_roles.csv`. **App/TA** (typical add-on context): Splunk Add-on for ServiceNow. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: change; **sourcetype**: servicenow:change. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=change, sourcetype=servicenow:change, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by change_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **approval_met** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where approval_met=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence**): table change_id type implemented_at cab_approved_at approver approval_met\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of unapproved changes, bar chart of breach count by team, single value 'unapproved changes in last 7d'.",
+  "subcategory": "22.6#1"
 }

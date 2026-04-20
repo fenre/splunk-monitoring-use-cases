@@ -519,6 +519,55 @@ def _canonical_uc_to_legacy(canonical: dict[str, Any]) -> dict[str, Any]:
     if manual_regs:
         uc["regs"] = manual_regs
 
+    # ``cmp``: compact projection of the canonical ``compliance[]`` array
+    # for the Phase 3a clause-level implementer UI. We only forward the
+    # fields the detail panel and the two-level filter actually need so
+    # ``data.js`` does not bloat the initial bundle. The full record
+    # (assurance rationale, provenance, legal caveat, obligationRef,
+    # etc.) stays in ``api/v1/compliance/clauses/*.json`` and is pulled
+    # on demand when a user opens the panel. Keys used here match the
+    # Phase 1 schema v1.6.0 fields: ``regulation`` / ``version`` /
+    # ``clause`` / ``mode`` / ``assurance`` / ``controlObjective`` /
+    # ``evidenceArtifact`` / ``clauseUrl``. Entries without
+    # regulation+version+clause are dropped because they can't be
+    # deep-linked in the clause filter.
+    raw_compliance = canonical.get("compliance")
+    if isinstance(raw_compliance, list):
+        cmp_rows: list[dict[str, Any]] = []
+        for entry in raw_compliance:
+            if not isinstance(entry, dict):
+                continue
+            reg = entry.get("regulation")
+            ver = entry.get("version")
+            clause = entry.get("clause")
+            if not (isinstance(reg, str) and reg and isinstance(ver, str) and ver
+                    and isinstance(clause, str) and clause):
+                continue
+            row: dict[str, Any] = {
+                "r": reg.strip(),
+                "v": ver.strip(),
+                "cl": clause.strip(),
+            }
+            mode = entry.get("mode")
+            if isinstance(mode, str) and mode.strip():
+                row["m"] = mode.strip()
+            assurance = entry.get("assurance")
+            if isinstance(assurance, str) and assurance.strip():
+                row["a"] = assurance.strip()
+            co = entry.get("controlObjective")
+            if isinstance(co, str) and co.strip():
+                row["co"] = co.strip()
+            ea = entry.get("evidenceArtifact")
+            if isinstance(ea, str) and ea.strip():
+                row["ea"] = ea.strip()
+            url = entry.get("clauseUrl")
+            if isinstance(url, str) and url.strip():
+                row["u"] = url.strip()
+            cmp_rows.append(row)
+        if cmp_rows:
+            cmp_rows.sort(key=lambda x: (x["r"], x["v"], x["cl"]))
+            uc["cmp"] = cmp_rows
+
     return uc
 
 

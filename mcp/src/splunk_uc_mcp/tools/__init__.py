@@ -16,7 +16,13 @@ from __future__ import annotations
 from splunk_uc_mcp.tools.compliance import (
     FIND_COMPLIANCE_GAP_OUTPUT_SCHEMA,
     FIND_COMPLIANCE_GAP_SCHEMA,
+    GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA,
+    GET_CLAUSE_COVERAGE_SCHEMA,
+    LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA,
+    LIST_UNCOVERED_CLAUSES_SCHEMA,
     find_compliance_gap,
+    get_clause_coverage,
+    list_uncovered_clauses,
 )
 from splunk_uc_mcp.tools.equipment import (
     GET_EQUIPMENT_OUTPUT_SCHEMA,
@@ -51,6 +57,8 @@ from splunk_uc_mcp.tools.use_case import (
 __all__ = [
     "FIND_COMPLIANCE_GAP_OUTPUT_SCHEMA",
     "FIND_COMPLIANCE_GAP_SCHEMA",
+    "GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA",
+    "GET_CLAUSE_COVERAGE_SCHEMA",
     "GET_EQUIPMENT_OUTPUT_SCHEMA",
     "GET_EQUIPMENT_SCHEMA",
     "GET_REGULATION_OUTPUT_SCHEMA",
@@ -63,14 +71,18 @@ __all__ = [
     "LIST_EQUIPMENT_SCHEMA",
     "LIST_REGULATIONS_OUTPUT_SCHEMA",
     "LIST_REGULATIONS_SCHEMA",
+    "LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA",
+    "LIST_UNCOVERED_CLAUSES_SCHEMA",
     "SEARCH_USE_CASES_OUTPUT_SCHEMA",
     "SEARCH_USE_CASES_SCHEMA",
     "find_compliance_gap",
+    "get_clause_coverage",
     "get_equipment",
     "get_regulation",
     "get_use_case",
     "list_categories",
     "list_equipment",
     "list_regulations",
+    "list_uncovered_clauses",
     "search_use_cases",
 ]

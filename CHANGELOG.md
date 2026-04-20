@@ -12,6 +12,138 @@ the release notes block in `index.html` by hand.
 
 ## [7.1] - 2026-04-20
 
+### Regulation-to-UC Story Redesign (schema v1.6.0)
+
+- **Story-layer schema additions.** Three new optional fields on every
+  `compliance[]` item in `content/cat-<n>-<slug>/UC-<id>.json` sidecars
+  (schema v1.6.0): `controlObjective` (20&ndash;280 chars, one sentence
+  in the UC author's voice stating what the UC does for this specific
+  clause, e.g. "Proves the audit log records every individual access
+  to cardholder data"), `evidenceArtifact` (20&ndash;400 chars, the
+  concrete auditor-takeaway artefact produced when this UC is active
+  and covering this clause, e.g. a named saved search plus scheduled
+  email digest plus retention policy), and `obligationRef` (canonical
+  reference of the form `{regulationId}@{version}#{clause}` into
+  `data/regulations.json` so UIs can pull the regulator's own words
+  inline). All three are optional and additive &mdash; every
+  previously-valid sidecar remains valid. Enforcement is lint-based
+  (`scripts/audit_compliance_mappings.py`
+  `missing-control-objective` / `missing-evidence-artifact`) and
+  baselineable until the Phase 4 migration clears.
+- **`data/regulations.json` v1.1.0: `obligationText` +
+  `obligationSource`.** Each `commonClauses[]` entry may now carry
+  `obligationText` (40&ndash;600 chars, the regulator's own
+  requirement in plain-but-faithful language) and `obligationSource`
+  (URL deep-link to the regulator-published paragraph). Seeded on
+  GDPR Art.32, Art.33, HIPAA &sect;164.312(b), and PCI DSS 10.2;
+  remaining tier-1 clauses are backfilled by
+  `scripts/migrate_compliance_phase4.py` per the rollout plan.
+- **Clause &rarr; UC reverse index.** New generator
+  `scripts/generate_clause_index.py` emits `api/v1/compliance/clauses/index.json`
+  (flat registry: clauseId, regulationId, version, topic,
+  obligationText, priorityWeight, coveredBy, assuranceBreakdown,
+  topAssurance, endpoint) and one `api/v1/compliance/clauses/{clauseId}.json`
+  per clause (full obligation text, every covering UC with its
+  controlObjective + evidenceArtifact + assurance, plus gapNote when
+  nothing covers it). First time the catalogue exposes "give me every
+  UC that covers PCI DSS 10.2.1" as a single API call.
+- **`clauseCoverageMatrix[]` on regulation API.** Each
+  `api/v1/compliance/regulations/{regulationId}.json` gains a per-version
+  `clauseCoverageMatrix[]` array &mdash; one row per `commonClause`
+  with coveringUcs, topAssurance, and coverageState (`covered-full` /
+  `covered-partial` / `contributing-only` / `uncovered`).
+- **Per-regulation unified story payload.** New
+  `scripts/generate_story_payload.py` emits
+  `api/v1/compliance/story/{regulationId}.json` combining a buyer
+  block (coverageHeadline, topFiveHighlights, topThreeGaps), an
+  auditor block (full `clauseCoverageMatrix` with UC IDs, assurance,
+  evidenceArtifact, rationale), and an implementer block
+  (`quickStartPlaybook[]` &mdash; the 1&ndash;3 UCs to enable first
+  per clause, ranked by assurance then criticality).
+- **Three audience surfaces.** Implementer: `index.html` filter
+  dropdown is now a two-level selector (regulation, then clause
+  populated from the selected regulation's clause list with
+  `clause &mdash; topic` labels), and the UC detail panel renders a
+  clause-level compliance table (reg badge + clause + mode +
+  assurance pill + one-line controlObjective; expands into
+  obligationText, evidenceArtifact, rationale). Auditor: new
+  `clause-navigator.html` (zero-runtime-deps, Cisco-token palette,
+  print-friendly) with a left-rail regulation picker + clause search,
+  a sortable clause-by-clause table (clause, topic, priority, top
+  assurance, coverage state, UC count), each row expanding into a
+  nested UC table; deep-linkable as
+  `#{regulationId}@{version}/{clause}`. Buyer: new
+  `compliance-story.html?reg={id}` with a coverage-headline hero and
+  three body sections ("What this regulation requires", "How the
+  catalogue covers it", "Known gaps and mitigations"), hooked into
+  `non-technical-view.js` so the existing `whatItIs` / `whoItAffects`
+  / `splunkValue` blocks reuse the same payload.
+- **MCP tools.** Two new tools in `mcp/src/splunk_uc_mcp/server.py`
+  expose the story layer to AI agents:
+  `get_clause_coverage(regulation_id, clause)` returns the per-clause
+  reverse-index payload; `list_uncovered_clauses(regulation_id, min_priority)`
+  reads `api/v1/compliance/gaps.json` and returns the clauses not yet
+  covered at or above the given priority weight.
+- **Cross-surface wiring.** `index.html` header gains a "Clause
+  navigator" link alongside "Regulatory primer &rarr;" and
+  "Scorecard"; `regulatory-primer.html` auto-links every clause code
+  to `clause-navigator.html#{reg}@{ver}/{clause}`; each
+  `docs/evidence-packs/*.md` gains a "Live view" link at the top
+  pointing at the matching `compliance-story.html?reg={id}` page.
+- **Source catalogue refresh.** `docs/source-catalog.md` is bumped to
+  v2.0 (2026-04-20): coverage statistics re-computed for the v7.0
+  catalogue (6,447 UCs, 23 categories, 66 regulation frameworks); all
+  previously &ldquo;PLANNED&rdquo; regulator sources that now ship
+  with UCs are flipped to &ldquo;USED&rdquo;; 56 new regulation
+  frameworks are enumerated by tier and jurisdiction; 12 Splunkbase
+  regulation packs are documented; a new &ldquo;Tooling and API
+  Sources Used by the Build&rdquo; section covers MCP server, OSCAL
+  component definitions, equipment registry, signed provenance
+  ledger, scorecard, regulatory primer, and evidence packs; a new
+  &ldquo;Authoritative Clause Sources&rdquo; section records the
+  regulator-published URLs that back each seeded `obligationText`;
+  and a new &ldquo;Audience-View Sources&rdquo; section documents the
+  evidence-pack-template and OpenControl / OSCAL crosswalk
+  conventions behind `clause-navigator.html` and
+  `compliance-story.html`.
+
+### CI integration for story-layer generators
+
+- **Story surfaces fold into the main API drift guard.** Three separate
+  generators (`scripts/generate_clause_index.py`,
+  `scripts/augment_regulation_api.py`,
+  `scripts/generate_story_payload.py`) are now invoked from the tail of
+  `scripts/generate_api_surface.py::_render()` so a single
+  `python3 scripts/generate_api_surface.py --check` run covers the
+  entire `api/v1/compliance/` tree &mdash; clauses, regulation
+  matrices, and per-regulation story payloads. Fresh checkouts and CI
+  pipelines that already run the API drift guard automatically
+  regenerate and validate the story layer, closing the last gap that
+  let `api/v1/compliance/clauses/index.json` ship stale. The two
+  downstream generators now accept explicit `clauses_dir` / `regs_dir`
+  arguments so both the orchestrator and ad-hoc invocations share the
+  same code path against either the committed `api/v1/` or a temp
+  drift-check tree.
+- **`UC_GLOB` v7 corrective fix.** `generate_api_surface.py` still
+  referenced the legacy `use-cases/cat-*/uc-*.json` tree (removed in
+  v4) and so silently produced empty `useCasesTaggingThisVersion[]` and
+  `clausesReferencedByCatalogue[]` arrays on every regulation endpoint.
+  Updated the glob to the canonical `content/cat-*/UC-*.json` layout;
+  the story-layer generators now pick up a fully-populated regulation
+  file. This also matches the pattern used by every other post-v4
+  script (`scripts/audit_compliance_mappings.py`, `build.py`,
+  `tools/build/parse_content.py`).
+- **Headless UI smoke tests wired into CI.** Four Node.js DOM-shim
+  smoke tests (`tools/audits/_phase3a_smoke.js`,
+  `tools/audits/_phase3b_smoke.js`, `tools/audits/_phase3c_smoke.js`,
+  `tools/audits/_phase5_primer_smoke.js`) now run under
+  `.github/workflows/validate.yml`&rsquo;s &ldquo;Story-layer UI smoke
+  tests&rdquo; step. They exercise the JS in `index.html`,
+  `clause-navigator.html`, `compliance-story.html`, and
+  `regulatory-primer.html` against the committed `data.js` and
+  `api/v1/` tree without requiring a browser or network, so regressions
+  in the regulation-to-UC audience surfaces are caught pre-merge.
+
 ### Non-technical mode: plain-language per UC
 
 - **Every use case now carries a `grandmaExplanation`.** A new authored

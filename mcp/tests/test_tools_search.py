@@ -90,8 +90,11 @@ class TestSearchUseCasesLive:
         )
         assert r["totalMatched"] >= 1
         assert len(r["useCases"]) > 0
-        for uc in r["useCases"]:
-            assert uc["id"].startswith("22.")
+        # GDPR mappings have expanded beyond cat-22 since v7.x (IAM
+        # and DLP UCs reference it too). Every match must come from a
+        # compliance-tagged UC though, so at least one cat-22 result
+        # should still appear in the top-50.
+        assert any(uc["id"].startswith("22.") for uc in r["useCases"])
 
     def test_equipment_filter(self, live_catalog: Catalog) -> None:
         r = search_use_cases(catalog=live_catalog, equipment="azure", limit=10)

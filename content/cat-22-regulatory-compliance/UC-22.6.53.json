@@ -4,7 +4,6 @@
   "title": "ISO/IEC 27001:2022 Clause 7.2 — Competence evidence: role-based training completion",
   "criticality": "medium",
   "difficulty": "beginner",
-  "subcategory": "22.6#1",
   "monitoringType": [
     "Compliance"
   ],
@@ -21,7 +20,11 @@
       "clauseUrl": "https://www.iso.org/standard/27001",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "Clause 7.2 Competence — directly evidenced by role-based module completion."
+      "assurance_rationale": "Clause 7.2 Competence — directly evidenced by role-based module completion.",
+      "controlObjective": "Evidence that ISO/IEC 27001 7.2 (Competence) is enforced — Splunk UC-22.6.53: ISO/IEC 27001:2022 Clause 7.2 — Competence evidence: role-based training completion.",
+      "evidenceArtifact": "Saved search 'UC-22.6.53' running on sourcetype lms:completion and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "iso-27001@2022#7.2",
+      "requires_sme_review": true
     },
     {
       "regulation": "HIPAA Security Rule",
@@ -30,7 +33,11 @@
       "clauseUrl": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "HIPAA Security §164.308(a)(5) Security Awareness and Training — contributes."
+      "assurance_rationale": "HIPAA Security §164.308(a)(5) Security Awareness and Training — contributes.",
+      "controlObjective": "Evidence that HIPAA Security Rule §164.308(a)(5) (Security awareness and training) is enforced — Splunk UC-22.6.53: ISO/IEC 27001:2022 Clause 7.2 — Competence evidence: role-based training completion.",
+      "evidenceArtifact": "Saved search 'UC-22.6.53' running on sourcetype lms:completion and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "hipaa-security@2013-final#§164.308(a)(5)",
+      "requires_sme_review": true
     },
     {
       "regulation": "PCI-DSS",
@@ -39,7 +46,11 @@
       "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "PCI-DSS 12.6 Security awareness programme — contributes."
+      "assurance_rationale": "PCI-DSS 12.6 Security awareness programme — contributes.",
+      "controlObjective": "Evidence that PCI-DSS 12.6 is enforced — Splunk UC-22.6.53: ISO/IEC 27001:2022 Clause 7.2 — Competence evidence: role-based training completion.",
+      "evidenceArtifact": "Saved search 'UC-22.6.53' running on sourcetype lms:completion and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "pci-dss@v4.0#12.6",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -50,15 +61,13 @@
   "dataSources": "`index=hr` sourcetype=lms:completion; `index=hr` sourcetype=hr:role_assignment; required-module matrix `iso_27001_training_matrix.csv`.",
   "app": "Splunk Add-on for Microsoft Windows (742)",
   "spl": "index=hr sourcetype=hr:role_assignment earliest=-30d\n| stats latest(role) AS role BY user\n| lookup iso_27001_training_matrix.csv role OUTPUT required_modules\n| eval required_modules=split(required_modules,\",\")\n| join user\n  [search index=hr sourcetype=lms:completion status=completed earliest=-365d\n   | stats values(module) AS completed_modules BY user]\n| eval covered=mvmap(required_modules, if(isnotnull(mvfind(completed_modules,x)),1,0))\n| eval compliance_pct=round(100*sum(covered)/mvcount(required_modules),0)\n| where compliance_pct<100\n| table user role required_modules completed_modules compliance_pct",
+  "description": "Joins the role-to-module matrix against LMS completions to report each person's coverage. Clause 7.2 requires the organisation to determine and maintain competence.",
+  "value": "Replaces the annual LMS export with a daily compliance signal. HR can notify managers proactively rather than after the audit finding.",
+  "implementation": "(1) Onboard LMS completions; (2) maintain iso_27001_training_matrix.csv per role; (3) schedule UC daily; (4) compliance_pct<100 triggers an HR email; (5) quarterly report to ISMS committee.",
+  "visualization": "Stacked bar by role, table of sub-100% users, single value 'users below 100%'.",
   "cimModels": [
     "N/A"
   ],
-  "description": "Joins the role-to-module matrix against LMS completions to report each person's coverage. Clause 7.2 requires the organisation to determine and maintain competence.",
-  "value": "Replaces the annual LMS export with a daily compliance signal. HR can notify managers proactively rather than after the audit finding.",
-  "grandmaExplanation": "Replaces the annual LMS export with a daily compliance signal — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Onboard LMS completions; (2) maintain iso_27001_training_matrix.csv per role; (3) schedule UC daily; (4) compliance_pct<100 triggers an HR email; (5) quarterly report to ISMS committee.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows (742).\n• Ensure the following data sources are available: `index=hr` sourcetype=lms:completion; `index=hr` sourcetype=hr:role_assignment; required-module matrix `iso_27001_training_matrix.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Onboard LMS completions; (2) maintain iso_27001_training_matrix.csv per role; (3) schedule UC daily; (4) compliance_pct<100 triggers an HR email; (5) quarterly report to ISMS committee.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=hr sourcetype=hr:role_assignment earliest=-30d\n| stats latest(role) AS role BY user\n| lookup iso_27001_training_matrix.csv role OUTPUT required_modules\n| eval required_modules=split(required_modules,\",\")\n| join user\n  [search index=hr sourcetype=lms:completion status=completed earliest=-365d\n   | stats values(module) AS completed_modules BY user]\n| eval covered=mvmap(required_modules, if(isnotnull(mvfind(completed_modules,x)),1,0))\n| eval compliance_pct=round(100*sum(covered)/mvcount(required_modules),0)\n| where compliance_pct<100\n| table user role required_modules completed_modules compliance_pct\n```\n\nUnderstanding this SPL\n\n**ISO/IEC 27001:2022 Clause 7.2 — Competence evidence: role-based training completion** — Replaces the annual LMS export with a daily compliance signal. HR can notify managers proactively rather than after the audit finding.\n\nDocumented **Data sources**: `index=hr` sourcetype=lms:completion; `index=hr` sourcetype=hr:role_assignment; required-module matrix `iso_27001_training_matrix.csv`. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (742). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: hr; **sourcetype**: hr:role_assignment. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=hr, sourcetype=hr:role_assignment, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by user** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **required_modules** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **covered** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **compliance_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where compliance_pct<100` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **ISO/IEC 27001:2022 Clause 7.2 — Competence evidence: role-based training completion**): table user role required_modules completed_modules compliance_pct\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar by role, table of sub-100% users, single value 'users below 100%'.",
-  "visualization": "Stacked bar by role, table of sub-100% users, single value 'users below 100%'.",
   "references": [
     {
       "url": "https://www.iso.org/standard/27001",
@@ -92,5 +101,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Replaces the annual LMS export with a daily compliance signal — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows (742).\n• Ensure the following data sources are available: `index=hr` sourcetype=lms:completion; `index=hr` sourcetype=hr:role_assignment; required-module matrix `iso_27001_training_matrix.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Onboard LMS completions; (2) maintain iso_27001_training_matrix.csv per role; (3) schedule UC daily; (4) compliance_pct<100 triggers an HR email; (5) quarterly report to ISMS committee.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=hr sourcetype=hr:role_assignment earliest=-30d\n| stats latest(role) AS role BY user\n| lookup iso_27001_training_matrix.csv role OUTPUT required_modules\n| eval required_modules=split(required_modules,\",\")\n| join user\n  [search index=hr sourcetype=lms:completion status=completed earliest=-365d\n   | stats values(module) AS completed_modules BY user]\n| eval covered=mvmap(required_modules, if(isnotnull(mvfind(completed_modules,x)),1,0))\n| eval compliance_pct=round(100*sum(covered)/mvcount(required_modules),0)\n| where compliance_pct<100\n| table user role required_modules completed_modules compliance_pct\n```\n\nUnderstanding this SPL\n\n**ISO/IEC 27001:2022 Clause 7.2 — Competence evidence: role-based training completion** — Replaces the annual LMS export with a daily compliance signal. HR can notify managers proactively rather than after the audit finding.\n\nDocumented **Data sources**: `index=hr` sourcetype=lms:completion; `index=hr` sourcetype=hr:role_assignment; required-module matrix `iso_27001_training_matrix.csv`. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (742). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: hr; **sourcetype**: hr:role_assignment. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=hr, sourcetype=hr:role_assignment, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by user** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **required_modules** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **covered** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **compliance_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where compliance_pct<100` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **ISO/IEC 27001:2022 Clause 7.2 — Competence evidence: role-based training completion**): table user role required_modules completed_modules compliance_pct\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar by role, table of sub-100% users, single value 'users below 100%'.",
+  "subcategory": "22.6#1"
 }

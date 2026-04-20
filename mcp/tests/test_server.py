@@ -36,6 +36,8 @@ EXPECTED_TOOLS = {
     "list_equipment",
     "get_equipment",
     "find_compliance_gap",
+    "get_clause_coverage",
+    "list_uncovered_clauses",
 }
 
 

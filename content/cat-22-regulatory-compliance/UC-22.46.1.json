@@ -19,7 +19,11 @@
       "clause": "§164.308(a)(5)",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "§164.308(a)(5) security awareness and training — completion evidence is required."
+      "assurance_rationale": "§164.308(a)(5) security awareness and training — completion evidence is required.",
+      "controlObjective": "Evidence that HIPAA Security §164.308(a)(5) (Security awareness and training) is enforced — Splunk UC-22.46.1: Mandatory security training — completion SLA by role.",
+      "evidenceArtifact": "Saved search 'UC-22.46.1' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "hipaa-security@2013-final#§164.308(a)(5)",
+      "requires_sme_review": true
     },
     {
       "regulation": "PCI DSS",
@@ -27,7 +31,11 @@
       "clause": "12.6",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "PCI 12.6 security awareness — the UC evidences completion at cadence."
+      "assurance_rationale": "PCI 12.6 security awareness — the UC evidences completion at cadence.",
+      "controlObjective": "Evidence that PCI DSS 12.6 is enforced — Splunk UC-22.46.1: Mandatory security training — completion SLA by role.",
+      "evidenceArtifact": "Saved search 'UC-22.46.1' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "pci-dss@v4.0#12.6",
+      "requires_sme_review": true
     },
     {
       "regulation": "NIS2",
@@ -35,7 +43,11 @@
       "clause": "Art.21(2)(g)",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "Art.21(2)(g) cyber hygiene and training — completion tracking is standard evidence."
+      "assurance_rationale": "Art.21(2)(g) cyber hygiene and training — completion tracking is standard evidence.",
+      "controlObjective": "Evidence that NIS2 Art.21(2)(g) (Cyber-hygiene and training) is enforced — Splunk UC-22.46.1: Mandatory security training — completion SLA by role.",
+      "evidenceArtifact": "Saved search 'UC-22.46.1' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(g)",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -46,15 +58,13 @@
   "dataSources": "See subcategory preamble.",
   "app": "Splunk Enterprise / Splunk Cloud Platform",
   "spl": "index=lms sourcetype=completion earliest=-365d course_id=security_awareness\n| stats max(_time) as last_completion by employee_id\n| lookup hr_roster.csv employee_id OUTPUT role status\n| where status=\"active\" AND (isnull(last_completion) OR (now()-last_completion)>31536000)\n| table employee_id role last_completion",
+  "description": "Produces per-employee completion evidence for the mandatory annual training. Gaps are surfaced in time for HR to re-enroll before the cycle closes.",
+  "value": "Moves completion from a retrospective export to a continuously-known KPI.",
+  "implementation": "(1) Ingest LMS events; (2) refresh hr_roster.csv nightly; (3) run weekly; (4) on finding, auto-enrol via HR integration.",
+  "visualization": "Bar chart of completion by department, table of overdue, single-value '% completion in cycle'.",
   "cimModels": [
     "N/A"
   ],
-  "description": "Produces per-employee completion evidence for the mandatory annual training. Gaps are surfaced in time for HR to re-enroll before the cycle closes.",
-  "value": "Moves completion from a retrospective export to a continuously-known KPI.",
-  "grandmaExplanation": "Moves completion from a retrospective export to a continuously-known key numbers — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Ingest LMS events; (2) refresh hr_roster.csv nightly; (3) run weekly; (4) on finding, auto-enrol via HR integration.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest LMS events; (2) refresh hr_roster.csv nightly; (3) run weekly; (4) on finding, auto-enrol via HR integration.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=lms sourcetype=completion earliest=-365d course_id=security_awareness\n| stats max(_time) as last_completion by employee_id\n| lookup hr_roster.csv employee_id OUTPUT role status\n| where status=\"active\" AND (isnull(last_completion) OR (now()-last_completion)>31536000)\n| table employee_id role last_completion\n```\n\nUnderstanding this SPL\n\n**Mandatory security training — completion SLA by role** — Moves completion from a retrospective export to a continuously-known KPI.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: lms; **sourcetype**: completion. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=lms, sourcetype=completion, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by employee_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where status=\"active\" AND (isnull(last_completion) OR (now()-last_completion)>31536000)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Mandatory security training — completion SLA by role**): table employee_id role last_completion\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart of completion by department, table of overdue, single-value '% completion in cycle'.",
-  "visualization": "Bar chart of completion by department, table of overdue, single-value '% completion in cycle'.",
   "references": [
     {
       "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
@@ -84,5 +94,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Moves completion from a retrospective export to a continuously-known key numbers — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest LMS events; (2) refresh hr_roster.csv nightly; (3) run weekly; (4) on finding, auto-enrol via HR integration.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=lms sourcetype=completion earliest=-365d course_id=security_awareness\n| stats max(_time) as last_completion by employee_id\n| lookup hr_roster.csv employee_id OUTPUT role status\n| where status=\"active\" AND (isnull(last_completion) OR (now()-last_completion)>31536000)\n| table employee_id role last_completion\n```\n\nUnderstanding this SPL\n\n**Mandatory security training — completion SLA by role** — Moves completion from a retrospective export to a continuously-known KPI.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: lms; **sourcetype**: completion. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=lms, sourcetype=completion, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by employee_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where status=\"active\" AND (isnull(last_completion) OR (now()-last_completion)>31536000)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Mandatory security training — completion SLA by role**): table employee_id role last_completion\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart of completion by department, table of overdue, single-value '% completion in cycle'."
 }

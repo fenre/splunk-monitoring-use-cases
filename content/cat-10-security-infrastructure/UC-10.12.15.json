@@ -8,7 +8,6 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "industry": "Financial Services",
   "compliance": [
     {
       "regulation": "PCI DSS",
@@ -17,21 +16,23 @@
       "mode": "satisfies",
       "assurance": "contributing",
       "assurance_rationale": "Auto-generated from legacy markdown 'Regulations' line during the per-UC migration. Requires SME review to fill in version, clause, mode, and assurance for PCI DSS.",
+      "controlObjective": "Evidence that PCI DSS unknown is enforced — Splunk UC-10.12.15: PCI Scope Validation.",
+      "evidenceArtifact": "Saved search 'UC-10.12.15' running on sourcetype=\"pan:traffic\", sourcetype=\"flow:netflow\", archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "pci-dss@unknown#unknown",
+      "requires_sme_review": true,
       "provenance": "maintainer"
     }
   ],
   "dataSources": "`sourcetype=\"pan:traffic\"`, `sourcetype=\"flow:netflow\"`",
   "app": "NetFlow, firewall, CMDB",
   "spl": "index=network (sourcetype=\"pan:traffic\" OR sourcetype=\"flow:netflow\")\n| lookup pci_in_scope_subnets subnet OUTPUT scope_zone as in_pci\n| where isnull(in_pci) AND (dest_port=443 OR dest_port=8080) AND match(dest,\"^10\\.\")\n| stats count by src, dest, dest_port, app\n| sort -count",
+  "description": "Confirms only in-scope networks and flows touch CHD; catches scope creep from misrouted traffic.",
+  "value": "Confirms only in-scope networks and flows touch CHD; catches scope creep from misrouted traffic.",
+  "implementation": "Maintain authoritative CDE subnet lookup; alert on new flows into CHD from non-scoped zones; quarterly firewall rule review.",
+  "visualization": "Sankey (zone flows), Table (out-of-scope hits), Map (external sources).",
   "cimModels": [
     "N/A"
   ],
-  "description": "Confirms only in-scope networks and flows touch CHD; catches scope creep from misrouted traffic.",
-  "value": "Confirms only in-scope networks and flows touch CHD; catches scope creep from misrouted traffic.",
-  "grandmaExplanation": "Confirms only -scope networks and flows touch CHD; catches scope creep from misrouted traffic — so we know when protection is off, out of date, or bypassed.",
-  "implementation": "Maintain authoritative CDE subnet lookup; alert on new flows into CHD from non-scoped zones; quarterly firewall rule review.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: NetFlow, firewall, CMDB.\n• Ensure the following data sources are available: `sourcetype=\"pan:traffic\"`, `sourcetype=\"flow:netflow\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain authoritative CDE subnet lookup; alert on new flows into CHD from non-scoped zones; quarterly firewall rule review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network (sourcetype=\"pan:traffic\" OR sourcetype=\"flow:netflow\")\n| lookup pci_in_scope_subnets subnet OUTPUT scope_zone as in_pci\n| where isnull(in_pci) AND (dest_port=443 OR dest_port=8080) AND match(dest,\"^10\\.\")\n| stats count by src, dest, dest_port, app\n| sort -count\n```\n\nUnderstanding this SPL\n\n**PCI Scope Validation** — Confirms only in-scope networks and flows touch CHD; catches scope creep from misrouted traffic.\n\nDocumented **Data sources**: `sourcetype=\"pan:traffic\"`, `sourcetype=\"flow:netflow\"`. **App/TA** (typical add-on context): NetFlow, firewall, CMDB. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: pan:traffic, flow:netflow. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"pan:traffic\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(in_pci) AND (dest_port=443 OR dest_port=8080) AND match(dest,\"^10\\.\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src, dest, dest_port, app** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sankey (zone flows), Table (out-of-scope hits), Map (external sources).",
-  "visualization": "Sankey (zone flows), Table (out-of-scope hits), Map (external sources).",
   "references": [
     {
       "title": "Splunk Lantern — use case library",
@@ -44,5 +45,8 @@
   ],
   "equipmentModels": [
     "netflow_netflow"
-  ]
+  ],
+  "grandmaExplanation": "Confirms only -scope networks and flows touch CHD; catches scope creep from misrouted traffic — so we know when protection is off, out of date, or bypassed.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: NetFlow, firewall, CMDB.\n• Ensure the following data sources are available: `sourcetype=\"pan:traffic\"`, `sourcetype=\"flow:netflow\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain authoritative CDE subnet lookup; alert on new flows into CHD from non-scoped zones; quarterly firewall rule review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network (sourcetype=\"pan:traffic\" OR sourcetype=\"flow:netflow\")\n| lookup pci_in_scope_subnets subnet OUTPUT scope_zone as in_pci\n| where isnull(in_pci) AND (dest_port=443 OR dest_port=8080) AND match(dest,\"^10\\.\")\n| stats count by src, dest, dest_port, app\n| sort -count\n```\n\nUnderstanding this SPL\n\n**PCI Scope Validation** — Confirms only in-scope networks and flows touch CHD; catches scope creep from misrouted traffic.\n\nDocumented **Data sources**: `sourcetype=\"pan:traffic\"`, `sourcetype=\"flow:netflow\"`. **App/TA** (typical add-on context): NetFlow, firewall, CMDB. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: pan:traffic, flow:netflow. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"pan:traffic\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(in_pci) AND (dest_port=443 OR dest_port=8080) AND match(dest,\"^10\\.\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src, dest, dest_port, app** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sankey (zone flows), Table (out-of-scope hits), Map (external sources).",
+  "industry": "Financial Services"
 }

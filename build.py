@@ -1474,6 +1474,7 @@ def _sidecar_equipment_tags(_cat_id, uc_full_id):
 
 
 _SIDECAR_GRANDMA_CACHE = None
+_SIDECAR_COMPLIANCE_CACHE = None
 CONTENT_DIR = os.path.join(SCRIPT_DIR, "content")
 
 
@@ -1533,6 +1534,118 @@ def _sidecar_grandma_for(uc_full_id):
         return ""
     cache = _load_sidecar_grandma_cache()
     return cache.get(uc_full_id, "")
+
+
+def _load_sidecar_compliance_cache():
+    """Lazy-load a compact projection of every UC sidecar's ``compliance[]``.
+
+    The canonical ``content/cat-*/UC-*.json`` files carry the full v1.6.0
+    compliance record — ``regulation`` / ``version`` / ``clause`` / ``mode``
+    / ``assurance`` / ``controlObjective`` / ``evidenceArtifact`` /
+    ``clauseUrl`` / ``obligationRef`` / ``assurance_rationale`` — but only
+    a small subset of that data is needed client-side to drive the Phase 3a
+    two-level regulation/clause filter and the UC detail panel's
+    per-clause compliance table. Shipping the full array would bloat
+    ``data.js`` to the point of hurting first-paint on the public page,
+    so we materialise only the fields the UI actually renders and leave
+    the rest in ``api/v1/compliance/clauses/*.json`` for on-demand fetch.
+
+    Short-key shape (matches ``_canonical_uc_to_legacy`` in
+    ``tools/build/parse_content.py``):
+
+    ``r``  — regulation id (string, required)
+    ``v``  — regulation version (string, required)
+    ``cl`` — clause id (string, required)
+    ``m``  — mode (``satisfies`` | ``detects-violation-of`` | ``assists-with``)
+    ``a``  — assurance (``full`` | ``partial`` | ``contributing``)
+    ``co`` — controlObjective (one sentence implementer-facing)
+    ``ea`` — evidenceArtifact (one sentence auditor-facing)
+    ``u``  — clauseUrl (deep link to regulator's clause page)
+
+    Entries lacking the required triple (regulation+version+clause) are
+    dropped because they can't be deep-linked from the clause filter
+    dropdown.
+
+    Cached for the life of the build. Safe to call in environments where
+    the ``content`` tree is absent (stripped CI checkouts, early v6-only
+    builds): the cache just returns empty and the ``cmp`` field never
+    appears on any UC dict, which is what the renderer treats as "no
+    structured compliance data available".
+    """
+    global _SIDECAR_COMPLIANCE_CACHE
+    if _SIDECAR_COMPLIANCE_CACHE is not None:
+        return _SIDECAR_COMPLIANCE_CACHE
+    cache = {}
+    if not os.path.isdir(CONTENT_DIR):
+        _SIDECAR_COMPLIANCE_CACHE = cache
+        return cache
+    for root, _dirs, files in os.walk(CONTENT_DIR):
+        for fname in files:
+            if not fname.startswith("UC-") or not fname.endswith(".json"):
+                continue
+            path = os.path.join(root, fname)
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    side = json.load(fh)
+            except (IOError, ValueError):
+                continue
+            if not isinstance(side, dict):
+                continue
+            uc_id = side.get("id")
+            if not isinstance(uc_id, str) or not uc_id:
+                continue
+            compliance = side.get("compliance")
+            if not isinstance(compliance, list) or not compliance:
+                continue
+            rows = []
+            for entry in compliance:
+                if not isinstance(entry, dict):
+                    continue
+                reg = entry.get("regulation")
+                ver = entry.get("version")
+                clause = entry.get("clause")
+                if not (isinstance(reg, str) and reg and isinstance(ver, str) and ver
+                        and isinstance(clause, str) and clause):
+                    continue
+                row = {
+                    "r": reg.strip(),
+                    "v": ver.strip(),
+                    "cl": clause.strip(),
+                }
+                mode = entry.get("mode")
+                if isinstance(mode, str) and mode.strip():
+                    row["m"] = mode.strip()
+                assurance = entry.get("assurance")
+                if isinstance(assurance, str) and assurance.strip():
+                    row["a"] = assurance.strip()
+                co = entry.get("controlObjective")
+                if isinstance(co, str) and co.strip():
+                    row["co"] = co.strip()
+                ea = entry.get("evidenceArtifact")
+                if isinstance(ea, str) and ea.strip():
+                    row["ea"] = ea.strip()
+                url = entry.get("clauseUrl")
+                if isinstance(url, str) and url.strip():
+                    row["u"] = url.strip()
+                rows.append(row)
+            if rows:
+                rows.sort(key=lambda x: (x["r"], x["v"], x["cl"]))
+                cache[uc_id] = rows
+    _SIDECAR_COMPLIANCE_CACHE = cache
+    return cache
+
+
+def _sidecar_compliance_for(uc_full_id):
+    """Return the compact compliance[] projection for a UC, or ``[]``.
+
+    Keeps the legacy post-processor's call-site tidy: either the sidecar
+    has a non-empty list of deep-linkable (regulation, version, clause)
+    rows or the UC has no structured compliance data yet and the renderer
+    shows the flat ``regs[]`` list only.
+    """
+    if not uc_full_id:
+        return []
+    return _load_sidecar_compliance_cache().get(uc_full_id, [])
 
 
 # Minimal per-category fallback sentences — must stay in sync with
@@ -2431,6 +2544,18 @@ def parse_category_file(filepath):
                     uc["ge"] = ge_text
             if not (uc.get("ge") or "").strip():
                 uc["ge"] = _runtime_ge_fallback(cat_id)
+
+            # Merge the structured compliance[] projection from the UC
+            # sidecar so the frontend's Phase 3a features — two-level
+            # regulation/clause filter (src/scripts/02-filters.js) and
+            # per-clause compliance table on the detail panel
+            # (src/scripts/04-panel.js) — have the clause-level data
+            # they need without a round-trip to the API. Kept idempotent
+            # (only writes when the cache returns non-empty rows) so both
+            # loader paths produce the same final shape.
+            cmp_rows = _sidecar_compliance_for(uc.get("i"))
+            if cmp_rows:
+                uc["cmp"] = cmp_rows
             matched_apps = apps_for_ta_string(uc.get("t"))
             if matched_apps:
                 uc["sapp"] = matched_apps
@@ -3679,6 +3804,8 @@ def main():
         f"{SITE_BASE_URL}/api-docs.html",
         f"{SITE_BASE_URL}/scorecard.html",
         f"{SITE_BASE_URL}/regulatory-primer.html",
+        f"{SITE_BASE_URL}/clause-navigator.html",
+        f"{SITE_BASE_URL}/compliance-story.html",
         f"{SITE_BASE_URL}/openapi.yaml",
         f"{SITE_BASE_URL}/llms.txt",
         f"{SITE_BASE_URL}/llms-full.txt",

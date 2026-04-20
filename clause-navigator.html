@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Auditor-first clause navigator. Browse every regulatory clause the Splunk monitoring catalogue has mapped, drill into the covering use cases, and deep-link straight into the filtered catalogue. Reads api/v1/compliance/clauses/index.json.">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#004BAF">
+<title>Clause navigator &mdash; Splunk monitoring use cases</title>
+<link rel="canonical" href="https://fenre.github.io/splunk-monitoring-use-cases/clause-navigator.html">
+<link rel="icon" href="favicon.ico" type="image/x-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ----- design tokens (aligned with index.html + regulatory-primer.html) ----- */
+:root {
+  --cisco-blue: #049FD9;
+  --cisco-blue-dark: #004BAF;
+  --cisco-teal: #04A4B0;
+  --cisco-green: #6BA32A;
+  --cisco-yellow: #D9B216;
+  --cisco-red: #C24632;
+  --cisco-orange: #F26722;
+  --bg-page: #F7F5F0;
+  --bg-surface: #FFFFFF;
+  --bg-header: #004BAF;
+  --bg-elevated: #FFFFFF;
+  --bg-hover: #F0F1F2;
+  --bg-input: #FFFFFF;
+  --bg-code: #F0F1F2;
+  --bg-subtle: rgba(0,0,0,0.02);
+  --text-primary: #1B1F23;
+  --text-secondary: #464C54;
+  --text-tertiary: #656C75;
+  --text-inverse: #FFFFFF;
+  --text-link: #1D69CC;
+  --border-default: #E1E4E8;
+  --border-subtle: #F0F1F2;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.10);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-mono: 'Roboto Mono', 'Consolas', monospace;
+  --tier-1: #004BAF;
+  --tier-2: #04A4B0;
+  --tier-3: #656C75;
+  --assur-full: #1E8A4B;
+  --assur-partial: #B07A14;
+  --assur-contributing: #656C75;
+  --cov-full: #1E8A4B;
+  --cov-partial: #B07A14;
+  --cov-contributing: #656C75;
+  --cov-uncovered: #C24632;
+}
+html.dark {
+  --bg-page: #0F1214;
+  --bg-surface: #1B1F23;
+  --bg-header: #0B1118;
+  --bg-elevated: #23282E;
+  --bg-hover: #2A3037;
+  --bg-input: #171B20;
+  --bg-code: #131619;
+  --bg-subtle: rgba(255,255,255,0.03);
+  --text-primary: #ECEFF4;
+  --text-secondary: #CBD1D9;
+  --text-tertiary: #98A1AC;
+  --text-link: #6DA4F2;
+  --border-default: #3A4049;
+  --border-subtle: #2A3037;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.30);
+  --shadow-lg: 0 16px 40px rgba(0,0,0,0.40);
+  --tier-1: #6DA4F2;
+  --tier-2: #5ED6DF;
+  --tier-3: #AAB2BD;
+  --assur-full: #4FBD73;
+  --assur-partial: #E0B247;
+  --assur-contributing: #AAB2BD;
+  --cov-full: #4FBD73;
+  --cov-partial: #E0B247;
+  --cov-contributing: #AAB2BD;
+  --cov-uncovered: #E5806F;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-font-smoothing: antialiased; }
+:focus-visible { outline: 2px solid var(--cisco-blue); outline-offset: 2px; }
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.55;
+  font-size: 15px;
+}
+a { color: var(--text-link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font-family: inherit; cursor: pointer; background: none; border: 0; color: inherit; }
+
+.cn-skip {
+  position: absolute; top: -40px; left: 16px;
+  background: var(--cisco-blue-dark); color: #fff;
+  padding: 8px 14px; border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 600; z-index: 1000;
+  transition: top 0.15s;
+}
+.cn-skip:focus { top: 12px; text-decoration: none; }
+
+/* ----- header (matches scorecard / regulatory-primer tokens) ----- */
+.cn-header {
+  position: sticky; top: 0; z-index: 50;
+  background: var(--bg-header);
+  color: #fff;
+  display: flex; align-items: center; gap: 16px;
+  padding: 12px 24px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+}
+.cn-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.cn-brand-mark {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.25), rgba(255,255,255,0.08));
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 14px; color: #fff;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+.cn-brand-text { min-width: 0; }
+.cn-brand h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  font-variation-settings: "opsz" 24;
+  letter-spacing: -0.01em;
+  margin: 0;
+  line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cn-brand-sub {
+  font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.80);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.cn-header-spacer { flex: 1; }
+.cn-header nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cn-header nav a, .cn-theme-btn {
+  height: 32px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: var(--radius-pill);
+  color: #fff; font-size: 12px; font-weight: 500;
+  text-decoration: none; cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.cn-header nav a:hover, .cn-theme-btn:hover {
+  background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.28); text-decoration: none;
+}
+.cn-theme-btn svg { width: 14px; height: 14px; }
+
+/* ----- shell ----- */
+.cn-shell {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 32px 24px 60px;
+}
+@media (max-width: 720px) {
+  .cn-shell { padding: 20px 14px 40px; }
+}
+.cn-intro {
+  margin-bottom: 22px;
+}
+.cn-intro h2 {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 72;
+  font-weight: 600;
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.012em;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.cn-intro p {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 820px;
+}
+
+/* ----- summary tiles ----- */
+.cn-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 20px 0 22px;
+}
+.cn-tile {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-sm);
+}
+.cn-tile-label {
+  font-size: 10.5px; font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.cn-tile-value {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+.cn-tile-foot {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  margin-top: 3px;
+}
+
+/* ----- controls bar ----- */
+.cn-controls {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  grid-template-columns: minmax(200px, 1.6fr) repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px 12px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+.cn-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cn-field label {
+  font-size: 10.5px; font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.cn-field input, .cn-field select {
+  height: 36px;
+  padding: 0 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.cn-field input:focus, .cn-field select:focus {
+  border-color: var(--cisco-blue);
+  box-shadow: 0 0 0 3px rgba(4,159,217,0.18);
+}
+.cn-field-wide { grid-column: 1 / -1; }
+.cn-field-actions { display: flex; gap: 8px; align-self: end; justify-self: end; }
+.cn-btn {
+  height: 36px; padding: 0 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 13px; font-weight: 600;
+}
+.cn-btn:hover { border-color: var(--cisco-blue); color: var(--cisco-blue); }
+.cn-btn-ghost { border-color: transparent; background: transparent; color: var(--text-secondary); }
+
+/* ----- active filter chips ----- */
+.cn-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; min-height: 24px; }
+.cn-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  background: rgba(4,159,217,0.10);
+  border: 1px solid rgba(4,159,217,0.25);
+  color: var(--cisco-blue-dark);
+  font-size: 11.5px; font-weight: 600;
+  border-radius: var(--radius-pill);
+}
+html.dark .cn-chip { color: var(--cisco-blue); }
+.cn-chip button {
+  border: none; background: transparent;
+  color: inherit; opacity: 0.7; padding: 0; line-height: 1;
+  font-size: 14px;
+}
+.cn-chip button:hover { opacity: 1; }
+
+/* ----- results summary ----- */
+.cn-summary {
+  display: flex; align-items: baseline; gap: 14px;
+  margin: 4px 2px 10px;
+  font-size: 13px; color: var(--text-secondary);
+}
+.cn-summary strong { color: var(--text-primary); font-weight: 700; }
+
+/* ----- table ----- */
+.cn-table-wrap {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.cn-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.cn-table thead th {
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.cn-table thead th[aria-sort="ascending"]::after { content: "  \2191"; color: var(--cisco-blue); font-weight: 700; }
+.cn-table thead th[aria-sort="descending"]::after { content: "  \2193"; color: var(--cisco-blue); font-weight: 700; }
+.cn-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+  line-height: 1.45;
+}
+.cn-table tbody tr.cn-row { cursor: pointer; transition: background .12s; }
+.cn-table tbody tr.cn-row:hover { background: var(--bg-hover); }
+.cn-table tbody tr.cn-row[aria-expanded="true"] { background: var(--bg-hover); }
+.cn-table tbody tr.cn-row-detail td { padding: 0; background: var(--bg-subtle); border-bottom: 1px solid var(--border-subtle); }
+.cn-table tbody tr.cn-row-detail .cn-detail-inner { padding: 14px 16px 18px; }
+
+.cn-reg-cell { min-width: 180px; }
+.cn-reg-name { font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 6px; }
+.cn-reg-ver { font-size: 11px; color: var(--text-tertiary); white-space: nowrap; }
+.cn-clause-code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.cn-clause-topic { font-size: 11.5px; color: var(--text-tertiary); margin-top: 2px; }
+
+.cn-coverage-bar {
+  display: flex;
+  height: 10px;
+  min-width: 120px;
+  max-width: 180px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--border-subtle);
+  border: 1px solid var(--border-default);
+}
+.cn-coverage-bar > span { display: block; height: 100%; }
+.cn-coverage-bar .cov-full { background: var(--cov-full); }
+.cn-coverage-bar .cov-partial { background: var(--cov-partial); }
+.cn-coverage-bar .cov-contributing { background: var(--cov-contributing); }
+.cn-coverage-bar .cov-unknown { background: var(--border-default); }
+.cn-coverage-legend { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+
+.cn-badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 10.5px; font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.cn-badge.tier-1 { background: rgba(0,75,175,0.10); color: var(--tier-1); border-color: rgba(0,75,175,0.22); }
+.cn-badge.tier-2 { background: rgba(4,164,176,0.10); color: var(--tier-2); border-color: rgba(4,164,176,0.22); }
+.cn-badge.tier-3 { background: rgba(101,108,117,0.10); color: var(--tier-3); border-color: rgba(101,108,117,0.22); }
+.cn-badge.cov-full { background: rgba(30,138,75,0.12); color: var(--cov-full); border-color: rgba(30,138,75,0.24); }
+.cn-badge.cov-partial { background: rgba(176,122,20,0.12); color: var(--cov-partial); border-color: rgba(176,122,20,0.25); }
+.cn-badge.cov-contributing { background: rgba(101,108,117,0.10); color: var(--cov-contributing); border-color: rgba(101,108,117,0.22); }
+.cn-badge.cov-uncovered { background: rgba(194,70,50,0.10); color: var(--cov-uncovered); border-color: rgba(194,70,50,0.25); }
+.cn-badge.mode-satisfies { background: rgba(46,160,67,0.08); color: var(--cov-full); border-color: rgba(46,160,67,0.22); }
+.cn-badge.mode-detects-violation-of { background: rgba(218,54,51,0.08); color: var(--cov-uncovered); border-color: rgba(218,54,51,0.22); }
+.cn-badge.mode-assists-with { background: rgba(54,120,218,0.08); color: #0550ae; border-color: rgba(54,120,218,0.22); }
+html.dark .cn-badge.mode-assists-with { color: #7cb4ff; }
+
+.cn-obligation-yes { color: var(--cov-full); font-weight: 600; }
+.cn-obligation-no { color: var(--text-tertiary); }
+
+.cn-row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.cn-linkish {
+  background: transparent; border: 1px solid var(--border-default);
+  padding: 2px 8px; border-radius: var(--radius-pill);
+  color: var(--text-link); font-size: 11.5px; font-weight: 600;
+  text-decoration: none;
+}
+.cn-linkish:hover { border-color: var(--cisco-blue); background: rgba(4,159,217,0.08); text-decoration: none; }
+
+/* ----- detail panel ----- */
+.cn-detail-head {
+  display: flex; flex-wrap: wrap; gap: 10px 18px;
+  align-items: baseline;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.cn-detail-head h3 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+.cn-detail-meta {
+  font-size: 12px; color: var(--text-tertiary);
+  display: flex; flex-wrap: wrap; gap: 10px;
+}
+.cn-obligation-block {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--cisco-blue);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.cn-obligation-block em { color: var(--text-tertiary); font-style: normal; font-size: 11.5px; }
+.cn-gap-note {
+  background: rgba(194,70,50,0.08);
+  border: 1px solid rgba(194,70,50,0.25);
+  border-left: 3px solid var(--cov-uncovered);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.cn-ucs-head {
+  font-size: 11px; font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  margin: 4px 0 6px;
+}
+.cn-ucs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.cn-ucs-table th {
+  text-align: left;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 10.5px; font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cn-ucs-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+.cn-ucs-table tr:last-child td { border-bottom: none; }
+.cn-ucs-table .cn-rationale { color: var(--text-secondary); font-size: 11.5px; line-height: 1.4; max-width: 680px; }
+.cn-loading { color: var(--text-tertiary); font-size: 12.5px; padding: 8px 0; }
+.cn-error {
+  background: rgba(194,70,50,0.08);
+  border: 1px solid rgba(194,70,50,0.25);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 12.5px;
+}
+
+/* ----- empty state ----- */
+.cn-empty {
+  padding: 36px 20px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+.cn-empty strong { color: var(--text-primary); display: block; font-size: 15px; margin-bottom: 4px; }
+
+/* ----- pagination ----- */
+.cn-pager {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border-default);
+}
+.cn-pager button {
+  height: 28px; padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  font-size: 12px; font-weight: 600;
+  color: var(--text-primary);
+}
+.cn-pager button:disabled { opacity: 0.45; cursor: not-allowed; }
+.cn-pager button:hover:not(:disabled) { border-color: var(--cisco-blue); color: var(--cisco-blue); }
+
+/* ----- footer ----- */
+.cn-footer {
+  max-width: 1440px; margin: 28px auto 0;
+  padding: 18px 24px 32px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: baseline;
+  border-top: 1px solid var(--border-subtle);
+}
+.cn-footer a { color: var(--text-link); }
+.cn-footer strong { color: var(--text-secondary); }
+
+@media print {
+  .cn-header, .cn-controls, .cn-chips, .cn-pager, .cn-footer { display: none !important; }
+  body { background: #fff; color: #000; }
+  .cn-table-wrap, .cn-tile { box-shadow: none !important; border-color: #ccc !important; }
+}
+</style>
+</head>
+<body>
+<a href="#cn-main" class="cn-skip">Skip to content</a>
+
+<header class="cn-header" role="banner">
+  <div class="cn-brand">
+    <div class="cn-brand-mark" aria-hidden="true">&sect;</div>
+    <div class="cn-brand-text">
+      <h1>Clause navigator</h1>
+      <div class="cn-brand-sub">Regulation-to-use-case coverage, one row per clause</div>
+    </div>
+  </div>
+  <div class="cn-header-spacer"></div>
+  <nav aria-label="Primary">
+    <a href="index.html" title="Back to the main catalogue">Catalogue</a>
+    <a href="regulatory-primer.html" title="Plain-language regulatory primer">Primer</a>
+    <a href="compliance-story.html" title="Buyer story &mdash; per-regulation narrative with highlights and gaps">Compliance story</a>
+    <a href="scorecard.html" title="Compliance + quality scorecard">Scorecard</a>
+    <a href="api-docs.html" title="REST API reference">API docs</a>
+    <button type="button" class="cn-theme-btn" id="cn-theme-btn" aria-label="Toggle dark mode" title="Toggle dark mode">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4"></circle>
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+      </svg>
+      <span id="cn-theme-label">Dark</span>
+    </button>
+  </nav>
+</header>
+
+<main id="cn-main" class="cn-shell" tabindex="-1">
+
+  <section class="cn-intro">
+    <h2>Every clause we have evidence for</h2>
+    <p>
+      One row per regulatory clause the catalogue has mapped. Filter by
+      regulation, coverage state, or tier; drill into a clause to see the
+      covering use cases, their mode
+      (<em>satisfies</em>&thinsp;/&thinsp;<em>detects-violation-of</em>),
+      assurance level, and auditor-facing rationale. Every link deep-links
+      into the main catalogue with the regulation &amp; clause filters
+      pre-applied &mdash; no extra clicks needed to verify coverage.
+    </p>
+  </section>
+
+  <section class="cn-tiles" aria-label="Coverage summary">
+    <div class="cn-tile"><div class="cn-tile-label">Regulations</div><div class="cn-tile-value" id="cn-tile-regs">&mdash;</div><div class="cn-tile-foot">with at least one mapped clause</div></div>
+    <div class="cn-tile"><div class="cn-tile-label">Clauses</div><div class="cn-tile-value" id="cn-tile-clauses">&mdash;</div><div class="cn-tile-foot">in the live catalogue</div></div>
+    <div class="cn-tile"><div class="cn-tile-label">Full assurance</div><div class="cn-tile-value" id="cn-tile-full">&mdash;</div><div class="cn-tile-foot">clauses with at least one full-assurance UC</div></div>
+    <div class="cn-tile"><div class="cn-tile-label">Partial assurance</div><div class="cn-tile-value" id="cn-tile-partial">&mdash;</div><div class="cn-tile-foot">clauses whose strongest UC is partial</div></div>
+    <div class="cn-tile"><div class="cn-tile-label">Obligation text</div><div class="cn-tile-value" id="cn-tile-obl">&mdash;</div><div class="cn-tile-foot">clauses carrying authoritative text (Phase 4)</div></div>
+  </section>
+
+  <section class="cn-controls" aria-label="Filters">
+    <div class="cn-field cn-field-wide">
+      <label for="cn-search">Search</label>
+      <input type="search" id="cn-search" placeholder="Filter by regulation, clause id, topic, or regulation short name\u2026" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="cn-field">
+      <label for="cn-reg">Regulation</label>
+      <select id="cn-reg"><option value="all">All regulations</option></select>
+    </div>
+    <div class="cn-field">
+      <label for="cn-coverage">Coverage</label>
+      <select id="cn-coverage">
+        <option value="all">All coverage states</option>
+        <option value="covered-full">Full (at least one full-assurance UC)</option>
+        <option value="covered-partial">Partial (strongest UC is partial)</option>
+        <option value="covered-contributing">Contributing only</option>
+        <option value="uncovered">Uncovered</option>
+      </select>
+    </div>
+    <div class="cn-field">
+      <label for="cn-tier">Tier</label>
+      <select id="cn-tier">
+        <option value="all">All tiers</option>
+        <option value="1">Tier 1 &mdash; primary</option>
+        <option value="2">Tier 2 &mdash; secondary</option>
+        <option value="3">Tier 3 &mdash; supplementary</option>
+      </select>
+    </div>
+    <div class="cn-field">
+      <label for="cn-obl">Obligation text</label>
+      <select id="cn-obl">
+        <option value="all">Any</option>
+        <option value="present">Present in regulations.json</option>
+        <option value="missing">Missing (SME backfill needed)</option>
+      </select>
+    </div>
+    <div class="cn-field-actions">
+      <button type="button" class="cn-btn cn-btn-ghost" id="cn-reset" title="Reset all filters to defaults">Reset</button>
+      <button type="button" class="cn-btn" id="cn-export-csv" title="Export the current filtered view as CSV">Export CSV</button>
+    </div>
+  </section>
+
+  <div class="cn-chips" id="cn-chips" aria-label="Active filters"></div>
+
+  <div class="cn-summary" id="cn-summary" aria-live="polite">Loading&hellip;</div>
+
+  <div class="cn-table-wrap" id="cn-table-wrap" role="region" aria-label="Clause coverage table">
+    <table class="cn-table" id="cn-table">
+      <thead>
+        <tr>
+          <th data-sort="regulationShortName" scope="col">Regulation</th>
+          <th data-sort="clause" scope="col">Clause</th>
+          <th data-sort="coverageRank" scope="col">Coverage</th>
+          <th data-sort="coveringUcCount" scope="col" style="text-align:right">UCs</th>
+          <th data-sort="tier" scope="col">Tier</th>
+          <th data-sort="obligationPresent" scope="col">Obligation</th>
+          <th scope="col" style="cursor:default">Open</th>
+        </tr>
+      </thead>
+      <tbody id="cn-tbody">
+        <tr><td colspan="7" class="cn-empty"><strong>Loading clause index&hellip;</strong>Fetching <code>api/v1/compliance/clauses/index.json</code></td></tr>
+      </tbody>
+    </table>
+    <div class="cn-pager" id="cn-pager" hidden>
+      <div id="cn-pager-label">&mdash;</div>
+      <div>
+        <button type="button" id="cn-pager-prev">&larr; Previous</button>
+        <button type="button" id="cn-pager-next">Next &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="cn-footer">
+  <div><strong>Clause navigator</strong> &mdash; built from <a href="api/v1/compliance/clauses/index.json" target="_blank" rel="noopener"><code>api/v1/compliance/clauses/index.json</code></a>. Per-clause detail lazy-fetched from <code>api/v1/compliance/clauses/&lt;clauseId&gt;.json</code>.</div>
+  <div>
+    <a href="index.html">&larr; Back to catalogue</a>
+    <span aria-hidden="true"> &middot; </span>
+    <a href="regulatory-primer.html">Primer</a>
+    <span aria-hidden="true"> &middot; </span>
+    <a href="scorecard.html">Scorecard</a>
+    <span aria-hidden="true"> &middot; </span>
+    <a href="docs/coverage-methodology.md" target="_blank" rel="noopener">Coverage methodology</a>
+    <span aria-hidden="true"> &middot; </span>
+    <a href="LEGAL.md" target="_blank" rel="noopener">Legal &amp; provenance</a>
+  </div>
+</footer>
+
+<script>
+/* ================================================================
+ * Clause Navigator (Phase 3b)
+ * ----------------------------------------------------------------
+ * Reads api/v1/compliance/clauses/index.json once on load, then
+ * lazy-fetches per-clause detail on row expand. No catalog data is
+ * loaded here — the page is deliberately lean (~15 kB after gzip)
+ * so an auditor can open it on a restricted network and still get
+ * the full coverage picture.
+ * ================================================================ */
+(function () {
+  "use strict";
+
+  // ----- theme toggle (mirrors regulatory-primer.html behaviour) -----
+  var THEME_KEY = "cn-theme";
+  var root = document.documentElement;
+  var themeBtn = document.getElementById("cn-theme-btn");
+  var themeLabel = document.getElementById("cn-theme-label");
+  function setTheme(name) {
+    if (name === "dark") root.classList.add("dark");
+    else root.classList.remove("dark");
+    try { localStorage.setItem(THEME_KEY, name); } catch (_) { /* ignore */ }
+    if (themeLabel) themeLabel.textContent = (name === "dark" ? "Light" : "Dark");
+  }
+  var saved = null;
+  try { saved = localStorage.getItem(THEME_KEY); } catch (_) { /* ignore */ }
+  if (saved === "dark" || saved === "light") setTheme(saved);
+  else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) setTheme("dark");
+  else setTheme("light");
+  if (themeBtn) {
+    themeBtn.addEventListener("click", function () {
+      setTheme(root.classList.contains("dark") ? "light" : "dark");
+    });
+  }
+
+  // ----- state -----
+  var STATE = {
+    rawClauses: [],      // raw entries from index.json
+    clauses: [],         // same entries, decorated with sort/display helpers
+    regulations: {},     // regulationId → short name
+    detailCache: {},     // clauseId → fetched detail payload
+    pendingDetail: {},   // clauseId → Promise (dedupe concurrent fetches)
+    filters: {
+      search: "",
+      regulationId: "all",
+      coverage: "all",
+      tier: "all",
+      obligation: "all",
+    },
+    sort: { key: "regulationShortName", dir: "asc" },
+    pageSize: 75,
+    page: 0,
+    expanded: null,      // clauseId currently expanded
+  };
+
+  // Map the index's ``coverageState`` strings to a numeric rank so
+  // sorting "Coverage" puts full → partial → contributing → uncovered
+  // in a predictable order regardless of locale.
+  var COVERAGE_RANK = {
+    "covered-full": 3,
+    "covered-partial": 2,
+    "covered-contributing": 1,
+    "uncovered": 0,
+  };
+  var COVERAGE_LABEL = {
+    "covered-full": "Full",
+    "covered-partial": "Partial",
+    "covered-contributing": "Contributing",
+    "uncovered": "Uncovered",
+  };
+  var COVERAGE_BADGE = {
+    "covered-full": "cov-full",
+    "covered-partial": "cov-partial",
+    "covered-contributing": "cov-contributing",
+    "uncovered": "cov-uncovered",
+  };
+
+  // ----- helpers -----
+  function escapeHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+  function escapeAttr(s) { return escapeHtml(s); }
+  function formatNumber(n) {
+    if (n == null || isNaN(n)) return "\u2014";
+    return Number(n).toLocaleString();
+  }
+  function clauseShareLink(row) {
+    // Deep link to the catalogue with regulation + clause pre-applied.
+    // Catalogue understands hash shape: #reg=<regShort>&clause=<ver>#<cl>
+    // Short name is used (not id) because that's the exact value
+    // compared against allUCs[].uc.regs[] in getFilteredUCs().
+    var reg = row.regulationShortName || row.regulationId;
+    var canonical = (row.version || "") + "#" + (row.clause || "");
+    return (
+      "index.html#reg=" + encodeURIComponent(reg) +
+      "&clause=" + encodeURIComponent(canonical)
+    );
+  }
+  function clauseDirectLink(row) {
+    // Direct link back to the clause navigator that pre-expands this row
+    // (used when sharing a specific clause). We do NOT use this as a
+    // navigation target for filtering — the catalogue link above serves
+    // that purpose.
+    return "#clause=" + encodeURIComponent(row.clauseId);
+  }
+
+  // ----- data load -----
+  function loadIndex() {
+    return fetch("api/v1/compliance/clauses/index.json", {
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" },
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (payload) {
+        if (!payload || !Array.isArray(payload.clauses)) {
+          throw new Error("Invalid clause index payload");
+        }
+        STATE.rawClauses = payload.clauses;
+        // Build a regulation id → short name map from the clause rows
+        // so we never have to fetch regulations.json just to label the
+        // dropdown. Keep the first short name we see for any given id.
+        var regSet = Object.create(null);
+        payload.clauses.forEach(function (c) {
+          if (!c || !c.regulationId) return;
+          if (!regSet[c.regulationId]) {
+            regSet[c.regulationId] = c.regulationShortName || c.regulationId;
+          }
+        });
+        STATE.regulations = regSet;
+        decorateClauses();
+        populateRegSelect();
+        renderSummaryTiles(payload);
+        renderTable();
+        applyInitialHash();
+      })
+      .catch(function (err) {
+        console.error("[clause-navigator] index load failed:", err);
+        document.getElementById("cn-tbody").innerHTML =
+          '<tr><td colspan="7" class="cn-empty"><strong>Could not load clause index.</strong>' +
+          escapeHtml(String(err && err.message ? err.message : err)) +
+          "</td></tr>";
+        document.getElementById("cn-summary").textContent = "Load failed.";
+      });
+  }
+
+  function decorateClauses() {
+    STATE.clauses = STATE.rawClauses.map(function (c) {
+      var row = Object.assign({}, c);
+      row.coverageRank = COVERAGE_RANK[c.coverageState] != null
+        ? COVERAGE_RANK[c.coverageState] : -1;
+      row.obligationPresent = !!c.obligationTextPresent;
+      row.searchBlob = [
+        c.regulationId || "",
+        c.regulationShortName || "",
+        c.clause || "",
+        c.version || "",
+        c.topic || "",
+      ].join(" ").toLowerCase();
+      return row;
+    });
+  }
+
+  function populateRegSelect() {
+    var sel = document.getElementById("cn-reg");
+    var ids = Object.keys(STATE.regulations).sort(function (a, b) {
+      return STATE.regulations[a].localeCompare(STATE.regulations[b], undefined, { sensitivity: "base" });
+    });
+    // Count clauses per regulation to give auditors a sense of scale.
+    var counts = Object.create(null);
+    STATE.clauses.forEach(function (c) {
+      if (!c.regulationId) return;
+      counts[c.regulationId] = (counts[c.regulationId] || 0) + 1;
+    });
+    var html = '<option value="all">All regulations</option>';
+    ids.forEach(function (id) {
+      html += '<option value="' + escapeAttr(id) + '">' +
+        escapeHtml(STATE.regulations[id]) +
+        " \u2014 " + (counts[id] || 0) + " clauses</option>";
+    });
+    sel.innerHTML = html;
+  }
+
+  function renderSummaryTiles(payload) {
+    var total = STATE.clauses.length;
+    var regCount = Object.keys(STATE.regulations).length;
+    var full = 0, partial = 0, obl = 0;
+    STATE.clauses.forEach(function (c) {
+      if (c.coverageState === "covered-full") full++;
+      else if (c.coverageState === "covered-partial") partial++;
+      if (c.obligationPresent) obl++;
+    });
+    function pct(n) { return total ? Math.round((n / total) * 100) + "%" : "\u2014"; }
+    document.getElementById("cn-tile-regs").textContent = formatNumber(regCount);
+    document.getElementById("cn-tile-clauses").textContent = formatNumber(total);
+    document.getElementById("cn-tile-full").textContent = formatNumber(full);
+    document.getElementById("cn-tile-full").setAttribute("title", pct(full) + " of mapped clauses");
+    document.getElementById("cn-tile-partial").textContent = formatNumber(partial);
+    document.getElementById("cn-tile-partial").setAttribute("title", pct(partial) + " of mapped clauses");
+    document.getElementById("cn-tile-obl").textContent = formatNumber(obl);
+    document.getElementById("cn-tile-obl").setAttribute("title", pct(obl) + " of mapped clauses carry obligation text");
+  }
+
+  // ----- filtering + sorting -----
+  function filtered() {
+    var f = STATE.filters;
+    var q = (f.search || "").trim().toLowerCase();
+    return STATE.clauses.filter(function (c) {
+      if (f.regulationId !== "all" && c.regulationId !== f.regulationId) return false;
+      if (f.coverage !== "all" && c.coverageState !== f.coverage) return false;
+      if (f.tier !== "all" && String(c.tier || "") !== f.tier) return false;
+      if (f.obligation === "present" && !c.obligationPresent) return false;
+      if (f.obligation === "missing" && c.obligationPresent) return false;
+      if (q && c.searchBlob.indexOf(q) === -1) return false;
+      return true;
+    });
+  }
+
+  function sorted(rows) {
+    var key = STATE.sort.key, dir = STATE.sort.dir === "desc" ? -1 : 1;
+    return rows.slice().sort(function (a, b) {
+      var va = a[key], vb = b[key];
+      // Numeric-aware sort for clause codes so "Art.2" < "Art.10".
+      if (key === "clause") {
+        return String(va || "").localeCompare(String(vb || ""), undefined, { numeric: true, sensitivity: "base" }) * dir;
+      }
+      if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
+      if (typeof va === "boolean" && typeof vb === "boolean") return ((va === vb) ? 0 : (va ? -1 : 1)) * dir;
+      return String(va == null ? "" : va).localeCompare(String(vb == null ? "" : vb), undefined, { sensitivity: "base" }) * dir;
+    });
+  }
+
+  // ----- rendering -----
+  function renderTable() {
+    var rows = sorted(filtered());
+    var total = rows.length;
+    var pageSize = STATE.pageSize;
+    var maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);
+    if (STATE.page > maxPage) STATE.page = maxPage;
+    var start = STATE.page * pageSize;
+    var end = Math.min(total, start + pageSize);
+    var pageRows = rows.slice(start, end);
+
+    var tbody = document.getElementById("cn-tbody");
+    if (!total) {
+      tbody.innerHTML =
+        '<tr><td colspan="7" class="cn-empty"><strong>No clauses match your filters.</strong>Try widening the coverage state or removing the search term.</td></tr>';
+    } else {
+      var html = "";
+      pageRows.forEach(function (c) {
+        html += renderRow(c);
+      });
+      tbody.innerHTML = html;
+      // Re-expand the same clause if the user had it open and it's
+      // still in the current page (keeps context stable when they
+      // paginate or tweak filters).
+      if (STATE.expanded) {
+        var tr = tbody.querySelector('tr.cn-row[data-clause-id="' + cssEscape(STATE.expanded) + '"]');
+        if (tr) expandRow(tr, STATE.expanded, /*keepOpen=*/true);
+      }
+    }
+
+    // Summary + pager + sort indicators.
+    var summary = "Showing " + formatNumber(Math.min(end - start, total)) +
+      " of " + formatNumber(total) + " clauses";
+    if (total < STATE.clauses.length) {
+      summary += " (filtered from " + formatNumber(STATE.clauses.length) + ")";
+    }
+    document.getElementById("cn-summary").textContent = summary;
+    renderChips();
+
+    var pager = document.getElementById("cn-pager");
+    if (total > pageSize) {
+      pager.hidden = false;
+      document.getElementById("cn-pager-label").textContent =
+        "Page " + (STATE.page + 1) + " of " + (maxPage + 1);
+      document.getElementById("cn-pager-prev").disabled = STATE.page === 0;
+      document.getElementById("cn-pager-next").disabled = STATE.page === maxPage;
+    } else {
+      pager.hidden = true;
+    }
+    updateSortIndicators();
+  }
+
+  function renderRow(c) {
+    var cssCov = COVERAGE_BADGE[c.coverageState] || "cov-uncovered";
+    var covLabel = COVERAGE_LABEL[c.coverageState] || c.coverageState || "\u2014";
+    var tierLabel = c.tier ? ("Tier " + c.tier) : "\u2014";
+    var tierClass = c.tier ? ("tier-" + c.tier) : "tier-3";
+    var obligation = c.obligationPresent
+      ? '<span class="cn-obligation-yes" title="Authoritative obligation text stored in data/regulations.json">\u2713 Present</span>'
+      : '<span class="cn-obligation-no" title="Needs SME backfill (Phase 4)">\u2014</span>';
+    var bar = renderCoverageBar(c);
+    var rowId = "cn-row-" + cssSafeId(c.clauseId);
+    return (
+      '<tr class="cn-row" data-clause-id="' + escapeAttr(c.clauseId) + '" tabindex="0" aria-expanded="false" id="' + rowId + '">' +
+        '<td class="cn-reg-cell">' +
+          '<div class="cn-reg-name">' + escapeHtml(c.regulationShortName || c.regulationId || "\u2014") + '</div>' +
+          '<div class="cn-reg-ver">' + escapeHtml(c.version || "") + '</div>' +
+        "</td>" +
+        '<td>' +
+          '<div class="cn-clause-code">' + escapeHtml(c.clause || "\u2014") + '</div>' +
+          (c.topic ? '<div class="cn-clause-topic">' + escapeHtml(c.topic) + '</div>' : "") +
+        "</td>" +
+        '<td>' +
+          '<span class="cn-badge ' + cssCov + '" title="Coverage state">' + escapeHtml(covLabel) + '</span>' +
+          bar +
+        "</td>" +
+        '<td style="text-align:right; font-variant-numeric: tabular-nums; font-weight:600">' +
+          formatNumber(c.coveringUcCount || 0) +
+        "</td>" +
+        '<td><span class="cn-badge ' + tierClass + '">' + escapeHtml(tierLabel) + "</span></td>" +
+        "<td>" + obligation + "</td>" +
+        '<td class="cn-row-actions">' +
+          '<a class="cn-linkish" href="' + escapeAttr(clauseShareLink(c)) + '" title="Open this clause in the main catalogue">Catalogue \u2192</a>' +
+        "</td>" +
+      "</tr>"
+    );
+  }
+
+  function renderCoverageBar(c) {
+    var b = c.assuranceBreakdown || {};
+    var total = (b.full || 0) + (b.partial || 0) + (b.contributing || 0) + (b.unknown || 0);
+    if (!total) return "";
+    function seg(cls, n) {
+      if (!n) return "";
+      var pct = (n / total) * 100;
+      return '<span class="' + cls + '" style="width:' + pct.toFixed(1) + '%" title="' + n + " " + cls.replace("cov-", "") + '"></span>';
+    }
+    return (
+      '<div class="cn-coverage-bar" aria-hidden="true">' +
+        seg("cov-full", b.full || 0) +
+        seg("cov-partial", b.partial || 0) +
+        seg("cov-contributing", b.contributing || 0) +
+        seg("cov-unknown", b.unknown || 0) +
+      "</div>" +
+      '<div class="cn-coverage-legend">' +
+        (b.full || 0) + " full &middot; " + (b.partial || 0) + " partial &middot; " + (b.contributing || 0) + " contrib." +
+      "</div>"
+    );
+  }
+
+  function renderChips() {
+    var f = STATE.filters;
+    var chips = [];
+    if (f.search) chips.push(chip("Search", f.search, "search"));
+    if (f.regulationId !== "all") {
+      chips.push(chip("Regulation", STATE.regulations[f.regulationId] || f.regulationId, "regulationId"));
+    }
+    if (f.coverage !== "all") chips.push(chip("Coverage", COVERAGE_LABEL[f.coverage] || f.coverage, "coverage"));
+    if (f.tier !== "all") chips.push(chip("Tier", "Tier " + f.tier, "tier"));
+    if (f.obligation !== "all") chips.push(chip("Obligation", f.obligation === "present" ? "Present" : "Missing", "obligation"));
+    var el = document.getElementById("cn-chips");
+    el.innerHTML = chips.join("");
+    Array.prototype.forEach.call(el.querySelectorAll("button[data-clear]"), function (btn) {
+      btn.addEventListener("click", function () {
+        clearFilter(btn.getAttribute("data-clear"));
+      });
+    });
+  }
+  function chip(label, value, key) {
+    return (
+      '<span class="cn-chip">' + escapeHtml(label) + ": " + escapeHtml(value) +
+        ' <button type="button" aria-label="Clear ' + escapeAttr(label) + ' filter" data-clear="' + escapeAttr(key) + '">\u2715</button>' +
+      "</span>"
+    );
+  }
+
+  function updateSortIndicators() {
+    Array.prototype.forEach.call(document.querySelectorAll("#cn-table thead th[data-sort]"), function (th) {
+      var key = th.getAttribute("data-sort");
+      if (key !== STATE.sort.key) {
+        th.removeAttribute("aria-sort");
+      } else {
+        th.setAttribute("aria-sort", STATE.sort.dir === "desc" ? "descending" : "ascending");
+      }
+    });
+  }
+
+  // ----- expand / collapse row with lazy detail fetch -----
+  function expandRow(tr, clauseId, keepOpen) {
+    var tbody = document.getElementById("cn-tbody");
+    var existingDetail = tbody.querySelector('tr.cn-row-detail[data-clause-id="' + cssEscape(clauseId) + '"]');
+    if (existingDetail && !keepOpen) {
+      existingDetail.remove();
+      tr.setAttribute("aria-expanded", "false");
+      STATE.expanded = null;
+      return;
+    }
+    // Collapse any other open row (single-expansion model keeps DOM small).
+    if (STATE.expanded && STATE.expanded !== clauseId) {
+      var otherRow = tbody.querySelector('tr.cn-row[data-clause-id="' + cssEscape(STATE.expanded) + '"]');
+      var otherDetail = tbody.querySelector('tr.cn-row-detail[data-clause-id="' + cssEscape(STATE.expanded) + '"]');
+      if (otherDetail) otherDetail.remove();
+      if (otherRow) otherRow.setAttribute("aria-expanded", "false");
+    }
+    if (!existingDetail) {
+      var detail = document.createElement("tr");
+      detail.className = "cn-row-detail";
+      detail.setAttribute("data-clause-id", clauseId);
+      detail.innerHTML = '<td colspan="7"><div class="cn-detail-inner"><div class="cn-loading">Loading clause detail\u2026</div></div></td>';
+      tr.parentNode.insertBefore(detail, tr.nextSibling);
+    }
+    tr.setAttribute("aria-expanded", "true");
+    STATE.expanded = clauseId;
+    fetchDetail(clauseId).then(function (data) {
+      var target = tbody.querySelector('tr.cn-row-detail[data-clause-id="' + cssEscape(clauseId) + '"] .cn-detail-inner');
+      if (target) target.innerHTML = renderDetail(data);
+    }, function (err) {
+      var target = tbody.querySelector('tr.cn-row-detail[data-clause-id="' + cssEscape(clauseId) + '"] .cn-detail-inner');
+      if (target) {
+        target.innerHTML = '<div class="cn-error">Detail fetch failed: ' + escapeHtml(String(err && err.message ? err.message : err)) + '</div>';
+      }
+    });
+  }
+
+  function fetchDetail(clauseId) {
+    if (STATE.detailCache[clauseId]) return Promise.resolve(STATE.detailCache[clauseId]);
+    if (STATE.pendingDetail[clauseId]) return STATE.pendingDetail[clauseId];
+    var row = STATE.clauses.find(function (c) { return c.clauseId === clauseId; });
+    if (!row) return Promise.reject(new Error("Unknown clauseId: " + clauseId));
+    // The index stores the exact endpoint path (URL-encoded filename).
+    // We strip a leading ``/`` so the path is relative to the site root
+    // and works both at /clause-navigator.html and /subdir/... hosts.
+    var endpoint = (row.endpoint || "").replace(/^\/+/, "");
+    if (!endpoint) return Promise.reject(new Error("Missing endpoint for " + clauseId));
+    var p = fetch(endpoint, { credentials: "same-origin", headers: { "Accept": "application/json" } })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        STATE.detailCache[clauseId] = data;
+        delete STATE.pendingDetail[clauseId];
+        return data;
+      })
+      .catch(function (err) {
+        delete STATE.pendingDetail[clauseId];
+        throw err;
+      });
+    STATE.pendingDetail[clauseId] = p;
+    return p;
+  }
+
+  function renderDetail(d) {
+    var parts = [];
+    parts.push('<div class="cn-detail-head">');
+    parts.push("<h3>" + escapeHtml(d.regulationShortName || d.regulationId || "Clause detail") + " \u00b7 " + escapeHtml(d.clause || "") + "</h3>");
+    parts.push('<div class="cn-detail-meta">');
+    if (d.version) parts.push("<span>Version " + escapeHtml(d.version) + "</span>");
+    if (d.topic) parts.push("<span>" + escapeHtml(d.topic) + "</span>");
+    if (d.tier) parts.push("<span>Tier " + escapeHtml(String(d.tier)) + "</span>");
+    if (d.authoritativeUrl) {
+      parts.push('<a href="' + escapeAttr(d.authoritativeUrl) + '" target="_blank" rel="noopener noreferrer">Open regulator\u2019s page \u2197</a>');
+    }
+    parts.push("</div></div>");
+
+    if (d.obligationText) {
+      parts.push('<div class="cn-obligation-block">' +
+        "<em>Obligation text (from regulations.json):</em><br>" +
+        escapeHtml(d.obligationText) +
+        (d.obligationSource ? '<br><em>Source: ' + escapeHtml(d.obligationSource) + "</em>" : "") +
+      "</div>");
+    } else {
+      parts.push('<div class="cn-obligation-block">' +
+        "<em>Obligation text not yet stored in <code>data/regulations.json</code>.</em> Phase\u202f4 migration will backfill this with a flag for SME review." +
+      "</div>");
+    }
+
+    if (d.gapNote) {
+      parts.push('<div class="cn-gap-note"><strong>Coverage gap:</strong> ' + escapeHtml(d.gapNote) + "</div>");
+    }
+
+    var ucs = Array.isArray(d.coveringUcs) ? d.coveringUcs : [];
+    parts.push('<div class="cn-ucs-head">Covering use cases (' + ucs.length + ")</div>");
+    if (!ucs.length) {
+      parts.push('<div class="cn-error">No use cases are currently mapped to this clause.</div>');
+    } else {
+      parts.push('<table class="cn-ucs-table"><thead><tr>' +
+        '<th>UC</th><th>Title</th><th>Mode</th><th>Assurance</th><th>Rationale</th><th></th>' +
+        "</tr></thead><tbody>");
+      ucs.forEach(function (uc) {
+        var critLabel = uc.criticality ? (" \u00b7 " + uc.criticality) : "";
+        var modeLabel = uc.mode || "\u2014";
+        var modeClass = "mode-" + cssSafeClass(modeLabel);
+        var assurLabel = uc.assurance || "\u2014";
+        var assurClass = "cov-" + cssSafeClass(assurLabel === "contributing" ? "contributing" : assurLabel);
+        var ucId = uc.ucId || "";
+        var ucLink = "index.html#uc-" + encodeURIComponent(ucId);
+        var flags = [];
+        if (uc.legalCaveat) flags.push("legal caveat");
+        if (uc.smeCaveat) flags.push("SME caveat");
+        if (!uc.controlObjective) flags.push("control objective pending");
+        if (!uc.evidenceArtifact) flags.push("evidence artefact pending");
+        var rationale = uc.assuranceRationale || "";
+        if (flags.length) {
+          rationale += (rationale ? "<br><br>" : "") +
+            "<em>Flags:</em> " + flags.map(escapeHtml).join(", ");
+        }
+        parts.push(
+          "<tr>" +
+            "<td><code>UC-" + escapeHtml(ucId) + "</code><br><span style=\"color:var(--text-tertiary); font-size:11px\">cat " + escapeHtml(String(uc.category || "?")) + critLabel + "</span></td>" +
+            "<td>" + escapeHtml(uc.ucTitle || "") + "</td>" +
+            '<td><span class="cn-badge ' + modeClass + '">' + escapeHtml(modeLabel) + "</span></td>" +
+            '<td><span class="cn-badge ' + assurClass + '">' + escapeHtml(assurLabel) + "</span></td>" +
+            '<td><div class="cn-rationale">' + rationale + "</div></td>" +
+            '<td><a class="cn-linkish" href="' + escapeAttr(ucLink) + '">Open UC \u2192</a></td>' +
+          "</tr>"
+        );
+      });
+      parts.push("</tbody></table>");
+    }
+    return parts.join("");
+  }
+
+  // ----- CSS-safe ID/class helpers (polyfill for CSS.escape) -----
+  function cssEscape(str) {
+    if (window.CSS && typeof window.CSS.escape === "function") return window.CSS.escape(str);
+    return String(str).replace(/([^a-zA-Z0-9_-])/g, "\\$1");
+  }
+  function cssSafeId(str) {
+    return String(str).replace(/[^a-zA-Z0-9_-]+/g, "_");
+  }
+  function cssSafeClass(str) {
+    return String(str).toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+  }
+
+  // ----- CSV export -----
+  function exportCsv() {
+    var rows = sorted(filtered());
+    if (!rows.length) return;
+    var headers = [
+      "regulationId", "regulationShortName", "version", "clause", "topic", "tier",
+      "coverageState", "coveringUcCount", "assurance_full", "assurance_partial",
+      "assurance_contributing", "obligationTextPresent", "endpoint",
+    ];
+    var lines = [headers.map(csvCell).join(",")];
+    rows.forEach(function (r) {
+      var b = r.assuranceBreakdown || {};
+      lines.push([
+        r.regulationId, r.regulationShortName, r.version, r.clause, r.topic, r.tier,
+        r.coverageState, r.coveringUcCount || 0,
+        b.full || 0, b.partial || 0, b.contributing || 0,
+        r.obligationPresent ? "true" : "false",
+        r.endpoint || "",
+      ].map(csvCell).join(","));
+    });
+    var blob = new Blob([lines.join("\n") + "\n"], { type: "text/csv;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "clause-coverage-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 100);
+  }
+  function csvCell(v) {
+    if (v == null) return "";
+    var s = String(v);
+    if (/[",\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  // ----- filter wiring -----
+  function clearFilter(key) {
+    if (key === "search") {
+      STATE.filters.search = "";
+      document.getElementById("cn-search").value = "";
+    } else if (key === "regulationId") {
+      STATE.filters.regulationId = "all";
+      document.getElementById("cn-reg").value = "all";
+    } else if (key === "coverage") {
+      STATE.filters.coverage = "all";
+      document.getElementById("cn-coverage").value = "all";
+    } else if (key === "tier") {
+      STATE.filters.tier = "all";
+      document.getElementById("cn-tier").value = "all";
+    } else if (key === "obligation") {
+      STATE.filters.obligation = "all";
+      document.getElementById("cn-obl").value = "all";
+    }
+    STATE.page = 0;
+    renderTable();
+  }
+
+  function resetAllFilters() {
+    STATE.filters = { search: "", regulationId: "all", coverage: "all", tier: "all", obligation: "all" };
+    document.getElementById("cn-search").value = "";
+    document.getElementById("cn-reg").value = "all";
+    document.getElementById("cn-coverage").value = "all";
+    document.getElementById("cn-tier").value = "all";
+    document.getElementById("cn-obl").value = "all";
+    STATE.page = 0;
+    renderTable();
+  }
+
+  // ----- bootstrap wiring -----
+  function applyInitialHash() {
+    var h = (location.hash || "").replace(/^#/, "");
+    if (!h) return;
+    // Support ``#clause=<clauseId>`` and ``#reg=<regId>`` as deep-link
+    // shapes from external tools (evidence packs, emails).
+    var m = h.match(/^clause=(.+)$/);
+    if (m) {
+      var id;
+      try { id = decodeURIComponent(m[1]); } catch (_) { id = m[1]; }
+      // Find the row, scroll into view and expand it.
+      var tbody = document.getElementById("cn-tbody");
+      // Might not be rendered yet if sort mutates ordering — render once
+      // then look up.
+      renderTable();
+      var tr = tbody.querySelector('tr.cn-row[data-clause-id="' + cssEscape(id) + '"]');
+      if (tr) {
+        tr.scrollIntoView({ behavior: "smooth", block: "center" });
+        expandRow(tr, id, /*keepOpen=*/false);
+      }
+      return;
+    }
+    var rm = h.match(/^reg=([^&]+)$/);
+    if (rm) {
+      var reg;
+      try { reg = decodeURIComponent(rm[1]); } catch (_) { reg = rm[1]; }
+      // Accept either regulation id or short name — whichever matches.
+      var matchId = Object.keys(STATE.regulations).find(function (id) {
+        return id === reg || STATE.regulations[id] === reg;
+      });
+      if (matchId) {
+        STATE.filters.regulationId = matchId;
+        document.getElementById("cn-reg").value = matchId;
+        renderTable();
+      }
+    }
+  }
+
+  function attachEventHandlers() {
+    var searchEl = document.getElementById("cn-search");
+    var searchTimer = null;
+    searchEl.addEventListener("input", function () {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(function () {
+        STATE.filters.search = searchEl.value;
+        STATE.page = 0;
+        renderTable();
+      }, 120);
+    });
+    document.getElementById("cn-reg").addEventListener("change", function (e) {
+      STATE.filters.regulationId = e.target.value;
+      STATE.page = 0; renderTable();
+    });
+    document.getElementById("cn-coverage").addEventListener("change", function (e) {
+      STATE.filters.coverage = e.target.value;
+      STATE.page = 0; renderTable();
+    });
+    document.getElementById("cn-tier").addEventListener("change", function (e) {
+      STATE.filters.tier = e.target.value;
+      STATE.page = 0; renderTable();
+    });
+    document.getElementById("cn-obl").addEventListener("change", function (e) {
+      STATE.filters.obligation = e.target.value;
+      STATE.page = 0; renderTable();
+    });
+    document.getElementById("cn-reset").addEventListener("click", resetAllFilters);
+    document.getElementById("cn-export-csv").addEventListener("click", exportCsv);
+    document.getElementById("cn-pager-prev").addEventListener("click", function () {
+      STATE.page = Math.max(0, STATE.page - 1); renderTable();
+    });
+    document.getElementById("cn-pager-next").addEventListener("click", function () {
+      STATE.page++; renderTable();
+    });
+
+    // Table: row click → expand/collapse; header click → sort.
+    var tbody = document.getElementById("cn-tbody");
+    tbody.addEventListener("click", function (e) {
+      // Let direct <a> clicks (Catalogue link) pass through.
+      var tag = e.target.nodeName;
+      if (tag === "A" || tag === "BUTTON") return;
+      var tr = e.target.closest("tr.cn-row");
+      if (!tr) return;
+      expandRow(tr, tr.getAttribute("data-clause-id"), false);
+    });
+    tbody.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      var tr = e.target.closest("tr.cn-row");
+      if (!tr) return;
+      e.preventDefault();
+      expandRow(tr, tr.getAttribute("data-clause-id"), false);
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll("#cn-table thead th[data-sort]"), function (th) {
+      th.addEventListener("click", function () {
+        var key = th.getAttribute("data-sort");
+        if (STATE.sort.key === key) {
+          STATE.sort.dir = (STATE.sort.dir === "asc") ? "desc" : "asc";
+        } else {
+          STATE.sort.key = key;
+          // Default to descending for numeric/ranked columns so the
+          // "most covered" or "highest tier" rows surface first.
+          STATE.sort.dir = (key === "coveringUcCount" || key === "coverageRank" || key === "obligationPresent") ? "desc" : "asc";
+        }
+        STATE.page = 0;
+        renderTable();
+      });
+    });
+  }
+
+  // ----- kick off -----
+  document.addEventListener("DOMContentLoaded", function () {
+    attachEventHandlers();
+    loadIndex();
+  });
+})();
+</script>
+</body>
+</html>

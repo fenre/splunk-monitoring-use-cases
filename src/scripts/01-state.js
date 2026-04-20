@@ -77,6 +77,13 @@ var allUCs = [];
 var ucIndex = {};
 var _cachedRegKeys = [];
 var _cachedMtypes = [];
+// Phase 3a — clause-level regulation facet.
+// ``_cachedClausesByReg[regName]`` → sorted array of unique clause strings
+// (``"{version}#{clause}"`` canonical form). The UI renders a second-level
+// dropdown from this map when the user has picked a regulation that
+// actually has per-clause compliance rows. Populated from the compact
+// ``uc.cmp[]`` array materialised by build.py's sidecar merge.
+var _cachedClausesByReg = {};
 
 function __bootstrapCatalogState() {
   allUCs.length = 0;
@@ -89,6 +96,11 @@ function __bootstrapCatalogState() {
         if (Array.isArray(uc.a)) blob += ' ' + uc.a.join(' ');
         if (Array.isArray(uc.mtype)) blob += ' ' + uc.mtype.join(' ');
         if (Array.isArray(uc.regs)) blob += ' ' + uc.regs.join(' ');
+        if (Array.isArray(uc.cmp)) {
+          // Fold clause ids ("Art.5", "§164.312(b)") into the search blob
+          // so an auditor typing "Art.5" or "164.312" lands on the right UC.
+          uc.cmp.forEach(function(row) { if (row && row.cl) blob += ' ' + row.cl; });
+        }
         if (uc.hw) blob += ' ' + uc.hw;
         if (uc.escu) blob += ' escu enterprise security content detection';
         if (uc.escu_rba) blob += ' rba risk based alerting';
@@ -106,6 +118,33 @@ function __recomputeCachedFacets() {
   var regSet = {};
   allUCs.forEach(function(e) { if (Array.isArray(e.uc.regs)) e.uc.regs.forEach(function(r) { regSet[r] = 1; }); });
   _cachedRegKeys = Object.keys(regSet).sort();
+
+  // Rebuild the per-regulation clause facet from the compact
+  // ``uc.cmp[]`` rows. Each row carries regulation + version + clause so
+  // we can offer an auditor-facing clause dropdown that is scoped to
+  // whichever framework they've picked in the first dropdown. Clauses
+  // are stored in their canonical ``{version}#{clause}`` form so the
+  // same clause string under two different versions shows up as two
+  // separate options (regulators often renumber clauses between
+  // revisions and conflating them would silently mask coverage gaps).
+  var clauseMap = Object.create(null);
+  allUCs.forEach(function(e) {
+    var cmp = e.uc.cmp;
+    if (!Array.isArray(cmp)) return;
+    cmp.forEach(function(row) {
+      if (!row || !row.r || !row.cl || !row.v) return;
+      var reg = row.r;
+      var canonical = row.v + '#' + row.cl;
+      if (!clauseMap[reg]) clauseMap[reg] = Object.create(null);
+      clauseMap[reg][canonical] = 1;
+    });
+  });
+  _cachedClausesByReg = {};
+  Object.keys(clauseMap).forEach(function(reg) {
+    _cachedClausesByReg[reg] = Object.keys(clauseMap[reg]).sort(function(a, b) {
+      return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+    });
+  });
 
   var mtypes = new Set();
   allUCs.forEach(function(e) { if (Array.isArray(e.uc.mtype)) e.uc.mtype.forEach(function(t) { mtypes.add(t); }); });
@@ -130,6 +169,11 @@ var currentDiffFilter = 'all';
 var currentStatusFilter = 'all';
 var currentFreshFilter = 'all';
 var currentRegulationFilter = 'all';
+// Phase 3a — second-level filter scoped to the currently selected
+// regulation. Stored in canonical ``{version}#{clause}`` form so the
+// filter logic can split back into (version, clause) without extra
+// lookups. Reset to ``'all'`` whenever the top-level regulation changes.
+var currentClauseFilter = 'all';
 var currentMtypeFilter = 'all';
 var currentIndustryFilter = 'all';
 var currentEscuFilter = 'all';

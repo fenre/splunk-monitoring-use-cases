@@ -19,7 +19,11 @@
       "clause": "CP-9",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "CP-9 requires backup of system-level and user-level information — uncovered workloads fail the control."
+      "assurance_rationale": "CP-9 requires backup of system-level and user-level information — uncovered workloads fail the control.",
+      "controlObjective": "Evidence that NIST 800-53 CP-9 (System backup) is enforced — Splunk UC-22.45.3: Backup completeness — unprotected workloads with regulated data.",
+      "evidenceArtifact": "Saved search 'UC-22.45.3' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nist-800-53@Rev. 5#CP-9",
+      "requires_sme_review": true
     },
     {
       "regulation": "DORA",
@@ -27,7 +31,11 @@
       "clause": "Art.12",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "Art.12 requires comprehensive backup; a gap is a direct finding."
+      "assurance_rationale": "Art.12 requires comprehensive backup; a gap is a direct finding.",
+      "controlObjective": "Evidence that DORA Art.12 (Backup policies and recovery methods) is enforced — Splunk UC-22.45.3: Backup completeness — unprotected workloads with regulated data.",
+      "evidenceArtifact": "Saved search 'UC-22.45.3' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "dora@Regulation (EU) 2022/2554#Art.12",
+      "requires_sme_review": true
     },
     {
       "regulation": "SOX ITGC",
@@ -35,7 +43,11 @@
       "clause": "ITGC.Operations.Backup",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "ITGC backup and restore — coverage is the threshold question."
+      "assurance_rationale": "ITGC backup and restore — coverage is the threshold question.",
+      "controlObjective": "Evidence that SOX ITGC ITGC.Operations.Backup (Backup and restore) is enforced — Splunk UC-22.45.3: Backup completeness — unprotected workloads with regulated data.",
+      "evidenceArtifact": "Saved search 'UC-22.45.3' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "sox-itgc@PCAOB AS 2201#ITGC.Operations.Backup",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -46,15 +58,13 @@
   "dataSources": "See subcategory preamble.",
   "app": "Splunk Enterprise / Splunk Cloud Platform",
   "spl": "| rest /services/backup/inventory splunk_server=* | where regulated=\"true\"\n| stats max(last_success) as last_ok by workload tier\n| lookup dr_tiers.csv tier OUTPUT expected_interval_hours\n| eval hours_since=round((now()-last_ok)/3600,0)\n| where hours_since>expected_interval_hours\n| table tier workload last_ok hours_since expected_interval_hours",
+  "description": "Cross-checks the backup inventory against the regulated-workload asset list. Any covered workload without a successful backup in its window becomes a finding.",
+  "value": "Coverage gaps are the single most common backup finding at audit; continuous evidence eliminates surprise findings.",
+  "implementation": "(1) Tag regulated workloads; (2) publish dr_tiers.csv; (3) run daily; (4) escalate via SOAR.",
+  "visualization": "Heatmap of workload × day, bar chart of gaps by tier, single-value '% of regulated workloads protected'.",
   "cimModels": [
     "N/A"
   ],
-  "description": "Cross-checks the backup inventory against the regulated-workload asset list. Any covered workload without a successful backup in its window becomes a finding.",
-  "value": "Coverage gaps are the single most common backup finding at audit; continuous evidence eliminates surprise findings.",
-  "grandmaExplanation": "Coverage gaps are the single most common backup finding at audit; continuous evidence eliminates surprise findings — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Tag regulated workloads; (2) publish dr_tiers.csv; (3) run daily; (4) escalate via SOAR.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag regulated workloads; (2) publish dr_tiers.csv; (3) run daily; (4) escalate via SOAR.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| rest /services/backup/inventory splunk_server=* | where regulated=\"true\"\n| stats max(last_success) as last_ok by workload tier\n| lookup dr_tiers.csv tier OUTPUT expected_interval_hours\n| eval hours_since=round((now()-last_ok)/3600,0)\n| where hours_since>expected_interval_hours\n| table tier workload last_ok hours_since expected_interval_hours\n```\n\nUnderstanding this SPL\n\n**Backup completeness — unprotected workloads with regulated data** — Coverage gaps are the single most common backup finding at audit; continuous evidence eliminates surprise findings.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Calls Splunk `rest` to read configuration or REST-exposed entities.\n• Filters the current rows with `where regulated=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by workload tier** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **hours_since** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where hours_since>expected_interval_hours` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Backup completeness — unprotected workloads with regulated data**): table tier workload last_ok hours_since expected_interval_hours\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap of workload × day, bar chart of gaps by tier, single-value '% of regulated workloads protected'.",
-  "visualization": "Heatmap of workload × day, bar chart of gaps by tier, single-value '% of regulated workloads protected'.",
   "references": [
     {
       "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
@@ -84,5 +94,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Coverage gaps are the single most common backup finding at audit; continuous evidence eliminates surprise findings — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag regulated workloads; (2) publish dr_tiers.csv; (3) run daily; (4) escalate via SOAR.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| rest /services/backup/inventory splunk_server=* | where regulated=\"true\"\n| stats max(last_success) as last_ok by workload tier\n| lookup dr_tiers.csv tier OUTPUT expected_interval_hours\n| eval hours_since=round((now()-last_ok)/3600,0)\n| where hours_since>expected_interval_hours\n| table tier workload last_ok hours_since expected_interval_hours\n```\n\nUnderstanding this SPL\n\n**Backup completeness — unprotected workloads with regulated data** — Coverage gaps are the single most common backup finding at audit; continuous evidence eliminates surprise findings.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Calls Splunk `rest` to read configuration or REST-exposed entities.\n• Filters the current rows with `where regulated=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by workload tier** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **hours_since** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where hours_since>expected_interval_hours` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Backup completeness — unprotected workloads with regulated data**): table tier workload last_ok hours_since expected_interval_hours\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap of workload × day, bar chart of gaps by tier, single-value '% of regulated workloads protected'."
 }

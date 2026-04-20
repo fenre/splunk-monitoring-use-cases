@@ -4,7 +4,6 @@
   "title": "PCI-DSS 8.3 — Strong authentication: password-only logins against privileged accounts",
   "criticality": "critical",
   "difficulty": "intermediate",
-  "subcategory": "22.11#1",
   "monitoringType": [
     "Compliance",
     "Security"
@@ -22,7 +21,11 @@
       "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "PCI-DSS 8.3 Strong authentication — directly evidenced for privileged access."
+      "assurance_rationale": "PCI-DSS 8.3 Strong authentication — directly evidenced for privileged access.",
+      "controlObjective": "Evidence that PCI-DSS 8.3 (Strong authentication) is enforced — Splunk UC-22.11.96: PCI-DSS 8.3 — Strong authentication: password-only logins against privileged accounts.",
+      "evidenceArtifact": "Saved search 'UC-22.11.96' running on sourcetype WinEventLog:Security and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "pci-dss@v4.0#8.3",
+      "requires_sme_review": true
     },
     {
       "regulation": "ISO/IEC 27001",
@@ -31,7 +34,11 @@
       "clauseUrl": "https://www.iso.org/standard/27001",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "ISO/IEC 27001:2022 A.8.5 Secure authentication — directly evidenced."
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.5 Secure authentication — directly evidenced.",
+      "controlObjective": "Evidence that ISO/IEC 27001 A.8.5 is enforced — Splunk UC-22.11.96: PCI-DSS 8.3 — Strong authentication: password-only logins against privileged accounts.",
+      "evidenceArtifact": "Saved search 'UC-22.11.96' running on sourcetype WinEventLog:Security and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "iso-27001@2022#A.8.5",
+      "requires_sme_review": true
     },
     {
       "regulation": "SOC-2",
@@ -40,7 +47,11 @@
       "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "SOC 2 CC6.1 — contributing."
+      "assurance_rationale": "SOC 2 CC6.1 — contributing.",
+      "controlObjective": "Evidence that SOC-2 CC6.1 (Logical access controls) is enforced — Splunk UC-22.11.96: PCI-DSS 8.3 — Strong authentication: password-only logins against privileged accounts.",
+      "evidenceArtifact": "Saved search 'UC-22.11.96' running on sourcetype WinEventLog:Security and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "soc-2@2017 TSC#CC6.1",
+      "requires_sme_review": true
     },
     {
       "regulation": "NIST 800-53",
@@ -49,7 +60,11 @@
       "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "NIST 800-53 IA-2 Identification and Authentication (Organizational Users) — directly evidenced."
+      "assurance_rationale": "NIST 800-53 IA-2 Identification and Authentication (Organizational Users) — directly evidenced.",
+      "controlObjective": "Evidence that NIST 800-53 IA-2 (Identification and authentication (users)) is enforced — Splunk UC-22.11.96: PCI-DSS 8.3 — Strong authentication: password-only logins against privileged accounts.",
+      "evidenceArtifact": "Saved search 'UC-22.11.96' running on sourcetype WinEventLog:Security and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nist-800-53@Rev. 5#IA-2",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -61,15 +76,13 @@
   "dataSources": "`index=windows` sourcetype=WinEventLog:Security (4624); `index=linux` sourcetype=auditd; IDP `index=idp` sourcetype=okta:system_log.",
   "app": "Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Okta",
   "spl": "search (index=windows sourcetype=WinEventLog:Security EventCode=4624) OR (index=idp sourcetype=okta:system_log eventType=user.session.start) earliest=-10m\n| lookup privileged_accounts.csv user OUTPUT is_privileged\n| where is_privileged=\"yes\"\n| eval auth_method=case(isnotnull(LogonType) AND LogonType IN (\"2\",\"10\"),\"interactive\",isnotnull(factor),factor,true(),\"password\")\n| eval mfa_used=if(auth_method IN (\"mfa_push\",\"mfa_totp\",\"webauthn\",\"smartcard\",\"token:hardware\"),1,0)\n| where mfa_used=0\n| table user src dest auth_method mfa_used",
+  "description": "Detects a successful login to a privileged account that did not complete a second factor. PCI-DSS 8.3 requires strong authentication for all access to system components.",
+  "value": "Catches the exact condition that has historically resulted in CDE breaches (privileged password-only sessions). MTTR shrinks from weeks to minutes.",
+  "implementation": "(1) Maintain privileged_accounts.csv; (2) ensure IDP emits factor evidence; (3) schedule UC every 10m; (4) hit opens a P1 and disables the session; (5) monthly CISO review of patterns.",
+  "visualization": "Timechart of non-MFA privileged logins, table of top accounts, single value 'non-MFA priv logins (1h)'.",
   "cimModels": [
     "Authentication"
   ],
-  "description": "Detects a successful login to a privileged account that did not complete a second factor. PCI-DSS 8.3 requires strong authentication for all access to system components.",
-  "value": "Catches the exact condition that has historically resulted in CDE breaches (privileged password-only sessions). MTTR shrinks from weeks to minutes.",
-  "grandmaExplanation": "Catches the exact condition that has historically resulted in CDE breaches (privileged password-only sessions) — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Maintain privileged_accounts.csv; (2) ensure IDP emits factor evidence; (3) schedule UC every 10m; (4) hit opens a P1 and disables the session; (5) monthly CISO review of patterns.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Okta.\n• Ensure the following data sources are available: `index=windows` sourcetype=WinEventLog:Security (4624); `index=linux` sourcetype=auditd; IDP `index=idp` sourcetype=okta:system_log..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain privileged_accounts.csv; (2) ensure IDP emits factor evidence; (3) schedule UC every 10m; (4) hit opens a P1 and disables the session; (5) monthly CISO review of patterns.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nsearch (index=windows sourcetype=WinEventLog:Security EventCode=4624) OR (index=idp sourcetype=okta:system_log eventType=user.session.start) earliest=-10m\n| lookup privileged_accounts.csv user OUTPUT is_privileged\n| where is_privileged=\"yes\"\n| eval auth_method=case(isnotnull(LogonType) AND LogonType IN (\"2\",\"10\"),\"interactive\",isnotnull(factor),factor,true(),\"password\")\n| eval mfa_used=if(auth_method IN (\"mfa_push\",\"mfa_totp\",\"webauthn\",\"smartcard\",\"token:hardware\"),1,0)\n| where mfa_used=0\n| table user src dest auth_method mfa_used\n```\n\nUnderstanding this SPL\n\n**PCI-DSS 8.3 — Strong authentication: password-only logins against privileged accounts** — Catches the exact condition that has historically resulted in CDE breaches (privileged password-only sessions). MTTR shrinks from weeks to minutes.\n\nDocumented **Data sources**: `index=windows` sourcetype=WinEventLog:Security (4624); `index=linux` sourcetype=auditd; IDP `index=idp` sourcetype=okta:system_log. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Okta. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: windows, idp; **sourcetype**: WinEventLog:Security, okta:system_log. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Applies an explicit `search` filter to narrow the current result set.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where is_privileged=\"yes\"` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **auth_method** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **mfa_used** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where mfa_used=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **PCI-DSS 8.3 — Strong authentication: password-only logins against privileged accounts**): table user src dest auth_method mfa_used\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart of non-MFA privileged logins, table of top accounts, single value 'non-MFA priv logins (1h)'.",
-  "visualization": "Timechart of non-MFA privileged logins, table of top accounts, single value 'non-MFA priv logins (1h)'.",
   "references": [
     {
       "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
@@ -119,5 +132,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Catches the exact condition that has historically resulted in CDE breaches (privileged password-only sessions) — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Okta.\n• Ensure the following data sources are available: `index=windows` sourcetype=WinEventLog:Security (4624); `index=linux` sourcetype=auditd; IDP `index=idp` sourcetype=okta:system_log..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain privileged_accounts.csv; (2) ensure IDP emits factor evidence; (3) schedule UC every 10m; (4) hit opens a P1 and disables the session; (5) monthly CISO review of patterns.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nsearch (index=windows sourcetype=WinEventLog:Security EventCode=4624) OR (index=idp sourcetype=okta:system_log eventType=user.session.start) earliest=-10m\n| lookup privileged_accounts.csv user OUTPUT is_privileged\n| where is_privileged=\"yes\"\n| eval auth_method=case(isnotnull(LogonType) AND LogonType IN (\"2\",\"10\"),\"interactive\",isnotnull(factor),factor,true(),\"password\")\n| eval mfa_used=if(auth_method IN (\"mfa_push\",\"mfa_totp\",\"webauthn\",\"smartcard\",\"token:hardware\"),1,0)\n| where mfa_used=0\n| table user src dest auth_method mfa_used\n```\n\nUnderstanding this SPL\n\n**PCI-DSS 8.3 — Strong authentication: password-only logins against privileged accounts** — Catches the exact condition that has historically resulted in CDE breaches (privileged password-only sessions). MTTR shrinks from weeks to minutes.\n\nDocumented **Data sources**: `index=windows` sourcetype=WinEventLog:Security (4624); `index=linux` sourcetype=auditd; IDP `index=idp` sourcetype=okta:system_log. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Okta. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: windows, idp; **sourcetype**: WinEventLog:Security, okta:system_log. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Applies an explicit `search` filter to narrow the current result set.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where is_privileged=\"yes\"` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **auth_method** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **mfa_used** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where mfa_used=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **PCI-DSS 8.3 — Strong authentication: password-only logins against privileged accounts**): table user src dest auth_method mfa_used\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart of non-MFA privileged logins, table of top accounts, single value 'non-MFA priv logins (1h)'.",
+  "subcategory": "22.11#1"
 }

@@ -4,7 +4,6 @@
   "title": "Key custodian SoD — same identity creates AND approves a key",
   "criticality": "high",
   "difficulty": "intermediate",
-  "subcategory": "22.41#1",
   "monitoringType": [
     "Compliance",
     "Security"
@@ -21,7 +20,11 @@
       "clause": "3.6.1",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "PCI 3.6.1 key-management role separation is directly enforced."
+      "assurance_rationale": "PCI 3.6.1 key-management role separation is directly enforced.",
+      "controlObjective": "Evidence that PCI-DSS 3.6.1 is enforced — Splunk UC-22.41.5: Key custodian SoD — same identity creates AND approves a key.",
+      "evidenceArtifact": "Saved search 'UC-22.41.5' running on KMS audit logs (aws:kms, azure:keyvault, gcp:kms), HSM audit logs., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "pci-dss@v4.0#3.6.1",
+      "requires_sme_review": true
     },
     {
       "regulation": "NIST-800-53",
@@ -29,7 +32,11 @@
       "clause": "SC-12",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "SC-12 key establishment and management requires separation of duties."
+      "assurance_rationale": "SC-12 key establishment and management requires separation of duties.",
+      "controlObjective": "Evidence that NIST-800-53 SC-12 is enforced — Splunk UC-22.41.5: Key custodian SoD — same identity creates AND approves a key.",
+      "evidenceArtifact": "Saved search 'UC-22.41.5' running on KMS audit logs (aws:kms, azure:keyvault, gcp:kms), HSM audit logs., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nist-800-53@Rev. 5#SC-12",
+      "requires_sme_review": true
     },
     {
       "regulation": "SOX-ITGC",
@@ -37,7 +44,11 @@
       "clause": "ITGC.Crypto.SoD",
       "mode": "detects-violation-of",
       "assurance": "partial",
-      "assurance_rationale": "Common SoD ITGC deficiency around encryption-key management."
+      "assurance_rationale": "Common SoD ITGC deficiency around encryption-key management.",
+      "controlObjective": "Detects violations of SOX-ITGC ITGC.Crypto.SoD — Splunk UC-22.41.5: Key custodian SoD — same identity creates AND approves a key.",
+      "evidenceArtifact": "Saved search 'UC-22.41.5' running on KMS audit logs (aws:kms, azure:keyvault, gcp:kms), HSM audit logs., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "sox-itgc@PCAOB AS 2201#ITGC.Crypto.SoD",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -48,15 +59,13 @@
   "dataSources": "KMS audit logs (aws:kms, azure:keyvault, gcp:kms), HSM audit logs.",
   "app": "Splunk Enterprise / Splunk Cloud Platform",
   "spl": "index=kms earliest=-30m (action=CreateKey OR action=ScheduleKeyActivation)\n| stats values(user) as users values(action) as actions by key_id\n| eval distinct_users=mvcount(mvdedup(users))\n| where distinct_users<2 AND mvcount(actions)>=2\n| table key_id users actions",
+  "description": "Alerts when the same identity both creates a key and schedules its activation. SoD in key management is a PCI and SOX-ITGC hard requirement.",
+  "value": "Provides daily evidence of key-custodian SoD rather than the common annual sample.",
+  "implementation": "(1) Ingest KMS audit logs; (2) run every 30 min; (3) escalate to the crypto custodian.",
+  "visualization": "Table of SoD violations, bar chart of violations by key type, single-value 'SoD-compliant key operations (30d)'.",
   "cimModels": [
     "Change"
   ],
-  "description": "Alerts when the same identity both creates a key and schedules its activation. SoD in key management is a PCI and SOX-ITGC hard requirement.",
-  "value": "Provides daily evidence of key-custodian SoD rather than the common annual sample.",
-  "grandmaExplanation": "We give you daily evidence of key-custodian SoD rather than the common annual sample — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Ingest KMS audit logs; (2) run every 30 min; (3) escalate to the crypto custodian.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: KMS audit logs (aws:kms, azure:keyvault, gcp:kms), HSM audit logs..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest KMS audit logs; (2) run every 30 min; (3) escalate to the crypto custodian.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=kms earliest=-30m (action=CreateKey OR action=ScheduleKeyActivation)\n| stats values(user) as users values(action) as actions by key_id\n| eval distinct_users=mvcount(mvdedup(users))\n| where distinct_users<2 AND mvcount(actions)>=2\n| table key_id users actions\n```\n\nUnderstanding this SPL\n\n**Key custodian SoD — same identity creates AND approves a key** — Provides daily evidence of key-custodian SoD rather than the common annual sample.\n\nDocumented **Data sources**: KMS audit logs (aws:kms, azure:keyvault, gcp:kms), HSM audit logs. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: kms.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=kms, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by key_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **distinct_users** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where distinct_users<2 AND mvcount(actions)>=2` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Key custodian SoD — same identity creates AND approves a key**): table key_id users actions\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of SoD violations, bar chart of violations by key type, single-value 'SoD-compliant key operations (30d)'.",
-  "visualization": "Table of SoD violations, bar chart of violations by key type, single-value 'SoD-compliant key operations (30d)'.",
   "references": [
     {
       "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
@@ -95,5 +104,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "We give you daily evidence of key-custodian SoD rather than the common annual sample — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: KMS audit logs (aws:kms, azure:keyvault, gcp:kms), HSM audit logs..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest KMS audit logs; (2) run every 30 min; (3) escalate to the crypto custodian.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=kms earliest=-30m (action=CreateKey OR action=ScheduleKeyActivation)\n| stats values(user) as users values(action) as actions by key_id\n| eval distinct_users=mvcount(mvdedup(users))\n| where distinct_users<2 AND mvcount(actions)>=2\n| table key_id users actions\n```\n\nUnderstanding this SPL\n\n**Key custodian SoD — same identity creates AND approves a key** — Provides daily evidence of key-custodian SoD rather than the common annual sample.\n\nDocumented **Data sources**: KMS audit logs (aws:kms, azure:keyvault, gcp:kms), HSM audit logs. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: kms.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=kms, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by key_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **distinct_users** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where distinct_users<2 AND mvcount(actions)>=2` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Key custodian SoD — same identity creates AND approves a key**): table key_id users actions\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of SoD violations, bar chart of violations by key type, single-value 'SoD-compliant key operations (30d)'.",
+  "subcategory": "22.41#1"
 }

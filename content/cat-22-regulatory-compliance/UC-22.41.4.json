@@ -4,7 +4,6 @@
   "title": "TLS downgrade / legacy-cipher handshake spike",
   "criticality": "high",
   "difficulty": "intermediate",
-  "subcategory": "22.41#1",
   "monitoringType": [
     "Compliance",
     "Security"
@@ -21,7 +20,11 @@
       "clause": "4.2.1",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "PCI 4.2.1 strong cryptography in transmission is directly measured."
+      "assurance_rationale": "PCI 4.2.1 strong cryptography in transmission is directly measured.",
+      "controlObjective": "Evidence that PCI-DSS 4.2.1 is enforced — Splunk UC-22.41.4: TLS downgrade / legacy-cipher handshake spike.",
+      "evidenceArtifact": "Saved search 'UC-22.41.4' running on F5/NGINX/HAProxy TLS handshake logs, cloud-provider LB telemetry, TLS scanner longitudinal results., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "pci-dss@v4.0#4.2.1",
+      "requires_sme_review": true
     },
     {
       "regulation": "HIPAA",
@@ -29,7 +32,11 @@
       "clause": "§164.312(e)(1)",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "Transmission security is required for ePHI."
+      "assurance_rationale": "Transmission security is required for ePHI.",
+      "controlObjective": "Evidence that HIPAA §164.312(e)(1) (Transmission security) is enforced — Splunk UC-22.41.4: TLS downgrade / legacy-cipher handshake spike.",
+      "evidenceArtifact": "Saved search 'UC-22.41.4' running on F5/NGINX/HAProxy TLS handshake logs, cloud-provider LB telemetry, TLS scanner longitudinal results., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "hipaa-security@2013-final#§164.312(e)(1)",
+      "requires_sme_review": true
     },
     {
       "regulation": "NIST-800-53",
@@ -37,7 +44,11 @@
       "clause": "SC-8",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "SC-8 transmission confidentiality; legacy cipher negotiation is a direct failure."
+      "assurance_rationale": "SC-8 transmission confidentiality; legacy cipher negotiation is a direct failure.",
+      "controlObjective": "Evidence that NIST-800-53 SC-8 (Transmission confidentiality and integrity) is enforced — Splunk UC-22.41.4: TLS downgrade / legacy-cipher handshake spike.",
+      "evidenceArtifact": "Saved search 'UC-22.41.4' running on F5/NGINX/HAProxy TLS handshake logs, cloud-provider LB telemetry, TLS scanner longitudinal results., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nist-800-53@Rev. 5#SC-8",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -49,15 +60,13 @@
   "dataSources": "F5/NGINX/HAProxy TLS handshake logs, cloud-provider LB telemetry, TLS scanner longitudinal results.",
   "app": "Splunk Enterprise / Splunk Cloud Platform",
   "spl": "index=tls sourcetype=f5:tls OR sourcetype=nginx:tls OR sourcetype=haproxy:tls earliest=-1h\n| eval legacy=if(match(protocol,\"TLSv1\\.(0|1)\") OR match(cipher,\"3DES|RC4|NULL|DES|EXPORT\"),1,0)\n| stats sum(legacy) as legacy_hs count as total_hs by host\n| eval legacy_pct=round(legacy_hs/total_hs*100,2)\n| where legacy_pct>0.5 AND total_hs>100\n| table host legacy_hs total_hs legacy_pct",
+  "description": "Monitors observed TLS handshake metadata for any endpoint and alerts when legacy-cipher or legacy-protocol negotiations exceed a small threshold. Downgrade is a common attacker technique against partially-upgraded infrastructure.",
+  "value": "Catches silent downgrade issues introduced by load-balancer config drift before they become an audit finding or data-exposure incident.",
+  "implementation": "(1) Ensure LBs emit handshake telemetry; (2) schedule hourly; (3) route hits to security ops; (4) block via config-as-code rollback.",
+  "visualization": "Line chart of legacy-handshake percentage per endpoint, table of offending endpoints, single-value '% handshakes on strong TLS (24h)'.",
   "cimModels": [
     "Certificates"
   ],
-  "description": "Monitors observed TLS handshake metadata for any endpoint and alerts when legacy-cipher or legacy-protocol negotiations exceed a small threshold. Downgrade is a common attacker technique against partially-upgraded infrastructure.",
-  "value": "Catches silent downgrade issues introduced by load-balancer config drift before they become an audit finding or data-exposure incident.",
-  "grandmaExplanation": "Catches silent downgrade issues introduced by load-balancer config drift before they become an audit finding or data-exposure incident — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Ensure LBs emit handshake telemetry; (2) schedule hourly; (3) route hits to security ops; (4) block via config-as-code rollback.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: F5/NGINX/HAProxy TLS handshake logs, cloud-provider LB telemetry, TLS scanner longitudinal results..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ensure LBs emit handshake telemetry; (2) schedule hourly; (3) route hits to security ops; (4) block via config-as-code rollback.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=tls sourcetype=f5:tls OR sourcetype=nginx:tls OR sourcetype=haproxy:tls earliest=-1h\n| eval legacy=if(match(protocol,\"TLSv1\\.(0|1)\") OR match(cipher,\"3DES|RC4|NULL|DES|EXPORT\"),1,0)\n| stats sum(legacy) as legacy_hs count as total_hs by host\n| eval legacy_pct=round(legacy_hs/total_hs*100,2)\n| where legacy_pct>0.5 AND total_hs>100\n| table host legacy_hs total_hs legacy_pct\n```\n\nUnderstanding this SPL\n\n**TLS downgrade / legacy-cipher handshake spike** — Catches silent downgrade issues introduced by load-balancer config drift before they become an audit finding or data-exposure incident.\n\nDocumented **Data sources**: F5/NGINX/HAProxy TLS handshake logs, cloud-provider LB telemetry, TLS scanner longitudinal results. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: tls; **sourcetype**: f5:tls, nginx:tls, haproxy:tls. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=tls, sourcetype=f5:tls, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **legacy** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **legacy_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where legacy_pct>0.5 AND total_hs>100` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **TLS downgrade / legacy-cipher handshake spike**): table host legacy_hs total_hs legacy_pct\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart of legacy-handshake percentage per endpoint, table of offending endpoints, single-value '% handshakes on strong TLS (24h)'.",
-  "visualization": "Line chart of legacy-handshake percentage per endpoint, table of offending endpoints, single-value '% handshakes on strong TLS (24h)'.",
   "references": [
     {
       "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
@@ -105,5 +114,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Catches silent downgrade issues introduced by load-balancer config drift before they become an audit finding or data-exposure incident — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: F5/NGINX/HAProxy TLS handshake logs, cloud-provider LB telemetry, TLS scanner longitudinal results..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ensure LBs emit handshake telemetry; (2) schedule hourly; (3) route hits to security ops; (4) block via config-as-code rollback.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=tls sourcetype=f5:tls OR sourcetype=nginx:tls OR sourcetype=haproxy:tls earliest=-1h\n| eval legacy=if(match(protocol,\"TLSv1\\.(0|1)\") OR match(cipher,\"3DES|RC4|NULL|DES|EXPORT\"),1,0)\n| stats sum(legacy) as legacy_hs count as total_hs by host\n| eval legacy_pct=round(legacy_hs/total_hs*100,2)\n| where legacy_pct>0.5 AND total_hs>100\n| table host legacy_hs total_hs legacy_pct\n```\n\nUnderstanding this SPL\n\n**TLS downgrade / legacy-cipher handshake spike** — Catches silent downgrade issues introduced by load-balancer config drift before they become an audit finding or data-exposure incident.\n\nDocumented **Data sources**: F5/NGINX/HAProxy TLS handshake logs, cloud-provider LB telemetry, TLS scanner longitudinal results. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: tls; **sourcetype**: f5:tls, nginx:tls, haproxy:tls. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=tls, sourcetype=f5:tls, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **legacy** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **legacy_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where legacy_pct>0.5 AND total_hs>100` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **TLS downgrade / legacy-cipher handshake spike**): table host legacy_hs total_hs legacy_pct\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart of legacy-handshake percentage per endpoint, table of offending endpoints, single-value '% handshakes on strong TLS (24h)'.",
+  "subcategory": "22.41#1"
 }

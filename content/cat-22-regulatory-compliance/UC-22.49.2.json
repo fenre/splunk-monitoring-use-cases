@@ -19,7 +19,11 @@
       "clause": "Art.5",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "Art.5(1)(e) storage limitation — failed disposal breaches the control."
+      "assurance_rationale": "Art.5(1)(e) storage limitation — failed disposal breaches the control.",
+      "controlObjective": "Evidence that GDPR Art.5 (Principles of processing) is enforced — Splunk UC-22.49.2: Disposal workflow completion — failed disposals requiring manual review.",
+      "evidenceArtifact": "Saved search 'UC-22.49.2' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "gdpr@2016/679#Art.5",
+      "requires_sme_review": true
     },
     {
       "regulation": "HIPAA Security",
@@ -27,7 +31,11 @@
       "clause": "§164.310(d)(1)",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "§164.310(d)(1) device and media controls — disposal evidence is required."
+      "assurance_rationale": "§164.310(d)(1) device and media controls — disposal evidence is required.",
+      "controlObjective": "Evidence that HIPAA Security §164.310(d)(1) (Device and media controls) is enforced — Splunk UC-22.49.2: Disposal workflow completion — failed disposals requiring manual review.",
+      "evidenceArtifact": "Saved search 'UC-22.49.2' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "hipaa-security@2013-final#§164.310(d)(1)",
+      "requires_sme_review": true
     },
     {
       "regulation": "UK GDPR",
@@ -36,6 +44,10 @@
       "mode": "satisfies",
       "assurance": "partial",
       "assurance_rationale": "Derived from GDPR@2016/679 Art.5 (parent assurance='full'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "controlObjective": "Evidence that UK GDPR Art.5 is enforced — Splunk UC-22.49.2: Disposal workflow completion — failed disposals requiring manual review.",
+      "evidenceArtifact": "Saved search 'UC-22.49.2' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "uk-gdpr@post-Brexit#Art.5",
+      "requires_sme_review": true,
       "provenance": "derived-from-parent",
       "derivationSource": {
         "parentRegulation": "gdpr",
@@ -54,15 +66,13 @@
   "dataSources": "See subcategory preamble.",
   "app": "Splunk Enterprise / Splunk Cloud Platform",
   "spl": "index=datastore sourcetype=disposal:job earliest=-7d\n| stats values(status) as states min(_time) as started max(_time) as last_update by job_id\n| where NOT match(states, \"completed\") AND (now()-started)>172800\n| table job_id started last_update states",
+  "description": "Monitors disposal jobs across systems and raises findings for jobs that stall. Stalled disposals leak regulated data beyond its lawful window.",
+  "value": "Ensures the disposal pipeline is as observable as the ingest pipeline.",
+  "implementation": "(1) Instrument disposal tooling to emit lifecycle events; (2) run daily; (3) on stall, notify the data owner.",
+  "visualization": "Funnel started → in-progress → completed, table of stalled jobs, single-value '% of disposals completed within 48h'.",
   "cimModels": [
     "N/A"
   ],
-  "description": "Monitors disposal jobs across systems and raises findings for jobs that stall. Stalled disposals leak regulated data beyond its lawful window.",
-  "value": "Ensures the disposal pipeline is as observable as the ingest pipeline.",
-  "grandmaExplanation": "We help you make sure the disposal pipeline is as observable as the ingest pipeline — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Instrument disposal tooling to emit lifecycle events; (2) run daily; (3) on stall, notify the data owner.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Instrument disposal tooling to emit lifecycle events; (2) run daily; (3) on stall, notify the data owner.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=datastore sourcetype=disposal:job earliest=-7d\n| stats values(status) as states min(_time) as started max(_time) as last_update by job_id\n| where NOT match(states, \"completed\") AND (now()-started)>172800\n| table job_id started last_update states\n```\n\nUnderstanding this SPL\n\n**Disposal workflow completion — failed disposals requiring manual review** — Ensures the disposal pipeline is as observable as the ingest pipeline.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: datastore; **sourcetype**: disposal:job. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=datastore, sourcetype=disposal:job, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by job_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where NOT match(states, \"completed\") AND (now()-started)>172800` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Disposal workflow completion — failed disposals requiring manual review**): table job_id started last_update states\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Funnel started → in-progress → completed, table of stalled jobs, single-value '% of disposals completed within 48h'.",
-  "visualization": "Funnel started → in-progress → completed, table of stalled jobs, single-value '% of disposals completed within 48h'.",
   "references": [
     {
       "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
@@ -87,5 +97,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "We help you make sure the disposal pipeline is as observable as the ingest pipeline — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Instrument disposal tooling to emit lifecycle events; (2) run daily; (3) on stall, notify the data owner.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=datastore sourcetype=disposal:job earliest=-7d\n| stats values(status) as states min(_time) as started max(_time) as last_update by job_id\n| where NOT match(states, \"completed\") AND (now()-started)>172800\n| table job_id started last_update states\n```\n\nUnderstanding this SPL\n\n**Disposal workflow completion — failed disposals requiring manual review** — Ensures the disposal pipeline is as observable as the ingest pipeline.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: datastore; **sourcetype**: disposal:job. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=datastore, sourcetype=disposal:job, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by job_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where NOT match(states, \"completed\") AND (now()-started)>172800` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Disposal workflow completion — failed disposals requiring manual review**): table job_id started last_update states\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Funnel started → in-progress → completed, table of stalled jobs, single-value '% of disposals completed within 48h'."
 }

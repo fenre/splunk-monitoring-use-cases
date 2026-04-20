@@ -20,7 +20,11 @@
       "clause": "AC-6",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "AC-6(7) requires review of privileges; break-glass use demands post-hoc approval by design."
+      "assurance_rationale": "AC-6(7) requires review of privileges; break-glass use demands post-hoc approval by design.",
+      "controlObjective": "Evidence that NIST 800-53 AC-6 (Least privilege) is enforced — Splunk UC-22.40.2: Break-glass account usage review with mandatory post-use approval.",
+      "evidenceArtifact": "Saved search 'UC-22.40.2' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nist-800-53@Rev. 5#AC-6",
+      "requires_sme_review": true
     },
     {
       "regulation": "ISO 27001",
@@ -28,7 +32,11 @@
       "clause": "A.5.15",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "A.5.15 access control — emergency access procedures require review and sign-off."
+      "assurance_rationale": "A.5.15 access control — emergency access procedures require review and sign-off.",
+      "controlObjective": "Evidence that ISO 27001 A.5.15 (Access control) is enforced — Splunk UC-22.40.2: Break-glass account usage review with mandatory post-use approval.",
+      "evidenceArtifact": "Saved search 'UC-22.40.2' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "iso-27001@2022#A.5.15",
+      "requires_sme_review": true
     },
     {
       "regulation": "SOX ITGC",
@@ -36,7 +44,11 @@
       "clause": "ITGC.AccessMgmt.Privileged",
       "mode": "satisfies",
       "assurance": "full",
-      "assurance_rationale": "Privileged access must be timely reviewed — break-glass is the exception that most frequently fails an ITGC review."
+      "assurance_rationale": "Privileged access must be timely reviewed — break-glass is the exception that most frequently fails an ITGC review.",
+      "controlObjective": "Evidence that SOX ITGC ITGC.AccessMgmt.Privileged (Privileged access) is enforced — Splunk UC-22.40.2: Break-glass account usage review with mandatory post-use approval.",
+      "evidenceArtifact": "Saved search 'UC-22.40.2' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "sox-itgc@PCAOB AS 2201#ITGC.AccessMgmt.Privileged",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -47,16 +59,14 @@
   "dataSources": "See subcategory preamble.",
   "app": "Splunk Enterprise / Splunk Cloud Platform",
   "spl": "index=pam breakglass=true earliest=-14d\n| stats min(_time) as started max(_time) as ended values(session_id) as session_id by account initiator\n| join account session_id [search index=grc sourcetype=breakglass:approval | stats values(approver) as approver max(_time) as approved_at by account session_id]\n| where isnull(approved_at) AND (now()-ended)>172800\n| table account initiator started ended session_id approved_at",
+  "description": "Every break-glass activation must be followed by a reviewer sign-off within 48 hours. The UC surfaces any usage that escaped the governance loop.",
+  "value": "Break-glass misuse is the most audited sub-case of privileged access; a missing approval is a textbook SOX-ITGC deficiency.",
+  "implementation": "(1) Tag break-glass accounts at vault time; (2) emit approval events from the GRC tool; (3) schedule every 30 min; (4) on miss, notify CISO and engage SOAR.",
+  "visualization": "Table of break-glass activations with approval status, bar chart of usages per quarter, single-value 'activations with 48h approval'.",
   "cimModels": [
     "Authentication",
     "Change"
   ],
-  "description": "Every break-glass activation must be followed by a reviewer sign-off within 48 hours. The UC surfaces any usage that escaped the governance loop.",
-  "value": "Break-glass misuse is the most audited sub-case of privileged access; a missing approval is a textbook SOX-ITGC deficiency.",
-  "grandmaExplanation": "Break-glass misuse is the most audited sub-case of privileged access; a missing approval is a textbook -ITGC deficiency — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Tag break-glass accounts at vault time; (2) emit approval events from the GRC tool; (3) schedule every 30 min; (4) on miss, notify CISO and engage SOAR.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag break-glass accounts at vault time; (2) emit approval events from the GRC tool; (3) schedule every 30 min; (4) on miss, notify CISO and engage SOAR.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=pam breakglass=true earliest=-14d\n| stats min(_time) as started max(_time) as ended values(session_id) as session_id by account initiator\n| join account session_id [search index=grc sourcetype=breakglass:approval | stats values(approver) as approver max(_time) as approved_at by account session_id]\n| where isnull(approved_at) AND (now()-ended)>172800\n| table account initiator started ended session_id approved_at\n```\n\nUnderstanding this SPL\n\n**Break-glass account usage review with mandatory post-use approval** — Break-glass misuse is the most audited sub-case of privileged access; a missing approval is a textbook SOX-ITGC deficiency.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: pam.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=pam, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by account initiator** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(approved_at) AND (now()-ended)>172800` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Break-glass account usage review with mandatory post-use approval**): table account initiator started ended session_id approved_at\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of break-glass activations with approval status, bar chart of usages per quarter, single-value 'activations with 48h approval'.",
-  "visualization": "Table of break-glass activations with approval status, bar chart of usages per quarter, single-value 'activations with 48h approval'.",
   "references": [
     {
       "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
@@ -92,5 +102,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Break-glass misuse is the most audited sub-case of privileged access; a missing approval is a textbook -ITGC deficiency — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag break-glass accounts at vault time; (2) emit approval events from the GRC tool; (3) schedule every 30 min; (4) on miss, notify CISO and engage SOAR.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=pam breakglass=true earliest=-14d\n| stats min(_time) as started max(_time) as ended values(session_id) as session_id by account initiator\n| join account session_id [search index=grc sourcetype=breakglass:approval | stats values(approver) as approver max(_time) as approved_at by account session_id]\n| where isnull(approved_at) AND (now()-ended)>172800\n| table account initiator started ended session_id approved_at\n```\n\nUnderstanding this SPL\n\n**Break-glass account usage review with mandatory post-use approval** — Break-glass misuse is the most audited sub-case of privileged access; a missing approval is a textbook SOX-ITGC deficiency.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: pam.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=pam, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by account initiator** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(approved_at) AND (now()-ended)>172800` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Break-glass account usage review with mandatory post-use approval**): table account initiator started ended session_id approved_at\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of break-glass activations with approval status, bar chart of usages per quarter, single-value 'activations with 48h approval'."
 }

@@ -185,7 +185,13 @@ def get_use_case(*, catalog: Catalog, uc_id: str) -> dict[str, Any]:
     try:
         detail = catalog.load_json("compliance", "ucs", f"{uc_id}.json")
         LOG.debug("get_use_case %s: using compliance sidecar", uc_id)
-        return _strip_meta(detail)
+        out = _strip_meta(detail)
+        # Guarantee ``compliance`` is always an array. Non-compliance
+        # UCs (cat-1 … cat-21) carry no compliance metadata, but the
+        # output schema declares ``compliance`` as an array so clients
+        # can call ``len()`` without a ``None`` check.
+        out.setdefault("compliance", [])
+        return out
     except CatalogNotFoundError:
         LOG.debug("get_use_case %s: no compliance sidecar, falling back to uc-thin", uc_id)
 

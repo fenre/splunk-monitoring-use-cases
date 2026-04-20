@@ -8,6 +8,8 @@
 
 > This evidence pack is the auditor-facing view of the Splunk monitoring catalogue's coverage of the regulation. Every clause coverage claim is traceable to a specific UC sidecar JSON file (`use-cases/cat-*/uc-*.json`); every retention figure cites its legal basis; every URL resolves to an official regulator or standards-body source. The pack does **not** assert legal conclusions — it tabulates what the catalogue covers, names the authoritative source, and flags gaps. Interpretation stays with counsel.
 
+> **Live views.** [Buyer narrative (`compliance-story.html?reg=nist-csf`)](../../compliance-story.html?reg=nist-csf) · [Auditor clause navigator (`clause-navigator.html#reg=nist-csf`)](../../clause-navigator.html#reg=nist-csf) · [JSON twin (`api/v1/compliance/story/nist-csf.json`)](../../api/v1/compliance/story/nist-csf.json)
+
 ## Table of contents
 
 1. [Purpose of this evidence pack](#1-purpose-of-this-evidence-pack)
@@ -300,9 +302,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 7.0
+catalogue_version: 7.1
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     87ca49d6acc66fffd2727baa9b1604042f957a52233be589707aed6e224dd4b3
+inputs_sha256:     377470c73dba056ab0cbf2997ee97a0efe523076b02f1b8df1f89082c148fe99
 ```
 
 To re-generate:

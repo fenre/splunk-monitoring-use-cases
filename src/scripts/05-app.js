@@ -482,6 +482,17 @@ function updateHash(replace) {
   else if (currentCat != null) {
     hash = '#cat-' + currentCat;
     if (currentSubcat) hash += '/' + currentSubcat;
+  } else if (currentRegulationFilter && currentRegulationFilter !== 'all') {
+    // Phase 3b — regulation- and clause-scoped view. Persisted into
+    // the URL fragment so ``clause-navigator.html`` deep links and
+    // browser back/forward both restore the same filtered catalogue
+    // state. Clause value is kept in its canonical ``{v}#{c}`` form
+    // but URL-encoded so the embedded ``#`` doesn't terminate the
+    // fragment prematurely.
+    hash = '#reg=' + encodeURIComponent(currentRegulationFilter);
+    if (currentClauseFilter && currentClauseFilter !== 'all') {
+      hash += '&clause=' + encodeURIComponent(currentClauseFilter);
+    }
   } else if (ovGroupFilter !== 'all') hash = '#' + ovGroupFilter;
   if (replace) history.replaceState(null, '', hash);
   else history.pushState(null, '', hash);
@@ -537,6 +548,35 @@ function restoreFromHash() {
   if (um) {
     openUCById(um[1]);
     buildSidebar();
+    return;
+  }
+  // Deep-link from the clause navigator (Phase 3b) or from third-party
+  // evidence packs. Two shapes are accepted:
+  //
+  //   #reg=<regName>
+  //   #reg=<regName>&clause=<version>#<clause>
+  //
+  // <regName> is URL-encoded; <clause> uses the canonical
+  // ``{version}#{clause}`` form the catalogue stores internally but
+  // with the embedded ``#`` also URL-encoded so it survives as a
+  // single URL-fragment param. The auditor/buyer flow expects the
+  // catalogue to land on the filtered view with the dropdowns
+  // pre-populated — no further clicks needed to see coverage.
+  var regM = h.match(/^reg=([^&]+)(?:&clause=(.+))?$/);
+  if (regM) {
+    var regVal;
+    try { regVal = decodeURIComponent(regM[1]); } catch (_) { regVal = regM[1]; }
+    currentRegulationFilter = regVal;
+    if (regM[2]) {
+      try { currentClauseFilter = decodeURIComponent(regM[2]); }
+      catch (_) { currentClauseFilter = regM[2]; }
+    } else {
+      currentClauseFilter = 'all';
+    }
+    currentCat = null; currentSubcat = null; currentSearch = '';
+    var siEl = document.getElementById('search-input');
+    if (siEl) siEl.value = '';
+    reRender();
   }
 }
 

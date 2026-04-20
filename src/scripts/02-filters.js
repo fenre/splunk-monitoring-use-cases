@@ -44,9 +44,38 @@ function getFilteredUCs() {
     });
   }
   if (currentRegulationFilter !== 'all') {
+    // Top-level regulation filter still honours the flat ``regs[]`` list
+    // for backward compatibility with UCs that don't have a structured
+    // ``cmp[]`` array yet (pre-Phase-1 sidecars). UCs that *do* have a
+    // ``cmp[]`` array still match here because build.py mirrors every
+    // ``cmp`` row's regulation id into the flat ``regs[]`` union.
     result = result.filter(function(e) {
       return Array.isArray(e.uc.regs) && e.uc.regs.indexOf(currentRegulationFilter) !== -1;
     });
+    if (currentClauseFilter && currentClauseFilter !== 'all') {
+      // Second-level clause filter: only applicable when the top-level
+      // regulation was chosen AND a specific ``{version}#{clause}`` tuple
+      // has been selected. We split on the first ``#`` because clause
+      // strings such as ``§164.312(b)`` legitimately contain ``#``-free
+      // characters but could in theory include other punctuation. The
+      // match is exact on regulation + version + clause — a partial
+      // match would silently over-count coverage, which is the precise
+      // story problem Phase 3 is meant to fix.
+      var hashAt = currentClauseFilter.indexOf('#');
+      if (hashAt > 0) {
+        var wantVer = currentClauseFilter.slice(0, hashAt);
+        var wantClause = currentClauseFilter.slice(hashAt + 1);
+        result = result.filter(function(e) {
+          if (!Array.isArray(e.uc.cmp)) return false;
+          return e.uc.cmp.some(function(row) {
+            return row
+              && row.r === currentRegulationFilter
+              && row.v === wantVer
+              && row.cl === wantClause;
+          });
+        });
+      }
+    }
   }
   if (currentFilter !== 'all') result = result.filter(function(e) { return e.uc.c === currentFilter; });
   if (currentDiffFilter !== 'all') result = result.filter(function(e) { return e.uc.f === currentDiffFilter; });
@@ -270,7 +299,23 @@ function freshChipHtml(iso) {
   if (days > 366) cls = 'fresh-red';
   return '<span class="uc-card-fresh ' + cls + '" title="Last reviewed ' + esc(iso) + '">✓ ' + esc(label) + '</span>';
 }
-function setRegFilter(f) { currentRegulationFilter = f; reRender(); }
+function setRegFilter(f) {
+  // Changing the regulation always resets the clause selection: a
+  // clause id is only meaningful inside a single framework, and keeping
+  // a stale clause when the user switches from (say) GDPR to PCI DSS
+  // would silently produce zero-result pages with no obvious cause.
+  currentRegulationFilter = f;
+  currentClauseFilter = 'all';
+  reRender();
+}
+function setClauseFilter(f) {
+  // Clause-level filter is only meaningful when a specific regulation
+  // is already selected; the regulation dropdown's ``onchange`` clears
+  // this automatically. Values are the canonical ``{version}#{clause}``
+  // form stored in ``_cachedClausesByReg``.
+  currentClauseFilter = f || 'all';
+  reRender();
+}
 function setMtypeFilter(f) { currentMtypeFilter = f; reRender(); }
 function setTrendFilter() { currentTrendFilter = !currentTrendFilter; reRender(); }
 
@@ -497,9 +542,38 @@ function filterStrip() {
   });
   html += '</select>';
   if (_cachedRegKeys.length) {
-    html += '<select class="c-select" onchange="setRegFilter(this.value)"><option value="all">All Regulations</option>';
-    _cachedRegKeys.forEach(function(r) { html += '<option value="' + esc(r) + '"' + (currentRegulationFilter === r ? ' selected' : '') + '>' + esc(r) + '</option>'; });
+    html += '<select class="c-select" onchange="setRegFilter(this.value)" title="Regulation framework">';
+    html += '<option value="all">All Regulations</option>';
+    _cachedRegKeys.forEach(function(r) {
+      html += '<option value="' + esc(r) + '"' + (currentRegulationFilter === r ? ' selected' : '') + '>' + esc(r) + '</option>';
+    });
     html += '</select>';
+    // Phase 3a — clause-level dropdown. Only renders when the user
+    // picked a specific regulation AND that regulation has at least
+    // one structured ``cmp[]`` row in the catalogue. Frameworks whose
+    // UCs still use the flat ``regs[]`` form (pre-Phase-1 sidecars)
+    // simply don't show the second dropdown, so the UX degrades to
+    // "regulation only" instead of breaking.
+    if (currentRegulationFilter !== 'all') {
+      var clauses = _cachedClausesByReg[currentRegulationFilter] || [];
+      if (clauses.length) {
+        html += '<select class="c-select" onchange="setClauseFilter(this.value)" title="Specific clause or article">';
+        html += '<option value="all">All Clauses (' + clauses.length + ')</option>';
+        clauses.forEach(function(canonical) {
+          // canonical form: ``{version}#{clause}``. Split on the first
+          // ``#`` so the option label can show the clause prominently
+          // with the version in parentheses — clauses are how auditors
+          // think ("show me GDPR Art.5 coverage") and versions are
+          // disambiguators, not the primary key.
+          var hashAt = canonical.indexOf('#');
+          var ver = hashAt > 0 ? canonical.slice(0, hashAt) : '';
+          var clause = hashAt > 0 ? canonical.slice(hashAt + 1) : canonical;
+          var label = clause + (ver ? '  (' + ver + ')' : '');
+          html += '<option value="' + esc(canonical) + '"' + (currentClauseFilter === canonical ? ' selected' : '') + '>' + esc(label) + '</option>';
+        });
+        html += '</select>';
+      }
+    }
   }
   if (_cachedMtypes.length) {
     html += '<select class="c-select" onchange="setMtypeFilter(this.value)"><option value="all">All Types</option>';
@@ -525,6 +599,16 @@ function activeFilterTags() {
     tags.push({ label: 'Reviewed: ' + (freshMap[currentFreshFilter] || currentFreshFilter), fn: "setFreshFilter('all')" });
   }
   if (currentRegulationFilter !== 'all') tags.push({ label: currentRegulationFilter, fn: "setRegFilter('all')" });
+  if (currentClauseFilter && currentClauseFilter !== 'all') {
+    // Render the clause as "<clause> (<version>)" so the chip reads like
+    // an auditor would say it out loud ("GDPR Art.5 (2016/679)") rather
+    // than the raw canonical ``{version}#{clause}`` which looks like an
+    // internal id. The backing filter value stays canonical for exact
+    // match in ``getFilteredUCs()``.
+    var hashAt2 = currentClauseFilter.indexOf('#');
+    var clauseLabel = hashAt2 > 0 ? (currentClauseFilter.slice(hashAt2 + 1) + '  (' + currentClauseFilter.slice(0, hashAt2) + ')') : currentClauseFilter;
+    tags.push({ label: 'Clause: ' + clauseLabel, fn: "setClauseFilter('all')" });
+  }
   if (currentMtypeFilter !== 'all') tags.push({ label: currentMtypeFilter, fn: "setMtypeFilter('all')" });
   if (currentIndustryFilter !== 'all') tags.push({ label: 'Industry: ' + currentIndustryFilter, fn: "setAdvFilter('industry','all')" });
   if (currentEscuFilter !== 'all') tags.push({ label: 'ES Detection: ' + (currentEscuFilter === 'yes' ? 'Yes' : 'No'), fn: "setAdvFilter('escu','all')" });
@@ -597,7 +681,7 @@ function clearAllFilters() {
   var siEl = document.getElementById('search-input');
   if (siEl) siEl.value = '';
   currentFilter = 'all'; currentDiffFilter = 'all'; currentIndustryFilter = 'all'; currentMtypeFilter = 'all';
-  currentPillarFilter = 'all'; currentRegulationFilter = 'all'; currentEscuFilter = 'all'; currentDtypeFilter = 'all';
+  currentPillarFilter = 'all'; currentRegulationFilter = 'all'; currentClauseFilter = 'all'; currentEscuFilter = 'all'; currentDtypeFilter = 'all';
   currentPremiumFilter = 'all'; currentCimFilter = 'all'; currentSappFilter = 'all'; currentMitreFilter = '';
   currentStatusFilter = 'all'; currentFreshFilter = 'all';
   currentMitreTacticFilter = ''; currentDsGroup = ''; currentDatasourceFilter = ''; currentTrendFilter = false;

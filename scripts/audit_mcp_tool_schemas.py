@@ -10,8 +10,10 @@ CI to catch that on the pull request, not in production.
 
 Checks performed:
 
-1. Required tools are declared: the eight MVP tools plus their input and
-   output schemas.
+1. Required tools are declared: the eight MVP tools plus the two
+   clause-level story tools (``get_clause_coverage`` and
+   ``list_uncovered_clauses``) shipped in v1.6.x — all with matching
+   input and output schemas.
 2. Slug regexes are frozen (UC/regulation/equipment) — the drift guard
    asserts the compiled patterns the server uses to validate resource
    URIs, so a future change that relaxes them raises a red flag.
@@ -60,6 +62,8 @@ _PROBE_ARGS: dict[str, dict[str, Any]] = {
     "list_equipment": {"min_use_case_count": 10},
     "get_equipment": {"equipment_id": "azure"},
     "find_compliance_gap": {"regulations": ["gdpr"]},
+    "get_clause_coverage": {"regulation_id": "gdpr", "clause": "Art.5"},
+    "list_uncovered_clauses": {"regulations": ["*"], "limit": 3},
 }
 
 # Nested dotted paths the MCP tools depend on when they fall back to
@@ -149,20 +153,24 @@ def _check_runtime_schemas(issues: list[str]) -> None:
     from splunk_uc_mcp.catalog import Catalog
     from splunk_uc_mcp.tools import (
         FIND_COMPLIANCE_GAP_OUTPUT_SCHEMA,
+        GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA,
         GET_EQUIPMENT_OUTPUT_SCHEMA,
         GET_REGULATION_OUTPUT_SCHEMA,
         GET_USE_CASE_OUTPUT_SCHEMA,
         LIST_CATEGORIES_OUTPUT_SCHEMA,
         LIST_EQUIPMENT_OUTPUT_SCHEMA,
         LIST_REGULATIONS_OUTPUT_SCHEMA,
+        LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA,
         SEARCH_USE_CASES_OUTPUT_SCHEMA,
         find_compliance_gap,
+        get_clause_coverage,
         get_equipment,
         get_regulation,
         get_use_case,
         list_categories,
         list_equipment,
         list_regulations,
+        list_uncovered_clauses,
         search_use_cases,
     )
 
@@ -175,6 +183,8 @@ def _check_runtime_schemas(issues: list[str]) -> None:
         "list_equipment": LIST_EQUIPMENT_OUTPUT_SCHEMA,
         "get_equipment": GET_EQUIPMENT_OUTPUT_SCHEMA,
         "find_compliance_gap": FIND_COMPLIANCE_GAP_OUTPUT_SCHEMA,
+        "get_clause_coverage": GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA,
+        "list_uncovered_clauses": LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA,
     }
     callables: dict[str, Any] = {
         "search_use_cases": search_use_cases,
@@ -185,6 +195,8 @@ def _check_runtime_schemas(issues: list[str]) -> None:
         "list_equipment": list_equipment,
         "get_equipment": get_equipment,
         "find_compliance_gap": find_compliance_gap,
+        "get_clause_coverage": get_clause_coverage,
+        "list_uncovered_clauses": list_uncovered_clauses,
     }
 
     with Catalog(catalog_root=REPO_ROOT) as catalog:

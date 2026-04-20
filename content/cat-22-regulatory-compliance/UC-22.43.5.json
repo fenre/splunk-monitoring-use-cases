@@ -4,7 +4,6 @@
   "title": "SBOM vendor-component CVE exposure",
   "criticality": "high",
   "difficulty": "advanced",
-  "subcategory": "22.43#1",
   "monitoringType": [
     "Compliance",
     "Security"
@@ -21,7 +20,11 @@
       "clause": "Art.21(2)(d)",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "NIS2 supply-chain risk-management clause is supported by SBOM-CVE correlation."
+      "assurance_rationale": "NIS2 supply-chain risk-management clause is supported by SBOM-CVE correlation.",
+      "controlObjective": "Evidence that NIS2 Art.21(2)(d) (Supply-chain security) is enforced — Splunk UC-22.43.5: SBOM vendor-component CVE exposure.",
+      "evidenceArtifact": "Saved search 'UC-22.43.5' running on Vendor SBOMs (CycloneDX/SPDX), CVE feed (NVD, vendor advisories)., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(d)",
+      "requires_sme_review": true
     },
     {
       "regulation": "EU-CRA",
@@ -29,7 +32,11 @@
       "clause": "Art.13",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "EU Cyber Resilience Act requires product vulnerability management backed by SBOM."
+      "assurance_rationale": "EU Cyber Resilience Act requires product vulnerability management backed by SBOM.",
+      "controlObjective": "Evidence that EU-CRA Art.13 (Obligations of manufacturers) is enforced — Splunk UC-22.43.5: SBOM vendor-component CVE exposure.",
+      "evidenceArtifact": "Saved search 'UC-22.43.5' running on Vendor SBOMs (CycloneDX/SPDX), CVE feed (NVD, vendor advisories)., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "eu-cra@Regulation (EU) 2024/2847#Art.13",
+      "requires_sme_review": true
     },
     {
       "regulation": "NIST-800-53",
@@ -37,7 +44,11 @@
       "clause": "SR-11",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "SR-11 component authenticity includes supply-chain vulnerability monitoring."
+      "assurance_rationale": "SR-11 component authenticity includes supply-chain vulnerability monitoring.",
+      "controlObjective": "Evidence that NIST-800-53 SR-11 is enforced — Splunk UC-22.43.5: SBOM vendor-component CVE exposure.",
+      "evidenceArtifact": "Saved search 'UC-22.43.5' running on Vendor SBOMs (CycloneDX/SPDX), CVE feed (NVD, vendor advisories)., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "nist-800-53@Rev. 5#SR-11",
+      "requires_sme_review": true
     }
   ],
   "controlTest": {
@@ -49,15 +60,13 @@
   "dataSources": "Vendor SBOMs (CycloneDX/SPDX), CVE feed (NVD, vendor advisories).",
   "app": "Splunk Enterprise / Splunk Cloud Platform",
   "spl": "| inputlookup vendor_sbom.csv\n| lookup cve_feed.csv component version OUTPUT cve cvss_v3_base\n| where isnotnull(cve) AND cvss_v3_base>=7.0\n| stats values(cve) as cves, max(cvss_v3_base) as max_cvss by vendor component version\n| table vendor component version cves max_cvss",
+  "description": "Uses the vendor SBOM register to answer 'which vendor components in my estate are affected by the CVE published today?'.",
+  "value": "Closes the gap between the day a CVE is published and the day a vendor responds — crucial for CRA and NIS2 supply-chain narratives.",
+  "implementation": "(1) Ingest vendor SBOMs from the procurement workflow; (2) subscribe to NVD feed into cve_feed.csv; (3) run daily; (4) SOAR opens a case per vendor-affected component.",
+  "visualization": "Table of exposed components, bar chart of CVE count by vendor, single-value 'SBOM-indexed components with no open CVE'.",
   "cimModels": [
     "Vulnerabilities"
   ],
-  "description": "Uses the vendor SBOM register to answer 'which vendor components in my estate are affected by the CVE published today?'.",
-  "value": "Closes the gap between the day a CVE is published and the day a vendor responds — crucial for CRA and NIS2 supply-chain narratives.",
-  "grandmaExplanation": "Closes the gap between the day a CVE is published and the day a vendor responds — crucial for CRA and NIS2 supply-chain narratives — so you can show exactly what is being watched and when something went wrong.",
-  "implementation": "(1) Ingest vendor SBOMs from the procurement workflow; (2) subscribe to NVD feed into cve_feed.csv; (3) run daily; (4) SOAR opens a case per vendor-affected component.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: Vendor SBOMs (CycloneDX/SPDX), CVE feed (NVD, vendor advisories)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest vendor SBOMs from the procurement workflow; (2) subscribe to NVD feed into cve_feed.csv; (3) run daily; (4) SOAR opens a case per vendor-affected component.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup vendor_sbom.csv\n| lookup cve_feed.csv component version OUTPUT cve cvss_v3_base\n| where isnotnull(cve) AND cvss_v3_base>=7.0\n| stats values(cve) as cves, max(cvss_v3_base) as max_cvss by vendor component version\n| table vendor component version cves max_cvss\n```\n\nUnderstanding this SPL\n\n**SBOM vendor-component CVE exposure** — Closes the gap between the day a CVE is published and the day a vendor responds — crucial for CRA and NIS2 supply-chain narratives.\n\nDocumented **Data sources**: Vendor SBOMs (CycloneDX/SPDX), CVE feed (NVD, vendor advisories). **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnotnull(cve) AND cvss_v3_base>=7.0` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by vendor component version** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Pipeline stage (see **SBOM vendor-component CVE exposure**): table vendor component version cves max_cvss\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of exposed components, bar chart of CVE count by vendor, single-value 'SBOM-indexed components with no open CVE'.",
-  "visualization": "Table of exposed components, bar chart of CVE count by vendor, single-value 'SBOM-indexed components with no open CVE'.",
   "references": [
     {
       "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
@@ -98,5 +107,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "grandmaExplanation": "Closes the gap between the day a CVE is published and the day a vendor responds — crucial for CRA and NIS2 supply-chain narratives — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: Vendor SBOMs (CycloneDX/SPDX), CVE feed (NVD, vendor advisories)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest vendor SBOMs from the procurement workflow; (2) subscribe to NVD feed into cve_feed.csv; (3) run daily; (4) SOAR opens a case per vendor-affected component.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup vendor_sbom.csv\n| lookup cve_feed.csv component version OUTPUT cve cvss_v3_base\n| where isnotnull(cve) AND cvss_v3_base>=7.0\n| stats values(cve) as cves, max(cvss_v3_base) as max_cvss by vendor component version\n| table vendor component version cves max_cvss\n```\n\nUnderstanding this SPL\n\n**SBOM vendor-component CVE exposure** — Closes the gap between the day a CVE is published and the day a vendor responds — crucial for CRA and NIS2 supply-chain narratives.\n\nDocumented **Data sources**: Vendor SBOMs (CycloneDX/SPDX), CVE feed (NVD, vendor advisories). **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnotnull(cve) AND cvss_v3_base>=7.0` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by vendor component version** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Pipeline stage (see **SBOM vendor-component CVE exposure**): table vendor component version cves max_cvss\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of exposed components, bar chart of CVE count by vendor, single-value 'SBOM-indexed components with no open CVE'.",
+  "subcategory": "22.43#1"
 }

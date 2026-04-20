@@ -1,6 +1,6 @@
 # Compliance clause-level gap analysis
 
-_Generated: 2026-04-18T16:53:18Z_ by `scripts/audit_compliance_gaps.py`. Do not hand-edit.
+_Generated: 2026-04-20T11:35:15Z_ by `scripts/audit_compliance_gaps.py`. Do not hand-edit.
 
 This report inverts the compliance coverage audit: for every regulation-version listed in `data/regulations.json` it walks every `commonClauses[]` entry and records whether at least one non-draft UC sidecar tags that clause. Gaps are ranked by the clause's `priorityWeight` so authoring effort can focus on the highest-impact worklist items.
 
@@ -9,7 +9,7 @@ This report inverts the compliance coverage audit: for every regulation-version 
 | Tier | Clauses | Covered | Coverage % | Priority weight | Priority covered | Priority % |
 |------|--------:|--------:|-----------:|----------------:|------------------:|-----------:|
 | tier-1 | 199 | 199 | 100.00 | 186.1000 | 186.1000 | 100.00 |
-| tier-2 | 128 | 128 | 100.00 | 123.8000 | 123.8000 | 100.00 |
+| tier-2 | 144 | 128 | 88.89 | 138.9000 | 123.8000 | 89.13 |
 | tier-3 | 0 | 0 | 0.00 | 0.0000 | 0.0000 | 0.00 |
 
 ## Tier 1 frameworks
@@ -500,6 +500,31 @@ _BaFin Banking/Insurance Supervisory Requirements for IT (BAIT/KAIT)_
 | `§5` | Identity & access management | 1.00 | ✔ 9 | partial | 13.1.39, 22.28.16, 22.28.18, 22.28.19, 22.28.20, 4.1.4, 9.1.3, 9.4.1 |
 | `§9` | ICT operations management | 1.00 | ✔ 4 | partial | 12.2.17, 16.4.1, 22.28.17, 5.1.24 |
 
+### Basel III — `basel-iii`
+
+_Basel III — BCBS Operational Risk and Resilience_
+
+#### Basel III@BCBS 2021
+
+- Common clauses: **2**
+- Covered: **0** (0.00%)
+- Priority-weighted coverage: **0.00%** (0.0000 / 2.0000)
+- Authoritative source: https://www.bis.org/bcbs/publ/d516.htm
+
+| Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
+|--------|-------|---------:|----:|---------------|------------|
+| `OPR25.1` | Operational risk management | 1.00 | ✖ 0 | — | — |
+| `OPR25.8` | Business continuity and resilience | 1.00 | ✖ 0 | — | — |
+
+<details><summary>Top gaps (ranked by priority weight)</summary>
+
+| Priority | Clause | Topic |
+|---------:|--------|-------|
+| 1.00 | `OPR25.1` | Operational risk management |
+| 1.00 | `OPR25.8` | Business continuity and resilience |
+
+</details>
+
 ### BSI-KritisV — `bsi-kritisv`
 
 _BSI KRITIS-Verordnung_
@@ -547,6 +572,87 @@ _FBI CJIS Security Policy_
 |--------|-------|---------:|----:|---------------|------------|
 | `5.5.1` | Access control - identification | 1.00 | ✔ 9 | partial | 1.1.108, 22.32.22, 22.32.23, 22.32.24, 22.32.25, 4.1.4, 5.1.14, 7.1.21 |
 | `5.13.3` | Incident response | 1.00 | ✔ 1 | contributing | 22.50.2 |
+
+### COBIT — `cobit`
+
+_COBIT — Control Objectives for Information and Related Technologies_
+
+#### COBIT@2019
+
+- Common clauses: **3**
+- Covered: **0** (0.00%)
+- Priority-weighted coverage: **0.00%** (0.0000 / 2.7000)
+- Authoritative source: https://www.isaca.org/resources/cobit
+
+| Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
+|--------|-------|---------:|----:|---------------|------------|
+| `APO13.01` | Manage security — establish and maintain an ISMS | 1.00 | ✖ 0 | — | — |
+| `DSS05.03` | Manage security services — manage endpoint security | 1.00 | ✖ 0 | — | — |
+| `MEA02.01` | Monitor internal controls | 0.70 | ✖ 0 | — | — |
+
+<details><summary>Top gaps (ranked by priority weight)</summary>
+
+| Priority | Clause | Topic |
+|---------:|--------|-------|
+| 1.00 | `APO13.01` | Manage security — establish and maintain an ISMS |
+| 1.00 | `DSS05.03` | Manage security services — manage endpoint security |
+| 0.70 | `MEA02.01` | Monitor internal controls |
+
+</details>
+
+### COPPA — `coppa`
+
+_Children's Online Privacy Protection Act_
+
+#### COPPA@16 CFR 312
+
+- Common clauses: **2**
+- Covered: **0** (0.00%)
+- Priority-weighted coverage: **0.00%** (0.0000 / 2.0000)
+- Authoritative source: https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-312
+
+| Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
+|--------|-------|---------:|----:|---------------|------------|
+| `§312.3` | Verifiable parental consent obligations | 1.00 | ✖ 0 | — | — |
+| `§312.8` | Data security and confidentiality | 1.00 | ✖ 0 | — | — |
+
+<details><summary>Top gaps (ranked by priority weight)</summary>
+
+| Priority | Clause | Topic |
+|---------:|--------|-------|
+| 1.00 | `§312.3` | Verifiable parental consent obligations |
+| 1.00 | `§312.8` | Data security and confidentiality |
+
+</details>
+
+### COSO — `coso`
+
+_Committee of Sponsoring Organizations — Internal Control / ERM Framework_
+
+#### COSO@2013 ICFR
+
+- Common clauses: **4**
+- Covered: **0** (0.00%)
+- Priority-weighted coverage: **0.00%** (0.0000 / 3.7000)
+- Authoritative source: https://www.coso.org/guidance-on-ic
+
+| Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
+|--------|-------|---------:|----:|---------------|------------|
+| `Principle1` | Commitment to integrity and ethical values | 1.00 | ✖ 0 | — | — |
+| `Principle5` | Enforces accountability | 1.00 | ✖ 0 | — | — |
+| `Principle11` | Selects and develops general controls over technology | 1.00 | ✖ 0 | — | — |
+| `Principle16` | Ongoing and/or separate evaluations | 0.70 | ✖ 0 | — | — |
+
+<details><summary>Top gaps (ranked by priority weight)</summary>
+
+| Priority | Clause | Topic |
+|---------:|--------|-------|
+| 1.00 | `Principle1` | Commitment to integrity and ethical values |
+| 1.00 | `Principle11` | Selects and develops general controls over technology |
+| 1.00 | `Principle5` | Enforces accountability |
+| 0.70 | `Principle16` | Ongoing and/or separate evaluations |
+
+</details>
 
 ### eIDAS — `eidas`
 
@@ -684,6 +790,31 @@ _Federal Risk and Authorization Management Program_
 | `AU-6` | Audit review, analysis, reporting | 1.00 | ✔ 3 | partial | 13.1.35, 13.1.37, 4.1.1 |
 | `SI-4` | System monitoring | 1.00 | ✔ 4 | partial | 1.1.65, 1.1.76, 1.2.51, 4.1.1 |
 
+### FERPA — `ferpa`
+
+_Family Educational Rights and Privacy Act_
+
+#### FERPA@20 USC §1232g
+
+- Common clauses: **2**
+- Covered: **0** (0.00%)
+- Priority-weighted coverage: **0.00%** (0.0000 / 1.7000)
+- Authoritative source: https://www.ecfr.gov/current/title-34/subtitle-A/part-99
+
+| Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
+|--------|-------|---------:|----:|---------------|------------|
+| `§99.31` | Conditions for disclosure without consent | 1.00 | ✖ 0 | — | — |
+| `§99.33` | Redisclosure and record-keeping | 0.70 | ✖ 0 | — | — |
+
+<details><summary>Top gaps (ranked by priority weight)</summary>
+
+| Priority | Clause | Topic |
+|---------:|--------|-------|
+| 1.00 | `§99.31` | Conditions for disclosure without consent |
+| 0.70 | `§99.33` | Redisclosure and record-keeping |
+
+</details>
+
 ### FISMA — `fisma`
 
 _Federal Information Security Modernization Act_
@@ -699,6 +830,33 @@ _Federal Information Security Modernization Act_
 |--------|-------|---------:|----:|---------------|------------|
 | `§3554(b)(1)` | Information security program | 1.00 | ✔ 14 | contributing | 22.19.10, 22.19.11, 22.19.12, 22.19.13, 22.19.14, 22.19.15, 22.19.6, 22.19.7 |
 | `§3554(b)(5)` | Security controls and monitoring | 1.00 | ✔ 19 | contributing | 22.19.1, 22.19.16, 22.19.17, 22.19.18, 22.19.19, 22.19.2, 22.19.20, 22.19.21 |
+
+### GLBA — `glba`
+
+_Gramm-Leach-Bliley Act — Safeguards Rule_
+
+#### GLBA@16 CFR 314 (2023 amendments)
+
+- Common clauses: **3**
+- Covered: **0** (0.00%)
+- Priority-weighted coverage: **0.00%** (0.0000 / 3.0000)
+- Authoritative source: https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314
+
+| Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
+|--------|-------|---------:|----:|---------------|------------|
+| `§314.4(b)` | Risk assessment | 1.00 | ✖ 0 | — | — |
+| `§314.4(c)(1)` | Access controls | 1.00 | ✖ 0 | — | — |
+| `§314.4(d)(2)` | Continuous monitoring | 1.00 | ✖ 0 | — | — |
+
+<details><summary>Top gaps (ranked by priority weight)</summary>
+
+| Priority | Clause | Topic |
+|---------:|--------|-------|
+| 1.00 | `§314.4(b)` | Risk assessment |
+| 1.00 | `§314.4(c)(1)` | Access controls |
+| 1.00 | `§314.4(d)(2)` | Continuous monitoring |
+
+</details>
 
 ### HIPAA Privacy — `hipaa-privacy`
 
