@@ -35,7 +35,7 @@ on:
 
 permissions:
   contents: write
-  # id-token: write is required for actions/attest-build-provenance@v2 to
+  # id-token: write is required for actions/attest-build-provenance@v4 to
   # request an OIDC token that Sigstore Fulcio uses to mint a short-lived
   # signing certificate bound to this workflow run. It grants nothing beyond
   # the GitHub identity of this run and cannot be used to sign other refs.
@@ -57,12 +57,12 @@ jobs:
       version: ${{ steps.resolve.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -131,7 +131,7 @@ jobs:
       #      integrity).
       #   3. Copy to dist/ and promote signature.state to "attested",
       #      populating runId / workflowRef / commit from the live run.
-      #   4. Attest the stamped file via actions/attest-build-provenance@v2
+      #   4. Attest the stamped file via actions/attest-build-provenance@v4
       #      (Sigstore + GitHub transparency log).
       #   5. Re-audit the dist/ copy with --require-signature and
       #      --verify-signature to fail the release on any drift.
@@ -147,13 +147,13 @@ jobs:
         run: python3 scripts/stamp_ledger_release.py
 
       - name: Attest mapping ledger provenance (Sigstore / SLSA v1)
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         id: ledger-attest
         with:
           subject-path: dist/mapping-ledger.json
 
       - name: Place attestation bundle at canonical path
-        # actions/attest-build-provenance@v2 writes the Sigstore bundle to a
+        # actions/attest-build-provenance@v4 writes the Sigstore bundle to a
         # workflow-defined path. We copy it to the filename that the stamped
         # ledger's signature.bundlePath references so offline consumers can
         # verify with `gh attestation verify mapping-ledger.json --bundle
@@ -202,7 +202,7 @@ jobs:
           cat manifest.md
 
       - name: Upload packs as workflow artefact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: splunk-packs-${{ steps.resolve.outputs.version }}
           path: |
@@ -222,15 +222,15 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Download artefacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: splunk-packs-${{ needs.build.outputs.version }}
           path: dist/
@@ -244,7 +244,7 @@ jobs:
           cat dist/release-body.md
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: "Release v${{ needs.build.outputs.version }}"
           tag_name: ${{ github.ref_name }}
