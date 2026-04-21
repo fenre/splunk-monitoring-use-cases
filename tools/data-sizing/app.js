@@ -639,11 +639,6 @@
   var themeBtn = document.getElementById('dsa-theme-btn');
   if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
 
-  try {
-    if (localStorage.getItem('cisco-ui-theme') === 'dark') {
-      document.documentElement.classList.add('dark');
-    }
-  } catch (e) {}
   applyTheme();
 
   // ═══════════════════════════════════════════════════════════

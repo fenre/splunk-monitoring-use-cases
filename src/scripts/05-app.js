@@ -954,14 +954,11 @@ function initApp() {
   _updateInventoryBadge();
   _restoreUCSelections();
   populateEquipmentSelect();
-  try {
-    if (localStorage.getItem('cisco-ui-theme') === 'dark') {
-      document.documentElement.classList.add('dark');
-      document.getElementById('theme-label').textContent = 'Light';
-      var ic = document.getElementById('theme-ico');
-      if (ic) ic.textContent = '☀';
-    }
-  } catch (e) {}
+  if (document.documentElement.classList.contains('dark')) {
+    document.getElementById('theme-label').textContent = 'Light';
+    var ic = document.getElementById('theme-ico');
+    if (ic) ic.textContent = '\u2600';
+  }
   try {
     var ts = localStorage.getItem(TEXT_KEY);
     if (ts != null) applyTextSizeStep(ts);
