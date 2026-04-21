@@ -563,6 +563,7 @@ function renderCategory() {
     filtered.forEach(function(e) { html += renderUCCard(e.uc); });
     html += '</div>';
   } else {
+    html += renderCategoryRoadmap(cat.i);
     cat.s.forEach(function(sc) {
       var scUCs = filtered.filter(function(e) { return e.sc.i === sc.i; });
       if (!scUCs.length) return;

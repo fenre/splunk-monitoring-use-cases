@@ -207,6 +207,124 @@ function critBadge(c) {
 function diffBadge(d) {
   return '<span class="c-badge c-badge-diff">' + esc((d || '').charAt(0).toUpperCase() + (d || '').slice(1)) + '</span>';
 }
+// Wave is the per-UC implementation tier inside the crawl/walk/run rollout
+// model. Surfaces only when the curator has assigned one (uc.wv set); UCs
+// without a wave never render a badge.
+var WAVE_LABELS = { crawl: 'Crawl', walk: 'Walk', run: 'Run' };
+var WAVE_TOOLTIPS = {
+  crawl: 'Foundation wave — install the TA, turn on a base data feed, ship one panel or alert. Implement first.',
+  walk: 'Intermediate wave — refines or correlates a crawl signal (anomaly detection, SLA math, cross-host roll-ups).',
+  run: 'Advanced wave — depends on multiple crawls/walks, often cross-category. Implement after walk UCs are stable.'
+};
+function waveBadge(w) {
+  var key = (w || '').toLowerCase();
+  if (!WAVE_LABELS[key]) return '';
+  return '<span class="c-badge c-badge-wave-' + esc(key) + '" title="' + esc(WAVE_TOOLTIPS[key]) + '">' + esc(WAVE_LABELS[key]) + '</span>';
+}
+// Reverse-prereq index: { 'UC-X.Y.Z': ['UC-A.B.C', ...] } where the listed
+// UCs declare the key as a prerequisite. Built lazily on first use so the
+// initial DATA scan in buildIndex() stays untouched, then memoised.
+var _reversePrereqIndex = null;
+function getReversePrereqIndex() {
+  if (_reversePrereqIndex) return _reversePrereqIndex;
+  _reversePrereqIndex = {};
+  if (typeof DATA === 'undefined' || !Array.isArray(DATA)) return _reversePrereqIndex;
+  DATA.forEach(function(cat) {
+    (cat.s || []).forEach(function(sc) {
+      (sc.u || []).forEach(function(uc) {
+        if (!Array.isArray(uc.pre) || !uc.pre.length) return;
+        var src = 'UC-' + uc.i;
+        uc.pre.forEach(function(dep) {
+          if (typeof dep !== 'string') return;
+          (_reversePrereqIndex[dep] = _reversePrereqIndex[dep] || []).push(src);
+        });
+      });
+    });
+  });
+  Object.keys(_reversePrereqIndex).forEach(function(k) {
+    _reversePrereqIndex[k] = _reversePrereqIndex[k].sort();
+  });
+  return _reversePrereqIndex;
+}
+// Render an inline UC chip that opens the target UC in the side panel when
+// clicked. Falls back to a plain id when the referenced UC is missing from
+// the catalogue (defensive — validate_prerequisites() should already have
+// failed the build, but the SPA must not crash on stale cached data.js).
+function renderUCChip(ucFullId) {
+  if (typeof ucFullId !== 'string' || !ucFullId.indexOf) return '';
+  var bareId = ucFullId.replace(/^UC-/, '');
+  var entry = (typeof ucIndex === 'object' && ucIndex) ? ucIndex[bareId] : null;
+  if (!entry) {
+    return '<li><span class="uc-chip" title="Unknown or removed UC">' + esc(ucFullId) + '</span></li>';
+  }
+  var title = entry.uc.n || '';
+  var waveHtml = '';
+  if (entry.uc.wv && WAVE_LABELS[entry.uc.wv]) {
+    waveHtml = ' <span class="chip-wave c-badge c-badge-wave-' + esc(entry.uc.wv) + '" title="' + esc(WAVE_TOOLTIPS[entry.uc.wv]) + '">' + esc(WAVE_LABELS[entry.uc.wv]) + '</span>';
+  }
+  return '<li><button type="button" class="uc-chip" title="' + esc(title) + '" onclick="openUCById(\'' + esc(bareId) + '\')">' + esc(ucFullId) + waveHtml + '</button></li>';
+}
+function renderImplementationOrdering(uc) {
+  var html = '';
+  var pre = Array.isArray(uc.pre) ? uc.pre : [];
+  var enables = getReversePrereqIndex()['UC-' + uc.i] || [];
+  if (!pre.length && !enables.length) return '';
+  if (pre.length) {
+    html += '<div class="c-panel-section"><div class="c-panel-section-title">Implement first (prerequisites)</div><div class="c-panel-section-body"><ul class="uc-chip-list">';
+    pre.forEach(function(p) { html += renderUCChip(p); });
+    html += '</ul></div></div>';
+  }
+  if (enables.length) {
+    html += '<div class="c-panel-section"><div class="c-panel-section-title">Enables</div><div class="c-panel-section-body"><ul class="uc-chip-list">';
+    enables.forEach(function(p) { html += renderUCChip(p); });
+    html += '</ul></div></div>';
+  }
+  return html;
+}
+// Per-category 'Crawl → Walk → Run' rollout rendered above the UC list.
+// Reads from the precomputed ROADMAP global emitted by build.py
+// (one bucket per wave, one bucket per category id). Returns '' when the
+// category has no waves assigned at all so categories curators have not
+// yet touched render unchanged.
+function renderCategoryRoadmap(catId) {
+  if (typeof ROADMAP === 'undefined' || !ROADMAP) return '';
+  var buckets = ROADMAP[String(catId)];
+  if (!buckets) return '';
+  var crawl = Array.isArray(buckets.crawl) ? buckets.crawl : [];
+  var walk = Array.isArray(buckets.walk) ? buckets.walk : [];
+  var run = Array.isArray(buckets.run) ? buckets.run : [];
+  var unassigned = Array.isArray(buckets.unassigned) ? buckets.unassigned : [];
+  if (!crawl.length && !walk.length && !run.length) return '';
+  var MAX_VISIBLE = 5;
+  function chips(list) {
+    if (!list.length) return '<span class="c-roadmap-empty">No UCs assigned</span>';
+    var visible = list.slice(0, MAX_VISIBLE).map(renderUCChip).join('');
+    var more = list.length > MAX_VISIBLE
+      ? '<span class="c-roadmap-more" title="' + (list.length - MAX_VISIBLE) + ' more in this wave">+' + (list.length - MAX_VISIBLE) + '</span>'
+      : '';
+    return '<ul class="uc-chip-list">' + visible + '</ul>' + more;
+  }
+  function col(label, list, tip, withArrow) {
+    return '<div class="c-roadmap-col">'
+      + '<div class="c-roadmap-col-title" title="' + esc(tip) + '">'
+      + esc(label) + ' <span class="c-roadmap-count">(' + list.length + ')</span>'
+      + (withArrow ? ' <span class="c-roadmap-col-arrow" aria-hidden="true">→</span>' : '')
+      + '</div>'
+      + '<div class="c-roadmap-col-body">' + chips(list) + '</div>'
+      + '</div>';
+  }
+  var html = '<div class="c-roadmap-band" role="group" aria-label="Implementation roadmap for this category">';
+  html += col('Crawl', crawl, WAVE_TOOLTIPS.crawl, true);
+  html += col('Walk', walk, WAVE_TOOLTIPS.walk, true);
+  html += col('Run', run, WAVE_TOOLTIPS.run, false);
+  if (unassigned.length) {
+    html += '<div class="c-roadmap-unassigned">'
+      + unassigned.length + ' UC(s) in this category have no wave assigned yet.'
+      + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
 
 function githubIssueUrlForEntry(entry) {
   var uc = entry.uc, cat = entry.cat, sc = entry.sc;

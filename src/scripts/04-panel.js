@@ -3,6 +3,7 @@ function fillPanelBody(e) {
   var html = '<div class="c-panel-meta">';
   html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Criticality</div>' + critBadge(uc.c) + '</div>';
   html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Difficulty</div>' + diffBadge(uc.f) + '</div>';
+  if (uc.wv && WAVE_LABELS[uc.wv]) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Wave</div>' + waveBadge(uc.wv) + '</div>';
   if (uc.mtype && uc.mtype.length) html += '<div class="c-panel-meta-item full"><div class="c-panel-meta-label">Monitoring type</div><div>' + esc(uc.mtype.join(', ')) + '</div></div>';
   if (uc.pillar) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Pillar</div><div>' + esc(uc.pillar) + '</div></div>';
   if (uc.status) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Status</div><div><span class="uc-card-status ' + esc(uc.status) + '">' + esc(uc.status) + '</span></div></div>';
@@ -18,6 +19,8 @@ function fillPanelBody(e) {
   if (uc.sdomain) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Security domain</div><div>' + esc(uc.sdomain) + '</div></div>';
   if (uc.dtype) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Detection type</div><div>' + esc(uc.dtype) + '</div></div>';
   html += '</div>';
+
+  html += renderImplementationOrdering(uc);
 
   if (uc.mitre && uc.mitre.length) {
     html += '<div class="c-panel-section"><div class="c-panel-section-title">MITRE ATT&CK</div><div class="c-panel-section-body">';
