@@ -120,9 +120,11 @@ server.listen(0, "127.0.0.1", () => {
     return el;
   }
 
-  // Pre-create the ids the IIFE touches.
+  // Pre-create the ids the IIFE touches. The theme toggle uses the
+  // shared chrome ids (theme-btn / theme-label / theme-ico) wired in
+  // src/styles/06-chrome.css; the rest are page-owned filter/tile ids.
   [
-    "cn-theme-btn", "cn-theme-label",
+    "theme-btn", "theme-label", "theme-ico",
     "cn-tile-regs", "cn-tile-clauses", "cn-tile-full", "cn-tile-partial", "cn-tile-obl",
     "cn-search", "cn-reg", "cn-coverage", "cn-tier", "cn-obl",
     "cn-reset", "cn-export-csv",

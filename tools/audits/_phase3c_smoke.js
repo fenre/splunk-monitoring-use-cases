@@ -122,9 +122,12 @@ function buildSandbox(base, search) {
     return el;
   }
 
-  // All ids the IIFE touches, across both modes.
+  // All ids the IIFE touches, across both modes. The theme toggle
+  // uses the shared chrome ids (theme-btn / theme-label / theme-ico)
+  // wired in src/styles/06-chrome.css; the brand subtitle is updated
+  // dynamically via cs-brand-sub when a story loads.
   [
-    "cs-theme-btn", "cs-theme-label", "cs-brand-title",
+    "theme-btn", "theme-label", "theme-ico", "cs-brand-sub",
     "cs-content",
     // landing filters
     "cs-filter-search", "cs-filter-tier", "cs-cards-root",
