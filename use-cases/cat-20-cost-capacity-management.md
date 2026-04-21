@@ -8,6 +8,7 @@
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Capacity
 - **Value:** Cloud costs can spiral without visibility. Daily spend trending by service, account, and tag provides the financial governance foundation — enabling teams to understand where money goes, spot trends early, and make informed optimization decisions.
 - **App/TA:** `Splunk Add-on for AWS` (CUR ingestion), `Splunk Add-on for Microsoft Cloud Services`, `Splunk Add-on for Google Cloud Platform`
@@ -75,6 +76,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Value:** Idle resources (running but unused instances, unattached volumes, unused load balancers) are pure waste. Identifying and eliminating them is the quickest path to cloud cost savings, often yielding 20-30% reduction.
 - **App/TA:** `Splunk Add-on for AWS`, cloud monitoring TAs
@@ -99,6 +101,7 @@ index=cloud_metrics sourcetype="aws:cloudwatch"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Capacity
 - **Value:** Budget alerts prevent overspend by notifying stakeholders at defined thresholds (50%, 75%, 90%, 100%). Combined with forecast-based alerts, teams can take corrective action before exceeding approved budgets.
 - **App/TA:** `Splunk Add-on for AWS`, cloud billing TAs
@@ -668,6 +671,7 @@ index=finops sourcetype="cost:unified_daily" earliest=-90d
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** Running out of compute capacity causes provisioning failures and performance degradation. Forecasting when CPU and memory will be exhausted enables proactive procurement or scaling, avoiding emergency purchases at premium cost.
 - **App/TA:** Infrastructure monitoring TAs (various), Splunk `predict` command
@@ -688,6 +692,7 @@ index=infrastructure sourcetype="Perfmon:Processor" OR sourcetype="cpu"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Value:** Storage procurement has lead times. Forecasting growth trends enables timely ordering of additional capacity, preventing the emergency of running out of storage space that causes application outages and data loss.
 - **App/TA:** Storage TAs (various), Splunk `predict` command

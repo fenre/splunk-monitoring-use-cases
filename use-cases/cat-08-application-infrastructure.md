@@ -9,6 +9,7 @@
 ### UC-8.1.1 · HTTP Error Rate Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Value:** Rising error rates signal application issues, backend failures, or attacks. Rapid detection reduces user impact and MTTR.
 - **App/TA:** `Splunk_TA_apache`, `TA-nginx`, IIS via Windows TA
@@ -126,6 +127,7 @@ index=web sourcetype="access_combined" status>=400
 ### UC-8.1.5 · SSL Certificate Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** Expired SSL certificates cause complete service outage and browser security warnings. Proactive monitoring prevents this entirely avoidable failure.
 - **App/TA:** Scripted input (openssl s_client), custom certificate check
@@ -500,6 +502,7 @@ index=wineventlog sourcetype="WinEventLog:System" Source="WAS"
 ### UC-8.2.1 · JVM Heap Utilization
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Value:** JVM heap exhaustion causes OutOfMemoryError, crashing the application. Monitoring enables tuning before failures occur.
 - **App/TA:** `TA-jmx`, OpenTelemetry
@@ -1010,6 +1013,7 @@ index=jira sourcetype="jira:jmx"
 ### UC-8.3.1 · Consumer Lag Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Value:** Growing consumer lag means messages aren't being processed fast enough, leading to data staleness and eventual message loss if retention is exceeded.
 - **App/TA:** `Splunk Connect for Kafka` (Splunkbase 3862), Burrow integration, JMX
@@ -1052,6 +1056,7 @@ index=messaging sourcetype="rabbitmq:queue"
 ### UC-8.3.3 · Broker Health Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** Broker failures cause message loss and application disruption. Health monitoring ensures cluster stability.
 - **App/TA:** JMX, broker metrics

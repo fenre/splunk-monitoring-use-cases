@@ -9,6 +9,7 @@
 ### UC-11.1.1 · Mail Flow Health Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** Deferred or failed message traces directly hit revenue-dependent communications and support SLAs. Sustained delivery failure spikes should drive incident severity classification and trigger customer communication templates before users report the issue.
 - **App/TA:** `Splunk_TA_MS_O365`, Exchange message tracking
@@ -37,6 +38,7 @@ index=o365 sourcetype="ms:o365:messageTrace"
 ### UC-11.1.2 · Mailbox Audit Logging
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Compliance
 - **Value:** Tracks who accesses what mailboxes, including delegate and admin access. Essential for insider threat detection and compliance.
 - **App/TA:** `Splunk_TA_MS_O365`
@@ -163,6 +165,7 @@ index=o365 sourcetype="ms:o365:management" RecordType=1
 ### UC-11.1.8 · Inbox Rule Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **Value:** Malicious inbox rules (auto-forward to external, auto-delete) are a key post-compromise technique for data exfiltration.
 - **App/TA:** `Splunk_TA_MS_O365`
@@ -355,6 +358,7 @@ index=gws sourcetype="gws:drive" event_name="change_user_access"
 ### UC-11.2.4 · Login Anomaly Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **Value:** Suspicious login activity (new device, unusual location, failed MFA) indicates potential account compromise.
 - **App/TA:** `Splunk_TA_GoogleWorkspace`
@@ -820,6 +824,7 @@ index=voip sourcetype="webex:meetings"
 ### UC-11.3.6 · Toll Fraud Detection (Cisco CUCM)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **Value:** Toll fraud causes significant financial loss. International premium-rate calls from compromised systems can cost thousands per hour.
 - **App/TA:** UCM CDR analysis

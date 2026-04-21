@@ -16,6 +16,8 @@
 | **Implementation** | Key steps to get this use case running |
 | **Monitoring type** | Analytics, Anomaly, Audit, Availability, Business, Capacity, Change, Compliance, Configuration, Cost, Data Quality, DevSecOps, Fault, Fraud, Governance, Inventory, Operations, Patient Safety, Performance, Physical Security, Quality, Reliability, Resilience, Revenue Assurance, Risk, Safety, Security, Trading, Vulnerability |
 | **Visualization** | Recommended dashboard panel type(s) |
+| **Wave** *(optional)* | Implementation wave — `crawl` (foundation: turn on the TA and ship one panel or alert), `walk` (intermediate: refines or correlates a crawl signal), or `run` (advanced: depends on multiple crawls/walks). Drives the per-category *Crawl → Walk → Run* roadmap and the in-panel wave badge. See [docs/implementation-ordering.md](../docs/implementation-ordering.md). |
+| **Prerequisite UCs** *(optional)* | Comma-separated list of `UC-X.Y.Z` ids that should be implemented first (shared data sources, lookups, ITSI services, macros, etc.). Rendered as clickable "Implement first" chips in the UC panel and reverse-indexed into an "Enables" list on every referenced UC. Validated by [`scripts/audit_prerequisites.py`](../scripts/audit_prerequisites.py) — unknown ids, self-references, and cycles fail CI. |
 
 ---
 

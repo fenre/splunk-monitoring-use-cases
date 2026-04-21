@@ -9,6 +9,7 @@
 ### UC-13.1.1 · Indexer Queue Fill Ratio
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Capacity
 - **Value:** Backed-up indexing queues cause data loss or delay. Detection enables immediate investigation of ingestion bottlenecks.
 - **App/TA:** Monitoring Console (built-in)
@@ -51,6 +52,7 @@ index=_internal sourcetype=splunkd group=search_concurrency
 ### UC-13.1.3 · Forwarder Connectivity
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** Silent forwarder failures mean data gaps that may not be noticed until an investigation fails. Detection ensures data completeness.
 - **App/TA:** Monitoring Console, Deployment Monitor app
@@ -207,6 +209,7 @@ index=_internal sourcetype=splunkd component=DeploymentServer
 ### UC-13.1.10 · Search Head Cluster Status
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** SHC member failures affect user access and search capacity. Captain election issues can cause complete SHC outage.
 - **App/TA:** Monitoring Console
@@ -1179,6 +1182,7 @@ index=o11y sourcetype="otel:metrics" metric_name IN ("slo.error_budget.remaining
 ### UC-13.2.1 · Service Health Score Trending
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** Service health scores provide a single-pane view of business service status. Trending enables SLA reporting and proactive management.
 - **App/TA:** Splunk ITSI
@@ -1284,6 +1288,7 @@ index=_internal sourcetype=scheduler savedsearch_name="ITSI*Base*"
 ### UC-13.2.6 · Rules Engine Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** The ITSI Rules Engine processes events into episodes. Failure means alerts are not grouped or routed, breaking Event Analytics.
 - **App/TA:** Splunk ITSI

@@ -43,6 +43,7 @@ index=aws sourcetype="aws:cloudtrail" errorCode="AccessDenied" OR errorCode="Una
 ### UC-4.1.2 · Root Account Usage
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **MITRE ATT&CK:** T1078.004
 - **Value:** The AWS root account has unrestricted access and should never be used for daily operations. Any root activity is a critical security event.
@@ -197,6 +198,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="RunInstances" OR eventName="Te
 ### UC-4.1.7 · S3 Bucket Policy Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **MITRE ATT&CK:** T1530, T1619
 - **Value:** S3 bucket policy changes can expose sensitive data to the public internet. One of the most common cloud security incidents.
@@ -227,6 +229,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="PutBucketPolicy" OR eventName=
 ### UC-4.1.8 · GuardDuty Finding Ingestion
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **MITRE ATT&CK:** T1580, T1526
 - **Value:** GuardDuty provides ML-powered threat detection for AWS accounts. Centralizing findings in Splunk enables correlation with other security data.
@@ -2049,6 +2052,7 @@ index=azure sourcetype="mscs:azure:diagnostics" Category="AuditEvent" ResourceTy
 ### UC-4.2.9 · Defender for Cloud Alerts
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **MITRE ATT&CK:** T1530, T1619
 - **Value:** Microsoft Defender provides threat detection across Azure resources. Centralizing in Splunk enables cross-platform security correlation.
@@ -3233,6 +3237,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" logName="*activity"
 ### UC-4.3.2 · IAM Policy Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **MITRE ATT&CK:** T1098.001, T1098.003
 - **Value:** IAM binding changes control who can access what in GCP. Unauthorized changes to bindings on projects, folders, or organizations are critical security events.

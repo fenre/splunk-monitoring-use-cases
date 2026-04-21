@@ -24,6 +24,7 @@
 ### UC-5.1.1 · Interface Up/Down Events
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** A hard-down uplink or WAN port can isolate an entire site or VLAN; flapping often manifests as application timeouts and VoIP drops before a ticket names 'the network.' Treat each DOWN on a trunk or uplink as a potential SEV-1 for that site; treat more than 3 transitions in 10 minutes as a stability risk requiring immediate investigation of optics, cabling, or port configuration.
 - **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
@@ -99,6 +100,7 @@ index=network sourcetype="snmp:interface"
 ### UC-5.1.4 · BGP Peer State Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** BGP session drops cause routing convergence, potentially making networks unreachable.
 - **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
@@ -120,6 +122,7 @@ index=network sourcetype="cisco:ios" "%BGP-5-ADJCHANGE" OR "%BGP-3-NOTIFICATION"
 ### UC-5.1.5 · OSPF Neighbor Adjacency
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** OSPF neighbor loss triggers SPF recalculation, disrupting traffic.
 - **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
@@ -248,6 +251,7 @@ index=network sourcetype="cisco:ios" "%VLAN_MANAGER-6-VLAN_CREATE" OR "%VLAN_MAN
 ### UC-5.1.11 · Power Supply / Fan Failures
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** Hardware failures reduce redundancy. A second failure causes outage.
 - **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, SNMP CISCO-ENVMON-MIB
@@ -1816,6 +1820,7 @@ index=firewall action="denied" OR action="drop"
 ### UC-5.2.2 · Policy Change Audit
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Configuration, Compliance
 - **Value:** Firewall rule changes can expose the network. Compliance must-have (PCI, SOX, HIPAA).
 - **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)

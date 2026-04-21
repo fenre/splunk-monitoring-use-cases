@@ -54,6 +54,7 @@ index=bms sourcetype="bms:faults"
 ### UC-14.1.6 · Environmental Compliance
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Compliance
 - **Value:** Temperature/humidity exceedances in data centers risk equipment damage; in labs they invalidate experiments. Compliance monitoring is mandatory.
 - **App/TA:** Environmental sensor inputs (SNMP, MQTT)
@@ -1203,6 +1204,7 @@ index=building sourcetype="bms:energy"
 ### UC-14.2.1 · PLC/RTU Health Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** Controller failures halt industrial processes. Monitoring CPU, memory, and communication status prevents unplanned downtime.
 - **App/TA:** OPC-UA input, Modbus TA
@@ -1225,6 +1227,7 @@ index=ot sourcetype="opcua:metrics"
 ### UC-14.2.2 · Process Variable Anomalies
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** Process variables (pressure, flow, temperature) outside normal ranges indicate equipment failure or process upset. Early detection prevents safety incidents.
 - **App/TA:** OPC-UA input, Edge Hub anomaly detection
@@ -1247,6 +1250,7 @@ index=ot sourcetype="opcua:process"
 ### UC-14.2.3 · Safety System Activation
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** Safety system activations (ESD, interlocks) indicate dangerous conditions. Each activation requires investigation and documentation.
 - **App/TA:** Safety PLC logs, OPC-UA events

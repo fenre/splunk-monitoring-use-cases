@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
+import respx
 
 from splunk_uc_mcp.catalog import Catalog, CatalogNotFoundError
 from splunk_uc_mcp.tools.use_case import (
@@ -13,6 +16,31 @@ from splunk_uc_mcp.tools.use_case import (
     get_use_case,
     list_categories,
 )
+
+
+@pytest.fixture
+def isolated_synthetic_catalog(
+    synthetic_catalog: Catalog,
+) -> Iterator[Catalog]:
+    """Synthetic catalogue with remote fetches blocked (404 on every path).
+
+    Without this isolation, ``Catalog.load_json`` falls through to the
+    live GitHub Pages mirror when a requested file is missing from the
+    local tree — which silently leaks real UCs into tests that expected
+    the synthetic shape. The respx mock returns 404 for every request
+    under the catalogue's ``base_url``, so a local miss surfaces as
+    :class:`CatalogNotFoundError` (the contract ``get_use_case`` depends
+    on when it falls back to ``uc-thin.json``).
+    """
+
+    respx_mock = respx.mock(assert_all_called=False)
+    respx_mock.get(url__startswith=synthetic_catalog.base_url).respond(404)
+    respx_mock.start()
+    try:
+        yield synthetic_catalog
+    finally:
+        respx_mock.stop()
+        respx_mock.reset()
 
 
 class TestGetUseCaseSchemas:
@@ -126,23 +154,27 @@ class TestGetUseCaseSynthetic:
         # Bookkeeping must not leak.
         assert "apiVersion" not in r
 
-    def test_thin_fallback(self, synthetic_catalog: Catalog) -> None:
-        r = get_use_case(catalog=synthetic_catalog, uc_id="1.1.1")
+    def test_thin_fallback(
+        self, isolated_synthetic_catalog: Catalog
+    ) -> None:
+        r = get_use_case(catalog=isolated_synthetic_catalog, uc_id="1.1.1")
         assert r["id"] == "1.1.1"
         assert r["title"] == "Test UC One"
         assert r["compliance"] == []
 
-    def test_unknown_uc_raises(self, synthetic_catalog: Catalog) -> None:
+    def test_unknown_uc_raises(
+        self, isolated_synthetic_catalog: Catalog
+    ) -> None:
         with pytest.raises(CatalogNotFoundError):
-            get_use_case(catalog=synthetic_catalog, uc_id="99.99.99")
+            get_use_case(catalog=isolated_synthetic_catalog, uc_id="99.99.99")
 
     def test_thin_fallback_surfaces_wave_and_prereq(
-        self, synthetic_catalog: Catalog
+        self, isolated_synthetic_catalog: Catalog
     ) -> None:
         """A crawl UC loaded via the uc-thin fallback still exposes wave
         + prereq, even when the UC has no compliance sidecar."""
 
-        r = get_use_case(catalog=synthetic_catalog, uc_id="1.1.1")
+        r = get_use_case(catalog=isolated_synthetic_catalog, uc_id="1.1.1")
         assert r.get("wave") == "crawl"
         assert r.get("prerequisiteUseCases") == []
 

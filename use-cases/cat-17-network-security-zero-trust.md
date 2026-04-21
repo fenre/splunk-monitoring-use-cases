@@ -39,6 +39,7 @@ index=nac sourcetype="cisco:ise:auth"
 ### UC-17.1.2 · Endpoint Posture Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1078
 - **Value:** Non-compliant endpoints accessing the network pose security risks. Posture tracking ensures endpoint hygiene enforcement.
@@ -221,6 +222,7 @@ index=nac sourcetype="cisco:ise:profiler"
 ### UC-17.1.8 · NAC Policy Change Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **MITRE ATT&CK:** T1562.004
 - **Value:** NAC policy changes affect network access for all devices. Unauthorized changes can create security gaps or disrupt access.
@@ -695,6 +697,7 @@ index=nac sourcetype="nac:quarantine"
 ### UC-17.2.1 · VPN Concurrent Sessions
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **MITRE ATT&CK:** T1133, T1078
 - **Value:** VPN capacity planning prevents remote workers from being locked out. Trending identifies peak usage and growth patterns.
@@ -762,6 +765,7 @@ index=vpn sourcetype="cisco:asa" action="authentication_failed"
 ### UC-17.2.3 · Geo-Location Anomalies
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **MITRE ATT&CK:** T1021, T1219
 - **Value:** VPN connections from unexpected countries may indicate compromised credentials being used from attacker infrastructure.
@@ -937,6 +941,7 @@ index=vpn sourcetype="cisco:asa"
 ### UC-17.2.8 · Simultaneous Session Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **MITRE ATT&CK:** T1021, T1219
 - **Value:** A single user with simultaneous VPN sessions from different locations strongly indicates credential compromise.

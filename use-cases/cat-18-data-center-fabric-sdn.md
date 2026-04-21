@@ -30,6 +30,7 @@ index=cisco_aci sourcetype="cisco:aci:health"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Capacity
 - **Value:** ACI faults are the primary operational signal from the fabric. Trending faults by severity helps identify worsening conditions, recurring hardware issues, and configuration problems before they cascade into outages.
 - **App/TA:** `TA_cisco-ACI`, APIC syslog
@@ -51,6 +52,7 @@ index=cisco_aci sourcetype="cisco:aci:faults"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Value:** Endpoint mobility in ACI tracks workload movement across leaf switches. Anomalous mobility (rapid moves, unexpected locations) can indicate misconfigurations, loops, or security issues like MAC spoofing.
 - **App/TA:** `TA_cisco-ACI`, APIC endpoint tracker
@@ -74,6 +76,7 @@ index=cisco_aci sourcetype="cisco:aci:endpoint"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Value:** ACI contracts control EPG-to-EPG communication. Analyzing contract hits reveals traffic patterns, identifies overly permissive or unused contracts, and helps validate micro-segmentation policies are working as designed.
 - **App/TA:** `TA_cisco-ACI`, APIC flow logs
@@ -550,6 +553,7 @@ index=cisco_aci sourcetype="cisco:aci:apic_capacity" earliest=-24h
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Value:** NSX Distributed Firewall (DFW) runs on every hypervisor, providing east-west traffic control. Monitoring rule hits validates security policy effectiveness, identifies unused rules for cleanup, and detects policy violations in real time.
 - **App/TA:** `vmware_nsx_addon`, NSX DFW syslog
@@ -634,6 +638,7 @@ index=vmware sourcetype="vmware:nsx:edge_metrics"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** Transport nodes are the hypervisors participating in the NSX overlay. Tunnel failures between transport nodes cause VM-to-VM communication loss across hosts, directly impacting application availability.
 - **App/TA:** `vmware_nsx_addon`, NSX transport node logs

@@ -9,6 +9,7 @@
 ### UC-15.1.1 · UPS Battery Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** UPS battery degradation is the single largest cause of unprotected power events. Proactive replacement prevents data center outages.
 - **App/TA:** SNMP TA (UPS-MIB)
@@ -52,6 +53,7 @@ index=power sourcetype="snmp:pdu"
 ### UC-15.1.3 · Power Redundancy Status
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** Loss of A/B feed redundancy means a single power failure will cause an outage. Immediate awareness enables emergency response.
 - **App/TA:** SNMP TA, PDU/UPS events
@@ -116,6 +118,7 @@ index=power sourcetype="power:aggregate"
 ### UC-15.1.6 · Circuit Breaker Trips
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** Breaker trips cause immediate power loss to affected equipment. Detection enables rapid response and root cause investigation.
 - **App/TA:** PDU/BMS event logs
@@ -564,6 +567,7 @@ index=physical sourcetype="generator:status"
 ### UC-15.2.1 · Temperature Monitoring per Zone
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** Data center temperature exceedances risk equipment damage and unplanned shutdowns. Per-zone monitoring localizes issues.
 - **App/TA:** SNMP environmental sensors
@@ -607,6 +611,7 @@ index=environment sourcetype="sensor:humidity"
 ### UC-15.2.3 · CRAC/CRAH Unit Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** Cooling unit failures can cause rapid temperature rise. Monitoring operational status enables immediate response and failover.
 - **App/TA:** BMS/SNMP integration

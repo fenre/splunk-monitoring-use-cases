@@ -233,6 +233,8 @@ If there is no sensible CIM data model, use `- **CIM Models:** N/A` and omit the
 | `Last reviewed:` | `reviewed` — `YYYY-MM-DD` (v5.1+) |
 | `Splunk versions:` | `sver` — e.g. `9.2+`, `Cloud` (v5.1+) |
 | `Reviewer:` | `rby` — GitHub handle or `N/A` (v5.1+) |
+| `Wave:` | `wv` — `crawl` / `walk` / `run` implementation tier (schema v1.4.0+); drives the per-category roadmap and the wave badge on the UC panel. See [§5.6 Implementation ordering](#56-implementation-ordering) and [docs/implementation-ordering.md](implementation-ordering.md). |
+| `Prerequisite UCs:` | `pre[]` — comma-separated list of `UC-X.Y.Z` ids that must be implemented first (schema v1.4.0+); reverse-indexed into an "Enables" list on every referenced UC. |
 
 ### 5.5 Rules that are not obvious
 
@@ -242,6 +244,33 @@ If there is no sensible CIM data model, use `- **CIM Models:** N/A` and omit the
 - Multi-model CIM lists are comma-separated: `- **CIM Models:** Authentication, Change`.
 - MITRE IDs that do not match `T\d{4}(\.\d{3})?` are dropped silently. This is a deliberate defence against typos; fix the typo, don't work around the regex.
 - The [`non-technical-view.js`](../non-technical-view.js) file must have an entry for every category and every subcategory referenced in markdown. [`audit_non_technical_sync.py`](../scripts/audit_non_technical_sync.py) enforces this.
+
+### 5.6 Implementation ordering
+
+Schema v1.4.0+ introduces two optional per-UC fields that let authors declare *what to implement first*:
+
+- **`Wave:`** — a coarse `crawl` / `walk` / `run` tier.
+  - `crawl` = foundation UC (install the TA, ship one panel or alert, no UC prerequisites).
+  - `walk` = intermediate UC (refines or correlates a crawl signal; depends on at most one or two crawls).
+  - `run` = advanced UC (depends on multiple crawls/walks, often cross-category; treat as the last thing an operator turns on).
+- **`Prerequisite UCs:`** — a comma-separated list of `UC-X.Y.Z` ids that must be implemented first (shared lookups, macros, summary indexes, ITSI services, baselines). Not a soft "related reading" list — this is a **hard technical dependency**. See the [curator rubric](implementation-ordering.md#3-prerequisite-rubric) for the disambiguation test.
+
+The full curator rubric, legal syntax, and downstream surfaces are documented in [docs/implementation-ordering.md](implementation-ordering.md). The schema is defined in [`schemas/uc.schema.json`](../schemas/uc.schema.json) (fields `wave` and `prerequisiteUseCases`); the compact keys in `catalog.json` / `data.js` are `wv` and `pre` respectively.
+
+**Validation & enforcement.** Three independent gates guard the graph:
+
+1. [`build.py::validate_prerequisites`](../build.py) — warns on wave monotonicity (earlier-wave UCs that depend on later-wave UCs) and hard-fails on unknown ids, self-references, duplicates, and cycles (Kahn's topological sort). Prints a deterministic `Waves:` summary on every build.
+2. [`scripts/audit_catalog_schema.py`](../scripts/audit_catalog_schema.py) — per-UC shape checks against the committed `catalog.json` (`wv ∈ {crawl, walk, run}`, `pre[]` entries match the `UC-X.Y.Z` grammar, no self-references, no duplicates).
+3. [`scripts/audit_prerequisites.py`](../scripts/audit_prerequisites.py) — standalone graph audit: re-runs every invariant against the committed `catalog.json`, emits a deterministic JSON report at `reports/prerequisites-audit.json`, and `--check` diffs the regenerated report against the committed file. This is the **artefact-diffable CI gate** — reviewers can download the report as an action artefact and inspect the full forward/reverse graph without re-running Python locally. `--strict` promotes wave-monotonicity warnings to hard errors (used by `release.yml`).
+
+**Runtime surfaces.** The fields are projected into:
+
+- `index.html` — wave badge on the UC panel, `Implement first` + `Enables` chip lists, and a per-category `Crawl → Walk → Run` roadmap band above the UC list (renders only when the category has at least one UC tagged with a wave).
+- `catalog.json` — compact `wv` and `pre` per UC plus the top-level `implementationRoadmap` object keyed by category id → wave bucket.
+- `data.js` — the same payload as `ROADMAP` for the SPA.
+- `/api/v1/uc-thin.json`, `/api/v1/compliance/*.json`, and the JSON-LD context surface the same fields for agents.
+- The MCP server's `search_use_cases` accepts a `wave` filter; `get_use_case` returns `wave`, `prerequisiteUseCases`, and the reverse `enables` list.
+- The static per-UC HTML pages rendered by [`tools/build/templates/uc.py`](../tools/build/templates/uc.py) render the wave badge, the clickable prerequisite chips, and the reverse-lookup "Enables" list.
 
 ---
 
@@ -370,7 +399,8 @@ All audits are pure Python (stdlib) and live under [`scripts/`](../scripts/). Ea
 |---|---|
 | [`audit_uc_ids.py`](../scripts/audit_uc_ids.py) | Repo-wide UC ID uniqueness; `X` vs filename; per-subcategory `Z` ordering with no gaps |
 | [`audit_uc_structure.py`](../scripts/audit_uc_structure.py) | Required fields present; enum values valid; SPL fenced block present |
-| [`audit_catalog_schema.py`](../scripts/audit_catalog_schema.py) | `catalog.json` shape: categories, subcategories, required keys, enum values |
+| [`audit_catalog_schema.py`](../scripts/audit_catalog_schema.py) | `catalog.json` shape: categories, subcategories, required keys, enum values (including per-UC `wv` / `pre` shape and the top-level `implementationRoadmap` object) |
+| [`audit_prerequisites.py`](../scripts/audit_prerequisites.py) (v6.1+) | UC implementation-ordering graph: rejects unknown prereq ids, self-references, duplicates, and cycles (iterative DFS); warns on wave monotonicity; emits a deterministic graph audit report at `reports/prerequisites-audit.json` that CI diffs under `--check`. See [implementation-ordering.md](implementation-ordering.md). |
 | [`audit_non_technical_sync.py`](../scripts/audit_non_technical_sync.py) | Every category+subcategory in markdown has a `non-technical-view.js` entry with exactly 3 UC refs; referenced UC IDs exist |
 | [`audit_changelog_uc_refs.py`](../scripts/audit_changelog_uc_refs.py) | CHANGELOG version headers (shape, dates, ordering, uniqueness); UC references in markdown point at real UCs |
 | [`audit_repo_consistency.py`](../scripts/audit_repo_consistency.py) | `INDEX.md` vs `cat-*.md`; icons vs `index.html` `SI` paths; Quick Start entries; build.py `CAT_GROUPS` |
@@ -393,10 +423,12 @@ Steps:
 4. CHANGELOG and cross-references (`audit_changelog_uc_refs.py`)
 5. Repository consistency (`audit_repo_consistency.py`)
 6. Catalog schema (`audit_catalog_schema.py`)
-7. Quality metadata coverage (`audit_quality_metadata.py` — warning mode from v5.1, hard gate from v5.2)
-8. Non-technical JS syntax (Node one-liner)
-9. Version triple consistency (VERSION ↔ CHANGELOG top ↔ release-notes top)
-10. Build freshness — runs `python3 build.py` and fails if `data.js`, `catalog.json`, `llms*.txt`, `sitemap.xml`, or `api/*.json` would change
+7. Prerequisite graph audit (`audit_prerequisites.py --check`) — v6.1+
+8. Quality metadata coverage (`audit_quality_metadata.py` — warning mode from v5.1, hard gate from v5.2)
+9. Non-technical JS syntax (Node one-liner)
+10. Version triple consistency (VERSION ↔ CHANGELOG top ↔ release-notes top)
+11. Build freshness — runs `python3 build.py` and fails if `data.js`, `catalog.json`, `llms*.txt`, `sitemap.xml`, or `api/*.json` would change
+12. Prerequisite graph post-build drift (`audit_prerequisites.py --check` after `build.py`) — v6.1+
 
 ### 8.3 Other workflows
 

@@ -165,6 +165,19 @@ jobs:
       - name: Catalog schema validation
         run: python3 scripts/audit_catalog_schema.py
 
+      - name: Prerequisite graph audit (wave / pre)
+        # Hard CI gate on the UC implementation-ordering graph encoded in
+        # catalog.json. scripts/audit_prerequisites.py walks every UC's
+        # ``pre`` list, asserts all referenced ids exist and match the
+        # UC-X.Y.Z grammar, rejects self-references and duplicates, runs
+        # iterative DFS over the forward graph to detect cycles, and warns
+        # on wave-monotonicity violations (crawl UCs depending on walk/run
+        # UCs). ``--check`` re-runs the audit in memory and diffs against
+        # reports/prerequisites-audit.json so a forgotten regeneration,
+        # hand-edited report, or drift between catalog.json and the
+        # committed report all fail CI.
+        run: python3 scripts/audit_prerequisites.py --check
+
       - name: Compliance mapping audit (schema + regulations + golden + baseline)
         # Validates every use-cases/cat-*/uc-*.json sidecar against
         # schemas/uc.schema.json, reconciles each compliance[] entry against
@@ -691,6 +704,15 @@ jobs:
             exit 1
           fi
 
+      - name: Prerequisite audit report (post-build drift)
+        # After build.py regenerates catalog.json, re-run the prereq
+        # audit's --check so the committed report stays in lockstep with
+        # the freshly regenerated catalogue. This is a belt-and-braces
+        # guard: the audit already ran on the pre-build catalog, but
+        # if the build re-derived a different graph (e.g. someone edited
+        # the markdown without regenerating the report), this catches it.
+        run: python3 scripts/audit_prerequisites.py --check
+
       - name: Quality metadata coverage (warn-only)
         # Reports coverage of References, Known false positives, Status,
         # Last reviewed, Splunk versions and Reviewer fields.  Runs after
@@ -740,6 +762,18 @@ jobs:
         with:
           name: compliance-gaps
           path: reports/compliance-gaps.json
+          if-no-files-found: ignore
+
+      - name: Upload prerequisite graph audit report
+        # Implementation-ordering audit (wave/prereq graph).  Reviewers
+        # can download this artifact to inspect the full dependency
+        # graph, wave distribution, and any warnings without
+        # re-running scripts/audit_prerequisites.py locally.
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: prerequisites-audit
+          path: reports/prerequisites-audit.json
           if-no-files-found: ignore
 
       - name: Upload API surface (for PR review)

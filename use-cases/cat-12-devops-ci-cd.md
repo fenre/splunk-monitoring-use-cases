@@ -29,6 +29,7 @@ index=devops sourcetype="github:webhook" event="push"
 ### UC-12.1.2 · Branch Protection Bypasses
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security, Compliance
 - **Value:** Direct pushes to protected branches bypass code review, introducing unreviewed code to production. Detection ensures process compliance.
 - **App/TA:** GitHub audit log, GitLab API
@@ -71,6 +72,7 @@ index=devops sourcetype="github:pull_request" action="closed" merged="true"
 ### UC-12.1.4 · Secret Exposure Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **Value:** Secrets committed to source control are immediately compromised. Detection within minutes enables rapid rotation before exploitation.
 - **App/TA:** GitGuardian webhook, GitHub secret scanning
@@ -528,6 +530,7 @@ index=cicd sourcetype="deployment_event" environment="production"
 ### UC-12.2.5 · Failed Deployment Tracking
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** Failed deployments cause service disruption. Rapid detection enables rollback decisions. Change failure rate is a DORA metric.
 - **App/TA:** Deployment event webhook
@@ -591,6 +594,7 @@ index=cicd sourcetype="test_coverage"
 ### UC-12.2.8 · Security Scan Results in Pipeline
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **Value:** SAST/DAST/SCA findings in CI/CD pipelines catch vulnerabilities before they reach production. Tracking ensures security gates work.
 - **App/TA:** Custom scan result input
@@ -1049,6 +1053,7 @@ index=devops sourcetype="artifactory:storage"
 ### UC-12.3.2 · Dependency Vulnerability Alerts
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **Value:** Vulnerable dependencies in the software supply chain are a primary attack vector. Tracking ensures timely patching.
 - **App/TA:** Snyk/Dependabot webhook

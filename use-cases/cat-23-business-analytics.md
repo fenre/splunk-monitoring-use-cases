@@ -11,6 +11,7 @@
 ### UC-23.1.1 · Website Conversion Funnel Analysis
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance, Business
 - **Industry:** Cross-industry
 - **Splunk Pillar:** Observability
@@ -304,6 +305,7 @@ index=app_events sourcetype="rum:resource" initiator_type="script" earliest=-7d
 ### UC-23.2.1 · Sales Pipeline Velocity and Forecast Accuracy
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Business
 - **Industry:** Cross-industry
 - **Splunk Pillar:** Observability
@@ -372,6 +374,7 @@ index=business sourcetype="dbx:erp_orders" order_status="booked" earliest=-30d@d
 ### UC-23.2.3 · Customer Churn Prediction and Early Warning
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Business
 - **Industry:** SaaS, Subscription, Telecom
 - **Splunk Pillar:** Observability
@@ -1652,6 +1655,7 @@ index=web sourcetype="access_combined" status=200 uri="/help/*" earliest=-30d
 ### UC-23.8.1 · CEO/CFO Business Health Scorecard
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Business
 - **Industry:** Cross-industry
 - **Splunk Pillar:** Observability
@@ -1901,6 +1905,7 @@ index=business sourcetype="dbx:inventory" earliest=-1d@d latest=now()
 ### UC-23.9.1 · Carbon Footprint Tracking and Reduction Progress
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Compliance, Business
 - **Industry:** Cross-industry
 - **Splunk Pillar:** Observability

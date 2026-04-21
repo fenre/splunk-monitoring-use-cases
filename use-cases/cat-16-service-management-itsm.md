@@ -29,6 +29,7 @@ index=itsm sourcetype="snow:incident"
 ### UC-16.1.2 · SLA Compliance Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Compliance
 - **Value:** SLA breaches affect customer satisfaction and contractual obligations. Real-time monitoring enables intervention before breaches occur.
 - **App/TA:** `Splunk_TA_snow`
@@ -52,6 +53,7 @@ index=itsm sourcetype="snow:incident"
 ### UC-16.1.3 · MTTR by Category
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Value:** MTTR per category identifies where process improvements or automation would have the greatest impact.
 - **App/TA:** `Splunk_TA_snow`
@@ -74,6 +76,7 @@ index=itsm sourcetype="snow:incident" state="resolved"
 ### UC-16.1.4 · Change Success Rate
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Configuration
 - **Value:** Failed changes are the leading cause of incidents. Tracking success rate drives improvement in change management practices.
 - **App/TA:** `Splunk_TA_snow`
@@ -186,6 +189,7 @@ index=itsm sourcetype="snow:incident" state IN ("new","in_progress","on_hold")
 ### UC-16.1.9 · Change-Incident Correlation
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Configuration
 - **Value:** Correlating incidents with recent changes is the fastest path to root cause. Automated correlation accelerates MTTR.
 - **App/TA:** `Splunk_TA_snow` + monitoring data
@@ -666,6 +670,7 @@ index=itsm sourcetype="snow:incident" earliest=-30d state IN ("closed","resolved
 ### UC-16.2.1 · CMDB Data Quality Score
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Value:** Poor CMDB data quality undermines all ITSM processes. Scoring and trending drives data quality improvement initiatives.
 - **App/TA:** `Splunk_TA_snow`, custom metrics

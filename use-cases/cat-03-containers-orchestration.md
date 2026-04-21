@@ -9,6 +9,7 @@
 ### UC-3.1.1 · Container Crash Loops
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** Containers restarting repeatedly indicate application bugs, misconfiguration, or dependency failures. Crash loops consume resources and never reach healthy state.
 - **App/TA:** Splunk Connect for Docker, Docker events via syslog
@@ -33,6 +34,7 @@ index=containers sourcetype="docker:events" action="die"
 ### UC-3.1.2 · Container OOM Kills
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** OOM kills mean the container exceeded its memory limit. The application is either leaking memory or undersized. Data loss is likely.
 - **App/TA:** Splunk Connect for Docker, host syslog
@@ -715,6 +717,7 @@ index=containers sourcetype="docker:stats"
 ### UC-3.2.1 · Pod Restart Rate
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Value:** High restart counts indicate application instability. Pods may appear "Running" but are constantly crashing and restarting, degrading service quality.
 - **App/TA:** Splunk OpenTelemetry Collector for K8s
@@ -852,6 +855,7 @@ index=k8s sourcetype="kube:events" involvedObject.kind="Deployment" (reason="Pro
 ### UC-3.2.7 · Control Plane Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** The control plane (API server, etcd, scheduler, controller-manager) is the brain of Kubernetes. Degradation affects all cluster operations.
 - **App/TA:** Splunk OTel Collector, control plane component metrics
@@ -873,6 +877,7 @@ index=k8s sourcetype="kube:apiserver"
 ### UC-3.2.8 · etcd Cluster Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** etcd stores all Kubernetes state. etcd problems (leader elections, compaction failures, high latency) cascade into cluster-wide failures.
 - **App/TA:** Splunk OTel Collector, etcd metrics

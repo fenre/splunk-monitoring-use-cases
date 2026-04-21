@@ -8,6 +8,7 @@
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** A degraded DIMM or PSU often precedes an uncorrectable ECC error or power loss event. Proactive FRU RMA before HA capacity is exhausted on remaining paths prevents unplanned workload migration and potential data unavailability.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager syslog
@@ -106,6 +107,7 @@ index=cisco_ucs sourcetype="cisco:ucs:faults"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** Fabric Interconnects are the network gateway for all UCS compute. Port-channel failures reduce bandwidth or cause complete loss of connectivity, impacting every workload in the UCS domain.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager stats
@@ -830,6 +832,7 @@ index=cisco_ucs sourcetype="cisco:ucs:config" object_type="vnic" earliest=-24h
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** HCI cluster health directly determines workload availability. Monitoring overall cluster state, node availability, and service health enables rapid response to degradation before it impacts VMs and applications running on the cluster.
 - **App/TA:** `TA-nutanix` or vendor-specific TA, HCI management API
@@ -873,6 +876,7 @@ index=hci sourcetype="hci:storage_metrics"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Value:** Storage latency directly impacts application performance on HCI. Elevated latency affects all VMs on the cluster. Early detection of latency spikes enables workload rebalancing or troubleshooting before user impact escalates.
 - **App/TA:** `TA-nutanix` or vendor-specific TA
@@ -917,6 +921,7 @@ index=hci sourcetype="hci:node_metrics"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** Disk failures in HCI trigger data rebuild operations that consume cluster resources and temporarily reduce resilience. Tracking failures enables rapid replacement, monitoring rebuild progress, and assessing the cluster's ability to tolerate additional failures.
 - **App/TA:** `TA-nutanix` or vendor-specific TA

@@ -9,6 +9,7 @@
 ### UC-6.1.1 · Volume Capacity Trending
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Capacity
 - **Value:** Prevents application outages caused by full volumes. Enables proactive capacity planning and procurement.
 - **App/TA:** Vendor TA (e.g., `TA-netapp_ontap`) or scripted API input
@@ -31,6 +32,7 @@ index=storage sourcetype="netapp:ontap:volume"
 ### UC-6.1.2 · Storage Latency Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** High storage latency directly impacts application performance. Early detection prevents SLA breaches and user experience degradation.
 - **App/TA:** Vendor TA or SNMP polling
@@ -74,6 +76,7 @@ index=storage sourcetype="netapp:ontap:volume_perf"
 ### UC-6.1.4 · Disk Failure Alerts
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** Immediate awareness of disk failures allows replacement before RAID degradation leads to data loss.
 - **App/TA:** Vendor TA, SNMP traps
@@ -117,6 +120,7 @@ index=storage sourcetype="netapp:ontap:snapmirror"
 ### UC-6.1.6 · Controller Failover Events
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** Controller failovers indicate hardware problems and may cause transient performance impact. Quick detection ensures rapid root cause analysis.
 - **App/TA:** Vendor TA, syslog
@@ -799,6 +803,7 @@ index=aws sourcetype="aws:s3:accesslogs"
 ### UC-6.2.3 · Public Bucket Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **Value:** Public buckets are a top cloud security risk, leading to data breaches. Immediate detection is essential for compliance.
 - **App/TA:** `Splunk_TA_aws` (Config), Azure Policy

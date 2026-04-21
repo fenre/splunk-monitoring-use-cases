@@ -35,6 +35,7 @@ index=database sourcetype="mysql:slowquery"
 ### UC-7.1.2 · Deadlock Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** Deadlocks cause transaction failures and application errors. Rapid detection and root cause analysis minimizes impact.
 - **App/TA:** Splunk_TA_microsoft-sqlserver, database error logs
@@ -60,6 +61,7 @@ index=database sourcetype="mssql:errorlog"
 ### UC-7.1.3 · Connection Pool Exhaustion
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Capacity
 - **Value:** Exhausted connection pools cause application failures. Monitoring prevents outages and guides pool sizing decisions.
 - **App/TA:** DB Connect, performance counters
@@ -287,6 +289,7 @@ index=database sourcetype="dbconnect:perf_counters"
 ### UC-7.1.12 · Database Availability Group Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** AG/RAC cluster health is essential for HA. Detecting unhealthy replicas prevents unplanned failover failures.
 - **App/TA:** DB Connect, Splunk_TA_microsoft-sqlserver
@@ -362,6 +365,7 @@ index=database sourcetype="dbconnect:query_store"
 ### UC-7.1.15 · Privilege Escalation Audit
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security, Compliance
 - **Value:** Unauthorized privilege changes can enable data theft or sabotage. Audit trail is required for compliance.
 - **App/TA:** DB Connect, SQL Server audit
@@ -392,6 +396,7 @@ index=database sourcetype="mssql:audit"
 ### UC-7.2.1 · Cluster Membership Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** Node additions/removals affect data distribution and availability. Unexpected membership changes may indicate failures.
 - **App/TA:** Custom scripted input, database event logs

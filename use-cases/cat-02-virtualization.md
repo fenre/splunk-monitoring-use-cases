@@ -70,6 +70,7 @@ index=vmware sourcetype="vmware:perf:mem" (counter="mem.vmmemctl.average" OR cou
 ### UC-2.1.3 · Datastore Capacity Trending
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** A full datastore prevents VM disk writes, causing crashes and corruption. Datastores fill gradually from VM growth, snapshots, and log accumulation.
 - **App/TA:** `TA-vmware`
@@ -177,6 +178,7 @@ index=vmware sourcetype="vmware:events" event_type="VmMigratedEvent" OR event_ty
 ### UC-2.1.7 · HA Failover Events
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** HA failover means a host failed and VMs were restarted on surviving hosts. Indicates hardware failure and potential capacity risk on remaining hosts.
 - **App/TA:** `TA-vmware`
@@ -244,6 +246,7 @@ index=vmware sourcetype="vmware:inv:vm"
 ### UC-2.1.10 · vSAN Health Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** vSAN is the storage fabric for many VMware clusters. Degraded vSAN health can cause VM data loss and cluster-wide outages.
 - **App/TA:** `TA-vmware`, vSAN health service
@@ -266,6 +269,7 @@ index=vmware sourcetype="vmware:perf:vsan"
 ### UC-2.1.11 · ESXi Host Hardware Alerts
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** CIM-based hardware health detects physical component failures (fans, PSU, temperature) at the hypervisor level before they cause host failure.
 - **App/TA:** `TA-vmware`
@@ -1230,6 +1234,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin" 
 ### UC-2.2.3 · Cluster Shared Volume Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** CSV issues can cause VM storage access failures across the entire cluster. Redirected I/O mode significantly degrades performance.
 - **App/TA:** `Splunk_TA_windows` (Hyper-V)

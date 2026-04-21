@@ -72,6 +72,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4740
 ### UC-9.1.3 · Privileged Group Membership Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **MITRE ATT&CK:** T1098
 - **Value:** Adding accounts to Domain Admins or Enterprise Admins (EventCode 4728/4732/4756) in minutes limits blast radius from stolen Tier-0 credentials. Immediate detection supports audit evidence for privileged access changes and enables rapid containment before lateral movement escalates.
@@ -135,6 +136,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4624
 ### UC-9.1.5 · Kerberos Ticket Anomalies
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **MITRE ATT&CK:** T1558.001, T1558.003
 - **Value:** Detects Kerberoasting and Golden Ticket attacks, which are advanced AD compromise techniques. Essential for security monitoring.
@@ -197,6 +199,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4723, 4724)
 ### UC-9.1.7 · GPO Modification Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **MITRE ATT&CK:** T1484.001
 - **Value:** GPO changes affect all domain-joined machines. Unauthorized modifications can disable security controls across the organization.
@@ -853,6 +856,7 @@ index=ldap sourcetype="openldap:access" operation="SEARCH"
 ### UC-9.2.3 · Schema Modification Audit
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security, Configuration
 - **MITRE ATT&CK:** T1484
 - **Value:** Schema changes to directory services can break applications and are rarely expected. Detection ensures change control compliance.
@@ -1268,6 +1272,7 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.sso"
 ### UC-9.3.5 · IdP Availability Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** IdP outage blocks all SSO authentication across the organization. Rapid detection enables failover and communication.

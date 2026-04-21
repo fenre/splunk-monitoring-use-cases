@@ -593,6 +593,7 @@ index=os sourcetype=linux_audit action=modified path=/proc/sys/*
 ### UC-1.1.23 · Kernel Core Dump Generation
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault
 - **Value:** Core dumps indicate process crashes at kernel level, enabling root cause analysis of system stability issues.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
@@ -905,6 +906,7 @@ index=os sourcetype=custom:lvm_thin host=*
 ### UC-1.1.36 · Multipath I/O Failover Events
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** Multipath failovers indicate storage path degradation requiring immediate investigation to prevent I/O loss.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
@@ -1398,6 +1400,7 @@ index=os sourcetype=custom:arp host=*
 ### UC-1.1.58 · Network Bond Failover Events (Linux)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Availability
 - **Value:** Network bond failovers indicate NIC or port failures requiring immediate remediation to prevent connectivity loss.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
@@ -1671,6 +1674,7 @@ index=os sourcetype=custom:aide host=*
 ### UC-1.1.69 · SUID/SGID Binary Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **Value:** Unauthorized SUID/SGID binary modifications enable privilege escalation attacks.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
@@ -1692,6 +1696,7 @@ index=os sourcetype=linux_audit type=EXECVE "suid" OR "sgid"
 ### UC-1.1.70 · /etc/passwd Modifications
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security
 - **Value:** /etc/passwd changes indicate user account creation/modification requiring immediate investigation for unauthorized access.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`

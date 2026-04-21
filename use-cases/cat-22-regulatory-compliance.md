@@ -11,6 +11,7 @@
 ### UC-22.1.1 · GDPR PII Detection in Application Log Data (Art. 5/6)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1005
 - **Splunk Pillar:** Security
@@ -1712,6 +1713,7 @@ index=synthetic check_type="http" earliest=-24h
 ### UC-22.2.1 · NIS2 Incident Detection and 24-Hour Early Warning Reporting (Art. 23)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1048, T1562
 - **Splunk Pillar:** Security
@@ -3235,6 +3237,7 @@ index=reg_notify sourcetype="csirt:delivery" earliest=-90d
 ### UC-22.3.1 · DORA ICT Risk Management Dashboard (Art. 5-16)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Risk, Compliance
 - **Industry:** Financial Services
 - **Splunk Pillar:** Security
@@ -4524,6 +4527,7 @@ index=itsm sourcetype="snow:problem" vendor_id=* state!="Closed" earliest=-180d
 ### UC-22.4.1 · CCPA Consumer Data Access and Deletion Request Tracking (§1798.100-105)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Compliance, Performance
 - **Splunk Pillar:** Security
 - **Regulations:** CCPA
@@ -8630,6 +8634,7 @@ index=comms sourcetype=statuspage:incident earliest=-180d
 ### UC-22.8.1 · SOC 2 Trust Services Criteria Continuous Control Monitoring (CC6-CC8)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** SOC 2

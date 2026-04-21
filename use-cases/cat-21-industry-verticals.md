@@ -11,6 +11,7 @@
 ### UC-21.1.1 · SCADA Alarm Rate Monitoring and Alarm Flooding Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Fault, Availability
 - **Industry:** Energy and Utilities
 - **Value:** Alarm storms mask genuine faults and exhaust operator attention; detecting flood rates and shelved alarm backlog prevents missed trips and unsafe operating conditions during grid events.
@@ -415,6 +416,7 @@ index=billing sourcetype="billing:exception"
 ### UC-21.2.1 · Overall Equipment Effectiveness (OEE) Calculation
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance, Capacity
 - **Industry:** Manufacturing
 - **Value:** OEE exposes hidden capacity losses across availability, speed, and quality; plant leadership uses it to prioritize capital and lean projects on the constraint line.
@@ -829,6 +831,7 @@ index=mfg sourcetype="mes:production"
 ### UC-21.3.1 · EHR System Response Time Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Industry:** Healthcare
 - **Value:** Slow EHR response times directly impact clinical workflow and patient safety. Monitoring response latency enables proactive intervention before clinicians experience degradation.
@@ -1532,6 +1535,7 @@ index=healthcare sourcetype="dips:arena:aql"
 ### UC-21.4.1 · Fleet Vehicle GPS Tracking and Geofence Alerting
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Security, Performance
 - **Industry:** Transportation and Logistics
 - **Value:** Real-time vehicle tracking and geofence alerts enable theft prevention, route compliance, and efficient dispatch during emergency response.
@@ -3207,6 +3211,7 @@ index=water sourcetype="liftstation:sensor" running_flag=1
 ### UC-21.10.1 · Claims Processing Cycle Time Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Wave:** 🐢 crawl
 - **Monitoring type:** Performance
 - **Industry:** Insurance and Financial Services
 - **Value:** End-to-end cycle time from FNOL to settlement drives customer satisfaction and loss adjustment expense; segmenting by line of business exposes bottlenecks in adjuster queues and vendor turnaround.

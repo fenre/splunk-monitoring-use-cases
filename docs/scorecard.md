@@ -34,7 +34,7 @@ Grades:
 
 | Cat | Category | UCs | Refs | KFP | MITRE* | Fresh | Prov. | Samples | Composite | Grade |
 | --- | -------- | --- | ---- | --- | ------ | ----- | ----- | ------- | --------- | ----- |
-| 1 | Server & Compute | 275 | 100.0% | 0.4% | 0% | 4d | 100 | 1.8% | **65.2** | **Bronze** |
+| 1 | Server & Compute | 275 | 100.0% | 0.4% | 0% | 5d | 100 | 1.8% | **65.2** | **Bronze** |
 | 2 | Virtualization | 124 | 100.0% | 0.8% | 0% | — | 100 | 0.0% | **50.1** | **Needs work** |
 | 3 | Containers & Orchestration | 115 | 100.0% | 0.0% | 0% | — | 100 | 0.9% | **50.1** | **Needs work** |
 | 4 | Cloud Infrastructure | 227 | 100.0% | 0.9% | 83% | — | 100 | 0.9% | **58.5** | **Bronze** |
