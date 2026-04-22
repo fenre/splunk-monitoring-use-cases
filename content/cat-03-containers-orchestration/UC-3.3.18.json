@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.3.18",
+  "title": "etcd Leader Changes",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=openshift:etcd:metrics`, `sourcetype=openshift:etcd`",
+  "app": "OpenTelemetry Collector (Prometheus scrape), etcd log forwarding",
+  "spl": "index=openshift sourcetype=\"openshift:etcd:metrics\" metric_name=\"etcd_server_leader_changes_seen_total\"\n| bin _time span=5m\n| stats max(_value) as leader_changes by cluster, instance, _time\n| streamstats current=f window=1 last(leader_changes) as prev by cluster, instance\n| eval delta=leader_changes-prev\n| where delta>0\n| table _time cluster instance delta",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Frequent etcd leader elections indicate network partitions, disk I/O bottlenecks, or resource contention on control plane nodes. Excessive elections degrade API server responsiveness and can cause cluster instability.",
+  "value": "Frequent etcd leader elections indicate network partitions, disk I/O bottlenecks, or resource contention on control plane nodes. Excessive elections degrade API server responsiveness and can cause cluster instability.",
+  "grandmaExplanation": "We watch the cluster's central database for signs of instability, like servers constantly fighting over who is in charge.",
+  "implementation": "Scrape etcd Prometheus metrics via OpenTelemetry Collector or forward etcd logs. Track `etcd_server_leader_changes_seen_total` as a counter. Alert when more than 3 leader changes occur within 10 minutes. Correlate with disk latency metrics (`etcd_disk_wal_fsync_duration_seconds`).",
+  "visualization": "Timechart (leader changes over time), Table (instance, changes), Correlation panel with disk latency.",
+  "references": [
+    {
+      "title": "OpenShift etcd monitoring documentation",
+      "url": "https://docs.openshift.com/container-platform/latest/scalability_and_performance/recommended-performance-scale-practices/recommended-etcd-practices.html"
+    }
+  ],
+  "equipmentModels": [
+    "kubernetes_openshift"
+  ]
+}

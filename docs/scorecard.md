@@ -27,16 +27,16 @@ Grades:
 
 ## Global rollup
 
-- **Total UCs:** 6,472
-- **Weighted composite score:** 63.0 — overall grade **Bronze**
+- **Total UCs:** 6,508
+- **Weighted composite score:** 62.9 — overall grade **Bronze**
 
 ## Per-category scorecard
 
 | Cat | Category | UCs | Refs | KFP | MITRE* | Fresh | Prov. | Samples | Composite | Grade |
 | --- | -------- | --- | ---- | --- | ------ | ----- | ----- | ------- | --------- | ----- |
-| 1 | Server & Compute | 275 | 100.0% | 0.4% | 0% | 5d | 100 | 1.8% | **65.2** | **Bronze** |
+| 1 | Server & Compute | 275 | 100.0% | 0.4% | 0% | 6d | 100 | 1.8% | **65.2** | **Bronze** |
 | 2 | Virtualization | 124 | 100.0% | 0.8% | 0% | — | 100 | 0.0% | **50.1** | **Needs work** |
-| 3 | Containers & Orchestration | 115 | 100.0% | 0.0% | 0% | — | 100 | 0.9% | **50.1** | **Needs work** |
+| 3 | Containers & Orchestration | 129 | 100.0% | 0.0% | 0% | — | 92 | 0.8% | **48.2** | **Needs work** |
 | 4 | Cloud Infrastructure | 227 | 100.0% | 0.9% | 83% | — | 100 | 0.9% | **58.5** | **Bronze** |
 | 5 | Network Infrastructure | 354 | 100.0% | 1.1% | 0% | — | 99 | 0.8% | **50.0** | **Needs work** |
 | 6 | Storage & Backup | 81 | 100.0% | 1.2% | 0% | — | 100 | 0.0% | **50.2** | **Needs work** |
@@ -55,7 +55,7 @@ Grades:
 | 19 | Compute Infrastructure (HCI & Converged) | 72 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
 | 20 | Cost & Capacity Management | 77 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
 | 21 | Industry Verticals | 129 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
-| 22 | Regulatory and Compliance Frameworks | 1,310 | 100.0% | 100.0% | 10% | — | 98 | 0.0% | **65.4** | **Bronze** |
+| 22 | Regulatory and Compliance Frameworks | 1,332 | 100.0% | 100.0% | 10% | — | 96 | 0.0% | **65.1** | **Bronze** |
 | 23 | Business Analytics & Executive Intelligence | 63 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
 
 \* MITRE coverage counts only UCs whose `pillar` is `security` or `both`.
@@ -66,8 +66,8 @@ Grades:
 | ----- | ---------- | --------- |
 | **Gold** | 0 | 0 |
 | **Silver** | 3 | 2,611 |
-| **Bronze** | 4 | 2,042 |
-| **Needs work** | 16 | 1,819 |
+| **Bronze** | 4 | 2,064 |
+| **Needs work** | 16 | 1,833 |
 
 ## How to improve a score
 

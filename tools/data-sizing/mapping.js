@@ -225,7 +225,7 @@ window.DSA_EQUIPMENT_MAP = {
   "hardware_bmc_idrac":       ["proto_snmp"],
   "hardware_bmc_ilo":         ["proto_snmp"],
   "hardware_bmc_ipmi":        ["proto_snmp"],
-  "apc":                      ["proto_snmp"],
+  "apc_dc":                   ["proto_snmp"],
   "cctv":                     ["sec_physical"],
   "hashicorp":                ["dsa_it_config_mgmt"],
   "hashicorp_vault":          ["dsa_it_pam"],
