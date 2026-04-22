@@ -2138,6 +2138,322 @@ index=openshift sourcetype="openshift:subscription"
 
 ---
 
+### UC-3.3.12 · Project Resource Quota Exhaustion
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** OpenShift projects enforce ResourceQuotas for CPU, memory, and pod count. When quotas approach exhaustion, new deployments and scaling operations fail silently.
+- **App/TA:** `oc get resourcequota -A -o json` scripted input
+- **Data Sources:** `sourcetype=openshift:resourcequota`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:resourcequota"
+| eval cpu_pct=round(used_cpu/hard_cpu*100,1), mem_pct=round(used_memory/hard_memory*100,1), pods_pct=round(used_pods/hard_pods*100,1)
+| where cpu_pct>85 OR mem_pct>85 OR pods_pct>85
+| table namespace quota_name cpu_pct mem_pct pods_pct
+| sort -cpu_pct
+```
+- **Implementation:** Scripted input: `oc get resourcequota -A -o json`. Parse `status.hard` and `status.used` for CPU, memory, and pods. Run every 300 seconds. Alert when any resource exceeds 85% of quota.
+- **Visualization:** Table (namespace, quota, resource, used, hard, pct), Gauge per resource, Heatmap by namespace.
+- **CIM Models:** N/A
+
+- **References:** [OpenShift ResourceQuotas documentation](https://docs.openshift.com/container-platform/latest/applications/quotas/quotas-setting-per-project.html)
+
+---
+
+### UC-3.3.13 · MachineSet Scaling Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** MachineSets control node scaling in IPI clusters. When desired replicas diverge from ready/available counts, new machines may be stuck provisioning, failing cloud API calls, or hitting infrastructure limits.
+- **App/TA:** `oc get machineset -n openshift-machine-api -o json` scripted input
+- **Data Sources:** `sourcetype=openshift:machineset`, `sourcetype=kube:events`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:machineset"
+| where replicas!=readyReplicas OR replicas!=availableReplicas
+| eval gap=replicas-readyReplicas
+| table _time cluster machineset namespace replicas readyReplicas gap
+| sort -gap
+```
+- **Implementation:** Scripted input: `oc get machineset -n openshift-machine-api -o json`. Parse `spec.replicas`, `status.readyReplicas`, `status.availableReplicas`. Run every 300 seconds. Alert when replicas != readyReplicas for more than 15 minutes.
+- **Visualization:** Table (machineset, desired, ready, gap), Single value (total gap), Timeline of scaling events.
+- **CIM Models:** N/A
+
+- **References:** [OpenShift Machine management documentation](https://docs.openshift.com/container-platform/latest/machine_management/index.html)
+
+---
+
+### UC-3.3.14 · Node NotReady Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Nodes transitioning to NotReady, SchedulingDisabled, or reporting disk/memory/PID pressure cause pod evictions and workload disruption across the cluster.
+- **App/TA:** `oc get nodes -o json` scripted input
+- **Data Sources:** `sourcetype=openshift:node`, `sourcetype=kube:events`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:node"
+| where status!="Ready"
+| stats latest(status) as status, latest(reason) as reason, count by cluster, node, role
+| sort cluster, node
+```
+- **Implementation:** Scripted input: `oc get nodes -o json`. Parse `status.conditions` for Ready, MemoryPressure, DiskPressure, PIDPressure. Run every 120 seconds. Alert immediately when any node is NotReady or reporting pressure conditions.
+- **Visualization:** Node status grid (green/yellow/red), Table (node, role, status, reason), Timeline.
+- **CIM Models:** N/A
+
+- **References:** [OpenShift Node health documentation](https://docs.openshift.com/container-platform/latest/nodes/nodes/nodes-nodes-viewing.html)
+
+---
+
+### UC-3.3.15 · OAuth Access Token Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** OpenShift OAuth tokens grant API access. Tracking token creation and deletion reveals unauthorized access attempts, service account abuse, or compromised credentials.
+- **App/TA:** OpenShift audit log forwarding
+- **Data Sources:** `sourcetype=openshift:audit`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:audit" (objectRef.resource="oauthaccesstokens" OR objectRef.resource="oauthauthorizetokens")
+| stats count by verb, user.username, sourceIPs{}, responseStatus.code
+| where verb="create" OR verb="delete"
+| sort -count
+```
+- **Implementation:** Enable and forward OpenShift audit logs (API server audit policy). Filter for `oauthaccesstokens` and `oauthauthorizetokens` resource operations. Alert on unusual token creation volume, token creation from unexpected IPs, or bulk token deletions.
+- **Visualization:** Table (user, verb, source IP, status), Timechart (token creates/deletes), Bar chart by user.
+- **CIM Models:** N/A
+
+- **References:** [OpenShift OAuth configuration](https://docs.openshift.com/container-platform/latest/authentication/understanding-authentication.html)
+
+---
+
+### UC-3.3.16 · DeploymentConfig Rollout Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** DeploymentConfig rollouts can fail due to image pull errors, readiness probe timeouts, or resource limits. Stalled rollouts leave applications on old versions and consume resources.
+- **App/TA:** OpenShift event forwarding
+- **Data Sources:** `sourcetype=kube:events`, `sourcetype=openshift:deploymentconfig`
+- **SPL:**
+```spl
+index=openshift sourcetype="kube:events" involvedObject.kind="DeploymentConfig" (reason="DeploymentFailed" OR reason="RollbackDone" OR reason="CancelledRollout")
+| stats count by namespace, involvedObject.name, reason, message
+| sort -count
+```
+- **Implementation:** Forward OpenShift events filtered for DeploymentConfig-related reasons. Alert on DeploymentFailed, CancelledRollout, or rollouts that remain in progress beyond the configured deadline.
+- **Visualization:** Table (DC, namespace, reason, message), Timeline of rollouts, Success rate bar chart.
+- **CIM Models:** N/A
+
+- **References:** [OpenShift DeploymentConfig strategies](https://docs.openshift.com/container-platform/latest/applications/deployments/what-deployments-are.html)
+
+---
+
+### UC-3.3.17 · MachineConfigPool Degradation
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** MachineConfigPools apply OS-level configuration (kernel args, kubelet config, chrony, SSH keys) to node groups. A degraded MCP means nodes failed to apply the desired config, blocking upgrades and leaving nodes in an inconsistent state.
+- **App/TA:** `oc get mcp -o json` scripted input
+- **Data Sources:** `sourcetype=openshift:machineconfigpool`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:machineconfigpool"
+| where degraded="True" OR updating="True"
+| eval degraded_pct=round(degradedMachineCount/machineCount*100,1)
+| table _time cluster pool machineCount readyMachineCount degradedMachineCount degraded_pct updating
+| sort -degraded_pct
+```
+- **Implementation:** Scripted input: `oc get mcp -o json`. Parse `status.conditions` for Degraded, Updated, Updating. Extract `machineCount`, `readyMachineCount`, `degradedMachineCount`, `updatedMachineCount`. Run every 300 seconds. Alert when Degraded=True or when Updating=True for more than 60 minutes.
+- **Visualization:** MCP status grid (green/yellow/red), Table (pool, machines, ready, degraded), Progress bar for updates.
+- **CIM Models:** N/A
+
+- **References:** [OpenShift MachineConfig Operator documentation](https://docs.openshift.com/container-platform/latest/post_installation_configuration/machine-configuration-tasks.html)
+
+---
+
+### UC-3.3.18 · etcd Leader Changes
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Frequent etcd leader elections indicate network partitions, disk I/O bottlenecks, or resource contention on control plane nodes. Excessive elections degrade API server responsiveness and can cause cluster instability.
+- **App/TA:** OpenTelemetry Collector (Prometheus scrape), etcd log forwarding
+- **Data Sources:** `sourcetype=openshift:etcd:metrics`, `sourcetype=openshift:etcd`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:etcd:metrics" metric_name="etcd_server_leader_changes_seen_total"
+| bin _time span=5m
+| stats max(_value) as leader_changes by cluster, instance, _time
+| streamstats current=f window=1 last(leader_changes) as prev by cluster, instance
+| eval delta=leader_changes-prev
+| where delta>0
+| table _time cluster instance delta
+```
+- **Implementation:** Scrape etcd Prometheus metrics via OpenTelemetry Collector or forward etcd logs. Track `etcd_server_leader_changes_seen_total` as a counter. Alert when more than 3 leader changes occur within 10 minutes. Correlate with disk latency metrics (`etcd_disk_wal_fsync_duration_seconds`).
+- **Visualization:** Timechart (leader changes over time), Table (instance, changes), Correlation panel with disk latency.
+- **CIM Models:** N/A
+
+- **References:** [OpenShift etcd monitoring documentation](https://docs.openshift.com/container-platform/latest/scalability_and_performance/recommended-performance-scale-practices/recommended-etcd-practices.html)
+
+---
+
+### UC-3.3.19 · Ingress Controller Errors
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** The OpenShift Ingress Controller (HAProxy-based router) handles all external traffic into the cluster. 5xx errors, backend connection failures, and route misconfigurations directly impact application availability.
+- **App/TA:** OpenShift HAProxy log forwarding, `oc get ingresscontroller -n openshift-ingress-operator -o json` scripted input
+- **Data Sources:** `sourcetype=openshift:haproxy`, `sourcetype=openshift:ingresscontroller`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:haproxy"
+| where status_code>=500
+| bin _time span=5m
+| stats count as errors by backend_name, status_code, _time
+| where errors>10
+| sort -errors
+```
+- **Implementation:** Forward HAProxy access logs from the router pods or expose HAProxy stats. Parse status codes, backend names, and response times. Alert when 5xx error rate exceeds threshold per backend. Also monitor IngressController object for Degraded condition.
+- **Visualization:** Timechart (5xx rate by backend), Table (backend, status, count), Error rate single value.
+- **CIM Models:** N/A
+
+- **References:** [OpenShift Ingress Operator documentation](https://docs.openshift.com/container-platform/latest/networking/ingress-operator.html)
+
+---
+
+### UC-3.3.20 · Cluster Certificate Expiry
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Compliance
+- **Value:** OpenShift uses dozens of internal certificates for API server, kubelet, etcd, and service-serving. Expired internal certificates cause sudden cluster-wide outages that are difficult to recover from without backup.
+- **App/TA:** `oc get secret -A -o json` scripted input (TLS secrets), OpenShift Monitoring Prometheus metrics
+- **Data Sources:** `sourcetype=openshift:certificates`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:certificates"
+| eval days_left=round((expiry_epoch-now())/86400,0)
+| where days_left<30
+| table namespace secret_name cn days_left issuer
+| sort days_left
+```
+- **Implementation:** Scripted input parsing TLS secrets or extracting from `openssl x509 -noout -enddate`. Also scrape `apiserver_client_certificate_expiration_seconds` Prometheus metric. Alert at 30/14/7 days before expiry. Page at 3 days for cluster-critical certificates.
+- **Visualization:** Table (certificate, namespace, days left, issuer), Single value (soonest expiry), Gauge.
+- **CIM Models:** N/A
+
+- **References:** [OpenShift certificate management](https://docs.openshift.com/container-platform/latest/security/certificates/api-server.html)
+
+---
+
+### UC-3.3.21 · ClusterRole and ClusterRoleBinding Changes
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Changes to ClusterRoles and ClusterRoleBindings affect cluster-wide RBAC permissions. Unauthorized modifications can grant excessive privileges or create backdoor access.
+- **App/TA:** OpenShift audit log forwarding
+- **Data Sources:** `sourcetype=openshift:audit`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:audit" (objectRef.resource="clusterroles" OR objectRef.resource="clusterrolebindings") verb!="get" verb!="list" verb!="watch"
+| stats count by verb, user.username, objectRef.name, objectRef.resource, responseStatus.code
+| sort -count
+```
+- **Implementation:** Enable and forward OpenShift audit logs. Filter for create/update/patch/delete on `clusterroles` and `clusterrolebindings`. Alert on any modification outside of approved change windows or by non-admin users. Cross-reference with change management tickets.
+- **Visualization:** Table (user, verb, resource, name, status), Timeline of changes, Bar chart by user.
+- **CIM Models:** N/A
+
+- **References:** [OpenShift RBAC documentation](https://docs.openshift.com/container-platform/latest/authentication/using-rbac.html)
+
+---
+
+### UC-3.3.22 · Pod Security Admission Violations
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Pod Security Admission (PSA) replaced PodSecurityPolicies in OpenShift 4.12+. Violations of baseline or restricted profiles indicate workloads requesting disallowed capabilities such as privileged containers, host networking, or writable root filesystems.
+- **App/TA:** OpenShift audit log forwarding
+- **Data Sources:** `sourcetype=openshift:audit`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:audit" objectRef.resource="pods" verb="create"
+| search "pod-security.kubernetes.io" ("violat*" OR "would have been")
+| stats count by user.username, objectRef.namespace, 'annotations.pod-security.kubernetes.io/audit-violations'
+| sort -count
+```
+- **Implementation:** Forward OpenShift audit logs. Filter for pod create events containing PSA violation annotations. Track violations by namespace and user. Alert on enforce-mode rejections and audit/warn-mode violations for trend analysis.
+- **Visualization:** Table (namespace, user, violation), Bar chart by violation type, Timechart trend.
+- **CIM Models:** N/A
+
+- **References:** [OpenShift Pod Security Admission](https://docs.openshift.com/container-platform/latest/authentication/understanding-and-managing-pod-security-admission.html)
+
+---
+
+### UC-3.3.23 · Console and API Access Audit
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Audit
+- **Value:** Tracking who accesses the OpenShift console and API, from where, and what actions they perform provides a complete audit trail for compliance and security investigations.
+- **App/TA:** OpenShift audit log forwarding
+- **Data Sources:** `sourcetype=openshift:audit`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:audit"
+| where NOT match('user.username', "^system:")
+| stats count, dc(sourceIPs{}) as unique_ips, values(verb) as verbs by user.username, userAgent
+| eval is_console=if(match(userAgent,"Mozilla"),"console","cli/api")
+| sort -count
+```
+- **Implementation:** Forward OpenShift audit logs. Filter out system service accounts. Distinguish console users (browser user-agent) from CLI/API users. Track source IPs per user. Alert on access from unexpected locations or outside business hours.
+- **Visualization:** Table (user, access type, IPs, action count), Timechart (access patterns), Sankey (user to action).
+- **CIM Models:** N/A
+
+- **References:** [OpenShift audit log policy](https://docs.openshift.com/container-platform/latest/security/audit-log-policy-config.html)
+
+---
+
+### UC-3.3.24 · MachineHealthCheck Remediations
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** MachineHealthChecks automatically remediate unhealthy nodes by deleting and replacing them. Frequent remediations indicate persistent infrastructure problems such as failing hardware, cloud provider issues, or misconfigurations.
+- **App/TA:** `oc get machinehealthcheck -n openshift-machine-api -o json` scripted input, event forwarding
+- **Data Sources:** `sourcetype=openshift:machinehealthcheck`, `sourcetype=kube:events`
+- **SPL:**
+```spl
+index=openshift (sourcetype="kube:events" involvedObject.kind="Machine" reason="Remediated") OR (sourcetype="openshift:machinehealthcheck" currentHealthy<expectedMachines)
+| stats count as remediations, values(involvedObject.name) as machines by namespace, cluster
+| where remediations>0
+| sort -remediations
+```
+- **Implementation:** Scripted input: `oc get machinehealthcheck -n openshift-machine-api -o json`. Parse `status.currentHealthy` vs `status.expectedMachines`. Also capture remediation events. Run every 300 seconds. Alert when remediations exceed 2 per hour or currentHealthy < expectedMachines.
+- **Visualization:** Table (MHC, healthy, expected, remediations), Timeline of remediation events, Single value (total remediations/24h).
+- **CIM Models:** N/A
+
+- **References:** [OpenShift MachineHealthCheck documentation](https://docs.openshift.com/container-platform/latest/machine_management/deploying-machine-health-checks.html)
+
+---
+
+### UC-3.3.25 · LimitRange Enforcement Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity, Compliance
+- **Value:** LimitRanges set default and maximum resource requests/limits per container or pod in a namespace. When workloads are rejected for exceeding these limits, deployments fail. Tracking enforcement events helps teams right-size their resource requests.
+- **App/TA:** `oc get limitrange -A -o json` scripted input, event forwarding
+- **Data Sources:** `sourcetype=openshift:limitrange`, `sourcetype=kube:events`
+- **SPL:**
+```spl
+index=openshift sourcetype="kube:events" reason="FailedCreate"
+| search "forbidden: exceeded quota" OR "must be less than or equal to" OR "LimitRange"
+| stats count by namespace, involvedObject.kind, involvedObject.name, message
+| sort -count
+```
+- **Implementation:** Forward OpenShift events. Filter for FailedCreate events with LimitRange or quota-related messages. Also periodically export LimitRange definitions to compare against actual workload requests. Alert on repeated failures per namespace.
+- **Visualization:** Table (namespace, workload, message), Bar chart by namespace, Timeline of rejections.
+- **CIM Models:** N/A
+
+- **References:** [OpenShift LimitRange documentation](https://docs.openshift.com/container-platform/latest/nodes/clusters/nodes-cluster-limit-ranges.html)
+
+---
+
 ### 3.4 Container Registries
 
 **Primary App/TA:** Custom API inputs, webhook receivers
