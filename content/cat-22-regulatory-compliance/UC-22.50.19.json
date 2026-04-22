@@ -34,8 +34,8 @@
   "spl": "| inputlookup data_flows.csv\n| eval scope_tagged=if(isnotnull(scope_no_pol) AND scope_no_pol!=\"\", 1, 0)\n| stats count AS flows sum(scope_tagged) AS tagged BY dataset, controller\n| eval coverage_pct=round(100*tagged/flows,1)\n| where coverage_pct < 100",
   "description": "Verifies every dataset in the catalogue carries an explicit §2-scope tag (in-scope / out-of-scope / shared-controller).",
   "value": "§2 defines when Norwegian data-protection law applies; missing scope tagging is a silent governance failure and the UC catches it.",
-  "implementation": "(1) Require scope_no_pol on every new dataset; (2) run weekly; (3) backfill via DPO workshops.",
-  "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "implementation": "(1) Require scope_no_pol on every new dataset; (2) run weekly; (3) backfill via DPO workshops. Lookups: `data_flows`, `data_flows.csv`.",
+  "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner. Key fields: `controller`, `coverage_pct`, `dataset`, `flows`, `scope_tagged`, `tagged`.",
   "cimModels": [
     "Change"
   ],
@@ -50,7 +50,12 @@
   "detectionType": "Correlation",
   "securityDomain": "audit",
   "requiredFields": [
-    "_time"
+    "controller",
+    "coverage_pct",
+    "dataset",
+    "flows",
+    "scope_tagged",
+    "tagged"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-18",
@@ -59,6 +64,6 @@
     "Cloud"
   ],
   "reviewer": "N/A",
-  "grandmaExplanation": "§2 defines when Norwegian data-protection law applies; missing scope tagging is a silent governance failure and the UC catches it — so you can show exactly what is being watched and when something went wrong.",
+  "grandmaExplanation": "We check on verifies every dataset in the catalogue carries an explicit §2-scope tag (in-scope / out-of-scope / shared-controller). This helps maintain steady compliance posture and reduces manual review effort.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: Data catalogue, cross-border transfer logs, processing-activity register..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Require scope_no_pol on every new dataset; (2) run weekly; (3) backfill via DPO workshops.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup data_flows.csv\n| eval scope_tagged=if(isnotnull(scope_no_pol) AND scope_no_pol!=\"\", 1, 0)\n| stats count AS flows sum(scope_tagged) AS tagged BY dataset, controller\n| eval coverage_pct=round(100*tagged/flows,1)\n| where coverage_pct < 100\n```\n\nUnderstanding this SPL\n\n**Personopplysningsloven §2 — territorial/material scope tagging of data flows** — §2 defines when Norwegian data-protection law applies; missing scope tagging is a silent governance failure and the UC catches it.\n\nDocumented **Data sources**: Data catalogue, cross-border transfer logs, processing-activity register. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• `eval` defines or adjusts **scope_tagged** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by dataset, controller** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **coverage_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where coverage_pct < 100` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner."
 }

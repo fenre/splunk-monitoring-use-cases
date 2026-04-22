@@ -28,8 +28,8 @@
   "app": "Universal Forwarder time debug or vendor syslog",
   "spl": "index=ot_infra earliest=-24h\n| eval skew=abs(_indextime-_time)\n| where skew>120\n| stats max(skew) as max_skew, perc95(skew) as p95_skew by host, sourcetype\n| sort - p95_skew",
   "description": "Surfaces OT servers and RTUs with large `_indextime` vs `_time` deltas undermining trustworthy audit timestamps.",
-  "value": "Surfaces OT servers and RTUs with large `_indextime` vs `_time` deltas undermining trustworthy audit timestamps.",
-  "implementation": "(1) Enforce PTP/NTP on all IEDs; (2) fix dual-homed syslog paths; (3) alert >120s; (4) document stratum hierarchy per site.",
+  "value": "Gives the responsible team auditor-ready evidence for IEC 62443 compliance by automating regulatory compliance evidence using indexes ot_infra. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "implementation": "(1) Enforce PTP/NTP on all IEDs; (2) fix dual-homed syslog paths; (3) alert >120s; (4) document stratum hierarchy per site. Indexes required: `index=ot_infra`.",
   "visualization": "Table, Single value (worst skew), Bar by site.",
   "cimModels": [
     "N/A"
@@ -44,7 +44,14 @@
   "equipment": [
     "syslog"
   ],
-  "grandmaExplanation": "Surfaces OT servers and RTUs with large vs deltas undermining trustworthy audit timestamps — so you can show exactly what is being watched and when something went wrong.",
+  "grandmaExplanation": "We watch for surfaces ot servers and rtus with large `_indextime` vs `_time` deltas undermining trustworthy audit timestamps. This matters because it catches problems that could lead to audit findings or compliance gaps.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Universal Forwarder time debug or vendor syslog.\n• Ensure the following data sources are available: `index=ot_infra` with `_time` and `orig_time` if extracted.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Enforce PTP/NTP on all IEDs; (2) fix dual-homed syslog paths; (3) alert >120s; (4) document stratum hierarchy per site.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot_infra earliest=-24h\n| eval skew=abs(_indextime-_time)\n| where skew>120\n| stats max(skew) as max_skew, perc95(skew) as p95_skew by host, sourcetype\n| sort - p95_skew\n```\n\nUnderstanding this SPL\n\n**Clock Skew on OT Hosts vs NTP Stratum (IEC 62443-3-3 / SR 2.11)** — Surfaces OT servers and RTUs with large `_indextime` vs `_time` deltas undermining trustworthy audit timestamps.\n\nDocumented **Data sources**: `index=ot_infra` with `_time` and `orig_time` if extracted. **App/TA** (typical add-on context): Universal Forwarder time debug or vendor syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot_infra.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot_infra, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **skew** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where skew>120` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by host, sourcetype** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Single value (worst skew), Bar by site.",
-  "lastReviewed": "2026-04-22"
+  "lastReviewed": "2026-04-22",
+  "requiredFields": [
+    "host",
+    "max_skew",
+    "p95_skew",
+    "skew",
+    "sourcetype"
+  ]
 }

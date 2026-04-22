@@ -28,9 +28,9 @@
   "app": "Splunk DB Connect (Splunkbase 2686)",
   "spl": "index=database sourcetype=db:audit earliest=-24h\n| lookup sensitive_columns.csv table_name column_name OUTPUT classification\n| where classification=\"restricted\"\n| stats count by user, table_name",
   "description": "Uses database audit logs tagged with sensitivity labels to prove data assets are known and classified for risk treatment prioritization.",
-  "value": "Uses database audit logs tagged with sensitivity labels to prove data assets are known and classified for risk treatment prioritization.",
-  "implementation": "(1) Maintain sensitive column catalog; (2) exclude ETL service accounts; (3) quarterly access review input; (4) align to data governance council minutes.",
-  "visualization": "Table, Time chart",
+  "value": "Gives the responsible team auditor-ready evidence for NIST CSF compliance by automating regulatory compliance evidence using indexes database and sourcetypes db:audit. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "implementation": "(1) Maintain sensitive column catalog; (2) exclude ETL service accounts; (3) quarterly access review input; (4) align to data governance council minutes. Indexes required: `index=database`; Sourcetypes: `sourcetype=db:audit`; Lookups: `sensitive_columns`, `sensitive_columns.csv`.",
+  "visualization": "Table, Time chart. Key fields: `table_name`, `user`.",
   "cimModels": [
     "N/A"
   ],
@@ -44,7 +44,11 @@
   "equipment": [
     "db_connect"
   ],
-  "grandmaExplanation": "Uses database audit logs tagged with sensitivity labels to prove data assets are known and classified for risk treatment prioritization — so you can show exactly what is being watched and when something went wrong.",
+  "grandmaExplanation": "We watch for uses database audit logs tagged with sensitivity labels to prove data assets are known and classified for risk treatment prioritization. This matters because it catches problems that could lead to audit findings or compliance gaps.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk DB Connect (Splunkbase 2686).\n• Ensure the following data sources are available: `db:audit` (table_name, column_name, user).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain sensitive column catalog; (2) exclude ETL service accounts; (3) quarterly access review input; (4) align to data governance council minutes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=db:audit earliest=-24h\n| lookup sensitive_columns.csv table_name column_name OUTPUT classification\n| where classification=\"restricted\"\n| stats count by user, table_name\n```\n\nUnderstanding this SPL\n\n**Data Asset Classification — Sensitive Columns in Query Logs (ID.AM-03)** — Uses database audit logs tagged with sensitivity labels to prove data assets are known and classified for risk treatment prioritization.\n\nDocumented **Data sources**: `db:audit` (table_name, column_name, user). **App/TA** (typical add-on context): Splunk DB Connect (Splunkbase 2686). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: db:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=db:audit, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where classification=\"restricted\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by user, table_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Time chart",
-  "lastReviewed": "2026-04-22"
+  "lastReviewed": "2026-04-22",
+  "requiredFields": [
+    "table_name",
+    "user"
+  ]
 }

@@ -28,9 +28,9 @@
   "app": "OTel k8s attributes or `kube:audit`",
   "spl": "index=containers sourcetype=kube:* earliest=-6h\n| stats latest(image_id) as image by pod, namespace\n| lookup approved_container_images.csv image OUTPUT tier\n| where isnull(tier)",
   "description": "Correlates Kubernetes workload image digests to approved golden images for containerized asset inventory depth.",
-  "value": "Correlates Kubernetes workload image digests to approved golden images for containerized asset inventory depth.",
-  "implementation": "(1) Export digest list from artifact registry; (2) alert on unknown digests; (3) feed asset register; (4) map to business owner namespace labels.",
-  "visualization": "Table, Heatmap",
+  "value": "Gives the responsible team auditor-ready evidence for NIST CSF compliance by automating regulatory compliance evidence using indexes containers and sourcetypes kube:*. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "implementation": "(1) Export digest list from artifact registry; (2) alert on unknown digests; (3) feed asset register; (4) map to business owner namespace labels. Indexes required: `index=containers`; Sourcetypes: `sourcetype=kube:*`; Lookups: `approved_container_images`, `approved_container_images.csv`.",
+  "visualization": "Table, Heatmap. Key fields: `image`, `namespace`, `pod`.",
   "cimModels": [
     "N/A"
   ],
@@ -41,7 +41,12 @@
     }
   ],
   "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
-  "grandmaExplanation": "Correlates Kubernetes workload image digests to approved golden images for containerized asset inventory depth — so you can show exactly what is being watched and when something went wrong.",
+  "grandmaExplanation": "We watch for correlates kubernetes workload image digests to approved golden images for containerized asset inventory depth. This helps maintain steady compliance posture and reduces manual review effort.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: OTel k8s attributes or `kube:audit`.\n• Ensure the following data sources are available: `kube:*` sourcetype.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Export digest list from artifact registry; (2) alert on unknown digests; (3) feed asset register; (4) map to business owner namespace labels.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=containers sourcetype=kube:* earliest=-6h\n| stats latest(image_id) as image by pod, namespace\n| lookup approved_container_images.csv image OUTPUT tier\n| where isnull(tier)\n```\n\nUnderstanding this SPL\n\n**Software Bill of Materials Signals — Container Image Digests (ID.AM-02)** — Correlates Kubernetes workload image digests to approved golden images for containerized asset inventory depth.\n\nDocumented **Data sources**: `kube:*` sourcetype. **App/TA** (typical add-on context): OTel k8s attributes or `kube:audit`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: containers; **sourcetype**: kube:*. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=containers, sourcetype=kube:*, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by pod, namespace** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(tier)` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Heatmap",
-  "lastReviewed": "2026-04-22"
+  "lastReviewed": "2026-04-22",
+  "requiredFields": [
+    "image",
+    "namespace",
+    "pod"
+  ]
 }

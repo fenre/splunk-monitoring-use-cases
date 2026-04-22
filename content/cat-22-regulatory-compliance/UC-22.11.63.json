@@ -41,7 +41,7 @@
   "app": "Splunk Enterprise Security (263)",
   "spl": "`notable` (tag=\"pci\" OR like(rule_name,\"%PCI%\")) earliest=-7d\n| eval age_h=if(isnotnull(closed_time), (closed_time-_time)/3600, (now()-_time)/3600)\n| eval breached=if(isnull(closed_time) AND age_h>24,1,0)\n| stats sum(breached) as open_breach, count as total by rule_name\n| sort - open_breach",
   "description": "Tracks time from automated PCI log review finding to analyst disposition so periodic log reviews are not only scheduled but completed with auditable closure records.",
-  "value": "Tracks time from automated PCI log review finding to analyst disposition so periodic log reviews are not only scheduled but completed with auditable closure records.",
+  "value": "Gives the responsible team auditor-ready evidence for PCI DSS, PCI-DSS compliance by automating regulatory compliance evidence. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
   "implementation": "(1) Tag PCI-related correlation searches consistently. (2) Align 24h SLA to policy. (3) Supervisor dashboard for aging. (4) Export weekly metrics for PCI log review evidence.",
   "visualization": "Table (rule_name, open_breach), column chart (aging buckets), single value (% closed within SLA).",
   "cimModels": [
@@ -58,7 +58,14 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "grandmaExplanation": "We track time from automated log review finding to analyst disposition so periodic log reviews are not only scheduled but completed with auditable closure records — so you can show exactly what is being watched and when something went wrong.",
+  "grandmaExplanation": "We watch for tracks time from automated pci log review finding to analyst disposition so periodic log reviews are not only scheduled but completed with auditable closure records. This matters because it catches problems that could lead to audit findings or compliance gaps.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263).\n• Ensure the following data sources are available: `` `notable` `` filtered by `rule_name` like `PCI*` or `tag=\"pci\"`; fields `status`, `closed_time`, `_time`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag PCI-related correlation searches consistently. (2) Align 24h SLA to policy. (3) Supervisor dashboard for aging. (4) Export weekly metrics for PCI log review evidence.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n`notable` (tag=\"pci\" OR like(rule_name,\"%PCI%\")) earliest=-7d\n| eval age_h=if(isnotnull(closed_time), (closed_time-_time)/3600, (now()-_time)/3600)\n| eval breached=if(isnull(closed_time) AND age_h>24,1,0)\n| stats sum(breached) as open_breach, count as total by rule_name\n| sort - open_breach\n```\n\nUnderstanding this SPL\n\n**Daily Log Review Workflow — PCI Queue Ticket Closure SLA (PCI DSS Req 10.4.1, 10.4.1.1)** — Tracks time from automated PCI log review finding to analyst disposition so periodic log reviews are not only scheduled but completed with auditable closure records.\n\nDocumented **Data sources**: `` `notable` `` filtered by `rule_name` like `PCI*` or `tag=\"pci\"`; fields `status`, `closed_time`, `_time`. **App/TA** (typical add-on context): Splunk Enterprise Security (263). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Invokes macro `notable` — in Search, use the UI or expand to inspect the underlying SPL.\n• `eval` defines or adjusts **age_h** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **breached** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by rule_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (rule_name, open_breach), column chart (aging buckets), single value (% closed within SLA).",
-  "lastReviewed": "2026-04-22"
+  "lastReviewed": "2026-04-22",
+  "requiredFields": [
+    "age_h",
+    "breached",
+    "open_breach",
+    "rule_name",
+    "total"
+  ]
 }

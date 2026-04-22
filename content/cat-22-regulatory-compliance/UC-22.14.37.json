@@ -28,9 +28,9 @@
   "app": "Splunk Add-on for TAXII (if used), vendor JSON via HEC, RSS parser custom",
   "spl": "index=threat_intel earliest=-7d\n| stats latest(_time) as last_event, count by sourcetype, feed_name\n| eval hours_since=round((now()-last_event)/3600,1)\n| where hours_since>48",
   "description": "Ensures security advisory and vendor alert feeds continue arriving for SI-5 security alerts, advisories, and directives.",
-  "value": "Ensures security advisory and vendor alert feeds continue arriving for SI-5 security alerts, advisories, and directives.",
-  "implementation": "(1) Standardize `feed_name` at ingest; (2) alert per feed SLA; (3) document alternate notification path; (4) map to IR-4 playbooks when vendor declares incident.",
-  "visualization": "Table (stale feeds), Time chart (events per feed), Single value (feeds in breach)",
+  "value": "Gives the responsible team auditor-ready evidence for NIST 800-53 compliance by automating regulatory compliance evidence using indexes threat_intel and sourcetypes vendor:security_advisory`. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "implementation": "(1) Standardize `feed_name` at ingest; (2) alert per feed SLA; (3) document alternate notification path; (4) map to IR-4 playbooks when vendor declares incident. Indexes required: `index=threat_intel`; Sourcetypes: `sourcetype=vendor:security_advisory``.",
+  "visualization": "Table (stale feeds), Time chart (events per feed), Single value (feeds in breach). Key fields: `feed_name`, `hours_since`, `last_event`, `sourcetype`.",
   "cimModels": [
     "N/A"
   ],
@@ -41,7 +41,13 @@
     }
   ],
   "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
-  "grandmaExplanation": "We help you make sure security advisory and vendor alert feeds continue arriving for SI-5 security alerts, advisories, and directives — so you can show exactly what is being watched and when something went wrong.",
+  "grandmaExplanation": "We watch for ensures security advisory and vendor alert feeds continue arriving for security alerts, advisories, and directives. This matters because it catches problems that could lead to audit findings or compliance gaps.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for TAXII (if used), vendor JSON via HEC, RSS parser custom.\n• Ensure the following data sources are available: `index=threat_intel` OR `sourcetype=vendor:security_advisory`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Standardize `feed_name` at ingest; (2) alert per feed SLA; (3) document alternate notification path; (4) map to IR-4 playbooks when vendor declares incident.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=threat_intel earliest=-7d\n| stats latest(_time) as last_event, count by sourcetype, feed_name\n| eval hours_since=round((now()-last_event)/3600,1)\n| where hours_since>48\n```\n\nUnderstanding this SPL\n\n**Security Alerts Ingestion Health from Vendor Feeds (SI-5)** — Ensures security advisory and vendor alert feeds continue arriving for SI-5 security alerts, advisories, and directives.\n\nDocumented **Data sources**: `index=threat_intel` OR `sourcetype=vendor:security_advisory`. **App/TA** (typical add-on context): Splunk Add-on for TAXII (if used), vendor JSON via HEC, RSS parser custom. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: threat_intel.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=threat_intel, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by sourcetype, feed_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **hours_since** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where hours_since>48` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (stale feeds), Time chart (events per feed), Single value (feeds in breach)",
-  "lastReviewed": "2026-04-22"
+  "lastReviewed": "2026-04-22",
+  "requiredFields": [
+    "feed_name",
+    "hours_since",
+    "last_event",
+    "sourcetype"
+  ]
 }

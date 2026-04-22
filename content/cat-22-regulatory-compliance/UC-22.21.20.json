@@ -28,8 +28,8 @@
   "app": "Splunk Enterprise Security (263), Splunk ITSI (1841)",
   "spl": "index=ai_risk sourcetype=\"rms:hazard\" earliest=-90d\n| eval opened=if(status=\"new\",_time,null())\n| eval reviewed=if(status=\"reviewed\",_time,null())\n| stats min(opened) as t_open, max(reviewed) as t_rev by hazard_id\n| eval review_hours=round((t_rev-t_open)/3600,2)\n| where isnull(t_rev) OR review_hours>168\n| sort - review_hours",
   "description": "Measures time from new_hazard to hazard_reviewed in risk register stream for RMS operational effectiveness.",
-  "value": "Measures time from new_hazard to hazard_reviewed in risk register stream for RMS operational effectiveness.",
-  "implementation": "(1) Ensure hazard_id stable; (2) escalate unreviewed >7d; (3) link to incident index; (4) quarterly RMS committee export.",
+  "value": "Gives the responsible team auditor-ready evidence for EU AI Act compliance by automating regulatory compliance evidence using indexes ai_risk and sourcetypes rms:hazard, rms:hazard`. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "implementation": "(1) Ensure hazard_id stable; (2) escalate unreviewed >7d; (3) link to incident index; (4) quarterly RMS committee export. Indexes required: `index=ai_risk`; Sourcetypes: `sourcetype=rms:hazard`, `sourcetype=rms:hazard``.",
   "visualization": "Histogram (review_hours), Table (open hazards), Single value (mean review_hours)",
   "cimModels": [
     "N/A"
@@ -56,7 +56,15 @@
       "note": "ITSI"
     }
   ],
-  "grandmaExplanation": "Measures time from new_hazard to hazard_reviewed in risk register stream for RMS operational effectiveness — so you can show exactly what is being watched and when something went wrong.",
+  "grandmaExplanation": "We watch for measures time from new_hazard to hazard_reviewed in risk register stream for rms operational effectiveness. This is critical because gaps here could mean serious regulatory exposure or security blind spots.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263), Splunk ITSI (1841).\n• Ensure the following data sources are available: `index=ai_risk` `sourcetype=rms:hazard` — hazard_id, status, transition.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ensure hazard_id stable; (2) escalate unreviewed >7d; (3) link to incident index; (4) quarterly RMS committee export.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ai_risk sourcetype=\"rms:hazard\" earliest=-90d\n| eval opened=if(status=\"new\",_time,null())\n| eval reviewed=if(status=\"reviewed\",_time,null())\n| stats min(opened) as t_open, max(reviewed) as t_rev by hazard_id\n| eval review_hours=round((t_rev-t_open)/3600,2)\n| where isnull(t_rev) OR review_hours>168\n| sort - review_hours\n```\n\nUnderstanding this SPL\n\n**Risk Management System — Hazard Log Update SLA (Art. 9/Annex IV) (EU AI Act)** — Measures time from new_hazard to hazard_reviewed in risk register stream for RMS operational effectiveness.\n\nDocumented **Data sources**: `index=ai_risk` `sourcetype=rms:hazard` — hazard_id, status, transition. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk ITSI (1841). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ai_risk; **sourcetype**: rms:hazard. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ai_risk, sourcetype=\"rms:hazard\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **opened** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **reviewed** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by hazard_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **review_hours** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnull(t_rev) OR review_hours>168` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Histogram (review_hours), Table (open hazards), Single value (mean review_hours)",
-  "lastReviewed": "2026-04-22"
+  "lastReviewed": "2026-04-22",
+  "requiredFields": [
+    "hazard_id",
+    "opened",
+    "review_hours",
+    "reviewed",
+    "t_open",
+    "t_rev"
+  ]
 }

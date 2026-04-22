@@ -28,9 +28,9 @@
   "app": "Splunk Enterprise / Splunk Cloud Platform",
   "spl": "index=_audit action=search info=granted earliest=-30d total_count>50000\n| lookup cip008_active_incidents.csv search_name OUTPUT incident_id\n| where isnotnull(incident_id)\n| stats sum(total_count) as rows values(user) as users by incident_id, search_name\n| sort - rows",
   "description": "We audit exports of saved searches and large result downloads during active incidents to support evidence preservation and chain-of-custody discipline.",
-  "value": "We audit exports of saved searches and large result downloads during active incidents to support evidence preservation and chain-of-custody discipline.",
-  "implementation": "(1) Maintain active incident lookup updated by IR. (2) Tune `total_count` threshold. (3) Pair with proxy DLP if used. (4) Retain audit logs per records program.",
-  "visualization": "Table (large searches), Bar chart (by user), Single value (export events)",
+  "value": "Gives the responsible team auditor-ready evidence for NERC CIP compliance by automating regulatory compliance evidence using indexes _audit. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "implementation": "(1) Maintain active incident lookup updated by IR. (2) Tune `total_count` threshold. (3) Pair with proxy DLP if used. (4) Retain audit logs per records program. Indexes required: `index=_audit`.",
+  "visualization": "Table (large searches), Bar chart (by user), Single value (export events). Key fields: `incident_id`, `rows`, `search_name`, `users`.",
   "cimModels": [
     "N/A"
   ],
@@ -41,7 +41,13 @@
     }
   ],
   "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
-  "grandmaExplanation": "We audit exports of saved searches and large result downloads during active incidents to support evidence preservation and chain-of-custody discipline — so you can show exactly what is being watched and when something went wrong.",
+  "grandmaExplanation": "We watch for we audit exports of saved searches and large result downloads during active incidents to support evidence preservation and chain-of-custody discipline. This matters because it catches problems that could lead to audit findings or compliance gaps.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: `_audit` index `action=search` `info=granted`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain active incident lookup updated by IR. (2) Tune `total_count` threshold. (3) Pair with proxy DLP if used. (4) Retain audit logs per records program.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_audit action=search info=granted earliest=-30d total_count>50000\n| lookup cip008_active_incidents.csv search_name OUTPUT incident_id\n| where isnotnull(incident_id)\n| stats sum(total_count) as rows values(user) as users by incident_id, search_name\n| sort - rows\n```\n\nUnderstanding this SPL\n\n**Incident Evidence Preservation — Splunk Search Artifact Export Audit (CIP-008-6 R5 Part 5.1)** — We audit exports of saved searches and large result downloads during active incidents to support evidence preservation and chain-of-custody discipline.\n\nDocumented **Data sources**: `_audit` index `action=search` `info=granted`. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _audit.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_audit, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnotnull(incident_id)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by incident_id, search_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (large searches), Bar chart (by user), Single value (export events)",
-  "lastReviewed": "2026-04-22"
+  "lastReviewed": "2026-04-22",
+  "requiredFields": [
+    "incident_id",
+    "rows",
+    "search_name",
+    "users"
+  ]
 }

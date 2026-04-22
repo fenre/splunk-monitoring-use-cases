@@ -28,9 +28,9 @@
   "app": "Claroty/Nozomi + CMDB",
   "spl": "index=ot_sec sourcetype=\"claroty:session\" earliest=-7d\n| lookup asset_safety_class.csv asset_id OUTPUT safety_class\n| lookup vlan_role.csv vlan OUTPUT vlan_role\n| where vlan_role=\"SIS\" AND safety_class!=\"SIS\"\n| stats dc(asset_id) as assets, count by vlan, protocol\n| sort - count",
   "description": "Identifies OPC-UA or HMI sessions sourced from assets tagged non-safety on safety-controller VLANs.",
-  "value": "Identifies OPC-UA or HMI sessions sourced from assets tagged non-safety on safety-controller VLANs.",
-  "implementation": "(1) Align CMDB safety flags; (2) re-cable or re-ACL; (3) monthly scan; (4) document compensating monitoring.",
-  "visualization": "Table, Bar, Single value (sessions).",
+  "value": "Gives the responsible team auditor-ready evidence for IEC 62443 compliance by automating regulatory compliance evidence using indexes ot_sec and sourcetypes claroty:session. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "implementation": "(1) Align CMDB safety flags; (2) re-cable or re-ACL; (3) monthly scan; (4) document compensating monitoring. Indexes required: `index=ot_sec`; Sourcetypes: `sourcetype=claroty:session`; Lookups: `asset_safety_class`, `asset_safety_class.csv`, `vlan_role`, `vlan_role.csv`.",
+  "visualization": "Table, Bar, Single value (sessions). Key fields: `assets`, `protocol`, `vlan`.",
   "cimModels": [
     "N/A"
   ],
@@ -41,7 +41,12 @@
     }
   ],
   "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
-  "grandmaExplanation": "We spot OPC-UA or HMI sessions sourced from assets tagged non-safety on safety-controller network segments — so you can show exactly what is being watched and when something went wrong.",
+  "grandmaExplanation": "We watch for identifies opc-ua or hmi sessions sourced from assets tagged non-safety on safety-controller vlans. This is critical because gaps here could mean serious regulatory exposure or security blind spots.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Claroty/Nozomi + CMDB.\n• Ensure the following data sources are available: `claroty:session` style events.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Align CMDB safety flags; (2) re-cable or re-ACL; (3) monthly scan; (4) document compensating monitoring.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot_sec sourcetype=\"claroty:session\" earliest=-7d\n| lookup asset_safety_class.csv asset_id OUTPUT safety_class\n| lookup vlan_role.csv vlan OUTPUT vlan_role\n| where vlan_role=\"SIS\" AND safety_class!=\"SIS\"\n| stats dc(asset_id) as assets, count by vlan, protocol\n| sort - count\n```\n\nUnderstanding this SPL\n\n**Safety Zone Isolation Verification — Non-Safety OPC on SIS VLAN (IEC 62443-3-2 / Safety zone isolation verification)** — Identifies OPC-UA or HMI sessions sourced from assets tagged non-safety on safety-controller VLANs.\n\nDocumented **Data sources**: `claroty:session` style events. **App/TA** (typical add-on context): Claroty/Nozomi + CMDB. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot_sec; **sourcetype**: claroty:session. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot_sec, sourcetype=\"claroty:session\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where vlan_role=\"SIS\" AND safety_class!=\"SIS\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by vlan, protocol** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Bar, Single value (sessions).",
-  "lastReviewed": "2026-04-22"
+  "lastReviewed": "2026-04-22",
+  "requiredFields": [
+    "assets",
+    "protocol",
+    "vlan"
+  ]
 }

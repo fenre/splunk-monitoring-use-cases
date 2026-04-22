@@ -28,9 +28,9 @@
   "app": "NetBackup or vendor backup sourcetype",
   "spl": "index=backup sourcetype=netbackup:job earliest=-14d\n| lookup app_rpo_hours.csv policy_name OUTPUT rpo_hours\n| eval end_epoch=_time+duration_sec\n| eval overrun=if((end_epoch-_time)/3600>rpo_hours,1,0)\n| where status!=\"success\" OR overrun=1\n| stats count by policy_name, client_name",
   "description": "Compares backup job duration and completion time against RPO windows for ICT supporting business continuity.",
-  "value": "Compares backup job duration and completion time against RPO windows for ICT supporting business continuity.",
-  "implementation": "(1) Normalize duration fields; (2) tune for incremental chains; (3) feed BC tests.",
-  "visualization": "Table, Timeline",
+  "value": "Gives the responsible team auditor-ready evidence for ISO 27001 compliance by automating regulatory compliance evidence using indexes backup and sourcetypes netbackup:job. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "implementation": "(1) Normalize duration fields; (2) tune for incremental chains; (3) feed BC tests. Indexes required: `index=backup`; Sourcetypes: `sourcetype=netbackup:job`; Lookups: `app_rpo_hours`, `app_rpo_hours.csv`.",
+  "visualization": "Table, Timeline. Key fields: `client_name`, `end_epoch`, `overrun`, `policy_name`.",
   "cimModels": [
     "N/A"
   ],
@@ -41,7 +41,13 @@
     }
   ],
   "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
-  "grandmaExplanation": "Compares backup job duration and completion time against recovery point windows for ICT supporting business continuity — so you can show exactly what is being watched and when something went wrong.",
+  "grandmaExplanation": "We watch for compares backup job duration and completion time against rpo windows for ict supporting business continuity. This matters because it catches problems that could lead to audit findings or compliance gaps.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: NetBackup or vendor backup sourcetype.\n• Ensure the following data sources are available: `netbackup:job`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Normalize duration fields; (2) tune for incremental chains; (3) feed BC tests.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=backup sourcetype=netbackup:job earliest=-14d\n| lookup app_rpo_hours.csv policy_name OUTPUT rpo_hours\n| eval end_epoch=_time+duration_sec\n| eval overrun=if((end_epoch-_time)/3600>rpo_hours,1,0)\n| where status!=\"success\" OR overrun=1\n| stats count by policy_name, client_name\n```\n\nUnderstanding this SPL\n\n**ICT Readiness for BC — Backup Window Overruns vs RPO (A.5.30)** — Compares backup job duration and completion time against RPO windows for ICT supporting business continuity.\n\nDocumented **Data sources**: `netbackup:job`. **App/TA** (typical add-on context): NetBackup or vendor backup sourcetype. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: backup; **sourcetype**: netbackup:job. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=backup, sourcetype=netbackup:job, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **end_epoch** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **overrun** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where status!=\"success\" OR overrun=1` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by policy_name, client_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Timeline",
-  "lastReviewed": "2026-04-22"
+  "lastReviewed": "2026-04-22",
+  "requiredFields": [
+    "client_name",
+    "end_epoch",
+    "overrun",
+    "policy_name"
+  ]
 }
