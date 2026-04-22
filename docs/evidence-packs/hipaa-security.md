@@ -42,7 +42,7 @@ Applies to covered entities (health plans, healthcare clearinghouses, most healt
 - **Clauses tracked**: 15
 - **Clauses covered by at least one UC**: 15 / 15 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 36
+- **Contributing UCs**: 37
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -52,14 +52,14 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`§164.308(a)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(1)) | Security management process | 1.0 | `contributing` | [UC-22.10.1](#uc-22-10-1), [UC-22.10.2](#uc-22-10-2), [UC-22.10.22](#uc-22-10-22), [UC-22.10.55](#uc-22-10-55) |
-| [`§164.308(a)(3)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(3)) | Workforce security | 1.0 | `contributing` | [UC-22.10.4](#uc-22-10-4) |
+| [`§164.308(a)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(1)) | Security management process | 1.0 | `partial` | [UC-22.10.1](#uc-22-10-1), [UC-22.10.2](#uc-22-10-2), [UC-22.10.22](#uc-22-10-22), [UC-22.10.55](#uc-22-10-55) |
+| [`§164.308(a)(3)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(3)) | Workforce security | 1.0 | `partial` | [UC-22.10.4](#uc-22-10-4) |
 | [`§164.308(a)(4)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(4)) | Information access management | 1.0 | `full` | [UC-22.10.21](#uc-22-10-21) |
 | [`§164.308(a)(5)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(5)) | Security awareness and training | 0.7 | `full` | [UC-22.10.6](#uc-22-10-6), [UC-22.46.1](#uc-22-46-1), [UC-22.6.53](#uc-22-6-53) |
-| [`§164.308(a)(6)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(6)) | Security incident procedures | 1.0 | `partial` | [UC-22.10.7](#uc-22-10-7), [UC-22.39.1](#uc-22-39-1) |
+| [`§164.308(a)(6)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(6)) | Security incident procedures | 1.0 | `partial` | [UC-22.10.56](#uc-22-10-56), [UC-22.10.7](#uc-22-10-7), [UC-22.39.1](#uc-22-39-1) |
 | [`§164.308(a)(7)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(7)) | Contingency plan | 1.0 | `full` | [UC-22.10.8](#uc-22-10-8), [UC-22.45.2](#uc-22-45-2) |
-| [`§164.308(a)(8)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(8)) | Evaluation | 0.7 | `contributing` | [UC-22.10.9](#uc-22-10-9) |
-| [`§164.310(a)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.310(a)(1)) | Facility access controls | 1.0 | `contributing` | [UC-22.10.31](#uc-22-10-31) |
+| [`§164.308(a)(8)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(8)) | Evaluation | 0.7 | `partial` | [UC-22.10.9](#uc-22-10-9) |
+| [`§164.310(a)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.310(a)(1)) | Facility access controls | 1.0 | `partial` | [UC-22.10.31](#uc-22-10-31) |
 | [`§164.310(d)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.310(d)(1)) | Device and media controls | 0.7 | `full` | [UC-22.10.29](#uc-22-10-29), [UC-22.49.1](#uc-22-49-1), [UC-22.49.2](#uc-22-49-2) |
 | [`§164.312(a)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(a)(1)) | Access control | 1.0 | `contributing` | [UC-22.10.21](#uc-22-10-21), [UC-22.10.24](#uc-22-10-24), [UC-22.10.25](#uc-22-10-25) |
 | [`§164.312(a)(2)(iv)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(a)(2)(iv)) | Encryption and decryption | 0.7 | `full` | [UC-22.10.16](#uc-22-10-16), [UC-22.41.1](#uc-22-41-1) |
@@ -192,6 +192,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Source: [``](../../)
 <a id='uc-22-10-55'></a>
 - **UC-22.10.55** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-10-56'></a>
+- **UC-22.10.56** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0

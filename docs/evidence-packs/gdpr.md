@@ -65,7 +65,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`Art.25`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.25) | Data protection by design and by default | 1.0 | `contributing` | [UC-22.1.9](#uc-22-1-9) |
 | [`Art.28`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.28) | Processor obligations | 1.0 | `full` | [UC-22.1.15](#uc-22-1-15), [UC-22.44.2](#uc-22-44-2) |
 | [`Art.30`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.30) | Records of processing | 1.0 | `contributing` | [UC-22.1.43](#uc-22-1-43), [UC-22.1.8](#uc-22-1-8) |
-| [`Art.32`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.32) | Security of processing | 1.0 | `partial` | [UC-10.11.62](#uc-10-11-62), [UC-10.3.89](#uc-10-3-89), [UC-22.1.10](#uc-22-1-10), [UC-22.1.41](#uc-22-1-41), [UC-22.1.7](#uc-22-1-7), [UC-22.35.2](#uc-22-35-2) (+2 more) |
+| [`Art.32`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.32) | Security of processing | 1.0 | `full` | [UC-10.11.62](#uc-10-11-62), [UC-10.3.89](#uc-10-3-89), [UC-22.1.10](#uc-22-1-10), [UC-22.1.41](#uc-22-1-41), [UC-22.1.7](#uc-22-1-7), [UC-22.35.2](#uc-22-35-2) (+2 more) |
 | [`Art.33`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.33) | Breach notification to supervisory authority | 1.0 | `full` | [UC-22.1.29](#uc-22-1-29), [UC-22.1.3](#uc-22-1-3), [UC-22.39.1](#uc-22-39-1), [UC-22.39.2](#uc-22-39-2), [UC-22.9.4](#uc-22-9-4) |
 | [`Art.34`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.34) | Breach communication to data subjects | 1.0 | `full` | [UC-22.1.13](#uc-22-1-13), [UC-22.39.3](#uc-22-39-3) |
 | [`Art.35`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.35) | DPIA | 0.7 | `contributing` | [UC-22.1.14](#uc-22-1-14) |

@@ -1,7 +1,7 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "22.20.7",
-  "title": "CMMC Level 2 practice evidence — CUI control area 7",
+  "title": "CMMC IR.L2-3.6.1 — Incident response lifecycle tracking for CUI incidents",
   "criticality": "low",
   "difficulty": "advanced",
   "monitoringType": [
@@ -16,28 +16,23 @@
       "clause": "IR.L2-3.6.1",
       "clauseUrl": "https://dodcio.defense.gov/CMMC/",
       "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "CMMC IR.L2-3.6.1 Incident handling capability — UC area 7 is the CMMC incident-response practice anchor, linking CUI-related events into an IR workflow.",
+      "assurance": "full",
+      "assurance_rationale": "SPL tracks the full IR lifecycle (triage, containment, resolution, PIR) for CUI incidents — directly satisfying IR.L2-3.6.1.",
       "controlObjective": "Evidence that CMMC IR.L2-3.6.1 (Incident handling capability) is enforced — Splunk UC-22.20.7: CMMC Level 2 practice evidence — CUI control area 7.",
       "evidenceArtifact": "Saved search 'UC-22.20.7' running on WinEventLog:Security, CrowdStrike FDR, Defender for Office 365, NetFlow, encryption posture exports, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "cmmc@2.0#IR.L2-3.6.1",
       "requires_sme_review": false
     }
   ],
-  "dataSources": "`WinEventLog:Security`, CrowdStrike FDR, Defender for Office 365, NetFlow, encryption posture exports",
-  "app": "Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for CrowdStrike FDR (5082), Splunk Add-on for Microsoft Office 365 (4055), Splunk Common Information Model Add-on (1621).",
-  "spl": "index=grc sourcetype=cmmc:spra earliest=-365d\n| eval uc_tag=\"22.20.7\"\n| where status!=\"approved\"\n| stats count by practice_id, reviewer",
-  "description": "Demonstrates contractor cybersecurity hygiene for \"CMMC Level 2 practice evidence — CUI control area 7\" using CUI-scoped telemetry mapped to CMMC 2.0 Level 2 expectations.",
-  "value": "Gives the responsible team auditor-ready evidence for CMMC compliance by automating regulatory compliance evidence using indexes grc and sourcetypes cmmc:spra. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures. Indexes required: `index=grc`.",
-  "visualization": "Stacked bar, Table, Time chart, Single value. Key fields: `practice_id`, `reviewer`, `uc_tag`.",
-  "cimModels": [
-    "Endpoint",
-    "Authentication",
-    "Email",
-    "or N/A"
-  ],
-  "cimSpl": "| tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count",
+  "dataSources": "ServiceNow incidents (`snow:incident`), Jira issues (`jira:issue`)",
+  "app": "Splunk Add-on for ServiceNow (1928), Splunk Add-on for Jira (1979).",
+  "spl": "index=itsm sourcetype IN (\"snow:incident\", \"jira:issue\") category=\"security\" earliest=-90d\n| search (short_description=\"*CUI*\" OR priority IN (\"1\",\"2\") OR assignment_group=\"*SOC*\" OR assignment_group=\"*IR*\")\n| eval triage_time=round((work_start - opened_at)/60, 0)\n| eval containment_time=round((contained_at - opened_at)/3600, 1)\n| eval resolution_time=round((resolved_at - opened_at)/86400, 1)\n| eval has_pir=if(isnotnull(pir_completed_at), \"yes\", \"no\")\n| stats count AS incidents avg(triage_time) AS avg_triage_min avg(containment_time) AS avg_contain_hrs avg(resolution_time) AS avg_resolve_days sum(eval(if(has_pir=\"yes\",1,0))) AS pir_count BY assignment_group, priority\n| eval pir_pct=round(100*pir_count/incidents, 1)\n| sort priority\n| table assignment_group, priority, incidents, avg_triage_min, avg_contain_hrs, avg_resolve_days, pir_count, pir_pct",
+  "description": "Tracks the full incident response lifecycle for CUI-related security incidents: triage, containment, resolution, and post-incident review. CMMC IR.L2-3.6.1 requires establishing an operational incident-handling capability that includes preparation, detection, analysis, containment, recovery, and user response activities.",
+  "value": "Provides auditor-ready evidence that the organisation operates a structured IR capability with measurable SLAs for CUI incidents, including post-incident review completion rates.",
+  "implementation": "(1) Verify data sources: ServiceNow incidents (`snow:incident`), Jira issues (`jira:issue`); (2) Maintain CUI-scoped lookups; (3) Schedule search at compliance-aligned interval; (4) Route findings to ticketing queue; (5) Retain exports per records management policy.",
+  "visualization": "Table of IR metrics by team and priority. Bar chart of average resolution time by priority. Single value for PIR completion rate.",
+  "cimModels": [],
+  "cimSpl": "",
   "references": [
     {
       "title": "Splunk Enterprise Security",
@@ -56,26 +51,29 @@
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
     }
   ],
-  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "knownFalsePositives": "Non-security incidents incorrectly categorised as security may inflate counts. Filter by confirmed security classification.",
   "equipment": [
-    "crowdstrike",
-    "defender",
-    "m365",
-    "netflow"
+    "servicenow",
+    "jira"
   ],
   "equipmentModels": [
-    "netflow_netflow"
+    "servicenow_snow"
   ],
   "status": "verified",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "grandmaExplanation": "We watch for demonstrates contractor cybersecurity hygiene for \"cmmc level 2 practice evidence — cui control area 7\" using cui-scoped telemetry mapped to cmmc 2.0 level 2 expectations. This provides useful supporting evidence for your overall compliance programme.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for CrowdStrike FDR (5082), Splunk Add-on for Microsoft Office 365 (4055), Splunk Common Information Model Add-on (1621)..\n• Ensure the following data sources are available: `WinEventLog:Security`, CrowdStrike FDR, Defender for Office 365, NetFlow, encryption posture exports.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=grc sourcetype=cmmc:spra earliest=-365d\n| eval uc_tag=\"22.20.7\"\n| where status!=\"approved\"\n| stats count by practice_id, reviewer\n```\n\nUnderstanding this SPL\n\n**CMMC Level 2 practice evidence — CUI control area 7 (CMMC 2.0 Level 2)** — Demonstrates contractor cybersecurity hygiene for \"CMMC Level 2 practice evidence — CUI control area 7\" using CUI-scoped telemetry mapped to CMMC 2.0 Level 2 expectations.\n\nDocumented **Data sources**: `WinEventLog:Security`, CrowdStrike FDR, Defender for Office 365, NetFlow, encryption posture exports. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for CrowdStrike FDR (5082), Splunk Add-on for Microsoft Office 365 (4055), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: grc; **sourcetype**: cmmc:spra. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=grc, sourcetype=cmmc:spra, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **uc_tag** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where status!=\"approved\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by practice_id, reviewer** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**CMMC Level 2 practice evidence — CUI control area 7 (CMMC 2.0 Level 2)** — Demonstrates contractor cybersecurity hygiene for \"CMMC Level 2 practice evidence — CUI control area 7\" using CUI-scoped telemetry mapped to CMMC 2.0 Level 2 expectations.\n\nDocumented **Data sources**: `WinEventLog:Security`, CrowdStrike FDR, Defender for Office 365, NetFlow, encryption posture exports. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for CrowdStrike FDR (5082), Splunk Add-on for Microsoft Office 365 (4055), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Endpoint.Processes` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar, Table, Time chart, Single value",
+  "grandmaExplanation": "We measure how fast and thoroughly the team handles security incidents involving sensitive government data — from first response to final lessons-learned review.",
+  "detailedImplementation": "Prerequisites\n• Ensure the following data sources are available: ServiceNow incidents (`snow:incident`), Jira issues (`jira:issue`).\n• Install and configure: Splunk Add-on for ServiceNow (1928), Splunk Add-on for Jira (1979).\n\nStep 1 — Configure data collection\nVerify that all required data sources are ingesting into Splunk. Maintain the CUI-scoped lookups (cui_hosts.csv, cui_network_segments.csv, etc.) with current asset inventory.\n\nStep 2 — Create the search and alert\nRun the following SPL (save as report or alert):\n\n```spl\nindex=itsm sourcetype IN (\"snow:incident\", \"jira:issue\") category=\"security\" earliest=-90d\n| search (short_description=\"*CUI*\" OR priority IN (\"1\",\"2\") OR assignment_group=\"*SOC*\" OR assignment_group=\"*IR*\")\n| eval triage_time=round((work_start - opened_at)/60, 0)\n| eval containment_time=round((contained_at - opened_at)/3600, 1)\n| eval resolution_time=round((resolved_at - opened_at)/86400, 1)\n| eval has_pir=if(isnotnull(pir_completed_at), \"yes\", \"no\")\n| stats count AS incidents avg(triage_time) AS avg_triage_min avg(containment_time) AS avg_contain_hrs avg(resolution_time) AS avg_resolve_days sum(eval(if(has_pir=\"yes\",1,0))) AS pir_count BY assignment_group, priority\n| eval pir_pct=round(100*pir_count/incidents, 1)\n| sort priority\n| table assignment_group, priority, incidents, avg_triage_min, avg_contain_hrs, avg_resolve_days, pir_count, pir_pct\n```\n\nStep 3 — Validate\nConfirm expected results against known CUI systems. Verify lookup tables are populated and field extractions are correct.\n\nStep 4 — Operationalize\nSchedule the search at an appropriate interval. Route findings to the compliance ticketing queue. Table of IR metrics by team and priority. Bar chart of average resolution time by priority. Single value for PIR completion rate.",
   "lastReviewed": "2026-04-22",
   "requiredFields": [
-    "practice_id",
-    "reviewer",
-    "uc_tag"
+    "_time",
+    "assignment_group",
+    "priority",
+    "opened_at",
+    "work_start",
+    "contained_at",
+    "resolved_at",
+    "pir_completed_at"
   ]
 }

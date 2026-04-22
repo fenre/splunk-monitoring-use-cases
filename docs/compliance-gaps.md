@@ -1,6 +1,6 @@
 # Compliance clause-level gap analysis
 
-_Generated: 2026-04-22T08:39:58Z_ by `scripts/audit_compliance_gaps.py`. Do not hand-edit.
+_Generated: 2026-04-22T10:09:05Z_ by `scripts/audit_compliance_gaps.py`. Do not hand-edit.
 
 This report inverts the compliance coverage audit: for every regulation-version listed in `data/regulations.json` it walks every `commonClauses[]` entry and records whether at least one non-draft UC sidecar tags that clause. Gaps are ranked by the clause's `priorityWeight` so authoring effort can focus on the highest-impact worklist items.
 
@@ -27,15 +27,15 @@ _Cybersecurity Maturity Model Certification_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `AC.L2-3.1.1` | Authorized access to systems | 1.00 | ✔ 15 | partial | 22.20.1, 22.20.10, 22.20.11, 22.20.12, 22.20.13, 22.20.14, 22.20.15, 22.20.16 |
-| `AC.L2-3.1.5` | Least privilege | 1.00 | ✔ 1 | partial | 22.20.2 |
-| `AU.L2-3.3.1` | Create audit records | 1.00 | ✔ 2 | partial | 10.12.40, 22.20.3 |
-| `AU.L2-3.3.2` | Ensure unique user traceability | 1.00 | ✔ 1 | partial | 22.20.4 |
-| `AU.L2-3.3.5` | Audit reporting and correlation | 1.00 | ✔ 2 | partial | 22.20.5, 22.32.19 |
-| `CM.L2-3.4.1` | Baseline configurations | 1.00 | ✔ 1 | partial | 22.20.6 |
-| `IR.L2-3.6.1` | Incident handling capability | 1.00 | ✔ 1 | partial | 22.20.7 |
-| `SC.L2-3.13.8` | Cryptographic mechanisms for CUI in transit | 1.00 | ✔ 1 | partial | 22.20.8 |
-| `SI.L2-3.14.6` | Monitor for attacks | 1.00 | ✔ 2 | partial | 22.20.9, 22.32.21 |
+| `AC.L2-3.1.1` | Authorized access to systems | 1.00 | ✔ 2 | partial | 22.20.1, 22.32.17 |
+| `AC.L2-3.1.5` | Least privilege | 1.00 | ✔ 2 | partial | 22.20.14, 22.20.2 |
+| `AU.L2-3.3.1` | Create audit records | 1.00 | ✔ 2 | full | 10.12.40, 22.20.3 |
+| `AU.L2-3.3.2` | Ensure unique user traceability | 1.00 | ✔ 1 | full | 22.20.4 |
+| `AU.L2-3.3.5` | Audit reporting and correlation | 1.00 | ✔ 6 | partial | 22.20.16, 22.20.18, 22.20.20, 22.20.5, 22.32.18, 22.32.19 |
+| `CM.L2-3.4.1` | Baseline configurations | 1.00 | ✔ 3 | full | 22.20.10, 22.20.17, 22.20.6 |
+| `IR.L2-3.6.1` | Incident handling capability | 1.00 | ✔ 3 | full | 22.20.19, 22.20.7, 22.32.20 |
+| `SC.L2-3.13.8` | Cryptographic mechanisms for CUI in transit | 1.00 | ✔ 1 | full | 22.20.8 |
+| `SI.L2-3.14.6` | Monitor for attacks | 1.00 | ✔ 6 | full | 22.20.11, 22.20.12, 22.20.13, 22.20.15, 22.20.9, 22.32.21 |
 
 ### DORA — `dora`
 
@@ -54,8 +54,8 @@ _EU Digital Operational Resilience Act_
 | `Art.6` | ICT risk-management framework | 1.00 | ✔ 4 | full | 22.11.106, 22.3.1, 22.3.41, 22.6.46 |
 | `Art.7` | ICT systems, protocols and tools | 1.00 | ✔ 3 | full | 22.3.1, 22.3.42, 22.8.32 |
 | `Art.8` | Identification | 1.00 | ✔ 3 | full | 22.11.103, 22.3.1, 22.3.43 |
-| `Art.9` | Protection and prevention | 1.00 | ✔ 3 | partial | 22.11.97, 22.3.1, 22.41.3 |
-| `Art.10` | Detection | 1.00 | ✔ 3 | partial | 22.3.1, 22.3.7, 22.8.33 |
+| `Art.9` | Protection and prevention | 1.00 | ✔ 3 | full | 22.11.97, 22.3.1, 22.41.3 |
+| `Art.10` | Detection | 1.00 | ✔ 3 | full | 22.3.1, 22.3.7, 22.8.33 |
 | `Art.11` | Response and recovery | 1.00 | ✔ 3 | contributing | 22.3.1, 22.3.5, 22.3.8 |
 | `Art.12` | Backup policies and recovery methods | 1.00 | ✔ 6 | full | 22.3.1, 22.3.5, 22.3.9, 22.35.3, 22.45.1, 22.45.3 |
 | `Art.17` | ICT-related incident management process | 1.00 | ✔ 8 | full | 22.3.2, 22.3.23, 22.3.31, 22.3.44, 22.6.51, 22.6.52, 22.8.34, 22.8.35 |
@@ -91,7 +91,7 @@ _General Data Protection Regulation_
 | `Art.25` | Data protection by design and by default | 1.00 | ✔ 1 | contributing | 22.1.9 |
 | `Art.28` | Processor obligations | 1.00 | ✔ 2 | full | 22.1.15, 22.44.2 |
 | `Art.30` | Records of processing | 1.00 | ✔ 2 | contributing | 22.1.43, 22.1.8 |
-| `Art.32` | Security of processing | 1.00 | ✔ 8 | partial | 10.11.62, 10.3.89, 22.1.10, 22.1.41, 22.1.7, 22.35.2, 22.35.3, 22.41.1 |
+| `Art.32` | Security of processing | 1.00 | ✔ 8 | full | 10.11.62, 10.3.89, 22.1.10, 22.1.41, 22.1.7, 22.35.2, 22.35.3, 22.41.1 |
 | `Art.33` | Breach notification to supervisory authority | 1.00 | ✔ 5 | full | 22.1.29, 22.1.3, 22.39.1, 22.39.2, 22.9.4 |
 | `Art.34` | Breach communication to data subjects | 1.00 | ✔ 2 | full | 22.1.13, 22.39.3 |
 | `Art.35` | DPIA | 0.70 | ✔ 1 | contributing | 22.1.14 |
@@ -112,14 +112,14 @@ _HIPAA Security Rule_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `§164.308(a)(1)` | Security management process | 1.00 | ✔ 4 | contributing | 22.10.1, 22.10.2, 22.10.22, 22.10.55 |
-| `§164.308(a)(3)` | Workforce security | 1.00 | ✔ 1 | contributing | 22.10.4 |
+| `§164.308(a)(1)` | Security management process | 1.00 | ✔ 4 | partial | 22.10.1, 22.10.2, 22.10.22, 22.10.55 |
+| `§164.308(a)(3)` | Workforce security | 1.00 | ✔ 1 | partial | 22.10.4 |
 | `§164.308(a)(4)` | Information access management | 1.00 | ✔ 1 | full | 22.10.21 |
 | `§164.308(a)(5)` | Security awareness and training | 0.70 | ✔ 3 | full | 22.10.6, 22.46.1, 22.6.53 |
-| `§164.308(a)(6)` | Security incident procedures | 1.00 | ✔ 2 | partial | 22.10.7, 22.39.1 |
+| `§164.308(a)(6)` | Security incident procedures | 1.00 | ✔ 3 | partial | 22.10.56, 22.10.7, 22.39.1 |
 | `§164.308(a)(7)` | Contingency plan | 1.00 | ✔ 2 | full | 22.10.8, 22.45.2 |
-| `§164.308(a)(8)` | Evaluation | 0.70 | ✔ 1 | contributing | 22.10.9 |
-| `§164.310(a)(1)` | Facility access controls | 1.00 | ✔ 1 | contributing | 22.10.31 |
+| `§164.308(a)(8)` | Evaluation | 0.70 | ✔ 1 | partial | 22.10.9 |
+| `§164.310(a)(1)` | Facility access controls | 1.00 | ✔ 1 | partial | 22.10.31 |
 | `§164.310(d)(1)` | Device and media controls | 0.70 | ✔ 3 | full | 22.10.29, 22.49.1, 22.49.2 |
 | `§164.312(a)(1)` | Access control | 1.00 | ✔ 3 | contributing | 22.10.21, 22.10.24, 22.10.25 |
 | `§164.312(a)(2)(iv)` | Encryption and decryption | 0.70 | ✔ 2 | full | 22.10.16, 22.41.1 |
@@ -193,17 +193,17 @@ _EU NIS2 Directive_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Art.20` | Governance | 1.00 | ✔ 3 | contributing | 22.2.20, 22.2.41, 22.2.42 |
-| `Art.21(2)(a)` | Risk analysis and information-system security policies | 1.00 | ✔ 5 | contributing | 22.2.18, 22.2.26, 22.2.36, 22.2.37, 22.2.6 |
-| `Art.21(2)(b)` | Incident handling | 1.00 | ✔ 1 | contributing | 22.2.23 |
-| `Art.21(2)(c)` | Business continuity and crisis management | 1.00 | ✔ 4 | contributing | 22.2.17, 22.2.24, 22.2.4, 22.2.40 |
+| `Art.20` | Governance | 1.00 | ✔ 3 | partial | 22.2.20, 22.2.41, 22.2.42 |
+| `Art.21(2)(a)` | Risk analysis and information-system security policies | 1.00 | ✔ 5 | partial | 22.2.18, 22.2.26, 22.2.36, 22.2.37, 22.2.6 |
+| `Art.21(2)(b)` | Incident handling | 1.00 | ✔ 1 | partial | 22.2.23 |
+| `Art.21(2)(c)` | Business continuity and crisis management | 1.00 | ✔ 4 | partial | 22.2.17, 22.2.24, 22.2.4, 22.2.40 |
 | `Art.21(2)(d)` | Supply-chain security | 1.00 | ✔ 5 | full | 22.2.16, 22.2.2, 22.2.25, 22.3.42, 22.44.1 |
 | `Art.21(2)(e)` | Security in acquisition, development and maintenance | 1.00 | ✔ 5 | partial | 22.2.15, 22.2.27, 22.2.3, 22.2.38, 22.43.1 |
-| `Art.21(2)(f)` | Policies and procedures effectiveness | 0.70 | ✔ 3 | contributing | 22.2.39, 22.2.43, 22.2.9 |
+| `Art.21(2)(f)` | Policies and procedures effectiveness | 0.70 | ✔ 3 | partial | 22.2.39, 22.2.43, 22.2.9 |
 | `Art.21(2)(g)` | Cyber-hygiene and training | 0.70 | ✔ 4 | full | 22.2.10, 22.2.28, 22.46.1, 22.46.2 |
 | `Art.21(2)(h)` | Cryptography and encryption | 1.00 | ✔ 3 | full | 22.2.11, 22.2.29, 22.41.2 |
-| `Art.21(2)(i)` | Human resources and access control | 1.00 | ✔ 4 | contributing | 22.2.13, 22.2.14, 22.2.30, 22.2.5 |
-| `Art.21(2)(j)` | MFA and secure communications | 1.00 | ✔ 1 | contributing | 22.2.12 |
+| `Art.21(2)(i)` | Human resources and access control | 1.00 | ✔ 4 | partial | 22.2.13, 22.2.14, 22.2.30, 22.2.5 |
+| `Art.21(2)(j)` | MFA and secure communications | 1.00 | ✔ 2 | partial | 22.2.12, 22.2.46 |
 | `Art.23` | Reporting obligations | 1.00 | ✔ 7 | full | 22.2.1, 22.2.33, 22.2.45, 22.3.44, 22.39.1, 22.39.2, 22.9.4 |
 
 ### NIST 800-53 — `nist-800-53`
@@ -240,7 +240,7 @@ _NIST SP 800-53 Rev. 5_
 | `SC-7` | Boundary protection | 1.00 | ✔ 1 | contributing | 22.14.67 |
 | `SC-8` | Transmission confidentiality and integrity | 1.00 | ✔ 2 | full | 22.14.68, 22.41.2 |
 | `SC-13` | Cryptographic protection | 1.00 | ✔ 3 | full | 22.14.71, 22.41.1, 22.41.3 |
-| `SI-4` | System monitoring | 1.00 | ✔ 2 | partial | 22.14.36, 22.8.33 |
+| `SI-4` | System monitoring | 1.00 | ✔ 2 | full | 22.14.36, 22.8.33 |
 | `SR-3` | Supply chain controls and processes | 0.70 | ✔ 1 | partial | 22.44.1 |
 | `PT-3` | Personally identifiable information processing purposes | 0.70 | ✔ 1 | partial | 22.1.48 |
 
@@ -428,7 +428,7 @@ _Japan Act on the Protection of Personal Information_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Art.23` | Security control action | 1.00 | ✔ 9 | contributing | 22.29.19, 22.29.20, 22.29.21, 22.29.22, 22.29.23, 22.29.24, 22.35.2, 22.35.3 |
+| `Art.23` | Security control action | 1.00 | ✔ 9 | partial | 22.29.19, 22.29.20, 22.29.21, 22.29.22, 22.29.23, 22.29.24, 22.35.2, 22.35.3 |
 | `Art.26` | Leakage reporting | 1.00 | ✔ 7 | partial | 22.29.10, 22.29.11, 22.29.7, 22.29.8, 22.39.1, 22.39.2, 22.39.3 |
 
 ### APRA CPS 234 — `apra-cps-234`
@@ -444,7 +444,7 @@ _APRA CPS 234 Information Security_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `15` | Policy framework | 0.70 | ✔ 3 | contributing | 1.2.9, 1.3.4, 22.30.21 |
+| `15` | Policy framework | 0.70 | ✔ 3 | partial | 1.2.9, 1.3.4, 22.30.21 |
 | `23` | Incident management | 1.00 | ✔ 12 | partial | 16.1.20, 16.3.6, 22.30.19, 22.30.20, 22.30.23, 22.30.24, 22.30.25, 22.31.14 |
 | `36` | Notification of incidents | 1.00 | ✔ 4 | partial | 16.1.20, 16.3.6, 22.30.22, 22.31.16 |
 
@@ -462,7 +462,7 @@ _ASD Essential Eight Maturity Model_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `E8.01` | Application control | 1.00 | ✔ 3 | partial | 1.2.91, 12.3.10, 22.31.6 |
-| `E8.03` | Configure MS Office macro settings | 1.00 | ✔ 2 | contributing | 22.31.13, 22.31.7 |
+| `E8.03` | Configure MS Office macro settings | 1.00 | ✔ 2 | partial | 22.31.13, 22.31.7 |
 | `E8.05` | Restrict administrative privileges | 1.00 | ✔ 4 | partial | 1.1.76, 22.31.9, 9.1.3, 9.4.1 |
 | `E8.06` | Patch operating systems | 1.00 | ✔ 5 | partial | 1.2.9, 1.3.4, 12.3.2, 22.31.10, 3.1.5 |
 | `E8.08` | Regular backups | 1.00 | ✔ 5 | full | 22.31.12, 5.1.24, 6.3.1, 6.3.13, 6.3.23 |
@@ -513,8 +513,8 @@ _Basel III — BCBS Operational Risk and Resilience_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `OPR25.1` | Operational risk management | 1.00 | ✔ 1 | contributing | 22.50.24 |
-| `OPR25.8` | Business continuity and resilience | 1.00 | ✔ 1 | contributing | 22.50.25 |
+| `OPR25.1` | Operational risk management | 1.00 | ✔ 1 | partial | 22.50.24 |
+| `OPR25.8` | Business continuity and resilience | 1.00 | ✔ 1 | partial | 22.50.25 |
 
 ### BSI-KritisV — `bsi-kritisv`
 
@@ -562,7 +562,7 @@ _FBI CJIS Security Policy_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `5.5.1` | Access control - identification | 1.00 | ✔ 9 | partial | 1.1.108, 22.32.22, 22.32.23, 22.32.24, 22.32.25, 4.1.4, 5.1.14, 7.1.21 |
-| `5.13.3` | Incident response | 1.00 | ✔ 1 | contributing | 22.50.2 |
+| `5.13.3` | Incident response | 1.00 | ✔ 1 | partial | 22.50.2 |
 
 ### COBIT — `cobit`
 
@@ -577,9 +577,9 @@ _COBIT — Control Objectives for Information and Related Technologies_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `APO13.01` | Manage security — establish and maintain an ISMS | 1.00 | ✔ 1 | contributing | 22.50.26 |
-| `DSS05.03` | Manage security services — manage endpoint security | 1.00 | ✔ 1 | contributing | 22.50.27 |
-| `MEA02.01` | Monitor internal controls | 0.70 | ✔ 1 | contributing | 22.50.28 |
+| `APO13.01` | Manage security — establish and maintain an ISMS | 1.00 | ✔ 1 | partial | 22.50.26 |
+| `DSS05.03` | Manage security services — manage endpoint security | 1.00 | ✔ 1 | partial | 22.50.27 |
+| `MEA02.01` | Monitor internal controls | 0.70 | ✔ 1 | partial | 22.50.28 |
 
 ### COPPA — `coppa`
 
@@ -594,8 +594,8 @@ _Children's Online Privacy Protection Act_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `§312.3` | Verifiable parental consent obligations | 1.00 | ✔ 1 | contributing | 22.50.29 |
-| `§312.8` | Data security and confidentiality | 1.00 | ✔ 1 | contributing | 22.50.30 |
+| `§312.3` | Verifiable parental consent obligations | 1.00 | ✔ 1 | partial | 22.50.29 |
+| `§312.8` | Data security and confidentiality | 1.00 | ✔ 1 | partial | 22.50.30 |
 
 ### COSO — `coso`
 
@@ -610,10 +610,10 @@ _Committee of Sponsoring Organizations — Internal Control / ERM Framework_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Principle1` | Commitment to integrity and ethical values | 1.00 | ✔ 1 | contributing | 22.50.31 |
-| `Principle5` | Enforces accountability | 1.00 | ✔ 1 | contributing | 22.50.32 |
-| `Principle11` | Selects and develops general controls over technology | 1.00 | ✔ 1 | contributing | 22.50.33 |
-| `Principle16` | Ongoing and/or separate evaluations | 0.70 | ✔ 1 | contributing | 22.50.34 |
+| `Principle1` | Commitment to integrity and ethical values | 1.00 | ✔ 1 | partial | 22.50.31 |
+| `Principle5` | Enforces accountability | 1.00 | ✔ 1 | partial | 22.50.32 |
+| `Principle11` | Selects and develops general controls over technology | 1.00 | ✔ 1 | partial | 22.50.33 |
+| `Principle16` | Ongoing and/or separate evaluations | 0.70 | ✔ 1 | partial | 22.50.34 |
 
 ### eIDAS — `eidas`
 
@@ -644,11 +644,11 @@ _EU AI Act_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `Art.12` | Record-keeping (logging) | 1.00 | ✔ 1 | partial | 1.1.65 |
-| `Art.13` | Transparency and information | 0.70 | ✔ 18 | contributing | 22.21.10, 22.21.13, 22.21.14, 22.21.16, 22.21.17, 22.21.18, 22.21.19, 22.21.20 |
-| `Art.14` | Human oversight | 1.00 | ✔ 3 | contributing | 22.21.11, 22.21.12, 22.21.15 |
-| `Art.15` | Accuracy, robustness, cybersecurity | 1.00 | ✔ 1 | contributing | 22.21.4 |
-| `Art.19` | Automatically generated logs | 1.00 | ✔ 3 | contributing | 1.2.51, 22.21.2, 22.21.3 |
-| `Art.26` | High-risk AI obligations for deployers | 1.00 | ✔ 1 | contributing | 22.21.1 |
+| `Art.13` | Transparency and information | 0.70 | ✔ 18 | partial | 22.21.10, 22.21.13, 22.21.14, 22.21.16, 22.21.17, 22.21.18, 22.21.19, 22.21.20 |
+| `Art.14` | Human oversight | 1.00 | ✔ 3 | partial | 22.21.11, 22.21.12, 22.21.15 |
+| `Art.15` | Accuracy, robustness, cybersecurity | 1.00 | ✔ 1 | partial | 22.21.4 |
+| `Art.19` | Automatically generated logs | 1.00 | ✔ 3 | partial | 1.2.51, 22.21.2, 22.21.3 |
+| `Art.26` | High-risk AI obligations for deployers | 1.00 | ✔ 1 | partial | 22.21.1 |
 
 ### EU AML — `eu-aml`
 
@@ -713,7 +713,7 @@ _FCA SS1/21 Operational Resilience_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `§1.1` | Identify important business services | 1.00 | ✔ 6 | contributing | 22.27.11, 22.27.13, 22.27.15, 22.27.16, 22.27.17, 22.27.18 |
+| `§1.1` | Identify important business services | 1.00 | ✔ 6 | partial | 22.27.11, 22.27.13, 22.27.15, 22.27.16, 22.27.17, 22.27.18 |
 | `§2.1` | Set impact tolerances | 1.00 | ✔ 2 | partial | 22.27.12, 6.3.13 |
 | `§3.1` | Scenario testing | 1.00 | ✔ 2 | partial | 22.27.14, 6.3.13 |
 
@@ -732,7 +732,7 @@ _FDA 21 CFR Part 11_
 |--------|-------|---------:|----:|---------------|------------|
 | `§11.10(e)` | Audit trails | 1.00 | ✔ 25 | full | 1.1.65, 1.2.33, 1.2.51, 22.17.1, 22.17.11, 22.17.12, 22.17.13, 22.17.14 |
 | `§11.10(d)` | System access limited to authorized individuals | 1.00 | ✔ 1 | partial | 7.1.21 |
-| `§11.200` | Electronic signatures | 1.00 | ✔ 5 | contributing | 22.17.10, 22.17.6, 22.17.7, 22.17.8, 22.17.9 |
+| `§11.200` | Electronic signatures | 1.00 | ✔ 5 | partial | 22.17.10, 22.17.6, 22.17.7, 22.17.8, 22.17.9 |
 
 ### FedRAMP — `fedramp`
 
@@ -764,8 +764,8 @@ _Family Educational Rights and Privacy Act_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `§99.31` | Conditions for disclosure without consent | 1.00 | ✔ 1 | contributing | 22.50.35 |
-| `§99.33` | Redisclosure and record-keeping | 0.70 | ✔ 1 | contributing | 22.50.36 |
+| `§99.31` | Conditions for disclosure without consent | 1.00 | ✔ 1 | partial | 22.50.35 |
+| `§99.33` | Redisclosure and record-keeping | 0.70 | ✔ 1 | partial | 22.50.36 |
 
 ### FISMA — `fisma`
 
@@ -796,9 +796,9 @@ _Gramm-Leach-Bliley Act — Safeguards Rule_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `§314.4(b)` | Risk assessment | 1.00 | ✔ 1 | contributing | 22.50.37 |
-| `§314.4(c)(1)` | Access controls | 1.00 | ✔ 1 | contributing | 22.50.38 |
-| `§314.4(d)(2)` | Continuous monitoring | 1.00 | ✔ 1 | contributing | 22.50.39 |
+| `§314.4(b)` | Risk assessment | 1.00 | ✔ 1 | partial | 22.50.37 |
+| `§314.4(c)(1)` | Access controls | 1.00 | ✔ 1 | partial | 22.50.38 |
+| `§314.4(d)(2)` | Continuous monitoring | 1.00 | ✔ 1 | partial | 22.50.39 |
 
 ### HIPAA Privacy — `hipaa-privacy`
 
@@ -814,9 +814,9 @@ _HIPAA Privacy Rule_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `§164.502(a)` | Uses and disclosures of PHI — general rules | 1.00 | ✔ 4 | partial | 11.1.5, 11.1.6, 15.3.37, 7.1.21 |
-| `§164.504(e)` | Business Associate contracts | 1.00 | ✔ 1 | contributing | 22.50.4 |
+| `§164.504(e)` | Business Associate contracts | 1.00 | ✔ 1 | partial | 22.50.4 |
 | `§164.514(a)` | De-identification of PHI | 0.70 | ✔ 1 | contributing | 11.1.5 |
-| `§164.528` | Accounting of disclosures | 0.70 | ✔ 1 | contributing | 22.50.16 |
+| `§164.528` | Accounting of disclosures | 0.70 | ✔ 1 | partial | 22.50.16 |
 
 ### HITRUST — `hitrust`
 
@@ -862,9 +862,9 @@ _IEC 62443 Industrial Automation and Control Systems Security_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `SR 1.1` | Human user identification and authentication | 1.00 | ✔ 4 | contributing | 22.15.11, 22.15.51, 22.15.53, 22.15.55 |
-| `SR 2.8` | Auditable events | 1.00 | ✔ 2 | contributing | 22.15.22, 22.15.52 |
-| `SR 2.9` | Audit storage capacity | 0.70 | ✔ 1 | contributing | 22.15.23 |
+| `SR 1.1` | Human user identification and authentication | 1.00 | ✔ 4 | partial | 22.15.11, 22.15.51, 22.15.53, 22.15.55 |
+| `SR 2.8` | Auditable events | 1.00 | ✔ 2 | partial | 22.15.22, 22.15.52 |
+| `SR 2.9` | Audit storage capacity | 0.70 | ✔ 1 | partial | 22.15.23 |
 | `FR 6.2` | Continuous monitoring | 1.00 | ✔ 9 | full | 14.2.4, 14.2.9, 14.6.6, 14.9.14, 14.9.22, 17.1.8, 17.3.3, 22.15.48 |
 
 ### IT-Grundschutz — `it-grundschutz`
@@ -912,7 +912,7 @@ _Lei Geral de Proteção de Dados Pessoais_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Art.46` | Security measures | 1.00 | ✔ 10 | contributing | 22.32.1, 22.32.2, 22.32.4, 22.32.5, 22.32.6, 22.32.7, 22.32.8, 22.35.2 |
+| `Art.46` | Security measures | 1.00 | ✔ 10 | partial | 22.32.1, 22.32.2, 22.32.4, 22.32.5, 22.32.6, 22.32.7, 22.32.8, 22.35.2 |
 | `Art.48` | Breach notification | 1.00 | ✔ 4 | partial | 22.32.3, 22.39.1, 22.39.2, 22.39.3 |
 
 ### MAS TRM — `mas-trm`
@@ -928,9 +928,9 @@ _MAS Technology Risk Management Guidelines_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `§4.1.1` | Technology risk governance | 1.00 | ✔ 9 | contributing | 12.2.17, 16.4.1, 22.30.1, 22.30.2, 22.30.3, 22.30.4, 22.30.5, 22.30.7 |
+| `§4.1.1` | Technology risk governance | 1.00 | ✔ 9 | partial | 12.2.17, 16.4.1, 22.30.1, 22.30.2, 22.30.3, 22.30.4, 22.30.5, 22.30.7 |
 | `§8.1.1` | IT operations — incident mgmt | 1.00 | ✔ 2 | partial | 16.1.20, 22.30.6 |
-| `§11.1.1` | System resilience | 1.00 | ✔ 1 | contributing | 22.50.5 |
+| `§11.1.1` | System resilience | 1.00 | ✔ 1 | partial | 22.50.5 |
 
 ### MiFID II — `mifid-ii`
 
@@ -964,7 +964,7 @@ _NERC Critical Infrastructure Protection_
 | `CIP-002-5.1a R1` | BES cyber system identification | 1.00 | ✔ 1 | partial | 14.2.11 |
 | `CIP-005-7 R1` | Electronic security perimeter | 1.00 | ✔ 6 | full | 10.14.16, 14.2.14, 14.2.4, 14.9.22, 15.3.1, 17.3.3 |
 | `CIP-007-6 R4` | Security event monitoring | 1.00 | ✔ 3 | partial | 14.2.11, 14.2.14, 14.9.14 |
-| `CIP-008-6 R1` | Incident response | 1.00 | ✔ 2 | contributing | 10.14.19, 22.50.6 |
+| `CIP-008-6 R1` | Incident response | 1.00 | ✔ 2 | partial | 10.14.19, 22.50.6 |
 | `CIP-010-4 R1` | Configuration change management | 1.00 | ✔ 8 | full | 1.2.9, 13.1.36, 14.2.9, 14.6.6, 16.4.1, 5.1.24, 5.1.7, 7.1.13 |
 
 ### NESA IAS — `nesa-uae-ias`
@@ -1099,7 +1099,7 @@ _PRA SS2/21 Outsourcing and third-party risk management_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `§3.2` | Proportionality | 1.00 | ✔ 4 | contributing | 22.27.19, 22.27.20, 22.27.22, 22.27.23 |
+| `§3.2` | Proportionality | 1.00 | ✔ 4 | partial | 22.27.19, 22.27.20, 22.27.22, 22.27.23 |
 | `§9` | Business continuity & exit plans | 1.00 | ✔ 3 | partial | 22.27.21, 6.3.13, 6.3.23 |
 
 ### PSD2 — `psd2`
@@ -1115,7 +1115,7 @@ _Revised Payment Services Directive_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Art.95` | Management of operational and security risks | 1.00 | ✔ 12 | contributing | 12.3.2, 22.22.13, 22.22.14, 22.22.15, 22.22.16, 22.22.17, 22.22.19, 22.22.20 |
+| `Art.95` | Management of operational and security risks | 1.00 | ✔ 12 | partial | 12.3.2, 22.22.13, 22.22.14, 22.22.15, 22.22.16, 22.22.17, 22.22.19, 22.22.20 |
 | `Art.96` | Incident reporting | 1.00 | ✔ 7 | partial | 16.3.6, 22.22.25, 22.22.26, 22.22.27, 22.22.28, 22.22.29, 22.22.30 |
 | `Art.97` | Strong customer authentication | 1.00 | ✔ 17 | partial | 17.2.2, 22.22.1, 22.22.10, 22.22.11, 22.22.12, 22.22.18, 22.22.2, 22.22.3 |
 
@@ -1150,7 +1150,7 @@ _RBI Cyber Security Framework for Banks_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `Annex-A` | Baseline cyber-security controls | 1.00 | ✔ 6 | partial | 1.1.76, 22.30.13, 22.30.14, 22.30.15, 22.30.16, 22.30.18 |
-| `Annex-B` | Cyber-crisis management plan | 1.00 | ✔ 1 | contributing | 22.30.17 |
+| `Annex-B` | Cyber-crisis management plan | 1.00 | ✔ 1 | partial | 22.30.17 |
 
 ### SA PDPL — `sa-pdpl`
 
@@ -1183,7 +1183,7 @@ _SAMA Cyber Security Framework_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `3.1.1` | Cyber security governance | 1.00 | ✔ 4 | contributing | 22.33.10, 22.33.6, 22.33.8, 22.33.9 |
+| `3.1.1` | Cyber security governance | 1.00 | ✔ 4 | partial | 22.33.10, 22.33.6, 22.33.8, 22.33.9 |
 | `3.3.5` | Security monitoring | 1.00 | ✔ 6 | partial | 1.1.76, 12.1.4, 17.2.2, 22.33.7, 4.1.1, 9.4.1 |
 
 ### SG PDPA — `sg-pdpa`
@@ -1217,7 +1217,7 @@ _SWIFT Customer Security Programme_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `1.1` | SWIFT environment protection | 1.00 | ✔ 7 | partial | 22.34.10, 22.34.2, 22.34.5, 22.34.6, 22.34.9, 5.1.7, 5.2.2 |
-| `6.1` | Malware protection | 1.00 | ✔ 1 | contributing | 22.50.13 |
+| `6.1` | Malware protection | 1.00 | ✔ 1 | partial | 22.50.13 |
 | `6.4` | Logging and monitoring | 1.00 | ✔ 13 | partial | 1.1.65, 1.2.33, 13.1.35, 13.1.36, 15.3.2, 22.34.1, 22.34.11, 22.34.12 |
 
 ### Swiss nFADP — `swiss-nfadp`
@@ -1233,7 +1233,7 @@ _Swiss Federal Act on Data Protection (nFADP)_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Art.7` | Privacy by design | 1.00 | ✔ 1 | contributing | 22.50.14 |
+| `Art.7` | Privacy by design | 1.00 | ✔ 1 | partial | 22.50.14 |
 | `Art.24` | Data breach notification | 1.00 | ✔ 2 | partial | 22.39.1, 22.39.2 |
 
 ### TSA SD — `tsa-sd`
@@ -1281,7 +1281,7 @@ _UK General Data Protection Regulation_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Art.32` | Security of processing | 1.00 | ✔ 3 | contributing | 22.35.2, 22.35.3, 22.41.1 |
+| `Art.32` | Security of processing | 1.00 | ✔ 3 | partial | 22.35.2, 22.35.3, 22.41.1 |
 
 ### UK NIS — `uk-nis`
 
@@ -1296,7 +1296,7 @@ _UK Network and Information Systems Regulations 2018_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Reg.10` | OES security duties | 1.00 | ✔ 9 | contributing | 22.27.1, 22.27.10, 22.27.2, 22.27.3, 22.27.5, 22.27.6, 22.27.7, 22.27.8 |
+| `Reg.10` | OES security duties | 1.00 | ✔ 9 | partial | 22.27.1, 22.27.10, 22.27.2, 22.27.3, 22.27.5, 22.27.6, 22.27.7, 22.27.8 |
 | `Reg.11` | Incident reporting | 1.00 | ✔ 3 | partial | 16.1.20, 16.3.6, 22.27.4 |
 
 ### UN R155 — `unece-r155`
@@ -1312,8 +1312,8 @@ _UN Regulation No. 155 — Cyber Security Management Systems (CSMS)_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `7.2.2.2` | Risk assessment and mitigation for vehicle cybersecurity | 1.00 | ✔ 1 | contributing | 22.50.40 |
-| `7.2.2.5` | Monitoring, detecting, and responding to cyber attacks | 1.00 | ✔ 1 | contributing | 22.50.41 |
+| `7.2.2.2` | Risk assessment and mitigation for vehicle cybersecurity | 1.00 | ✔ 1 | partial | 22.50.40 |
+| `7.2.2.5` | Monitoring, detecting, and responding to cyber attacks | 1.00 | ✔ 1 | partial | 22.50.41 |
 
 ### UN R156 — `unece-r156`
 
@@ -1328,8 +1328,8 @@ _UN Regulation No. 156 — Software Update Management Systems (SUMS)_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `7.1.1` | Software update management system processes | 1.00 | ✔ 1 | contributing | 22.50.42 |
-| `7.1.4` | Recording and reporting of software updates | 0.70 | ✔ 1 | contributing | 22.50.43 |
+| `7.1.1` | Software update management system processes | 1.00 | ✔ 1 | partial | 22.50.42 |
+| `7.1.4` | Recording and reporting of software updates | 0.70 | ✔ 1 | partial | 22.50.43 |
 
 ## Tier 3 frameworks
 
@@ -1346,8 +1346,8 @@ _FERC Critical Infrastructure Protection (beyond NERC CIP)_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Order887` | Internal network security monitoring for bulk electric systems | 1.00 | ✔ 1 | contributing | 22.50.44 |
-| `Order893` | Supply chain risk management for BES systems | 0.70 | ✔ 1 | contributing | 22.50.45 |
+| `Order887` | Internal network security monitoring for bulk electric systems | 1.00 | ✔ 1 | partial | 22.50.44 |
+| `Order893` | Supply chain risk management for BES systems | 0.70 | ✔ 1 | partial | 22.50.45 |
 
 ### Multiple — `meta-multi`
 

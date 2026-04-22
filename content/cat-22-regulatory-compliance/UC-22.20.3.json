@@ -1,7 +1,7 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "22.20.3",
-  "title": "CMMC Level 2 practice evidence — CUI control area 3",
+  "title": "CMMC AU.L2-3.3.1 — Audit record creation verification on CUI systems",
   "criticality": "low",
   "difficulty": "advanced",
   "monitoringType": [
@@ -16,28 +16,25 @@
       "clause": "AU.L2-3.3.1",
       "clauseUrl": "https://dodcio.defense.gov/CMMC/",
       "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "CMMC AU.L2-3.3.1 Create audit records — UC area 3 is the CMMC audit-record practice anchor, tracking creation of auditable events on CUI systems.",
+      "assurance": "full",
+      "assurance_rationale": "SPL directly verifies audit record creation on CUI systems — the core requirement of AU.L2-3.3.1.",
       "controlObjective": "Evidence that CMMC AU.L2-3.3.1 (Create audit records) is enforced — Splunk UC-22.20.3: CMMC Level 2 practice evidence — CUI control area 3.",
       "evidenceArtifact": "Saved search 'UC-22.20.3' running on WinEventLog:Security, CrowdStrike FDR, Defender for Office 365, NetFlow, encryption posture exports, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "cmmc@2.0#AU.L2-3.3.1",
       "requires_sme_review": false
     }
   ],
-  "dataSources": "`WinEventLog:Security`, CrowdStrike FDR, Defender for Office 365, NetFlow, encryption posture exports",
-  "app": "Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for CrowdStrike FDR (5082), Splunk Add-on for Microsoft Office 365 (4055), Splunk Common Information Model Add-on (1621).",
-  "spl": "index=endpoint sourcetype=windefender:management earliest=-14d\n| eval uc_tag=\"22.20.3\"\n| where removable_media_policy!=\"block\"\n| stats dc(host) as hosts by ou\n| sort - hosts",
-  "description": "Demonstrates contractor cybersecurity hygiene for \"CMMC Level 2 practice evidence — CUI control area 3\" using CUI-scoped telemetry mapped to CMMC 2.0 Level 2 expectations.",
-  "value": "Gives the responsible team auditor-ready evidence for CMMC compliance by automating regulatory compliance evidence using indexes endpoint and sourcetypes windefender:management. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures. Indexes required: `index=endpoint`.",
-  "visualization": "Stacked bar, Table, Time chart, Single value. Key fields: `hosts`, `ou`, `uc_tag`.",
+  "dataSources": "All indexes feeding CUI-classified hosts, `cui_hosts.csv` lookup, `cui_required_sources.csv` lookup",
+  "app": "Splunk Enterprise Security (263), Splunk Common Information Model Add-on (1621).",
+  "spl": "| tstats count WHERE index=* by index, sourcetype, host _time span=1h\n| lookup cui_hosts.csv host OUTPUT cui_flag\n| where cui_flag=\"true\"\n| stats dc(sourcetype) AS sourcetype_count dc(host) AS host_count latest(_time) AS last_event BY index\n| lookup cui_required_sources.csv index OUTPUT required_sourcetypes\n| eval missing=if(sourcetype_count < required_sourcetypes, \"gap\", \"ok\")\n| where missing=\"gap\"\n| table index, sourcetype_count, required_sourcetypes, host_count, last_event",
+  "description": "Verifies that all required audit record sources (Windows Security, EDR, network flow, application logs) are actively ingesting from CUI-classified systems. CMMC AU.L2-3.3.1 requires organisations to create and retain audit records to the extent needed to enable monitoring, analysis, investigation, and reporting of unlawful or unauthorized system activity.",
+  "value": "Provides continuous verification that audit record creation is functioning on all CUI-scoped systems. Identifies gaps in log collection that would violate the CMMC requirement to create audit records for all CUI system activity.",
+  "implementation": "(1) Verify data sources: All indexes feeding CUI-classified hosts, `cui_hosts.csv` lookup, `cui_required_sources.csv` lookup; (2) Maintain CUI-scoped lookups; (3) Schedule search at compliance-aligned interval; (4) Route findings to ticketing queue; (5) Retain exports per records management policy.",
+  "visualization": "Table showing index, expected vs actual sourcetype count, host count, and last event time. Single value panel for total gaps detected.",
   "cimModels": [
-    "Endpoint",
-    "Authentication",
-    "Email",
-    "or N/A"
+    "Endpoint"
   ],
-  "cimSpl": "| tstats summariesonly=t dc(Processes.dest) as agg_value from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - agg_value",
+  "cimSpl": "| tstats count from datamodel=Endpoint by Endpoint.dest, Endpoint.sourcetype | stats dc(Endpoint.sourcetype) AS src_count BY Endpoint.dest",
   "references": [
     {
       "title": "Splunk Enterprise Security",
@@ -56,26 +53,23 @@
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
     }
   ],
-  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "knownFalsePositives": "Maintenance windows where hosts are rebooted may temporarily reduce sourcetype counts. Correlate with change management before raising severity.",
   "equipment": [
-    "crowdstrike",
-    "defender",
-    "m365",
-    "netflow"
+    "splunk"
   ],
-  "equipmentModels": [
-    "netflow_netflow"
-  ],
+  "equipmentModels": [],
   "status": "verified",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "grandmaExplanation": "We watch for demonstrates contractor cybersecurity hygiene for \"cmmc level 2 practice evidence — cui control area 3\" using cui-scoped telemetry mapped to cmmc 2.0 level 2 expectations. This provides useful supporting evidence for your overall compliance programme.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for CrowdStrike FDR (5082), Splunk Add-on for Microsoft Office 365 (4055), Splunk Common Information Model Add-on (1621)..\n• Ensure the following data sources are available: `WinEventLog:Security`, CrowdStrike FDR, Defender for Office 365, NetFlow, encryption posture exports.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=endpoint sourcetype=windefender:management earliest=-14d\n| eval uc_tag=\"22.20.3\"\n| where removable_media_policy!=\"block\"\n| stats dc(host) as hosts by ou\n| sort - hosts\n```\n\nUnderstanding this SPL\n\n**CMMC Level 2 practice evidence — CUI control area 3 (CMMC 2.0 Level 2)** — Demonstrates contractor cybersecurity hygiene for \"CMMC Level 2 practice evidence — CUI control area 3\" using CUI-scoped telemetry mapped to CMMC 2.0 Level 2 expectations.\n\nDocumented **Data sources**: `WinEventLog:Security`, CrowdStrike FDR, Defender for Office 365, NetFlow, encryption posture exports. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for CrowdStrike FDR (5082), Splunk Add-on for Microsoft Office 365 (4055), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: endpoint; **sourcetype**: windefender:management. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=endpoint, sourcetype=windefender:management, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **uc_tag** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where removable_media_policy!=\"block\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by ou** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t dc(Processes.dest) as agg_value from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - agg_value\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**CMMC Level 2 practice evidence — CUI control area 3 (CMMC 2.0 Level 2)** — Demonstrates contractor cybersecurity hygiene for \"CMMC Level 2 practice evidence — CUI control area 3\" using CUI-scoped telemetry mapped to CMMC 2.0 Level 2 expectations.\n\nDocumented **Data sources**: `WinEventLog:Security`, CrowdStrike FDR, Defender for Office 365, NetFlow, encryption posture exports. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for CrowdStrike FDR (5082), Splunk Add-on for Microsoft Office 365 (4055), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Endpoint.Processes` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar, Table, Time chart, Single value",
+  "grandmaExplanation": "We check that every computer handling sensitive government data is sending its security logs to our monitoring system. If any computer stops sending logs, we catch it immediately so nothing goes unmonitored.",
+  "detailedImplementation": "Prerequisites\n• Ensure the following data sources are available: All indexes feeding CUI-classified hosts, `cui_hosts.csv` lookup, `cui_required_sources.csv` lookup.\n• Install and configure: Splunk Enterprise Security (263), Splunk Common Information Model Add-on (1621).\n\nStep 1 — Configure data collection\nVerify that all required data sources are ingesting into Splunk. Maintain the CUI-scoped lookups (cui_hosts.csv, cui_network_segments.csv, etc.) with current asset inventory.\n\nStep 2 — Create the search and alert\nRun the following SPL (save as report or alert):\n\n```spl\n| tstats count WHERE index=* by index, sourcetype, host _time span=1h\n| lookup cui_hosts.csv host OUTPUT cui_flag\n| where cui_flag=\"true\"\n| stats dc(sourcetype) AS sourcetype_count dc(host) AS host_count latest(_time) AS last_event BY index\n| lookup cui_required_sources.csv index OUTPUT required_sourcetypes\n| eval missing=if(sourcetype_count < required_sourcetypes, \"gap\", \"ok\")\n| where missing=\"gap\"\n| table index, sourcetype_count, required_sourcetypes, host_count, last_event\n```\n\nStep 3 — Validate\nConfirm expected results against known CUI systems. Verify lookup tables are populated and field extractions are correct.\n\nStep 4 — Operationalize\nSchedule the search at an appropriate interval. Route findings to the compliance ticketing queue. Table showing index, expected vs actual sourcetype count, host count, and last event time. Single value panel for total gaps detected.",
   "lastReviewed": "2026-04-22",
   "requiredFields": [
-    "hosts",
-    "ou",
-    "uc_tag"
+    "index",
+    "sourcetype",
+    "host",
+    "cui_flag",
+    "required_sourcetypes"
   ]
 }

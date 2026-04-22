@@ -1,6 +1,6 @@
 # Evidence Packs
 
-> Auditor-ready evidence packs for the 11 highest-priority regulations tracked by this catalogue. Each pack bundles clause-level coverage, evidence-collection guidance, retention expectations, role matrices, authoritative sources, and common audit deficiencies. Machine-readable twins live under [`api/v1/evidence-packs/`](../../api/v1/evidence-packs/) for integration into GRC tools and audit-request pipelines.
+> Auditor-ready evidence packs for the 12 highest-priority regulations tracked by this catalogue. Each pack bundles clause-level coverage, evidence-collection guidance, retention expectations, role matrices, authoritative sources, and common audit deficiencies. Machine-readable twins live under [`api/v1/evidence-packs/`](../../api/v1/evidence-packs/) for integration into GRC tools and audit-request pipelines.
 
 ## How to use these packs
 

@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.46",
+  "title": "NIS2 Art.21(2)(j) — Secure emergency communication channel verification",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(j)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Verifies availability and encryption of emergency communication channels (out-of-band comms, dedicated crisis lines, secure messaging) in addition to MFA, covering both halves of Art.21(2)(j).",
+      "controlObjective": "Evidence that MFA and secured emergency communication systems are operational.",
+      "evidenceArtifact": "Saved search verifying emergency communication channel availability and encryption status.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(j)",
+      "requires_sme_review": false
+    }
+  ],
+  "dataSources": "UC platform health (`uc_platform:health`), Signal/Teams/Zulip audit logs, out-of-band communication test results",
+  "app": "Splunk Enterprise Security (263).",
+  "spl": "| inputlookup emergency_comm_channels.csv\n| join type=outer channel_id [search index=itsm sourcetype IN (\"uc_health\", \"comms:test_result\") earliest=-30d\n  | stats latest(status) AS last_status latest(_time) AS last_test_time latest(encryption_verified) AS encrypted BY channel_id]\n| eval days_since_test=round((now()-last_test_time)/86400)\n| eval channel_ok=if(last_status=\"operational\" AND encrypted=\"true\" AND days_since_test<=30, 1, 0)\n| append [search index=auth sourcetype IN (\"okta:events\", \"azure:audit\") action=\"authentication\" earliest=-7d\n  | where match(app, \"(?i)(signal|teams|zulip|mattermost|crisis)\")\n  | eval mfa_used=if(isnotnull(mfa_method) AND mfa_method!=\"none\", 1, 0)\n  | stats count AS auth_events sum(mfa_used) AS with_mfa BY app\n  | eval channel_id=app, channel_type=\"comms_platform\", last_status=\"auth_check\", encrypted=\"n/a\", days_since_test=0, channel_ok=if(with_mfa/auth_events>=0.95, 1, 0)]\n| where channel_ok=0\n| table channel_id, channel_type, last_status, encrypted, days_since_test, channel_ok",
+  "description": "Verifies that both MFA and secure emergency communication channels are operational per NIS2 Art.21(2)(j). Checks out-of-band communication system availability, encryption status, and test recency alongside MFA enforcement on communication platforms.",
+  "value": "Closes the gap in Art.21(2)(j) coverage by addressing the 'secured communications' requirement that was previously covered only by MFA monitoring.",
+  "implementation": "(1) Maintain emergency_comm_channels.csv with all crisis communication systems; (2) Schedule monthly communication channel tests; (3) Verify MFA on all communication platforms; (4) Alert when any channel fails verification.",
+  "visualization": "Table of emergency communication channels with status. Single value for channels passing verification. Bar chart of MFA coverage by platform.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "",
+  "references": [
+    {
+      "title": "NIS2 Directive",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    }
+  ],
+  "knownFalsePositives": "Planned communication platform maintenance may temporarily show channels as non-operational.",
+  "equipment": [
+    "azure",
+    "azure_ad",
+    "okta"
+  ],
+  "equipmentModels": [],
+  "status": "verified",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "grandmaExplanation": "We check that our emergency communication systems (the ones we use during a crisis) are working, encrypted, and require proper identity verification.",
+  "detailedImplementation": "Prerequisites\n• Maintain emergency_comm_channels.csv lookup with all crisis communication channels.\n• Configure health checks for out-of-band communication systems.\n\nStep 1 — Register channels\nPopulate emergency_comm_channels.csv with channel_id, channel_type, expected_encryption.\n\nStep 2 — Create the search\n(see SPL above)\n\nStep 3 — Validate\nRun a communication channel test and verify results appear in search output.\n\nStep 4 — Operationalize\nSchedule daily. Alert on any channel_ok=0.",
+  "lastReviewed": "2026-04-22",
+  "requiredFields": [
+    "_time",
+    "channel_id",
+    "channel_type",
+    "status",
+    "encryption_verified",
+    "mfa_method",
+    "app"
+  ]
+}

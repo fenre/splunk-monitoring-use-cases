@@ -42,7 +42,7 @@ Essential entities (EE) and important entities (IE) as defined in Annex I and An
 - **Clauses tracked**: 12
 - **Clauses covered by at least one UC**: 12 / 12 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 45
+- **Contributing UCs**: 46
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -52,17 +52,17 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`Art.20`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.20) | Governance | 1.0 | `contributing` | [UC-22.2.20](#uc-22-2-20), [UC-22.2.41](#uc-22-2-41), [UC-22.2.42](#uc-22-2-42) |
-| [`Art.21(2)(a)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(a)) | Risk analysis and information-system security policies | 1.0 | `contributing` | [UC-22.2.18](#uc-22-2-18), [UC-22.2.26](#uc-22-2-26), [UC-22.2.36](#uc-22-2-36), [UC-22.2.37](#uc-22-2-37), [UC-22.2.6](#uc-22-2-6) |
-| [`Art.21(2)(b)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(b)) | Incident handling | 1.0 | `contributing` | [UC-22.2.23](#uc-22-2-23) |
-| [`Art.21(2)(c)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(c)) | Business continuity and crisis management | 1.0 | `contributing` | [UC-22.2.17](#uc-22-2-17), [UC-22.2.24](#uc-22-2-24), [UC-22.2.4](#uc-22-2-4), [UC-22.2.40](#uc-22-2-40) |
+| [`Art.20`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.20) | Governance | 1.0 | `partial` | [UC-22.2.20](#uc-22-2-20), [UC-22.2.41](#uc-22-2-41), [UC-22.2.42](#uc-22-2-42) |
+| [`Art.21(2)(a)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(a)) | Risk analysis and information-system security policies | 1.0 | `partial` | [UC-22.2.18](#uc-22-2-18), [UC-22.2.26](#uc-22-2-26), [UC-22.2.36](#uc-22-2-36), [UC-22.2.37](#uc-22-2-37), [UC-22.2.6](#uc-22-2-6) |
+| [`Art.21(2)(b)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(b)) | Incident handling | 1.0 | `partial` | [UC-22.2.23](#uc-22-2-23) |
+| [`Art.21(2)(c)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(c)) | Business continuity and crisis management | 1.0 | `partial` | [UC-22.2.17](#uc-22-2-17), [UC-22.2.24](#uc-22-2-24), [UC-22.2.4](#uc-22-2-4), [UC-22.2.40](#uc-22-2-40) |
 | [`Art.21(2)(d)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(d)) | Supply-chain security | 1.0 | `full` | [UC-22.2.16](#uc-22-2-16), [UC-22.2.2](#uc-22-2-2), [UC-22.2.25](#uc-22-2-25), [UC-22.3.42](#uc-22-3-42), [UC-22.44.1](#uc-22-44-1) |
 | [`Art.21(2)(e)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(e)) | Security in acquisition, development and maintenance | 1.0 | `partial` | [UC-22.2.15](#uc-22-2-15), [UC-22.2.27](#uc-22-2-27), [UC-22.2.3](#uc-22-2-3), [UC-22.2.38](#uc-22-2-38), [UC-22.43.1](#uc-22-43-1) |
-| [`Art.21(2)(f)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(f)) | Policies and procedures effectiveness | 0.7 | `contributing` | [UC-22.2.39](#uc-22-2-39), [UC-22.2.43](#uc-22-2-43), [UC-22.2.9](#uc-22-2-9) |
+| [`Art.21(2)(f)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(f)) | Policies and procedures effectiveness | 0.7 | `partial` | [UC-22.2.39](#uc-22-2-39), [UC-22.2.43](#uc-22-2-43), [UC-22.2.9](#uc-22-2-9) |
 | [`Art.21(2)(g)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(g)) | Cyber-hygiene and training | 0.7 | `full` | [UC-22.2.10](#uc-22-2-10), [UC-22.2.28](#uc-22-2-28), [UC-22.46.1](#uc-22-46-1), [UC-22.46.2](#uc-22-46-2) |
 | [`Art.21(2)(h)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(h)) | Cryptography and encryption | 1.0 | `full` | [UC-22.2.11](#uc-22-2-11), [UC-22.2.29](#uc-22-2-29), [UC-22.41.2](#uc-22-41-2) |
-| [`Art.21(2)(i)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(i)) | Human resources and access control | 1.0 | `contributing` | [UC-22.2.13](#uc-22-2-13), [UC-22.2.14](#uc-22-2-14), [UC-22.2.30](#uc-22-2-30), [UC-22.2.5](#uc-22-2-5) |
-| [`Art.21(2)(j)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(j)) | MFA and secure communications | 1.0 | `contributing` | [UC-22.2.12](#uc-22-2-12) |
+| [`Art.21(2)(i)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(i)) | Human resources and access control | 1.0 | `partial` | [UC-22.2.13](#uc-22-2-13), [UC-22.2.14](#uc-22-2-14), [UC-22.2.30](#uc-22-2-30), [UC-22.2.5](#uc-22-2-5) |
+| [`Art.21(2)(j)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(j)) | MFA and secure communications | 1.0 | `partial` | [UC-22.2.12](#uc-22-2-12), [UC-22.2.46](#uc-22-2-46) |
 | [`Art.23`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23) | Reporting obligations | 1.0 | `full` | [UC-22.2.1](#uc-22-2-1), [UC-22.2.33](#uc-22-2-33), [UC-22.2.45](#uc-22-2-45), [UC-22.3.44](#uc-22-3-44), [UC-22.39.1](#uc-22-39-1), [UC-22.39.2](#uc-22-39-2) (+1 more) |
 
 ### 4.1 Contributing UC detail
@@ -255,6 +255,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Source: [``](../../)
 <a id='uc-22-2-45'></a>
 - **UC-22.2.45** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-2-46'></a>
+- **UC-22.2.46** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0

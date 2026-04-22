@@ -1,0 +1,70 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.10.56",
+  "title": "HIPAA §164.308(a)(6) — Security incident response lifecycle evidence",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "compliance": [
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.308(a)(6)",
+      "clauseUrl": "https://www.hhs.gov/hipaa/for-professionals/security/laws-regulations/index.html",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Provides end-to-end IR lifecycle evidence (detection, triage, containment, eradication, recovery, PIR) for ePHI security incidents, directly addressing §164.308(a)(6) security incident procedures.",
+      "controlObjective": "Evidence that formal security incident procedures are operational for ePHI incidents, covering identification, response, mitigation, and documentation.",
+      "evidenceArtifact": "Saved search tracking IR lifecycle stages and SLA metrics for ePHI-related incidents.",
+      "obligationRef": "hipaa-security@2013-final#§164.308(a)(6)",
+      "requires_sme_review": false
+    }
+  ],
+  "dataSources": "ServiceNow incidents (`snow:incident`), Splunk SOAR (`phantom:action_run`), Notable events (`stash`)",
+  "app": "Splunk Enterprise Security (263), Splunk Add-on for ServiceNow (1928).",
+  "spl": "`notable` earliest=-90d\n| search tag=\"ephi\" OR category=\"hipaa\"\n| eval detected_time=_time\n| join type=outer rule_id [search index=itsm sourcetype=\"snow:incident\" category=\"security\" earliest=-90d\n  | eval ticket_opened=opened_at, triage_completed=work_start, contained_at=coalesce(u_contained_at, work_start), resolved_time=resolved_at, pir_date=u_pir_completed\n  | table number, correlation_id, ticket_opened, triage_completed, contained_at, resolved_time, pir_date\n  | rename correlation_id AS rule_id]\n| eval has_ticket=if(isnotnull(number), 1, 0)\n| eval triage_hrs=if(isnotnull(triage_completed), round((triage_completed-detected_time)/3600,1), null())\n| eval contain_hrs=if(isnotnull(contained_at), round((contained_at-detected_time)/3600,1), null())\n| eval resolve_days=if(isnotnull(resolved_time), round((resolved_time-detected_time)/86400,1), null())\n| eval has_pir=if(isnotnull(pir_date), 1, 0)\n| stats count AS incidents sum(has_ticket) AS ticketed avg(triage_hrs) AS avg_triage avg(contain_hrs) AS avg_contain avg(resolve_days) AS avg_resolve sum(has_pir) AS pir_done BY urgency\n| eval ticket_pct=round(100*ticketed/incidents,1)\n| eval pir_pct=round(100*pir_done/incidents,1)\n| table urgency, incidents, ticketed, ticket_pct, avg_triage, avg_contain, avg_resolve, pir_done, pir_pct",
+  "description": "Tracks the full security incident response lifecycle for ePHI-related incidents, measuring detection-to-triage, detection-to-containment, and resolution times with post-incident review completion rates. HIPAA §164.308(a)(6) requires implementing policies and procedures for reporting, responding to, and managing security incidents.",
+  "value": "Provides auditor-ready evidence that the organisation operates formal IR procedures for ePHI incidents with measurable SLAs and documented post-incident reviews.",
+  "implementation": "(1) Tag ePHI-related notables with 'ephi' tag; (2) Correlate ES notables with ServiceNow tickets via correlation_id; (3) Schedule weekly to track IR lifecycle metrics; (4) Alert when ticket coverage drops below 95% or PIR rate drops below 80%.",
+  "visualization": "Table of IR metrics by urgency. Bar chart of average lifecycle stage durations. Single value panels for ticket coverage % and PIR completion %.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "cimSpl": "",
+  "references": [
+    {
+      "title": "HIPAA Security Rule",
+      "url": "https://www.hhs.gov/hipaa/for-professionals/security/laws-regulations/index.html"
+    }
+  ],
+  "knownFalsePositives": "Non-ePHI incidents incorrectly tagged as ePHI may inflate counts. Validate tag logic against ePHI system inventory.",
+  "equipment": [
+    "splunk_es",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "servicenow_snow"
+  ],
+  "status": "verified",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "grandmaExplanation": "We measure how well the team handles security incidents involving patient health data — from first detection to lessons-learned review — making sure every incident is properly documented and resolved.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise Security with ePHI-tagged correlation searches.\n• ServiceNow integration with incident correlation IDs.\n\nStep 1 — Tag ePHI notables\nConfigure ES correlation searches that detect ePHI-related events to include tag='ephi'.\n\nStep 2 — Create the search\n(see SPL above)\n\nStep 3 — Validate\nConfirm that ePHI notables correlate correctly to ServiceNow tickets via rule_id/correlation_id.\n\nStep 4 — Operationalize\nSchedule weekly. Alert when ticket_pct < 95 or pir_pct < 80.",
+  "lastReviewed": "2026-04-22",
+  "requiredFields": [
+    "_time",
+    "urgency",
+    "rule_id",
+    "number",
+    "triage_completed",
+    "contained_at",
+    "resolved_time",
+    "pir_date"
+  ]
+}
