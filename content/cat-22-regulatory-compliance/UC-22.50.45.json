@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.50.45",
+  "title": "FERC Order 893 — Supply chain risk management for BES systems",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO / BES Security Manager",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT substitute for the full regulatory control set; this UC provides one of several evidence streams and must be combined with policy, procedure, and supplemental UCs to demonstrate the complete clause.",
+  "evidence": "Scheduled search output persisted to the compliance summary index with regulation=FERC CIP, clause=Order893, available as a saved search and exportable as a CSV evidence pack for the responsible officer.",
+  "compliance": [
+    {
+      "regulation": "FERC CIP",
+      "version": "current",
+      "clause": "Order893",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-C authored UC targeting FERC Order 893 (Supply chain risk management for BES systems). Monitors vendor risk assessments and software integrity for BES Cyber Systems; assurance level set to 'contributing' pending SME review.",
+      "controlObjective": "Evidence that FERC Order 893 (Supply chain risk management for BES systems) is enforced — Splunk UC-22.50.45.",
+      "evidenceArtifact": "Saved search 'UC-22.50.45' running on catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention).",
+      "obligationRef": "ferc-cip@current#Order893",
+      "requires_sme_review": true,
+      "provenance": "maintainer",
+      "smeCaveat": "Phase-C draft: SME review required before uplifting assurance from 'contributing' to 'partial' or 'full'. Confirm that the SPL captures the specific regulator expectation and that the telemetry exists in the deployment."
+    }
+  ],
+  "dataSources": "Vendor risk assessment databases, software bill of materials (SBOM) registries, patch verification logs, vendor security advisory feeds.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=supply_chain sourcetype IN (vendor_risk_assessment, sbom_registry, patch_verification) earliest=-90d\n| eval vendor_assessed=if(isnotnull(vendor_risk_score) AND isnotnull(assessment_date), 1, 0)\n| eval sw_integrity_verified=if(isnotnull(sbom_hash) AND verification_status=\"pass\", 1, 0)\n| eval patch_current=if(isnotnull(latest_patch) AND (now()-strptime(latest_patch, \"%Y-%m-%d\"))<7776000, 1, 0)\n| stats count AS total_items sum(vendor_assessed) AS assessed sum(sw_integrity_verified) AS integrity_verified sum(patch_current) AS patched dc(vendor_name) AS distinct_vendors BY bes_system_category, criticality_level\n| eval assessment_pct=round(100*assessed/total_items, 1)\n| eval integrity_pct=round(100*integrity_verified/total_items, 1)\n| where assessment_pct<100 OR integrity_pct<100\n| table bes_system_category, criticality_level, total_items, assessment_pct, integrity_pct, patched, distinct_vendors",
+  "description": "Monitors vendor risk assessments, software integrity verification, and patch currency for BES Cyber Systems per FERC Order 893 requirements for supply chain risk management.",
+  "value": "FERC Order 893 requires supply chain risk management for BES Cyber Systems. Continuous vendor assessment and software integrity monitoring provides auditable evidence of supply chain security controls.",
+  "implementation": "(1) Ingest vendor risk assessments and SBOM registries; (2) correlate with patch verification logs; (3) schedule quarterly; (4) escalate unassessed critical vendors.",
+  "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "FERC Critical Infrastructure Protection",
+      "url": "https://www.ferc.gov/industries-data/electric/industry-activities/critical-infrastructure-protection",
+      "retrieved": "2026-04-22"
+    }
+  ],
+  "knownFalsePositives": "Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time",
+    "bes_system_category",
+    "vendor_name",
+    "vendor_risk_score",
+    "verification_status"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-22",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A",
+  "grandmaExplanation": "FERC Order 893 requires managing supply chain risks for power grid systems — so you can show exactly what is being watched and when something went wrong.",
+  "subcategory": "22.50#1"
+}

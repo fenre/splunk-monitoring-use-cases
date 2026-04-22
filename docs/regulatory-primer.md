@@ -63,7 +63,7 @@ referenced in [Appendix D](#appendix-d--provenance-and-authoritative-sources).
 
 | Badge | Meaning |
 |-------|---------|
-| `T1`  | **Tier 1** — a top-priority regulation the catalogue targets at 100% common-clauses coverage. 11 frameworks; see `api/v1/compliance/coverage.json`. |
+| `T1`  | **Tier 1** — a top-priority regulation the catalogue targets at 100% common-clauses coverage. 12 frameworks; see `api/v1/compliance/coverage.json`. |
 | `T2`  | **Tier 2** — authored to meaningful partial coverage; 48 frameworks including all 5 derivative privacy regulations. |
 | `T3`  | **Tier 3** — referenced or meta-frameworks; 1 today (`meta-multi`). |
 

@@ -38213,7 +38213,7 @@ index=batch sourcetype IN (autosys:event,controlm:job) earliest=-30m
 
 ### 22.50 — Tier-2 framework clause coverage
 
-Phase-C closure UCs targeting the remaining uncovered priority clauses across tier-2 regulators (AU Privacy Act APP 11, CJIS, FCA SM&CR, HIPAA Privacy §164.504(e)/§164.528, MAS TRM, NERC CIP, NO Petroleumsforskriften / Sikkerhetsloven / Personopplysningsloven, NZISM, PIPL, QCB Cyber, SA PDPL, SWIFT CSP, Swiss nFADP, NESA IAS). Each UC ships with an explicit SME caveat in its JSON sidecar — assurance starts at `contributing` and must be uplifted to `partial` or `full` only after a domain-SME confirms the SPL captures the actual regulator expectation.
+Phase-C closure UCs targeting the remaining uncovered priority clauses across tier-2 regulators (AU Privacy Act APP 11, Basel III, CJIS, COBIT, COPPA, COSO, FCA SM&CR, FERC CIP, FERPA, GLBA, HIPAA Privacy §164.504(e)/§164.528, MAS TRM, NERC CIP, NO Petroleumsforskriften / Sikkerhetsloven / Personopplysningsloven, NZISM, PIPL, QCB Cyber, SA PDPL, SWIFT CSP, Swiss nFADP, NESA IAS, UN R155, UN R156). Each UC ships with an explicit SME caveat in its JSON sidecar — assurance starts at `contributing` and must be uplifted to `partial` or `full` only after a domain-SME confirms the SPL captures the actual regulator expectation.
 
 ---
 
@@ -38798,5 +38798,581 @@ index=data_transfer earliest=-30d
 - **CIM Models:** Change
 - **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
 - **References:** [Saudi Personal Data Protection Law](https://sdaia.gov.sa/en/SDAIA/about/Files/PersonalDataEnglish.pdf)
+
+### UC-22.50.24 · Basel III OPR25.1 — Operational risk event capture and loss-data aggregation
+- **Criticality:** 🔴 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** IT Operations
+- **Regulations:** Basel III
+- **Value:** OPR25.1 mandates banks to identify, assess, monitor, and control/mitigate operational risk. Continuous loss-data aggregation provides the evidence base for the operational risk management framework.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** Operational risk event logs, incident management systems (ServiceNow/Jira), financial loss ledger, near-miss reporting feeds.
+- **SPL:**
+```spl
+index=risk_events sourcetype IN (oprisk_events, incident_mgmt) earliest=-30d
+| eval loss_amount=coalesce(loss_amount, 0)
+| eval risk_category=coalesce(risk_category, "unclassified")
+| stats count AS event_count sum(loss_amount) AS total_loss dc(business_unit) AS affected_units values(risk_category) AS categories BY business_line, event_type
+| eval severity=case(total_loss>=1000000, "critical", total_loss>=100000, "high", total_loss>=10000, "medium", true(), "low")
+| where event_count>0
+| sort -total_loss
+| table business_line, event_type, event_count, total_loss, severity, affected_units, categories
+```
+- **Implementation:** (1) Ingest operational risk events from GRC/incident management platforms; (2) normalise loss_amount and risk_category fields; (3) schedule daily; (4) route critical-severity events to risk committee dashboard.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [Basel III — Operational Risk (OPR25)](https://www.bis.org/bcbs/publ/d516.htm)
+
+### UC-22.50.25 · Basel III OPR25.8 — Business continuity and resilience: recovery objective monitoring
+- **Criticality:** 🔴 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** IT Operations
+- **Regulations:** Basel III
+- **Value:** OPR25.8 requires banks to maintain business continuity plans with defined recovery objectives. Continuous monitoring of test results and recovery metrics provides auditable evidence that resilience controls are effective.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** BCP/DR test results, failover event logs, backup verification records, critical-service availability metrics.
+- **SPL:**
+```spl
+index=bcp_dr sourcetype IN (bcp_test_results, dr_failover, backup_verification) earliest=-90d
+| eval rto_met=if(actual_recovery_time<=target_rto, 1, 0)
+| eval rpo_met=if(data_loss_minutes<=target_rpo, 1, 0)
+| stats count AS tests sum(rto_met) AS rto_pass sum(rpo_met) AS rpo_pass latest(test_date) AS last_test BY critical_service, test_type
+| eval rto_compliance_pct=round(100*rto_pass/tests, 1)
+| eval rpo_compliance_pct=round(100*rpo_pass/tests, 1)
+| eval days_since_test=round((now()-strptime(last_test, "%Y-%m-%d"))/86400)
+| where rto_compliance_pct<100 OR rpo_compliance_pct<100 OR days_since_test>180
+| table critical_service, test_type, tests, rto_compliance_pct, rpo_compliance_pct, days_since_test
+```
+- **Implementation:** (1) Ingest BCP/DR test results with target_rto, target_rpo, actual_recovery_time, and data_loss_minutes; (2) schedule monthly; (3) flag services failing targets or overdue for testing.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Performance
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [Basel III — Operational Risk (OPR25)](https://www.bis.org/bcbs/publ/d516.htm)
+
+### UC-22.50.26 · COBIT APO13.01 — ISMS establishment: security-policy compliance and control-effectiveness monitoring
+- **Criticality:** 🔴 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** COBIT
+- **Value:** APO13.01 requires establishing and maintaining an ISMS aligned with enterprise strategy. Continuous compliance monitoring across control domains provides auditable evidence of ISMS effectiveness.
+- **App/TA:** Splunk Enterprise Security, Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** Security policy audit logs, GRC platform exports, ES notable events, configuration-compliance scans.
+- **SPL:**
+```spl
+index=grc_compliance sourcetype IN (policy_compliance, control_assessment) earliest=-30d
+| eval control_effective=if(status IN ("pass", "compliant", "effective"), 1, 0)
+| stats count AS total_controls sum(control_effective) AS effective_controls dc(control_domain) AS domains_assessed values(eval(if(status NOT IN ("pass", "compliant", "effective"), control_id, null()))) AS failing_controls BY control_domain
+| eval effectiveness_pct=round(100*effective_controls/total_controls, 1)
+| where effectiveness_pct<100
+| sort effectiveness_pct
+| table control_domain, total_controls, effective_controls, effectiveness_pct, failing_controls
+```
+- **Implementation:** (1) Ingest GRC/policy-compliance scan results with control_id, control_domain, and status; (2) schedule weekly; (3) escalate domains below 100% effectiveness to CISO dashboard.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [COBIT 2019 Framework](https://www.isaca.org/resources/cobit)
+
+### UC-22.50.27 · COBIT DSS05.03 — Endpoint security management: endpoint protection coverage and compliance
+- **Criticality:** 🔴 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** COBIT
+- **Value:** DSS05.03 requires managing endpoint security throughout the lifecycle. Continuous coverage monitoring detects protection gaps before they become exploitable.
+- **App/TA:** Splunk Enterprise Security, Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** Endpoint protection platform (EPP/EDR) status logs, asset inventory, patch-management feeds.
+- **SPL:**
+```spl
+index=endpoint_protection sourcetype IN (epp_status, edr_health) earliest=-24h
+| stats latest(agent_version) AS agent_version latest(definitions_date) AS defs_date latest(protection_status) AS protection_status latest(last_scan) AS last_scan BY hostname, os_type
+| lookup asset_inventory hostname OUTPUT business_unit, criticality
+| eval defs_age_days=round((now()-strptime(defs_date, "%Y-%m-%d"))/86400)
+| eval compliant=if(protection_status="active" AND defs_age_days<=3, 1, 0)
+| stats count AS total_endpoints sum(compliant) AS compliant_endpoints BY business_unit
+| eval coverage_pct=round(100*compliant_endpoints/total_endpoints, 1)
+| where coverage_pct<100
+| table business_unit, total_endpoints, compliant_endpoints, coverage_pct
+```
+- **Implementation:** (1) Ingest EPP/EDR status logs with agent_version, definitions_date, protection_status; (2) maintain asset_inventory lookup; (3) schedule daily; (4) escalate gaps to SOC.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Endpoint
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [COBIT 2019 Framework](https://www.isaca.org/resources/cobit)
+
+### UC-22.50.28 · COBIT MEA02.01 — Internal-control monitoring: control-exception tracking and remediation evidence
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** IT Operations
+- **Regulations:** COBIT
+- **Value:** MEA02.01 requires continuous monitoring of the internal-control system. Tracking exceptions and remediation timelines provides evidence that the control environment is actively managed.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** GRC platform control-exception exports, audit-finding trackers, remediation ticketing systems.
+- **SPL:**
+```spl
+index=grc_compliance sourcetype IN (control_exceptions, audit_findings) earliest=-90d
+| eval days_open=round((now()-_time)/86400)
+| eval overdue=if(days_open > remediation_sla_days, 1, 0)
+| stats count AS total_exceptions sum(overdue) AS overdue_count avg(days_open) AS avg_age max(days_open) AS max_age dc(control_id) AS distinct_controls BY control_domain, severity
+| eval overdue_pct=round(100*overdue_count/total_exceptions, 1)
+| where overdue_count>0
+| sort -overdue_count
+| table control_domain, severity, total_exceptions, overdue_count, overdue_pct, avg_age, max_age, distinct_controls
+```
+- **Implementation:** (1) Ingest control-exception and audit-finding data with control_id, control_domain, severity, and remediation_sla_days; (2) schedule weekly; (3) escalate overdue items to Internal Audit dashboard.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [COBIT 2019 Framework](https://www.isaca.org/resources/cobit)
+
+### UC-22.50.29 · COPPA §312.3 — Verifiable parental consent: consent-record completeness and audit trail
+- **Criticality:** 🔴 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** COPPA
+- **Value:** §312.3 requires operators to obtain verifiable parental consent before collecting personal information from children under 13. Continuous monitoring ensures no child account operates without documented consent.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** User registration logs, consent-management platform (CMP) events, age-gate verification records.
+- **SPL:**
+```spl
+index=user_mgmt sourcetype IN (registration, consent_records) earliest=-30d
+| search user_age_bracket="under_13" OR account_type="child"
+| eval has_parental_consent=if(isnotnull(parental_consent_date) AND parental_consent_method IN ("signed_form", "credit_card_verification", "government_id", "video_call", "knowledge_based"), 1, 0)
+| eval consent_valid=if(has_parental_consent=1 AND parental_consent_date<=_time, 1, 0)
+| stats count AS child_accounts sum(consent_valid) AS with_valid_consent dc(eval(if(consent_valid=0, user_id, null()))) AS missing_consent_users BY service, registration_source
+| eval consent_coverage_pct=round(100*with_valid_consent/child_accounts, 1)
+| where consent_coverage_pct<100
+| table service, registration_source, child_accounts, with_valid_consent, missing_consent_users, consent_coverage_pct
+```
+- **Implementation:** (1) Ingest registration and consent-management logs with user_age_bracket, parental_consent_date, parental_consent_method; (2) schedule daily; (3) immediately flag accounts without consent for remediation.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Authentication
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [COPPA Rule (16 CFR Part 312)](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-312)
+
+### UC-22.50.30 · COPPA §312.8 — Data security and confidentiality: protective-control evidence for children's data
+- **Criticality:** 🔴 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** COPPA
+- **Value:** §312.8 requires reasonable procedures to protect the confidentiality, security, and integrity of children's personal information. Continuous access monitoring and DLP evidence demonstrates active protection.
+- **App/TA:** Splunk Enterprise Security, Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** Access logs for child-data repositories, DLP events, encryption-status records, vulnerability scan results.
+- **SPL:**
+```spl
+index=dlp OR index=access_logs sourcetype IN (dlp_events, data_access_audit) earliest=-24h
+| search data_classification="children_pii" OR data_tag="coppa"
+| eval access_authorised=if(action IN ("allowed", "read") AND isnotnull(authorisation_ref), 1, 0)
+| eval blocked=if(action IN ("blocked", "denied", "quarantined"), 1, 0)
+| stats count AS total_events sum(access_authorised) AS authorised sum(blocked) AS blocked_attempts dc(user) AS distinct_users dc(dest) AS distinct_systems BY system, data_class
+| eval unauthorised=total_events - authorised - blocked_attempts
+| where unauthorised>0 OR blocked_attempts>0
+| table system, data_class, total_events, authorised, blocked_attempts, unauthorised, distinct_users, distinct_systems
+```
+- **Implementation:** (1) Tag data repositories containing children's PII with data_classification=children_pii; (2) ingest DLP and access-audit logs; (3) schedule daily; (4) escalate unauthorised access immediately.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Change, Authentication
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [COPPA Rule (16 CFR Part 312)](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-312)
+
+### UC-22.50.31 · COSO Principle 1 — Commitment to integrity: ethics-hotline and code-of-conduct violation monitoring
+- **Criticality:** 🔴 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** IT Operations
+- **Regulations:** COSO
+- **Value:** COSO Principle 1 requires the organisation to demonstrate commitment to integrity and ethical values. Continuous monitoring of ethics reports and their resolution provides auditable evidence of tone-at-the-top.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** Ethics-hotline system exports, HR case-management logs, code-of-conduct acknowledgement records.
+- **SPL:**
+```spl
+index=hr_compliance sourcetype IN (ethics_hotline, conduct_violations) earliest=-90d
+| eval resolved=if(status IN ("closed", "resolved", "remediated"), 1, 0)
+| eval days_to_resolve=if(resolved=1, round((resolution_time - _time)/86400), round((now() - _time)/86400))
+| stats count AS total_reports sum(resolved) AS resolved_count avg(days_to_resolve) AS avg_resolution_days dc(reporter_department) AS departments_reporting values(category) AS categories BY severity
+| eval open_count=total_reports - resolved_count
+| eval resolution_pct=round(100*resolved_count/total_reports, 1)
+| table severity, total_reports, resolved_count, open_count, resolution_pct, avg_resolution_days, departments_reporting, categories
+```
+- **Implementation:** (1) Ingest ethics-hotline and conduct-violation events with category, severity, status, resolution_time; (2) schedule monthly; (3) trend analysis for board reporting.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [COSO Internal Control — Integrated Framework (2013)](https://www.coso.org/guidance-on-ic)
+
+### UC-22.50.32 · COSO Principle 5 — Accountability enforcement: segregation-of-duties and access-review evidence
+- **Criticality:** 🔴 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** COSO
+- **Value:** COSO Principle 5 requires that the organisation holds individuals accountable for internal control responsibilities. SoD monitoring and access-review tracking provides auditable evidence of accountability enforcement.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** IAM role-assignment logs, SoD conflict matrix, access-review campaign results.
+- **SPL:**
+```spl
+index=iam sourcetype IN (role_assignments, sod_violations, access_reviews) earliest=-30d
+| eval is_sod_conflict=if(sourcetype="sod_violations", 1, 0)
+| eval review_completed=if(sourcetype="access_reviews" AND review_status="completed", 1, 0)
+| stats sum(is_sod_conflict) AS sod_violations dc(eval(if(sourcetype="access_reviews", campaign_id, null()))) AS review_campaigns sum(review_completed) AS reviews_completed dc(user) AS users_reviewed BY business_unit
+| eval sod_risk=if(sod_violations>0, "elevated", "normal")
+| where sod_violations>0 OR reviews_completed=0
+| table business_unit, sod_violations, sod_risk, review_campaigns, reviews_completed, users_reviewed
+```
+- **Implementation:** (1) Ingest IAM role-assignment and SoD-violation events; (2) ingest access-review campaign results; (3) schedule weekly; (4) escalate SoD conflicts to compliance team.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Authentication, Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [COSO Internal Control — Integrated Framework (2013)](https://www.coso.org/guidance-on-ic)
+
+### UC-22.50.33 · COSO Principle 11 — Technology general controls: IT change-management and configuration-drift monitoring
+- **Criticality:** 🔴 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** IT Operations
+- **Regulations:** COSO
+- **Value:** COSO Principle 11 requires selection and development of general controls over technology. Continuous change-management and configuration-drift monitoring provides auditable evidence that IT general controls are effective.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** Change-management ticket systems (ServiceNow/Jira), configuration-management database (CMDB), configuration-compliance scans.
+- **SPL:**
+```spl
+index=change_mgmt sourcetype IN (change_tickets, config_drift) earliest=-30d
+| eval unauthorised=if(sourcetype="config_drift" AND isnotnull(drift_detected) AND isnull(change_ticket_ref), 1, 0)
+| eval approved=if(sourcetype="change_tickets" AND approval_status="approved", 1, 0)
+| eval emergency=if(change_type="emergency", 1, 0)
+| stats count AS total_changes sum(unauthorised) AS unauthorised_changes sum(approved) AS approved_changes sum(emergency) AS emergency_changes dc(affected_ci) AS affected_assets BY environment, change_category
+| eval approval_pct=round(100*approved_changes/total_changes, 1)
+| where unauthorised_changes>0 OR approval_pct<100
+| table environment, change_category, total_changes, approved_changes, unauthorised_changes, emergency_changes, approval_pct, affected_assets
+```
+- **Implementation:** (1) Ingest change-ticket and config-drift events with change_ticket_ref, approval_status, change_type; (2) correlate drift with change tickets; (3) schedule daily; (4) escalate unauthorised changes.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [COSO Internal Control — Integrated Framework (2013)](https://www.coso.org/guidance-on-ic)
+
+### UC-22.50.34 · COSO Principle 16 — Ongoing evaluations: continuous monitoring and deficiency-remediation tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** IT Operations
+- **Regulations:** COSO
+- **Value:** COSO Principle 16 requires the entity to select, develop, and perform ongoing and/or separate evaluations. Monitoring programme coverage and deficiency resolution provides auditable evidence of evaluation rigour.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** Internal-audit programme schedules, control-deficiency trackers, remediation ticketing systems, continuous-monitoring dashboards.
+- **SPL:**
+```spl
+index=grc_compliance sourcetype IN (monitoring_programme, control_deficiency) earliest=-90d
+| eval deficiency_remediated=if(status IN ("remediated", "closed"), 1, 0)
+| eval evaluation_completed=if(sourcetype="monitoring_programme" AND eval_status="completed", 1, 0)
+| stats count AS total_items sum(deficiency_remediated) AS remediated sum(evaluation_completed) AS evaluations_done dc(control_area) AS areas_covered avg(eval(if(deficiency_remediated=1, round((resolution_time - _time)/86400), null()))) AS avg_remediation_days BY programme, quarter
+| eval remediation_pct=round(100*remediated/total_items, 1)
+| where remediation_pct<100 OR evaluations_done=0
+| table programme, quarter, total_items, remediated, remediation_pct, evaluations_done, areas_covered, avg_remediation_days
+```
+- **Implementation:** (1) Ingest monitoring-programme schedules and control-deficiency events; (2) schedule quarterly; (3) report to audit committee.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [COSO Internal Control — Integrated Framework (2013)](https://www.coso.org/guidance-on-ic)
+
+### UC-22.50.35 · FERPA §99.31 — Disclosure-without-consent monitoring: education-record access audit trail
+- **Criticality:** 🔴 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** FERPA
+- **Value:** §99.31 limits when education records may be disclosed without consent. Continuous audit-trail monitoring ensures each disclosure is justified under a permitted exception.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** Student information system (SIS) access logs, education-record disclosure logs, consent-management records.
+- **SPL:**
+```spl
+index=sis_access sourcetype IN (education_record_access, sis_audit) earliest=-30d
+| search record_type="education_record"
+| eval consent_on_file=if(isnotnull(consent_ref) AND consent_status="active", 1, 0)
+| eval permitted_exception=if(disclosure_basis IN ("school_official", "transfer", "financial_aid", "accreditation", "judicial_order", "health_safety", "sex_offender", "directory_info"), 1, 0)
+| eval compliant_disclosure=if(consent_on_file=1 OR permitted_exception=1, 1, 0)
+| stats count AS total_accesses sum(compliant_disclosure) AS compliant dc(eval(if(compliant_disclosure=0, accessor_id, null()))) AS non_compliant_users BY system, record_category
+| eval non_compliant=total_accesses - compliant
+| eval compliance_pct=round(100*compliant/total_accesses, 1)
+| where non_compliant>0
+| table system, record_category, total_accesses, compliant, non_compliant, non_compliant_users, compliance_pct
+```
+- **Implementation:** (1) Ingest SIS access logs with disclosure_basis, consent_ref, consent_status; (2) maintain a lookup of permitted exception codes; (3) schedule daily; (4) escalate non-compliant disclosures to the Registrar.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Authentication, Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [FERPA (34 CFR Part 99)](https://www.ecfr.gov/current/title-34/subtitle-A/part-99)
+
+### UC-22.50.36 · FERPA §99.33 — Redisclosure and record-keeping: downstream-sharing and access-log completeness
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** FERPA
+- **Value:** §99.33 requires that recipients of education records are notified of redisclosure restrictions and that institutions maintain records of each disclosure. Continuous monitoring ensures these obligations are met.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** Education-record disclosure logs, downstream-sharing agreements, data-transfer audit trails.
+- **SPL:**
+```spl
+index=sis_access sourcetype IN (education_record_disclosure, data_sharing_log) earliest=-90d
+| search action="disclose" OR action="redisclose"
+| eval has_redisclosure_notice=if(isnotnull(redisclosure_restriction_sent) AND redisclosure_restriction_sent="yes", 1, 0)
+| eval log_complete=if(isnotnull(accessor_name) AND isnotnull(legitimate_interest) AND isnotnull(disclosure_date), 1, 0)
+| stats count AS total_disclosures sum(has_redisclosure_notice) AS with_notice sum(log_complete) AS complete_logs dc(recipient_org) AS distinct_recipients BY record_category
+| eval notice_pct=round(100*with_notice/total_disclosures, 1)
+| eval log_completeness_pct=round(100*complete_logs/total_disclosures, 1)
+| where notice_pct<100 OR log_completeness_pct<100
+| table record_category, total_disclosures, with_notice, notice_pct, complete_logs, log_completeness_pct, distinct_recipients
+```
+- **Implementation:** (1) Ingest disclosure logs with redisclosure_restriction_sent, accessor_name, legitimate_interest; (2) schedule monthly; (3) flag incomplete records for Registrar remediation.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [FERPA (34 CFR Part 99)](https://www.ecfr.gov/current/title-34/subtitle-A/part-99)
+
+### UC-22.50.37 · GLBA §314.4(b) — Risk assessment: information-security risk identification and tracking
+- **Criticality:** 🔴 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** GLBA
+- **Value:** §314.4(b) requires financial institutions to conduct risk assessments identifying reasonably foreseeable internal and external risks. Continuous tracking ensures the risk-assessment programme stays current and findings are addressed.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** Risk-assessment programme exports, vulnerability scan results, threat-intelligence feeds, GRC platform risk registers.
+- **SPL:**
+```spl
+index=grc_compliance sourcetype IN (risk_assessment, vuln_scan_summary) earliest=-90d
+| eval risk_identified=if(isnotnull(risk_id) AND risk_rating IN ("critical", "high", "medium", "low"), 1, 0)
+| eval risk_mitigated=if(mitigation_status IN ("mitigated", "accepted", "transferred"), 1, 0)
+| stats count AS total_risks sum(risk_identified) AS identified sum(risk_mitigated) AS mitigated dc(asset_category) AS asset_categories_assessed latest(assessment_date) AS last_assessment BY business_function
+| eval unmitigated=identified - mitigated
+| eval mitigation_pct=round(100*mitigated/identified, 1)
+| eval days_since_assessment=round((now()-strptime(last_assessment, "%Y-%m-%d"))/86400)
+| where unmitigated>0 OR days_since_assessment>365
+| table business_function, total_risks, identified, mitigated, unmitigated, mitigation_pct, days_since_assessment, asset_categories_assessed
+```
+- **Implementation:** (1) Ingest risk-assessment and vulnerability-scan results with risk_id, risk_rating, mitigation_status; (2) schedule quarterly; (3) escalate overdue assessments and unmitigated high risks.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [GLBA Safeguards Rule (16 CFR Part 314)](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314)
+
+### UC-22.50.38 · GLBA §314.4(c)(1) — Access controls: customer-information access governance and least-privilege enforcement
+- **Criticality:** 🔴 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** GLBA
+- **Value:** §314.4(c)(1) requires implementing access controls to limit access to customer information to authorised users. Continuous monitoring of privileged access and review completeness enforces least-privilege.
+- **App/TA:** Splunk Enterprise Security, Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** IAM access logs, privilege-escalation events, access-review campaign results, data-classification tags.
+- **SPL:**
+```spl
+index=iam sourcetype IN (access_log, privilege_changes) earliest=-30d
+| search data_classification="customer_information" OR system_tag="glba_scope"
+| eval privileged_access=if(role IN ("admin", "dba", "root", "superuser"), 1, 0)
+| eval access_reviewed=if(isnotnull(last_access_review) AND (now()-strptime(last_access_review, "%Y-%m-%d"))<15552000, 1, 0)
+| stats count AS total_accesses sum(privileged_access) AS privileged_count dc(user) AS distinct_users sum(access_reviewed) AS reviewed BY system, department
+| eval privileged_pct=round(100*privileged_count/total_accesses, 1)
+| eval review_pct=round(100*reviewed/total_accesses, 1)
+| where privileged_pct>10 OR review_pct<100
+| table system, department, total_accesses, distinct_users, privileged_count, privileged_pct, review_pct
+```
+- **Implementation:** (1) Tag systems holding customer information with system_tag=glba_scope; (2) ingest IAM access and privilege-change logs; (3) schedule daily; (4) escalate excessive privileged access.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Authentication, Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [GLBA Safeguards Rule (16 CFR Part 314)](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314)
+
+### UC-22.50.39 · GLBA §314.4(d)(2) — Continuous monitoring: security-event detection and response-readiness evidence
+
+- **Criticality:** 🔴 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** GLBA
+- **Value:** §314.4(d)(2) requires continuous monitoring to detect actual and attempted attacks or intrusions. Tracking detection-to-response ratios and response times demonstrates the monitoring programme is effective.
+- **App/TA:** Splunk Enterprise Security, Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** Splunk ES notable events, IDS/IPS alerts, SIEM correlation rules, incident-response ticket logs.
+- **SPL:**
+```spl
+(index=notable sourcetype=stash) OR (index=incident_response sourcetype=ir_tickets) earliest=-30d
+| eval detected=if(sourcetype="stash" AND isnotnull(rule_name), 1, 0)
+| eval responded=if(sourcetype="ir_tickets" AND status IN ("acknowledged", "investigating", "resolved"), 1, 0)
+| eval response_time_hrs=if(responded=1, round((acknowledged_time - detection_time)/3600, 1), null())
+| stats sum(detected) AS detections sum(responded) AS responses avg(response_time_hrs) AS avg_response_hrs dc(rule_name) AS active_rules dc(eval(if(sourcetype="ir_tickets", ticket_id, null()))) AS ir_tickets BY security_domain
+| eval detection_to_response_pct=if(detections>0, round(100*responses/detections, 1), 0)
+| where detection_to_response_pct<95 OR avg_response_hrs>4
+| table security_domain, detections, responses, detection_to_response_pct, avg_response_hrs, active_rules, ir_tickets
+```
+- **Implementation:** (1) Correlate ES notables with incident-response tickets; (2) schedule daily; (3) escalate low detection-to-response ratios and slow response times to SOC management.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Alerts
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [GLBA Safeguards Rule (16 CFR Part 314)](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314)
+
+### UC-22.50.40 · UN R155 7.2.2.2 — Vehicle cybersecurity risk assessment and mitigation monitoring
+- **Criticality:** 🔴 High
+- **Difficulty:** 🟣 Advanced
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** UN R155
+- **Value:** UN R155 requires OEMs to perform risk assessments for vehicle cybersecurity threats. Continuous tracking of TARA results and mitigation status provides auditable evidence of the CSMS risk management process.
+- **App/TA:** Splunk Enterprise Security, Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** Vehicle security operations centre (VSOC) feeds, threat analysis and risk assessment (TARA) databases, vulnerability disclosure trackers, OTA update system logs.
+- **SPL:**
+```spl
+index=vsoc sourcetype IN (tara_assessment, vehicle_vuln_tracker) earliest=-90d
+| eval risk_mitigated=if(mitigation_status IN ("mitigated", "accepted", "transferred"), 1, 0)
+| eval risk_level=case(cvss_score>=9.0, "critical", cvss_score>=7.0, "high", cvss_score>=4.0, "medium", true(), "low")
+| stats count AS total_risks sum(risk_mitigated) AS mitigated dc(vehicle_platform) AS platforms_assessed dc(ecu_component) AS components_assessed latest(assessment_date) AS last_tara BY vehicle_platform, risk_level
+| eval unmitigated=total_risks - mitigated
+| eval mitigation_pct=round(100*mitigated/total_risks, 1)
+| where unmitigated>0
+| table vehicle_platform, risk_level, total_risks, mitigated, unmitigated, mitigation_pct, components_assessed, last_tara
+```
+- **Implementation:** (1) Ingest TARA results and vulnerability tracker data from VSOC; (2) normalise cvss_score, mitigation_status, vehicle_platform, ecu_component; (3) schedule monthly; (4) escalate unmitigated critical risks.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Vulnerabilities
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [UN Regulation No. 155 — Cyber Security](https://unece.org/transport/documents/2021/03/standards/un-regulation-no-155-cyber-security-and-cyber-security)
+
+### UC-22.50.41 · UN R155 7.2.2.5 — Cyber attack monitoring: VSOC detection and response evidence
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟣 Advanced
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** UN R155
+- **Value:** UN R155 requires OEMs to monitor, detect, and respond to cyber attacks across their vehicle fleet. Continuous VSOC monitoring evidence demonstrates operational security capabilities.
+- **App/TA:** Splunk Enterprise Security, Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** VSOC detection feeds, vehicle telematics security events, in-vehicle IDS/IPS alerts, incident response ticket logs.
+- **SPL:**
+```spl
+(index=vsoc sourcetype IN (vehicle_ids, vehicle_security_event)) OR (index=incident_response sourcetype=vsoc_ir_tickets) earliest=-30d
+| eval detected=if(sourcetype IN ("vehicle_ids", "vehicle_security_event") AND isnotnull(threat_category), 1, 0)
+| eval responded=if(sourcetype="vsoc_ir_tickets" AND status IN ("acknowledged", "investigating", "resolved"), 1, 0)
+| stats sum(detected) AS detections sum(responded) AS responses dc(vehicle_model) AS models_monitored dc(threat_category) AS threat_categories BY attack_vector
+| eval response_rate=if(detections>0, round(100*responses/detections, 1), 0)
+| where response_rate<95 OR detections=0
+| table attack_vector, detections, responses, response_rate, models_monitored, threat_categories
+```
+- **Implementation:** (1) Ingest VSOC detection feeds and vehicle IDS alerts; (2) correlate with incident response tickets; (3) schedule daily; (4) escalate low response rates.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Intrusion_Detection, Alerts
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [UN Regulation No. 155 — Cyber Security](https://unece.org/transport/documents/2021/03/standards/un-regulation-no-155-cyber-security-and-cyber-security)
+
+### UC-22.50.42 · UN R156 7.1.1 — Software update management: OTA deployment tracking and integrity verification
+- **Criticality:** 🔴 High
+- **Difficulty:** 🟣 Advanced
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** IT Operations
+- **Regulations:** UN R156
+- **Value:** UN R156 requires a validated SUMS (Software Update Management System). Tracking deployment success and integrity verification provides auditable evidence that the update process is secure and complete.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** OTA update server logs, vehicle telematics update status, firmware verification records, update campaign management databases.
+- **SPL:**
+```spl
+index=ota_updates sourcetype IN (ota_campaign, ota_vehicle_status) earliest=-30d
+| eval update_successful=if(status IN ("installed", "verified", "activated"), 1, 0)
+| eval integrity_verified=if(signature_check="pass" AND hash_check="pass", 1, 0)
+| stats count AS total_updates sum(update_successful) AS successful sum(integrity_verified) AS integrity_pass dc(vin) AS vehicles_targeted latest(campaign_date) AS last_campaign BY campaign_id, software_version, vehicle_model
+| eval success_pct=round(100*successful/total_updates, 1)
+| eval integrity_pct=round(100*integrity_pass/total_updates, 1)
+| where success_pct<100 OR integrity_pct<100
+| table campaign_id, vehicle_model, software_version, total_updates, success_pct, integrity_pct, vehicles_targeted, last_campaign
+```
+- **Implementation:** (1) Ingest OTA campaign and vehicle update status events; (2) normalise signature_check, hash_check, status fields; (3) schedule per-campaign; (4) escalate integrity failures immediately.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [UN Regulation No. 156 — Software Updates](https://unece.org/transport/documents/2021/03/standards/un-regulation-no-156-software-update-and-software-update)
+
+### UC-22.50.43 · UN R156 7.1.4 — Software update recording and reporting: update audit trail completeness
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** IT Operations
+- **Regulations:** UN R156
+- **Value:** UN R156 requires recording and reporting of all software updates including RXSWIN (Regulation Software Identification Number). Audit trail completeness monitoring ensures regulatory reporting obligations are met.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** OTA update audit logs, software version registries, type-approval documentation databases, regulatory reporting systems.
+- **SPL:**
+```spl
+index=ota_updates sourcetype IN (ota_audit_log, sw_version_registry) earliest=-90d
+| eval record_complete=if(isnotnull(rxswin) AND isnotnull(sw_version) AND isnotnull(update_date) AND isnotnull(approval_authority), 1, 0)
+| eval reported_to_authority=if(isnotnull(authority_notification_date), 1, 0)
+| stats count AS total_updates sum(record_complete) AS complete_records sum(reported_to_authority) AS reported dc(vehicle_type) AS types_covered BY vehicle_type, reporting_period
+| eval record_completeness_pct=round(100*complete_records/total_updates, 1)
+| eval reporting_pct=round(100*reported/total_updates, 1)
+| where record_completeness_pct<100 OR reporting_pct<100
+| table vehicle_type, reporting_period, total_updates, complete_records, record_completeness_pct, reported, reporting_pct, types_covered
+```
+- **Implementation:** (1) Ingest OTA audit logs with rxswin, sw_version, update_date, approval_authority; (2) schedule monthly; (3) flag incomplete records for compliance team.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [UN Regulation No. 156 — Software Updates](https://unece.org/transport/documents/2021/03/standards/un-regulation-no-156-software-update-and-software-update)
+
+### UC-22.50.44 · FERC Order 887 — Internal network security monitoring for bulk electric systems
+- **Criticality:** 🔴 High
+- **Difficulty:** 🟣 Advanced
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** FERC CIP
+- **Value:** FERC Order 887 requires utilities to implement internal network security monitoring within ESPs beyond the perimeter. Continuous network flow analysis within control system networks provides evidence of monitoring capability.
+- **App/TA:** Splunk Enterprise Security, Splunk OT Security Add-on (5151), Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** BES network flow data, ESP firewall logs, IDS/IPS within Electronic Security Perimeters, network device syslog from control centres.
+- **SPL:**
+```spl
+index=ot_network sourcetype IN (bes_network_flow, esp_firewall, ot_ids) earliest=-24h
+| eval anomalous=if(action IN ("blocked", "denied", "alert") OR protocol NOT IN ("modbus", "dnp3", "iec61850", "iccp", "opc-ua", "https", "ssh"), 1, 0)
+| eval internal_traffic=if(src_zone="esp" AND dest_zone="esp", 1, 0)
+| stats count AS total_flows sum(anomalous) AS anomalous_flows sum(internal_traffic) AS internal_flows dc(src_ip) AS distinct_sources dc(dest_ip) AS distinct_destinations BY esp_zone, protocol
+| eval anomaly_pct=round(100*anomalous_flows/total_flows, 1)
+| where anomalous_flows>0
+| sort -anomalous_flows
+| table esp_zone, protocol, total_flows, anomalous_flows, anomaly_pct, internal_flows, distinct_sources, distinct_destinations
+```
+- **Implementation:** (1) Deploy network flow collection within ESP zones; (2) normalise protocol, action, src_zone, dest_zone; (3) schedule every 15 minutes; (4) escalate anomalous internal flows immediately.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Network_Traffic, Intrusion_Detection
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [FERC Critical Infrastructure Protection](https://www.ferc.gov/industries-data/electric/industry-activities/critical-infrastructure-protection)
+
+### UC-22.50.45 · FERC Order 893 — Supply chain risk management for BES systems
+- **Criticality:** 🔴 High
+- **Difficulty:** 🟣 Advanced
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** FERC CIP
+- **Value:** FERC Order 893 requires supply chain risk management for BES Cyber Systems. Continuous vendor assessment and software integrity monitoring provides auditable evidence of supply chain security controls.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform
+- **Data Sources:** Vendor risk assessment databases, software bill of materials (SBOM) registries, patch verification logs, vendor security advisory feeds.
+- **SPL:**
+```spl
+index=supply_chain sourcetype IN (vendor_risk_assessment, sbom_registry, patch_verification) earliest=-90d
+| eval vendor_assessed=if(isnotnull(vendor_risk_score) AND isnotnull(assessment_date), 1, 0)
+| eval sw_integrity_verified=if(isnotnull(sbom_hash) AND verification_status="pass", 1, 0)
+| eval patch_current=if(isnotnull(latest_patch) AND (now()-strptime(latest_patch, "%Y-%m-%d"))<7776000, 1, 0)
+| stats count AS total_items sum(vendor_assessed) AS assessed sum(sw_integrity_verified) AS integrity_verified sum(patch_current) AS patched dc(vendor_name) AS distinct_vendors BY bes_system_category, criticality_level
+| eval assessment_pct=round(100*assessed/total_items, 1)
+| eval integrity_pct=round(100*integrity_verified/total_items, 1)
+| where assessment_pct<100 OR integrity_pct<100
+| table bes_system_category, criticality_level, total_items, assessment_pct, integrity_pct, patched, distinct_vendors
+```
+- **Implementation:** (1) Ingest vendor risk assessments and SBOM registries; (2) correlate with patch verification logs; (3) schedule quarterly; (4) escalate unassessed critical vendors.
+- **Visualization:** Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.
+- **CIM Models:** Change
+- **Known false positives:** Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.
+- **References:** [FERC Critical Infrastructure Protection](https://www.ferc.gov/industries-data/electric/industry-activities/critical-infrastructure-protection)
 
 <!-- PHASE-C END -->

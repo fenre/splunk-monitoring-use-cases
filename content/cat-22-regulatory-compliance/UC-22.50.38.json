@@ -1,0 +1,71 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.50.38",
+  "title": "GLBA §314.4(c)(1) — Access controls: customer-information access governance and least-privilege enforcement",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT substitute for the full regulatory control set; this UC provides one of several evidence streams and must be combined with policy, procedure, and supplemental UCs to demonstrate the complete clause.",
+  "evidence": "Scheduled search output persisted to the compliance summary index with regulation=GLBA, clause=§314.4(c)(1), available as a saved search and exportable as a CSV evidence pack for the responsible officer.",
+  "compliance": [
+    {
+      "regulation": "GLBA",
+      "version": "16 CFR 314 (2023 amendments)",
+      "clause": "§314.4(c)(1)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-C authored UC targeting GLBA §314.4(c)(1) (Access controls). Monitors access to customer information systems and enforces least-privilege; assurance level set to 'contributing' pending SME review per Phase E of the regulation-coverage plan.",
+      "controlObjective": "Evidence that GLBA §314.4(c)(1) (Access controls) is enforced — Splunk UC-22.50.38: GLBA §314.4(c)(1) — Access controls: customer-information access governance and least-privilege enforcement.",
+      "evidenceArtifact": "Saved search 'UC-22.50.38' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "glba@16 CFR 314 (2023 amendments)#§314.4(c)(1)",
+      "requires_sme_review": true,
+      "provenance": "maintainer",
+      "smeCaveat": "Phase-C draft: SME review required before uplifting assurance from 'contributing' to 'partial' or 'full'. Confirm that the SPL captures the specific regulator expectation and that the telemetry exists in the deployment."
+    }
+  ],
+  "dataSources": "IAM access logs, privilege-escalation events, access-review campaign results, data-classification tags.",
+  "app": "Splunk Enterprise Security, Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=iam sourcetype IN (access_log, privilege_changes) earliest=-30d\n| search data_classification=\"customer_information\" OR system_tag=\"glba_scope\"\n| eval privileged_access=if(role IN (\"admin\", \"dba\", \"root\", \"superuser\"), 1, 0)\n| eval access_reviewed=if(isnotnull(last_access_review) AND (now()-strptime(last_access_review, \"%Y-%m-%d\"))<15552000, 1, 0)\n| stats count AS total_accesses sum(privileged_access) AS privileged_count dc(user) AS distinct_users sum(access_reviewed) AS reviewed BY system, department\n| eval privileged_pct=round(100*privileged_count/total_accesses, 1)\n| eval review_pct=round(100*reviewed/total_accesses, 1)\n| where privileged_pct>10 OR review_pct<100\n| table system, department, total_accesses, distinct_users, privileged_count, privileged_pct, review_pct",
+  "description": "Monitors access to customer-information systems, tracks privileged-access ratios, and verifies access-review coverage per GLBA §314.4(c)(1) requirements for access controls.",
+  "value": "§314.4(c)(1) requires implementing access controls to limit access to customer information to authorised users. Continuous monitoring of privileged access and review completeness enforces least-privilege.",
+  "implementation": "(1) Tag systems holding customer information with system_tag=glba_scope; (2) ingest IAM access and privilege-change logs; (3) schedule daily; (4) escalate excessive privileged access.",
+  "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "cimModels": [
+    "Authentication",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "GLBA Safeguards Rule (16 CFR Part 314)",
+      "url": "https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314",
+      "retrieved": "2026-04-22"
+    }
+  ],
+  "knownFalsePositives": "Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time",
+    "system",
+    "user",
+    "role",
+    "data_classification",
+    "last_access_review"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-22",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A",
+  "grandmaExplanation": "GLBA §314.4(c)(1) requires controlling who can access customer financial data — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security, Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: IAM access logs, privilege-escalation events, access-review campaign results, data-classification tags.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag systems holding customer information with system_tag=glba_scope; (2) ingest IAM access and privilege-change logs; (3) schedule daily; (4) escalate excessive privileged access.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=iam sourcetype IN (access_log, privilege_changes) earliest=-30d\n| search data_classification=\"customer_information\" OR system_tag=\"glba_scope\"\n| eval privileged_access=if(role IN (\"admin\", \"dba\", \"root\", \"superuser\"), 1, 0)\n| eval access_reviewed=if(isnotnull(last_access_review) AND (now()-strptime(last_access_review, \"%Y-%m-%d\"))<15552000, 1, 0)\n| stats count AS total_accesses sum(privileged_access) AS privileged_count dc(user) AS distinct_users sum(access_reviewed) AS reviewed BY system, department\n| eval privileged_pct=round(100*privileged_count/total_accesses, 1)\n| eval review_pct=round(100*reviewed/total_accesses, 1)\n| where privileged_pct>10 OR review_pct<100\n| table system, department, total_accesses, distinct_users, privileged_count, privileged_pct, review_pct\n```\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "subcategory": "22.50#1"
+}

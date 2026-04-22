@@ -1,0 +1,69 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.50.42",
+  "title": "UN R156 7.1.1 — Software update management: OTA deployment tracking and integrity verification",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "IT Operations",
+  "owner": "Vehicle Software Manager",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT substitute for the full regulatory control set; this UC provides one of several evidence streams and must be combined with policy, procedure, and supplemental UCs to demonstrate the complete clause.",
+  "evidence": "Scheduled search output persisted to the compliance summary index with regulation=UN R156, clause=7.1.1, available as a saved search and exportable as a CSV evidence pack for the responsible officer.",
+  "compliance": [
+    {
+      "regulation": "UN R156",
+      "version": "2021",
+      "clause": "7.1.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-C authored UC targeting UN R156 7.1.1 (Software update management system processes). Monitors OTA deployment success rates and update integrity; assurance level set to 'contributing' pending SME review.",
+      "controlObjective": "Evidence that UN R156 7.1.1 (Software update management system processes) is enforced — Splunk UC-22.50.42.",
+      "evidenceArtifact": "Saved search 'UC-22.50.42' running on catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention).",
+      "obligationRef": "unece-r156@2021#7.1.1",
+      "requires_sme_review": true,
+      "provenance": "maintainer",
+      "smeCaveat": "Phase-C draft: SME review required before uplifting assurance from 'contributing' to 'partial' or 'full'. Confirm that the SPL captures the specific regulator expectation and that the telemetry exists in the deployment."
+    }
+  ],
+  "dataSources": "OTA update server logs, vehicle telematics update status, firmware verification records, update campaign management databases.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=ota_updates sourcetype IN (ota_campaign, ota_vehicle_status) earliest=-30d\n| eval update_successful=if(status IN (\"installed\", \"verified\", \"activated\"), 1, 0)\n| eval integrity_verified=if(signature_check=\"pass\" AND hash_check=\"pass\", 1, 0)\n| stats count AS total_updates sum(update_successful) AS successful sum(integrity_verified) AS integrity_pass dc(vin) AS vehicles_targeted latest(campaign_date) AS last_campaign BY campaign_id, software_version, vehicle_model\n| eval success_pct=round(100*successful/total_updates, 1)\n| eval integrity_pct=round(100*integrity_pass/total_updates, 1)\n| where success_pct<100 OR integrity_pct<100\n| table campaign_id, vehicle_model, software_version, total_updates, success_pct, integrity_pct, vehicles_targeted, last_campaign",
+  "description": "Monitors OTA software update campaign success rates, integrity verification, and deployment coverage per UN R156 7.1.1 requirements for software update management system processes.",
+  "value": "UN R156 requires a validated SUMS (Software Update Management System). Tracking deployment success and integrity verification provides auditable evidence that the update process is secure and complete.",
+  "implementation": "(1) Ingest OTA campaign and vehicle update status events; (2) normalise signature_check, hash_check, status fields; (3) schedule per-campaign; (4) escalate integrity failures immediately.",
+  "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "UN Regulation No. 156 — Software Updates",
+      "url": "https://unece.org/transport/documents/2021/03/standards/un-regulation-no-156-software-update-and-software-update",
+      "retrieved": "2026-04-22"
+    }
+  ],
+  "knownFalsePositives": "Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time",
+    "campaign_id",
+    "vehicle_model",
+    "software_version",
+    "status",
+    "signature_check"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-22",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A",
+  "grandmaExplanation": "UN R156 requires managing vehicle software updates securely — so you can show exactly what is being watched and when something went wrong.",
+  "subcategory": "22.50#1"
+}

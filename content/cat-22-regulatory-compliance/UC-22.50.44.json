@@ -1,0 +1,70 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.50.44",
+  "title": "FERC Order 887 — Internal network security monitoring for bulk electric systems",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO / BES Security Manager",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT substitute for the full regulatory control set; this UC provides one of several evidence streams and must be combined with policy, procedure, and supplemental UCs to demonstrate the complete clause.",
+  "evidence": "Scheduled search output persisted to the compliance summary index with regulation=FERC CIP, clause=Order887, available as a saved search and exportable as a CSV evidence pack for the responsible officer.",
+  "compliance": [
+    {
+      "regulation": "FERC CIP",
+      "version": "current",
+      "clause": "Order887",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-C authored UC targeting FERC Order 887 (Internal network security monitoring). Monitors network traffic within BES Electronic Security Perimeters; assurance level set to 'contributing' pending SME review.",
+      "controlObjective": "Evidence that FERC Order 887 (Internal network security monitoring for bulk electric systems) is enforced — Splunk UC-22.50.44.",
+      "evidenceArtifact": "Saved search 'UC-22.50.44' running on catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention).",
+      "obligationRef": "ferc-cip@current#Order887",
+      "requires_sme_review": true,
+      "provenance": "maintainer",
+      "smeCaveat": "Phase-C draft: SME review required before uplifting assurance from 'contributing' to 'partial' or 'full'. Confirm that the SPL captures the specific regulator expectation and that the telemetry exists in the deployment."
+    }
+  ],
+  "dataSources": "BES network flow data, ESP firewall logs, IDS/IPS within Electronic Security Perimeters, network device syslog from control centres.",
+  "app": "Splunk Enterprise Security, Splunk OT Security Add-on (5151), Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=ot_network sourcetype IN (bes_network_flow, esp_firewall, ot_ids) earliest=-24h\n| eval anomalous=if(action IN (\"blocked\", \"denied\", \"alert\") OR protocol NOT IN (\"modbus\", \"dnp3\", \"iec61850\", \"iccp\", \"opc-ua\", \"https\", \"ssh\"), 1, 0)\n| eval internal_traffic=if(src_zone=\"esp\" AND dest_zone=\"esp\", 1, 0)\n| stats count AS total_flows sum(anomalous) AS anomalous_flows sum(internal_traffic) AS internal_flows dc(src_ip) AS distinct_sources dc(dest_ip) AS distinct_destinations BY esp_zone, protocol\n| eval anomaly_pct=round(100*anomalous_flows/total_flows, 1)\n| where anomalous_flows>0\n| sort -anomalous_flows\n| table esp_zone, protocol, total_flows, anomalous_flows, anomaly_pct, internal_flows, distinct_sources, distinct_destinations",
+  "description": "Monitors internal network traffic within BES Electronic Security Perimeters for anomalous or unauthorised protocols and flows per FERC Order 887 requirements for internal network security monitoring.",
+  "value": "FERC Order 887 requires utilities to implement internal network security monitoring within ESPs beyond the perimeter. Continuous network flow analysis within control system networks provides evidence of monitoring capability.",
+  "implementation": "(1) Deploy network flow collection within ESP zones; (2) normalise protocol, action, src_zone, dest_zone; (3) schedule every 15 minutes; (4) escalate anomalous internal flows immediately.",
+  "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "cimModels": [
+    "Network_Traffic",
+    "Intrusion_Detection"
+  ],
+  "references": [
+    {
+      "title": "FERC Critical Infrastructure Protection",
+      "url": "https://www.ferc.gov/industries-data/electric/industry-activities/critical-infrastructure-protection",
+      "retrieved": "2026-04-22"
+    }
+  ],
+  "knownFalsePositives": "Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time",
+    "esp_zone",
+    "protocol",
+    "action",
+    "src_ip",
+    "dest_ip"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-22",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A",
+  "grandmaExplanation": "FERC Order 887 requires monitoring network traffic inside power grid control centres — so you can show exactly what is being watched and when something went wrong.",
+  "subcategory": "22.50#1"
+}

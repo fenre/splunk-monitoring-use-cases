@@ -14,7 +14,7 @@
 | Regulation | Tier | Jurisdiction | Version | Coverage | Priority-weighted | Pack |
 |---|---|---|---|---|---|---|
 | **GDPR** | Tier 1 | EU, EEA | `2016/679` | 100.0% | 100.0% | [`gdpr.md`](gdpr.md) |
-| **UK GDPR** | Tier 2 | UK | `post-Brexit` | 0.0% | 0.0% | [`uk-gdpr.md`](uk-gdpr.md) |
+| **UK GDPR** | Tier 2 | UK | `post-Brexit` | 100.0% | 100.0% | [`uk-gdpr.md`](uk-gdpr.md) |
 | **PCI DSS** | Tier 1 | GLOBAL | `v4.0` | 100.0% | 100.0% | [`pci-dss.md`](pci-dss.md) |
 | **HIPAA Security** | Tier 1 | US | `2013-final` | 100.0% | 100.0% | [`hipaa-security.md`](hipaa-security.md) |
 | **SOX ITGC** | Tier 1 | US | `PCAOB AS 2201` | 100.0% | 100.0% | [`sox-itgc.md`](sox-itgc.md) |

@@ -1,0 +1,70 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.50.39",
+  "title": "GLBA §314.4(d)(2) — Continuous monitoring: security-event detection and response-readiness evidence",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT substitute for the full regulatory control set; this UC provides one of several evidence streams and must be combined with policy, procedure, and supplemental UCs to demonstrate the complete clause.",
+  "evidence": "Scheduled search output persisted to the compliance summary index with regulation=GLBA, clause=§314.4(d)(2), available as a saved search and exportable as a CSV evidence pack for the responsible officer.",
+  "compliance": [
+    {
+      "regulation": "GLBA",
+      "version": "16 CFR 314 (2023 amendments)",
+      "clause": "§314.4(d)(2)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-C authored UC targeting GLBA §314.4(d)(2) (Continuous monitoring). Monitors security-event detection coverage and incident-response readiness; assurance level set to 'contributing' pending SME review per Phase E of the regulation-coverage plan.",
+      "controlObjective": "Evidence that GLBA §314.4(d)(2) (Continuous monitoring) is enforced — Splunk UC-22.50.39: GLBA §314.4(d)(2) — Continuous monitoring: security-event detection and response-readiness evidence.",
+      "evidenceArtifact": "Saved search 'UC-22.50.39' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "glba@16 CFR 314 (2023 amendments)#§314.4(d)(2)",
+      "requires_sme_review": true,
+      "provenance": "maintainer",
+      "smeCaveat": "Phase-C draft: SME review required before uplifting assurance from 'contributing' to 'partial' or 'full'. Confirm that the SPL captures the specific regulator expectation and that the telemetry exists in the deployment."
+    }
+  ],
+  "dataSources": "Splunk ES notable events, IDS/IPS alerts, SIEM correlation rules, incident-response ticket logs.",
+  "app": "Splunk Enterprise Security, Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "(index=notable sourcetype=stash) OR (index=incident_response sourcetype=ir_tickets) earliest=-30d\n| eval detected=if(sourcetype=\"stash\" AND isnotnull(rule_name), 1, 0)\n| eval responded=if(sourcetype=\"ir_tickets\" AND status IN (\"acknowledged\", \"investigating\", \"resolved\"), 1, 0)\n| eval response_time_hrs=if(responded=1, round((acknowledged_time - detection_time)/3600, 1), null())\n| stats sum(detected) AS detections sum(responded) AS responses avg(response_time_hrs) AS avg_response_hrs dc(rule_name) AS active_rules dc(eval(if(sourcetype=\"ir_tickets\", ticket_id, null()))) AS ir_tickets BY security_domain\n| eval detection_to_response_pct=if(detections>0, round(100*responses/detections, 1), 0)\n| where detection_to_response_pct<95 OR avg_response_hrs>4\n| table security_domain, detections, responses, detection_to_response_pct, avg_response_hrs, active_rules, ir_tickets",
+  "description": "Monitors security-event detection rates, incident-response coverage, and response times to provide evidence that continuous monitoring per GLBA §314.4(d)(2) is operational.",
+  "value": "§314.4(d)(2) requires continuous monitoring to detect actual and attempted attacks or intrusions. Tracking detection-to-response ratios and response times demonstrates the monitoring programme is effective.",
+  "implementation": "(1) Correlate ES notables with incident-response tickets; (2) schedule daily; (3) escalate low detection-to-response ratios and slow response times to SOC management.",
+  "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "GLBA Safeguards Rule (16 CFR Part 314)",
+      "url": "https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314",
+      "retrieved": "2026-04-22"
+    }
+  ],
+  "knownFalsePositives": "Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time",
+    "security_domain",
+    "rule_name",
+    "status",
+    "detection_time",
+    "acknowledged_time"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-22",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A",
+  "grandmaExplanation": "GLBA §314.4(d)(2) requires continuously watching for security threats — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security, Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: Splunk ES notable events, IDS/IPS alerts, SIEM correlation rules, incident-response ticket logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Correlate ES notables with incident-response tickets; (2) schedule daily; (3) escalate low detection-to-response ratios and slow response times to SOC management.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n(index=notable sourcetype=stash) OR (index=incident_response sourcetype=ir_tickets) earliest=-30d\n| eval detected=if(sourcetype=\"stash\" AND isnotnull(rule_name), 1, 0)\n| eval responded=if(sourcetype=\"ir_tickets\" AND status IN (\"acknowledged\", \"investigating\", \"resolved\"), 1, 0)\n| eval response_time_hrs=if(responded=1, round((acknowledged_time - detection_time)/3600, 1), null())\n| stats sum(detected) AS detections sum(responded) AS responses avg(response_time_hrs) AS avg_response_hrs dc(rule_name) AS active_rules dc(eval(if(sourcetype=\"ir_tickets\", ticket_id, null()))) AS ir_tickets BY security_domain\n| eval detection_to_response_pct=if(detections>0, round(100*responses/detections, 1), 0)\n| where detection_to_response_pct<95 OR avg_response_hrs>4\n| table security_domain, detections, responses, detection_to_response_pct, avg_response_hrs, active_rules, ir_tickets\n```\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "subcategory": "22.50#1"
+}
