@@ -1,0 +1,69 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.50.33",
+  "title": "COSO Principle 11 — Technology general controls: IT change-management and configuration-drift monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "IT Operations",
+  "owner": "Head of IT",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT substitute for the full regulatory control set; this UC provides one of several evidence streams and must be combined with policy, procedure, and supplemental UCs to demonstrate the complete clause.",
+  "evidence": "Scheduled search output persisted to the compliance summary index with regulation=COSO, clause=Principle11, available as a saved search and exportable as a CSV evidence pack for the responsible officer.",
+  "compliance": [
+    {
+      "regulation": "COSO",
+      "version": "2013 ICFR",
+      "clause": "Principle11",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-C authored UC targeting COSO Principle 11 (Selects and develops general controls over technology). Monitors IT change management and configuration drift; assurance level set to 'contributing' pending SME review per Phase E of the regulation-coverage plan.",
+      "controlObjective": "Evidence that COSO Principle 11 (Selects and develops general controls over technology) is enforced — Splunk UC-22.50.33: COSO Principle 11 — Technology general controls: IT change-management and configuration-drift monitoring.",
+      "evidenceArtifact": "Saved search 'UC-22.50.33' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "coso@2013 ICFR#Principle11",
+      "requires_sme_review": true,
+      "provenance": "maintainer",
+      "smeCaveat": "Phase-C draft: SME review required before uplifting assurance from 'contributing' to 'partial' or 'full'. Confirm that the SPL captures the specific regulator expectation and that the telemetry exists in the deployment."
+    }
+  ],
+  "dataSources": "Change-management ticket systems (ServiceNow/Jira), configuration-management database (CMDB), configuration-compliance scans.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=change_mgmt sourcetype IN (change_tickets, config_drift) earliest=-30d\n| eval unauthorised=if(sourcetype=\"config_drift\" AND isnotnull(drift_detected) AND isnull(change_ticket_ref), 1, 0)\n| eval approved=if(sourcetype=\"change_tickets\" AND approval_status=\"approved\", 1, 0)\n| eval emergency=if(change_type=\"emergency\", 1, 0)\n| stats count AS total_changes sum(unauthorised) AS unauthorised_changes sum(approved) AS approved_changes sum(emergency) AS emergency_changes dc(affected_ci) AS affected_assets BY environment, change_category\n| eval approval_pct=round(100*approved_changes/total_changes, 1)\n| where unauthorised_changes>0 OR approval_pct<100\n| table environment, change_category, total_changes, approved_changes, unauthorised_changes, emergency_changes, approval_pct, affected_assets",
+  "description": "Monitors IT change-management approval rates and detects configuration drift without corresponding change tickets, providing evidence of COSO Principle 11 technology general controls.",
+  "value": "COSO Principle 11 requires selection and development of general controls over technology. Continuous change-management and configuration-drift monitoring provides auditable evidence that IT general controls are effective.",
+  "implementation": "(1) Ingest change-ticket and config-drift events with change_ticket_ref, approval_status, change_type; (2) correlate drift with change tickets; (3) schedule daily; (4) escalate unauthorised changes.",
+  "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "COSO Internal Control — Integrated Framework (2013)",
+      "url": "https://www.coso.org/guidance-on-ic",
+      "retrieved": "2026-04-22"
+    }
+  ],
+  "knownFalsePositives": "Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time",
+    "environment",
+    "change_category",
+    "approval_status",
+    "change_ticket_ref"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-22",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A",
+  "grandmaExplanation": "COSO Principle 11 requires general controls over technology — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: Change-management ticket systems (ServiceNow/Jira), configuration-management database (CMDB), configuration-compliance scans.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest change-ticket and config-drift events with change_ticket_ref, approval_status, change_type; (2) correlate drift with change tickets; (3) schedule daily; (4) escalate unauthorised changes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=change_mgmt sourcetype IN (change_tickets, config_drift) earliest=-30d\n| eval unauthorised=if(sourcetype=\"config_drift\" AND isnotnull(drift_detected) AND isnull(change_ticket_ref), 1, 0)\n| eval approved=if(sourcetype=\"change_tickets\" AND approval_status=\"approved\", 1, 0)\n| eval emergency=if(change_type=\"emergency\", 1, 0)\n| stats count AS total_changes sum(unauthorised) AS unauthorised_changes sum(approved) AS approved_changes sum(emergency) AS emergency_changes dc(affected_ci) AS affected_assets BY environment, change_category\n| eval approval_pct=round(100*approved_changes/total_changes, 1)\n| where unauthorised_changes>0 OR approval_pct<100\n| table environment, change_category, total_changes, approved_changes, unauthorised_changes, emergency_changes, approval_pct, affected_assets\n```\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "subcategory": "22.50#1"
+}

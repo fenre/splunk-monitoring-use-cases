@@ -1,0 +1,70 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.50.32",
+  "title": "COSO Principle 5 — Accountability enforcement: segregation-of-duties and access-review evidence",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Chief Compliance Officer",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT substitute for the full regulatory control set; this UC provides one of several evidence streams and must be combined with policy, procedure, and supplemental UCs to demonstrate the complete clause.",
+  "evidence": "Scheduled search output persisted to the compliance summary index with regulation=COSO, clause=Principle5, available as a saved search and exportable as a CSV evidence pack for the responsible officer.",
+  "compliance": [
+    {
+      "regulation": "COSO",
+      "version": "2013 ICFR",
+      "clause": "Principle5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-C authored UC targeting COSO Principle 5 (Enforces accountability). Monitors SoD violations and access-review completion; assurance level set to 'contributing' pending SME review per Phase E of the regulation-coverage plan.",
+      "controlObjective": "Evidence that COSO Principle 5 (Enforces accountability) is enforced — Splunk UC-22.50.32: COSO Principle 5 — Accountability enforcement: segregation-of-duties and access-review evidence.",
+      "evidenceArtifact": "Saved search 'UC-22.50.32' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "coso@2013 ICFR#Principle5",
+      "requires_sme_review": true,
+      "provenance": "maintainer",
+      "smeCaveat": "Phase-C draft: SME review required before uplifting assurance from 'contributing' to 'partial' or 'full'. Confirm that the SPL captures the specific regulator expectation and that the telemetry exists in the deployment."
+    }
+  ],
+  "dataSources": "IAM role-assignment logs, SoD conflict matrix, access-review campaign results.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=iam sourcetype IN (role_assignments, sod_violations, access_reviews) earliest=-30d\n| eval is_sod_conflict=if(sourcetype=\"sod_violations\", 1, 0)\n| eval review_completed=if(sourcetype=\"access_reviews\" AND review_status=\"completed\", 1, 0)\n| stats sum(is_sod_conflict) AS sod_violations dc(eval(if(sourcetype=\"access_reviews\", campaign_id, null()))) AS review_campaigns sum(review_completed) AS reviews_completed dc(user) AS users_reviewed BY business_unit\n| eval sod_risk=if(sod_violations>0, \"elevated\", \"normal\")\n| where sod_violations>0 OR reviews_completed=0\n| table business_unit, sod_violations, sod_risk, review_campaigns, reviews_completed, users_reviewed",
+  "description": "Monitors segregation-of-duties violations and access-review completion rates to provide evidence that the organisation enforces accountability per COSO Principle 5.",
+  "value": "COSO Principle 5 requires that the organisation holds individuals accountable for internal control responsibilities. SoD monitoring and access-review tracking provides auditable evidence of accountability enforcement.",
+  "implementation": "(1) Ingest IAM role-assignment and SoD-violation events; (2) ingest access-review campaign results; (3) schedule weekly; (4) escalate SoD conflicts to compliance team.",
+  "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "cimModels": [
+    "Authentication",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "COSO Internal Control — Integrated Framework (2013)",
+      "url": "https://www.coso.org/guidance-on-ic",
+      "retrieved": "2026-04-22"
+    }
+  ],
+  "knownFalsePositives": "Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time",
+    "business_unit",
+    "user",
+    "review_status",
+    "sourcetype"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-22",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A",
+  "grandmaExplanation": "COSO Principle 5 requires enforcing accountability — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: IAM role-assignment logs, SoD conflict matrix, access-review campaign results.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest IAM role-assignment and SoD-violation events; (2) ingest access-review campaign results; (3) schedule weekly; (4) escalate SoD conflicts to compliance team.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=iam sourcetype IN (role_assignments, sod_violations, access_reviews) earliest=-30d\n| eval is_sod_conflict=if(sourcetype=\"sod_violations\", 1, 0)\n| eval review_completed=if(sourcetype=\"access_reviews\" AND review_status=\"completed\", 1, 0)\n| stats sum(is_sod_conflict) AS sod_violations dc(eval(if(sourcetype=\"access_reviews\", campaign_id, null()))) AS review_campaigns sum(review_completed) AS reviews_completed dc(user) AS users_reviewed BY business_unit\n| eval sod_risk=if(sod_violations>0, \"elevated\", \"normal\")\n| where sod_violations>0 OR reviews_completed=0\n| table business_unit, sod_violations, sod_risk, review_campaigns, reviews_completed, users_reviewed\n```\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "subcategory": "22.50#1"
+}

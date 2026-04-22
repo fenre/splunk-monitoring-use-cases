@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.50.28",
+  "title": "COBIT MEA02.01 — Internal-control monitoring: control-exception tracking and remediation evidence",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "IT Operations",
+  "owner": "Head of Internal Audit",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT substitute for the full regulatory control set; this UC provides one of several evidence streams and must be combined with policy, procedure, and supplemental UCs to demonstrate the complete clause.",
+  "evidence": "Scheduled search output persisted to the compliance summary index with regulation=COBIT, clause=MEA02.01, available as a saved search and exportable as a CSV evidence pack for the responsible officer.",
+  "compliance": [
+    {
+      "regulation": "COBIT",
+      "version": "2019",
+      "clause": "MEA02.01",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-C authored UC targeting COBIT MEA02.01 (Monitor internal controls). Tracks control exceptions and remediation timelines; assurance level set to 'contributing' pending SME review per Phase E of the regulation-coverage plan.",
+      "controlObjective": "Evidence that COBIT MEA02.01 (Monitor internal controls) is enforced — Splunk UC-22.50.28: COBIT MEA02.01 — Internal-control monitoring: control-exception tracking and remediation evidence.",
+      "evidenceArtifact": "Saved search 'UC-22.50.28' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "obligationRef": "cobit@2019#MEA02.01",
+      "requires_sme_review": true,
+      "provenance": "maintainer",
+      "smeCaveat": "Phase-C draft: SME review required before uplifting assurance from 'contributing' to 'partial' or 'full'. Confirm that the SPL captures the specific regulator expectation and that the telemetry exists in the deployment."
+    }
+  ],
+  "dataSources": "GRC platform control-exception exports, audit-finding trackers, remediation ticketing systems.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=grc_compliance sourcetype IN (control_exceptions, audit_findings) earliest=-90d\n| eval days_open=round((now()-_time)/86400)\n| eval overdue=if(days_open > remediation_sla_days, 1, 0)\n| stats count AS total_exceptions sum(overdue) AS overdue_count avg(days_open) AS avg_age max(days_open) AS max_age dc(control_id) AS distinct_controls BY control_domain, severity\n| eval overdue_pct=round(100*overdue_count/total_exceptions, 1)\n| where overdue_count>0\n| sort -overdue_count\n| table control_domain, severity, total_exceptions, overdue_count, overdue_pct, avg_age, max_age, distinct_controls",
+  "description": "Tracks control exceptions across domains and monitors remediation SLA adherence, providing evidence of MEA02.01 internal-control monitoring and continuous improvement.",
+  "value": "MEA02.01 requires continuous monitoring of the internal-control system. Tracking exceptions and remediation timelines provides evidence that the control environment is actively managed.",
+  "implementation": "(1) Ingest control-exception and audit-finding data with control_id, control_domain, severity, and remediation_sla_days; (2) schedule weekly; (3) escalate overdue items to Internal Audit dashboard.",
+  "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "COBIT 2019 Framework",
+      "url": "https://www.isaca.org/resources/cobit",
+      "retrieved": "2026-04-22"
+    }
+  ],
+  "knownFalsePositives": "Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time",
+    "control_domain",
+    "control_id",
+    "severity",
+    "remediation_sla_days"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-22",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A",
+  "grandmaExplanation": "MEA02.01 requires monitoring internal controls — so you can show exactly what is being watched and when something went wrong.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: GRC platform control-exception exports, audit-finding trackers, remediation ticketing systems.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest control-exception and audit-finding data with control_id, control_domain, severity, and remediation_sla_days; (2) schedule weekly; (3) escalate overdue items to Internal Audit dashboard.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=grc_compliance sourcetype IN (control_exceptions, audit_findings) earliest=-90d\n| eval days_open=round((now()-_time)/86400)\n| eval overdue=if(days_open > remediation_sla_days, 1, 0)\n| stats count AS total_exceptions sum(overdue) AS overdue_count avg(days_open) AS avg_age max(days_open) AS max_age dc(control_id) AS distinct_controls BY control_domain, severity\n| eval overdue_pct=round(100*overdue_count/total_exceptions, 1)\n| where overdue_count>0\n| sort -overdue_count\n| table control_domain, severity, total_exceptions, overdue_count, overdue_pct, avg_age, max_age, distinct_controls\n```\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "subcategory": "22.50#1"
+}
