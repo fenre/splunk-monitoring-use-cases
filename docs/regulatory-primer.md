@@ -18,7 +18,7 @@
 1. [How to read this primer](#1-how-to-read-this-primer)
 2. [Legend and terminology](#2-legend-and-terminology)
 3. [Cross-cutting regulatory families (22.35 – 22.49)](#3-cross-cutting-regulatory-families-2235--2249)
-4. [Tier-1 regulation deep dives](#4-tier-1-regulation-deep-dives) — 12 in-depth entries
+4. [Tier-1 regulation deep dives](#4-tier-1-regulation-deep-dives) — 11 in-depth entries
 5. [Derivative regulations (propagated via `derivesFrom`)](#5-derivative-regulations-propagated-via-derivesfrom)
 6. [Appendix A — All 34 per-regulation subcategories at a glance](#appendix-a--all-34-per-regulation-subcategories-at-a-glance)
 7. [Appendix B — Data-protection / privacy regulations worldwide](#appendix-b--data-protection--privacy-regulations-worldwide)
@@ -38,7 +38,7 @@ programmes think:
   tampered with?" or "can you demonstrate that breach notifications were sent
   within the statutory window?". Most auditors ask family-level questions
   long before they ask a clause-level question.
-- **By regulation** — 12 tier-1 frameworks covered deeply, plus 34 per-regulation
+- **By regulation** — 11 tier-1 frameworks covered deeply, plus 34 per-regulation
   subcategories (cat-22 subcategories 22.1 through 22.34) and an additional 48
   tier-2 frameworks in the appendix. Regulation-level reading is the right
   choice when you are answering a specific audit, mapping against a specific
@@ -63,8 +63,8 @@ referenced in [Appendix D](#appendix-d--provenance-and-authoritative-sources).
 
 | Badge | Meaning |
 |-------|---------|
-| `T1`  | **Tier 1** — a top-priority regulation the catalogue targets at 100% common-clauses coverage. 12 frameworks; see `api/v1/compliance/coverage.json`. |
-| `T2`  | **Tier 2** — authored to meaningful partial coverage; 48 frameworks including all 5 derivative privacy regulations. |
+| `T1`  | **Tier 1** — a top-priority regulation the catalogue targets at 100% common-clauses coverage. 11 frameworks; see `api/v1/compliance/coverage.json`. |
+| `T2`  | **Tier 2** — authored to meaningful partial coverage; 56 frameworks including all 5 derivative privacy regulations. |
 | `T3`  | **Tier 3** — referenced or meta-frameworks; 1 today (`meta-multi`). |
 
 ### Assurance levels

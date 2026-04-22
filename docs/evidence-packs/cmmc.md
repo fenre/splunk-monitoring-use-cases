@@ -42,7 +42,7 @@ All DoD contractors and subcontractors handling FCI or CUI. Level 1: 15 basic sa
 - **Clauses tracked**: 9
 - **Clauses covered by at least one UC**: 9 / 9 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 18
+- **Contributing UCs**: 19
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -54,7 +54,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 |---|---|---|---|---|
 | [`AC.L2-3.1.1`](https://dodcio.defense.gov/CMMC/#AC.L2-3.1.1) | Authorized access to systems | 1.0 | `partial` | [UC-22.20.1](#uc-22-20-1), [UC-22.20.10](#uc-22-20-10), [UC-22.20.11](#uc-22-20-11), [UC-22.20.12](#uc-22-20-12), [UC-22.20.13](#uc-22-20-13), [UC-22.20.14](#uc-22-20-14) (+2 more) |
 | [`AC.L2-3.1.5`](https://dodcio.defense.gov/CMMC/#AC.L2-3.1.5) | Least privilege | 1.0 | `partial` | [UC-22.20.2](#uc-22-20-2) |
-| [`AU.L2-3.3.1`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.1) | Create audit records | 1.0 | `partial` | [UC-22.20.3](#uc-22-20-3) |
+| [`AU.L2-3.3.1`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.1) | Create audit records | 1.0 | `partial` | [UC-10.12.40](#uc-10-12-40), [UC-22.20.3](#uc-22-20-3) |
 | [`AU.L2-3.3.2`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.2) | Ensure unique user traceability | 1.0 | `partial` | [UC-22.20.4](#uc-22-20-4) |
 | [`AU.L2-3.3.5`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.5) | Audit reporting and correlation | 1.0 | `partial` | [UC-22.20.5](#uc-22-20-5), [UC-22.32.19](#uc-22-32-19) |
 | [`CM.L2-3.4.1`](https://dodcio.defense.gov/CMMC/#CM.L2-3.4.1) | Baseline configurations | 1.0 | `partial` | [UC-22.20.6](#uc-22-20-6) |
@@ -64,6 +64,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 ### 4.1 Contributing UC detail
 
+<a id='uc-10-12-40'></a>
+- **UC-10.12.40** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
 <a id='uc-22-20-1'></a>
 - **UC-22.20.1** —
   - Control family: `—`
@@ -302,7 +308,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 7.1
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     377470c73dba056ab0cbf2997ee97a0efe523076b02f1b8df1f89082c148fe99
+inputs_sha256:     d182323bff36ebe11168f94776fbb9639b116f5b15f71d1bf7d161c41626f5bc
 ```
 
 To re-generate:

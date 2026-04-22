@@ -40,24 +40,40 @@ Applies to controllers and processors established in the UK and to those outside
 
 ## 3. Catalogue coverage at a glance
 
-- **Clauses tracked**: 1
-- **Clauses covered by at least one UC**: 1 / 1 (100.0%)
-- **Priority-weighted coverage**: 100.0%
-- **Assurance-adjusted coverage**: 25.0%
-- **Contributing UCs**: 1
-- **Derived via `derivesFrom`**: parent `gdpr` (mode `identity`). The UK GDPR `commonClauses` in `data/regulations.json` currently tracks only `Art.32` (security of processing) as the priority clause for independent coverage. Parent GDPR UCs provide broader evidence for inherited clauses but are not counted in this pack's native coverage. Native hand-authored mappings take precedence. Known divergences are listed in `data/regulations.json derivesFrom[].divergences`.
+- **Clauses tracked**: 20
+- **Clauses covered by at least one UC**: 0 / 20 (0.0%)
+- **Priority-weighted coverage**: 0.0%
+- **Contributing UCs**: 0
+- **Derived via `derivesFrom`**: parent `gdpr` (mode `identity`). Identity-mode derivatives inherit the parent's full clause set unless explicitly diverged. This pack reports coverage against the **inherited parent clause inventory** so the auditor view is comparable to the parent. Inherited mappings carry assurance degraded one step from the parent and are marked `provenance: derived-from-parent` in the UC sidecar. Native hand-authored mappings take precedence. Known divergences are listed in `data/regulations.json derivesFrom[].divergences`.
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
 ## 4. Clause-by-clause coverage
 
-The UK GDPR `commonClauses` in `data/regulations.json` currently tracks `Art.32` (security of processing) as the priority clause for independent coverage. Broader GDPR clauses are covered via the parent `gdpr` identity inheritance but are not counted in this pack's native coverage metric. A clause is considered covered when at least one UC sidecar has a `compliance[]` entry matching `(regulation, version, clause)`. Assurance is the maximum across contributing UCs.
+Because this regulation derives from `gdpr` with identity inheritance, the clause inventory below merges the parent's commonClauses (from `data/regulations.json`) with any divergent clauses the derivative explicitly redefines. A clause is considered covered when at least one UC sidecar has a `compliance[]` entry matching `(regulation, version, clause)`. Assurance is the maximum across contributing UCs.
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`Art.32`](https://www.legislation.gov.uk/eur/2016/679/article/Art.32) | Security of processing | 1.0 | `contributing` | UC-22.1.1 and inherited GDPR UCs |
-
-**Note on inherited coverage:** The remaining GDPR clauses (Art.5, Art.6, Art.7, Art.15--Art.22, Art.25, Art.28, Art.30, Art.33--Art.35, Art.44--Art.46) are covered through parent GDPR UCs via the `derivesFrom` identity relationship. Consult the [GDPR evidence pack](gdpr.md) for full clause-level detail on those inherited mappings.
+| [`Art.5`](https://www.legislation.gov.uk/eur/2016/679/article/Art.5) | Principles of processing | 1.0 | `—` | _not yet covered_ |
+| [`Art.6`](https://www.legislation.gov.uk/eur/2016/679/article/Art.6) | Lawful basis | 1.0 | `—` | _not yet covered_ |
+| [`Art.7`](https://www.legislation.gov.uk/eur/2016/679/article/Art.7) | Conditions for consent | 0.7 | `—` | _not yet covered_ |
+| [`Art.15`](https://www.legislation.gov.uk/eur/2016/679/article/Art.15) | Right of access | 1.0 | `—` | _not yet covered_ |
+| [`Art.16`](https://www.legislation.gov.uk/eur/2016/679/article/Art.16) | Right to rectification | 0.7 | `—` | _not yet covered_ |
+| [`Art.17`](https://www.legislation.gov.uk/eur/2016/679/article/Art.17) | Right to erasure | 1.0 | `—` | _not yet covered_ |
+| [`Art.18`](https://www.legislation.gov.uk/eur/2016/679/article/Art.18) | Right to restrict processing | 0.7 | `—` | _not yet covered_ |
+| [`Art.20`](https://www.legislation.gov.uk/eur/2016/679/article/Art.20) | Right to data portability | 0.7 | `—` | _not yet covered_ |
+| [`Art.21`](https://www.legislation.gov.uk/eur/2016/679/article/Art.21) | Right to object | 0.7 | `—` | _not yet covered_ |
+| [`Art.22`](https://www.legislation.gov.uk/eur/2016/679/article/Art.22) | Automated decision making | 0.7 | `—` | _not yet covered_ |
+| [`Art.25`](https://www.legislation.gov.uk/eur/2016/679/article/Art.25) | Data protection by design and by default | 1.0 | `—` | _not yet covered_ |
+| [`Art.28`](https://www.legislation.gov.uk/eur/2016/679/article/Art.28) | Processor obligations | 1.0 | `—` | _not yet covered_ |
+| [`Art.30`](https://www.legislation.gov.uk/eur/2016/679/article/Art.30) | Records of processing | 1.0 | `—` | _not yet covered_ |
+| [`Art.32`](https://www.legislation.gov.uk/eur/2016/679/article/Art.32) | Security of processing | 1.0 | `—` | _not yet covered_ |
+| [`Art.33`](https://www.legislation.gov.uk/eur/2016/679/article/Art.33) | Breach notification to supervisory authority | 1.0 | `—` | _not yet covered_ |
+| [`Art.34`](https://www.legislation.gov.uk/eur/2016/679/article/Art.34) | Breach communication to data subjects | 1.0 | `—` | _not yet covered_ |
+| [`Art.35`](https://www.legislation.gov.uk/eur/2016/679/article/Art.35) | DPIA | 0.7 | `—` | _not yet covered_ |
+| [`Art.44`](https://www.legislation.gov.uk/eur/2016/679/article/Art.44) | International transfers — general principle | 1.0 | `—` | _not yet covered_ |
+| [`Art.45`](https://www.legislation.gov.uk/eur/2016/679/article/Art.45) | Transfers via adequacy decision | 0.7 | `—` | _not yet covered_ |
+| [`Art.46`](https://www.legislation.gov.uk/eur/2016/679/article/Art.46) | Transfers subject to safeguards | 0.7 | `—` | _not yet covered_ |
 
 ## 5. Evidence collection
 
@@ -202,7 +218,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 7.1
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     377470c73dba056ab0cbf2997ee97a0efe523076b02f1b8df1f89082c148fe99
+inputs_sha256:     d182323bff36ebe11168f94776fbb9639b116f5b15f71d1bf7d161c41626f5bc
 ```
 
 To re-generate:

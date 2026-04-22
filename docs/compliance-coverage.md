@@ -1,28 +1,28 @@
 # Compliance coverage report
 
-Status: **passed**  |  Generated: 2026-04-20T14:30:19Z
+Status: **passed**  |  Generated: 2026-04-22T09:13:03Z
 
 ## Summary
 
-* UC files checked: **6447**
-* UC files valid:   **6447**
-* Compliance entries: **1931**
-* Findings: **64** (errors: **0**, baselined: **33**)
-* Baseline (`tests/golden/audit-baseline.json`): total **33**, tolerated this run **33**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
+* UC files checked: **6469**
+* UC files valid:   **6469**
+* Compliance entries: **1986**
+* Findings: **35** (errors: **0**, baselined: **0**)
+* Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
 ## Global coverage (all tiers)
 
-* Clause coverage %: **95.3353**
-* Priority-weighted %: **95.3538**
-* Assurance-adjusted %: **57.1077**
+* Clause coverage %: **100.0**
+* Priority-weighted %: **100.0**
+* Assurance-adjusted %: **62.22**
 
 ## Per tier
 
 | Tier | Clause % | Priority-weighted % | Assurance-adjusted % |
 |------|----------|----------------------|-----------------------|
-| tier-1 | 100.0 | 100.0 | 73.0656 |
-| tier-2 | 88.8889 | 89.1289 | 35.7271 |
-| tier-3 | n/a (no common clauses defined) | n/a | n/a |
+| tier-1 | 100.0 | 100.0 | 75.1881 |
+| tier-2 | 100.0 | 100.0 | 45.7398 |
+| tier-3 | 100.0 | 100.0 | 25.0 |
 
 ## Per family (derivesFrom roots)
 
@@ -31,56 +31,57 @@ Status: **passed**  |  Generated: 2026-04-20T14:30:19Z
 | api-rp-1164 | 100.0 | 100.0 | 50.0 |
 | apra-cps-234 | 100.0 | 100.0 | 43.5185 |
 | asd-e8 | 100.0 | 100.0 | 55.0 |
-| au-privacy-act | 100.0 | 100.0 | 25.0 |
+| au-privacy-act | 100.0 | 100.0 | 50.0 |
 | bait-kait | 100.0 | 100.0 | 50.0 |
-| basel-iii | 0.0 | 0.0 | 0.0 |
-| bsi-kritisv | 100.0 | 100.0 | 25.0 |
+| basel-iii | 100.0 | 100.0 | 25.0 |
+| bsi-kritisv | 100.0 | 100.0 | 50.0 |
 | cjis | 100.0 | 100.0 | 37.5 |
 | cmmc | 100.0 | 100.0 | 50.0 |
-| cobit | 0.0 | 0.0 | 0.0 |
-| coppa | 0.0 | 0.0 | 0.0 |
-| coso | 0.0 | 0.0 | 0.0 |
+| cobit | 100.0 | 100.0 | 25.0 |
+| coppa | 100.0 | 100.0 | 25.0 |
+| coso | 100.0 | 100.0 | 25.0 |
 | dora | 100.0 | 100.0 | 71.8284 |
-| eidas | 100.0 | 100.0 | 25.0 |
+| eidas | 100.0 | 100.0 | 50.0 |
 | eu-ai-act | 100.0 | 100.0 | 29.386 |
-| eu-aml | 100.0 | 100.0 | 25.0 |
+| eu-aml | 100.0 | 100.0 | 50.0 |
 | eu-cra | 100.0 | 100.0 | 75.0 |
-| fca-smcr | 100.0 | 100.0 | 25.0 |
+| fca-smcr | 100.0 | 100.0 | 50.0 |
 | fca-ss1-21 | 100.0 | 100.0 | 41.6667 |
 | fda-part-11 | 100.0 | 100.0 | 58.3333 |
 | fedramp | 100.0 | 100.0 | 66.6667 |
-| ferpa | 0.0 | 0.0 | 0.0 |
-| fisma | 100.0 | 100.0 | 25.0 |
+| ferc-cip | 100.0 | 100.0 | 25.0 |
+| ferpa | 100.0 | 100.0 | 25.0 |
+| fisma | 100.0 | 100.0 | 50.0 |
 | gdpr | 100.0 | 100.0 | 63.0556 |
-| glba | 0.0 | 0.0 | 0.0 |
+| glba | 100.0 | 100.0 | 25.0 |
 | hipaa-privacy | 100.0 | 100.0 | 32.3529 |
 | hipaa-security | 100.0 | 100.0 | 59.9638 |
 | hitrust | 100.0 | 100.0 | 75.0 |
-| hkma-tm-g-2 | 100.0 | 100.0 | 25.0 |
+| hkma-tm-g-2 | 100.0 | 100.0 | 50.0 |
 | iec-62443 | 100.0 | 100.0 | 45.2703 |
 | iso-27001 | 100.0 | 100.0 | 84.7656 |
 | it-grundschutz | 100.0 | 100.0 | 75.0 |
-| it-sig-2 | 100.0 | 100.0 | 25.0 |
+| it-sig-2 | 100.0 | 100.0 | 50.0 |
 | mas-trm | 100.0 | 100.0 | 33.3333 |
 | meta-multi | 0.0 | 0.0 | 0.0 |
-| mifid-ii | 100.0 | 100.0 | 25.0 |
+| mifid-ii | 100.0 | 100.0 | 50.0 |
 | nerc-cip | 100.0 | 100.0 | 65.0 |
-| nesa-uae-ias | 100.0 | 100.0 | 25.0 |
+| nesa-uae-ias | 100.0 | 100.0 | 50.0 |
 | nis2 | 100.0 | 100.0 | 51.5351 |
 | nist-800-53 | 100.0 | 100.0 | 67.316 |
-| nist-csf | 100.0 | 100.0 | 46.8586 |
-| no-kbf-nve | 100.0 | 100.0 | 25.0 |
-| no-personopplysningsloven | 100.0 | 100.0 | 25.0 |
-| no-petroleumsforskriften | 100.0 | 100.0 | 25.0 |
-| no-sikkerhetsloven | 100.0 | 100.0 | 25.0 |
-| nzism | 100.0 | 100.0 | 25.0 |
+| nist-csf | 100.0 | 100.0 | 67.5393 |
+| no-kbf-nve | 100.0 | 100.0 | 50.0 |
+| no-personopplysningsloven | 100.0 | 100.0 | 50.0 |
+| no-petroleumsforskriften | 100.0 | 100.0 | 50.0 |
+| no-sikkerhetsloven | 100.0 | 100.0 | 50.0 |
+| nzism | 100.0 | 100.0 | 50.0 |
 | pci-dss | 100.0 | 100.0 | 94.7183 |
-| pipl | 100.0 | 100.0 | 25.0 |
+| pipl | 100.0 | 100.0 | 50.0 |
 | pra-ss2-21 | 100.0 | 100.0 | 37.5 |
 | psd2 | 100.0 | 100.0 | 41.6667 |
-| qcb-cyber | 100.0 | 100.0 | 25.0 |
+| qcb-cyber | 100.0 | 100.0 | 50.0 |
 | rbi-cyber | 100.0 | 100.0 | 37.5 |
-| sa-pdpl | 100.0 | 100.0 | 25.0 |
+| sa-pdpl | 100.0 | 100.0 | 50.0 |
 | sama-csf | 100.0 | 100.0 | 37.5 |
 | sg-pdpa | 100.0 | 100.0 | 50.0 |
 | soc-2 | 100.0 | 100.0 | 87.5899 |
@@ -89,6 +90,8 @@ Status: **passed**  |  Generated: 2026-04-20T14:30:19Z
 | tsa-sd | 100.0 | 100.0 | 50.0 |
 | uk-cyber-essentials | 100.0 | 100.0 | 50.0 |
 | uk-nis | 100.0 | 100.0 | 37.5 |
+| unece-r155 | 100.0 | 100.0 | 25.0 |
+| unece-r156 | 100.0 | 100.0 | 25.0 |
 
 ## Per regulation-version
 
@@ -98,61 +101,62 @@ Status: **passed**  |  Generated: 2026-04-20T14:30:19Z
 | APPI@2022 amendments | 2 | 100.0 | 100.0 | 37.5 |
 | APRA CPS 234@current | 2 | 100.0 | 100.0 | 43.5185 |
 | ASD E8@Nov 2023 | 2 | 100.0 | 100.0 | 55.0 |
-| AU Privacy Act@current | 2 | 100.0 | 100.0 | 25.0 |
+| AU Privacy Act@current | 2 | 100.0 | 100.0 | 50.0 |
 | BAIT/KAIT@Aug 2021 | 2 | 100.0 | 100.0 | 50.0 |
-| BSI-KritisV@2021 (as amended) | 2 | 100.0 | 100.0 | 25.0 |
-| Basel III@BCBS 2021 | 2 | 0.0 | 0.0 | 0.0 |
+| BSI-KritisV@2021 (as amended) | 2 | 100.0 | 100.0 | 50.0 |
+| Basel III@BCBS 2021 | 2 | 100.0 | 100.0 | 25.0 |
 | CCPA/CPRA@CPRA (as amended) | 2 | 100.0 | 100.0 | 87.037 |
 | CJIS@v5.9.4 | 2 | 100.0 | 100.0 | 37.5 |
 | CMMC@2.0 | 1 | 100.0 | 100.0 | 50.0 |
-| COBIT@2019 | 2 | 0.0 | 0.0 | 0.0 |
-| COPPA@16 CFR 312 | 2 | 0.0 | 0.0 | 0.0 |
-| COSO@2013 ICFR | 2 | 0.0 | 0.0 | 0.0 |
+| COBIT@2019 | 2 | 100.0 | 100.0 | 25.0 |
+| COPPA@16 CFR 312 | 2 | 100.0 | 100.0 | 25.0 |
+| COSO@2013 ICFR | 2 | 100.0 | 100.0 | 25.0 |
 | Cyber Essentials@Montpellier (2025) | 2 | 100.0 | 100.0 | 50.0 |
 | DORA@Regulation (EU) 2022/2554 | 1 | 100.0 | 100.0 | 71.8284 |
 | EU AI Act@Regulation (EU) 2024/1689 | 2 | 100.0 | 100.0 | 29.386 |
-| EU AML@6AMLD / AMLR 2024 | 2 | 100.0 | 100.0 | 25.0 |
+| EU AML@6AMLD / AMLR 2024 | 2 | 100.0 | 100.0 | 50.0 |
 | EU CRA@Regulation (EU) 2024/2847 | 2 | 100.0 | 100.0 | 75.0 |
-| FCA SM&CR@current | 2 | 100.0 | 100.0 | 25.0 |
+| FCA SM&CR@current | 2 | 100.0 | 100.0 | 50.0 |
 | FCA SS1/21@2021 | 2 | 100.0 | 100.0 | 41.6667 |
 | FDA Part 11@current | 2 | 100.0 | 100.0 | 58.3333 |
-| FERPA@20 USC §1232g | 2 | 0.0 | 0.0 | 0.0 |
-| FISMA@2014 | 2 | 100.0 | 100.0 | 25.0 |
+| FERC CIP@current | 3 | 100.0 | 100.0 | 25.0 |
+| FERPA@20 USC §1232g | 2 | 100.0 | 100.0 | 25.0 |
+| FISMA@2014 | 2 | 100.0 | 100.0 | 50.0 |
 | FedRAMP@Rev.5 Baselines | 2 | 100.0 | 100.0 | 66.6667 |
 | GDPR@2016/679 | 1 | 100.0 | 100.0 | 70.3757 |
-| GLBA@16 CFR 314 (2023 amendments) | 2 | 0.0 | 0.0 | 0.0 |
+| GLBA@16 CFR 314 (2023 amendments) | 2 | 100.0 | 100.0 | 25.0 |
 | HIPAA Privacy@current | 2 | 100.0 | 100.0 | 32.3529 |
 | HIPAA Security@2013-final | 1 | 100.0 | 100.0 | 59.9638 |
 | HITRUST@v11 | 2 | 100.0 | 100.0 | 75.0 |
-| HKMA TM-G-2@current | 2 | 100.0 | 100.0 | 25.0 |
+| HKMA TM-G-2@current | 2 | 100.0 | 100.0 | 50.0 |
 | IEC 62443@2013-ongoing | 2 | 100.0 | 100.0 | 45.2703 |
 | ISO 27001@2013 | 1 | 100.0 | 100.0 | 78.7234 |
 | ISO 27001@2022 | 1 | 100.0 | 100.0 | 86.1244 |
 | IT-Grundschutz@2023 Edition | 2 | 100.0 | 100.0 | 75.0 |
-| IT-SiG 2.0@2021 | 2 | 100.0 | 100.0 | 25.0 |
+| IT-SiG 2.0@2021 | 2 | 100.0 | 100.0 | 50.0 |
 | LGPD@Lei nº 13.709/2018 | 2 | 100.0 | 100.0 | 37.5 |
 | MAS TRM@2021 | 2 | 100.0 | 100.0 | 33.3333 |
-| MiFID II@Directive 2014/65/EU | 2 | 100.0 | 100.0 | 25.0 |
+| MiFID II@Directive 2014/65/EU | 2 | 100.0 | 100.0 | 50.0 |
 | Multiple@n/a | 3 | 0.0 | 0.0 | 0.0 |
 | NERC CIP@current | 2 | 100.0 | 100.0 | 65.0 |
-| NESA IAS@v2 (2020) | 2 | 100.0 | 100.0 | 25.0 |
+| NESA IAS@v2 (2020) | 2 | 100.0 | 100.0 | 50.0 |
 | NIS2@Directive (EU) 2022/2555 | 1 | 100.0 | 100.0 | 51.5351 |
 | NIST 800-53@Rev. 5 | 1 | 100.0 | 100.0 | 67.316 |
 | NIST CSF@1.1 | 1 | 100.0 | 100.0 | 100.0 |
-| NIST CSF@2.0 | 1 | 100.0 | 100.0 | 36.9565 |
-| NO KBF@2012 as amended | 2 | 100.0 | 100.0 | 25.0 |
-| NO Personopplysningsloven@2018 | 2 | 100.0 | 100.0 | 25.0 |
-| NO Petroleumsforskriften@1997 as amended | 2 | 100.0 | 100.0 | 25.0 |
-| NO Sikkerhetsloven@2018 | 2 | 100.0 | 100.0 | 25.0 |
-| NZISM@3.7 | 2 | 100.0 | 100.0 | 25.0 |
+| NIST CSF@2.0 | 1 | 100.0 | 100.0 | 61.4907 |
+| NO KBF@2012 as amended | 2 | 100.0 | 100.0 | 50.0 |
+| NO Personopplysningsloven@2018 | 2 | 100.0 | 100.0 | 50.0 |
+| NO Petroleumsforskriften@1997 as amended | 2 | 100.0 | 100.0 | 50.0 |
+| NO Sikkerhetsloven@2018 | 2 | 100.0 | 100.0 | 50.0 |
+| NZISM@3.7 | 2 | 100.0 | 100.0 | 50.0 |
 | PCI DSS@v3.2.1 | 1 | 100.0 | 100.0 | 100.0 |
 | PCI DSS@v4.0 | 1 | 100.0 | 100.0 | 93.0876 |
-| PIPL@2021 | 2 | 100.0 | 100.0 | 25.0 |
+| PIPL@2021 | 2 | 100.0 | 100.0 | 50.0 |
 | PRA SS2/21@2021 | 2 | 100.0 | 100.0 | 37.5 |
 | PSD2@Directive (EU) 2015/2366 | 2 | 100.0 | 100.0 | 41.6667 |
-| QCB Cyber@2018 | 2 | 100.0 | 100.0 | 25.0 |
+| QCB Cyber@2018 | 2 | 100.0 | 100.0 | 50.0 |
 | RBI Cyber@2016 (as amended) | 2 | 100.0 | 100.0 | 37.5 |
-| SA PDPL@current | 2 | 100.0 | 100.0 | 25.0 |
+| SA PDPL@current | 2 | 100.0 | 100.0 | 50.0 |
 | SAMA CSF@v1.0 (2017) | 2 | 100.0 | 100.0 | 37.5 |
 | SG PDPA@2020 amended | 2 | 100.0 | 100.0 | 50.0 |
 | SOC 2@2017 TSC | 1 | 100.0 | 100.0 | 87.5899 |
@@ -162,40 +166,13 @@ Status: **passed**  |  Generated: 2026-04-20T14:30:19Z
 | TSA SD@SD02C | 2 | 100.0 | 100.0 | 50.0 |
 | UK GDPR@post-Brexit | 2 | 100.0 | 100.0 | 25.0 |
 | UK NIS@2018 | 2 | 100.0 | 100.0 | 37.5 |
-| eIDAS@Regulation (EU) 2024/1183 | 2 | 100.0 | 100.0 | 25.0 |
+| UN R155@2021 | 2 | 100.0 | 100.0 | 25.0 |
+| UN R156@2021 | 2 | 100.0 | 100.0 | 25.0 |
+| eIDAS@Regulation (EU) 2024/1183 | 2 | 100.0 | 100.0 | 50.0 |
 
 ## Golden tuples
 
 * Total: **52**  |  Passed: **52**  |  Failed: **0**
-
-## Baselined (tolerated) findings — Phase 3.1 worklist (first 20)
-
-_These are pre-existing `clause-grammar` issues carried by `tests/golden/audit-baseline.json`; they do not block CI but should be resolved incrementally. The full list is in the JSON report._
-
-| UC | Code | Path | Message |
-|----|------|------|---------|
-| 1.4.8 | unknown-version | compliance[0] | regulation 'PCI DSS' (id=pci-dss) has no version 'unknown'. Known versions: ['v3.2.1', 'v4.0'] |
-| 9.3.12 | unknown-version | compliance[0] | regulation 'GDPR' (id=gdpr) has no version 'unknown'. Known versions: ['2016/679'] |
-| 10.11.62 | unknown-version | compliance[0] | regulation 'CCPA' (id=ccpa) has no version 'unknown'. Known versions: ['CPRA (as amended)'] |
-| 10.11.62 | unknown-version | compliance[1] | regulation 'GDPR' (id=gdpr) has no version 'unknown'. Known versions: ['2016/679'] |
-| 10.12.15 | unknown-version | compliance[0] | regulation 'PCI DSS' (id=pci-dss) has no version 'unknown'. Known versions: ['v3.2.1', 'v4.0'] |
-| 10.12.16 | unknown-version | compliance[0] | regulation 'HIPAA' (id=hipaa-security) has no version 'unknown'. Known versions: ['2013-final'] |
-| 10.12.17 | unknown-version | compliance[0] | regulation 'HIPAA' (id=hipaa-security) has no version 'unknown'. Known versions: ['2013-final'] |
-| 10.12.39 | unknown-version | compliance[0] | regulation 'FedRAMP' (id=fedramp) has no version 'unknown'. Known versions: ['Rev.5 Baselines'] |
-| 10.12.40 | unknown-version | compliance[0] | regulation 'CMMC' (id=cmmc) has no version 'unknown'. Known versions: ['2.0'] |
-| 10.12.41 | unknown-version | compliance[0] | regulation 'NIST 800-53' (id=nist-800-53) has no version 'unknown'. Known versions: ['Rev. 5'] |
-| 10.12.43 | unknown-version | compliance[0] | regulation 'FISMA' (id=fisma) has no version 'unknown'. Known versions: ['2014'] |
-| 10.12.44 | unknown-version | compliance[0] | regulation 'CJIS' (id=cjis) has no version 'unknown'. Known versions: ['v5.9.4'] |
-| 10.12.7 | unknown-version | compliance[0] | regulation 'PCI DSS' (id=pci-dss) has no version 'unknown'. Known versions: ['v3.2.1', 'v4.0'] |
-| 10.12.8 | unknown-version | compliance[0] | regulation 'SOX' (id=sox-itgc) has no version 'unknown'. Known versions: ['PCAOB AS 2201'] |
-| 10.14.16 | unknown-version | compliance[0] | regulation 'NERC CIP' (id=nerc-cip) has no version 'unknown'. Known versions: ['current'] |
-| 10.14.17 | unknown-version | compliance[0] | regulation 'NERC CIP' (id=nerc-cip) has no version 'unknown'. Known versions: ['current'] |
-| 10.14.18 | unknown-version | compliance[0] | regulation 'NERC CIP' (id=nerc-cip) has no version 'unknown'. Known versions: ['current'] |
-| 10.14.19 | unknown-version | compliance[0] | regulation 'NERC CIP' (id=nerc-cip) has no version 'unknown'. Known versions: ['current'] |
-| 10.3.89 | unknown-version | compliance[0] | regulation 'GDPR' (id=gdpr) has no version 'unknown'. Known versions: ['2016/679'] |
-| 10.4.111 | unknown-version | compliance[0] | regulation 'GDPR' (id=gdpr) has no version 'unknown'. Known versions: ['2016/679'] |
-
-_… and 13 more baselined findings. See `reports/compliance-coverage.json`._
 
 ---
 

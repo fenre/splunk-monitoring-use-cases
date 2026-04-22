@@ -52,23 +52,23 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`GV.OC-01`](https://csrc.nist.gov/pubs/cswp/29/final#GV.OC-01) | Organisational context | 0.7 | `contributing` | [UC-22.7.8](#uc-22-7-8) |
-| [`GV.RM-01`](https://csrc.nist.gov/pubs/cswp/29/final#GV.RM-01) | Risk management strategy | 1.0 | `contributing` | [UC-22.7.10](#uc-22-7-10) |
-| [`GV.RR-01`](https://csrc.nist.gov/pubs/cswp/29/final#GV.RR-01) | Organisational leadership | 0.7 | `contributing` | [UC-22.7.11](#uc-22-7-11) |
-| [`ID.AM-01`](https://csrc.nist.gov/pubs/cswp/29/final#ID.AM-01) | Asset inventory | 1.0 | `contributing` | [UC-22.7.1](#uc-22-7-1), [UC-22.7.16](#uc-22-7-16) |
-| [`ID.RA-01`](https://csrc.nist.gov/pubs/cswp/29/final#ID.RA-01) | Risk assessment | 1.0 | `contributing` | [UC-22.7.19](#uc-22-7-19) |
-| [`PR.AA-01`](https://csrc.nist.gov/pubs/cswp/29/final#PR.AA-01) | Authentication | 1.0 | `contributing` | [UC-22.7.23](#uc-22-7-23) |
+| [`GV.OC-01`](https://csrc.nist.gov/pubs/cswp/29/final#GV.OC-01) | Organisational context | 0.7 | `partial` | [UC-22.7.8](#uc-22-7-8) |
+| [`GV.RM-01`](https://csrc.nist.gov/pubs/cswp/29/final#GV.RM-01) | Risk management strategy | 1.0 | `partial` | [UC-22.7.10](#uc-22-7-10) |
+| [`GV.RR-01`](https://csrc.nist.gov/pubs/cswp/29/final#GV.RR-01) | Organisational leadership | 0.7 | `partial` | [UC-22.7.11](#uc-22-7-11) |
+| [`ID.AM-01`](https://csrc.nist.gov/pubs/cswp/29/final#ID.AM-01) | Asset inventory | 1.0 | `partial` | [UC-22.7.1](#uc-22-7-1), [UC-22.7.16](#uc-22-7-16) |
+| [`ID.RA-01`](https://csrc.nist.gov/pubs/cswp/29/final#ID.RA-01) | Risk assessment | 1.0 | `partial` | [UC-22.7.19](#uc-22-7-19) |
+| [`PR.AA-01`](https://csrc.nist.gov/pubs/cswp/29/final#PR.AA-01) | Authentication | 1.0 | `partial` | [UC-22.7.23](#uc-22-7-23) |
 | [`PR.AA-05`](https://csrc.nist.gov/pubs/cswp/29/final#PR.AA-05) | Access permissions | 1.0 | `full` | [UC-22.7.4](#uc-22-7-4) |
-| [`PR.DS-01`](https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-01) | Data-at-rest protection | 1.0 | `contributing` | [UC-22.7.26](#uc-22-7-26) |
-| [`PR.DS-02`](https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-02) | Data-in-transit protection | 1.0 | `contributing` | [UC-22.7.27](#uc-22-7-27) |
-| [`PR.PS-04`](https://csrc.nist.gov/pubs/cswp/29/final#PR.PS-04) | Log generation | 1.0 | `partial` | [UC-22.7.32](#uc-22-7-32) |
-| [`DE.AE-02`](https://csrc.nist.gov/pubs/cswp/29/final#DE.AE-02) | Anomalies and events analysis | 1.0 | `contributing` | [UC-22.7.37](#uc-22-7-37) |
-| [`DE.CM-01`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-01) | Network monitoring | 1.0 | `contributing` | [UC-22.7.31](#uc-22-7-31) |
-| [`DE.CM-03`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-03) | Personnel activity monitoring | 1.0 | `contributing` | [UC-22.7.33](#uc-22-7-33) |
-| [`DE.CM-09`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-09) | Environment monitoring | 0.7 | `partial` | [UC-22.7.5](#uc-22-7-5) |
-| [`RS.MA-01`](https://csrc.nist.gov/pubs/cswp/29/final#RS.MA-01) | Incident management | 1.0 | `contributing` | [UC-22.7.39](#uc-22-7-39) |
+| [`PR.DS-01`](https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-01) | Data-at-rest protection | 1.0 | `partial` | [UC-22.7.26](#uc-22-7-26) |
+| [`PR.DS-02`](https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-02) | Data-in-transit protection | 1.0 | `partial` | [UC-22.7.27](#uc-22-7-27) |
+| [`PR.PS-04`](https://csrc.nist.gov/pubs/cswp/29/final#PR.PS-04) | Log generation | 1.0 | `full` | [UC-22.7.32](#uc-22-7-32) |
+| [`DE.AE-02`](https://csrc.nist.gov/pubs/cswp/29/final#DE.AE-02) | Anomalies and events analysis | 1.0 | `partial` | [UC-22.7.37](#uc-22-7-37) |
+| [`DE.CM-01`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-01) | Network monitoring | 1.0 | `partial` | [UC-22.7.31](#uc-22-7-31) |
+| [`DE.CM-03`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-03) | Personnel activity monitoring | 1.0 | `partial` | [UC-22.7.33](#uc-22-7-33) |
+| [`DE.CM-09`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-09) | Environment monitoring | 0.7 | `full` | [UC-22.7.5](#uc-22-7-5) |
+| [`RS.MA-01`](https://csrc.nist.gov/pubs/cswp/29/final#RS.MA-01) | Incident management | 1.0 | `partial` | [UC-22.7.39](#uc-22-7-39) |
 | [`RS.AN-03`](https://csrc.nist.gov/pubs/cswp/29/final#RS.AN-03) | Incident analysis | 1.0 | `full` | [UC-22.7.6](#uc-22-7-6) |
-| [`RC.RP-01`](https://csrc.nist.gov/pubs/cswp/29/final#RC.RP-01) | Recovery plan execution | 1.0 | `contributing` | [UC-22.7.46](#uc-22-7-46) |
+| [`RC.RP-01`](https://csrc.nist.gov/pubs/cswp/29/final#RC.RP-01) | Recovery plan execution | 1.0 | `partial` | [UC-22.7.46](#uc-22-7-46) |
 
 ### 4.1 Contributing UC detail
 
@@ -304,7 +304,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 7.1
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     377470c73dba056ab0cbf2997ee97a0efe523076b02f1b8df1f89082c148fe99
+inputs_sha256:     d182323bff36ebe11168f94776fbb9639b116f5b15f71d1bf7d161c41626f5bc
 ```
 
 To re-generate:

@@ -42,7 +42,7 @@ Applies to any organisation processing personal data of individuals located in t
 - **Clauses tracked**: 20
 - **Clauses covered by at least one UC**: 20 / 20 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 42
+- **Contributing UCs**: 53
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -53,8 +53,8 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
 | [`Art.5`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.5) | Principles of processing | 1.0 | `full` | [UC-22.1.1](#uc-22-1-1), [UC-22.49.1](#uc-22-49-1), [UC-22.49.2](#uc-22-49-2) |
-| [`Art.6`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.6) | Lawful basis | 1.0 | `partial` | [UC-22.1.1](#uc-22-1-1), [UC-22.37.1](#uc-22-37-1) |
-| [`Art.7`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.7) | Conditions for consent | 0.7 | `full` | [UC-22.1.46](#uc-22-1-46), [UC-22.1.5](#uc-22-1-5), [UC-22.37.1](#uc-22-37-1), [UC-22.37.2](#uc-22-37-2), [UC-22.8.39](#uc-22-8-39) |
+| [`Art.6`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.6) | Lawful basis | 1.0 | `partial` | [UC-10.4.75](#uc-10-4-75), [UC-10.4.79](#uc-10-4-79), [UC-10.7.154](#uc-10-7-154), [UC-11.3.11](#uc-11-3-11), [UC-22.1.1](#uc-22-1-1), [UC-22.37.1](#uc-22-37-1) |
+| [`Art.7`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.7) | Conditions for consent | 0.7 | `full` | [UC-10.4.111](#uc-10-4-111), [UC-10.4.114](#uc-10-4-114), [UC-10.4.115](#uc-10-4-115), [UC-10.4.24](#uc-10-4-24), [UC-10.4.39](#uc-10-4-39), [UC-10.4.45](#uc-10-4-45) (+2 more) |
 | [`Art.15`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.15) | Right of access | 1.0 | `full` | [UC-22.1.2](#uc-22-1-2), [UC-22.36.1](#uc-22-36-1) |
 | [`Art.16`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.16) | Right to rectification | 0.7 | `contributing` | [UC-22.1.2](#uc-22-1-2) |
 | [`Art.17`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.17) | Right to erasure | 1.0 | `full` | [UC-22.1.11](#uc-22-1-11), [UC-22.1.2](#uc-22-1-2), [UC-22.36.2](#uc-22-36-2) |
@@ -65,7 +65,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`Art.25`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.25) | Data protection by design and by default | 1.0 | `contributing` | [UC-22.1.9](#uc-22-1-9) |
 | [`Art.28`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.28) | Processor obligations | 1.0 | `full` | [UC-22.1.15](#uc-22-1-15), [UC-22.44.2](#uc-22-44-2) |
 | [`Art.30`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.30) | Records of processing | 1.0 | `contributing` | [UC-22.1.43](#uc-22-1-43), [UC-22.1.8](#uc-22-1-8) |
-| [`Art.32`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.32) | Security of processing | 1.0 | `partial` | [UC-22.1.10](#uc-22-1-10), [UC-22.1.41](#uc-22-1-41), [UC-22.1.7](#uc-22-1-7), [UC-22.35.2](#uc-22-35-2), [UC-22.35.3](#uc-22-35-3), [UC-22.41.1](#uc-22-41-1) |
+| [`Art.32`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.32) | Security of processing | 1.0 | `partial` | [UC-10.11.62](#uc-10-11-62), [UC-10.3.89](#uc-10-3-89), [UC-22.1.10](#uc-22-1-10), [UC-22.1.41](#uc-22-1-41), [UC-22.1.7](#uc-22-1-7), [UC-22.35.2](#uc-22-35-2) (+2 more) |
 | [`Art.33`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.33) | Breach notification to supervisory authority | 1.0 | `full` | [UC-22.1.29](#uc-22-1-29), [UC-22.1.3](#uc-22-1-3), [UC-22.39.1](#uc-22-39-1), [UC-22.39.2](#uc-22-39-2), [UC-22.9.4](#uc-22-9-4) |
 | [`Art.34`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.34) | Breach communication to data subjects | 1.0 | `full` | [UC-22.1.13](#uc-22-1-13), [UC-22.39.3](#uc-22-39-3) |
 | [`Art.35`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.35) | DPIA | 0.7 | `contributing` | [UC-22.1.14](#uc-22-1-14) |
@@ -75,6 +75,90 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 ### 4.1 Contributing UC detail
 
+<a id='uc-10-11-62'></a>
+- **UC-10.11.62** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-10-3-89'></a>
+- **UC-10.3.89** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-10-4-111'></a>
+- **UC-10.4.111** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-10-4-114'></a>
+- **UC-10.4.114** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-10-4-115'></a>
+- **UC-10.4.115** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-10-4-24'></a>
+- **UC-10.4.24** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-10-4-39'></a>
+- **UC-10.4.39** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-10-4-45'></a>
+- **UC-10.4.45** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-10-4-75'></a>
+- **UC-10.4.75** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-10-4-79'></a>
+- **UC-10.4.79** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-10-7-137'></a>
+- **UC-10.7.137** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-10-7-154'></a>
+- **UC-10.7.154** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-10-7-166'></a>
+- **UC-10.7.166** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-11-3-11'></a>
+- **UC-11.3.11** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
 <a id='uc-22-1-1'></a>
 - **UC-22.1.1** —
   - Control family: `—`
@@ -183,12 +267,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
-<a id='uc-22-1-5'></a>
-- **UC-22.1.5** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
 <a id='uc-22-1-6'></a>
 - **UC-22.1.6** —
   - Control family: `—`
@@ -249,12 +327,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
-<a id='uc-22-37-2'></a>
-- **UC-22.37.2** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
 <a id='uc-22-38-1'></a>
 - **UC-22.38.1** —
   - Control family: `—`
@@ -311,12 +383,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Source: [``](../../)
 <a id='uc-22-49-2'></a>
 - **UC-22.49.2** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
-<a id='uc-22-8-39'></a>
-- **UC-22.8.39** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
@@ -452,7 +518,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 7.1
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     377470c73dba056ab0cbf2997ee97a0efe523076b02f1b8df1f89082c148fe99
+inputs_sha256:     d182323bff36ebe11168f94776fbb9639b116f5b15f71d1bf7d161c41626f5bc
 ```
 
 To re-generate:
