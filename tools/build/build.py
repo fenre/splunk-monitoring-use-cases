@@ -333,6 +333,7 @@ LEGACY_TOP_DIRS = (
     "img",
     "images",
     "embed",
+    "vendor",
 )
 
 # Companion static apps that live under ``tools/`` but must ship as
@@ -352,7 +353,7 @@ def _mirror_legacy_root_into_dist(out: Path, opts: BuildOptions, *, preserve_roo
     relocated to ``dist/browse/index.html`` instead of overwriting the
     SSG-emitted slim landing at ``dist/index.html``.
 
-    Skipped paths: .git, node_modules, vendor, .venv, dist, tools, scripts,
+    Skipped paths: .git, node_modules, .venv, dist, tools, scripts,
     mcp, src, content, public, terminals, .github, .cursor, .idea, .vscode.
     These are either source-only, third-party, or already handled.
     """
@@ -363,7 +364,6 @@ def _mirror_legacy_root_into_dist(out: Path, opts: BuildOptions, *, preserve_roo
         ".idea",
         ".vscode",
         "node_modules",
-        "vendor",
         ".venv",
         ".venv-feasibility",
         "venv",
