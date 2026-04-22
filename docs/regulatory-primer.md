@@ -39,7 +39,7 @@ programmes think:
   within the statutory window?". Most auditors ask family-level questions
   long before they ask a clause-level question.
 - **By regulation** — 11 tier-1 frameworks covered deeply, plus 34 per-regulation
-  subcategories (cat-22 subcategories 22.1 through 22.34) and an additional 48
+  subcategories (cat-22 subcategories 22.1 through 22.34) and an additional 56
   tier-2 frameworks in the appendix. Regulation-level reading is the right
   choice when you are answering a specific audit, mapping against a specific
   RFP, or preparing a regulator response.
@@ -65,7 +65,7 @@ referenced in [Appendix D](#appendix-d--provenance-and-authoritative-sources).
 |-------|---------|
 | `T1`  | **Tier 1** — a top-priority regulation the catalogue targets at 100% common-clauses coverage. 11 frameworks; see `api/v1/compliance/coverage.json`. |
 | `T2`  | **Tier 2** — authored to meaningful partial coverage; 56 frameworks including all 5 derivative privacy regulations. |
-| `T3`  | **Tier 3** — referenced or meta-frameworks; 1 today (`meta-multi`). |
+| `T3`  | **Tier 3** — referenced or meta-frameworks; 2 today (`meta-multi`, `ferc-cip`). |
 
 ### Assurance levels
 
@@ -128,8 +128,8 @@ A **family** is a control question that virtually every tier-1 framework
 asks in some form. The catalogue authors each family as a dedicated
 subcategory of cat-22 (subcategories 22.35 – 22.49; each ships 5 UCs = 75 UCs
 total). Families are the fastest path to multi-regulation evidence: every UC
-in this section is tagged against 3 – 6 tier-1 regulations and, after
-Phase 3.3, against the derivative privacy regulations too.
+in this section is tagged against 3 – 6 tier-1 regulations and against
+the derivative privacy regulations too.
 
 ### 3.1 22.35 — Evidence continuity and log integrity
 
@@ -627,7 +627,7 @@ data. Public authorities with specific carve-outs in Art.2.
 
 **What the catalogue delivers:** 100 % of the tier-1 `commonClauses` are
 covered. Every clause above `0.3` priority-weight has at least one UC with
-`full` or `partial` assurance. Full artefacts: cat-22 §22.1 (13 native UCs)
+`full` or `partial` assurance. Full artefacts: cat-22 §22.1 (50 dedicated UCs)
 plus 15 cross-cutting families (22.35 – 22.49) that each tag GDPR where
 applicable.
 
@@ -646,8 +646,8 @@ Information Commissioner's Office (ICO).
 data, including non-UK organisations targeting the UK market.
 
 **Key clauses and catalogue coverage:** identical clause numbering to GDPR
-above. Phase 3.3 of the catalogue applies the `derivesFrom` graph to
-propagate every GDPR mapping into UK GDPR with one-step assurance
+above. The catalogue applies the `derivesFrom` graph to propagate every
+GDPR mapping into UK GDPR with one-step assurance
 degradation (GDPR `full` → UK GDPR `partial`, GDPR `partial` → UK GDPR
 `contributing`). Known divergences flagged as `derivationSource.divergenceNote`:
 
@@ -688,10 +688,10 @@ acquirers, issuers, and service providers.
 | 11.3.x | Vulnerability scanning and pen-testing | 1.0 | full — §22.11 + 22.43 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.11 ships
-43 dedicated PCI DSS UCs (22.11.1 through 22.11.65 with gaps),
-including cardholder-data-environment boundary detection, CHD-in-logs
-prevention, PAN-in-email detection, key-custody attestation, and PCI
-DSS 4.0 customised-approach-alternative evidence packaging.
+106 dedicated PCI DSS UCs, including cardholder-data-environment
+boundary detection, CHD-in-logs prevention, PAN-in-email detection,
+key-custody attestation, and PCI DSS 4.0 customised-approach-alternative
+evidence packaging.
 
 **Where to look:** §22.11 · `api/v1/compliance/regulations/pci-dss.json` ·
 [`api/v1/compliance/regulations/pci-dss@v4.0.json`](../api/v1/compliance/regulations/pci-dss@v4.0.json).
@@ -726,7 +726,7 @@ plans, healthcare clearinghouses) and their *business associates*.
 | Breach Notification §164.400-414 | Breach notification | 1.0 | full — §22.10 + 22.39 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.10 ships
-dedicated HIPAA UCs covering ePHI access logging, audit-trail gap
+55 dedicated HIPAA UCs covering ePHI access logging, audit-trail gap
 detection, encryption of ePHI at rest and in transit, minimum-necessary
 rule enforcement, workforce-termination access revocation, and
 breach-risk-assessment artefact generation.
@@ -760,7 +760,7 @@ objective taxonomy:
 | CC9.2 | Vendor management | 1.0 | full — §22.12 + 22.44 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.12 ships
-dedicated SOX ITGC UCs plus the cross-cutting SoD family (22.48).
+40 dedicated SOX ITGC UCs plus the cross-cutting SoD family (22.48).
 The catalogue is designed to produce both point-in-time evidence (snapshot
 at year-end) and period-of-operation evidence (continuous-control-monitoring
 dashboards) which aligns with the SOX Type 2-equivalent testing model.
@@ -795,7 +795,7 @@ that require SOC 2 reports for downstream customers.
 | CC9.x | Risk mitigation | 1.0 | full — §22.8 + 22.44 |
 | A1.x | Availability | 0.7 | partial — §22.8 + 22.45 |
 
-**What the catalogue delivers:** 100 % tier-1 coverage. §22.8 ships 75 UCs
+**What the catalogue delivers:** 100 % tier-1 coverage. §22.8 ships 39 UCs
 dedicated to SOC 2 controls with particular focus on continuous control
 monitoring, which is the hallmark of a mature Type 2 programme.
 
@@ -824,7 +824,7 @@ procurement.
 | Clause 9 | Performance evaluation | 1.0 | full — §22.6 + 22.47 |
 
 **What the catalogue delivers:** 100 % tier-1 `commonClauses` coverage.
-§22.6 ships 105 UCs dedicated to ISO 27001 Annex A controls.
+§22.6 ships 55 UCs dedicated to ISO 27001 Annex A controls.
 
 **Where to look:** §22.6 · `api/v1/compliance/regulations/iso-27001.json`.
 
@@ -852,8 +852,8 @@ framework.
 | RESPOND | Incident response | 1.0 | full — §22.7 + 22.39 |
 | RECOVER | Recovery | 1.0 | full — §22.7 + 22.45 |
 
-**What the catalogue delivers:** 100 % tier-1 coverage; every CSF function
-has dedicated UCs in §22.7 plus cross-cutting coverage.
+**What the catalogue delivers:** 100 % tier-1 coverage. §22.7 ships 50 UCs;
+every CSF function has dedicated UCs plus cross-cutting coverage.
 
 **Where to look:** §22.7 · `api/v1/compliance/regulations/nist-csf.json`.
 
@@ -887,7 +887,7 @@ non-federal organisations worldwide.
 | AT | Awareness and training | 0.7 | full — §22.14 + 22.46 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.14 ships
-138 UCs dedicated to 800-53 Rev.5 controls with `controlFamily` tags
+80 UCs dedicated to 800-53 Rev.5 controls with `controlFamily` tags
 that align with the OSCAL component-definition facade at
 `api/v1/oscal/component-definitions/*`.
 
@@ -925,7 +925,7 @@ they are sole providers in a member state.
 | Art.21.2(j) | Use of MFA and secured communications | 1.0 | full — §22.2 + 22.40 |
 | Art.23 | Reporting obligations | 1.0 | full — §22.2 + 22.39 |
 
-**What the catalogue delivers:** 100 % tier-1 coverage. §22.2 ships 63
+**What the catalogue delivers:** 100 % tier-1 coverage. §22.2 ships 45
 dedicated NIS2 UCs.
 
 **Where to look:** §22.2 · `api/v1/compliance/regulations/nis2.json`.
@@ -966,7 +966,7 @@ designated as "critical".
 | Art.28-30 | ICT third-party risk management | 1.0 | full — §22.3 + 22.44 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.3 ships
-dedicated DORA UCs with particular focus on Art.19 incident-reporting
+45 dedicated DORA UCs with particular focus on Art.19 incident-reporting
 (the single most-audited DORA clause in 2025).
 
 **Where to look:** §22.3 · `api/v1/compliance/regulations/dora.json`.
@@ -1004,7 +1004,8 @@ of its evidence base with NIST 800-53 coverage.
 | SR | Supply Chain Risk Management | 1.0 | full — §22.20 + 22.44 |
 | AT | Awareness and Training | 0.7 | full — §22.20 + 22.46 |
 
-**What the catalogue delivers:** 100 % tier-1 coverage.
+**What the catalogue delivers:** 100 % tier-1 coverage. §22.20 ships
+20 dedicated CMMC UCs.
 
 **Where to look:** §22.20 · `api/v1/compliance/regulations/cmmc.json`.
 
@@ -1014,7 +1015,7 @@ of its evidence base with NIST 800-53 coverage.
 
 Derivative regulations re-use the substance of a parent framework. The
 catalogue propagates compliance entries from parents to derivatives
-mechanically in Phase 3.3, with full traceability via the
+mechanically, with full traceability via the
 `derivationSource` object on every inherited entry.
 
 ### 5.1 UK GDPR ← GDPR (identity mode)
@@ -1074,26 +1075,26 @@ is the machine-readable view.
 
 | Subcategory | Regulation | Jurisdiction | Tier | UCs | API endpoint |
 |-------------|------------|--------------|------|-----|--------------|
-| 22.1 | GDPR | EU/EEA | T1 | 13 + derivative fan-out | `regulations/gdpr.json` |
-| 22.2 | NIS2 | EU | T1 | 63 | `regulations/nis2.json` |
-| 22.3 | DORA | EU | T1 | ~30 | `regulations/dora.json` |
+| 22.1 | GDPR | EU/EEA | T1 | 50 | `regulations/gdpr.json` |
+| 22.2 | NIS2 | EU | T1 | 45 | `regulations/nis2.json` |
+| 22.3 | DORA | EU | T1 | 45 | `regulations/dora.json` |
 | 22.4 | CCPA / CPRA | US-CA | T2 | inherit | `regulations/ccpa.json` |
 | 22.5 | MiFID II | EU | T2 | see §22.5 | `regulations/mifid-ii.json` |
-| 22.6 | ISO 27001 | GLOBAL | T1 | 105 | `regulations/iso-27001.json` |
-| 22.7 | NIST CSF | US/GLOBAL | T1 | 54 | `regulations/nist-csf.json` |
-| 22.8 | SOC 2 | US/GLOBAL | T1 | 75 | `regulations/soc-2.json` |
+| 22.6 | ISO 27001 | GLOBAL | T1 | 55 | `regulations/iso-27001.json` |
+| 22.7 | NIST CSF | US/GLOBAL | T1 | 50 | `regulations/nist-csf.json` |
+| 22.8 | SOC 2 | US/GLOBAL | T1 | 39 | `regulations/soc-2.json` |
 | 22.9 | Compliance trending | cross-framework | n/a | dashboards | `compliance/coverage.json` |
-| 22.10 | HIPAA Security | US | T1 | 76 | `regulations/hipaa-security.json` |
-| 22.11 | PCI DSS v4.0 | GLOBAL | T1 | 137 | `regulations/pci-dss.json` |
-| 22.12 | SOX / ITGC | US | T1 | 71 | `regulations/sox-itgc.json` |
+| 22.10 | HIPAA Security | US | T1 | 55 | `regulations/hipaa-security.json` |
+| 22.11 | PCI DSS v4.0 | GLOBAL | T1 | 106 | `regulations/pci-dss.json` |
+| 22.12 | SOX / ITGC | US | T1 | 40 | `regulations/sox-itgc.json` |
 | 22.13 | NERC CIP | US/CA | T2 | see §22.13 | `regulations/nerc-cip.json` |
-| 22.14 | NIST 800-53 Rev.5 | US | T1 | 138 | `regulations/nist-800-53.json` |
+| 22.14 | NIST 800-53 Rev.5 | US | T1 | 80 | `regulations/nist-800-53.json` |
 | 22.15 | IEC 62443 | GLOBAL | T2 | see §22.15 | `regulations/iec-62443.json` |
 | 22.16 | TSA Pipeline Security | US | T2 | see §22.16 | `regulations/tsa-sd.json` |
 | 22.17 | FDA 21 CFR Part 11 | US | T2 | see §22.17 | `regulations/fda-part-11.json` |
 | 22.18 | API 1164 SCADA Security | US | T2 | see §22.18 | `regulations/api-rp-1164.json` |
 | 22.19 | FISMA / FedRAMP | US | T2 | see §22.19 | `regulations/fedramp.json` + `regulations/fisma.json` |
-| 22.20 | CMMC 2.0 | US | T1 | see §22.20 | `regulations/cmmc.json` |
+| 22.20 | CMMC 2.0 | US | T1 | 20 | `regulations/cmmc.json` |
 | 22.21 | EU AI Act | EU | T2 | see §22.21 | `regulations/eu-ai-act.json` |
 | 22.22 | PSD2 / Payment Services | EU | T2 | see §22.22 | `regulations/psd2.json` |
 | 22.23 | EU Cyber Resilience Act (CRA) | EU | T2 | see §22.23 | `regulations/eu-cra.json` |
@@ -1109,7 +1110,7 @@ is the machine-readable view.
 | 22.33 | Middle East Cybersecurity | various | T2 | see §22.33 | `regulations/{nesa-uae-ias,qcb-cyber,sa-pdpl,sama-csf}.json` |
 | 22.34 | SWIFT CSP | GLOBAL | T2 | see §22.34 | `regulations/swift-csp.json` |
 
-For the full 60-framework inventory (tier-1, tier-2, and meta), consult
+For the full 69-framework inventory (tier-1, tier-2, and meta), consult
 `data/regulations.json` or `api/v1/compliance/index.json`.
 
 ---
@@ -1136,7 +1137,7 @@ derivative-aware form. **P** indicates parent; **D** indicates derivative
 | HIPAA Privacy | US | 14 Apr 2003 | independent (sectoral — healthcare) | HHS OCR |
 
 All of these are covered in `data/regulations.json`; derivative propagation
-is applied in Phase 3.3.
+is applied automatically by the build pipeline.
 
 ---
 
@@ -1157,8 +1158,8 @@ of clauses the catalogue targets for coverage measurement. Smaller than
 the full clause set; chosen for real-world audit relevance.
 
 **Derivative regulation** — a regulation whose substance is materially
-inherited from a parent regulation. Phase 3.3 propagates parent-clause
-coverage to derivatives via the `derivesFrom` graph.
+inherited from a parent regulation. The build pipeline propagates
+parent-clause coverage to derivatives via the `derivesFrom` graph.
 
 **DSR** — Data Subject Request (GDPR terminology; synonymous with
 *consumer request* under CCPA, *holder request* under LGPD, etc.).
@@ -1189,7 +1190,7 @@ reference only.
 
 Every clause citation in this document is validated against
 `data/regulations.json`, which in turn carries authoritative URLs for every
-regulation and version. The `data/provenance/retrieval-manifest.json` file
+regulation and version. The `data/provenance/ingest-manifest.json` file
 records the SHA-256 of every ingested regulator document. No SME opinions
 in this primer are un-sourced.
 
