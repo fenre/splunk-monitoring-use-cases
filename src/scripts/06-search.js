@@ -251,7 +251,7 @@
     query: function(q) {
       var key = String(q || '').toLowerCase().trim();
       if (queryCache[key]) {
-        _publish(key, queryCache[key]);
+        window.__searchAsyncResults = { q: key, set: queryCache[key], when: Date.now() };
         return Promise.resolve(queryCache[key]);
       }
       clearTimeout(debounceTimer);

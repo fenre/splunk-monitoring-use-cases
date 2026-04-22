@@ -179,11 +179,15 @@ function getFilteredUCs() {
 // just kicks reRender(); getFilteredUCs() will then read the freshly
 // published window.__searchAsyncResults on its next pass.
 if (typeof window !== 'undefined') {
+  var _searchRerendering = false;
   window.__onSearchResults = function(q, set) {
+    if (_searchRerendering) return;
     if (typeof currentSearch === 'undefined') return;
     if ((currentSearch || '').toLowerCase().trim() !== q) return;
     if (typeof reRender === 'function') {
+      _searchRerendering = true;
       try { reRender(); } catch (e) { /* swallow */ }
+      _searchRerendering = false;
     }
   };
 }
