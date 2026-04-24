@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.42",
+  "title": "MySQL and MariaDB Temp Table Disk Spill Rate",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`SHOW GLOBAL STATUS` metrics `Created_tmp_disk_tables`, `Created_tmp_tables` (ingested from `mysql:status` or DB Connect export)",
+  "app": "Splunk DB Connect (Splunkbase 2686), MySQL Enterprise Audit / status collectors",
+  "spl": "index=database sourcetype=\"mysql:status\"\n| eval disk_spill_ratio=if(Created_tmp_tables>0, round(Created_tmp_disk_tables/Created_tmp_tables,4), null())\n| where Created_tmp_disk_tables > 100 OR disk_spill_ratio > 0.05\n| timechart span=1h sum(Created_tmp_disk_tables) as tmp_disk_tables, sum(Created_tmp_tables) as tmp_tables by instance",
+  "description": "High Created_tmp_disk_tables indicates sorts and joins spilling from memory to disk, a common cause of sudden query slowdowns on MySQL and MariaDB. Practitioners track this alongside tmp_table_size and max_heap_table_size.",
+  "value": "Detects expensive queries and memory misconfiguration before disk-saturated temp I/O dominates warehouse and OLTP latency.",
+  "implementation": "Poll global status on a fixed interval and emit both counters on the same event for ratio math. Tag instance (host:port). Alert on absolute spikes or when disk temp tables exceed a small fraction of all internal temp tables. Correlate with slow query log and explain plans.",
+  "visualization": "Line chart (Created_tmp_disk_tables rate), Area chart (spill ratio), Table (top instances).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "MySQL Server Status Variables",
+      "url": "https://dev.mysql.com/doc/refman/8.0/en/server-status-variables.html"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "db_connect",
+    "mysql"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

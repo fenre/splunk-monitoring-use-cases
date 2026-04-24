@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.42",
+  "title": "Citrix SD-WAN Orchestrator Config Push Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=sdwan` `sourcetype=\"citrix:sdwan:orchestrator\"` (job id, `change_set`, `result`, `error_code`, `target_appliance`); optional reachability from `sourcetype=\"citrix:sdwan:mgmt\"` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "No official Splunk TA for Citrix SD-WAN. Ingest via syslog from SD-WAN appliances and SD-WAN Center, or poll NITRO/REST API from SD-WAN Orchestrator. SNMP polling available for basic metrics. Suggested custom sourcetypes follow the `citrix:sdwan:*` convention.",
+  "spl": "index=sdwan (sourcetype=\"citrix:sdwan:orchestrator\" OR sourcetype=\"citrix:sdwan:mgmt\") earliest=-24h\n| eval ok=if(match(lower(result),\"(?i)success|ok|applied\"),1,0), fail=if(match(lower(result),\"(?i)fail|error|timeout|denied|partial\"),1,0), nreach=if(match(lower(error_code),\"(?i)unreach|no route|refused|tls|auth|503\"),1,0)\n| bin _time span=15m\n| stats count as jobs, sum(ok) as okc, sum(fail) as failc, sum(nreach) as reach_fails, dc(target_appliance) as appliances by _time, change_set\n| where failc>0 OR reach_fails>0\n| table _time, change_set, jobs, okc, failc, reach_fails, appliances",
+  "description": "The SD-WAN Orchestrator (or center) applies policies and feature templates across the fleet. When pushes fail, sites can drift or stay on stale rules. Primary reachability problems and job-level errors show risk at scale, not one box at a time. A single bad change set that fails in many sites needs rollback attention fast.",
+  "value": "The SD-WAN Orchestrator (or center) applies policies and feature templates across the fleet. When pushes fail, sites can drift or stay on stale rules. Primary reachability problems and job-level errors show risk at scale, not one box at a time. A single bad change set that fails in many sites needs rollback attention fast.",
+  "implementation": "Ingest job completion and management heartbeat logs. Tag each job with a change ticket. Alert on any push failure, growing count of `target_appliance` in error, or management-plane unreachability. For fleet-wide failure, start rollback of the `change_set` in the product and notify change owner. For chronic single appliance failure, look at time sync, cert expiry, and last-seen in inventory.",
+  "visualization": "Timechart: failed jobs per 15m; table: `change_set` with failure rates; list: top appliances by failed attempts; health tile: orchestrator reachability.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Citrix — SD-WAN Orchestrator administration",
+      "url": "https://docs.citrix.com/en-us/citrix-sd-wan-orchestrator/"
+    }
+  ],
+  "knownFalsePositives": "Wide orchestrator template pushes for acquired branches or RMA replacements will fail for offline appliances in bulk. A site-reachability join and a batch job with retry and grace separate expected partial failure from a broken orchestrator core.",
+  "equipment": [
+    "citrix",
+    "snmp",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_sdwan",
+    "snmp_generic"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites: Orchestrator lines include change_set and result; change ticket data in lookup change_ticket_map.csv. Step 1: Configure data collection — Forward orchestrator and mgmt reachability; keep INFO that marks job end; props [citrix:sdwan:orchestrator] for target_appliance, error_code, change_set, result. Step 2: Create the search and alert — Sev-1 when fail count maps to more than half of appliances for one change_set; sev-2 for production template failure; include reach_fails>0. Step 3: Validate — Re-run a harmless template after hours and confirm `index=sdwan (sourcetype=\"citrix:sdwan:orchestrator\" OR sourcetype=\"citrix:sdwan:mgmt\") earliest=-1h | stats count by result, change_set` shows success. Step 4: Operationalize — Attach Splunk link to change reviews; repeated push failures with broad blast radius go to the Citrix SD-WAN Orchestrator support team and change owner; if failures persist per appliance, check clock and certificate expiry.",
+  "grandmaExplanation": "We follow when the “control room” for the network sends new rules to all the small boxes, and we shout when a batch of boxes did not get the message — so you do not end up with half the company on old, unsafe settings."
+}

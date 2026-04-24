@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "6.4.20",
+  "title": "Commvault Deduplication Database Disk Library Free Space Pressure",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Operational"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "Commvault storage resource events ingested as `sourcetype=commvault:storage` or `commvault:library` (Splunk plugin / REST export)",
+  "app": "Commvault Splunk App (Splunkbase 5718) with storage analytics inputs enabled",
+  "spl": "index=backup (sourcetype=\"commvault:storage\" OR sourcetype=\"commvault:library\")\n| eval free_tb=coalesce(free_space_tb, freespace_tb, library_free_tb)\n| eval total_tb=coalesce(total_space_tb, capacity_tb, library_size_tb)\n| eval pct_free=if(total_tb>0 AND isnotnull(free_tb), round(free_tb/total_tb*100,2), null())\n| where isnotnull(pct_free) AND pct_free < 15\n| stats latest(pct_free) as pct_free latest(free_tb) as free_tb latest(total_tb) as total_tb by library_name media_agent\n| sort pct_free",
+  "description": "Deduplication databases and their backing disk libraries must retain contiguous free space for compaction and sealing; exhaustion corrupts backup chains and blocks new auxiliary copies.",
+  "value": "Prevents catastrophic Commvault outages where DDB partitions go read-only and synthetic fulls fail—typically during rapid data growth or mis-sized commodity storage.",
+  "implementation": "Enable Commvault’s Splunk integration for library capacity metrics or schedule `qoperation execscript` exports to HEC. Because field names differ by plugin version, validate `free_space_*` tokens on a sample event and alias them to `free_tb`. Alert at 15% free warning and 8% critical. Pair with hardware monitoring of the Windows/Linux mount hosting the DDB.",
+  "visualization": "Gauge (% free), table (library, media agent, TB free), predictor on free TB.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Commvault Splunk App (Splunkbase)",
+      "url": "https://splunkbase.splunk.com/app/5718"
+    },
+    {
+      "title": "Commvault documentation — Deduplication",
+      "url": "https://documentation.commvault.com/commvault/v11/expert/what_is_deduplication.html"
+    }
+  ],
+  "equipment": [
+    "commvault",
+    "hashicorp"
+  ],
+  "equipmentModels": [
+    "hashicorp_vault"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

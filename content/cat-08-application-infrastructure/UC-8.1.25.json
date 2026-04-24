@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.1.25",
+  "title": "WildFly HTTP Access Log Time-Taken Percentiles",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=web` `sourcetype=wildfly:access` (Undertow access log with `%D` time)",
+  "app": "Undertow access logging + Splunk Universal Forwarder",
+  "spl": "index=web sourcetype=\"wildfly:access\"\n| eval elapsed_ms=coalesce(time_taken, 'time-taken', elapsed)\n| where isnotnull(elapsed_ms)\n| timechart span=5m perc95(elapsed_ms) as p95_ms by host\n| where p95_ms > 2500",
+  "description": "WildFly serves HTTP through Undertow; access logs with `%D` expose request duration. Rising P95 indicates servlet, EJB, or database contention.",
+  "value": "Isolates slow Java EE traffic independent of generic JVM heap charts.",
+  "implementation": "Configure Undertow `access-log` pattern to include `%D` (microseconds). Normalize to ms in SPL. Split by `virtual-host` if logged.",
+  "visualization": "Line chart (P95), table (host × vhost), compare to datasource pool metrics.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "WildFly Admin Guide — Access Logging",
+      "url": "https://docs.wildfly.org/"
+    }
+  ],
+  "equipment": [
+    "jboss"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Undertow access logging + Splunk Universal Forwarder.\n• Ensure the following data sources are available: `index=web` `sourcetype=wildfly:access` (Undertow access log with `%D` time).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTurn on Undertow access logs; verify whether `%D` is microseconds and divide by 1000 in `eval` if needed.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"wildfly:access\"\n| eval elapsed_ms=coalesce(time_taken, 'time-taken', elapsed)\n| where isnotnull(elapsed_ms)\n| timechart span=5m perc95(elapsed_ms) as p95_ms by host\n| where p95_ms > 2500\n```\n\nUnderstanding this SPL\n\n**WildFly HTTP Access Log Time-Taken Percentiles** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=wildfly:access` (Undertow access log with `%D` time). **App/TA**: Undertow access logging + Splunk Universal Forwarder. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (P95), table (host × vhost), compare to datasource pool metrics..",
+  "grandmaExplanation": "We time requests hitting your Java application server so slow business logic shows up early."
+}

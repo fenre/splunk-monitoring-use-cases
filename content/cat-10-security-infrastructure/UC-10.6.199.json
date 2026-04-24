@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.6.199",
+  "title": "Citrix Unauthorized Published Application Launch Attempts",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:events\"` (launch, enumeration, error); `sourcetype=\"citrix:storefront:resource\"` (requested resource, deny); fields `app_name`, `user`, `result`, `deny_reason`",
+  "app": "Citrix DaaS / CVAD broker event collection, StoreFront or Workspace app logs, optional identity group lookup for expected entitlements",
+  "spl": "index=xd (sourcetype=\"citrix:broker:events\" OR sourcetype=\"citrix:storefront:resource\") earliest=-24h\n| eval denied=if(match(lower(result),\"(?i)deny|unauthorized|forbidden|not.?(allowed|entitled|assigned)\") OR match(lower(deny_reason),\"(?i)deny|policy|not.?(found|entitled)\"),1,0)\n| where denied=1\n| bin _time span=1h\n| stats count as hits, values(app_name) as apps, values(deny_reason) as reason by _time, user, client_ip\n| where hits>3\n| table _time, user, client_ip, hits, apps, reason",
+  "description": "Users should only start applications and desktops they are assigned. Elevated or repeated denials for resources outside entitlement can show probing for exposed icons, policy gaps, or automation testing wrong shortcuts. A burst from one account to many unassigned apps is higher risk than a single typo in self-service.",
+  "value": "Users should only start applications and desktops they are assigned. Elevated or repeated denials for resources outside entitlement can show probing for exposed icons, policy gaps, or automation testing wrong shortcuts. A burst from one account to many unassigned apps is higher risk than a single typo in self-service.",
+  "implementation": "Distinguish user-driven mistakes from service accounts. Join `app_name` to a catalog of all published resources and role assignments. Alert on more than N distinct denied apps per user per day. If storefront exposes sensitive names to the wrong group, also fix catalog visibility, not just logging. For Citrix DaaS, include cloud connector–visible events in scope.",
+  "visualization": "Bar chart: denied launches by app; table: top users; sparkline: hits over time for flagged accounts.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "Citrix — Publish applications and entitlements",
+      "url": "https://docs.citrix.com/en-us/citrix-daas-service/technical-overview/technical-overview.html"
+    }
+  ],
+  "knownFalsePositives": "Pen-test, red-team, and negative UAT on unauthorized icons are supposed to show blocked launches. A purple-team window, test usernames, and a non-prod store scope stop harmless blocked attempts in test from a production insider-threat page.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_daas"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• `index=xd`; `citrix:broker:events` and `citrix:storefront:resource` with `app_name`, `result` or `deny_reason`, `user`, `client_ip`. Optional `entitled_apps` lookup (AD group x app id).\n\nStep 1 — Configure data collection\nNormalize denial: one `eval denied=` for deny/forbidden/not entitled. Filter LB probes: `search NOT (uri=\"*health*\")` or known probe users. Tag `env=lab` for lower sev. `FIELDALIAS` for `app_name` if `resource_name` is used instead.\n\nStep 2 — Create the search and alert\nStart `hits>3`/h; raise to 5–10 after one week. Second alert: `dc(app_name)`>N/24h where app in `sensitive_apps.csv` (P1). Throttle: user+hour. Optional: `streamstats` first-seen denied app per 30d for probe pattern.\n\nStep 3 — Validate\nLab: intentional denied launch increments; entitled success is zero. SAs in allow-list. Check `deny_reason` is populated on StoreFront.\n\nStep 4 — Operationalize\nSOC: pivot to PAM. Insiders: many distinct denied LOB. Escalation: L2 identity + catalog, L3 if OU-wide icon misconfig. Remediate Store visibility, not just SIEM. Include DaaS connector–visible events if in cloud.",
+  "grandmaExplanation": "We count tries to open apps that were never meant for that person’s badge — so you see probing or a broken catalog before a lucky click finds something that should have stayed hidden."
+}

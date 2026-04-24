@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.46",
+  "title": "Elasticsearch Shard Recovery Stall Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`_cat/recovery` or `_indices/recovery` JSON (`files_percent`, `bytes_percent`, `stage`, `index`, `shard`, `node`)",
+  "app": "Custom scripted input (Elasticsearch REST API)",
+  "spl": "index=database sourcetype=\"elasticsearch:recovery\"\n| where (files_percent < 100 AND stage!=\"done\") OR stage IN (\"index\",\"translog\",\"finalize\")\n| eval stall_age_min=round((now()-_time)/60,1)\n| where stall_age_min > 30\n| stats latest(files_percent) as files_pct latest(bytes_percent) as bytes_pct latest(stage) as stage by index, shard, node",
+  "description": "Recoveries that linger with low files_percent or bytes_percent indicate slow disks, network partitions, or allocation issues. SRE teams monitor recovery progress alongside cluster health.",
+  "value": "Prevents prolonged yellow/red cluster states and uneven shard placement after node loss or rolling restarts.",
+  "implementation": "Poll recovery API every 2–5 minutes. Include primary/replica role. Alert when any shard recovery is not done beyond your SLA window. Exclude expected long initializations by tagging index patterns.",
+  "visualization": "Table (index, shard, stage, percent), Timeline (recovery events), Single value (stuck recoveries).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Elasticsearch cat recovery API",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-recovery.html"
+    }
+  ],
+  "equipment": [
+    "elasticsearch"
+  ],
+  "equipmentModels": [
+    "elasticsearch_es"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

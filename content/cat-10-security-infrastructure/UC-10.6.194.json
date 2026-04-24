@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.6.194",
+  "title": "Citrix SmartAccess Policy Match Failures",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:netscaler:aaalog\"` (authentication, SmartAccess / EPA context); `sourcetype=\"citrix:storefront:launch\"` (post-auth resource enumeration); `sourcetype=\"citrix:broker:events\"` (session and assignment); fields `access_policy`, `post_logon_state`, `virtual_apps_visible` (if extracted)",
+  "app": "Splunk Add-on for Citrix NetScaler, Citrix DaaS / CVAD broker event forwarders, and optional FAS / identity integration logs for correlation",
+  "spl": "index=xd (sourcetype=\"citrix:netscaler:aaalog\" OR sourcetype=\"citrix:storefront:launch\" OR sourcetype=\"citrix:broker:events\") earliest=-24h\n| eval fail=if(match(lower(coalesce(post_logon_state, \"\")),\"(?i)deny|no.?resource|unassigned|mismatch|filter\") OR match(_raw, \"(?i)smartaccess|policy.?(deny|miss|fail)\"),1,0)\n| eval usr=coalesce(user, user_name, sAMAccountName)\n| where isnotnull(usr) AND (fail=1 OR isnotnull(action) AND like(action, \"%Error%\"))\n| bin _time span=1h\n| stats count as ev, values(access_policy) as policies by _time, usr, client_ip\n| where ev>3\n| table _time, usr, client_ip, ev, policies",
+  "description": "SmartAccess and contextual policies decide what users see after logon. When policy match fails, users can authenticate but receive no virtual apps, wrong filters, or an unexpected post-logon state. Correlating gateway authentication context with storefront and broker results surfaces misconfiguration, attribute mapping errors, and attacks that try to evade the intended entitlements view.",
+  "value": "SmartAccess and contextual policies decide what users see after logon. When policy match fails, users can authenticate but receive no virtual apps, wrong filters, or an unexpected post-logon state. Correlating gateway authentication context with storefront and broker results surfaces misconfiguration, attribute mapping errors, and attacks that try to evade the intended entitlements view.",
+  "implementation": "Ensure consistent user keys across netscaler, StoreFront, and broker logs. Add lookups for user-to-group and expected virtual app set per role. Tune false positives: mass failures after a policy push point to a bad rule, not an attacker. For incidents, join to change records and the policy export from the day before. Escalate repeated failure patterns from one subnet as possible scripted probing.",
+  "visualization": "Timechart: failed policy or empty launch stack per hour; table: top users and subnets; link to a sample raw event in the case queue.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "Citrix — NetScaler Gateway session policies and SmartAccess",
+      "url": "https://docs.citrix.com/en-us/citrix-gateway/current-release/planning-for-smartcontrol-smartaccess.html"
+    }
+  ],
+  "knownFalsePositives": "SmartAccess and attribute renames after an AD restructure, GPO, or a pilot group addition can make many users see empty app lists the same day. A mass failure after a policy publish points to a bad rule, not a single user; use change and AD group correlation first.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_daas",
+    "citrix_netscaler"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites: Time sync and consistent user keys across citrix:netscaler:aaalog, citrix:storefront:launch, and citrix:broker:events; client_ip when possible. Step 1: Configure data collection — Name SmartAccess and resource filters identically in logs and in lookup smartaccess_policy_map.csv; props EXTRACT for access_policy, post_logon_state, user. Step 2: Create the search and alert — Start with a high ev/h threshold, then lower as noise allows; add maintenance windows and bad_subnet.csv allow/deny. Step 3: Validate — In lab, break a test policy and confirm: `index=xd (sourcetype=\"citrix:netscaler:aaalog\" OR sourcetype=\"citrix:storefront:launch\") fail=1 earliest=-1h` surfaces match strings. Step 4: Operationalize — Helpdesk triage dashboard and notables to identity for attribute review; if mass failures follow a change, page Citrix EUC/NetScaler owners; consistent cross-subnet matches escalate to the Citrix DaaS/CVAD admin team and identity.",
+  "grandmaExplanation": "We look for the “you got in, but the door to your apps stayed shut” case — so you find broken rules, missing groups, and odd logins before a whole team sits idle."
+}

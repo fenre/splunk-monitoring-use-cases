@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "cimModels": [
+    "N/A"
+  ],
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "status": "draft",
+  "splunkPillar": "Observability",
+  "id": "8.1.75",
+  "title": "Apache Tomcat Thread Pool Exhaustion (activeThreads vs maxThreads)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "dataSources": "`index=web` `sourcetype=jmx:tomcat:threadpool` (Catalina executor / http-nio thread pool MBeans via Splunk Add-on for JMX)",
+  "app": "Splunk Universal Forwarder; Splunk Add-on for JMX (`Splunk_TA_jmx`) for metrics; file inputs for `tomcat:catalina`, `tomcat:access`, `tomcat:manager`",
+  "spl": "index=web sourcetype=\"jmx:tomcat:threadpool\"\n| eval maxt=tonumber(maxThreads), act=tonumber(currentThreadsBusy)\n| eval util_pct=if(maxt>0, round(100*act/maxt,1), null())\n| where util_pct >= 90\n| timechart span=5m max(util_pct) as thread_util by host, mbean",
+  "description": "Tomcat's HTTP worker threads handle every concurrent request. When `currentThreadsBusy` approaches `maxThreads`, new work queues or times out at the connector. Early detection prevents cascading failures at the load balancer.",
+  "value": "Preserves user experience by scaling or tuning connectors before thread starvation.",
+  "implementation": "Install Splunk Add-on for JMX (`Splunk_TA_jmx`); configure `jmx.conf` for `Catalina:type=ThreadPool,name=*`. Poll 60s. Alert when `currentThreadsBusy/maxThreads` ≥90% for 15m.",
+  "visualization": "Time charts for utilization, tables for top URIs and deploy events, single-value alerts.",
+  "references": [
+    {
+      "title": "Apache Tomcat documentation",
+      "url": "https://tomcat.apache.org/tomcat-10.0-doc/config/executor.html"
+    }
+  ],
+  "equipment": [
+    "tomcat"
+  ],
+  "grandmaExplanation": "We watch Tomcat worker threads so your Java site does not stall when every thread is busy."
+}

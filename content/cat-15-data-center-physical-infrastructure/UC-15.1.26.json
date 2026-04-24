@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "15.1.26",
+  "title": "APC Smart-UPS Battery Runtime Remaining Below Safe Threshold",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "APC PowerNet-MIB `upsAdvBatteryRunTimeRemaining` polled via SNMP into `index=power` `sourcetype=snmp:apc:ups`",
+  "app": "Splunk Connect for SNMP (Splunkbase #6266), SNMP Modular Input (Splunkbase #1537)",
+  "spl": "index=power sourcetype=snmp:apc:ups host=*\n| eval runtime_min=tonumber(upsAdvBatteryRunTimeRemaining)/6000\n| timechart span=1h avg(runtime_min) as avg_runtime by host\n| where avg_runtime < 15",
+  "description": "`upsAdvBatteryRunTimeRemaining` is the vendor-estimated minutes left at present load. When the rolling hourly average drops under operational guardrails (often 10–15 minutes), batteries are weak, load has grown, or input power is unstable—any of which risks ungraceful shutdowns during outages.",
+  "value": "Prevents server and SAN brownouts by forcing battery replacements or load shedding before runtime predictions collapse.",
+  "implementation": "Poll each NMC every 5 minutes. PowerNet expresses `upsAdvBatteryRunTimeRemaining` in hundredths of a minute at some firmware levels—confirm with `snmpwalk` and adjust divisor (common deployment pattern uses `/6000` when the raw counter behaves like timeticks; validate against the UPS LCD). Pair with `upsAdvBatteryReplaceIndicator` and `upsAdvBatteryCapacity` for root cause. Alert on `<15` minutes average over 1h.",
+  "visualization": "Line chart (runtime trend), Single value (worst UPS), Table (hosts under threshold).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "APC FAQ — PowerNet-MIB and SNMP",
+      "url": "https://www.apc.com/us/en/faqs/FA156148/"
+    },
+    {
+      "title": "Splunk Connect for SNMP (Splunkbase 6266)",
+      "url": "https://splunkbase.splunk.com/app/6266"
+    }
+  ],
+  "equipment": [
+    "apc_dc",
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_apc",
+    "snmp_generic"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• SNMPv3 creds in secret store; ACL from SC4SNMP workers to management VLAN.\n• Baseline divisor using one reference UPS per firmware family.\n\nStep 1 — Dashboard with `upsAdvOutputLoad` overlay.\n\nStep 2 — Maintenance window for battery string replacements.\n\nStep 3 — Validate against `upsc`/`apcupsd` if parallel path exists.\n\nStep 4 — ITSM auto-task under critical threshold.",
+  "grandmaExplanation": "We estimate how many minutes the backup battery can still hold things up, and shout early if that number gets dangerously small."
+}

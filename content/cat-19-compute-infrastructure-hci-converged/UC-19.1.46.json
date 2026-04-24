@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.1.46",
+  "title": "OpenStack Galera / MariaDB Cluster Non-Primary or Split-Brain Indicators",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=openstack` `sourcetype=\"mysql:galera\"` or `sourcetype=syslog` from `galera_new_cluster` / mysqld with fields `wsrep_cluster_status`, `wsrep_local_state_comment`, `host`",
+  "app": "Universal Forwarder on database nodes, custom `wsrep_status` scripted input",
+  "spl": "index=openstack (sourcetype=\"mysql:galera\" OR sourcetype=syslog) earliest=-30m\n| search wsrep OR \"Galera\" OR \"non-Primary\" OR \"Non-primary\"\n| eval cluster_ok=coalesce(wsrep_cluster_status, cluster_status)\n| where cluster_ok!=\"Primary\" OR like(lower(_raw), \"%non-primary%\") OR like(lower(_raw), \"%partition%\")\n| stats latest(cluster_ok) as status, values(wsrep_local_state_comment) as state by host\n| sort status",
+  "description": "The OpenStack SQL database underpins Keystone, Nova, Neutron, and Cinder metadata. A Galera node that is not `Primary` or shows partition comments risks write outages and API 500s across the cloud.",
+  "value": "Stops multi-service OpenStack brownouts by detecting Galera cluster role loss before API error storms peak.",
+  "implementation": "Run `mysql -e \"SHOW STATUS LIKE 'wsrep%';\"` on a schedule and HEC JSON, or parse error log lines. Tag events with `openstack_db` index. Alert immediately when any node reports non-Primary. Require two-source confirmation before automation to avoid flapping.",
+  "visualization": "Table (node cluster state), Single value (non-primary count), Timeline (wsrep transitions).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Galera Cluster — Monitoring cluster status",
+      "url": "https://galeracluster.com/library/documentation/monitoring-cluster.html"
+    }
+  ],
+  "equipment": [
+    "mysql",
+    "openstack",
+    "syslog"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

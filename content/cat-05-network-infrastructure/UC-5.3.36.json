@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.36",
+  "title": "Citrix ADC API Gateway Policy Evaluation",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:syslog\"` and `sourcetype=\"citrix:netscaler:appflow\"` — API definition load errors, policy `throttle`, `rate` limit, JSON/XML validation failures, `HTTP_4xx/5xx` on API vservers",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "spl": "index=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:appflow\") (\"API\" OR \"openapi\" OR swagger OR \"json\" OR \"xml\" OR throttle OR \"rate\" OR \"429\" OR validation OR xss OR \"schema\")\n| eval is_block=if(status=429 OR match(_raw,\"(?i)429|throttl|deny\"),1,0)\n| eval val_err=if(match(_raw,\"(?i)(invalid|schema|validation|malform)\"),1,0)\n| bin _time span=5m\n| stats count as hits, sum(is_block) as throttled, sum(val_err) as val_fail, p95(resp_time_ms) as p95_lat by _time, host, vserver\n| where throttled>10 OR val_fail>0 OR p95_lat>1000\n| table _time, host, vserver, hits, throttled, val_fail, p95_lat",
+  "description": "API gateway policies on Citrix ADC enforce OpenAPI shapes, XML/JSON validation, authentication, and rate limits. Mis-specified definitions cause load failures; validation errors may reflect attack traffic; 429 storms show mis-tuned quotas or abuse. Monitoring policy evaluation alongside latency keeps both security and user experience within SLO.",
+  "value": "API gateway policies on Citrix ADC enforce OpenAPI shapes, XML/JSON validation, authentication, and rate limits. Mis-specified definitions cause load failures; validation errors may reflect attack traffic; 429 storms show mis-tuned quotas or abuse. Monitoring policy evaluation alongside latency keeps both security and user experience within SLO.",
+  "implementation": "Send AppFlow or security logs with status, vserver, and response time to `index=netscaler`. Map each API product to a vserver name. Extract policy name and error class from syslog for definition load issues. Alert on definition load failure, sustained 429 above baseline, or validation error spikes uncorrelated with version rollouts.",
+  "visualization": "Time chart: throttles vs successes, bar: validation failure types, table: top API paths by error (hashed if needed).",
+  "cimModels": [
+    "Web"
+  ],
+  "references": [
+    {
+      "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+    },
+    {
+      "title": "Citrix ADC — API gateway",
+      "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/api-gateway.html"
+    }
+  ],
+  "knownFalsePositives": "A new API version or microservice can spike policy evaluation and 401/403 on synthetic tests that are supposed to fail. The API release calendar and a synthetic-monitor IP allowlist keep release-day noise from looking like a policy bypass wave.",
+  "mitreAttack": [
+    "T1190",
+    "T1110"
+  ],
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_netscaler"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites: API gateway feature enabled; OpenAPI bundle in change control; AppFlow with resp_time_ms and HTTP status. Step 1: Configure data collection — Structure logs or use HEC with acks; props [citrix:netscaler:appflow] for status, resp_time_ms, vserver; redact request bodies in syslog lines. Step 2: Create the search and alert — Split alerts: definition load/parse errors, validation spikes, and performance (start p95>1000ms, begin tuning at >500ms and raise only with baseline noise data). Step 3: Validate — In lab deploy a bad OpenAPI, send malformed JSON, and rate-test to 429; confirm throttled/val_fail fields in the index with `index=netscaler earliest=-1h vserver=\"*api*\" | stats count by status`. Step 4: Operationalize — Playbook for WAF-style blocks vs client fixes vs quota changes vs spec rollback; if the same vserver repeats, escalate to Citrix ADC and API product owners after two consecutive alert windows.",
+  "grandmaExplanation": "We watch the smart gate that checks machine-to-machine calls for shape, speed, and bad data — so broken specs, attacks, and overloads on partner connections show up while honest traffic keeps flowing under agreed limits."
+}

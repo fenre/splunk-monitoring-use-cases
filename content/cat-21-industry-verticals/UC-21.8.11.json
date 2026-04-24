@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.8.11",
+  "title": "Asterisk AMI SIP Digest Authentication Failure Burst",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Availability"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Telecommunications",
+  "dataSources": "`index=voip` `sourcetype=asterisk:ami` lines containing `ChallengeResponseFailed`, `FailedACL`, or `InvalidPassword`",
+  "app": "Asterisk AMI TCP logger (custom scripted input or `hep`/`syslog` bridge), Splunk Universal Forwarder",
+  "spl": "index=voip sourcetype=asterisk:ami (Event=\"ChallengeResponseFailed\" OR Event=\"InvalidPassword\" OR Message=\"*Authentication*failed*\")\n| bin _time span=5m\n| stats count by _time, host, Peer, Account\n| where count > 20",
+  "description": "Brute-force attempts against Asterisk SIP digest authentication or AMI logins often precede toll fraud. AMI emits structured `Event` types for failed challenges; rolling 5-minute counts per peer and account expose automated attacks without needing full PCAP.",
+  "value": "Reduces toll fraud and trunk denial-of-service by surfacing authentication storms while they are still noisy and blockable at the SBC or firewall.",
+  "implementation": "Enable AMI read-only for monitoring if possible. Stream AMI over TCP to a lightweight forwarder script that prefixes syslog or writes to a monitored file with `sourcetype=asterisk:ami`. Ensure `Peer`, `Account`, and `Event` fields are extracted. Baseline legitimate password churn; tune `count > 20` per environment. Pair with firewall blocklist automation via SOAR.",
+  "visualization": "Column chart (failures per 5m), Table (top Peer), Bubble (Account × Peer).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Asterisk Wiki — Asterisk Manager Interface (AMI)",
+      "url": "https://wiki.asterisk.org/wiki/display/AST/Asterisk+Manager+Interface+AMI"
+    },
+    {
+      "title": "Splunk Docs: Get data into Splunk from TCP/UDP ports",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitornetworkports"
+    }
+  ],
+  "equipment": [
+    "asterisk",
+    "hardware_bmc",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_edac"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• AMI user dedicated to monitoring with `read` only and IP ACL.\n• TLS or VPN if AMI crosses a network segment.\n\nStep 1 — Validate field extractions on a known failed login.\n\nStep 2 — Suppress alerts from trusted scanner subnets via lookup.\n\nStep 3 — Correlate with `sourcetype=asterisk:security` if enabled.\n\nStep 4 — Run tabletop with fraud team on auto-block SOP.",
+  "grandmaExplanation": "We spot when someone is hammering the phone system with wrong passwords so crooks can’t break in and run up fake calls.",
+  "telcoUseCase": "IMS / enterprise SIP trunk hardening — detect credential stuffing against Asterisk Manager Interface (AMI) or SIP peers before trunks lock or fraud routes appear."
+}

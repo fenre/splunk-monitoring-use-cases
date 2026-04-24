@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.71",
+  "title": "Citrix ShareFile DLP Policy Violation Tracking",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=sharefile` `sourcetype=\"citrix:sharefile:dlp\"` or DLP/secure collaboration feed; fields `action` (block|warn|audit), `policy_id`, `policy_name`, `classification_mismatch`, `file_path`, `user`, `false_positive` (if your feed tags analyst overrides) Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.",
+  "spl": "index=sharefile sourcetype=\"citrix:sharefile:dlp\" earliest=-24h\n| eval action=lower(coalesce(action, outcome, \"unknown\")), is_fp=if(match(lower(false_positive),\"(?i)true|yes|1\"),1,0), mismatch=if(match(lower(classification_mismatch),\"(?i)true|yes|1\"),1,0)\n| bin _time span=1h\n| stats count as hits, sum(eval(action=\"block\")) as blocks, sum(eval(action=\"warn\")) as warns, sum(is_fp) as fp_tags, sum(mismatch) as class_mismatches by _time, policy_id, user\n| eval block_rate=round(100*blocks/hits,2), warn_rate=round(100*warns/hits,2)\n| where blocks>0 OR warns>0 OR class_mismatches>0\n| table _time, policy_id, user, hits, block_rate, warn_rate, fp_tags, class_mismatches",
+  "description": "Data loss prevention in ShareFile surfaces policy hits, enforcements (block vs warn), and classification outcomes. Tracking hit volume, block and warn rates, trends that look like false positives, and file classification mismatches helps security and privacy teams prove control effectiveness, tune policies, and respond before regulated data leaves approved channels.",
+  "value": "Data loss prevention in ShareFile surfaces policy hits, enforcements (block vs warn), and classification outcomes. Tracking hit volume, block and warn rates, trends that look like false positives, and file classification mismatches helps security and privacy teams prove control effectiveness, tune policies, and respond before regulated data leaves approved channels.",
+  "implementation": "Ingest DLP or ShareFile security events with stable policy identifiers. Retain long enough for compliance reporting. Create hourly rollups and weekly anomaly review for `false_positive` spikes. For mismatches, join to label or sensitivity taxonomy in a lookup. Escalate sudden block-rate drops (possible policy bypass) and sustained warn-only surges (possible business friction).",
+  "visualization": "Stacked bar: block vs warn by policy; timechart: false-positive tagged rate; table: top users and policies by hits; line: classification mismatch count.",
+  "cimModels": [
+    "DLP"
+  ],
+  "references": [
+    {
+      "title": "Citrix — Data loss prevention for ShareFile",
+      "url": "https://docs.citrix.com/en-us/citrix-content-collaboration/data-loss-prevention.html"
+    }
+  ],
+  "knownFalsePositives": "Legal hold exports, e-discovery, and DLP-authorized large pulls for audits look like user policy violations in volume. Require a DLP case or legal matter ID; exclude known bulk export service accounts in the business lookup.",
+  "mitreAttack": [
+    "T1567",
+    "T1039"
+  ],
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_daas",
+    "citrix_sharefile"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• DLP or ShareFile policy events in Splunk with `action`, `policy_id`, and user identity. Optional lookup for business unit and data owner per policy.\n\nStep 1 — Configure data collection\nMap vendor fields to `action` and a boolean for analyst-marked false positives if available. Enrich with group from identity if possible.\n\nStep 2 — Create the search and alert\nBuild the base SPL, then add alerts: spike in `class_mismatches`, sudden drop in blocks with steady uploads, or false-positive count rising week over week for one policy (tuning needed).\n\nStep 3 — Validate\nReconcile event counts to the admin console for a sample day. Test with a controlled warn-only policy in a lab if allowed.\n\nStep 4 — Operationalize\nPublish monthly compliance view of policy effectiveness; hand off tuning tasks to the data governance team with Splunk links.",
+  "grandmaExplanation": "We count when sensitive file rules are tripped, what happened next, and when labels do not line up with what the rules expect — so you catch risky sharing and weak rules before a leak or audit surprise."
+}

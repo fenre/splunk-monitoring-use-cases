@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.52",
+  "title": "VDA Software and OS Version Lifecycle Tracking",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:vda:events\"` (VDA agent version, component build, plug-in status); `index=uberagent` host inventory sourcetypes if you standardize on uberAgent for OS build; optional Windows `sourcetype=\"WinEventLog:Application\"` for Citrix installer success or failure audit",
+  "app": "Template for Citrix XenDesktop 7 (`TA-XD7-VDA`); optional uberAgent UXM (Splunkbase 1448) for operating system build and patch level",
+  "spl": "index=xd sourcetype=\"citrix:vda:events\" (event_type=\"AgentInfo\" OR event_type=\"Registration\" OR event_type=\"Heartbeat\")\n| eval vda_ver=coalesce(vda_version, agent_version, VdaVersion, \"unknown\")\n| eval os_b=coalesce(os_build, windows_build, OSBuild, \"unknown\")\n| eval machine=coalesce(machine_name, host, \"Unknown\")\n| where vda_ver!=\"unknown\"\n| stats dc(machine) as host_count, max(_time) as last_seen by vda_ver, os_b\n| rename vda_ver as vda_version, os_b as os_build_value\n| sort vda_version, os_build_value\n| table vda_version, os_build_value, host_count, last_seen",
+  "description": "Citrix releases new VDA builds regularly. Microsoft retires Windows 10/11 builds on a predictable schedule. Running an inventory of `vda_version` and `os_build` per session host supports compliance with internal standard images, tells you which catalogs are still on long-term servicing versus current channel, and highlights stragglers before support tickets or Citrix Cloud health checks flag them. Feed the same list into patch windows, upgrade rings, and golden-image promotion. A simple scheduled report that lists any host not on the approved pair is enough for many organizations; add lookups for end-of-life dates you maintain in a CSV.",
+  "value": "Citrix releases new VDA builds regularly. Microsoft retires Windows 10/11 builds on a predictable schedule. Running an inventory of `vda_version` and `os_build` per session host supports compliance with internal standard images, tells you which catalogs are still on long-term servicing versus current channel, and highlights stragglers before support tickets or Citrix Cloud health checks flag them. Feed the same list into patch windows, upgrade rings, and golden-image promotion. A simple scheduled report that lists any host not on the approved pair is enough for many organizations; add lookups for end-of-life dates you maintain in a CSV.",
+  "implementation": "Emit a heartbeat or registration event at least daily that includes VDA and OS build. Create `lookup citrix_supported_vda.csv` with columns `vda_version`, `supported`, `eol_date`. Version the lookup with change control. Schedule the report weekly; alert only for rows on the critical path (for example, Internet-facing or regulated worker pools). Combine with your configuration management database to auto-close when a host is decommissioned.",
+  "visualization": "Bar chart of hosts by VDA version, table of unsupported rows, treemap by catalog if you join a lookup from machine to catalog.",
+  "cimModels": [
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "title": "Citrix Virtual Apps and Desktops — product matrix and lifecycle",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/product-lifecycle.html"
+    },
+    {
+      "title": "Current release VDA requirements",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/system-requirements.html"
+    }
+  ],
+  "knownFalsePositives": "Long tails of older VDA or OS versions are normal during phased EOL and site-by-site upgrades. Track trend toward a published deadline; avoid flat 'any old version' alerts that fire every day of a 12-month migration.",
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_daas",
+    "citrix_uberagent"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-XD7-VDA` or equivalent log path; optional uberAgent for OS fields.\n• Ensure the following data sources are available: `citrix:vda:events` with version fields; optional Windows Application log for installs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize `vda_version` to `major.minor.build` strings. If multiple events per day exist, take `latest` by machine. Store the supported-version lookup in `lookups/citrix_supported_vda.csv` and reference it in `transforms.conf`.\n\nStep 2 — Create the search and alert\nIf you have not yet built the lookup, start with a simple distribution report:\n\n```spl\nindex=xd sourcetype=\"citrix:vda:events\"\n| eval vda_ver=coalesce(vda_version, agent_version, \"unknown\")\n| stats count by vda_ver\n| sort - count\n```\n\n**VDA Software and OS Version Lifecycle Tracking** — Add the `lookup` and `where` clauses from the primary SPL once the CSV exists. Do not alert on lab or test indexes in production schedules.\n\nStep 3 — Validate\nCompare counts to the Citrix admin console machine list. Reconcile differences with powered-off or maintenance machines.\n\nStep 4 — Operationalize\nAttach the report to monthly CAB. When a new LTSR is adopted, update the lookup first, then sweep machines in ring order.",
+  "grandmaExplanation": "We keep a simple list of which desktop software and Windows build each shared computer is really running, so you are not caught with old, unsupported versions when audits or upgrades come due."
+}

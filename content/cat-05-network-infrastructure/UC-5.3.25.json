@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.25",
+  "title": "Citrix ADC Bot Management Detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:appflow\"` or `sourcetype=\"citrix:netscaler:syslog\"` — bot classification (`captcha`, `allow`, `deny`, `good_bot`, `bad_bot`, `unknown`), request counts, client IP",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "spl": "index=netscaler (sourcetype=\"citrix:netscaler:appflow\" OR sourcetype=\"citrix:netscaler:syslog\") (\"bot\" OR \"BOT\" OR captcha OR \"reputation\")\n| eval bot_class=if(match(_raw, \"(?i)good\"),\"good\", if(match(_raw, \"(?i)bad|malici\"),\"bad\", if(match(_raw, \"(?i)unknown|unclass\"),\"unknown\",\"other\")))\n| eval action=if(match(_raw, \"(?i)deny|block\"),\"deny\", if(match(_raw, \"(?i)captcha\"),\"captcha\", if(match(_raw, \"(?i)allow|pass\"),\"allow\",\"other\")))\n| bin _time span=15m\n| stats count as reqs, sum(eval(action=\"captcha\")) as captcha_hits, sum(eval(action=\"deny\")) as deny_hits, sum(eval(action=\"allow\")) as allow_hits by _time, host, bot_class\n| eval bot_to_human_ratio=if(allow_hits+deny_hits>0, round((deny_hits+captcha_hits)/(allow_hits+deny_hits+captcha_hits+0.001)*100,1), 0)\n| where bot_class IN (\"bad\",\"unknown\") OR bot_to_human_ratio > 25\n| table _time, host, bot_class, reqs, allow_hits, captcha_hits, deny_hits, bot_to_human_ratio",
+  "description": "Citrix ADC Bot Management classifies clients (good automation, bad bots, unknown) and can enforce CAPTCHA, allow, or deny. Tracking category mix and enforcement rates surfaces credential stuffing, scraping, and misclassified good bots. A rising bad or unknown share, or high CAPTCHA rates, can indicate attack campaigns or policy tuning needs before user experience or origin load suffers.",
+  "value": "Citrix ADC Bot Management classifies clients (good automation, bad bots, unknown) and can enforce CAPTCHA, allow, or deny. Tracking category mix and enforcement rates surfaces credential stuffing, scraping, and misclassified good bots. A rising bad or unknown share, or high CAPTCHA rates, can indicate attack campaigns or policy tuning needs before user experience or origin load suffers.",
+  "implementation": "Enable bot signatures and logging to appflow and/or syslog. Ensure HTTP headers or log fields that carry bot decision and action are extracted. Index to `index=netscaler`. Build baselines for allow versus challenge versus block per major application. Alert on bad-bot surges, spikes in unknown classification, or CAPTCHA rate jumps that exceed normal human traffic patterns.",
+  "visualization": "Area chart of requests by bot class, pie chart of enforcement actions, table of ratio of challenged or denied to total session starts.",
+  "cimModels": [
+    "Intrusion_Detection",
+    "Web"
+  ],
+  "references": [
+    {
+      "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+    },
+    {
+      "title": "Citrix ADC — Bot management",
+      "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/bot-management.html"
+    }
+  ],
+  "knownFalsePositives": "Search crawlers, uptime monitors, and partner health checks produce bot signatures on public apps. Map by URL, VIP, and user-agent; robots.txt-crawler traffic to marketing edges should not feed the same fraud threshold as protected apps.",
+  "mitreAttack": [
+    "T1110",
+    "T1190"
+  ],
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_netscaler"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Bot Management licensed and configured; logging enabled.\n• Data in `index=netscaler` with `citrix:netscaler:appflow` and/or syslog lines containing decisions.\n• Optional: geo and ASN enrichment via separate lookup.\n\nStep 1 — Configure data collection\nSend AppFlow and security-related syslog to Splunk. Map vendor fields to `bot_class` and `action` where the add-on provides CIM-style fields; otherwise refine the `eval` in SPL after sampling `_raw`.\n\nStep 2 — Create the search and alert\nRun the search; alert on thresholds tuned per site (for example, bad bot count > N per 15 minutes, or unknown share doubling week over week). Add allowlists for monitoring services.\n\nStep 3 — Validate\nRun test traffic with known good bot user-agents and blocked signatures in a non-prod vserver. Confirm classification fields in Splunk match the ADC admin UI.\n\nStep 4 — Operationalize\nPair alerts with your web fraud or identity team. Document how to add exceptions for partner automation without turning off protection.",
+  "grandmaExplanation": "We count how many visitors are really people versus automated programs and how often we challenge or block them — so we spot fake traffic and overloads before they lock out real customers or crush the app servers."
+}

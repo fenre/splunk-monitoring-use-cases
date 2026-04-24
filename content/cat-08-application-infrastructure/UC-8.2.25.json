@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.2.25",
+  "title": "PHP-FPM Max Children Reached Events",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=php` `sourcetype=phpfpm:status` (`max children reached` counter)",
+  "app": "Custom scripted input polling `pm.status_path`",
+  "spl": "index=php sourcetype=\"phpfpm:status\"\n| eval mc=coalesce('max_children_reached', max_children_reached)\n| where mc > 0\n| sort - mc\n| dedup host, pool\n| table _time, host, pool, mc, active_processes, idle_processes",
+  "description": "When `max children reached` increments, new requests queue at the socket and clients see 502/504 from nginx or Apache.",
+  "value": "Direct signal to raise `pm.max_children` or fix slow PHP before outages.",
+  "implementation": "Poll frequently enough to catch spikes; combine with listen queue metrics from UC-8.2.11 patterns.",
+  "visualization": "Single value (pools in violation), table (pool detail), trend of `mc` delta.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "PHP-FPM Status Page",
+      "url": "https://www.php.net/manual/en/install.fpm.configuration.php"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "nginx"
+  ],
+  "equipmentModels": [
+    "apache_httpd",
+    "nginx_open"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input polling `pm.status_path`.\n• Ensure the following data sources are available: `index=php` `sourcetype=phpfpm:status` (`max children reached` counter).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize the counter name at HEC if spaces break extraction.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=php sourcetype=\"phpfpm:status\"\n| eval mc=coalesce('max_children_reached', max_children_reached)\n| where mc > 0\n| sort - mc\n| dedup host, pool\n| table _time, host, pool, mc, active_processes, idle_processes\n```\n\nUnderstanding this SPL\n\n**PHP-FPM Max Children Reached Events** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=php` `sourcetype=phpfpm:status` (`max children reached` counter). **App/TA**: Custom scripted input polling `pm.status_path`. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Single value (pools in violation), table (pool detail), trend of `mc` delta..",
+  "grandmaExplanation": "We catch when your PHP workers are completely used up so pages stop failing mysteriously."
+}

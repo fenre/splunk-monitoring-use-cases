@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.1.40",
+  "title": "Proxmox Storage Replication (pvesr) Sync Failure and Lag",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Resilience"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=virtualization` `sourcetype=\"proxmox:replication\"` with fields `job_id`, `guest`, `source_node`, `target_node`, `last_sync_epoch`, `error_state`, `fail_count`",
+  "app": "Custom REST poll of `/api2/json/nodes/{node}/replication` or Universal Forwarder on nodes running `pvesr`",
+  "spl": "index=virtualization sourcetype=\"proxmox:replication\" earliest=-24h\n| eval lag_sec=now()-last_sync_epoch\n| where fail_count>0 OR error_state=1 OR lag_sec>3600\n| stats max(lag_sec) as max_lag_sec, max(fail_count) as fails by job_id, guest, target_node\n| sort -fails, -max_lag_sec",
+  "description": "Scheduled storage replication between Proxmox nodes protects guests when a site or rack fails. A silent replication stall means the standby copy is stale, invalidating DR assumptions until the next failover test.",
+  "value": "Keeps RPO honest for pvesr-based DR by exposing replication errors and excessive lag before a real disaster.",
+  "implementation": "Use a modular input or cron script to call the replication status API per node and HEC the JSON. Normalize `last_sync` to epoch seconds. Alert on non-zero `fail_count`, explicit error flags, or lag beyond the SLA (for example 1 hour for hourly jobs).",
+  "visualization": "Table (jobs over lag threshold), Timeline (sync success), Single value (jobs in error).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Proxmox VE Admin Guide — Replication",
+      "url": "https://pve.proxmox.com/pve-docs/pve-admin-guide.html#chapter_pvesr_replication"
+    }
+  ],
+  "equipment": [
+    "proxmox"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

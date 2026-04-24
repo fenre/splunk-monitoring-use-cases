@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.2.36",
+  "title": "RabbitMQ Disk Free Watermark Breach",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "RabbitMQ HTTP management API `/api/nodes` fields `disk_free`, `disk_free_limit`, `disk_alarm`",
+  "app": "RabbitMQ management plugin + scripted/HEC poller (`sourcetype=rabbitmq:node`)",
+  "spl": "index=messaging sourcetype=\"rabbitmq:node\"\n| where disk_alarm==true OR (isnotnull(disk_free) AND isnotnull(disk_free_limit) AND disk_free_limit>0 AND disk_free < disk_free_limit*1.25)\n| table _time, name, disk_free, disk_free_limit, disk_alarm",
+  "description": "`disk_alarm` and comparing `disk_free` to the effective `disk_free_limit` predict publisher block and cluster instability before the filesystem is completely exhausted.",
+  "value": "Protects message durability and cluster continuity by catching disk watermark violations that trigger broker flow control.",
+  "implementation": "Poll `/api/nodes` every minute. Treat `disk_free` and `disk_free_limit` as the same units (bytes) from one snapshot. Alert immediately on `disk_alarm=true`. Warn when `disk_free` is still above the limit but within 25% of it (`disk_free < 1.25*disk_free_limit`). Include host filesystem metrics for root cause.",
+  "visualization": "Gauge (disk_free vs limit), Line chart (disk_free trend), Table (nodes breaching threshold).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "RabbitMQ — Disk Alarms",
+      "url": "https://www.rabbitmq.com/docs/alarms#disk-alarm"
+    },
+    {
+      "title": "RabbitMQ — Disk Space",
+      "url": "https://www.rabbitmq.com/docs/disk-space"
+    }
+  ],
+  "equipment": [
+    "rabbitmq"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We warn when the messaging servers are about to run out of disk, because that makes them refuse new work and can take down the whole cluster."
+}

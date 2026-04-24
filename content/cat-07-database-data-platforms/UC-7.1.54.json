@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.54",
+  "title": "ClickHouse Query Duration P95 and P99 from Query Log",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Analytics"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`system.query_log` (query_finish rows) ingested as `clickhouse:query_log`",
+  "app": "ClickHouse `query_log` table + DB Connect batch or `clickhouse-client --query` scripted input to Splunk HEC",
+  "spl": "index=database sourcetype=\"clickhouse:query_log\"\n| where type==2 OR type==\"QueryFinish\" OR match(_raw,\"QueryFinish\")\n| bin _time span=1h\n| stats perc95(query_duration_ms) as p95_ms perc99(query_duration_ms) as p99_ms count by query_kind, host, _time\n| where p95_ms > 5000 OR p99_ms > 30000",
+  "description": "Percentile latency drift in `query_log` is an early signal of CPU, disk, or merge pressure before mean metrics move. Segmenting by `query_kind` keeps ETL batch noise separate from interactive SELECT SLAs.",
+  "value": "Protects analyst and application SLAs by catching regressions tied to schema or data volume changes early.",
+  "implementation": "Enable `query_log` in `config.xml` (`query_log` section) with appropriate flush interval. Export finished queries only (`type` = QueryFinish / numeric 2 depending on version). Map `query_duration_ms`, `query_kind`, `user`, `read_rows` at index time. Baseline per workload class; tune thresholds per environment.",
+  "visualization": "Line chart (p95_ms, p99_ms by query_kind), Heatmap (hour × query_kind).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ClickHouse — query_log",
+      "url": "https://clickhouse.com/docs/en/operations/system-tables/query_log"
+    }
+  ],
+  "equipment": [
+    "clickhouse"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

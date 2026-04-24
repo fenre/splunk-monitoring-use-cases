@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "6.1.33",
+  "title": "Pure FlashArray Pod and Asynchronous Replication Lag",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "FlashArray REST pod / protection-group replication metrics or alert/audit streams collected by the Pure Storage Unified Add-on; optional syslog via Splunk Connect for Syslog (`purestorage:array`)",
+  "app": "Pure Storage Unified Add-on for Splunk (Splunkbase 5513), Pure Storage Unified App (5514)",
+  "spl": "index=storage (sourcetype=\"purestorage:*\" OR sourcetype=\"PureStorage_REST\")\n| eval lag_ms=coalesce(replication_lag_ms, replication_lag_millisec)\n| eval lag_sec=coalesce(replication_lag_sec, if(isnotnull(lag_ms), round(lag_ms/1000,0), null()), pod_replication_lag_seconds)\n| where isnotnull(lag_sec) AND lag_sec > 300\n| stats max(lag_sec) as max_lag_sec latest(array_name) as array by pod_name\n| sort - max_lag_sec",
+  "description": "ActiveCluster pods and asynchronous replication links that fall behind increase failover risk and break RPO targets for business-critical LUNs and file workloads on FlashArray.",
+  "value": "Surfaces replication lag before failover or DR exercises fail, so storage teams can fix networking, bandwidth, or snapshot schedules while data is still converging.",
+  "implementation": "Deploy the Unified Add-on on a heavy forwarder, create one secured REST input per FlashArray using an API token with observability scope, and enable pod or protection-group metrics (or forward array alerts). Confirm extracted field names in Search; some builds flatten `replication_lag_*` differently—alias in `props.conf` if needed. Alert warning at 5 minutes lag and critical beyond 15 minutes unless a longer RPO is approved.",
+  "visualization": "Time chart (lag by pod), single value (worst lag), table (pod, array, max lag).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Pure Storage Unified Add-on for Splunk (Splunkbase)",
+      "url": "https://splunkbase.splunk.com/app/5513"
+    },
+    {
+      "title": "Pure Storage Splunk reference — array monitoring",
+      "url": "https://support.purestorage.com/Solutions/Splunk/Splunk_Reference/Array_Monitoring_on_Splunk_with_PureStorage_Unified_App_and_TA"
+    }
+  ],
+  "equipment": [
+    "pure_storage",
+    "syslog"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

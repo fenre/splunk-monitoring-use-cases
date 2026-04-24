@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.57",
+  "title": "Citrix Cloud Connector Deep Health (HealthData API)",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:cloudconnector:healthdata\"` with `connector_id`, `cpu_percent`, `alert_state`, `cloud_registration`, `time_sync_status`, `dependency_check`, `failed_outbound` fields parsed from the Citrix HealthData API or Cloud Connector local health snapshots forwarded on a short interval; complementary `sourcetype=\"citrix:cloudconnector\"` for baseline connectivity from UC-2.6.16 Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.",
+  "spl": "index=xd sourcetype=\"citrix:cloudconnector:healthdata\"\n| eval reg_ok=if(match(lower(coalesce(cloud_registration, registration_status, \"\")), \"(registered|ok|success)\"), 1, 0)\n| eval sync_ok=if(match(lower(coalesce(time_sync_status, ntp_status, \"\")), \"(synced|ok|in\\ssync)\"), 1, 0)\n| eval dep_ok=if(tonumber(coalesce(failed_outbound, failed_dependencies, 0))=0, 1, 0)\n| eval cpu=tonumber(coalesce(cpu_percent, cpu, 0))\n| where reg_ok=0 OR sync_ok=0 OR dep_ok=0 OR cpu>90 OR like(lower(coalesce(alert_state, health_alert, \"\")), \"%fail%\") OR like(lower(coalesce(alert_state, health_alert, \"\")), \"%error%\")\n| stats latest(cpu) as cpu_pct, latest(alert_state) as alert_state, latest(cloud_registration) as registration, latest(time_sync_status) as time_sync, max(failed_outbound) as failed_deps by host, connector_id, resource_location\n| sort - cpu_pct",
+  "description": "Basic connector heartbeats (see UC-2.6.16) prove the service is up; deep health from the HealthData API exposes resource starvation, time drift, failed outbound checks to cloud dependencies, and registration edge cases that still leave the connector process running. These conditions cause intermittent brokering delays, policy refresh gaps, and mysterious registration churn on VDAs. Aggregating API snapshots per connector gives an early, concrete signal to patch, scale out, or fix DNS and TLS paths before a resource location loses effective cloud control.",
+  "value": "Basic connector heartbeats (see UC-2.6.16) prove the service is up; deep health from the HealthData API exposes resource starvation, time drift, failed outbound checks to cloud dependencies, and registration edge cases that still leave the connector process running. These conditions cause intermittent brokering delays, policy refresh gaps, and mysterious registration churn on VDAs. Aggregating API snapshots per connector gives an early, concrete signal to patch, scale out, or fix DNS and TLS paths before a resource location loses effective cloud control.",
+  "implementation": "Deploy a least-privilege scheduled collector on each Cloud Connector (or a shared runner that iterates member hosts) that calls the HealthData API and emits JSON events every one to five minutes. Normalize numeric CPU and map alert flags to a small enum. Create correlation searches that ignore brief CPU spikes under two minutes. Require dual-connector hot-spares: alert when the worst two hosts in a site both show dependency failures. Retain 30 days of history for post-incident review. Co-watch with 2.6.16 so disconnections and deep health anomalies appear on one dashboard.",
+  "visualization": "Connector matrix (CPU, registration, NTP, dependency failures); sparklines of failed outbound tests; overlay with VDA registration errors in the same resource location.",
+  "cimModels": [
+    "Application_State"
+  ],
+  "references": [
+    {
+      "title": "Citrix Cloud Connector — system and connectivity requirements",
+      "url": "https://docs.citrix.com/en-us/citrix-cloud/citrix-cloud-resource-locations/citrix-cloud-connector-installation.html"
+    },
+    {
+      "title": "Cloud Connector advanced functionality (troubleshooting context)",
+      "url": "https://docs.citrix.com/en-us/citrix-cloud/citrix-cloud-resource-locations/connector-technical-details.html"
+    }
+  ],
+  "knownFalsePositives": "Connector upgrades, Azure or AWS zone maintenance, and rolling Cloud Connector restarts can dip HealthData API or registration checks briefly. Require minimum healthy connector count and align with a published connector maintenance schedule.",
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_daas"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Cloud Connector version supported for HealthData-style health exports; service account with rights to read local health endpoints if applicable.\n• `index=xd` receiving `citrix:cloudconnector:healthdata` with stable host, connector_id, and resource_location keys.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nImplement the scripted input or lightweight agent that calls the health endpoint and posts one line per snapshot. Verify clocks on collectors match domain time for meaningful NTP fields.\n\nStep 2 — Create the search and alert\nTriage with the primary SPL, then add suppressions for maintenance windows. Pair alerts with the simpler connectivity search from 2.6.16 to avoid duplicate pages for the same outage.\n\nStep 3 — Validate\nInduce a controlled outbound block in a lab and confirm failed dependency fields populate. Skew a VM clock in test and assert time_sync flips not OK.\n\nStep 4 — Operationalize\nDocument escalation from connector host OS health to this deep health, and add capacity playbooks when CPU stays above threshold across polling windows.",
+  "grandmaExplanation": "We go beyond a simple on-or-off check for the link to the cloud and look at time sync, heavy processor load, and failed dependency checks, so you fix the hidden strain before people lose access or machines stop registering."
+}

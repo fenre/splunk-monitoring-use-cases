@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.5.32",
+  "title": "ActiveMQ Combined Memory and Persistent Store Percent Usage",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=messaging` `sourcetype=activemq:broker` JMX `org.apache.activemq:type=Broker` attributes `MemoryPercentUsage`, `StorePercentUsage` (and byte/limit pairs if your collector normalizes to `memory_used`/`store_used`)",
+  "app": "Splunk Add-on for JMX (Splunkbase 2647) or scripted Jolokia→HEC poller",
+  "spl": "index=messaging sourcetype=\"activemq:broker\" earliest=-4h\n| eval mem_pct=coalesce(MemoryPercentUsage, memory_percent_usage, round(memory_used*100/nullif(memory_limit,0),1))\n| eval store_pct=coalesce(StorePercentUsage, store_percent_usage, round(store_used*100/nullif(store_limit,0),1))\n| where mem_pct > 75 OR store_pct > 75\n| table _time, broker_name, mem_pct, store_pct, TempPercentUsage",
+  "description": "Classic brokers enforce separate limits for JVM memory (`MemoryLimit`) and the persistence store (`StoreLimit`). Either limit triggers producer blocking or paging, so a single view of both percentages avoids blind spots where memory is fine but disk-backed store is pegged, or the reverse.",
+  "value": "Gives operators one alert surface for the two dominant resource ceilings that throttle messaging throughput.",
+  "implementation": "Poll broker MBeans every 60–300s. Align thresholds with `systemUsage` configuration. Include `TempPercentUsage` in the same dashboard row for non-persistent spillover.",
+  "visualization": "Dual-axis line chart (memory % vs store %), gauge pair per broker, table of breaches.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache ActiveMQ — SystemUsage (memory, store, temp)",
+      "url": "https://activemq.apache.org/producer-flow-control"
+    },
+    {
+      "title": "Apache ActiveMQ — JMX",
+      "url": "https://activemq.apache.org/jmx.html"
+    }
+  ],
+  "equipment": [
+    "activemq"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We track how full both the in-memory and on-disk buffers are so the messaging system is not quietly about to stop accepting new work."
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.60",
+  "title": "Aranet Dew Point from Temperature and Relative Humidity",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Physical",
+    "Safety"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=environment` `sourcetype=aranet:sensor` fields `temp_c`, `humidity_pct` (Aranet CO₂ probes ship RH sensors)",
+  "app": "Aranet data pipeline via MQTT (Splunkbase #1890) or HEC",
+  "spl": "index=environment sourcetype=aranet:sensor\n| eval T=tonumber(temp_c), RH=tonumber(humidity_pct)\n| eval a=(17.27*T)/(237.7+T)\n| eval dew_c=round((237.7*a+log(RH/100.0))/(17.27-a),2)\n| where dew_c > 15 AND RH > 65\n| table _time, sensor_id, location, T, RH, dew_c\n| sort - dew_c",
+  "description": "Condensation in data halls and labs follows dew point, not RH alone. Magnus-formula dew point computed from Aranet temperature and humidity predicts surface condensation risk when chilled water temperatures or door seals drift.",
+  "value": "Protects equipment and commodities from moisture damage by alerting on psychrometric risk before water forms on racks or packaging.",
+  "implementation": "Ensure `temp_c` and `humidity_pct` are numeric. The SPL uses the common Magnus approximation over water (good for facility monitoring). Tune thresholds: data centers often target dew point well below room dry bulb; adjust `dew_c > 15` to your architecture. Document sensor calibration cadence per QA.",
+  "visualization": "Scatter (RH vs dew point), Line chart (dew_c trend), Heatmap (room × time).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ASHRAE Handbook — Fundamentals (psychrometrics)",
+      "url": "https://www.ashrae.org/technical-resources/ashrae-handbook"
+    },
+    {
+      "title": "MQTT Topics Ingestor (Splunkbase 7575)",
+      "url": "https://splunkbase.splunk.com/app/7575"
+    }
+  ],
+  "equipment": [
+    "aranet",
+    "mqtt"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Validate formula against handheld psychrometer quarterly.\n• Exclude outdoor canopy sensors if mixed index.\n\nStep 1 — Add `case()` for Fahrenheit sites converting to Celsius first.\n\nStep 2 — Correlate with chilled water supply temp if ingested.\n\nStep 3 — SOP for facilities when alert fires.\n\nStep 4 — Optional ITSI thresholding.",
+  "grandmaExplanation": "We calculate when the air is wet enough that water could start forming on cold surfaces, even if the temperature looks okay by itself."
+}

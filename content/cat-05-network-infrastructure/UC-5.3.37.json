@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.37",
+  "title": "Citrix ADC Pooled Licensing Utilization",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Capacity",
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:syslog\"` or `sourcetype=\"citrix:netscaler:perf\"` from NITRO — `license` pool usage percent, vCPU, throughput entitlement, `pool` name, `grace` or `expir`",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "spl": "index=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:perf\") (\"pooled\" OR \"license pool\" OR vCPU OR throughput OR entitlement OR CBM OR \"ceiling\" OR grace OR expir)\n| eval pool_pct=coalesce(license_pool_use_pct, pooled_license_use_pct, 0), vcpu=coalesce(allocated_vcpus, 0), thr_mbps=coalesce(throughput_mbps, 0)\n| eval capacity_flag=if(pool_pct>90 OR match(_raw,\"(?i)grace|violation|denied\"),1,0)\n| bin _time span=1h\n| stats max(pool_pct) as max_pool, max(vcpu) as peak_vcpu, max(thr_mbps) as peak_thr, max(capacity_flag) as risk by _time, host, pool_name\n| where max_pool>80 OR risk=1\n| table _time, host, pool_name, max_pool, peak_vcpu, peak_thr, risk",
+  "description": "Pooled licensing ties multiple instances to a shared consumption meter (vCPUs, throughput, or other entitlements on supported platforms). Approaching the pool cap or entering grace or violation states risks forced throttling, feature loss, or audit findings where license position must be provable. Monitoring utilization versus entitlement is both a capacity and a compliance control.",
+  "value": "Pooled licensing ties multiple instances to a shared consumption meter (vCPUs, throughput, or other entitlements on supported platforms). Approaching the pool cap or entering grace or violation states risks forced throttling, feature loss, or audit findings where license position must be provable. Monitoring utilization versus entitlement is both a capacity and a compliance control.",
+  "implementation": "Ingest NITRO license and pooled-capacity output via TA scripted input into `citrix:netscaler:perf` and capture syslog warnings from `ns` `license` `pool`. Set thresholds at 80% (planning) and 90% (urgent) for pool use. Log proof-of-use reports with Splunk for quarterly true-ups. Add alerts for grace-period entry or license server connectivity loss (where applicable).",
+  "visualization": "Gauge: pool use percent, line chart: vCPU and throughput, table: top consumers by `host` and `pool_name`.",
+  "cimModels": [
+    "Compute_Inventory"
+  ],
+  "references": [
+    {
+      "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+    },
+    {
+      "title": "Citrix — Licensing and pooled capacity",
+      "url": "https://www.citrix.com/support/licensing/"
+    }
+  ],
+  "knownFalsePositives": "Month-end or true-up and moving pools between license servers or ADC pooled capacity events swing utilization. License calendar and a pool rebalancing maintenance window are better context than a one-day overage in isolation.",
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_netscaler"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites: Stable access to the license service or NITRO; pool_name labels aligned to procurement. Step 1: Configure data collection — Schedule citrix:netscaler:perf poll hourly or every 15 minutes; capture syslog for grace/violation; props EXTRACT for license_pool_use_pct, allocated_vcpus, throughput_mbps. Step 2: Create the search and alert — Open capacity ticket at 80% pool use, page at 90%, sev-1 for grace or implied denial; join asset lookup adcpool_owners.csv for routing. Step 3: Validate — `index=netscaler (sourcetype=\"citrix:netscaler:perf\" OR sourcetype=\"citrix:netscaler:syslog\") (pool OR license) earliest=-2h | stats max(pool_pct) by pool_name, host` and reconcile to Citrix license portal or CLI. Step 4: Operationalize — Monthly CSV/scheduled report to procurement and finance; if grace repeats or counters stall, escalate to Citrix licensing administrators; alert threshold tuning: start at 80/90% and document baseline delta weekly.",
+  "grandmaExplanation": "We track how much of the shared software allowance is used across the many boxes that depend on it — so we do not get surprised by a hard stop, hidden limits, or finger-pointing when renewal time and auditors ask for proof."
+}

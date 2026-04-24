@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.29",
+  "title": "Machine Catalog Image Pipeline Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:monitor:odata\"` with OData entity scoping to `MachineCatalog` (e.g. `ODataEntity=MachineCatalog` or `entity_type=MachineCatalog`); fields may include `Name`, `MasterImageVhd`, `ProvisioningType`, `LastApplyImageDate`, `UsedCount`, `PendingTaskCount` depending on your TA field mapping",
+  "app": "Citrix Monitor Service OData API, Template for Citrix XenDesktop 7 (TA-XD7-Broker)",
+  "spl": "index=xd sourcetype=\"citrix:monitor:odata\" (ODataEntity=MachineCatalog OR entity_type=MachineCatalog OR Name=*)\n| eval master_age_days=if(isnotnull(LastImageUpdateTime) OR isnotnull(LastMasterImageTime), round((now()-coalesce(LastImageUpdateTime, LastMasterImageTime, _time)) / 86400, 1), null())\n| eval rollout_pending=coalesce(PendingImageRollout, PendingUpdateCount, 0)\n| where master_age_days > 90 OR rollout_pending > 0 OR match(coalesce(ProvisioningStatus, State, ErrorState), \"(?i)fail|error\")\n| table _time, Name, ProvisioningType, master_age_days, rollout_pending, ProvisioningStatus, State, ErrorState, MasterImageVhd, host\n| sort - master_age_days",
+  "description": "Machine Catalog health depends on current master images, successful preparation or rollout jobs, and timely rollouts. Stale images (>90 days without refresh), pending rollouts stuck in queue, and provisioning errors reduce pool reliability and can leave machines on vulnerable or non-compliant images. Polling the Monitor `MachineCatalog` OData feed gives a single place to see catalog-level status when broker events do not list every field.",
+  "value": "Machine Catalog health depends on current master images, successful preparation or rollout jobs, and timely rollouts. Stale images (>90 days without refresh), pending rollouts stuck in queue, and provisioning errors reduce pool reliability and can leave machines on vulnerable or non-compliant images. Polling the Monitor `MachineCatalog` OData feed gives a single place to see catalog-level status when broker events do not list every field.",
+  "implementation": "Enable OData collection for Machine Catalog. Align field names to your add-on; use `fieldalias` in `props.conf` if the vendor uses `LastImageTime` instead of `LastMasterImageTime`. Set thresholds: image age 90+ days, any non-empty pending rollout counter for more than 24 hours, and any `Fail` in provisioning. Join to change tickets for image updates. Cross-check MCS/PVS UCs for prep failures on the same image name.",
+  "visualization": "Table (catalogs at risk), Line chart (pending rollout trend), Single value (catalogs with stale images).",
+  "cimModels": [
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "title": "Monitor Citrix with OData",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-221/operations/monitor/odata-connector.html"
+    }
+  ],
+  "knownFalsePositives": "Large catalog republishes, image rollouts, and overnight MCS/PVS rewrites can emit sustained 'pipeline' errors while machines churn. Time-box alerts to the change ticket window and key on a failure rate that exceeds the last three similar publishes.",
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Citrix Monitor Service OData API collector, Template for Citrix XenDesktop 7 (TA-XD7-Broker).\n• Ensure the following data sources are available: `index=xd` `sourcetype=\"citrix:monitor:odata\"` for `MachineCatalog`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll the Monitor service with appropriate auth; verify `ODataEntity` or equivalent identifies Machine Catalog records. Add aliases for time and pending-count fields. Optionally enrich with a CSV of image owners and patch cycles.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust field names to match your feed):\n\n```spl\nindex=xd sourcetype=\"citrix:monitor:odata\" (ODataEntity=MachineCatalog OR entity_type=MachineCatalog OR Name=*)\n| eval master_age_days=if(isnotnull(LastImageUpdateTime) OR isnotnull(LastMasterImageTime), round((now()-coalesce(LastImageUpdateTime, LastMasterImageTime, _time)) / 86400, 1), null())\n| eval rollout_pending=coalesce(PendingImageRollout, PendingUpdateCount, 0)\n| where master_age_days > 90 OR rollout_pending > 0 OR match(coalesce(ProvisioningStatus, State, ErrorState), \"(?i)fail|error\")\n| table _time, Name, ProvisioningType, master_age_days, rollout_pending, ProvisioningStatus, State, ErrorState, MasterImageVhd, host\n| sort - master_age_days\n```\n\nStep 3 — Validate\nCompare results to Citrix Studio for a few catalogs. Confirm the 90-day threshold against your image lifecycle policy. Test alert with a non-production catalog.\n\nStep 4 — Operationalize\nSend weekly report to desktop engineering; page on `Fail` states or age breaches over policy. Link dashboard rows to your image build pipeline and vulnerability scanning.",
+  "grandmaExplanation": "We check whether the golden desktop images for your virtual machines are up to date and not stuck while updating — so you catch broken or outdated pools before they hurt real work."
+}

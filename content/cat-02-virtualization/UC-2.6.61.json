@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.61",
+  "title": "Citrix HDX Rendezvous Protocol Path Selection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:hdx:rendezvous\"` or VDA/Session diagnostics with `rendezvous_path` (`direct` vs `relay`), `stun_status`, `udp_blocked`, `nat_type`, `rendezvous_version`; optional `sourcetype=\"citrix:gateway:connection\"` for combined path; uberAgent or IP flow telemetry in parallel for home-office ISP issues Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.",
+  "spl": "index=xd (sourcetype=\"citrix:hdx:rendezvous\" OR (sourcetype=\"citrix:vda:events\" event_type=\"*rendezvous*\"))\n| eval path=lower(coalesce(rendezvous_path, path_mode, connection_path, \"unknown\"))\n| eval stun=lower(coalesce(stun_status, stun, \"unknown\"))\n| eval udp_block=if(match(lower(coalesce(udp_blocked, \"\")), \"(true|yes|1|blocked)\"), 1, 0)\n| eval ver=coalesce(rendezvous_version, rv2_version, \"na\")\n| where path=\"relay\" OR udp_block=1 OR stun!=\"ok\" OR match(lower(coalesce(nat_type, \"\")), \"(sym|symmetric|strict)\")\n| stats count by host, user, path, stun, udp_block, nat_type, ver\n| sort - count",
+  "description": "HDX Rendezvous lets sessions establish through direct UDP paths with STUN when possible, and fall back to relayed transport when firewalls, symmetric NAT, or port blocks get in the way. A high relay ratio or STUN failure clusters often point to home-router settings, guest Wi-Fi, or data-center egress rules rather than the VDA image. Monitoring path selection, Rendezvous v2 adoption, and UDP blockage patterns helps the right team tune Gateway, DTLS, and client policy before remote users see chronic latency, dropped multimedia, and unstable Teams inside sessions.",
+  "value": "HDX Rendezvous lets sessions establish through direct UDP paths with STUN when possible, and fall back to relayed transport when firewalls, symmetric NAT, or port blocks get in the way. A high relay ratio or STUN failure clusters often point to home-router settings, guest Wi-Fi, or data-center egress rules rather than the VDA image. Monitoring path selection, Rendezvous v2 adoption, and UDP blockage patterns helps the right team tune Gateway, DTLS, and client policy before remote users see chronic latency, dropped multimedia, and unstable Teams inside sessions.",
+  "implementation": "Enable the enhanced rendezvous or HDX connection diagnostics in Citrix that emit path mode. Forward those events to `index=xd` with a stable sourcetype. Parse boolean UDP-block flags when present. Create weekly baselines: percentage relay versus direct by region and by client build. Alert when relay share jumps more than 20 points versus the rolling median for a region, or when symmetric NAT count spikes after a home-router firmware wave. Work with network teams to document required UDP and DTLS allow rules. Pair with Citrix Workspace app version compliance.",
+  "visualization": "Stacked 100% bar: direct vs relay by region; map of STUN failure counts; time chart of rendezvous v2 share across clients.",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "references": [
+    {
+      "title": "HDX direct connections (Rendezvous) — product documentation",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/hdx-direct-connections.html"
+    },
+    {
+      "title": "Citrix Gateway and rendezvous (deployment context)",
+      "url": "https://docs.citrix.com/en-us/citrix-gateway/13-1-citrix-gateway-federation-integration.html"
+    }
+  ],
+  "knownFalsePositives": "Firewall and routing changes during rendezvous and EDT pilots deliberately shift 'direct' versus 'cloud' path. Document expected path per group; alert when production cohorts fall back across both paths without a matching change, not a single pilot user.",
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_daas",
+    "citrix_uberagent"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• VDA and Workspace app versions that expose rendezvous diagnostics; event volume assessed so indexes stay within license.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm field names with one sample session in test; add aliases in props if the vendor renames fields between releases.\n\nStep 2 — Create the search and alert\nStart with a weekly report for capacity planning, then add threshold alerts for relay storms tied to a single office egress.\n\nStep 3 — Validate\nUse a home-lab or volunteer device behind symmetric NAT, confirm `nat_type` and relay path show as expected. Open UDP briefly in a test firewall to see path flip to direct in logs.\n\nStep 4 — Operationalize\nPublish friendly guidance for home users when the data shows a router class pattern, and track remediation by cohort.",
+  "grandmaExplanation": "We see whether the session took the fast direct lane or a slower relayed path through the cloud, and whether home networks block the traffic, so you can fix the right rule or help people with their home gear before video and calls stutter for everyone."
+}

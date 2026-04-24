@@ -3117,3 +3117,1451 @@ index=uberagent sourcetype="uberAgentESA:ActivityMonitoring:ProcessTagging" earl
 
 ---
 
+### UC-2.6.28 · Local Host Cache (LHC) Sync Status and Mode Transitions
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Local Host Cache (LHC) allows Delivery Controllers to broker sessions when the site database is unreachable. Failures in sync, unexpected mode changes (to or from LHC), or lagging replication indicate risk of logon/brokering issues and split-brain scenarios. Alerting on Citrix High Availability Service events and correlating with broker events surfaces site-database outages and recovery before users see widespread failures.
+- **App/TA:** Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker)
+- **Data Sources:** `index=windows` (or your controller log index) `sourcetype="WinEventLog:Application"` `source="Citrix High Availability Service"`; optional correlation: `index=xd` `sourcetype="citrix:broker:events"` for controller health and brokering errors during outages
+- **SPL:**
+```spl
+index=windows sourcetype="WinEventLog:Application" source="Citrix High Availability Service" earliest=-24h
+| rex field=Message "(?i)mode[\s:]*(?<lhc_mode>\w+)|synchroni[sz]e|sync\s+lag|Local\s*Host\s*Cache|HA\s*state"
+| eval ha_event=if(match(Message, "(?i)entering|switched|transition|outage|split.?brain|sync"), 1, 0)
+| where ha_event=1
+| stats count, earliest(_time) as first_seen, latest(_time) as last_seen by host, EventCode, Message
+| sort - count
+```
+- **Implementation:** Ingest Windows Application log from all Delivery Controllers; confirm `source` and `sourcetype` for Citrix High Availability Service. Add field extractions for sync state, mode transition, and error text if Message format varies by version. Correlate with `citrix:broker:events` for registration and brokering errors. Tune noise from planned failovers. Document expected behavior during site DB maintenance so alerts can be suppressed via lookup.
+- **Visualization:** Timeline (HA and mode events), Table (host, event text, first/last seen), Single value (count of critical HA errors).
+- **CIM Models:** Change
+- **Known false positives:** Planned site database maintenance and rehearsed LHC failovers intentionally flip the Citrix High Availability Service between modes and log transitions. Suppress on published SQL maintenance, then correlate with broker 'database unavailable' and controller pairing before a Sev-1 bridge.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Local Host Cache in Citrix Virtual Apps and Desktops](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-2112/manage-deployment/broker.html), [Splunk Add-on for Microsoft Windows](https://splunkbase.splunk.com/app/742)
+
+---
+
+### UC-2.6.29 · Machine Catalog Image Pipeline Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Machine Catalog health depends on current master images, successful preparation or rollout jobs, and timely rollouts. Stale images (>90 days without refresh), pending rollouts stuck in queue, and provisioning errors reduce pool reliability and can leave machines on vulnerable or non-compliant images. Polling the Monitor `MachineCatalog` OData feed gives a single place to see catalog-level status when broker events do not list every field.
+- **App/TA:** Citrix Monitor Service OData API, Template for Citrix XenDesktop 7 (TA-XD7-Broker)
+- **Data Sources:** `index=xd` `sourcetype="citrix:monitor:odata"` with OData entity scoping to `MachineCatalog` (e.g. `ODataEntity=MachineCatalog` or `entity_type=MachineCatalog`); fields may include `Name`, `MasterImageVhd`, `ProvisioningType`, `LastApplyImageDate`, `UsedCount`, `PendingTaskCount` depending on your TA field mapping
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:monitor:odata" (ODataEntity=MachineCatalog OR entity_type=MachineCatalog OR Name=*)
+| eval master_age_days=if(isnotnull(LastImageUpdateTime) OR isnotnull(LastMasterImageTime), round((now()-coalesce(LastImageUpdateTime, LastMasterImageTime, _time)) / 86400, 1), null())
+| eval rollout_pending=coalesce(PendingImageRollout, PendingUpdateCount, 0)
+| where master_age_days > 90 OR rollout_pending > 0 OR match(coalesce(ProvisioningStatus, State, ErrorState), "(?i)fail|error")
+| table _time, Name, ProvisioningType, master_age_days, rollout_pending, ProvisioningStatus, State, ErrorState, MasterImageVhd, host
+| sort - master_age_days
+```
+- **Implementation:** Enable OData collection for Machine Catalog. Align field names to your add-on; use `fieldalias` in `props.conf` if the vendor uses `LastImageTime` instead of `LastMasterImageTime`. Set thresholds: image age 90+ days, any non-empty pending rollout counter for more than 24 hours, and any `Fail` in provisioning. Join to change tickets for image updates. Cross-check MCS/PVS UCs for prep failures on the same image name.
+- **Visualization:** Table (catalogs at risk), Line chart (pending rollout trend), Single value (catalogs with stale images).
+- **CIM Models:** Endpoint
+- **Known false positives:** Large catalog republishes, image rollouts, and overnight MCS/PVS rewrites can emit sustained 'pipeline' errors while machines churn. Time-box alerts to the change ticket window and key on a failure rate that exceeds the last three similar publishes.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Monitor Citrix with OData](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-221/operations/monitor/odata-connector.html)
+
+---
+
+### UC-2.6.30 · MCS Provisioning and Identity Disk Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** MCS relies on correct identity disk creation, image preparation queues, and healthy snapshot or differencing disk chains. Symptoms include rising provisioning task failures, deep snapshot chains, machines stuck in preparation, and mismatches between on-demand and power-managed capacity that stress storage and identity state. Correlating broker and Monitor data with platform metrics isolates whether Citrix, hypervisor, or storage is the bottleneck.
+- **App/TA:** Citrix Monitor Service OData API, Template for Citrix XenDesktop 7 (TA-XD7-Broker), Citrix VDA/Monitor TA field mappings
+- **Data Sources:** `index=xd` `sourcetype="citrix:monitor:odata"` (`Machines` / machine provisioning fields), `sourcetype="citrix:broker:events"` for `ProvisioningTask` / prep failures, `sourcetype="citrix:vda:events"` for identity or disk attach issues; `index=hyperv` or `index=vmware` optional for underlying snapshot/chain data if you collect it
+- **SPL:**
+```spl
+index=xd (sourcetype="citrix:broker:events" event_type=Provisioning* OR match(_raw, "(?i)identity|prep|snapshot|MCS|Provision"))
+     OR (sourcetype="citrix:monitor:odata" (ODataEntity=Machines OR ODataEntity=Machine) match(_raw, "(?i)identity|disk|provisioning|task"))
+| eval fail=if(match(coalesce(result, ProvisioningState, State), "(?i)fail|error") OR match(_raw, "(?i)identity.*(fail|error)|disk.*(fail|error)"), 1, 0)
+| bin _time span=15m
+| stats count as evts, sum(fail) as fail_cnt, dc(host) as hosts, values(machine_name) as sample_machines by _time, catalog_name, delivery_group
+| eval fail_rate=if(evts>0, round(100*fail_cnt/evts,2), 0)
+| where fail_cnt>0 OR fail_rate > 5
+| table _time, catalog_name, delivery_group, evts, fail_cnt, fail_rate, hosts, sample_machines
+```
+- **Implementation:** Ingest broker provisioning and OData machine rows. Normalize `machine_name`, `catalog_name`, and task outcome fields. For snapshot chain bloat, use hypervisor or storage feeds if available; otherwise track prep duration percentiles. Alert on sustained fail rate, queue depth, or `identity`/`prep` error strings. Segment by delivery group to assign ownership.
+- **Visualization:** Stacked area (fail count over time by catalog), Table (top failing prep reasons), Bar chart (on-demand vs power-managed pool sizes).
+- **CIM Models:** Endpoint
+- **Known false positives:** Mass re-provision after a template update, identity disk reseal, or storage migration spikes MCS and identity disk errors in parallel. Correlation with the catalog job ID and the service account that runs image refresh is usually a planned burst, not random corruption.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Machine Creation Services (Citrix) - Provisioning](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-service/install-configure/mcs.html)
+
+---
+
+### UC-2.6.31 · Citrix Zone Topology and Zone Preference Failover
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Multi-zone CVAD sites route users to preferred zones; controllers and resources must register and broker in the right order. Unplanned failover traffic, inter-zone brokering storms, or machines registering outside their zone hint at network partitions, site misconfiguration, or loss of a preferred data path. Tracking zone-related broker events and preferred versus failover path selection shows topology stress before end-user latency spikes.
+- **App/TA:** Template for Citrix XenDesktop 7 (TA-XD7-Broker), Citrix Monitor Service OData API
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` (zone change, brokering path, `ZoneName`, `PreferredController`, `Failover*`), `sourcetype="citrix:monitor:odata"` for `Zones` / `Controllers` if collected; `sourcetype="citrix:netscaler:syslog"` optional for GSLB/health probe correlation
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events" (match(_raw, "(?i)zone|failover|preferred|registration|chassis|data.?store|inter.?zone") OR event_type IN ("Zone*", "Registration", "Configuration"))
+| eval zone=coalesce(ZoneName, zone_name, Zone)
+| eval path=if(match(_raw, "(?i)failover|secondary|not.?preferred|alternate"), "failover_path", if(match(_raw, "(?i)preferred|primary|home.?zone"), "preferred_path", "other"))
+| where isnotnull(zone) OR path!="other"
+| bin _time span=5m
+| stats count, values(event_type) as event_types, dc(host) as controller_count by _time, zone, path, delivery_group
+| sort -_time, zone, path
+```
+- **Implementation:** Standardize `ZoneName` and delivery group in broker events. Create lookups for expected zone–delivery-group mappings. Alert when failover_path volume exceeds baseline, when zone membership churn appears, or when a zone has zero registered workers during business hours. Enrich with NetScaler or WAN metrics if you need proof of network cause.
+- **Visualization:** Sankey or flow (preferred vs failover), Timeline (zone events), Table (anomalous delivery groups by zone).
+- **CIM Models:** Change
+- **Known false positives:** Disaster recovery drills, intentional zone-preference changes, and datacenter evacuations are supposed to move traffic between zones. Use a change or DR test calendar and compare against expected zone order before calling an unexpected topology fault.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Zones in Citrix Virtual Apps and Desktops](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/221/manage-deployment/zones.html)
+
+---
+
+### UC-2.6.32 · Hypervisor Connection Health Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Delivery Controllers use hypervisor connections to start, stop, and snapshot virtual machines. VMware vCenter loss, Hyper-V/SCVMM permission errors, certificate trust issues, and storage path failures surface as brokering or power-management failures. Early detection from broker `hosting connection` events, combined with a thin layer of hypervisor health, prevents large-scale session capacity loss during certificate rotations or vCenter maintenance.
+- **App/TA:** Template for Citrix XenDesktop 7 (TA-XD7-Broker), Splunk Add-on for VMware, Splunk Add-on for Microsoft Windows (Hyper-V)
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` fields `hosting_connection_name`, `hypervisor_type`, `connection_state`, `ssl_error`, `certificate`, `hostingunit`, `ErrorMessage` (naming may vary by TA); `index=vmware` `sourcetype="vmware:inv:host"` or vCenter health for `index=hyperv` `sourcetype="hyperv_host_health"` as optional corroboration
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events" match(_raw, "(?i)host(ing)?\s*connection|hypervisor|vCenter|Nutanix|XenServer|scvmm|cert|ssl|storage|connectivity")
+| eval conn_state=coalesce(connection_state, ConnectionState, hypervisor_state, State)
+| eval hc_name=coalesce(hosting_connection_name, HostingUnitName, HostConnection, catalog_hosting_unit)
+| where match(coalesce(conn_state, ""), "(?i)unknown|unavail|error|down|loss|denied|auth|fail|cert|ssl") OR match(coalesce(ErrorMessage, Message, _raw), "(?i)ssl|cert|permission|unauthorized|down|unreachable|storage")
+| stats earliest(_time) as first_evt, latest(_time) as last_evt, count, values(ErrorMessage) as last_errors by hc_name, host, conn_state
+| sort - count
+```
+- **Implementation:** Map hosting connection event fields from your broker TA. For each `hosting_connection_name`, maintain a lookup for owner team and service window. Add optional append searches from `vmware` and `hyperv` indexes to enrich with upstream platform state. Alert on any new critical error type or sustained connection_state not `OK`.
+- **Visualization:** Table (connection, state, first/last event), Map or swimlane (by hosting unit and hypervisor), Single value (count of bad connections).
+- **CIM Models:** Application_State
+- **Known false positives:** vCenter or Hyper-V host rolling reboots, storage path failover tests, and hypervisor agent upgrades can briefly sever host connections. Layer hypervisor and storage change records on top; treat Citrix-only warnings as false positives when hosts were in a known cluster upgrade.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix - Connections and management interfaces](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/221/install-configure/connections-hypervisor.html)
+
+---
+
+### UC-2.6.33 · Citrix Autoscale Capacity Events
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Autoscale adjusts powered-on machine counts against load and time schedules. Stuck scale-out, aggressive scale-in, schedule drift, or throttled power actions create either idle unassigned capacity (cost) or under-provisioned pools (poor user experience). Aggregating autoscale- and power-related broker events and comparing with powered-on session counts from Monitor highlights drift and failed automation.
+- **App/TA:** Template for Citrix XenDesktop 7 (TA-XD7-Broker), Citrix Monitor Service OData API
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` for autoscale, power, and schedule-related actions, `sourcetype="citrix:monitor:odata"` for `Autoscale*`, `DeliveryGroup`, or `Session` machine counts; optional `sourcetype="citrix:vda:events"` for power-on success after scale-out
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events" (match(_raw, "(?i)autoscale|power.?on|turn.?on|turn.?off|scale.?in|scale.?out|power.?action|capaci") OR event_type=Power* OR event_type=Autoscale*)
+| eval direction=if(match(_raw, "(?i)scale.?out|turn.?on|add.*machine|increase"), "scale_out", if(match(_raw, "(?i)scale.?in|turn.?off|remove.*reduce"), "scale_in", "other"))
+| eval dg=coalesce(delivery_group, DeliveryGroup, CatalogName)
+| eval success=if(match(coalesce(result, action_result, state), "(?i)success|complete"), 1, if(match(coalesce(result, action_result, state), "(?i)fail|error|throttl|denied|pending"), 0, null()))
+| bin _time span=15m
+| stats count, sum(eval(if(success=1,1,0))) as success_hits, sum(eval(if(success=0,1,0))) as fail_hits, dc(machine_name) as machine_moves by _time, dg, direction
+| where fail_hits>0 OR count>100
+| table _time, dg, direction, count, success_hits, fail_hits, machine_moves
+```
+- **Implementation:** Confirm event strings for your CVAD/Cloud version. Build baselines of scale_out vs load per delivery group. Join OData `InUse*`, `Registered*`, and `Unassigned*`-style fields when available. Alert on high fail_hits, zero scale_out during a ramp when usage rises, and sustained unassigned high-water marks outside policy.
+- **Visualization:** Column chart (scale events by direction), Timechart (in-use vs registered machines), Table (failed power actions with delivery group).
+- **CIM Models:** Change, Performance
+- **Known false positives:** Autoscale scale-out and scale-in during real peak logins and pilot capacity tests is normal economics, not a storm. Fire when scale is denied, pools hit a hard ceiling, or the schedule conflicts with a disabled or mis-set policy, not for every off-hours scale event.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Autoscale in Citrix DaaS](https://docs.citrix.com/en-us/citrix-daas-service/monitor/health-data/autoscale.html)
+
+---
+
+### UC-2.6.34 · Maintenance Mode and Drain Operations Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Maintenance mode and drain protect users during image updates, hypervisor work, and migrations. A large, unexpected, or long-lived maintenance footprint can silently reduce session capacity, especially if paired with autoscale. Tracking machines and delivery groups in maintenance and correlating with available capacity highlights operational drains versus true outages.
+- **App/TA:** Template for Citrix XenDesktop 7 (TA-XD7-Broker), Citrix Monitor Service OData API
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` or `sourcetype="citrix:monitor:odata"` for `Machine` with `InMaintenanceMode`, `drain*`, or maintenance flags; `sourcetype="citrix:monitor:odata"` for `Session` or capacity counts to correlate drops
+- **SPL:**
+```spl
+index=xd (sourcetype="citrix:monitor:odata" (ODataEntity=Machine* OR match(_raw, "(?i)Maintenance|drain|suspend")))
+| eval mmode=if(match(coalesce(InMaintenanceMode, maintenance_mode, raw_flags), "(?i)true|1|yes|on"), 1, 0)
+| eval dg=coalesce(delivery_group, DeliveryGroup, CatalogName)
+| where mmode=1
+| timechart span=1h sum(mmode) as machines_in_maint, dc(dg) as affected_groups, dc(MachineName) as affected_machines
+```
+- **Implementation:** Prefer OData or broker inventory that exposes maintenance state per machine. Add a change lookup to label known maintenance. Compare hourly capacity against baseline when `machines_in_maint` rises. Alert on maintenance outside approved windows or when drain exceeds a percentage of a delivery group without a ticket.
+- **Visualization:** Stacked area (machines in maintenance by group), Bar chart (duration by catalog), Table (open maintenance with owner from lookup).
+- **CIM Models:** Change
+- **Known false positives:** Wide drain and maintenance windows for OS patching can flood the index with 'session not accepting' style messages across many machines. Suppress on maint tags per machine and escalate only on drain failures outside an approved change window or with rising broker reject errors.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Put machines in maintenance - Citrix](https://docs.citrix.com/en-us/citrix-daas/deployment-guides/put-machines-into-maintenance.html)
+
+---
+
+### UC-2.6.35 · Pre-Launch and Lingering Session Management
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Pre-launched and lingering sessions keep apps warm and retain user context, but they consume memory, session licenses, and power-managed capacity. Misconfigured idle timers, excessive pre-launch, or sessions stuck in disconnected state can exhaust pools and look like a capacity outage. Tuning visibility from broker and VDA events shows where session lifecycle policy diverges from design.
+- **App/TA:** uberAgent UXM (Splunkbase 1448), Template for Citrix XenDesktop 7 (TA-XD7-Broker)
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` (session, idle, prelaunch, `SessionState`), `sourcetype="citrix:vda:events"` (disconnect, idle timer), `index=uberagent` `sourcetype="uberAgent:Session:SessionInfo"` or `sourcetype="uberAgent:Process:ProcessStartup"` for per-session process counts
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events" (match(_raw, "(?i)pre[\s-]*launch|lingering|ghost|idle|disc") OR event_type IN ("SessionDisconnect", "SessionInfo") OR match(event_type, "(?i)SessionPreLaunch"))
+| eval session_type=if(match(_raw, "(?i)pre[\s-]*launch|prelaunch"), "prelaunch", if(match(_raw, "(?i)linger|disconnected|idle"), "idle_linger", "other"))
+| where session_type!="other"
+| bin _time span=1h
+| stats count, dc(user) as users, values(session_id) as sample_sessions by _time, session_type, delivery_group, published_app
+| table _time, session_type, delivery_group, published_app, count, users, sample_sessions
+```
+- **Implementation:** Map published app and user fields. For ghost capacity, also pull uberAgent session or host CPU to correlate pre-launch with sustained resource use. Compare counts against GPO- or policy-driven idle and disconnect timers. Alert when pre-launch or linger counts exceed rolling baselines, or when idle sessions outnumber active sessions in a business hour window.
+- **Visualization:** Area chart (prelaunch vs idle_linger by group), Table (top published apps with linger), Donut (session type mix).
+- **CIM Models:** Network_Sessions
+- **Known false positives:** Pre-launch, disconnected-session timeout, and idle policies can leave long-lived sessions that look 'stuck' or 'lingering' by design. Baseline per delivery group, then alert when sessions exceed the documented GPO/Studio cap or when broker and VDA state disagree.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [uberAgent UXM for Citrix](https://splunkbase.splunk.com/app/1448)
+
+---
+
+### UC-2.6.36 · Session Reliability and Auto Client Reconnect
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Session Reliability and Auto Client Reconnect mask brief network blips, but a rising ratio of full disconnects to successful reconnects indicates unstable paths, bad Wi-Fi, or gateway issues. VDA and broker events that mention WCF, keep-alives, reliability channels, and EDT/TCP flips, correlated with network-side syslogs, separate client-side noise from data-center incidents.
+- **App/TA:** Template for Citrix XenDesktop 7 (TA-XD7-Broker), NetScaler/ADC syslog TA, uberAgent UXM (Splunkbase 1448) optional
+- **Data Sources:** `sourcetype="citrix:vda:events"` and `sourcetype="citrix:broker:events"` for `Session`, `WCF`, or connection reset messages; `index=netscaler` or `sourcetype="citrix:netscaler:syslog"` for ICA/EDT drops on the gateway; optional `index=uberagent` for network and virtual channel health
+- **SPL:**
+```spl
+index=xd (sourcetype="citrix:vda:events" OR sourcetype="citrix:broker:events") match(_raw, "(?i)session reliability|reconnect|WCF|keep.?alive|auto.?client|ACR|ICA.*reset|edt|tcp.*(drop|reset)|udp")
+| eval evt=if(match(_raw, "(?i)reconnect|re.?establish|re.?connected|back online"), "reconnect", if(match(_raw, "(?i)disconnect|drop|reset|fail|unreachable"), "disrupt", "other"))
+| where evt!="other"
+| eval user=coalesce(user, UserName, ClientName)
+| bin _time span=5m
+| stats count, dc(user) as users by _time, evt, host, delivery_group
+| sort -_time, count
+```
+- **Implementation:** Normalize VDA and broker time zones. For Citrix Cloud or hybrid, ensure universal forwarders label site id. Add optional `append` to NetScaler `citrix:netscaler:syslog` for the same time window. Compute reconnect success ratio: `reconnect` counts vs `disrupt` counts per 5m per delivery group, alert when disrupt exceeds baseline by 2x for 3 intervals.
+- **Visualization:** Multi-series line (disrupt vs reconnect), Timeline (outages), Map or table of affected delivery groups per site.
+- **CIM Models:** Network_Sessions
+- **Known false positives:** Home users on WiFi, travel VPNs, and unstable cellular paths trigger Session Reliability and auto-reconnect in bulk during benign conditions. Split by site or network profile and raise on sustained reconnection failure for landline and office cohorts, not a single flapping home office.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Session Reliability in CVAD / HDX](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/221/hdx/session-reliability.html)
+
+---
+
+### UC-2.6.37 · HDX Adaptive Transport (EDT) and Graphics Mode
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** HDX Adaptive Transport prefers UDP (EDT) for interactive traffic when the network is healthy, falling back to TCP when loss or delay is high. High packet loss, RTT, or constant fallback reduces perceived responsiveness and can force CPU-biased H.264/HEVC or software rendering, stressing hosts and user experience. uberAgent’s EDT and HDX remoting metrics complement Citrix VDA event strings on encoder choice and display pipeline pressure.
+- **App/TA:** uberAgent UXM (Splunkbase 1448), optional Template for Citrix XenDesktop 7 (TA-XD7-Broker)
+- **Data Sources:** `index=uberagent` `sourcetype="uberAgent:Network:NetworkPerformanceEDT"`, `sourcetype="uberAgent:Remoting:HDX*"` or `sourcetype="uberAgent:GPU:*"` for encoder or GPU use; `index=xd` `sourcetype="citrix:vda:events"` for graphics and transport fallback messages; optional `sourcetype="citrix:netscaler:syslog"` for UDP/ICA profile stats
+- **SPL:**
+```spl
+index=uberagent (sourcetype="uberAgent:Network:NetworkPerformanceEDT" OR sourcetype="uberAgent:Remoting:HDX*") earliest=-1h
+| eval loss_pct=coalesce(UDPPacketLossPercent, UdpPacketLoss, PacketLoss), latency_ms=coalesce(UDPRTTms, AvgRttMs, Latency), fallback=if(match(coalesce(Transport, Protocol), "(?i)tcp"),1,0)
+| where loss_pct>2 OR latency_ms>150 OR fallback=1
+| bin _time span=5m
+| stats avg(loss_pct) as avg_loss, avg(latency_ms) as avg_rtt, sum(fallback) as fallbacks, dc(user) as users by _time, host, SessionId
+| table _time, host, users, avg_loss, avg_rtt, fallbacks
+```
+- **Implementation:** Deploy uberAgent on VDAs with network and remoting data enabled. Add field extractions for your exact uberAgent 7.x/8.x field names. Side-by-side: run a VDA search for 'policy', 'H264', 'HEVC', or 'YUV' in `citrix:vda:events` for policy-driven changes. Set threshold bands by site (WAN vs LAN).
+- **Visualization:** Dual-axis chart (loss vs RTT), Heatmap (hosts by time), Table (top sessions with fallback).
+- **CIM Models:** Network_Traffic
+- **Known false positives:** GPU driver rollouts, EDT pilot toggles, and switching graphics modes during golden-image updates can change transport and rendering counters without user-facing outage. Join to build or driver change tickets before treating EDT fallback as a production performance incident.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [uberAgent documentation - HDX/EDT](https://uberagent.com/docs/)
+
+---
+
+### UC-2.6.38 · Universal Print Server Health and Printing Failures
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Citrix Universal Print Server offloads and compresses print traffic, but spooler instability, bad drivers, and printer auto-creation or mapping errors still break end-user print jobs. Monitoring Application and VDA event streams for spooler failures, print manager errors, and user-visible mapping failures differentiates a single bad queue from a site-wide print outage.
+- **App/TA:** Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker), Citrix Universal Print Server documentation-based field extractions
+- **Data Sources:** `sourcetype="citrix:vda:events"` (`WinEventLog:Application` or CtxPrint / spooler events on VDA/UPS), `sourcetype="WinEventLog:Application"` for Citrix Print Manager Service, `sourcetype="WinEventLog:System"` for spooler service stops; `index=windows` for Universal Print forwarders if used
+- **SPL:**
+```spl
+index=windows OR index=xd (sourcetype="WinEventLog:Application" OR sourcetype="citrix:vda:events") (match(_raw, "(?i)Citrix.*Print|Universal Print|spooler|CtxPrint|render|driver|UPS") OR match(_raw, "(?i)printer.*(map|fail|error|offline)")) OR EventCode=808
+| eval fail=if(match(_raw, "(?i)fail|error|not found|denied|offline|stuck|abort") OR match(Message, "(?i)fail|error"), 1, 0)
+| eval role=if(match(_raw, "(?i)Universal Print Server|Citrix.*Print"),"UPS_VDA", "print_stack")
+| where fail=1
+| stats count, values(Message) as sample_msg, values(host) as hosts, earliest(_time) as first_seen, latest(_time) as last_seen by role, user, client_name, printer_name, EventCode
+```
+- **Implementation:** Ingest VDA/UPS and brokering hosts into indexes with CIM-agnostic `props.conf` for long Message fields. Add printer allow/deny list lookups. Correlate with NetScaler/ADC only if you split print by site. Throttle on EventCode+printer driver hash to find systemic driver regressions. Alert when distinct hosts with fail=1 in 15m exceeds 3.
+- **Visualization:** Table (failures with sample message), Pie chart (fail by driver or queue), Bar chart (failures per site).
+- **CIM Models:** Application_State
+- **Known false positives:** Print driver upgrades, spooler restarts, and file-server maintenance on universal print or print servers can look like mass print failures. Align spikes with print infrastructure change windows; exclude known patch waves before rerouting a Citrix SEV to the EUC team alone.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Universal Print Server - Citrix](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/221/print/ups.html)
+
+---
+
+### UC-2.6.39 · USB and Peripheral Redirection Failures
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** USB, scanner, and smart card redirection, plus client drive mapping and clipboard, depend on VDA services, client versions, and Citrix/Windows policies. Failures are often per-device or per-user but can spike when a new policy, endpoint agent, or firmware change blocks channels. VDA and Application logs capture the denial reason, while optional uberAgent peripheral metrics confirm drop-off in hardware attach success rates.
+- **App/TA:** Template for Citrix XenDesktop 7 (TA-XD7-Broker), Splunk Add-on for Microsoft Windows, optional uberAgent UXM (Splunkbase 1448)
+- **Data Sources:** `sourcetype="citrix:vda:events"` (USB, TWAIN, WIA, `CtxUsb`, `CtxCam`), `sourcetype="WinEventLog:Application"` for Citrix ICA client driver messages, `index=windows` for Group Policy/clipboard blocks if forwarded; optional `sourcetype="uberAgent:Peripheral:USB*"` if you enable end-point visibility
+- **SPL:**
+```spl
+(index=xd sourcetype="citrix:vda:events" OR (index=windows (sourcetype="WinEventLog:Application" OR sourcetype="citrix:vda:events")) OR (index=uberagent sourcetype="uberAgent:Peripheral*"))
+| search match(_raw, "(?i)USB|TWAIN|WIA|redirect|peripheral|smart.?card|scard|clipboard|mapped drive|clpb|device.*(fail|deny|block|stop|stall)")
+| eval channel=if(match(_raw, "(?i)twain|wia|scan"), "imaging", if(match(_raw, "(?i)clipboard|clip"), "clipboard", if(match(_raw, "(?i)drive|mapped"), "drives", "usb_usb")))
+| where match(_raw, "(?i)fail|error|block|deny|policy|restric|not supported|time.?out|stall")
+| stats count, values(Message) as sample, earliest(_time) as first_t, latest(_time) as last_t, dc(user) as users by host, channel, user
+| sort - count
+```
+- **Implementation:** Ingest a broad slice of VDA logs with USB/TWAIN categories enabled. Add policy lookup by AD group. Separate Help Desk false positives (unsupported devices) with `NOT match(device_class,"(legacy)")` style filters where fields exist. Correlate with NetScaler/ADC app flow only if the channel is not negotiated locally. Alert on new denial strings in a 24h compare.
+- **Visualization:** Table (users and channels with sample errors), Pareto chart (error text top 10), Bar chart (failed channel by delivery group if joined).
+- **CIM Models:** Endpoint
+- **Known false positives:** Kiosk, engineering, and healthcare use cases with heavy USB or peripheral redirection are expected. Tune with delivery-group baselines, device-class allow/deny, and a pilot OU so legitimate redirected devices do not page as a blanket exfil risk.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [HDX features - USB, TWAIN, drives](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-2112/hdx/hdx-features-2112.html)
+
+---
+
+### UC-2.6.40 · Citrix App Layering Health and Layer Attach Status
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Citrix App Layering delivers OS and application layers to MCS, PVS, and elastic deployments. The elastic appliance, packaging connector, and on-VDA mount stack must all stay healthy; a failed package cache, attach timeout, or ELM/connector outage blocks user desktops at boot or sign-in. Windows Application logs on the ELM and connector roles plus VDA layer messages paint an end-to-end path from packaging through attach.
+- **App/TA:** Splunk Add-on for Microsoft Windows, custom scripted or HEC input for App Layering management API, Template for Citrix XenDesktop 7 (TA-XD7-Broker) for VDA
+- **Data Sources:** `sourcetype="WinEventLog:Application"` on ELM/connector servers (`unifltr`, `pvs`, `svmgr`), `sourcetype="citrix:vda:events"` for layer attach, `sourcetype="citrix:pvs:events"` when App Layering pairs with PVS, HTTP(S) or scripted inputs from App Layering ELM APIs if you export jobs to text
+- **SPL:**
+```spl
+index=windows OR index=xd (sourcetype="WinEventLog:Application" OR sourcetype="citrix:vda:events" OR sourcetype="citrix:pvs:events") match(_raw, "(?i)App\s*Layer|layering|unifl|svmgr|ELM|layer (attach|mount|roll|package|not found|fail|cache)")
+| eval component=if(match(host, "(?i)elm|layering|manager"), "elm", if(match(_raw, "(?i)PVS|vDisk"), "pvs", "vda"))
+| where match(_raw, "(?i)fail|error|timeout|unavail|mismatch|cache.*(miss|full|corrupt)|not mounted")
+| bin _time span=15m
+| stats count, values(Message) as msg_sample, dc(host) as hosts, dc(user) as users by _time, component, host
+| sort - count
+```
+- **Implementation:** Classify hosts by `elm|connector|vda` using a host lookup. When ELM is Linux-only, push syslog or a JSON HEC path instead of `WinEventLog`. Track cache disk usage for packaging machines via a separate capacity UC. Deduplicate noisy retry loops with `streamstats` or by trimming `count`>100/min bursts.
+- **Visualization:** Swimlane (ELM vs VDA issues), Table (message samples), Single value (open critical errors in 24h).
+- **CIM Models:** Change
+- **Known false positives:** Elastic layering attach on first logon, layer pack upgrades, and user-driven layer repair can show transient 'not ready' or attach warnings. Correlate with a new published layer version and first-boot after publish before assuming broken layering infrastructure.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix App Layering - Monitor and troubleshoot](https://docs.citrix.com/en-us/citrix-app-layering/4/monitor/monitor.html)
+
+---
+
+### UC-2.6.41 · FSLogix and Profile Container Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** FSLogix profile and Office container disks live on fast SMB file shares. Slow attach, VHD reconnection failures, runaway VHDX growth, and share latency surface as long logon times or read-only profiles. Correlating FSLogix Application events with the profile phase in uberAgent logon data isolates the share path versus client-side issues faster than GPO review alone.
+- **App/TA:** Splunk Add-on for Microsoft Windows, uberAgent UXM (Splunkbase 1448), Microsoft FSLogix policy documentation
+- **Data Sources:** `sourcetype="WinEventLog:Application"` source=FSLogix* or `Message=*FSLogix*`, `Perfmon:LogicalDisk` on profile share, `sourcetype="WinEventLog:System"` for VHD/Filter Manager; `index=uberagent` `sourcetype="uberAgent:Logon:LogonDetail"` for profile phase timing; optional SMB `\Server\path` path latency with synthetic scripts into `sourcetype=fslogix:synthetic`
+- **SPL:**
+```spl
+index=windows (sourcetype="WinEventLog:Application" (source="*FSLogix*" OR source="*frx*")) OR (sourcetype="WinEventLog:System" EventCode=50)
+| search match(_raw, "(?i)FSLogix|frx|profile|containe|VHDX|VHD |reparse|reconnect|load.*fail|attach.*fail|size|quota|latency")
+| eval severity=if(match(_raw, "(?i)fail|error|could not|denied|timeout|locked|reparse"), "error", if(match(_raw, "(?i)warn|slow|throttl|retry"), "warning", "info"))
+| where severity!="info"
+| join type=left user [search index=uberagent sourcetype="uberAgent:Logon:LogonDetail" earliest=-4h | stats latest(ProfileLoad) as uem_profile_s by user]
+| table _time, host, user, Message, severity, uem_profile_s
+```
+- **Implementation:** Ingest all FSLogix-related Application events and enable logical disk or SMB perf counters for share volumes. Set alerts on new error text patterns and on profile time >30s p95. Track VHD file size with a daily scripted inventory if not in events. For multi-site, tag share names with region and add synthetic SMB probes. Join carefully on `user` to avoid overmatching service accounts.
+- **Visualization:** Timeline (FSLogix errors), Line chart (profile phase from uberAgent), Table (VHD size growth if inventoried).
+- **CIM Models:** Endpoint
+- **Known false positives:** Antivirus on-access scans, profile container rehydration, and one-off VHDX compact jobs spike FSLogix I/O errors briefly on large profiles. Use a short time window, exclude the backup hours job class, and check FSLogix filter and driver version against the last Windows LCU.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [FSLogix documentation - Microsoft](https://learn.microsoft.com/en-us/fslogix/)
+
+---
+
+### UC-2.6.42 · Citrix Configuration Change Audit Trail
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Unplanned or unauthorized changes to published resources, machine catalogs, entitlements, and policies are high-impact in VDI. Collecting a tamper-resistant trail from Windows process creation and Citrix admin audit events, plus any broker-side configuration events you expose, gives security and change teams evidence for investigations and attestation, not only for ITIL tickets.
+- **App/TA:** Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker), optional Splunk Enterprise Security for correlation
+- **Data Sources:** `sourcetype="WinEventLog:Security"` (4688, 4702) for `powershell*`, `mmc.exe`, `BrokerPowerShell.exe`, `Citrix*Studio*`, `index=xd` `sourcetype="citrix:broker:events"` for admin/audit and publish changes, `sourcetype="linux_audit"` or container logs for Cloud connectors if you separate admin API calls
+- **SPL:**
+```spl
+index=windows sourcetype="WinEventLog:Security" (EventCode=4688 OR EventCode=4702)
+| search match(_raw, "(?i)BrokerPowerShell|CVAD|XD.*Catalog|XenDesktop|Studio|Publish|Delivery.?Group|Machine.?Catalog|GPO|Broker\\bin|Get-Broker|Set-Broker|New-Broker|Remove-Broker")
+| eval account=coalesce(Security_ID, user, src_user, Account_Name)
+| eval process=New_Process_Name
+| table _time, host, account, process, EventCode, CommandLine
+| append [search index=xd sourcetype="citrix:broker:events" match(_raw, "(?i)admin|audit|publish|unpublish|add.?desktop|change.?entitlement|polic|Studio")]
+| sort - _time
+```
+- **Implementation:** Send Security logs from admin jump hosts and all Delivery Controllers. Enable command-line process auditing (4688) per Microsoft guidance. Harden: lock down who can run `BrokerPowerShell`. Enrich with asset identity for admin accounts. For Citrix DaaS, pipe Cloud Director API audit to Splunk. Retention: align to your compliance schedule (e.g. 1 year online).
+- **Visualization:** Timeline (change events by admin), Table (raw command line), Bar chart (changes per day by team via lookup).
+- **CIM Models:** Change
+- **Known false positives:** Studio automation, Terraform, GitOps, and regular scheduled exports to documentation systems generate many configuration diffs. Diff against the automation identity and approved change ID; the false positive is 'noise from script', not a silent attacker edit.
+- **MITRE ATT&CK:** T1078, T1098
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix audit logging and reporting](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-2112/operations/audit/audit-logging.html)
+
+---
+
+### UC-2.6.43 · Citrix Site Database Connectivity from Controllers
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** The Citrix site database is the single source of truth for registrations, entitlements, and broker decisions. If Delivery Controllers cannot reach the site database, users experience brokering failures, registration storms, and eventual site-wide service degradation. Proactively detecting connection retries, timeout errors, and authentication failures to the data store is essential before session launch capacity collapses. Correlate controller Application log events with `citrix:broker:events` to distinguish transient network blips from persistent connectivity loss.
+- **App/TA:** Splunk Add-on for Microsoft Windows; Template for Citrix XenDesktop 7 (`TA-XD7-Broker`) for broker event normalization
+- **Data Sources:** `index=windows` `sourcetype="WinEventLog:Application"` from Delivery Controllers for Citrix site database and configuration services; optional `index=xd` `sourcetype="citrix:broker:events"` for correlated broker health, `EventCode` / `EventID` and `Message` text for connection timeouts and failure reasons
+- **SPL:**
+```spl
+index=windows sourcetype="WinEventLog:Application" (source="*Citrix*" OR source="*Broker*" OR Message="*site database*" OR Message="*Site database*")
+| search (Message="*connection*" OR Message="*timeout*" OR Message="*failed*" OR Message="*unavailable*") (Message="*database*" OR Message="*SQL*" OR Message="*data store*")
+| bin _time span=5m
+| stats count as evt_count, values(EventCode) as event_codes, values(Message) as sample_msgs by host, _time
+| where evt_count > 0
+| sort -_time
+| table _time, host, event_codes, evt_count, sample_msgs
+```
+- **Implementation:** Forward Windows Application logs from every Delivery Controller. Add field extractions or `rex` to normalize database connection error text, SQL connectivity codes, and timeout indicators. Ingest or schedule-query `index=xd` broker events to correlate. Alert when any controller reports repeated site database connection failures in a five-minute window, or when a single error pattern exceeds your baseline. Suppress during planned database maintenance using a time-bound lookup. Document escalation to the DBA and Citrix site recovery runbooks.
+- **Visualization:** Single value (open critical events), timechart of database-related errors by controller, table of recent error text with host, linked drilldown to broker event timeline.
+- **CIM Models:** Databases
+- **Known false positives:** SQL Always On failovers, index rebuilds, backup locks, and network ACL or firewall change tests can make controller database checks fail for seconds. Suppress on DBA and network maintenance, then look at SQL listener and firewall logs before a site-down declaration.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix Databases — CVAD](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/databases.html), [uberAgent UXM (optional correlation on endpoints)](https://splunkbase.splunk.com/app/1448)
+
+---
+
+### UC-2.6.44 · VDA Disk IOPS and Write Cache Utilization
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** MCS, image management service I/O optimization, and PVS all rely on local cache volumes. When the write cache fills or RAM cache spills to disk under burst load, users see freezes, logon failures, and even blue screens. Tracking per-host disk read/write IOPS, queue time, and write-cache utilization on session hosts shows capacity and misconfiguration (undersized cache disk, wrong cache mode, storage latency) before user-visible outages. Combine endpoint metrics with PVS or MCS-specific events to explain growth versus a noisy neighbor on shared storage.
+- **App/TA:** uberAgent UXM (Splunkbase 1448) — recommended for disk and volume metrics; plus Universal Forwarder for `citrix:vda:events` if you stream VDA service events
+- **Data Sources:** `index=uberagent` `sourcetype="uberAgent:Volume:DiskPerformance"` (per-volume read/write IOPS, queue depth, percent busy); `index=xd` `sourcetype="citrix:vda:events"` for MCS or image management cache overflow and RAM cache handoff messages; optional `sourcetype="citrix:pvs:stream"` for PVS write-cache percent when you run Provisioning Services
+- **SPL:**
+```spl
+index=uberagent sourcetype="uberAgent:Volume:DiskPerformance"
+| where match(VolumeName, "Cache|WCD|MCS|WriteCache|PVS|Differencing", "i") OR 1=1
+| bin _time span=15m
+| stats avg(ReadIops) as read_iops, avg(WriteIops) as write_iops, avg(PercentDiskTime) as pct_busy, latest(WriteCacheUtilizationPct) as write_cache_util by host, VolumeName, _time
+| where write_cache_util > 80 OR read_iops > 20000 OR write_iops > 15000 OR pct_busy > 85
+| table _time, host, VolumeName, read_iops, write_iops, pct_busy, write_cache_util
+```
+- **Implementation:** Deploy uberAgent on session hosts. Confirm `uberAgent:Volume:DiskPerformance` (or the equivalent volume performance sourcetype in your build) lands in `index=uberagent`. Add optional scripted or log collection for VDA and PVS cache messages into `index=xd`. Create rolling baselines per hardware tier. Alert when write-cache use crosses a two-tier threshold (for example, 60% warning, 80% critical) or when IOPS and disk busy time together indicate saturation. Group by host and catalog to find mis-sized machines.
+- **Visualization:** Timechart of read/write IOPS and disk busy %, single value for max write-cache use in fleet, table of worst hosts with volume name and cache utilization.
+- **CIM Models:** Performance
+- **Known false positives:** PVS vDisk merge, storage vMotion, antivirus full scans, and large patch installs spike disk IOPS and write cache usage together. Key on hosts running those jobs in a job lookup and compare to a same-hour baseline from last week, not a fixed raw cap.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [uberAgent volume and disk performance](https://docs.uberagent.com/), [Cache for MCS — Citrix CVAD](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-service/manage-deployment/mcs/mcs-storage.html)
+
+---
+
+### UC-2.6.45 · Machine Boot Storm Detection and Mitigation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Capacity
+- **Value:** A boot storm is a sudden, correlated surge of machine start and registration activity — for example at shift change or after maintenance — that can flood the hypervisor, storage, and broker queues. It causes long queue times, failed registrations, and slow logon even when per-machine health is good. You need a detection that works on the rate of starts per minute per catalog and delivery group, not only on a static machine count, plus a view of whether staggered start configurations are honored. The goal is to trigger proactive throttling, schedule spreading, and communications before users pile into failures.
+- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-Broker`); optional uberAgent UXM (Splunkbase 1448) for boot duration on guests
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` (machine start, registration, power-on, brokering milestones); `index=xd` hypervisor or cloud audit if forwarded (optional burst correlation); `index=uberagent` `sourcetype="uberAgent:Machine:Boot"` or host boot time metrics if you collect them
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events" (event_type="VmPowerOn" OR event_type="MachineStart" OR event_type="MachineRegistration" OR match(_raw, "(power.?on|start|registration|boot)", "i"))
+| eval boot_phase=coalesce(power_state, event_type, "Unknown")
+| bin _time span=1m
+| stats dc(machine_name) as machines_in_min, count as events_in_min, values(delivery_group) as dgs by _time, catalog_name
+| eventstats median(machines_in_min) as med_boots, stdev(machines_in_min) as stdev_boots by catalog_name
+| eval z_score=if(isnull(stdev_boots) OR stdev_boots=0, 0, (machines_in_min - med_boots) / stdev_boots)
+| where machines_in_min > 20 OR z_score > 3
+| sort - machines_in_min
+| table _time, catalog_name, dgs, machines_in_min, events_in_min, z_score
+```
+- **Implementation:** Ingest broker events with consistent `machine_name`, `catalog_name`, and `delivery_group` fields. Set absolute thresholds (e.g. more than 20 unique machines starting per minute) and relative thresholds (Z-score on the per-catalog rate versus the same time-of-day baseline). Add a secondary search that lists scheduled start tags or autoscale events if you model them. Integrate the alert with power-management policy owners so they can lengthen stagger windows or cap concurrent power operations. For proof, compare to hypervisor CPU ready time and storage latency dashboards.
+- **Visualization:** Overlay timechart: machines started per minute by catalog, optional second axis for failed registrations, table of top peaks with z-score, Sankey or flow optional for maintenance window correlation.
+- **CIM Models:** Performance
+- **Known false positives:** Monday open, school-term starts, and single large batch logon events naturally concentrate boot load. Use adaptive or same-weekday seasonality; alert when boot time or queuing outlasts the historical peak for that calendar pattern or is paired with VDA registration failures only.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix autoscale and scheduled actions](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-service/manage-deployments/citrix-autoscale/about-autoscale.html), [Load management — brokering context](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/manage-load-balancing.html)
+
+---
+
+### UC-2.6.46 · Citrix Monitor OData Load Index Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** The Citrix load evaluator reports a load index (0 to 10,000) that combines session count, application load, and other factors per machine. Trending that index at the machine and delivery group level shows who is overassigned before new sessions fail, validates load-balancing policy effectiveness, and helps capacity planning. Spikes in average or peak load index that persist across hours point to too few hosts, heavy users, or runaway published applications, not one-off blips. Pair this with session counts to separate genuine saturation from a broken load metric source.
+- **App/TA:** Citrix Monitor Service OData poller (custom scripted input) or a supported Splunk Citrix add-on that writes `citrix:monitor:odata`
+- **Data Sources:** `index=xd` `sourcetype="citrix:monitor:odata"` (Machines, Sessions, and LoadIndex fields from the Citrix Monitor Service OData collection); field aliases such as `load_index` or `LoadIndex` depending on the collector; `MachineName` / `CatalogName` / `DesktopGroupName` for grouping
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:monitor:odata" odata_resource="Machines"
+| eval li=tonumber(coalesce(load_index, LoadIndex, 0))
+| eval machine=coalesce(machine_name, MachineName, host)
+| eval dg=coalesce(delivery_group, DesktopGroupName, "Unknown")
+| where li >= 0
+| bin _time span=1h
+| stats latest(li) as load_index, max(li) as peak_li by machine, dg, _time
+| where peak_li > 5000
+| timechart max(peak_li) by dg
+```
+- **Implementation:** Stand up a scheduled OData poll with authentication to the on-premises Monitor service and persist JSON into `citrix:monitor:odata` with a stable `odata_resource` field. Map OData property names to lowercase Splunk fields for `LoadIndex` and `MachineName`. Create hourly or fifteen-minute baselines. Alert when peak load index exceeds 5,000 (tunable) for any machine for more than two consecutive samples, or when the delivery group average crosses your internal green/yellow line. Onboard a dashboard of top ten machines by load index with drilldowns to process and session data.
+- **Visualization:** Line chart of max load index by delivery group, heatmap of machines over time, table of current worst offenders with load index and session count if joined.
+- **CIM Models:** Performance
+- **Known false positives:** Third-party monitoring exporters, Monitor OData version upgrades, and dashboard refreshes can change call patterns to the load index. Match software and connector releases; a sustained small drift without user KPI regression is usually tuning noise, not capacity doom.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Monitor Service and OData in CVAD](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/monitor-service.html), [Citrix — load management overview](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/manage-load-balancing.html)
+
+---
+
+### UC-2.6.47 · Workspace App Client Version Distribution
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Citrix Workspace app versions and platforms drift quickly — users defer upgrades, some branches are blocked by legacy tools, and mobile platforms patch on different cadences. A wide long tail of old clients increases your support cost, security exposure, and feature inconsistency. Reporting client version share by platform (Windows, Mac, Linux, iOS, Android) supports compliance with internal standards, tells you which upgrade campaigns worked, and highlights obsolete builds that should be blocked at the gateway. This is not a one-time audit; you want scheduled visibility after every gateway or StoreFront change.
+- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-Broker`) and optional Citrix Monitor OData poller for session details
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` (session or connection events that carry `ClientVersion`, `ClientProductId`, and `ClientAddress` or platform tags); `index=xd` `sourcetype="citrix:monitor:odata"` `Sessions` resource if the broker event lacks detail
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events" (event_type="SessionConnection" OR event_type="ConnectionLogon" OR event_type="SessionInfo")
+| eval cv=coalesce(client_version, ClientVersion, workspace_version, "unknown")
+| eval platform=coalesce(client_platform, os_type, client_os, "unknown")
+| where cv!="unknown"
+| stats count as sessions, dc(user) as users, dc(host) as hosts by cv, platform
+| eventstats sum(sessions) as total_sessions
+| eval pct=round(100 * sessions / total_sessions, 2)
+| sort - sessions
+| table cv, platform, users, sessions, pct
+```
+- **Implementation:** Ensure client version fields are present on at least one reliable event (often session start from broker or a Monitor OData `Sessions` backfill). Build a `lookup` of approved `client_version` per platform. Schedule a weekly or daily report, not an alert, unless a version is explicitly banned — then alert when `pct` for that version is nonzero. For executive views, show stacked percentage bars by platform. Feed the data into your software-asset and endpoint-management teams for package targeting.
+- **Visualization:** Pie or treemap of versions, stacked bar by platform, table of versions with percent of sessions, optional single value for count of unapproved clients via lookup match.
+- **CIM Models:** Endpoint
+- **Known false positives:** Ring-based Workspace app rollouts, Intune staged deployments, and pilot AD groups will skew the version mix from week to week. Chart by update channel and OU, not a single org-wide 'must be 100% latest' line that will never hold during pilots.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix Workspace app lifecycle matrix](https://docs.citrix.com/en-us/citrix-workspace-app-for-windows/whats-new.html), [Session data from Monitor (context)](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/monitor-service.html)
+
+---
+
+### UC-2.6.48 · Published Application Inventory Drift
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** The published application catalog and delivery group assignments define what users can launch and from where. Unplanned additions — for example, an overly broad group entitlement — expand attack surface. Silent removals can break a department. Drift is often caught only after help desk tickets. Collecting and comparing app inventory over time, including who made the last change, supports change management, recertification, and quick forensic review if suspicious publishing appears. The goal is the same as infrastructure drift detection, but for desktop and app entitlements in Citrix rather than for cloud IaaS tags alone.
+- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-Broker`); optional scripted OData application inventory; Splunk add-on for Windows security audit if you capture privileged Citrix admin accounts
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` (admin and configuration change events, published application and delivery group membership changes if forwarded); `index=xd` `sourcetype="citrix:monitor:odata"` optional periodic snapshot of `Applications` and `ApplicationGroups` for diffing; Windows security or FMA audit if you consolidate admin actions
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events"
+| where event_type IN ("PublishedAppChange", "AppGroupChange", "AdminAction") OR match(_raw, "(?i)(publish|unpublish|application|delivery\s*group|entitlement)")
+| eval app=coalesce(app_name, ApplicationName, published_name, "Unknown")
+| eval change=coalesce(change_type, action, operation, event_type, "change")
+| eval actor=coalesce(admin_user, Actor, user, "unknown")
+| bin _time span=1d
+| stats count as changes, values(change) as change_types, values(delivery_group) as dgs by _time, app, actor
+| where changes>0
+| sort - _time
+| table _time, app, actor, change_types, dgs, changes
+```
+- **Implementation:** If native broker `event_type` values are not present, use daily OData `Applications` and `Outputlookup` a baseline table, then `diff` the next run with a scripted or Splunk custom command. For real-time, parse admin audit entries that include the admin SID or UPN. Alert when an application appears or disappears without a linked change record in your ITSM, or when `Actor` is not a known automation account. For security, pay special care to new publish actions to all-authenticated users or to broad Active Directory groups.
+- **Visualization:** Changelog table with old versus new, timeline of app count by delivery group, single value for new apps in last 24 hours with drilldown to detail.
+- **CIM Models:** Change
+- **Known false positives:** Application packaging sprints, bulk adds during catalog migrations, and nightly sync jobs from automation move published inventory counts. Scope alerts to changes outside a catalog publish or job ID, not every packaging weekend.
+- **MITRE ATT&CK:** T1098, T1078
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Publish applications in CVAD](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/publish.html), [Delegating administration and role-based access](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/delegated-administration.html)
+
+---
+
+### UC-2.6.49 · Stuck Sessions and Ghost Session Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Sessions that sit disconnected beyond policy, that never complete logoff, or that remain in broker state when the session host is already gone, consume user licenses, load index, and file handles; they are common precursors to ghost or orphaned sessions. Ghost sessions that survive past the machine that hosted them complicate support and can block new connections for the same user. You want detection that works off authoritative session records and time-in-state, with thresholds aligned to your group policy and Citrix session reliability settings, plus a path to session host or broker session reset actions.
+- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-Broker`); optional uberAgent UXM (Splunkbase 1448); optional Citrix Monitor OData
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` (session state, logoff, disconnect, reconnect); `index=xd` `sourcetype="citrix:monitor:odata"` `Sessions` for `SessionState`, `ClientName`, and `LogoffDuration` when broker feed is thin; `index=uberagent` `sourcetype="uberAgent:Session:SessionDetail"` for per-session end-to-end state
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events" (event_type="SessionState" OR event_type="SessionDisconnect" OR event_type="SessionLogoff")
+| eval state=coalesce(session_state, SessionState, status, "Unknown")
+| eval sess=coalesce(session_key, session_id, Uid, "unknown")
+| eval user=coalesce(user, UserName, "unknown")
+| eval machine=coalesce(machine_name, VDA, host, "Unknown")
+| where state IN ("Disconnected", "StuckOnBroker", "PendingLogoff", "PreparingSession", "PreparingApplication")
+| eval idle_sec=coalesce(idle_time_sec, disconnect_duration_sec, 0)
+| where idle_sec>28800
+| bin _time span=1h
+| stats count as bad_sessions, values(state) as states, max(idle_sec) as max_idle_sec, dc(user) as affected_users by machine, _time
+| where bad_sessions>0
+| table _time, machine, bad_sessions, affected_users, max_idle_sec, states
+```
+- **Implementation:** Align `idle_sec` and disconnect timers with GPO: disconnected session limit, logoff on disconnect, and session linger. Eight hours in the example SPL is a placeholder. Join broker and Monitor OData so you can see broker versus VDA truth; mismatch flags ghosts. For automation, use a runbook with Citrix `Get-BrokerSession` and reset cmdlets, not blind reboots. Alert on a machine with many long-lived disconnected states or a single user with repeated ghosts after migrations.
+- **Visualization:** Table of long-lived sessions, heatmap of affected machines, sparkline of ghost count over time, optional link to a Director-equivalent view.
+- **CIM Models:** Network_Sessions
+- **Known false positives:** Disconnected session and idle policies leave sessions that NOCs label ghost while they are still within policy. Escalate when the same user or machine stays beyond the documented threshold or when broker and VDA last-seen times diverge, not a single 'old' row.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Session reliability and reconnection (Citrix)](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/ica-session-reliability.html), [Troubleshoot user issues — session disconnect](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/troubleshoot-user-issues.html)
+
+---
+
+### UC-2.6.50 · VDA BSOD and Machine Stability Tracking
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Blue screens, hard hangs, and unexpected reboots on session hosts are disproportionately disruptive: many users and published apps can fail in one incident. A single bugcheck may be a driver or GPU edge case; a cluster of the same stop code in one catalog points to a bad image, firmware, or policy rollout. You need a unified stream that captures bugcheck parameters from the System log, correlates with Citrix VDA and agent state when available, and enriches with uberAgent reboot analytics so you can trend stability per catalog, per hardware generation, and after every monthly patch. Treat recurring hosts as a candidate for maintenance mode and root-cause with vendor tools.
+- **App/TA:** Splunk Add-on for Microsoft Windows; uberAgent UXM (Splunkbase 1448); optional Template for Citrix XenDesktop 7 for `citrix:vda:events`
+- **Data Sources:** `index=windows` (session hosts) `sourcetype="WinEventLog:System"` bugcheck events, unexpected shutdowns, kernel power events; `index=xd` `sourcetype="citrix:vda:events"` for VDA and agent service restarts tied to host instability; `index=uberagent` `sourcetype="uberAgent:Machine:Boot"` and related stability or boot sourcetypes for unexpected reboots and stop codes normalized by uberAgent
+- **SPL:**
+```spl
+index=windows sourcetype="WinEventLog:System" (EventCode=1001 OR EventCode=41 OR EventCode=6008)
+| rex field=Message max_match=0 "(?<bugcheck>0x[0-9A-Fa-f]+)"
+| append [ search index=uberagent sourcetype="uberAgent:Machine:Boot" unexpected_reboot=1 | eval EventCode=9999 | eval host=coalesce(host, dest_host) ]
+| bin _time span=1d
+| stats count as instabilities, values(EventCode) as event_codes, values(bugcheck) as stop_codes by host, _time
+| where instabilities>0
+| sort - instabilities
+| table _time, host, instabilities, event_codes, stop_codes
+```
+- **Implementation:** Ingest the full System channel from all session hosts. For bugcheck 1001, parse `Message` to extract the stop code. Join `host` to a CMDB or lookup that supplies `catalog_name` and `delivery_group`. In uberAgent, confirm unexpected reboots flow with the same `host` key. Alert when any host has more than one bugcheck in seven days, or when a new stop code appears in more than 10% of a catalog in a week. Exclude planned reboot windows via a change lookup. For GPU images, add NVIDIA or AMD field extractions in a child search.
+- **Visualization:** Choropleth of stability rate by data center, bar chart of top stop codes, timeline of restarts, table of worst hosts with catalog and patch level.
+- **CIM Models:** Endpoint
+- **Known false positives:** Patch Tuesday, driver hotfix waves, and pool-wide golden-image replays can produce a short burst of per-host BSODs during rollout. Require multiple distinct hosts, repeat crashes, or a driver signature tied to a bad patch, not a one-off on a single noisy VM.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Windows bug check reference (Microsoft Learn)](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/bug-check-code-reference2), [uberAgent unexpected reboots](https://docs.uberagent.com/)
+
+---
+
+### UC-2.6.51 · Citrix StoreFront Server IIS Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** StoreFront is the first hop for many users after the gateway. If IIS app pools recycle frequently, if worker processes crash, or if HTTP 401/500/503 rates climb, every receiver update, resource enumeration, and single sign-on call suffers — often before the broker shows pressure. You should monitor the IIS access log error mix, time-taken (latency) percentiles, and the Windows event trail for `W3SVC`, `IIS*`, and app pool `Application pool * stopped` or rapid recycling on each StoreFront node. A healthy farm shows symmetric latency across members; asymmetry is a sign of broken authentication provider settings or a sick node still receiving traffic from the load balancer.
+- **App/TA:** Splunk Add-on for Microsoft Windows; enable IIS and HTTP logging on StoreFront servers; consider Splunk add-on for Microsoft IIS for field extraction
+- **Data Sources:** `index=windows` `sourcetype="iis"` and `iis:access` or W3C for StoreFront web traffic; `sourcetype="WinEventLog:System"` and `sourcetype="WinEventLog:Application"` for IIS and Microsoft-Windows-IIS* worker process and app pool recycles; optional `sourcetype="WinEventLog:Security"` for authentication noise correlation
+- **SPL:**
+```spl
+index=windows (sourcetype="iis" OR sourcetype="W3C*" OR source="*u_ex*.log")
+| eval site=coalesce(s_sitename, "default")
+| search cs_uri_stem="*Authentication*" OR cs_uri_stem="*Resources*" OR cs_uri_stem="*Icon*" OR like(lower(cs_uri_stem), "%citrix%")
+| eval sc=tonumber(sc_status)
+| eval is_err=if(sc>=400,1,0)
+| bin _time span=5m
+| stats count as total, sum(is_err) as http_err, avg(timetaken) as avg_ms, perc95(timetaken) as p95_ms by site, _time
+| eval err_pct=if(total>0, round(100*http_err/total,2), 0)
+| where err_pct>1 OR p95_ms>2000
+| table _time, site, total, err_pct, avg_ms, p95_ms
+```
+- **Implementation:** Enable W3C extended logging on StoreFront with `time-taken`, `sc-status`, and `cs-uri-stem` at minimum. Ingest in near real time. Add a second scheduled search on Application/System for IIS worker crashes. Baseline 401 rates versus known maintenance. Alert when 5xx exceeds 0.2% of requests for 15 minutes, or p95 time-taken exceeds 2,000 ms for authentication and resource endpoints, or on app pool recycles more than one per hour per site. De-dupe load-balanced pairs by `cs-host` to avoid double counting a single user action.
+- **Visualization:** Timechart of 4xx/5xx counts, timechart of p95 time-taken by virtual directory, table of app pool recycles, single value for 503 spike.
+- **CIM Models:** Web
+- **Known false positives:** IIS app pool recycles, certificate binding touch-ups, and .NET or URL rewrite module updates on StoreFront are routine. Correlate 5xx with app pool or SSL maintenance; sustained unrecoverable pool failure across nodes is the real signal.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix StoreFront 1912 and later (planning and networking)](https://docs.citrix.com/en-us/storefront/1912/plan/considerations.html), [Microsoft: IIS log fields](https://learn.microsoft.com/en-us/iis/get-started/whats-new-in-iis-85/iis-85-rewrite-module-logging-rewrite-tracing)
+
+---
+
+### UC-2.6.52 · VDA Software and OS Version Lifecycle Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Citrix releases new VDA builds regularly. Microsoft retires Windows 10/11 builds on a predictable schedule. Running an inventory of `vda_version` and `os_build` per session host supports compliance with internal standard images, tells you which catalogs are still on long-term servicing versus current channel, and highlights stragglers before support tickets or Citrix Cloud health checks flag them. Feed the same list into patch windows, upgrade rings, and golden-image promotion. A simple scheduled report that lists any host not on the approved pair is enough for many organizations; add lookups for end-of-life dates you maintain in a CSV.
+- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-VDA`); optional uberAgent UXM (Splunkbase 1448) for operating system build and patch level
+- **Data Sources:** `index=xd` `sourcetype="citrix:vda:events"` (VDA agent version, component build, plug-in status); `index=uberagent` host inventory sourcetypes if you standardize on uberAgent for OS build; optional Windows `sourcetype="WinEventLog:Application"` for Citrix installer success or failure audit
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:vda:events" (event_type="AgentInfo" OR event_type="Registration" OR event_type="Heartbeat")
+| eval vda_ver=coalesce(vda_version, agent_version, VdaVersion, "unknown")
+| eval os_b=coalesce(os_build, windows_build, OSBuild, "unknown")
+| eval machine=coalesce(machine_name, host, "Unknown")
+| where vda_ver!="unknown"
+| stats dc(machine) as host_count, max(_time) as last_seen by vda_ver, os_b
+| rename vda_ver as vda_version, os_b as os_build_value
+| sort vda_version, os_build_value
+| table vda_version, os_build_value, host_count, last_seen
+```
+- **Implementation:** Emit a heartbeat or registration event at least daily that includes VDA and OS build. Create `lookup citrix_supported_vda.csv` with columns `vda_version`, `supported`, `eol_date`. Version the lookup with change control. Schedule the report weekly; alert only for rows on the critical path (for example, Internet-facing or regulated worker pools). Combine with your configuration management database to auto-close when a host is decommissioned.
+- **Visualization:** Bar chart of hosts by VDA version, table of unsupported rows, treemap by catalog if you join a lookup from machine to catalog.
+- **CIM Models:** Endpoint
+- **Known false positives:** Long tails of older VDA or OS versions are normal during phased EOL and site-by-site upgrades. Track trend toward a published deadline; avoid flat 'any old version' alerts that fire every day of a 12-month migration.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix Virtual Apps and Desktops — product matrix and lifecycle](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/product-lifecycle.html), [Current release VDA requirements](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/system-requirements.html)
+
+---
+
+### UC-2.6.53 · Citrix Delivery Group Desktop Assignment Changes
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Security
+- **Value:** Desktop and machine assignments determine who can reach which host pool, including support jump boxes and high-risk clinical or trading desktops. A mistaken assignment can grant a broad security group direct access to a gold image, or remove access during an incident. You should log add/remove actions on assignments with the acting admin, delivery group, user or group principal, and machine where applicable. Day-to-day automation may drive many rows — the control is the unexpected actor, off-hours change, or assignment outside an approved list of groups, not the volume alone.
+- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-Broker`); optional Citrix Monitor OData for snapshot-based diff
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` (desktop assignment, entitlement, and machine assignment changes; admin actions); `index=xd` `sourcetype="citrix:monitor:odata"` `Machines` or `Assignments` if you take periodic inventory snapshots; optional Microsoft-365/Entra sign-in or AD audit for correlating the same `user` principal
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events"
+| where event_type IN ("DesktopAssignmentChange", "MachineAssignment", "EntitlementChange") OR match(_raw, "(?i)(assignment|entitlement|desktop.?.?user|user.?.?machine)")
+| eval user_key=coalesce(user, UPN, sam_account, "unknown")
+| eval dg=coalesce(delivery_group, desktop_group, "Unknown")
+| eval machine=coalesce(machine_name, machine, "Unassigned")
+| eval change=coalesce(change_type, action, event_type, "change")
+| eval actor=coalesce(admin_user, Admin, "unknown")
+| bin _time span=1h
+| stats count as changes, values(change) as change_types, values(user_key) as users_touched, values(machine) as machines by dg, _time, actor
+| where changes>0
+| sort - _time
+| table _time, actor, dg, change_types, users_touched, machines, changes
+```
+- **Implementation:** Map broker admin events into `citrix:broker:events` with stable field names. Create a `lookup` of approved automation service accounts. Alert when `actor` is not in the list and the hour is outside change windows, or when a new Active Directory group is added to a sensitive delivery group. If your broker is quiet, supplement with hourly OData `Machines` output diffed in a saved search. Feed results to the identity and access team for recertification evidence.
+- **Visualization:** Timeline of changes by admin, table of the last 50 events with before/after if your feed includes it, single value of changes in last 24 h compared to 30-day average.
+- **CIM Models:** Change
+- **Known false positives:** HR bulk moves, department restructuring, and large hiring batches legitimately reassign many desktops the same day. Join to the HR feed or the bulk ticket before treating mass assignment as malicious admin action.
+- **MITRE ATT&CK:** T1098
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Assign machines to users in CVAD](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/delivery-groups-machines.html), [Manage machine catalogs and delivery groups](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/manage-cds.html)
+
+---
+
+### UC-2.6.54 · RDS Licensing Validation for Multi-Session Hosts
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Session hosts that offer multiple concurrent RDP and Citrix sessions need valid Remote Desktop Services client access licenses, healthy communication with the license server list, and clear visibility into per-device versus per-user mode and any grace period. A host in grace can appear healthy until a deadline passes and new sessions are refused. A broken license server list string — wrong DNS, firewall, or certificate — is a common misconfiguration. Collect license warnings from Application and the Remote Desktop service channels on each multi-session VDA, and aggregate the same on license servers. Pair with your Citrix per-user and Microsoft RDS-CAL entitlements in procurement, not in Splunk, but use Splunk to prove the runtime state matches policy.
+- **App/TA:** Splunk Add-on for Microsoft Windows on session hosts and on Remote Desktop License Servers; optional scripted WMI or `Get-CimInstance` poll for `Win32_TerminalServiceSetting` and grace period on hosts
+- **Data Sources:** `index=windows` `sourcetype="WinEventLog:Application"` with `Source="*TerminalServices*"` or `Microsoft-Windows-TerminalServices-LSM*`, Windows license service events, Remote Desktop license server events (42, 4105, 22, 23, 25, 28); `index=windows` on the license server and `sourcetype="WinEventLog:RemoteDesktopServices*"` where available; `index=xd` `sourcetype="citrix:broker:events"` for multi-session brokering context
+- **SPL:**
+```spl
+index=windows (sourcetype="WinEventLog:Application" OR sourcetype="WinEventLog:RemoteDesktopServices*" OR source="*TerminalServices*")
+| where EventCode IN (22, 23, 25, 28, 38, 4105) OR like(lower(_raw),"%license%") OR like(lower(_raw),"%grace%") OR like(lower(_raw),"%remote desktop%") OR like(lower(_raw),"%rd licen%")
+| eval kind=if(like(lower(_raw),"%grace%"),"grace", if(like(lower(_raw),"%expir%"),"expiry","license_event"))
+| eval server=coalesce(license_server, LicenseServer, host)
+| bin _time span=1d
+| stats count as daily_events, values(EventCode) as codes, values(kind) as kinds by server, _time
+| where daily_events>0
+| sort - daily_events
+| table _time, server, daily_events, codes, kinds
+```
+- **Implementation:** Enable verbose Remote Desktop license logging in Windows where supported. Add a small scripted input to dump `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Terminal Server\RCM\Licensing` or PowerShell `Get-RDLicense` output daily on license servers. Alert on any `grace` or `0-day` grace start, any event that says license server is unreachable, and any 4105 with severity error. Deduplicate license servers. Document which Citrix and Microsoft agreements cover which host pools. Tune out duplicate Windows noise per build.
+- **Visualization:** Table of last license error per host, timechart of daily_events by server, single value of hosts in grace, network diagram optional with manual overlay.
+- **CIM Models:** Endpoint
+- **Known false positives:** License key renewals, grace period during true-up, and a temporary license server failover can log RDS or Citrix session licensing warnings. Map to the license key expiry calendar and only escalate when users are actually blocked at session connection.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Remote Desktop Services and licensing (Microsoft Learn)](https://learn.microsoft.com/en-us/troubleshoot/windows-server/remote/remote-desktop-services-terms), [Citrix — supported operating systems and RDS context](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/system-requirements.html)
+
+---
+
+### UC-2.6.55 · GPU Driver Version and License Status (NVIDIA GRID / vGPU)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Availability
+- **Value:** NVIDIA vGPU and GRID licensing tie guest driver versions, hypervisor, and a license service together. A guest can boot but fall back to a restricted mode, lose hardware encode, or see session failures if the license server is unreachable, the wrong `driverVersion` is paired with a host driver, or ECC errors pass a threshold. Citrix 3D workloads, Teams optimization, and browser video offload all depend on a healthy, licensed GPU path. This use case unifies uberAgent (or an equivalent) GPU performance and license state with optional Citrix VDA hardware health. Treat driver skew across a catalog as an image problem; treat isolated license loss as a network or license server problem.
+- **App/TA:** uberAgent UXM (Splunkbase 1448) with GPU monitoring enabled; NVIDIA vGPU on supported hypervisors; optional Splunk add-on for Windows for NVIDIA-sourced events
+- **Data Sources:** `index=uberagent` `sourcetype="uberAgent:GPU:Performance"`, `sourcetype="uberAgent:GPU:NVIDIA"`, or host inventory GPU sourcetypes for `driverVersion`, vGPU name, `licenseState`, and utilization; `index=xd` `sourcetype="citrix:vda:events"` for Citrix agent–reported hardware state when the hypervisor and NVIDIA vGPU have integration events; `index=windows` `sourcetype="WinEventLog:System"` for NVIDIA service failures
+- **SPL:**
+```spl
+index=uberagent (sourcetype="uberAgent:GPU:NVIDIA" OR sourcetype="uberAgent:GPU:Performance")
+| eval host_name=coalesce(host, dest_host, machine)
+| eval driver=coalesce(driverVersion, driver_version, nvidia_driver_version, "unknown")
+| eval lic=lower(coalesce(licenseState, license_state, vgpu_license_state, "unknown"))
+| eval vgpu_name=coalesce(vgpuType, vgpu_type, vgpu, "Unknown")
+| eval errs=tonumber(coalesce(fatal_count, 0)) + tonumber(coalesce(uncorrectable_ecc, 0))
+| where (lic!="licensed" AND lic!="ok" AND lic!="n/a" AND lic!="active") OR like(lic, "%unlic%") OR like(lic, "%fail%") OR errs>0
+| stats latest(driver) as driver_version, max(lic) as license_state, latest(vgpu_name) as vgpu, max(errs) as err_signals by host_name
+| table host_name, driver_version, vgpu, license_state, err_signals
+```
+- **Implementation:** Enable the GPU-related uberAgent options that match your hypervisor. Confirm `index=uberagent` has one row per host per minute at minimum. Build a `lookup` of approved `driverVersion` for each vGPU type and image generation. Alert when `licenseState` is not `Licensed` for more than 15 minutes, or when `driverVersion` is not in the approved list, or when fatal GPU errors increment. Excluded dedicated physical GPUs from vGPU license logic if you run mixed modes. For Citrix, tag hosts that run HDX 3D Pro policies so the alert is routed to the DaaS and NVIDIA contact points.
+- **Visualization:** Table of hosts with `driverVersion`, vGPU type, and license; heatmap of license problems over time; line chart of GPU utilization for affected hosts, linked to a Citrix app session panel.
+- **CIM Models:** Endpoint
+- **Known false positives:** Host driver upgrades, vGPU rebalancing, and cluster rolling reboots can trip NVIDIA GRID license or driver state checks for minutes. Use host maintenance and GPU cluster change windows, with persistence after the last reboot, before a fleet GPU incident.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [NVIDIA vGPU software documentation](https://docs.nvidia.com/grid/index.html), [HDX 3D Pro — Citrix (context for GPU use)](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/hdx-3d-pro.html)
+
+---
+
+### UC-2.6.56 · Citrix Cloud Service Health Status Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Citrix Cloud publishes health for core services such as Virtual Apps and Desktops service, StoreFront-related cloud services, and Gateway components. Regional incidents or degraded subcomponents can shrink capacity, break brokering, or strand users before your internal monitors move. Ingesting normalized status events (API or add-on) into a single timeline lets operations correlate internal session drops with upstream Citrix Cloud issues, route communication faster, and avoid fruitless VDI war rooms when the root cause is provider-side.
+- **App/TA:** Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.
+- **Data Sources:** `index=citrix` `sourcetype="citrix:cloud:status"` or `sourcetype="citrix:status:api"` with `component_name`, `region`, `impact`, `status`; optional HEC feed from Citrix Cloud Status page or third-party mirroring; `index=xd` `sourcetype="citrix:analytics:health"` when using Citrix Analytics Add-on for Splunk (Splunkbase 6280) for correlated service signals Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=citrix (sourcetype="citrix:cloud:status" OR sourcetype="citrix:status:api")
+| eval comp=coalesce(component_name, service, product, "unknown")
+| eval st=lower(coalesce(status, overall_status, health, "unknown"))
+| eval sev=lower(coalesce(impact, incident_severity, "none"))
+| where st!="operational" AND st!="none" AND st!="healthy" OR match(sev, "(major|critical|degraded|partial)")
+| stats latest(st) as status, latest(sev) as impact, latest(_time) as last_update by comp, region
+| sort - last_update
+| table comp, region, status, impact, last_update
+```
+- **Implementation:** Stand up a collector that polls the Citrix Cloud status API or streams change events at a steady interval (for example every 60 seconds) and writes one event per component per region. Normalize field names across regions. Create a lookup of business-critical components for your tenant (for example brokering, workspace, gateway). Alert when any monitored component leaves an operational state or when incident severity matches major or critical. Feed the same index from the Citrix Analytics Add-on if you use it so internal health metrics and public status share a dashboard. Document a comms template that names the component and region.
+- **Visualization:** Single-value strip of red or yellow components; timeline of status flips by region; table of open incidents with start time and blast radius; overlay with session-failure rate from VDA or gateway logs.
+- **CIM Models:** Application_State
+- **Known false positives:** Citrix public cloud sub-service blips in one region or short vendor incidents can spike 'service down' without internal cause. Correlation with the official status page and a multi-region health check avoids paging for a 5-minute green-yellow-green flip.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix Analytics Add-on for Splunk (Splunkbase 6280)](https://splunkbase.splunk.com/app/6280), [Citrix Cloud service health (product documentation)](https://docs.citrix.com/en-us/citrix-cloud/overview/citrix-cloud-service-availability.html)
+
+---
+
+### UC-2.6.57 · Citrix Cloud Connector Deep Health (HealthData API)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Basic connector heartbeats (see UC-2.6.16) prove the service is up; deep health from the HealthData API exposes resource starvation, time drift, failed outbound checks to cloud dependencies, and registration edge cases that still leave the connector process running. These conditions cause intermittent brokering delays, policy refresh gaps, and mysterious registration churn on VDAs. Aggregating API snapshots per connector gives an early, concrete signal to patch, scale out, or fix DNS and TLS paths before a resource location loses effective cloud control.
+- **App/TA:** Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.
+- **Data Sources:** `index=xd` `sourcetype="citrix:cloudconnector:healthdata"` with `connector_id`, `cpu_percent`, `alert_state`, `cloud_registration`, `time_sync_status`, `dependency_check`, `failed_outbound` fields parsed from the Citrix HealthData API or Cloud Connector local health snapshots forwarded on a short interval; complementary `sourcetype="citrix:cloudconnector"` for baseline connectivity from UC-2.6.16 Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:cloudconnector:healthdata"
+| eval reg_ok=if(match(lower(coalesce(cloud_registration, registration_status, "")), "(registered|ok|success)"), 1, 0)
+| eval sync_ok=if(match(lower(coalesce(time_sync_status, ntp_status, "")), "(synced|ok|in\ssync)"), 1, 0)
+| eval dep_ok=if(tonumber(coalesce(failed_outbound, failed_dependencies, 0))=0, 1, 0)
+| eval cpu=tonumber(coalesce(cpu_percent, cpu, 0))
+| where reg_ok=0 OR sync_ok=0 OR dep_ok=0 OR cpu>90 OR like(lower(coalesce(alert_state, health_alert, "")), "%fail%") OR like(lower(coalesce(alert_state, health_alert, "")), "%error%")
+| stats latest(cpu) as cpu_pct, latest(alert_state) as alert_state, latest(cloud_registration) as registration, latest(time_sync_status) as time_sync, max(failed_outbound) as failed_deps by host, connector_id, resource_location
+| sort - cpu_pct
+```
+- **Implementation:** Deploy a least-privilege scheduled collector on each Cloud Connector (or a shared runner that iterates member hosts) that calls the HealthData API and emits JSON events every one to five minutes. Normalize numeric CPU and map alert flags to a small enum. Create correlation searches that ignore brief CPU spikes under two minutes. Require dual-connector hot-spares: alert when the worst two hosts in a site both show dependency failures. Retain 30 days of history for post-incident review. Co-watch with 2.6.16 so disconnections and deep health anomalies appear on one dashboard.
+- **Visualization:** Connector matrix (CPU, registration, NTP, dependency failures); sparklines of failed outbound tests; overlay with VDA registration errors in the same resource location.
+- **CIM Models:** Application_State
+- **Known false positives:** Connector upgrades, Azure or AWS zone maintenance, and rolling Cloud Connector restarts can dip HealthData API or registration checks briefly. Require minimum healthy connector count and align with a published connector maintenance schedule.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix Cloud Connector — system and connectivity requirements](https://docs.citrix.com/en-us/citrix-cloud/citrix-cloud-resource-locations/citrix-cloud-connector-installation.html), [Cloud Connector advanced functionality (troubleshooting context)](https://docs.citrix.com/en-us/citrix-cloud/citrix-cloud-resource-locations/connector-technical-details.html)
+
+---
+
+### UC-2.6.58 · Citrix Analytics for Performance Data Export
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Citrix Analytics for Performance scores sessions and surfaces machine and session lifecycle events with modeled user-experience metrics. When those streams land in a dedicated index, you can trend score regressions by delivery group, catch rising ICA round trip before the help desk floods, and separate image issues from home-network problems. This use case focuses on continuous performance observability and capacity-driven tuning, not on raw security forensics (see related security export use case).
+- **App/TA:** Citrix Analytics Add-on for Splunk (Splunkbase 6280)
+- **Data Sources:** `index=citrix` `sourcetype="citrix:analytics:performance"` with `session_id`, `user_principal`, `ux_score`, `logon_duration_ms`, `ica_rtt`, `vda_name`, `machine_event_type` from the Citrix Analytics for Performance data export via Citrix Analytics Add-on for Splunk (Splunkbase 6280); optional join to `sourcetype="citrix:vda:events"` for on-host correlation
+- **SPL:**
+```spl
+index=citrix sourcetype="citrix:analytics:performance"
+| eval score=tonumber(coalesce(ux_score, user_experience_score, session_score, -1))
+| eval rtt=tonumber(coalesce(ica_rtt, round_trip_ms, 0))
+| eval logon=tonumber(coalesce(logon_duration_ms, logon_ms, 0))
+| where (score>0 AND score<70) OR rtt>300 OR logon>15000
+| eval reason=case(score>0 AND score<70, "low_ux_score", rtt>300, "high_ica_rtt", logon>15000, "slow_logon", true(), "other")
+| timechart span=1h count by reason, user_principal
+| fillnull value=0
+```
+- **Implementation:** Complete Citrix Cloud onboarding for Analytics, enable the Performance export, and install Splunkbase 6280 on a test search head. Map exported fields to a stable schema: prefer `user_principal` and `session_id` as join keys. Build baseline weekly medians of UX score and logon time per app group. Alert on a sustained drop in median score (for example 15 points for two hours) or on percentile shifts of ICA RTT. Route reports to EUC and network teams. Mask or hash identifiers if exports leave regulated regions. Keep raw exports within retention that matches your DLP policy.
+- **Visualization:** Time chart of median UX score by delivery group; scatter of logon time versus ICA RTT; table of worst sessions in the last hour with drill to machine name and region.
+- **CIM Models:** Performance
+- **Known false positives:** Toggling performance analytics, rebinding a tenant, or a connector upgrade can pause or reshape export volume. Check entitlements and connector version before a zero-data alert; lab toggles and pilot tenants should be in an exclusion list.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix Analytics Add-on for Splunk (Splunkbase 6280)](https://splunkbase.splunk.com/app/6280), [Citrix Analytics for Performance (overview)](https://docs.citrix.com/en-us/citrix-analytics/performance.html)
+
+---
+
+### UC-2.6.59 · Citrix Analytics for Security Risk Indicators
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Citrix Analytics for Security aggregates behavioral signals on access to virtual apps and data: anomalous authentication patterns, data-exfiltration heuristics, and composite insider-threat style scores. Forwarding these indicators into a security operations index lets analysts create high-fidelity detections, hunt across users and risk types, and tune response playbooks (step-up, session recording review, or account disable) without only relying on raw gateway noise. The goal is to surface the risk-ranked narrative Microsoft and Citrix already compute, enriched with your corporate identity context in downstream workflows.
+- **App/TA:** Citrix Analytics Add-on for Splunk (Splunkbase 6280) — imports risk insights and associated events from Citrix Analytics for Security. Supports both Performance and Security analytics data.
+- **Data Sources:** `index=citrix` `sourcetype="citrix:analytics:security"` with `risk_score`, `risk_type`, `user_principal`, `threat_vector`, `event_subtype` (anomalous sign-in, data exfiltration heuristics, compromised credential signals, insider-risk scores) ingested through Citrix Analytics Add-on for Splunk (Splunkbase 6280); optional append of `sourcetype="citrix:gateway:syslog"` for corroboration
+- **SPL:**
+```spl
+index=citrix sourcetype="citrix:analytics:security"
+| eval risk=tonumber(coalesce(risk_score, score, 0))
+| eval rtype=lower(coalesce(risk_type, event_subtype, category, "unknown"))
+| where risk>=70 OR like(rtype, "%exfil%") OR like(rtype, "%anomal%auth%") OR like(rtype, "%insider%")
+| stats latest(risk) as max_risk, values(threat_vector) as vectors, count as event_count by user_principal, rtype
+| sort - max_risk
+| head 200
+```
+- **Implementation:** Enable the Security data export in Citrix Cloud and connect Splunkbase 6280 with least-privilege API credentials. Classify `risk_type` into SOC tiers: authentication anomalies versus exfiltration signals versus insider risk. Send critical scores (for example 85 plus) to your incident queue with a direct link to Citrix Cloud investigation. Deduplicate on `user_principal` and five-minute windows to control noise. Add identity context from your directory or HR feed via lookup. Comply with privacy review before storing raw risk text in long retention.
+- **Visualization:** Stacked bar of risk events by type; top risky users table; Sankey or sequence chart from sign-in to risk event when fields allow.
+- **CIM Models:** Alerts
+- **Known false positives:** Purple-team, pen-test, and synthetic risk scenarios feed Citrix security analytics the same spiky indicators as real attack. Add project tags, test user lists, and time-bound exercise windows, then tune severity when only analytics risk score moves without corroboration.
+- **MITRE ATT&CK:** T1078, T1110
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix Analytics Add-on for Splunk (Splunkbase 6280)](https://splunkbase.splunk.com/app/6280), [Citrix Analytics for Security](https://docs.citrix.com/en-us/citrix-analytics/security-analytics.html)
+
+---
+
+### UC-2.6.60 · Identity Provider (SAML/AAD) Integration Failures
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Security
+- **Value:** Workspace and StoreFront sign-ins that rely on SAML or Microsoft Entra ID can fail when federation certificates roll without coordination, when conditional access policies block legacy protocols, or when NameID/UPN mapping between directories drifts. Users experience intermittent or total login failure while infrastructure monitors still show green VDAs. Correlating Citrix-side assertion errors with Entra sign-in results isolates the owning team (identity vs Citrix) quickly and prevents prolonged outages during certificate and trust changes.
+- **App/TA:** Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.
+- **Data Sources:** `index=xd` `sourcetype="citrix:cloud:connector:saml"` or `sourcetype="citrix:workspace:saml:diag"` with `error_code`, `idp_name`, `cert_subject`, `assertion_user`; `index=azure` `sourcetype="azure:aad:signin"` for conditional access failures, certificate-based auth issues, and UPN mismatch; `index=citrix` `sourcetype="citrix:analytics:security"` optional risk layer Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=xd (sourcetype="citrix:workspace:saml:diag" OR sourcetype="citrix:cloud:connector:saml")
+| eval err=lower(coalesce(error_code, error, message, "")), src="citrix_saml", user=coalesce(user_principal, saml_nameid, subject)
+| where like(err, "%cert%") OR like(err, "%signature%") OR like(err, "%nameid%") OR like(err, "%audience%") OR like(err, "%mismatch%") OR match(err, "(AADSTS|MSIS)")
+| eval userPrincipalName=user, errorCode=err
+| append [
+  search index=azure sourcetype="azure:aad:signin" result!="Success"
+  (resourceDisplayName="*citrix*" OR resourceDisplayName="*Citrix*" OR appDisplayName="Citrix Workspace")
+  | eval src="entra_signin"
+  | fields _time, userPrincipalName, result, conditionalAccessStatus, errorCode, src
+  ]
+| stats count by userPrincipalName, result, errorCode, src
+| sort - count
+```
+- **Implementation:** Ingest Citrix Workspace or connector SAML diagnostic logs to a dedicated sourcetype and map certificate expiry fields. Ingest Microsoft Entra sign-in logs for applications matching Citrix. Build a time-synced join on user and a five-minute window, not a naive transaction. Alert when SAML signature or certificate errors exceed a small baseline, or when Entra returns conditional access block codes for the Citrix app only. Add change tickets for cert rotations with automatic suppression. Document IdP cert fingerprints in a lookup for drift detection. Review privacy before storing full assertion bodies.
+- **Visualization:** Side-by-side timeline: Citrix SAML errors versus Entra failure codes; table of UPNs with both streams; single value of unique users blocked in one hour.
+- **CIM Models:** Authentication
+- **Known false positives:** IdP certificate rollover, Azure AD B2B guest quirks, and MFA enrollment bursts create transient SAML or token errors that look like integration failure. Use IdP health feeds, cert expiry lead time, and directory maintenance; ignore sub-minute blips at login peaks.
+- **MITRE ATT&CK:** T1556
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix Cloud identity providers and authentication](https://docs.citrix.com/en-us/citrix-cloud/citrix-cloud-management/identity-providers-in-citrix-cloud.html), [Splunk add-on: Microsoft Cloud Services (Entra / Azure data)](https://splunkbase.splunk.com/app/3110)
+
+---
+
+### UC-2.6.61 · Citrix HDX Rendezvous Protocol Path Selection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** HDX Rendezvous lets sessions establish through direct UDP paths with STUN when possible, and fall back to relayed transport when firewalls, symmetric NAT, or port blocks get in the way. A high relay ratio or STUN failure clusters often point to home-router settings, guest Wi-Fi, or data-center egress rules rather than the VDA image. Monitoring path selection, Rendezvous v2 adoption, and UDP blockage patterns helps the right team tune Gateway, DTLS, and client policy before remote users see chronic latency, dropped multimedia, and unstable Teams inside sessions.
+- **App/TA:** Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.
+- **Data Sources:** `index=xd` `sourcetype="citrix:hdx:rendezvous"` or VDA/Session diagnostics with `rendezvous_path` (`direct` vs `relay`), `stun_status`, `udp_blocked`, `nat_type`, `rendezvous_version`; optional `sourcetype="citrix:gateway:connection"` for combined path; uberAgent or IP flow telemetry in parallel for home-office ISP issues Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=xd (sourcetype="citrix:hdx:rendezvous" OR (sourcetype="citrix:vda:events" event_type="*rendezvous*"))
+| eval path=lower(coalesce(rendezvous_path, path_mode, connection_path, "unknown"))
+| eval stun=lower(coalesce(stun_status, stun, "unknown"))
+| eval udp_block=if(match(lower(coalesce(udp_blocked, "")), "(true|yes|1|blocked)"), 1, 0)
+| eval ver=coalesce(rendezvous_version, rv2_version, "na")
+| where path="relay" OR udp_block=1 OR stun!="ok" OR match(lower(coalesce(nat_type, "")), "(sym|symmetric|strict)")
+| stats count by host, user, path, stun, udp_block, nat_type, ver
+| sort - count
+```
+- **Implementation:** Enable the enhanced rendezvous or HDX connection diagnostics in Citrix that emit path mode. Forward those events to `index=xd` with a stable sourcetype. Parse boolean UDP-block flags when present. Create weekly baselines: percentage relay versus direct by region and by client build. Alert when relay share jumps more than 20 points versus the rolling median for a region, or when symmetric NAT count spikes after a home-router firmware wave. Work with network teams to document required UDP and DTLS allow rules. Pair with Citrix Workspace app version compliance.
+- **Visualization:** Stacked 100% bar: direct vs relay by region; map of STUN failure counts; time chart of rendezvous v2 share across clients.
+- **CIM Models:** Network_Traffic
+- **Known false positives:** Firewall and routing changes during rendezvous and EDT pilots deliberately shift 'direct' versus 'cloud' path. Document expected path per group; alert when production cohorts fall back across both paths without a matching change, not a single pilot user.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [HDX direct connections (Rendezvous) — product documentation](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/hdx-direct-connections.html), [Citrix Gateway and rendezvous (deployment context)](https://docs.citrix.com/en-us/citrix-gateway/13-1-citrix-gateway-federation-integration.html)
+
+---
+
+### UC-2.6.62 · Citrix Workspace Service Feed Availability
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** The Citrix Workspace service must enumerate feeds, aggregate resources from brokering and cloud sources, and stay responsive over HTTPS. Certificate problems, API throttling, or connector outages can produce empty start menus, missing apps, or flapping resource lists that mimic client bugs. Synthetics and server-side feed diagnostics measure availability and latency to the user-facing document endpoints and tie failures to a specific store, region, or IDP, shortening mean time to restore before broad ticket spikes.
+- **App/TA:** Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.
+- **Data Sources:** `index=xd` `sourcetype="citrix:workspace:feed"` with `feed_url`, `http_status`, `latency_ms`, `store_name`, `resource_count`, `error_code`; client-side or synthetic probe events from StoreFront/Workspace; optional `sourcetype="citrix:cloud:connector:svc"` for dependency failures affecting aggregation Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:workspace:feed"
+| eval ok=if(match(coalesce(http_status, status, "200"), "^(200|204)$"), 1, 0)
+| eval lat=tonumber(coalesce(latency_ms, response_time_ms, 0))
+| where ok=0 OR lat>2000 OR tonumber(coalesce(resource_count, -1))=0
+| eval issue=case(ok=0, "http_or_feed_error", lat>2000, "high_latency", tonumber(coalesce(resource_count,0))=0, "empty_catalog", true(), "other")
+| timechart span=5m count by issue, store_name
+| fillnull value=0
+```
+- **Implementation:** Deploy both passive logs (if available from Citrix) and a lightweight synthetic that requests the same feed entry points the clients use, tagged by region. Send results to a dedicated index with five-minute resolution. Set SLOs (for example 99.9 percent under one second) per region. Alert on two consecutive non-200 responses, zero resources returned for any active directory group, or latency above two seconds. Pair alerts with 2.6.16 and 2.6.60 when the failure is identity-related. Keep separate dashboards for on-premises stores versus cloud Workspace.
+- **Visualization:** Uptime and latency SLO by region; heatmap of feed errors; single value: resources returned versus expected baseline from yesterday same hour.
+- **CIM Models:** Application_State
+- **Known false positives:** CDN or public DNS hiccups and Workspace app cache refresh during brand changes can depress feed availability for everyone. External synthetic and provider status, plus internal app publishing, separate vendor blips from StoreFront or broker issues.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix Workspace app — technical overview and connectivity](https://docs.citrix.com/en-us/citrix-workspace-app-for-windows.html), [Configure Workspace experience (Citrix DaaS)](https://docs.citrix.com/en-us/citrix-daas-service/integrate-identity-serve-apps-and-data.html)
+
+---
+
+### UC-2.6.63 · DaaS Autoscale Cloud Economics Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
+- **Value:** DaaS autoscale can chase session demand, but public-cloud bills reflect clock time, instance families, and lingering powered-on capacity as much as user counts. Blending host-pool or delivery-group session peaks with tag-aligned cloud spend shows scale-out efficiency, expensive idle headroom, and cost-per-active-session trends. Finance and platform teams get a defensible way to right-size buffer percentages, change instance SKUs, or tune shutdown aggressiveness without only trusting static dashboards in the admin consoles.
+- **App/TA:** Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.
+- **Data Sources:** `index=cloud` or `index=azure` `sourcetype="azure:consume:export"` with `cost`, `resource_id`, `tag_pool`, `meter`; `index=xd` `sourcetype="citrix:mc:autoscale"` with `power_action`, `machine_count`, `session_count`, `host_pool`; `index=xd` `sourcetype="citrix:brokering:summary"` for active sessions; optional FinOps CSV via `inputlookup`
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:consume:export" (resource_type="*compute*" OR resource_type="*virtual*")
+| eval tag_pool=if(isnotnull(citrix_host_pool) AND citrix_host_pool!="", citrix_host_pool, coalesce(resource_name, resource_id, "unmapped"))
+| bin _time span=1d
+| stats sum(tonumber(cost,0)) as daily_cost by _time, tag_pool
+| join type=left _time, tag_pool [
+  search index=xd (sourcetype="citrix:mc:autoscale" OR sourcetype="citrix:brokering:summary")
+  | eval tag_pool=coalesce(host_pool, delivery_group, catalog_name, "unmapped")
+  | bin _time span=1d
+  | stats max(session_count) as peak_sessions, latest(machine_count) as reported_machines by _time, tag_pool
+  ]
+| eval cost_per_session=if(peak_sessions>0, round(daily_cost/peak_sessions,3), null())
+| where isnotnull(daily_cost) AND daily_cost>0
+| table _time, tag_pool, daily_cost, peak_sessions, reported_machines, cost_per_session
+```
+- **Implementation:** Tag or label cloud VMs with a stable `citrix_host_pool` value matching Splunk's brokering or MCS data. Ingest a daily (or hourly) cost feed with the same key. Build weekly reports: cost per session by pool, unused powered-on hours, and autoscale event counts versus cost deltas. Set soft alerts for sudden jumps in cost-per-session or sustained idle high-water marks after scale events. Engage FinOps to validate currency and amortization. Never alert on cost alone without a session denominator except for obvious billing anomalies. Document that bursty test traffic can skew short windows.
+- **Visualization:** Line chart of cost per session by pool; stacked area of instance hours paid versus sessions; table of autoscale power actions and next-day cost impact.
+- **CIM Models:** Performance
+- **Known false positives:** Reserved instances, committed use, and org-wide 'always on' capacity for compliance can make idle-looking cloud spend look 'bad' in a simple dollars-per-day cap. Join FinOps baselines and the business minimum seat count, not a lone threshold.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Autoscale in Citrix DaaS](https://docs.citrix.com/en-us/citrix-daas-service-delivery-machines/delivery-groups/autoscale-daas.html), [Microsoft Cost Management (export cost data to external tools)](https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/analyze-cost-data-azure)
+
+---
+
+### UC-2.6.64 · Citrix Endpoint Management Device Enrollment Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Citrix Endpoint Management (CEM) enrollments that fail by Azure AD, identity-provider, or gateway-based flows strand devices without the policies and secure channels you expect. A rising failure rate in one method (for example AAD) often foreshadows certificate or conditional-access changes rather than a bad device. Tracking failures by method and MDM versus MAM split, with hourly trends, helps operations separate widespread identity drift from a flaky Wi-Fi at one site, and it pairs naturally with the certificate and compliance use cases in the same runbooks.
+- **App/TA:** No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.
+- **Data Sources:** `index=mdm` or `index=xd` `sourcetype="citrix:endpoint:enrollment"` with `enrollment_method` (`AAD`, `idp`, `gateway`, `scep`), `mdms_scope` (full MDM vs MAM), `outcome` (`success`/`failed`), `error_code`, `device_platform`, `user_id`; server logs from Citrix Endpoint Management (on-premises or cloud connector) forwarded with stable timestamps Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:endpoint:enrollment" outcome!="success"
+| eval method=upper(coalesce(enrollment_method, channel, "UNKNOWN"))
+| eval mode=coalesce(mdms_scope, mdm_mam, enrollment_mode, "unknown")
+| eval platform=coalesce(device_platform, os_type, "unknown")
+| bin _time span=1h
+| stats count as failures, dc(error_code) as unique_errors by _time, method, mode, platform
+| where failures>=5
+| sort - _time, failures
+```
+- **Implementation:** Stream enrollment transactions from the CEM service or appliance into a dedicated index and sourcetype. Normalize `outcome` to lower case. Add a small lookup of acceptable error rates per platform. Alert when hourly non-success events exceed a rolling four-hour baseline by 300 percent, or any single error code appears more than 50 times in an hour. Provide a dashboard by enrollment method and region. Separate corporate-owned and BYOD cohorts if your data model supports it. Coordinate with the identity team when AAD- or IdP-tagged failures lead the chart.
+- **Visualization:** Time chart: enrollment failures by method; bar chart: MDM versus MAM failure share; drill table with top error_code and last device sample IDs (masked).
+- **CIM Models:** Change
+- **Known false positives:** New device season, OS refresh, and OTA mass pushes spike enrollment errors in absolute count. Use success-rate floors and the enrollment campaign ID; raw failure counts without cohort size are often false volume.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix Endpoint Management product documentation](https://docs.citrix.com/en-us/citrix-endpoint-management.html)
+
+---
+
+### UC-2.6.65 · Citrix Endpoint Management MDM/MAM Policy Compliance
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** MDM and MAM policies express your minimum security bar: no jailbreak or root, current OS patch bands, a real passcode, and no disallowed applications. CEM can emit compliance state per device and per policy package. A rising non-compliant population after an OS release, or a sudden bloom of blacklisted app hits, is often your first sign of shadow IT or stolen devices on the same fleet as your regulated data. This use case drives executive-friendly compliance rate charts and high-severity security alerts in one place.
+- **App/TA:** No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.
+- **Data Sources:** `index=xd` `sourcetype="citrix:endpoint:compliance"` with `jailbreak_flag`, `root_flag`, `os_patch_level`, `passcode_compliant`, `blacklisted_app_hit`, `device_id`, `compliance_state`; CEM device inventory or compliance export jobs Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:endpoint:compliance"
+| eval jf=if(match(lower(coalesce(jailbreak_flag, jailbroken, is_compromised, "no")), "(1|true|yes)"), 1, 0)
+| eval rf=if(match(lower(coalesce(root_flag, rooted, "no")), "(1|true|yes)"), 1, 0)
+| eval pc=if(match(lower(coalesce(passcode_compliant, has_pin, "yes")), "(0|false|no)"), 0, 1)
+| eval bad_app=if(tonumber(coalesce(blacklisted_app_hit, blocked_app, 0))>0, 1, 0)
+| where jf=1 OR rf=1 OR pc=0 OR bad_app=1 OR lower(coalesce(compliance_state, ""))!="compliant"
+| eval reason=case(jf=1, "jailbreak", rf=1, "root", pc=0, "passcode", bad_app=1, "blacklist_app", true(), "other")
+| stats values(device_id) as sample_devices, latest(os_patch_level) as patch_level, count as events by user_id, reason
+| sort - events
+```
+- **Implementation:** Ingest a daily (or more frequent) compliance snapshot, not only raw real-time if volume is high. Map vendor booleans to consistent integer flags. Create an overall `compliance_percent` for managed devices. Alert on any jailbreak or root true, any blacklisted app install on a corporate-owned tag, and sustained passcode false on more than five percent of a business unit. Pair with asset ownership lookups. For regulated industries, route evidence exports to your GRC archive with retention that matches policy. Reconcile counts with the CEM admin console during rollout.
+- **Visualization:** Donut: compliant versus not; bar: reasons for failure; line: compliance percent by OS major version across months.
+- **CIM Models:** Endpoint
+- **Known false positives:** Grace periods after a new compliance or passcode policy and BYOD catch-up can lag for days. Compare event rate to the policy version rollout and exclude a 24–48 h post-push window; BYOD in the lookup needs different baselines than corporate fully managed.
+- **MITRE ATT&CK:** T1562
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Compliance policies in Citrix Endpoint Management](https://docs.citrix.com/en-us/citrix-endpoint-management/citrix-endpoint-mdm-mam.html)
+
+---
+
+### UC-2.6.66 · Citrix Endpoint Management App Distribution Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Pushing in-house, store, and volume-purchase programs (VPP) apps through CEM depends on correct tokens, licenses, and platform-specific constraints. A burst of VPP or enterprise install failures is often an Apple Business Manager or Google side issue; steady enterprise failures can point to signing or package corruption. This use case breaks down failures by channel so mobile operations can open the right vendor ticket, roll back a bad build, or fix token drift without re-imaging the whole estate.
+- **App/TA:** No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.
+- **Data Sources:** `index=xd` `sourcetype="citrix:endpoint:app:deploy"` with `app_id`, `app_name`, `action` (`install`/`update`), `outcome`, `error_category` (`VPP`, `app_store`, `enterprise`, `mdm_push`), `device_platform`, `user_id`, `vpp_code` when available Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:endpoint:app:deploy" outcome!="success"
+| eval cat=lower(coalesce(error_category, failure_bucket, app_source, "unknown"))
+| eval app=coalesce(app_name, app_id, "unknown")
+| eval plat=coalesce(device_platform, os_type, "unknown")
+| where like(cat, "%vpp%") OR like(cat, "%app%store%") OR like(cat, "%enterprise%") OR like(cat, "%push%") OR isnotnull(vpp_code)
+| timechart span=1h count by cat, plat
+| fillnull value=0
+```
+- **Implementation:** Ingest CEM app deployment or command-result logs. Tag errors into coarse buckets (VPP, public store, enterprise/internal). Mask user identifiers in shared dashboards. Alert when failures for a specific `app_id` cross a threshold in two consecutive hours, or when VPP-scoped errors exceed the prior week at the same time of day. Keep a runbook for common codes (license exhausted, not compatible OS, app removed from store). Pair with app owners so version bumps are not silent. Rate-limit noisy beta cohorts in test rings.
+- **Visualization:** Stacked area of failures by error bucket; top failing apps table; link from `vpp_code` to Apple’s code reference where applicable.
+- **CIM Models:** Change
+- **Known false positives:** Mass in-house app signings, App Store re-releases, and line-of-business app updates can fail in parallel for reasons unrelated to attack. Time-correlate with MAM app version publish and the signing cert rotation ticket before user-level malware assumptions.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Distribute and manage mobile apps in Citrix Endpoint Management](https://docs.citrix.com/en-us/citrix-endpoint-management/mdm-mam/endpoint-management-mdm-mam-mdx-apps.html)
+
+---
+
+### UC-2.6.67 · Citrix Endpoint Management Device Certificate Expiry
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Managed devices rely on short-lived user certificates, profile-managed identities, and sometimes enterprise signing or SCEP-issued device identities. A missed renewal quietly breaks Wi-Fi, per-app data protection, and secure mail—often showing up as vague connectivity tickets. CEM and PKI can expose `not_after` and renewal attempts. This use case finds certificates inside a 30-day window, flags renewal failures, and gives compliance teams a defensible, time-bounded list of devices to retire or re-enroll before hard outages.
+- **App/TA:** No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.
+- **Data Sources:** `index=xd` `sourcetype="citrix:endpoint:cert"` with `cert_type` (`user`, `scep`, `profile`, `signing`), `not_after`, `not_before`, `device_id`, `template_name`, `renewal_status`, `error_on_renew`; CEM or SCEP gateway logs; optional public PKI event stream Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:endpoint:cert"
+| eval expire_epoch=strptime(coalesce(not_after, expiry_utc, ""), "%Y-%m-%dT%H:%M:%S%Z")
+| eval days_left=floor((expire_epoch-now())/86400)
+| eval renew_ok=if(match(lower(coalesce(renewal_status, "")), "(ok|success|pending)"), 1, 0)
+| where (days_left<=30 OR isnull(expire_epoch)) OR renew_ok=0 OR like(lower(coalesce(error_on_renew, "")), "%fail%")
+| sort days_left
+| table device_id, cert_type, template_name, days_left, renewal_status, error_on_renew, _time
+```
+- **Implementation:** Ingest a daily export of all managed certificates, or event-driven renewal logs. Standardize to UTC. Build sliding windows: critical at 7 days, warning at 30 days. Alert on any renewal error with a non-empty `error_on_renew`. Join to asset ownership to email queue owners, not the whole org. Reconcile with your PKI or SCEP service logs; dual-source if possible. If `not_after` is sometimes missing, fall back to last-known `template_name` and schedule forced re-pushes. Document emergency procedures for wide-scale root rotation.
+- **Visualization:** Gantt or bar of devices by days to expiry; single value: count of certs under 7 days; table of failed renewals in the last 24 hours.
+- **CIM Models:** Certificates
+- **Known false positives:** Staged cert rotation and renewed SCEP profiles on a device subset look like a sudden expiry cluster. Per-profile expected renewal dates in a lookup separate planned rotation from a real expiration crisis.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Certificate security in Citrix Endpoint Management (modeled overview)](https://docs.citrix.com/en-us/citrix-endpoint-management/citrix-endpoint-mdm-mam.html)
+
+---
+
+### UC-2.6.68 · Citrix Endpoint Management Remote Wipe/Lock Action Tracking
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Remote lock and wipe are the last line when a device is lost or a user leaves under duress. Stalled, failed, or abnormally slow commands can leave data exposed longer than policy allows, while repeated failures may indicate a rooted device or network blocks. CEM can emit the MDM command lifecycle. This use case reports success rate, median latency, and long-tail timeouts by action type, and it feeds security and audit teams a durable trail of who requested each destructive action and whether it completed.
+- **App/TA:** No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.
+- **Data Sources:** `index=xd` `sourcetype="citrix:endpoint:mdm:command"` with `action` (`wipe`, `lock`, `reset`, `unenroll`), `outcome` (`acknowledged`, `completed`, `failed`, `timeout`), `latency_ms`, `device_id`, `requester`, `incident_id`; CEM admin audit of remote actions if emitted separately to `sourcetype="citrix:endpoint:audit"` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:endpoint:mdm:command" action IN ("wipe","lock","reset","unenroll")
+| eval ok=if(match(lower(coalesce(outcome, status, "")), "(completed|acknowledged|success)"), 1, 0)
+| eval late=if(tonumber(coalesce(latency_ms, 0))>120000, 1, 0)
+| where ok=0 OR late=1
+| eval action=upper(action)
+| timechart span=1h count by action, outcome
+| fillnull value=0
+```
+- **Implementation:** Ensure both the command result stream and a tamper-resistant admin audit of `requester` and business justification (ticket id) are present. Set RTO expectations (for example lock within two minutes on cellular). Page security operations on any `wipe` or `unenroll` that fails or exceeds latency SLO, with device last-seen time for triage. Weekly review of counts versus HR-driven terminations. Retain 13 months in line with HR and privacy counsel. Suppress test-lab device IDs. Never send full device payloads to a shared room without masking sensitive fields.
+- **Visualization:** Gauge: success rate by action; timeline of long-running commands; table of failed devices with `requester` and `incident_id`.
+- **CIM Models:** Endpoint
+- **Known false positives:** HR terminations, lost-device workflows, and security-driven remote lock are legitimate high-volume events. Join HR tickets or service desk 'lost device' cases; a wipe without a ticket in the batch window is the real finding.
+- **MITRE ATT&CK:** T1485
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Device security actions (enterprise mobility — Apple/Android context)](https://docs.citrix.com/en-us/citrix-endpoint-management/citrix-endpoint-mdm-mam/endpoint-management-mdm-mam-cio.html)
+
+---
+
+### UC-2.6.69 · Citrix Endpoint Management Server Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** The Citrix Endpoint Management application tier sits on a JVM, a relational database, and background schedulers that push policy and app commands. Thread starvation, pool exhaustion, or a stuck job queue can surface as flapping device check-ins and mass policy drift before a simple `ping` fails. Server-side health metrics plus SSL and database utilization give a root-cause-friendly picture that complements per-device UCs. Certificate expiry on the CEM public endpoint is a classic near-miss that full-stack monitoring should never leave to an annual calendar reminder alone.
+- **App/TA:** No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.
+- **Data Sources:** `index=main` or `index=app` with `sourcetype="citrix:endpoint:server:health"` or JMX/log-derived metrics: `jvm_thread_blocked`, `db_pool_in_use`, `db_pool_max`, `scheduler_backlog`, `queue_depth`, `ssl_cert_expiry_date`; `sourcetype="WinEventLog:Application"` for Java and database errors on Windows-hosted CEM; `localhost_access_log` (application server) sourcetype if applicable; Linux `sourcetype="syslog"` for appliances Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=app (sourcetype="citrix:endpoint:server:health" OR sourcetype="citrix:cep:jmx")
+| eval blocked=tonumber(coalesce(jvm_thread_blocked, blocked_threads, 0))
+| eval db_use=tonumber(coalesce(db_pool_in_use, db_active, 0))
+| eval db_max=tonumber(coalesce(db_pool_max, db_total, 1))
+| eval back=tonumber(coalesce(scheduler_backlog, job_queue, async_queue, 0))
+| eval cert_days=if(isnotnull(ssl_cert_expiry_date), round((strptime(ssl_cert_expiry_date,"%Y-%m-%d")-now())/86400,0), null())
+| eval db_pct=if(db_max>0, round(100*db_use/db_max,1), 0)
+| where blocked>50 OR back>1000 OR db_pct>90 OR (isnotnull(cert_days) AND cert_days<=30)
+| stats latest(blocked) as blocked, latest(db_pct) as db_pool_util_pct, latest(back) as queue_backlog, latest(cert_days) as ssl_cert_days_left by host, role
+| sort - db_pool_util_pct
+```
+- **Implementation:** Instrument each CEM node: JVM thread dumps on alert, JDBC pool via JMX, scheduler backlog from application logs, and a synthetic login or API every five minutes. Forward Windows or Linux system logs. Alert in stages: queue backlog over a static threshold, DB pool over 90 percent for ten minutes, blocked threads over 50 for two samples, and SSL cert under 30 days. Pair with database server KPIs. Document rolling patch windows and scale-out when a single node saturates. Keep an HA pair or cluster view so you alert on the worst node and the cluster average.
+- **Visualization:** Node grid: pool percent, queue depth, blocked threads; line chart: backlog with deploy markers; cert countdown single value for public VIP.
+- **CIM Models:** Application_State
+- **Known false positives:** EMM database maintenance, index jobs, and load balancer or SSL work on the CEM server tier can return slow or error responses that resemble outage. EMM maint tags on app and DB, plus a sustained 5xx rate, filter single blips.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix Endpoint Management — supported topologies and sizing context](https://docs.citrix.com/en-us/citrix-endpoint-management/citrix-endpoint-mdm-mam.html)
+
+---
+
+### UC-2.6.70 · Citrix ShareFile Storage Zone Controller Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** ShareFile content collaboration depends on healthy Storage Zone Controllers and connectors. Monitoring zone online state, synchronization backlog, split between on-premises and cloud-hosted zones, and connector health early exposes outages, replication stalls, and hybrid path failures that block file access, uploads, and business workflows.
+- **App/TA:** No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.
+- **Data Sources:** `index=sharefile` `sourcetype="citrix:sharefile:storagezone"` (zone state, service heartbeat, sync queue depth, connector status); optional `sourcetype="citrix:sharefile:connector"` for Storage Zone Connectors; fields like `zone_id`, `zone_state`, `sync_backlog`, `hosting_mode` (on_prem|cloud), `connector_health` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=sharefile (sourcetype="citrix:sharefile:storagezone" OR sourcetype="citrix:sharefile:connector")
+| eval zone_ok=if(match(lower(zone_state),"(?i)online|healthy|up"),1,0), backlog=tonumber(coalesce(sync_backlog, queue_depth, 0)), conn_ok=if(match(lower(connector_health),"(?i)ok|up|connected") OR isnull(connector_health),1,0)
+| bin _time span=5m
+| stats min(zone_ok) as min_zone, max(backlog) as max_backlog, min(conn_ok) as min_connector, values(hosting_mode) as hosting by zone_id, _time
+| where min_zone=0 OR max_backlog>10000 OR min_connector=0
+| table _time, zone_id, hosting, min_zone, max_backlog, min_connector
+```
+- **Implementation:** Ingest Storage Zone Controller and Storage Zone Connector logs (syslog, file, or API export) with consistent timestamps and time zones. Tag each zone with `hosting_mode` to separate on-prem vs customer-managed cloud. Define backlog thresholds from your baseline; alert when a zone is not online, backlog grows beyond an agreed cap, or any connector is unhealthy. Pair with Citrix Cloud status and network path tests for the control plane if applicable.
+- **Visualization:** Single-value: zones unhealthy count; timechart: max sync backlog by zone; table: zone_id, hosting_mode, min zone state, max backlog, connector health; pie or bar: on-prem vs cloud event volume (sanity for split reporting).
+- **CIM Models:** Application_State
+- **Known false positives:** Storage zone controller OS patching, SSL updates, and LB health flaps can look like a storage outage when both nodes bounce. A planned maintenance flag on the SZC pair and a dual-node quorum check avoid false SEV-1s on a rolling upgrade.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix — StorageZones Controller](https://docs.citrix.com/en-us/citrix-content-collaboration/storage-zones-controller/4-storage-zones-controllers.html)
+
+---
+
+### UC-2.6.71 · Citrix ShareFile DLP Policy Violation Tracking
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Compliance
+- **Value:** Data loss prevention in ShareFile surfaces policy hits, enforcements (block vs warn), and classification outcomes. Tracking hit volume, block and warn rates, trends that look like false positives, and file classification mismatches helps security and privacy teams prove control effectiveness, tune policies, and respond before regulated data leaves approved channels.
+- **App/TA:** No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.
+- **Data Sources:** `index=sharefile` `sourcetype="citrix:sharefile:dlp"` or DLP/secure collaboration feed; fields `action` (block|warn|audit), `policy_id`, `policy_name`, `classification_mismatch`, `file_path`, `user`, `false_positive` (if your feed tags analyst overrides) Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=sharefile sourcetype="citrix:sharefile:dlp" earliest=-24h
+| eval action=lower(coalesce(action, outcome, "unknown")), is_fp=if(match(lower(false_positive),"(?i)true|yes|1"),1,0), mismatch=if(match(lower(classification_mismatch),"(?i)true|yes|1"),1,0)
+| bin _time span=1h
+| stats count as hits, sum(eval(action="block")) as blocks, sum(eval(action="warn")) as warns, sum(is_fp) as fp_tags, sum(mismatch) as class_mismatches by _time, policy_id, user
+| eval block_rate=round(100*blocks/hits,2), warn_rate=round(100*warns/hits,2)
+| where blocks>0 OR warns>0 OR class_mismatches>0
+| table _time, policy_id, user, hits, block_rate, warn_rate, fp_tags, class_mismatches
+```
+- **Implementation:** Ingest DLP or ShareFile security events with stable policy identifiers. Retain long enough for compliance reporting. Create hourly rollups and weekly anomaly review for `false_positive` spikes. For mismatches, join to label or sensitivity taxonomy in a lookup. Escalate sudden block-rate drops (possible policy bypass) and sustained warn-only surges (possible business friction).
+- **Visualization:** Stacked bar: block vs warn by policy; timechart: false-positive tagged rate; table: top users and policies by hits; line: classification mismatch count.
+- **CIM Models:** DLP
+- **Known false positives:** Legal hold exports, e-discovery, and DLP-authorized large pulls for audits look like user policy violations in volume. Require a DLP case or legal matter ID; exclude known bulk export service accounts in the business lookup.
+- **MITRE ATT&CK:** T1567, T1039
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix — Data loss prevention for ShareFile](https://docs.citrix.com/en-us/citrix-content-collaboration/data-loss-prevention.html)
+
+---
+
+### UC-2.6.72 · Citrix ShareFile Mass Download and Data Exfiltration Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Unusual file movement through ShareFile can indicate exfiltration: large or repeated downloads, bursts of public link creation, off-hours bulk export, and access from anomalous locations. This use case focuses on high-signal mass behaviors rather than every single file open so analysts can respond quickly to theft or account abuse.
+- **App/TA:** No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.
+- **Data Sources:** `index=sharefile` `sourcetype="citrix:sharefile:audit"` (file download, link access); optional `sourcetype="citrix:sharefile:api"` for public link creation; fields `user`, `event_type`, `bytes`, `file_count`, `link_type` (public|internal), `client_ip` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=sharefile (sourcetype="citrix:sharefile:audit" OR sourcetype="citrix:sharefile:api") earliest=-24h
+| eval evt=lower(coalesce(event_type, action, "")), is_dl=if(match(evt, "(?i)download|fetch|get"),1,0), is_link=if(match(evt, "(?i)create.*link|public.*link|share.*link"),1,0), b=tonumber(bytes), hour=strftime(_time, "%H"), fc=tonumber(file_count)
+| eval off_hours=if(tonumber(hour)<6 OR tonumber(hour)>20,1,0)
+| eval bulk=if(is_dl=1 AND (b>200000000 OR fc>200),1,0)
+| bin _time span=1h
+| stats sum(b) as tot_bytes, sum(bulk) as bulk_events, sum(is_link) as link_creates, sum(eval(off_hours=1 AND is_dl=1)) as offh_dl by _time, user, client_ip
+| where tot_bytes>500000000 OR bulk_events>0 OR link_creates>50 OR offh_dl>30
+| table _time, user, client_ip, tot_bytes, bulk_events, link_creates, offh_dl
+```
+- **Implementation:** Ingest high-fidelity audit and API link events. Establish per-role baselines (sales vs finance). Tune byte and count thresholds; exclude known migration service accounts. Correlate with identity risk scores and end-point alerts. Contain with session revoke and link disable playbooks. Review privacy rules before full raw logging of filenames in regulated sectors.
+- **Visualization:** Timechart: total bytes and link creates per hour; table: top users for bulk and off-hours; map or table: source IPs for flagged sessions (where available).
+- **CIM Models:** DLP
+- **Known false positives:** Quarterly reporting, finance consolidations, and project teams downloading large project folders in ShareFile are normal bulk downloads. Correlation with the user's business role, folder ACL, and a pre-approved DLP exception suppresses the benign exfil look.
+- **MITRE ATT&CK:** T1119, T1567
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix — ShareFile audit logging overview](https://docs.citrix.com/en-us/citrix-content-collaboration/audit-trail-logs.html)
+
+---
+
+### UC-2.6.73 · Citrix ShareFile API Rate Limiting and Auth Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Security
+- **Value:** Integrations, automation, and line-of-business apps depend on ShareFile APIs. OAuth failures break sign-in, rate limiting signals abusive or mis-tuned clients, and job errors may leave folders out of sync. Monitoring these patterns protects both availability and security (stolen or misconfigured tokens).
+- **App/TA:** No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.
+- **Data Sources:** `index=sharefile` `sourcetype="citrix:sharefile:api"` (REST responses); fields `http_status` (401, 403, 429), `error_code`, `client_id` or `app_name`, `rate_limit_key`, `integration_job` for sync worker failures Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=sharefile sourcetype="citrix:sharefile:api" earliest=-4h
+| eval sc=tonumber(http_status), is_auth=if(sc IN (401,403),1,0), is_rl=if(sc=429 OR match(lower(error_code),"(?i)rate|throttl|limit"),1,0), job_fail=if(match(lower(coalesce(integration_job, "")),"(?i)fail|error") OR match(lower(error_code),"(?i)job|sync|worker"),1,0), client=coalesce(client_id, app_name, "unknown")
+| bin _time span=5m
+| stats count as reqs, sum(is_auth) as auth_fails, sum(is_rl) as rate_hits, sum(job_fail) as job_errors by _time, client
+| where auth_fails>10 OR rate_hits>0 OR job_errors>0
+| table _time, client, reqs, auth_fails, rate_hits, job_errors
+```
+- **Implementation:** Collect API and OAuth logs with client identity. Alert on 429 from production integrations first (fix back-off and batch size). For 401/403, spike-check against key rotation and blocked accounts. Tag integration job names in events for MTTR. Compare to synthetic login tests to separate ShareFile service issues from a single app.
+- **Visualization:** Timechart: 429, 401, 403 by client_id; table: top clients for rate limits; single-value: failed job count in the last hour.
+- **CIM Models:** Authentication
+- **Known false positives:** Scheduled RPA, sync clients, and integration workers legitimately hit API rate limits; pentest and scanner retries do too. An API client allowlist keyed to service principal and job schedule separates automation from account takeover.
+- **MITRE ATT&CK:** T1110, T1190
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix — ShareFile API documentation](https://api.sharefile.com/)
+
+---
+
+### UC-2.6.74 · Citrix ShareFile User Activity Audit Trail
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Security
+- **Value:** A complete audit layer for ShareFile supports investigations and compliance: who accessed, changed, or shared which content; administrative actions in zones; and time-bounded reports for internal review or external auditors. The search summarizes daily activity mix and breadth so teams can spot gaps in logging and prove retention of evidence.
+- **App/TA:** No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.
+- **Data Sources:** `index=sharefile` `sourcetype="citrix:sharefile:audit"` (view, download, upload, share, delete, permission change); `sourcetype="citrix:sharefile:admin"` (admin and zone actions); user, target, time, and outcome fields Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=sharefile (sourcetype="citrix:sharefile:audit" OR sourcetype="citrix:sharefile:admin") earliest=-7d
+| eval act=lower(coalesce(event_type, action, operation, "unknown"))
+| eval actor=if(isnull(actor_type) OR actor_type="", "user", actor_type)
+| bin _time span=1d
+| stats count as events, dc(user) as users, values(act) as actions by _time, actor
+| table _time, actor, events, users, actions
+```
+- **Implementation:** Enable ShareFile audit trail export to Splunk with full coverage (user and admin). Retain per policy (often 1–7 years for regulated data). Create scheduled reports for business reviews and a drill-down form with raw events for cases. Do not over-collect PII; mask where required.
+- **Visualization:** Table: daily event counts; pie: user vs admin share; drill to raw event list; optional PDF/CSV scheduled report for auditors.
+- **CIM Models:** Change
+- **Known false positives:** End-of-quarter audit log exports, SIEM backfills, and helpdesk-driven password and MFA resets spike ShareFile read and auth events. Tag scheduled audit jobs and service desk break-glass accounts to avoid conflating operations with data theft.
+- **MITRE ATT&CK:** T1074, T1039
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix — ShareFile audit and logging](https://docs.citrix.com/en-us/citrix-content-collaboration/audit-trail-logs.html)
+
+---
+
+### UC-2.6.75 · End-to-End Citrix Session Launch Time
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** End-to-end session launch is the user-perceived time from initial click in Workspace through brokering, host start, logon, and HDX connect until a usable session is ready. Splunking all phases in one time series exposes whether delays sit in the broker, the hypervisor, the profile, the identity stack, or the client—so teams do not guess where to invest tuning effort.
+- **App/TA:** uberAgent UXM (Splunkbase 1448) for phase insight; Template for Citrix XenDesktop 7 (TA-XD7-Broker) and Citrix Monitor Service OData; optional ITSI for service aggregation
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` (`event_type=SessionLogon` with `logon_duration_ms` and sub-phase fields); `sourcetype="uberAgent:Logon:LogonDetail"` for VDA phase breakdown; `sourcetype="citrix:hdx:connect"` for client-to-session handshake timing; Director OData exports if used Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=xd (sourcetype="citrix:broker:events" event_type="SessionLogon" OR sourcetype="uberAgent:Logon:LogonDetail" OR sourcetype="citrix:hdx:connect") earliest=-4h
+| eval total_ms=tonumber(coalesce(logon_duration_ms, total_logon_ms, 0)), phase=coalesce(phase, "e2e")
+| bin _time span=15m
+| stats median(total_ms) as p50, perc95(total_ms) as p95, count as n, values(phase) as phases by _time, delivery_group
+| where p95>90000
+| table _time, delivery_group, p50, p95, n, phases
+```
+- **Implementation:** Prefer uberAgent for automatic phase split on the VDA; supplement with broker events for the brokering and VM start portions. Clock-sync all tiers. Set SLOs per delivery group. Create drill-down dashboards from the same search as phase-specific panels. For cloud services, add Citrix DaaS connector latency where exposed in logs. Pair with a synthetic transaction from a test account for continuous proof.
+- **Visualization:** Stacked time by phase, Sankey of phase share for p95, single value SLO, compare regions or delivery groups side by side.
+- **CIM Models:** Performance
+- **Known false positives:** Image rollout weeks and semester starts push session launch time for the whole user base at once. A same-day-of-week rolling median and a Studio publish window exclusion reduce Monday-morning false positives on pure latency.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [uberAgent — Logon and session performance](https://splunkbase.splunk.com/app/1448), [Citrix — Session launch and logon process](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/logon-processes.html)
+
+---
+
+### UC-2.6.76 · Citrix Client Ecosystem and Platform Distribution
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Supported, patched clients are a common compliance and support requirement. A live distribution of Workspace app versions, client operating systems, thin-client firmware, and device classes gives IT and security teams a single place to see drift, plan upgrades, and retire unsupported platforms before they become an audit finding or a break-fix incident.
+- **App/TA:** Citrix Cloud / CVAD session metadata export, Syslog or API from supported thin clients, Template for Citrix add-ons in use at your site
+- **Data Sources:** `index=xd` `sourcetype="citrix:workspace:client"` (client build, device OS, channel); `sourcetype="citrix:hdx:connect"` (endpoint type, firmware where available); `sourcetype="citrix:broker:session"` (Workspace version from session metadata) when exposed Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=xd (sourcetype="citrix:workspace:client" OR sourcetype="citrix:hdx:connect" OR sourcetype="citrix:broker:session") earliest=-7d
+| eval os=coalesce(client_os, device_os, platform, "unknown"), ver=coalesce(workspace_version, app_version, client_version, "unknown"), dev=coalesce(device_type, endpoint_type, "unknown")
+| bin _time span=1d
+| stats count as sessions by _time, os, ver, dev
+| sort -sessions
+| head 200
+```
+- **Implementation:** Pull version fields on every new session or daily heartbeat, depending on the feed. Add lookups for LTS/allowed builds. Schedule monthly compliance PDF or CSV. Partner with end-user computing to nudge or block at the gateway for builds below a floor. For BYOD, show OS mix separately from corporate-managed endpoints.
+- **Visualization:** Pie: OS; bar: Workspace app version; treemap: device class; line: unsupported share over time after campaigns.
+- **CIM Models:** Endpoint
+- **Known false positives:** Kiosks, BYOD, contractors, and field forces skew the client OS and form-factor mix. Baseline by OU, region, and device class; a move away from a single internal gold image is often expected diversity, not client sprawl out of control.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix Workspace app — Lifecycle milestones](https://docs.citrix.com/en-us/citrix-workspace-app-for-windows/technical-overview-lifecycle-milestones.html)
+
+---
+
+### UC-2.6.77 · Citrix Per-Application Perceived Performance (Startup vs Hang vs Network)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Not all “Citrix is slow” tickets are a network problem. Perceived slowness may be slow application startup, long UI busy states, or real ICA network delay. Combining process startup and hang signals from the VDA with network metrics and broker-reported app ready time splits accountability between packaging, the app itself, the profile, and the path between user and host.
+- **App/TA:** uberAgent UXM (Splunkbase 1448) with Citrix templates; optional Citrix Monitor / Director export for the same fields
+- **Data Sources:** uberAgent: `sourcetype="uberAgent:Process:ProcessStartup"` and `sourcetype="uberAgent:Application:Error"` (if configured); `sourcetype="uberAgent:Network:Performance"` (latency, loss); `sourcetype="citrix:broker:app_usage"` (app title, `launch_to_ready_ms`); or Director OData for ICA RTT and application load time
+- **SPL:**
+```spl
+index=xd (sourcetype="uberAgent:Process:ProcessStartup" OR sourcetype="uberAgent:Network:Performance" OR sourcetype="citrix:broker:app_usage") earliest=-4h
+| eval app=coalesce(app_name, process_name, title, "unknown"), start_ms=tonumber(startup_ms), ica=tonumber(ica_rtt_ms), hang=if(match(_raw, "(?i)not.?(responding)"),1,0)
+| bin _time span=15m
+| stats median(start_ms) as med_start, median(ica) as med_ica, sum(hang) as hang_ev by _time, app, host
+| where med_start>10000 OR med_ica>100 OR hang_ev>0
+| table _time, app, host, med_start, med_ica, hang_ev
+```
+- **Implementation:** Standardize on one app name key (avoid publisher vs start-menu title drift). In uberAgent, enable process and network packs for gold images only first. If ICA RTT is missing in uberAgent, add broker or gateway RTT. Build three small alerts: p95 startup, p95 RTT, and not-responding process count, each routed to a different team owner.
+- **Visualization:** Small multiples: one row per app with startup, hang count, and RTT; table: top hosts driving bad p95; overlay change markers on image or app version.
+- **CIM Models:** Performance
+- **Known false positives:** Wide-area brownouts, VPN or SD-WAN issues, and WiFi in one building can make many apps look 'network slow' or 'hung' at once. A site or path health overlay and delivery group before/after a thin-client patch differentiate network from a single bad app package.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [uberAgent — Process and network metrics](https://splunkbase.splunk.com/app/1448), [Citrix — HDX and session performance](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/hdx-adaptive-technologies.html)
+
+---
+
+### UC-2.6.78 · Citrix Session Recording Pipeline and Storage Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Compliance
+- **Value:** Session recording is often a compliance and insider-risk control. The recording service, search index, and long-term file storage must be healthy, searchable within agreed latency, and large enough to retain evidence. Failures in any tier create a gap where activity is not provable even though policy requires recording. Monitoring capacity and playback availability closes that gap operationally and for audits.
+- **App/TA:** No official Splunk TA for Citrix Session Recording. Ingest via Windows Event Logs from the Session Recording Server (Splunk Add-on for Microsoft Windows), IIS logs from the SR web player, and optionally SR database queries via Splunk DB Connect.
+- **Data Sources:** `index=xd` `sourcetype="citrix:session:recording:server"` (service up, IIS app pool, admin API), `sourcetype="citrix:session:recording:storage"` (free space, file age), `sourcetype="citrix:session:recording:search"` (indexing lag, playback requests); Windows performance or `sourcetype=WinHostMon` for disk Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=xd (sourcetype="citrix:session:recording:server" OR sourcetype="citrix:session:recording:storage" OR sourcetype="citrix:session:recording:search") earliest=-24h
+| eval g=tonumber(free_gb), low_disk=if((isnotnull(g) AND g<10) OR match(_raw, "(?i)low.?space|disk.?full"),1,0), lag_sec=tonumber(index_lag_sec), down=if(match(_raw, "(?i)service.?(not.?(start|run)|down|stop|fail)"),1,0)
+| bin _time span=5m
+| stats max(low_disk) as risk_disk, max(lag_sec) as max_lag, max(down) as down_ev by _time, host
+| where risk_disk=1 OR max_lag>300 OR down_ev=1
+| table _time, host, risk_disk, max_lag, down_ev
+```
+- **Implementation:** Separate alerts: infrastructure (service down, disk, SQL), pipeline lag (ingest to searchable), and product errors on playback. Plan retention tiering: hot, warm, and archive. Test restore and playback quarterly. If storage is object-backed, add bucket health and cost monitors outside Splunk and link the dashboard here.
+- **Visualization:** Gauges: free space and index lag; timeline: down events; table: last successful backup or archive job per site if logged.
+- **CIM Models:** Network_Sessions
+- **Known false positives:** Replay storage maintenance, index rebuild, NFS or SMB blips, and backlog drain after a recording server patch pause ingestion. Align with storage and CIFS tickets; a growing backlog with no matching maintenance is the sustained failure case.
+- **MITRE ATT&CK:** T1562
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix — Session Recording architecture and storage](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/session-recording.html)
+
+---
+
+### UC-2.6.79 · Citrix Secure Private Access (ZTNA) Session Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Performance
+- **Value:** Zero-trust access to private web and TCP apps should enforce policy, give visibility into application categories, and still feel responsive. Monitoring successful versus blocked sessions, connector path health, and round-trip time highlights misconfiguration, over-broad or over-tight rules, and performance issues on browser-based and agent-based paths alike.
+- **App/TA:** Citrix Analytics Add-on for Splunk (Splunkbase 6280) imports Secure Private Access risk indicators from Citrix Analytics for Security.
+- **Data Sources:** `index=ztna` or `index=cloud` with `sourcetype="citrix:ztna:session"` (user, app, policy hit, `tcp|tls` outcome), `sourcetype="citrix:ztna:access"` (web and SaaS via browser, category tags), `sourcetype="citrix:ztna:connector"` (on-prem app reachability); fields `app_category`, `result`, `rtt_ms` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=ztna (sourcetype="citrix:ztna:session" OR sourcetype="citrix:ztna:access" OR sourcetype="citrix:ztna:connector") earliest=-4h
+| eval ok=if(match(lower(result),"(?i)allow|success|established|up"),1,0), rtt=tonumber(rtt_ms), cat=coalesce(app_category, category, "uncategorized"), bfail=if(match(lower(result),"(?i)block|deny|fail|down|timeout"),1,0)
+| bin _time span=5m
+| stats count as n, sum(ok) as okc, sum(bfail) as blks, median(rtt) as medrtt, values(cat) as cats by _time, user, app
+| where blks>0 OR (isnotnull(medrtt) AND medrtt>250)
+| table _time, user, app, n, okc, blks, medrtt, cats
+```
+- **Implementation:** Ingest the cloud service feed in near real time. Map internal app names to a category lookup for business-friendly breakdowns. Alert on block spikes, connector-down patterns, and sustained high RTT by region. Pair with traditional gateway logs during migration. Document split between legacy full tunnel and this access path for the same app families.
+- **Visualization:** Sankey: user to app to outcome; timechart: block rate; map or bar: by region; table: high RTT with category.
+- **CIM Models:** Network_Sessions
+- **Known false positives:** Onboarding new private ZTNA apps, per-app policy cutovers, and pilot users shift SPA session baselines for days. Cohort- or OU-based baselines and a policy version tag on the alert keep expected ramp from looking like a stealth breach pattern.
+- **MITRE ATT&CK:** T1078, T1021
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix — Secure Private Access (ZTNA) overview](https://docs.citrix.com/en-us/citrix-secure-private-access/)
+
+---

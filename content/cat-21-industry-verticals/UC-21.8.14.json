@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.8.14",
+  "title": "Asterisk Voicemail Storage Growth and MWI NOTIFY Failures",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity",
+    "Availability"
+  ],
+  "splunkPillar": "IT Operations",
+  "industry": "Telecommunications",
+  "dataSources": "`index=voip` `sourcetype=asterisk:full` with `voicemail` subsystem, optional `sourcetype=asterisk:voicemail` custom metrics from `du -sk` scripted input",
+  "app": "Splunk Universal Forwarder on Asterisk/FreePBX host",
+  "spl": "index=voip sourcetype=asterisk:full voicemail OR MWI OR Mailbox\n| rex field=_raw \"(?i)mailbox\\s+(?<mailbox>\\S+)\"\n| bin _time span=1h\n| stats count as err_count by _time, host, mailbox\n| where err_count > 10",
+  "description": "Voicemail stores grow with retained compliance recordings; simultaneous MWI NOTIFY failures strand users without blinking lamps. Combining grep-friendly Asterisk logs with optional disk-usage metrics exposes both logical and physical capacity risk.",
+  "value": "Avoids voicemail outages during revenue-critical periods by alerting on storage pressure and MWI errors before spool partitions fill.",
+  "implementation": "Forward Asterisk logs; tag voicemail-related lines. Alert when voicemail/MWI error strings exceed 10 per hour per mailbox. Separately schedule `index=os sourcetype=asterisk:voicemail_du` from `du -sk /var/spool/asterisk/voicemail` and alert when `voicemail_kb/1024/1024 > 50` (tune per disk). Integrate with retention jobs documented in runbooks.",
+  "visualization": "Area chart (voicemail_gb), Table (mailboxes with errors), Single value (spool percent full if added).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Asterisk Documentation — Voicemail",
+      "url": "https://docs.asterisk.org/Configuration/Applications/Voicemail/"
+    },
+    {
+      "title": "FreePBX Wiki — Voicemail Admin",
+      "url": "https://wiki.freepbx.org/display/PPS/Voicemail+Admin"
+    }
+  ],
+  "equipment": [
+    "asterisk"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Separate partition monitoring if voicemail is on dedicated LVM.\n• Legal hold process before auto-purge.\n\nStep 1 — Normalize mailbox field to `extension@context`.\n\nStep 2 — Validate MWI errors by testing NOTIFY with `sip set debug` in lab.\n\nStep 3 — Dashboard for top 20 mailboxes by size.\n\nStep 4 — Automate ticket to PBX admin with disk free %.",
+  "grandmaExplanation": "We watch voicemail storage and notification glitches so people still get told when they have a new message and the server doesn’t run out of space.",
+  "telcoUseCase": "Unified messaging hygiene — prevent `/var/spool/asterisk/voicemail` exhaustion and broken message-waiting lamps on SIP phones."
+}

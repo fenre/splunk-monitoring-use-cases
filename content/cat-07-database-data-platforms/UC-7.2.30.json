@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.2.30",
+  "title": "Cassandra Inter-Node Streaming Progress (nodetool netstats)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`nodetool netstats` stream summaries (repair, bootstrap, rebuild) with bytes sent/received and session state",
+  "app": "Scripted nodetool netstats collector",
+  "spl": "index=database sourcetype=\"cassandra:netstats\"\n| where stream_state IN (\"PREPARING\",\"STREAMING\",\"WAITING\") OR receiving_bytes > 0 OR sending_bytes > 0\n| eval stall=if(stream_state==\"WAITING\" AND receiving_bytes==0 AND sending_bytes==0,1,0)\n| where stall==1\n| stats count by peer, operation, host, cluster_name",
+  "description": "During repair, rebuild, or add-node operations, streams that stall in WAITING with no byte progress often indicate network or disk issues—common Cassandra operational triage.",
+  "value": "Reduces time to recover when topology changes hang mid-stream and client timeouts increase.",
+  "implementation": "Parse netstats output into one event per stream direction. Poll every 2–5 minutes while operations are active. Suppress during approved maintenance. Correlate with nodetool compactionstats.",
+  "visualization": "Sankey or table (source→peer), Timeline (bytes/sec), Single value (stuck streams).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache Cassandra nodetool netstats",
+      "url": "https://cassandra.apache.org/doc/latest/cassandra/tools/nodetool/netstats.html"
+    }
+  ],
+  "equipment": [
+    "cassandra"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.70",
+  "title": "Cassandra Gossip and Ring Membership State Changes",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Change"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`cassandra:system` logs for gossip, endpoint state, and failure detector",
+  "app": "UF on Cassandra nodes; optional audit of `nodetool status` as `cassandra:nodetool_status` for corroboration",
+  "spl": "index=database sourcetype=\"cassandra:system\"\n| search (\"GossipStage\" OR \"InetAddress\" OR \"Node.*state\" OR \"FailureDetector\") AND (\"removed\" OR \"down\" OR \"UP\" OR \"LEFT\" OR \"shutdown\")\n| rex field=_raw \"(?<peer_ip>\\d+\\.\\d+\\.\\d+\\.\\d+)\"\n| bin _time span=1m\n| stats count as state_events dc(peer_ip) as peers_affected by host, _time\n| where state_events > 20",
+  "description": "Frequent gossip transitions often foreshadow split-brain risk, misrouted replicas, or rolling restarts gone wrong. Correlating bursts with deployment windows separates healthy operations from instability.",
+  "value": "Protects data consistency and query availability by catching ring instability before client drivers see repeated timeouts.",
+  "implementation": "Ingest `system.log` with correct timezone; tag `cluster_name` via `inputs.conf` `_meta`. Create allowlist for expected rolling restart patterns. Join with CMDB for rack awareness. Escalate when events spike outside change windows.",
+  "visualization": "Timeline (state_events), Table (host, peers_affected), Node diagram optional with enrichment.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache Cassandra — Gossip",
+      "url": "https://cassandra.apache.org/doc/latest/cassandra/architecture/gossip.html"
+    }
+  ],
+  "equipment": [
+    "cassandra",
+    "nodetool"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

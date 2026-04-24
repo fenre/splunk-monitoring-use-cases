@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.4.17",
+  "title": "PHP-FPM Active Worker Saturation Versus max_children",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=php` `sourcetype=phpfpm:status`",
+  "app": "Custom scripted input",
+  "spl": "index=php sourcetype=\"phpfpm:status\"\n| eval util=round(100*active_processes/max_children,1)\n| where util > 85\n| timechart span=5m max(util) as util_pct by pool, host",
+  "description": "Sustained high `active_processes/max_children` leaves no burst capacity; the next traffic spike hits the listen queue.",
+  "value": "Drives right-sizing of `pm.max_children` and horizontal scaling.",
+  "implementation": "Ensure `max_children` field exists in JSON; if missing, join with static KV lookup of pool config.",
+  "visualization": "Gauge per pool, line chart, overlay slow_requests.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "PHP-FPM Status Page",
+      "url": "https://www.php.net/manual/en/install.fpm.configuration.php"
+    }
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input.\n• Ensure the following data sources are available: `index=php` `sourcetype=phpfpm:status`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIf `max_children` is absent from status JSON, add it via lookup from config management.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=php sourcetype=\"phpfpm:status\"\n| eval util=round(100*active_processes/max_children,1)\n| where util > 85\n| timechart span=5m max(util) as util_pct by pool, host\n```\n\nUnderstanding this SPL\n\n**PHP-FPM Active Worker Saturation Versus max_children** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=php` `sourcetype=phpfpm:status`. **App/TA**: Custom scripted input. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Gauge per pool, line chart, overlay slow_requests..",
+  "grandmaExplanation": "We show how close your PHP worker pool is to full so you scale before the queue explodes."
+}

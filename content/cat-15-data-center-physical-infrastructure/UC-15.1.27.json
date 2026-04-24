@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "15.1.27",
+  "title": "APC UPS Input Line Voltage Sag with Transfer-to-Battery Events",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault",
+    "Physical"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=power` polled `upsAdvInputLineVoltage` (VAC) and SNMP trap or poll of `upsLastTransferReason` / `upsBasicOutputStatus`",
+  "app": "Splunk Connect for SNMP (Splunkbase #6266), SNMP Modular Input (Splunkbase #1537)",
+  "spl": "index=power sourcetype=snmp:apc:ups host=*\n| eval vin=tonumber(upsAdvInputLineVoltage), reason=coalesce(upsLastTransferReason, transfer_reason)\n| where vin < 108 OR vin > 132 OR match(toString(reason), \"(?i)transfer|battery|boost|trim\")\n| bin _time span=15m\n| stats count as xfer_events, min(vin) as min_vin by _time, host\n| where xfer_events > 0 OR min_vin < 108",
+  "description": "Brownouts and harmonic distortion make UPSes transfer to battery even when utility is \"up.\" Tracking input voltage against nominal and counting transfer reasons exposes building power quality issues before batteries are cycled to failure.",
+  "value": "Shifts remediation from endless battery swaps to facility electrical fixes when transfers correlate with low `upsAdvInputLineVoltage`.",
+  "implementation": "Normalize nominal voltage (120 V vs 230 V) via lookup `ups_nominal_voltage` per `host`. For 120 V services, alert when `upsAdvInputLineVoltage` drops below 108 V for more than two polls or when `upsLastTransferReason` increments in SC4SNMP trap feed. Capture `upsBasicOutputStatus` bitfield if traps include on-battery state.",
+  "visualization": "Timeline (transfer events), Line chart (input voltage), Table (sites with chronic sags).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "APC — UPS management and SNMP application note",
+      "url": "https://www.apc.com/us/en/faqs/FA156148/"
+    },
+    {
+      "title": "SNMP Modular Input (Splunkbase 1537)",
+      "url": "https://splunkbase.splunk.com/app/1537"
+    }
+  ],
+  "equipment": [
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_generic"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Trap forwarding to same index with `sourcetype=snmp:trap` if separate—union searches via `append` if needed.\n• Voltage lookup for EU vs US fleets.\n\nStep 1 — Correlate with generator tests.\n\nStep 2 — Facility electrician SOP for sustained <108 V.\n\nStep 3 — Exclude planned transfers during maintenance flags.\n\nStep 4 — Battery cycle counter dashboard.",
+  "grandmaExplanation": "We watch the wall power quality and how often the UPS has to take over, so building electrical problems get fixed instead of wearing out batteries."
+}

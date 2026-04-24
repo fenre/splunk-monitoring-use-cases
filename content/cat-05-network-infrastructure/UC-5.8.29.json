@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.8.29",
+  "title": "Infoblox DNS NXDOMAIN Flood per Client (Potential Tunneling or Malware DGA)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Anomaly"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Infoblox resolver query logs, `sourcetype=infoblox:dns`",
+  "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2934)",
+  "spl": "index=dns sourcetype=\"infoblox:dns\" earliest=-24h\n| eval rcode=upper(coalesce(response_code, dns_response, \"NOERROR\"))\n| eval qname=coalesce(dns_request, dns_query, query, dns_qname)\n| where rcode=\"NXDOMAIN\" OR match(_raw,\"(?i)NXDOMAIN\")\n| bin _time span=10m\n| stats dc(qname) as unique_qnames, count as nx_total by _time, src_ip\n| where unique_qnames > 200 AND nx_total > 500\n| sort -nx_total",
+  "description": "Malware domain generation algorithms and some DNS tunneling implementations produce bursts of unique names that fail resolution. A single client generating hundreds of NXDOMAIN responses in minutes is rarely normal user behavior.",
+  "value": "Provides an early DNS-layer signal for bot infections and tunneling without requiring full payload decryption.",
+  "implementation": "Ingest full resolver query and response fields. Confirm which extracted field carries the query name and response code for your NIOS version. Baseline internal resolvers and exclude known security scanners. Pair with threat intelligence on SLD patterns for tuning.",
+  "visualization": "Scatter (unique QNAMEs vs total NXDOMAIN), Table (top offending src_ip), Line chart (baseline vs spike).",
+  "references": [
+    {
+      "title": "Splunk Documentation — Configure inputs for the Splunk Add-on for Infoblox",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Configureinputs"
+    },
+    {
+      "title": "Splunkbase — Splunk Add-on for Infoblox",
+      "url": "https://splunkbase.splunk.com/app/2934"
+    }
+  ],
+  "securityDomain": "network",
+  "equipment": [
+    "infoblox"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

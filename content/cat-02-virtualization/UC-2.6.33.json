@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.33",
+  "title": "Citrix Autoscale Capacity Events",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:events\"` for autoscale, power, and schedule-related actions, `sourcetype=\"citrix:monitor:odata\"` for `Autoscale*`, `DeliveryGroup`, or `Session` machine counts; optional `sourcetype=\"citrix:vda:events\"` for power-on success after scale-out",
+  "app": "Template for Citrix XenDesktop 7 (TA-XD7-Broker), Citrix Monitor Service OData API",
+  "spl": "index=xd sourcetype=\"citrix:broker:events\" (match(_raw, \"(?i)autoscale|power.?on|turn.?on|turn.?off|scale.?in|scale.?out|power.?action|capaci\") OR event_type=Power* OR event_type=Autoscale*)\n| eval direction=if(match(_raw, \"(?i)scale.?out|turn.?on|add.*machine|increase\"), \"scale_out\", if(match(_raw, \"(?i)scale.?in|turn.?off|remove.*reduce\"), \"scale_in\", \"other\"))\n| eval dg=coalesce(delivery_group, DeliveryGroup, CatalogName)\n| eval success=if(match(coalesce(result, action_result, state), \"(?i)success|complete\"), 1, if(match(coalesce(result, action_result, state), \"(?i)fail|error|throttl|denied|pending\"), 0, null()))\n| bin _time span=15m\n| stats count, sum(eval(if(success=1,1,0))) as success_hits, sum(eval(if(success=0,1,0))) as fail_hits, dc(machine_name) as machine_moves by _time, dg, direction\n| where fail_hits>0 OR count>100\n| table _time, dg, direction, count, success_hits, fail_hits, machine_moves",
+  "description": "Autoscale adjusts powered-on machine counts against load and time schedules. Stuck scale-out, aggressive scale-in, schedule drift, or throttled power actions create either idle unassigned capacity (cost) or under-provisioned pools (poor user experience). Aggregating autoscale- and power-related broker events and comparing with powered-on session counts from Monitor highlights drift and failed automation.",
+  "value": "Autoscale adjusts powered-on machine counts against load and time schedules. Stuck scale-out, aggressive scale-in, schedule drift, or throttled power actions create either idle unassigned capacity (cost) or under-provisioned pools (poor user experience). Aggregating autoscale- and power-related broker events and comparing with powered-on session counts from Monitor highlights drift and failed automation.",
+  "implementation": "Confirm event strings for your CVAD/Cloud version. Build baselines of scale_out vs load per delivery group. Join OData `InUse*`, `Registered*`, and `Unassigned*`-style fields when available. Alert on high fail_hits, zero scale_out during a ramp when usage rises, and sustained unassigned high-water marks outside policy.",
+  "visualization": "Column chart (scale events by direction), Timechart (in-use vs registered machines), Table (failed power actions with delivery group).",
+  "cimModels": [
+    "Change",
+    "Performance"
+  ],
+  "references": [
+    {
+      "title": "Autoscale in Citrix DaaS",
+      "url": "https://docs.citrix.com/en-us/citrix-daas-service/monitor/health-data/autoscale.html"
+    }
+  ],
+  "knownFalsePositives": "Autoscale scale-out and scale-in during real peak logins and pilot capacity tests is normal economics, not a storm. Fire when scale is denied, pools hit a hard ceiling, or the schedule conflicts with a disabled or mis-set policy, not for every off-hours scale event.",
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Template for Citrix XenDesktop 7 (TA-XD7-Broker), Citrix Monitor Service OData API for capacity counters.\n• Ensure the following data sources are available: `sourcetype=\"citrix:broker:events\"` and optional `sourcetype=\"citrix:monitor:odata\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest all broker subsystems that log power and autoscale. Align delivery group and machine name fields. Load business-hours schedules from a CSV to compare actual scale actions to the intended plan.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust match strings for your site):\n\n```spl\nindex=xd sourcetype=\"citrix:broker:events\" (match(_raw, \"(?i)autoscale|power.?on|turn.?on|turn.?off|scale.?in|scale.?out|power.?action|capaci\") OR event_type=Power* OR event_type=Autoscale*)\n| eval direction=if(match(_raw, \"(?i)scale.?out|turn.?on|add.*machine|increase\"), \"scale_out\", if(match(_raw, \"(?i)scale.?in|turn.?off|remove.*reduce\"), \"scale_in\", \"other\"))\n| eval dg=coalesce(delivery_group, DeliveryGroup, CatalogName)\n| eval success=if(match(coalesce(result, action_result, state), \"(?i)success|complete\"), 1, if(match(coalesce(result, action_result, state), \"(?i)fail|error|throttl|denied|pending\"), 0, null()))\n| bin _time span=15m\n| stats count, sum(eval(if(success=1,1,0))) as success_hits, sum(eval(if(success=0,1,0))) as fail_hits, dc(machine_name) as machine_moves by _time, dg, direction\n| where fail_hits>0 OR count>100\n| table _time, dg, direction, count, success_hits, fail_hits, machine_moves\n```\n\nStep 3 — Validate\nReconcile counts with the Citrix admin console. Tune high `count` filter for large environments. Exclude maintenance windows with lookups.\n\nStep 4 — Operationalize\nFeed capacity reports to finops. Pair alerts with queue-depth UCs to separate broker from hypervisor bottlenecks.",
+  "grandmaExplanation": "We follow when the system turns virtual computers on and off to match the day, and when that schedule slips or the machines fail to start — so you catch wasted power or a thin pool before it hurts real work."
+}

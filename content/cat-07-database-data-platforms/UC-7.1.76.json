@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.76",
+  "title": "Snowflake Query Queuing Time from Query History",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY` queue timing columns on `snowflake:query_history`",
+  "app": "Splunk Add-on for Snowflake (Splunkbase 5390) QUERY_HISTORY input",
+  "spl": "index=datawarehouse sourcetype=\"snowflake:query_history\"\n| eval q_overload=tonumber(QUEUED_OVERLOAD_TIME)\n| eval q_prov=tonumber(QUEUED_PROVISIONING_TIME)\n| eval queue_ms=coalesce(q_overload,0)+coalesce(q_prov,0)\n| where queue_ms > 60000 AND EXECUTION_STATUS=\"SUCCESS\"\n| stats median(queue_ms) as p50_queue_ms perc95(queue_ms) as p95_queue_ms count by WAREHOUSE_NAME, USER_NAME\n| where p95_queue_ms > 120000",
+  "description": "Long queue times before execution mean the warehouse is undersized or overloaded relative to concurrent demand; users experience sluggish dashboards even when executed queries are fast. Separating queue time from execution time targets the right fix (scale-out vs SQL tuning).",
+  "value": "Improves analyst productivity and SLA attainment by resizing warehouses or spreading schedules before executives notice stale data.",
+  "implementation": "Ensure milliseconds fields are ingested as numbers (`QUEUED_OVERLOAD_TIME`, `QUEUED_PROVISIONING_TIME`—names can vary slightly by export; alias in `props.conf`). Filter aborted queries separately. Correlate with `snowflake:warehouse_load` if enabled. Alert per business unit warehouse.",
+  "visualization": "Box plot or percentile chart (queue_ms), Table (warehouse, user, p95_queue_ms).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Snowflake QUERY_HISTORY",
+      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/query_history"
+    }
+  ],
+  "equipment": [
+    "snowflake"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

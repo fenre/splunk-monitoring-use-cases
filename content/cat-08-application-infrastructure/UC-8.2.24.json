@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.2.24",
+  "title": "Traefik Backend Gateway Errors (502–504)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=web` `sourcetype=traefik:access` `DownstreamStatus`",
+  "app": "Add On for Traefik Proxy (Splunkbase app 6733)",
+  "spl": "index=web sourcetype=\"traefik:access\"\n| where DownstreamStatus >= 502 AND DownstreamStatus <= 504\n| bin _time span=5m\n| stats count by ServiceName, DownstreamStatus, _time\n| where count >= 10",
+  "description": "502–504 from Traefik indicate unreachable pods, bad TLS to backends, or overloaded upstream sockets.",
+  "value": "Shortens MTTR when ingress shows gateways while Kubernetes events lag.",
+  "implementation": "Ensure `ServiceName` or backend fields exist in JSON logs; alert on sustained counts, not single blips.",
+  "visualization": "Timechart (502–504/min), breakdown by service, geomap if client IP is logged.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Add On for Traefik Proxy (Splunkbase)",
+      "url": "https://splunkbase.splunk.com/app/6733"
+    },
+    {
+      "title": "Traefik — Logs and Access Logs",
+      "url": "https://doc.traefik.io/traefik/observability/logs-and-access-logs/"
+    }
+  ],
+  "equipment": [
+    "traefik"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Add On for Traefik Proxy (Splunkbase app 6733).\n• Ensure the following data sources are available: `index=web` `sourcetype=traefik:access` `DownstreamStatus`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIf `DownstreamStatus` is not extracted, use `spath` or `rex` on JSON `_raw`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"traefik:access\"\n| where DownstreamStatus >= 502 AND DownstreamStatus <= 504\n| bin _time span=5m\n| stats count by ServiceName, DownstreamStatus, _time\n| where count >= 10\n```\n\nUnderstanding this SPL\n\n**Traefik Backend Gateway Errors (502–504)** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=traefik:access` `DownstreamStatus`. **App/TA**: Add On for Traefik Proxy (Splunkbase app 6733). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Timechart (502–504/min), breakdown by service, geomap if client IP is logged..",
+  "grandmaExplanation": "We alert when your edge proxy cannot reach the app behind it so you fix routing before everyone gets blank pages."
+}

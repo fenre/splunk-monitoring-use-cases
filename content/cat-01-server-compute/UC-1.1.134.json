@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.1.134",
+  "title": "macOS Filesystem Capacity from Splunk TA df",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=os` `sourcetype=df` from Splunk Add-on for Unix and Linux (per-host filesystem inventory)",
+  "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase #833) with Universal Forwarder on macOS",
+  "spl": "index=os sourcetype=df host=*\n| where MountedOn=\"/\" OR match(MountedOn, \"^/System/Volumes/Data$\")\n| eval use_pct=coalesce(tonumber(UsePct), tonumber(PercentUsed), round((UsedKB/SizeKB)*100,2))\n| where use_pct > 90\n| table _time, host, Filesystem, MountedOn, SizeKB, AvailKB, use_pct\n| sort - use_pct",
+  "description": "macOS endpoints exhaust `/System/Volumes/Data` quickly with local Time Machine snapshots, Xcode caches, and mail attachments. The TA `df` input already exposes per-mount utilization; scoping to root and Data volumes catches impending fullness before logging and MDM operations fail.",
+  "value": "Prevents OS instability and failed security tooling updates by alerting on critical mount points before they hit 100% utilization.",
+  "implementation": "Enable the `df` scripted input in `Splunk_TA_nix` on macOS UF installs (Darwin is supported for many collectors). Confirm field extractions: prefer `UsePct`; if your build emits `UsedKB`/`SizeKB`, derive percent as in the SPL. Poll every 5–15 minutes. Exclude network mounts with a `where NOT match(Filesystem, \"^//\")` clause if noisy. Alert above 90% on `/` and `/System/Volumes/Data` (adjust for Silicon vs Intel layout).",
+  "visualization": "Table (host, mount, use_pct), Line chart (use_pct trend for Data volume), Single value (count of hosts over threshold).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Documentation: Splunk Add-on for Unix and Linux",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/UnixLinux/ConfigureUnix"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux (Splunkbase 833)",
+      "url": "https://splunkbase.splunk.com/app/833"
+    }
+  ],
+  "equipment": [
+    "linux",
+    "macos"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• `Splunk_TA_nix` deployed to the UF with `df` enabled in `inputs.conf`.\n• Verify whether your TA version uses `UsePct` vs raw KB fields via Search `| head 1` on a pilot host.\n\nStep 1 — Add lookup for allowed minimum free space per department if needed.\n\nStep 2 — Schedule alert; throttle per host to once per hour.\n\nStep 3 — Validate by filling a test volume in a lab.\n\nStep 4 — Pair with UC-1.3.x macOS crash monitoring when disks are critically full.",
+  "grandmaExplanation": "We warn when a Mac’s main disk is almost full so it doesn’t freeze up or stop updating when space runs out."
+}

@@ -1496,6 +1496,7 @@ def _sidecar_equipment_tags(_cat_id, uc_full_id):
 
 _SIDECAR_GRANDMA_CACHE = None
 _SIDECAR_COMPLIANCE_CACHE = None
+_SIDECAR_QUALITY_CACHE = None
 CONTENT_DIR = os.path.join(SCRIPT_DIR, "content")
 
 
@@ -1669,6 +1670,59 @@ def _sidecar_compliance_for(uc_full_id):
     if not uc_full_id:
         return []
     return _load_sidecar_compliance_cache().get(uc_full_id, [])
+
+
+def _load_sidecar_quality_cache():
+    """Lazy-load quality metadata from UC sidecars: KFP, MITRE, lastReviewed.
+
+    Returns a dict keyed by UC id mapping to a dict with keys:
+      kfp      — knownFalsePositives string (or "")
+      mitre    — list of MITRE ATT&CK technique IDs (or [])
+      reviewed — lastReviewed date string YYYY-MM-DD (or "")
+    """
+    global _SIDECAR_QUALITY_CACHE
+    if _SIDECAR_QUALITY_CACHE is not None:
+        return _SIDECAR_QUALITY_CACHE
+    cache = {}
+    if not os.path.isdir(CONTENT_DIR):
+        _SIDECAR_QUALITY_CACHE = cache
+        return cache
+    for root, _dirs, files in os.walk(CONTENT_DIR):
+        for fname in files:
+            if not fname.startswith("UC-") or not fname.endswith(".json"):
+                continue
+            path = os.path.join(root, fname)
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    side = json.load(fh)
+            except (IOError, ValueError):
+                continue
+            if not isinstance(side, dict):
+                continue
+            uc_id = side.get("id")
+            if not isinstance(uc_id, str) or not uc_id:
+                continue
+            entry = {}
+            kfp = side.get("knownFalsePositives")
+            if isinstance(kfp, str) and kfp.strip():
+                entry["kfp"] = kfp.strip()
+            mitre = side.get("mitreAttack")
+            if isinstance(mitre, list) and mitre:
+                entry["mitre"] = [str(m).strip() for m in mitre if str(m).strip()]
+            reviewed = side.get("lastReviewed")
+            if isinstance(reviewed, str) and reviewed.strip():
+                entry["reviewed"] = reviewed.strip()
+            if entry:
+                cache[uc_id] = entry
+    _SIDECAR_QUALITY_CACHE = cache
+    return cache
+
+
+def _sidecar_quality_for(uc_full_id):
+    """Return quality metadata dict for a UC from its sidecar, or {}."""
+    if not uc_full_id:
+        return {}
+    return _load_sidecar_quality_cache().get(uc_full_id, {})
 
 
 # Minimal per-category fallback sentences — must stay in sync with
@@ -2584,6 +2638,13 @@ def parse_category_file(filepath):
             cmp_rows = _sidecar_compliance_for(uc.get("i"))
             if cmp_rows:
                 uc["cmp"] = cmp_rows
+            qmeta = _sidecar_quality_for(uc.get("i"))
+            if qmeta.get("kfp") and not (uc.get("kfp") or "").strip():
+                uc["kfp"] = qmeta["kfp"]
+            if qmeta.get("mitre") and not uc.get("mitre"):
+                uc["mitre"] = qmeta["mitre"]
+            if qmeta.get("reviewed") and not (uc.get("reviewed") or "").strip():
+                uc["reviewed"] = qmeta["reviewed"]
             matched_apps = apps_for_ta_string(uc.get("t"))
             if matched_apps:
                 uc["sapp"] = matched_apps

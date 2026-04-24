@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.77",
+  "title": "Citrix Per-Application Perceived Performance (Startup vs Hang vs Network)",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "uberAgent: `sourcetype=\"uberAgent:Process:ProcessStartup\"` and `sourcetype=\"uberAgent:Application:Error\"` (if configured); `sourcetype=\"uberAgent:Network:Performance\"` (latency, loss); `sourcetype=\"citrix:broker:app_usage\"` (app title, `launch_to_ready_ms`); or Director OData for ICA RTT and application load time",
+  "app": "uberAgent UXM (Splunkbase 1448) with Citrix templates; optional Citrix Monitor / Director export for the same fields",
+  "spl": "index=xd (sourcetype=\"uberAgent:Process:ProcessStartup\" OR sourcetype=\"uberAgent:Network:Performance\" OR sourcetype=\"citrix:broker:app_usage\") earliest=-4h\n| eval app=coalesce(app_name, process_name, title, \"unknown\"), start_ms=tonumber(startup_ms), ica=tonumber(ica_rtt_ms), hang=if(match(_raw, \"(?i)not.?(responding)\"),1,0)\n| bin _time span=15m\n| stats median(start_ms) as med_start, median(ica) as med_ica, sum(hang) as hang_ev by _time, app, host\n| where med_start>10000 OR med_ica>100 OR hang_ev>0\n| table _time, app, host, med_start, med_ica, hang_ev",
+  "description": "Not all “Citrix is slow” tickets are a network problem. Perceived slowness may be slow application startup, long UI busy states, or real ICA network delay. Combining process startup and hang signals from the VDA with network metrics and broker-reported app ready time splits accountability between packaging, the app itself, the profile, and the path between user and host.",
+  "value": "Not all “Citrix is slow” tickets are a network problem. Perceived slowness may be slow application startup, long UI busy states, or real ICA network delay. Combining process startup and hang signals from the VDA with network metrics and broker-reported app ready time splits accountability between packaging, the app itself, the profile, and the path between user and host.",
+  "implementation": "Standardize on one app name key (avoid publisher vs start-menu title drift). In uberAgent, enable process and network packs for gold images only first. If ICA RTT is missing in uberAgent, add broker or gateway RTT. Build three small alerts: p95 startup, p95 RTT, and not-responding process count, each routed to a different team owner.",
+  "visualization": "Small multiples: one row per app with startup, hang count, and RTT; table: top hosts driving bad p95; overlay change markers on image or app version.",
+  "cimModels": [
+    "Performance"
+  ],
+  "references": [
+    {
+      "title": "uberAgent — Process and network metrics",
+      "url": "https://splunkbase.splunk.com/app/1448"
+    },
+    {
+      "title": "Citrix — HDX and session performance",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/hdx-adaptive-technologies.html"
+    }
+  ],
+  "knownFalsePositives": "Wide-area brownouts, VPN or SD-WAN issues, and WiFi in one building can make many apps look 'network slow' or 'hung' at once. A site or path health overlay and delivery group before/after a thin-client patch differentiate network from a single bad app package.",
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_uberagent"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• `index=xd` with `uberAgent:Process:ProcessStartup`, `Network:Performance`, and `citrix:broker:app_usage`. UberAgent in gold image; broker exports `launch_to_ready_ms` and app title.\n\nStep 1 — Configure data collection\n`lookups/citrix_app_friendly_names.csv` maps `process_name` to `app` for LOB. Exclude backup/AV using a `lookup` column on noisy `process_name` (avoid brittle regexes on `app` alone). Pilot 2 LOB + Office. Verify `startup_ms` is milliseconds, not seconds.\n\nStep 2 — Create the search and alert\nBaseline p50/p95 per app 14d; replace static 10000/100 with lookup-driven SLO. Split alerts: p95 `med_start` to app team; p95 `med_ica` to network; `hang_ev` sustained 3x15m to EUC. Add `by host` to find noisy VDAs.\n\nStep 3 — Validate\nOn one ticket, align `_time` to Director/HDX and a screen cap showing not-responding vs high RTT. Confirm uberAgent and broker clocks within 1s.\n\nStep 4 — Operationalize\nDashboard: small-multiples for top 10 `app`. QBR: split accountability chart. Escalation: packaging vs net vs VDA. Re-baseline after uberAgent, VDA, or broker upgrade.",
+  "grandmaExplanation": "We break down whether the pain is a slow start, a frozen window, or a choppy line to the data center — so the app owner, the desktop team, and the line folks stop pointing fingers for the same ticket."
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.5.38",
+  "title": "ActiveMQ JDBC Message Store Lock Contention and Slow Persistence",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=messaging` `sourcetype=activemq:log` JDBC persistence exceptions, `sourcetype=activemq:audit` optional JDBC adapter audit, database wait events correlated by `host`/`broker_name`",
+  "app": "Splunk Universal Forwarder on `activemq.log`; enable `activemq:audit` if using audited JDBC adapters",
+  "spl": "index=messaging (sourcetype=\"activemq:log\" OR sourcetype=\"activemq:audit\") earliest=-24h\n| search (\"JdbcPersistenceAdapter\" OR \"JDBC\" OR \"SQLException\" OR \"Lock wait timeout\" OR \"deadlock\" OR \"could not insert\" OR \"could not update\" OR \"Communications link failure\")\n| rex field=_raw \"(?<sql_state>SQLSTATE\\s+\\w+)?\"\n| bucket _time span=5m\n| stats count as jdbc_faults values(sql_state) as states latest(_raw) as sample by _time, host\n| where jdbc_faults >= 5\n| sort -jdbc_faults",
+  "description": "JDBC-backed brokers depend on database row-level locking around `activemq_msgs` and related tables; lock wait timeouts and SQL errors manifest as send latency spikes and redelivery loops. Aggregating JDBC-related errors from broker logs gives a single pane when the database, not the JVM, is the bottleneck.",
+  "value": "Shortens diagnosis of intermittent messaging latency during DB maintenance, connection pool exhaustion, or index drift on message tables.",
+  "implementation": "Redact SQL parameters if logs include literals. Join to DB AWR or Splunk DB Connect slow-query index by timestamp + host. Separate Artemis vs Classic log formats if both exist.",
+  "visualization": "Timeline of JDBC error counts, table (host, states), link-out to DBA dashboards.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache ActiveMQ — JDBC Persistence",
+      "url": "https://activemq.apache.org/jdbc"
+    },
+    {
+      "title": "Apache ActiveMQ — Features",
+      "url": "https://activemq.apache.org/features"
+    }
+  ],
+  "equipment": [
+    "activemq"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We catch repeated database errors behind the messaging store so slowdowns caused by locked or struggling databases are not mistaken for application bugs only."
+}

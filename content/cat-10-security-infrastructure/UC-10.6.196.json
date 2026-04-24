@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.6.196",
+  "title": "Citrix Session Hijack Detection (Impossible Travel)",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:session\"` or `sourcetype=\"citrix:netscaler:aaalog\"` with `user`, `client_ip`, `session_id`, `geo_country` (from lookup), `logon_time`",
+  "app": "Citrix broker and gateway logs, MaxMind or internal geo lookup in Splunk, optional Splunk User Behavior Analytics",
+  "spl": "index=xd (sourcetype=\"citrix:broker:session\" OR sourcetype=\"citrix:netscaler:aaalog\") earliest=-24h\n| iplocation client_ip\n| eval country=coalesce(Country, geo_country, \"unknown\")\n| sort 0 user, _time\n| streamstats window=2 global=f current=f first(_time) as prev_t first(client_ip) as prev_ip first(country) as prev_c by user\n| eval km_s=if(isnotnull(prev_t) and (_time-prev_t)<3600 and prev_c!=country and country!=\"unknown\" and prev_c!=\"unknown\",1,0)\n| where km_s=1\n| table _time, user, prev_ip, client_ip, prev_c, country",
+  "description": "Credential theft or session token reuse can show up as the same account active from two distant geographies within a short window, or as a client IP change mid-session without a clean re-authentication. Joining session and gateway events with geo data flags impossible travel and concurrent locations that warrant step-up auth and session termination.",
+  "value": "Credential theft or session token reuse can show up as the same account active from two distant geographies within a short window, or as a client IP change mid-session without a clean re-authentication. Joining session and gateway events with geo data flags impossible travel and concurrent locations that warrant step-up auth and session termination.",
+  "implementation": "Keep the geo lookup current. Use `streamstats` only as a starting point; refine with distance or travel-time models for fewer false positives from VPN exit changes. Pair with identity provider sign-in history. Auto-isolate high-value accounts. Document corporate VPN that shows a single country even when users are mobile.",
+  "visualization": "Notable list: user, previous vs new country; map: client IP points; timeline: session events per user.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "Citrix — Secure logon and session management",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/secure.html"
+    }
+  ],
+  "knownFalsePositives": "VPN home regions, fast executive travel, mobile NAT churn, and shared egress IPs can trigger impossible travel without compromise. Add MFA success, new device, and PAM context; or require velocity plus second-factor challenge failure before an account takeover call.",
+  "mitreAttack": [
+    "T1550",
+    "T1078.004"
+  ],
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_netscaler"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• `index=xd`; `citrix:broker:session` and `citrix:netscaler:aaalog` with `user`, `client_ip`, `_time` (same TZ). `user` as UPN. Geo: monthly MaxMind (or iplocation + DB refresh). Stanzas: `props` so `client_ip` is always extracted.\n\nStep 1 — Configure data collection\n`lookups/jumpbox_subnets.csv` (allow), `known_vpn_exit_country.csv` (tune expectations). In `props` normalize nested IP fields. Drop duplicate session heartbeats: `dedup user,_time,client_ip` if needed in a subsearch.\n\nStep 2 — Create the search and alert\n`streamstats` as starter: alert on any `km_s=1` to SecOps (critical). Add macro later for haversine distance. Combine with IdP travel alert in SOAR; winner = higher confidence. Service accounts: lookup exclude.\n\nStep 3 — Validate\nBacktest: known incident week, measure TP/FP. VPN flips: expect FP—tighten `(_time-prev_t)` or require both legs outside VPN allow list.\n\nStep 4 — Operationalize\nRunbook: step-up at IdP, kill Citrix session, reset creds for VIP. L3 for persistence. Document split-tunnel. Quarterly: tune time window 30–60m. Privacy: need-to-know for IP lists.",
+  "grandmaExplanation": "We notice when the same sign-in shows up in two far-apart places faster than a person could travel — so you catch stolen or shared sign-ins before they quietly keep using your systems."
+}

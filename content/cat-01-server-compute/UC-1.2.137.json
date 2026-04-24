@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.137",
+  "title": "macOS Secure Time Offset vs Stratum-1 Reference",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=os` `sourcetype=macos_time_sync` from `sntp -d pool.ntp.org` or `ntpdate -q` style scripted checks (offset milliseconds)",
+  "app": "Splunk Universal Forwarder for macOS (scripted input)",
+  "spl": "index=os sourcetype=macos_time_sync host=*\n| stats latest(offset_ms) as offset_ms, latest(stratum) as stratum by host\n| where abs(offset_ms) > 500\n| eval abs_offset=abs(offset_ms)\n| table host, offset_ms, abs_offset, stratum\n| sort - abs_offset",
+  "description": "TLS authentication, Kerberos, and MDM certificate validation break when macOS clock skew exceeds hundreds of milliseconds. Lightweight NTP offset probes per host catch silent time drift from dead batteries, virtualization glitches, or captive portal blocks before MFA and VPN begin failing intermittently.",
+  "value": "Stops sporadic auth and VPN failures by proving whether endpoints have drifted from trusted time.",
+  "implementation": "Run a non-privileged `sntp` or `ntpdate -q` against two corporate-approved NTP servers every 15–30 minutes. Parse `offset` into signed `offset_ms`. Include `stratum` if printed. Use `index=os`, `sourcetype=macos_time_sync`. Alert when absolute offset exceeds 500 ms (tighten for finance). Exclude VMs if hypervisor time sync policy differs.",
+  "visualization": "Table (host, offset_ms), Histogram (offset distribution), Map (optional site).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "NIST SP 800-52 Rev. 2 — TLS guidance (time synchronization context)",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-52/rev-2/final"
+    },
+    {
+      "title": "Splunk Universal Forwarder macOS install",
+      "url": "https://docs.splunk.com/Documentation/Forwarder/latest/Deployment/InstallonmacOS"
+    }
+  ],
+  "equipment": [
+    "hyperv",
+    "macos"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Allow outbound UDP/123 or NTP-over-HTTPS per security policy.\n• If `sntp` is absent, bundle `ntpdate` from macOS Command Line Tools.\n\nStep 1 — Scripted input emits JSON: `{\"offset_ms\":-12.4,\"stratum\":2}`.\n\nStep 2 — Correlate alerts with Wi-Fi captive portal incidents.\n\nStep 3 — Validate by manually setting clock wrong in lab.\n\nStep 4 — Document tolerance for VMs using host sync.",
+  "grandmaExplanation": "We check that each Mac’s clock matches the real world so logins and secure connections don’t randomly fail because the time is off."
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.73",
+  "title": "Citrix ShareFile API Rate Limiting and Auth Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Security"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=sharefile` `sourcetype=\"citrix:sharefile:api\"` (REST responses); fields `http_status` (401, 403, 429), `error_code`, `client_id` or `app_name`, `rate_limit_key`, `integration_job` for sync worker failures Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.",
+  "spl": "index=sharefile sourcetype=\"citrix:sharefile:api\" earliest=-4h\n| eval sc=tonumber(http_status), is_auth=if(sc IN (401,403),1,0), is_rl=if(sc=429 OR match(lower(error_code),\"(?i)rate|throttl|limit\"),1,0), job_fail=if(match(lower(coalesce(integration_job, \"\")),\"(?i)fail|error\") OR match(lower(error_code),\"(?i)job|sync|worker\"),1,0), client=coalesce(client_id, app_name, \"unknown\")\n| bin _time span=5m\n| stats count as reqs, sum(is_auth) as auth_fails, sum(is_rl) as rate_hits, sum(job_fail) as job_errors by _time, client\n| where auth_fails>10 OR rate_hits>0 OR job_errors>0\n| table _time, client, reqs, auth_fails, rate_hits, job_errors",
+  "description": "Integrations, automation, and line-of-business apps depend on ShareFile APIs. OAuth failures break sign-in, rate limiting signals abusive or mis-tuned clients, and job errors may leave folders out of sync. Monitoring these patterns protects both availability and security (stolen or misconfigured tokens).",
+  "value": "Integrations, automation, and line-of-business apps depend on ShareFile APIs. OAuth failures break sign-in, rate limiting signals abusive or mis-tuned clients, and job errors may leave folders out of sync. Monitoring these patterns protects both availability and security (stolen or misconfigured tokens).",
+  "implementation": "Collect API and OAuth logs with client identity. Alert on 429 from production integrations first (fix back-off and batch size). For 401/403, spike-check against key rotation and blocked accounts. Tag integration job names in events for MTTR. Compare to synthetic login tests to separate ShareFile service issues from a single app.",
+  "visualization": "Timechart: 429, 401, 403 by client_id; table: top clients for rate limits; single-value: failed job count in the last hour.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "Citrix — ShareFile API documentation",
+      "url": "https://api.sharefile.com/"
+    }
+  ],
+  "knownFalsePositives": "Scheduled RPA, sync clients, and integration workers legitimately hit API rate limits; pentest and scanner retries do too. An API client allowlist keyed to service principal and job schedule separates automation from account takeover.",
+  "mitreAttack": [
+    "T1110",
+    "T1190"
+  ],
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_daas",
+    "citrix_sharefile"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites: API or gateway logs in Splunk with status codes and a stable client identifier; OAuth logs correlated by client_id when possible. Step 1: Configure data collection — Ingest 429/4xx in real time; use HEC to index=sharefile, props.conf [citrix:sharefile:api] with EXTRACT for http_status and client_id, transforms.conf [sharefile_api] for JSON key routing. Step 2: Create the search and alert — Save the SPL; sliding windows; page when rate limits hit a business-critical client_id for more than 15m; for auth, alert on 401/403 with novel IP from lookup sharefile_client_context.csv; start with auth_fails>10 or rate_hits>0 per 5m and tune. Step 3: Validate — `index=sharefile sourcetype=\"citrix:sharefile:api\" earliest=-30m | stats count by http_status, client`. Step 4: Operationalize — Lookup sharefile_client_owners.csv in transforms.conf; route to app/identity; if persistent, escalate to Citrix/ShareFile admins.",
+  "grandmaExplanation": "We watch when the file-sharing system tells apps slow down or when sign-ins for machines fail — so you catch broken automations, worn-out keys, and overload before the business notices."
+}

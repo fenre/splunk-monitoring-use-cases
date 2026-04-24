@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.57",
+  "title": "ClickHouse ZooKeeper Session Failures Correlation",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "ClickHouse server log lines referencing ZooKeeper coordination, sourcetype `clickhouse:server_log`",
+  "app": "Universal Forwarder on ClickHouse nodes monitoring `/var/log/clickhouse-server/clickhouse-server.log` (path per your install)",
+  "spl": "index=database sourcetype=\"clickhouse:server_log\"\n| search \"ZooKeeper\" AND (\"Session expired\" OR \"Connection loss\" OR \"Coordination::Exception\" OR \"Cannot allocate block number\")\n| rex field=_raw \"Code:\\s+(?<zk_code>\\d+)\\.\\s+(?<zk_msg>.+)\"\n| bin _time span=5m\n| stats count as events values(zk_msg) as msgs by host, _time\n| where events >= 5",
+  "description": "ClickHouse replication and DDL coordination depend on stable ZooKeeper sessions; repeated session or coordination errors predict readonly tables, stuck merges, and DDL failures. Surfacing bursts by host speeds joint triage with the ZooKeeper team.",
+  "value": "Reduces prolonged replication lag and prevents emergency failover when metadata coordination degrades.",
+  "implementation": "Set `inputs.conf` `monitor://` or container sidecar to ingest ClickHouse logs with `DATETIME_CONFIG` matching ClickHouse log format. Tag `host` as the ClickHouse server. Create a lookup mapping known maintenance. Pair with `zookeeper:mntr` from the ZK cluster in a separate index for joint dashboards.",
+  "visualization": "Timeline (events), Table (host, msgs), Top hosts bar chart.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ClickHouse — ZooKeeper configuration",
+      "url": "https://clickhouse.com/docs/en/operations/server-configuration-parameters/settings#server-settings_zookeeper"
+    }
+  ],
+  "equipment": [
+    "clickhouse"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

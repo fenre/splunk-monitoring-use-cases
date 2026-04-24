@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.35",
+  "title": "Pre-Launch and Lingering Session Management",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:events\"` (session, idle, prelaunch, `SessionState`), `sourcetype=\"citrix:vda:events\"` (disconnect, idle timer), `index=uberagent` `sourcetype=\"uberAgent:Session:SessionInfo\"` or `sourcetype=\"uberAgent:Process:ProcessStartup\"` for per-session process counts",
+  "app": "uberAgent UXM (Splunkbase 1448), Template for Citrix XenDesktop 7 (TA-XD7-Broker)",
+  "spl": "index=xd sourcetype=\"citrix:broker:events\" (match(_raw, \"(?i)pre[\\s-]*launch|lingering|ghost|idle|disc\") OR event_type IN (\"SessionDisconnect\", \"SessionInfo\") OR match(event_type, \"(?i)SessionPreLaunch\"))\n| eval session_type=if(match(_raw, \"(?i)pre[\\s-]*launch|prelaunch\"), \"prelaunch\", if(match(_raw, \"(?i)linger|disconnected|idle\"), \"idle_linger\", \"other\"))\n| where session_type!=\"other\"\n| bin _time span=1h\n| stats count, dc(user) as users, values(session_id) as sample_sessions by _time, session_type, delivery_group, published_app\n| table _time, session_type, delivery_group, published_app, count, users, sample_sessions",
+  "description": "Pre-launched and lingering sessions keep apps warm and retain user context, but they consume memory, session licenses, and power-managed capacity. Misconfigured idle timers, excessive pre-launch, or sessions stuck in disconnected state can exhaust pools and look like a capacity outage. Tuning visibility from broker and VDA events shows where session lifecycle policy diverges from design.",
+  "value": "Pre-launched and lingering sessions keep apps warm and retain user context, but they consume memory, session licenses, and power-managed capacity. Misconfigured idle timers, excessive pre-launch, or sessions stuck in disconnected state can exhaust pools and look like a capacity outage. Tuning visibility from broker and VDA events shows where session lifecycle policy diverges from design.",
+  "implementation": "Map published app and user fields. For ghost capacity, also pull uberAgent session or host CPU to correlate pre-launch with sustained resource use. Compare counts against GPO- or policy-driven idle and disconnect timers. Alert when pre-launch or linger counts exceed rolling baselines, or when idle sessions outnumber active sessions in a business hour window.",
+  "visualization": "Area chart (prelaunch vs idle_linger by group), Table (top published apps with linger), Donut (session type mix).",
+  "cimModels": [
+    "Network_Sessions"
+  ],
+  "references": [
+    {
+      "title": "uberAgent UXM for Citrix",
+      "url": "https://splunkbase.splunk.com/app/1448"
+    }
+  ],
+  "knownFalsePositives": "Pre-launch, disconnected-session timeout, and idle policies can leave long-lived sessions that look 'stuck' or 'lingering' by design. Baseline per delivery group, then alert when sessions exceed the documented GPO/Studio cap or when broker and VDA state disagree.",
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_uberagent"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: uberAgent UXM (Splunkbase 1448), Template for Citrix XenDesktop 7 (TA-XD7-Broker).\n• Ensure the following data sources are available: `sourcetype=\"citrix:broker:events\"`, `sourcetype=\"citrix:vda:events\"`, `index=uberagent` optional.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure session-related broker events are indexed with consistent `event_type` and user fields. If event names differ by version, centralize a macro with OR clauses. Ingest VDA `CtxSession` or equivalent event ids as needed for idle/linger details.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; extend `event_type` list to your build):\n\n```spl\nindex=xd sourcetype=\"citrix:broker:events\" (match(_raw, \"(?i)pre[\\s-]*launch|lingering|ghost|idle|disc\") OR event_type IN (\"SessionDisconnect\", \"SessionInfo\") OR match(event_type, \"(?i)SessionPreLaunch\"))\n| eval session_type=if(match(_raw, \"(?i)pre[\\s-]*launch|prelaunch\"), \"prelaunch\", if(match(_raw, \"(?i)linger|disconnected|idle\"), \"idle_linger\", \"other\"))\n| where session_type!=\"other\"\n| bin _time span=1h\n| stats count, dc(user) as users, values(session_id) as sample_sessions by _time, session_type, delivery_group, published_app\n| table _time, session_type, delivery_group, published_app, count, users, sample_sessions\n```\n\nStep 3 — Validate\nFor a published app with known pre-launch, compare hourly counts. Spot-check a linger-heavy user against the Citrix session list.\n\nStep 4 — Operationalize\nPair with the desktop policy team. Track improvements after GPO and Citrix policy changes.",
+  "grandmaExplanation": "We see when apps are left running in the background to start faster, and when people walk away and leave those sessions open — so you catch wasted space and slow computers before they hurt real work."
+}

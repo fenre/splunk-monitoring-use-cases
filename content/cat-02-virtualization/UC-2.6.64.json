@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.64",
+  "title": "Citrix Endpoint Management Device Enrollment Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=mdm` or `index=xd` `sourcetype=\"citrix:endpoint:enrollment\"` with `enrollment_method` (`AAD`, `idp`, `gateway`, `scep`), `mdms_scope` (full MDM vs MAM), `outcome` (`success`/`failed`), `error_code`, `device_platform`, `user_id`; server logs from Citrix Endpoint Management (on-premises or cloud connector) forwarded with stable timestamps Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.",
+  "spl": "index=xd sourcetype=\"citrix:endpoint:enrollment\" outcome!=\"success\"\n| eval method=upper(coalesce(enrollment_method, channel, \"UNKNOWN\"))\n| eval mode=coalesce(mdms_scope, mdm_mam, enrollment_mode, \"unknown\")\n| eval platform=coalesce(device_platform, os_type, \"unknown\")\n| bin _time span=1h\n| stats count as failures, dc(error_code) as unique_errors by _time, method, mode, platform\n| where failures>=5\n| sort - _time, failures",
+  "description": "Citrix Endpoint Management (CEM) enrollments that fail by Azure AD, identity-provider, or gateway-based flows strand devices without the policies and secure channels you expect. A rising failure rate in one method (for example AAD) often foreshadows certificate or conditional-access changes rather than a bad device. Tracking failures by method and MDM versus MAM split, with hourly trends, helps operations separate widespread identity drift from a flaky Wi-Fi at one site, and it pairs naturally with the certificate and compliance use cases in the same runbooks.",
+  "value": "Citrix Endpoint Management (CEM) enrollments that fail by Azure AD, identity-provider, or gateway-based flows strand devices without the policies and secure channels you expect. A rising failure rate in one method (for example AAD) often foreshadows certificate or conditional-access changes rather than a bad device. Tracking failures by method and MDM versus MAM split, with hourly trends, helps operations separate widespread identity drift from a flaky Wi-Fi at one site, and it pairs naturally with the certificate and compliance use cases in the same runbooks.",
+  "implementation": "Stream enrollment transactions from the CEM service or appliance into a dedicated index and sourcetype. Normalize `outcome` to lower case. Add a small lookup of acceptable error rates per platform. Alert when hourly non-success events exceed a rolling four-hour baseline by 300 percent, or any single error code appears more than 50 times in an hour. Provide a dashboard by enrollment method and region. Separate corporate-owned and BYOD cohorts if your data model supports it. Coordinate with the identity team when AAD- or IdP-tagged failures lead the chart.",
+  "visualization": "Time chart: enrollment failures by method; bar chart: MDM versus MAM failure share; drill table with top error_code and last device sample IDs (masked).",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Citrix Endpoint Management product documentation",
+      "url": "https://docs.citrix.com/en-us/citrix-endpoint-management.html"
+    }
+  ],
+  "knownFalsePositives": "New device season, OS refresh, and OTA mass pushes spike enrollment errors in absolute count. Use success-rate floors and the enrollment campaign ID; raw failure counts without cohort size are often false volume.",
+  "equipment": [
+    "azure",
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_daas",
+    "citrix_xem"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• CEM or XenMobile at a supported build; read-only API or file export for enrollments; correct time zone and NTP to correlate with directory logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm field list with one failed lab enrollment. Retain a hashed device identifier, not full IMEI, where privacy policy requires it.\n\nStep 2 — Create the search and alert\nPhase one: a daily report. Phase two: dynamic thresholds. Suppress during announced OS upgrades where enrollment spikes are expected.\n\nStep 3 — Validate\nReplay a known AAD test failure, confirm a row. Fix the trust and assert recovery in the same chart.\n\nStep 4 — Operationalize\nAdd a single owner from EUC and one from identity for AAD-tagged error spikes; document escalation paths in the runbook.",
+  "grandmaExplanation": "We count when phones and tablets fail to check in to the company’s control system and we split the reasons, so a broken sign-in path or a bad update shows up in one clear picture before devices stay unmanaged for long."
+}

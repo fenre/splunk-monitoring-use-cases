@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.45",
+  "title": "Redis Rejected Connections Near Client Limit",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Redis INFO: `rejected_connections`, `connected_clients`, `maxclients` (sourcetype `redis:info`)",
+  "app": "Custom scripted input (`redis-cli INFO`), or metrics exporter forwarded to Splunk",
+  "spl": "index=middleware sourcetype=\"redis:info\"\n| eval client_util_pct=if(maxclients>0, round(connected_clients/maxclients*100,2), null())\n| where rejected_connections > 0 OR client_util_pct > 85\n| timechart span=5m max(rejected_connections) as rejected, max(client_util_pct) as util_pct by host",
+  "description": "The rejected_connections counter increments when Redis hits maxclients. This is a production-critical signal of connection storms, pool leaks, or undersized limits.",
+  "value": "Stops silent application failures where clients cannot connect during traffic spikes or after misconfigured pools.",
+  "implementation": "Ingest INFO snapshots every minute. Use delta or per-poll rejected_connections if you emit counters cumulatively. Alert on any rejection or sustained client_util_pct above policy. Map host to cluster and application owners.",
+  "visualization": "Single value (rejected_connections), Line chart (connected_clients vs maxclients), Table (clusters at risk).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Redis INFO reference (maxclients, rejected_connections)",
+      "url": "https://redis.io/docs/latest/commands/info/"
+    }
+  ],
+  "equipment": [
+    "redis"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

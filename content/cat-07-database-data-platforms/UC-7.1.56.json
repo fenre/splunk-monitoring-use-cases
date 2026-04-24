@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.56",
+  "title": "ClickHouse ReplicatedMergeTree Replication Queue Depth",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`system.replicas` / replication queue metrics ingested as `clickhouse:replicas`",
+  "app": "Scheduled SQL to Splunk via HEC exporting `system.replicas` columns",
+  "spl": "index=database sourcetype=\"clickhouse:replicas\"\n| eval q=tonumber(queue_size)\n| where q > 500 OR is_readonly==1 OR is_readonly==\"true\"\n| stats max(q) as max_queue latest(absolute_delay) as abs_delay_sec by database, table, host\n| sort -max_queue",
+  "description": "A deep `queue_size` or rising `absolute_delay` means replicas are not applying log entries fast enough, which risks read inconsistency and recovery time after failures. Read-only mode transitions often precede user-visible errors.",
+  "value": "Supports HA commitments on ReplicatedMergeTree by catching ZooKeeper/network/part issues before replicas diverge or queries fail.",
+  "implementation": "Poll `SELECT database, table, queue_size, absolute_delay, is_readonly FROM system.replicas` on each node every 60s. Normalize booleans. Alert queue_size >1000 (tune per table size) or sustained growth over 30 minutes. Correlate with `clickhouse:server_log` ZooKeeper errors.",
+  "visualization": "Line chart (queue_size by table), Single value (max queue), Table (database, table, host, is_readonly).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ClickHouse — system.replicas",
+      "url": "https://clickhouse.com/docs/en/operations/system-tables/replicas"
+    }
+  ],
+  "equipment": [
+    "clickhouse"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

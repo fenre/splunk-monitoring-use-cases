@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.48",
+  "title": "Published Application Inventory Drift",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:events\"` (admin and configuration change events, published application and delivery group membership changes if forwarded); `index=xd` `sourcetype=\"citrix:monitor:odata\"` optional periodic snapshot of `Applications` and `ApplicationGroups` for diffing; Windows security or FMA audit if you consolidate admin actions",
+  "app": "Template for Citrix XenDesktop 7 (`TA-XD7-Broker`); optional scripted OData application inventory; Splunk add-on for Windows security audit if you capture privileged Citrix admin accounts",
+  "spl": "index=xd sourcetype=\"citrix:broker:events\"\n| where event_type IN (\"PublishedAppChange\", \"AppGroupChange\", \"AdminAction\") OR match(_raw, \"(?i)(publish|unpublish|application|delivery\\s*group|entitlement)\")\n| eval app=coalesce(app_name, ApplicationName, published_name, \"Unknown\")\n| eval change=coalesce(change_type, action, operation, event_type, \"change\")\n| eval actor=coalesce(admin_user, Actor, user, \"unknown\")\n| bin _time span=1d\n| stats count as changes, values(change) as change_types, values(delivery_group) as dgs by _time, app, actor\n| where changes>0\n| sort - _time\n| table _time, app, actor, change_types, dgs, changes",
+  "description": "The published application catalog and delivery group assignments define what users can launch and from where. Unplanned additions — for example, an overly broad group entitlement — expand attack surface. Silent removals can break a department. Drift is often caught only after help desk tickets. Collecting and comparing app inventory over time, including who made the last change, supports change management, recertification, and quick forensic review if suspicious publishing appears. The goal is the same as infrastructure drift detection, but for desktop and app entitlements in Citrix rather than for cloud IaaS tags alone.",
+  "value": "The published application catalog and delivery group assignments define what users can launch and from where. Unplanned additions — for example, an overly broad group entitlement — expand attack surface. Silent removals can break a department. Drift is often caught only after help desk tickets. Collecting and comparing app inventory over time, including who made the last change, supports change management, recertification, and quick forensic review if suspicious publishing appears. The goal is the same as infrastructure drift detection, but for desktop and app entitlements in Citrix rather than for cloud IaaS tags alone.",
+  "implementation": "If native broker `event_type` values are not present, use daily OData `Applications` and `Outputlookup` a baseline table, then `diff` the next run with a scripted or Splunk custom command. For real-time, parse admin audit entries that include the admin SID or UPN. Alert when an application appears or disappears without a linked change record in your ITSM, or when `Actor` is not a known automation account. For security, pay special care to new publish actions to all-authenticated users or to broad Active Directory groups.",
+  "visualization": "Changelog table with old versus new, timeline of app count by delivery group, single value for new apps in last 24 hours with drilldown to detail.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Publish applications in CVAD",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/publish.html"
+    },
+    {
+      "title": "Delegating administration and role-based access",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/delegated-administration.html"
+    }
+  ],
+  "knownFalsePositives": "Application packaging sprints, bulk adds during catalog migrations, and nightly sync jobs from automation move published inventory counts. Scope alerts to changes outside a catalog publish or job ID, not every packaging weekend.",
+  "mitreAttack": [
+    "T1098",
+    "T1078"
+  ],
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-XD7-Broker` and optional Citrix admin audit feeds; optional OData inventory script.\n• Ensure the following data sources are available: `citrix:broker:events` with admin and inventory semantics; or periodic OData snapshots in `citrix:monitor:odata`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDecide on event-driven, snapshot-diff, or both. For OData, use a secured account and write each poll with `_time` set to poll completion. Store golden copies in a KV store or CSV in Splunk. Map admin identities consistently (UPN). Strip passwords or secrets if any appear in `Message`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (tune `match` to your logging):\n\n```spl\nindex=xd sourcetype=\"citrix:broker:events\" (event_type=\"PublishedAppChange\" OR event_type=\"AppGroupChange\" OR event_type=\"AdminAction\")\n| eval app=coalesce(app_name, ApplicationName, \"Unknown\")\n| eval actor=coalesce(admin_user, Actor, user, \"unknown\")\n| table _time, app, actor, delivery_group, change_type, Message\n```\n\n**Published Application Inventory Drift** — Layer `| search NOT [ inputlookup change_approved_tickets | fields ticket_hash ]` if you can correlate ITSM. For baselines, replace the live search with a diff search comparing `| inputlookup` yesterday versus today on `app_id`.\n\nStep 3 — Validate\nExecute a test publish in a lab and assert an event. Compare counts to the Citrix management console. Address duplicate events if both OData and broker emit the same logical change.\n\nStep 4 — Operationalize\nSend weekly diffs to application owners, route unexpected entries to the security team, and attach evidence to recertification.",
+  "grandmaExplanation": "We keep a clear history of which apps are offered to whom and who changed that list, so surprise shortcuts and risky publishing do not sit unnoticed between formal reviews."
+}

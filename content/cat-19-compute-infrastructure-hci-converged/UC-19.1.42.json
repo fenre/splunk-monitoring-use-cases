@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.1.42",
+  "title": "oVirt / RHV Storage Pool Manager (SPM) Host Missing or Contended",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=virtualization` `sourcetype=\"ovirt:spm\"` from REST poll of `/api/hosts` and `/api/storagedomains` with fields `spm_host_id`, `storage_domain`, `spm_status`",
+  "app": "Custom scripted input (oVirt REST API), `Splunk_TA_nix` on Engine for supplemental logs",
+  "spl": "index=virtualization sourcetype=\"ovirt:spm\" earliest=-15m\n| stats latest(spm_host_id) as spm_host, latest(spm_status) as spm_st by storage_domain\n| where isnull(spm_host) OR lower(spm_st)!=\"ok\"\n| eval issue=case(isnull(spm_host), \"No SPM host\", like(lower(spm_st), \"%contend%\"), \"SPM contention\", 1==1, \"SPM status \" . spm_st)\n| table storage_domain, spm_host, spm_st, issue",
+  "description": "Only one host should hold SPM for a block/File domain at a time. Loss of SPM blocks LUN operations, snapshot merges, and template imports. Contention or a missing SPM row in API snapshots is a production-impacting condition.",
+  "value": "Prevents storage-domain-wide freezes in oVirt/RHV by detecting SPM election problems before operators notice stuck disk tasks.",
+  "implementation": "Poll storage domains and hosts every 60s. Map `storage_domain.spm_vds_id` (field names vary by API version) into `spm_host_id`. Alert when expected SPM is null or when monitoring shows repeated SPM moves. Correlate with SAN paths and VDSM logs on the candidate hosts.",
+  "visualization": "Table (domains without SPM), Timeline (SPM moves), Single value (domains in contention).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "oVirt — Storage Pool Manager concepts",
+      "url": "https://www.ovirt.org/documentation/admin-guide/chap-Storage.html"
+    }
+  ],
+  "equipment": [
+    "linux",
+    "ovirt"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

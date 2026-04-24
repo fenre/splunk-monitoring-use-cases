@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "15.3.43",
+  "title": "Hikvision ISAPI Security Event — NVR and Camera Login Brute Force",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Physical Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=physical` `sourcetype=hikvision:isapi` security audit JSON (`IllegalLogin`, `loginFailure`, `maxSession`, `Unauthorized`)",
+  "app": "Hikvision ISAPI `Security/auditLog` or `Event/notification/alertStream` forwarded via UF, or HEC aggregator",
+  "spl": "index=physical sourcetype=hikvision:isapi\n| search IllegalLogin OR loginFailure OR Unauthorized OR \"401\" OR brute\n| bin _time span=5m\n| stats count as failures, values(src_ip) as src_ips by _time, host, userName\n| where failures > 15\n| table _time, host, userName, failures, src_ips\n| sort - failures",
+  "description": "NVR credential stuffing enables deletion of footage and lateral movement into VLANs trusted for cameras. ISAPI security logs include repeated login failures with source addresses—ideal for Splunk correlation with firewall and Active Directory.",
+  "value": "Stops surveillance infrastructure takeover attempts while they are still generating noisy authentication failures.",
+  "implementation": "Enable ISAPI auditing on NVR and cameras per Hikvision hardening guide. Forward TLS 1.2+ to Splunk; redact passwords. Extract `userName`, `src_ip`, `statusCode`. Tune threshold per internet-exposed vs internal-only management networks. Auto-block at firewall via SOAR when `src_ips` repeat.",
+  "visualization": "Map (src_ip), Column chart (failures), Table (userName).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Hikvision — ISAPI developer documentation portal",
+      "url": "https://www.hikvision.com/en/support/download/sdk/"
+    },
+    {
+      "title": "CISA — IP camera hardening guidance",
+      "url": "https://www.cisa.gov/"
+    }
+  ],
+  "equipment": [
+    "cctv",
+    "hardware_bmc"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_edac"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Dedicated management VLAN.\n• TLS cert validation on ISAPI client.\n\nStep 1 — Normalize field names across firmware generations.\n\nStep 2 — Join with `suricata` or `pan:traffic` if available.\n\nStep 3 — Tabletop with physical security.\n\nStep 4 — MFA on NVR admin where supported.",
+  "grandmaExplanation": "We spot repeated wrong-password attempts on video recorders so hackers can’t break in and erase or steal footage."
+}

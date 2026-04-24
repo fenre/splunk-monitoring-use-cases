@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "15.1.29",
+  "title": "APC Network Management Card SNMP Communication Loss",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "Polled `upsCommStatus` from PowerNet-MIB (`sourcetype=snmp:apc:ups`) or companion `sourcetype=snmp:trap` `communicationLost` events",
+  "app": "Splunk Connect for SNMP (Splunkbase #6266), SNMP Modular Input (Splunkbase #1537)",
+  "spl": "index=power sourcetype=snmp:apc:ups host=*\n| eval comm=tonumber(upsCommStatus)\n| stats latest(comm) as upsCommStatus by host\n| where upsCommStatus=2",
+  "description": "`upsCommStatus` enumerates whether the UPS management agent can see the hardware. Value `2` (`commLost`) means SNMP dashboards go blind while the UPS may still be passing power—exactly when you need remote visibility before an outage.",
+  "value": "Cuts silent monitoring gaps on APC NMCs by alerting when polling sees communication lost while the device remains in service.",
+  "implementation": "Confirm enum mapping for your firmware (`1=ok`, `2=commLost` per classic PowerNet). Some deployments emit string extractions—normalize with `case()`. If you only receive traps, search `snmp:trap` for APC enterprise OID `.1.3.6.1.4.1.318` and `communicationLost`. Combine with host ping to separate network cuts from dead cards.",
+  "visualization": "Table (hosts with commLost), Timeline (recovery), Single value (affected count).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "APC — SNMP management card troubleshooting",
+      "url": "https://www.apc.com/us/en/faqs/FA156148/"
+    },
+    {
+      "title": "Splunk Connect for SNMP documentation",
+      "url": "https://splunk.github.io/splunk-connect-for-snmp/"
+    }
+  ],
+  "equipment": [
+    "apc_dc",
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_apc",
+    "snmp_generic"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• `upsCommStatus` polled at least every 5 minutes.\n• NetOps escalation for VLAN ACL mistakes.\n\nStep 1 — Validate enum with `snmpget`.\n\nStep 2 — Correlate with switch port events.\n\nStep 3 — Spare NMC RMA process.\n\nStep 4 — Redundant polling host to avoid false commLost from collector downtime.",
+  "grandmaExplanation": "We raise the alarm when the monitoring card stops talking to the UPS, even if the power looks fine from the outside."
+}

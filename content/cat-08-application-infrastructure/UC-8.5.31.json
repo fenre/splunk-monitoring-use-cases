@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.5.31",
+  "title": "ActiveMQ Dead Letter Queue (DLQ) Accumulation",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Fault",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=messaging` `sourcetype=activemq:broker` destination metrics for `ActiveMQ.DLQ` or custom `*.DLQ` queues (`QueueSize`, `DestinationName`, `EnqueueCount`)",
+  "app": "Splunk Add-on for JMX (Splunkbase 2647) with ActiveMQ MBean templates emitting `activemq:broker`",
+  "spl": "index=messaging sourcetype=\"activemq:broker\" earliest=-24h\n| eval dest=coalesce(DestinationName, destination_name)\n| eval qsize=coalesce(QueueSize, queue_size, QueueDepth)\n| where match(dest, \"(?i)DLQ|dead\\\\.letter|ActiveMQ\\\\.DLQ\")\n| where qsize > 0\n| timechart span=15m max(qsize) as dlq_depth by dest, broker_name limit=20",
+  "description": "Poison messages and repeated redeliveries land in ActiveMQ dead-letter destinations; any sustained `QueueSize` above zero usually means a consumer or schema defect is starving healthy traffic. Tracking DLQ depth by broker catches regressions after deployments.",
+  "value": "Surfaces application-level failures that do not trip generic broker health checks but still block business transactions until someone replays or discards bad messages.",
+  "implementation": "Normalize DLQ naming (`ActiveMQ.DLQ` vs custom) via lookup. Alert on any non-zero depth for golden paths, or rate-of-change for high-volume environments. Pair with message sampling outside Splunk if bodies contain PII.",
+  "visualization": "Line chart (DLQ depth), table (broker, destination, depth), single value (total DLQ messages).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache ActiveMQ — Redelivery and Dead Letter",
+      "url": "https://activemq.apache.org/message-redelivery-and-dlq-handling"
+    },
+    {
+      "title": "Apache ActiveMQ — JMX",
+      "url": "https://activemq.apache.org/jmx.html"
+    }
+  ],
+  "equipment": [
+    "activemq"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We count messages that were set aside because they could not be processed so teams can fix the broken handler before the problem spreads."
+}

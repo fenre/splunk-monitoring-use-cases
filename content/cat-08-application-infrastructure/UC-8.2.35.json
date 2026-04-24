@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.2.35",
+  "title": "Kafka Broker Fatal Shutdown Detection",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Kafka broker log files ingested as `sourcetype=kafka:serverLog`",
+  "app": "Splunk Add-on for Kafka (`Splunk_TA_kafka`, Splunkbase 2935) file monitoring",
+  "spl": "index=kafka sourcetype=\"kafka:serverLog\"\n| rex \"^\\[[^\\]]+\\]\\s+(?<log_level>\\w+)\"\n| where log_level IN (\"FATAL\",\"ERROR\") AND (match(_raw, \"(?i)shutting\\s+down\") OR match(_raw, \"(?i)fatal\") OR match(_raw, \"(?i)stopped\"))\n| stats count by host, log_level\n| where count >= 1",
+  "description": "FATAL/ERROR lines that include shutdown semantics indicate the broker process is exiting or an unrecoverable subsystem failed, which immediately impacts partition availability.",
+  "value": "Triggers rapid incident response for broker loss before controller metrics and lag alarms cascade across the cluster.",
+  "implementation": "Enable `kafka:serverLog` collection from `$KAFKA_HOME/logs` on every broker. Tune the `match` filters to your log vocabulary; add host-based suppressions for planned maintenance windows.",
+  "visualization": "Timeline (fatal/error shutdown events), Table (host, sample _time), Single value (brokers with events in window).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Source types for the Splunk Add-on for Kafka",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Kafka/Sourcetypes"
+    },
+    {
+      "title": "Apache Kafka — broker configuration",
+      "url": "https://kafka.apache.org/documentation/#brokerconfigs"
+    }
+  ],
+  "equipment": [
+    "kafka"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We raise the alarm when a core messaging server says it is dying, so teams can fail over or restart before everything else breaks."
+}

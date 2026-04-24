@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.1.45",
+  "title": "OpenStack Control Plane RabbitMQ Resource Alarm and Connection Churn",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=openstack` `sourcetype=\"rabbitmq:log\"` on controller nodes with file path `/var/log/rabbitmq/rabbit@*.log` or `sourcetype=\"rabbitmq:metrics\"` from management plugin poll",
+  "app": "Universal Forwarder, RabbitMQ management plugin + optional HEC poller for `/api/nodes`",
+  "spl": "index=openstack (sourcetype=\"rabbitmq:log\" OR sourcetype=\"rabbitmq:metrics\") host=*controller* earliest=-1h\n| search \"file descriptor\" OR \"memory alarm\" OR \"disk alarm\" OR \"low on disk\" OR \"connection_closed\"\n| stats count as alarm_events by host\n| where alarm_events>=5\n| sort -alarm_events",
+  "description": "OpenStack services depend on RabbitMQ for RPC. File descriptor or memory alarms on the broker throttle API and compute operations cluster-wide. Connection churn logs often precede full broker saturation.",
+  "value": "Prevents cascading OpenStack outages by treating RabbitMQ alarms as a Sev-1 signal for the control plane.",
+  "implementation": "Forward RabbitMQ logs only from nodes in the OpenStack control-plane hostgroup (naming convention or CMDB). Tune out known benign restarts. For metrics sourcetype, poll `mem_used`, `fd_used`, `disk_free_limit` and alert on threshold breaches per RabbitMQ clustering guide.",
+  "visualization": "Single value (nodes in alarm), Timeline (alarm keywords), Table (host, count).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "RabbitMQ — Alarms",
+      "url": "https://www.rabbitmq.com/docs/alarms"
+    },
+    {
+      "title": "OpenStack — RabbitMQ for OpenStack",
+      "url": "https://docs.openstack.org/ha-guide/shared-database-rabbitmq.html"
+    }
+  ],
+  "equipment": [
+    "openstack",
+    "rabbitmq"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

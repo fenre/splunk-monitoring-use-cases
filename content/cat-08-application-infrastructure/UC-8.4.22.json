@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.4.22",
+  "title": "Tomcat Connector Connection Count Versus maxConnections",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=jmx` `sourcetype=jmx:tomcat:threadpool` (`connectionCount`, `maxConnections`)",
+  "app": "Splunk Add-on for JMX + Tomcat Connector MBean polling",
+  "spl": "index=jmx sourcetype=\"jmx:tomcat:threadpool\"\n| eval cx_pct=if(maxConnections>0, round(100*connectionCount/maxConnections,1), null())\n| where cx_pct > 85\n| timechart span=5m max(cx_pct) as conn_util by host, connector_name",
+  "description": "Tomcat’s `connectionCount` against `maxConnections` shows accept-queue pressure distinct from busy worker threads.",
+  "value": "Explains errors when threads are idle yet clients cannot connect.",
+  "implementation": "Poll `Catalina:type=ThreadPool` and `ProtocolHandler` attributes per connector; names vary (`http-nio-8080`).",
+  "visualization": "Line chart (utilization), combine with UC-8.2.12 thread busy metrics.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Add-on for Tomcat (Splunkbase)",
+      "url": "https://splunkbase.splunk.com/app/2911"
+    },
+    {
+      "title": "Splunk Add-on for Java Management Extensions (Splunkbase)",
+      "url": "https://splunkbase.splunk.com/app/2647"
+    }
+  ],
+  "equipment": [
+    "tomcat"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for JMX + Tomcat Connector MBean polling.\n• Ensure the following data sources are available: `index=jmx` `sourcetype=jmx:tomcat:threadpool` (`connectionCount`, `maxConnections`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIf your Jolokia map omits `maxConnections`, add it via transforms or lookup from server.xml.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=jmx sourcetype=\"jmx:tomcat:threadpool\"\n| eval cx_pct=if(maxConnections>0, round(100*connectionCount/maxConnections,1), null())\n| where cx_pct > 85\n| timechart span=5m max(cx_pct) as conn_util by host, connector_name\n```\n\nUnderstanding this SPL\n\n**Tomcat Connector Connection Count Versus maxConnections** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=jmx` `sourcetype=jmx:tomcat:threadpool` (`connectionCount`, `maxConnections`). **App/TA**: Splunk Add-on for JMX + Tomcat Connector MBean polling. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (utilization), combine with UC-8.2.12 thread busy metrics..",
+  "grandmaExplanation": "We watch how many live connections stack up on each Java connector so you raise limits before refusal."
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.58",
+  "title": "Citrix Analytics for Performance Data Export",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=citrix` `sourcetype=\"citrix:analytics:performance\"` with `session_id`, `user_principal`, `ux_score`, `logon_duration_ms`, `ica_rtt`, `vda_name`, `machine_event_type` from the Citrix Analytics for Performance data export via Citrix Analytics Add-on for Splunk (Splunkbase 6280); optional join to `sourcetype=\"citrix:vda:events\"` for on-host correlation",
+  "app": "Citrix Analytics Add-on for Splunk (Splunkbase 6280)",
+  "spl": "index=citrix sourcetype=\"citrix:analytics:performance\"\n| eval score=tonumber(coalesce(ux_score, user_experience_score, session_score, -1))\n| eval rtt=tonumber(coalesce(ica_rtt, round_trip_ms, 0))\n| eval logon=tonumber(coalesce(logon_duration_ms, logon_ms, 0))\n| where (score>0 AND score<70) OR rtt>300 OR logon>15000\n| eval reason=case(score>0 AND score<70, \"low_ux_score\", rtt>300, \"high_ica_rtt\", logon>15000, \"slow_logon\", true(), \"other\")\n| timechart span=1h count by reason, user_principal\n| fillnull value=0",
+  "description": "Citrix Analytics for Performance scores sessions and surfaces machine and session lifecycle events with modeled user-experience metrics. When those streams land in a dedicated index, you can trend score regressions by delivery group, catch rising ICA round trip before the help desk floods, and separate image issues from home-network problems. This use case focuses on continuous performance observability and capacity-driven tuning, not on raw security forensics (see related security export use case).",
+  "value": "Citrix Analytics for Performance scores sessions and surfaces machine and session lifecycle events with modeled user-experience metrics. When those streams land in a dedicated index, you can trend score regressions by delivery group, catch rising ICA round trip before the help desk floods, and separate image issues from home-network problems. This use case focuses on continuous performance observability and capacity-driven tuning, not on raw security forensics (see related security export use case).",
+  "implementation": "Complete Citrix Cloud onboarding for Analytics, enable the Performance export, and install Splunkbase 6280 on a test search head. Map exported fields to a stable schema: prefer `user_principal` and `session_id` as join keys. Build baseline weekly medians of UX score and logon time per app group. Alert on a sustained drop in median score (for example 15 points for two hours) or on percentile shifts of ICA RTT. Route reports to EUC and network teams. Mask or hash identifiers if exports leave regulated regions. Keep raw exports within retention that matches your DLP policy.",
+  "visualization": "Time chart of median UX score by delivery group; scatter of logon time versus ICA RTT; table of worst sessions in the last hour with drill to machine name and region.",
+  "cimModels": [
+    "Performance"
+  ],
+  "references": [
+    {
+      "title": "Citrix Analytics Add-on for Splunk (Splunkbase 6280)",
+      "url": "https://splunkbase.splunk.com/app/6280"
+    },
+    {
+      "title": "Citrix Analytics for Performance (overview)",
+      "url": "https://docs.citrix.com/en-us/citrix-analytics/performance.html"
+    }
+  ],
+  "knownFalsePositives": "Toggling performance analytics, rebinding a tenant, or a connector upgrade can pause or reshape export volume. Check entitlements and connector version before a zero-data alert; lab toggles and pilot tenants should be in an exclusion list.",
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_daas"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Citrix Cloud entitlement for Analytics; data export permissions; Splunkbase app 6280 installed with correct credentials and index routing (for example `index=citrix`).\n• Field extraction verified on `citrix:analytics:performance` for scores and durations.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nValidate event volume and sampling; if volume is high, sample heavy dashboards to five-minute rollups. Document field synonyms your tenant uses (some orgs customize labels).\n\nStep 2 — Create the search and alert\nStart with a weekly report before paging; tune thresholds with two weeks of data. Add suppressions for image rollout windows using a change calendar lookup.\n\nStep 3 — Validate\nCompare a handful of poor-score sessions in this index with the Citrix Cloud UI for the same `session_id` to confirm mapping.\n\nStep 4 — Operationalize\nPublish an executive one-page on median score trend; tie to golden-image releases and autoscale events.",
+  "grandmaExplanation": "We turn the cloud’s picture of how smooth each session feels into simple charts, so you spot when slowness spreads before the phones light up and you know whether the fix is the app image or the network path."
+}

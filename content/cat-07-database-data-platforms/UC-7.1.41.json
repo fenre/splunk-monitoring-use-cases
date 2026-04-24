@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.41",
+  "title": "PostgreSQL Checkpoint and Background Writer Pressure",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`pg_stat_bgwriter` counters (`checkpoints_req`, `checkpoint_write_time`, `buffers_checkpoint`, `maxwritten_clean`) ingested as time-series",
+  "app": "Splunk DB Connect (Splunkbase 2686), JDBC Driver for Postgres (Splunkbase 6152)",
+  "spl": "index=database sourcetype=\"postgresql:bgwriter\"\n| eval req_ratio=if(checkpoints_timed>0, round(checkpoints_req/checkpoints_timed,3), null())\n| where checkpoints_req > 10 OR maxwritten_clean > 100 OR req_ratio > 0.5\n| timechart span=15m sum(checkpoints_req) as checkpoints_requested, sum(maxwritten_clean) as bgwriter_truncations by host",
+  "description": "Requested checkpoints (checkpoints_req) and bgwriter truncations (maxwritten_clean) spike when checkpoints cannot keep pace with dirty buffers, causing I/O stalls and query latency. Monitoring pg_stat_bgwriter is a standard PostgreSQL tuning signal.",
+  "value": "Surfaces checkpoint overload before sustained write stalls, long recovery times, and tail latency regressions on write-heavy PostgreSQL clusters.",
+  "implementation": "Schedule a DB Connect rising column or time-based query against pg_stat_bgwriter every 60 seconds. Normalize host and cluster. Baseline checkpoints_req per workload; alert on sustained elevation versus checkpoints_timed. Pair with pg_stat_checkpointer on PostgreSQL 17+ if available.",
+  "visualization": "Line chart (checkpoints_req vs checkpoints_timed), Single value (maxwritten_clean), Table (host, buffers_checkpoint, write time).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "PostgreSQL Statistics Collector — pg_stat_bgwriter",
+      "url": "https://www.postgresql.org/docs/current/monitoring-stats.html#MONITORING-PG-STAT-BGWRITER-VIEW"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "checkpoint",
+    "db_connect",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "postgresql_pg"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

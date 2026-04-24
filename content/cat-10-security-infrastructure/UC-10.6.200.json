@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.6.200",
+  "title": "Citrix Anomalous Session Behavior (Off-Hours, Unusual Apps)",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:session\"` and `sourcetype=\"citrix:broker:app_usage\"` (app title, `session_start`, `session_end`, `user`, `day_of_week`, `client_ip`); optional baseline from summary indexing",
+  "app": "Citrix Monitor Service or broker-derived usage via OData collectors, custom forwarders, optional Splunk User Behavior Analytics",
+  "spl": "index=xd (sourcetype=\"citrix:broker:session\" OR sourcetype=\"citrix:broker:app_usage\") earliest=-7d\n| eval hr=tonumber(strftime(_time, \"%H\")), wday=tonumber(strftime(_time, \"%w\")), du=tonumber(session_duration_sec)\n| eval off=if(hr<5 OR hr>22 OR wday==0 OR wday==6,1,0)\n| eventstats median(du) as medu by app_name\n| eval longsess=if(du>(3*coalesce(medu,0)) AND coalesce(medu,0)>0,1,0)\n| where off=1 OR longsess=1\n| bin _time span=1d\n| stats count as ev, dc(app_name) as appc, max(longsess) as has_long by _time, user\n| where ev>5 OR appc>15\n| table _time, user, ev, appc, has_long",
+  "description": "Baseline user behavior in virtual apps: typical hours, common titles, and session length. Off-hours or weekend spikes and unusual first-time applications (especially data-heavy or admin tools) can signal account compromise, side work by insiders, or automation errors. This use case combines time-of-day signals with per-app duration compared to a rolling median to reduce noise for routine shift work.",
+  "value": "Baseline user behavior in virtual apps: typical hours, common titles, and session length. Off-hours or weekend spikes and unusual first-time applications (especially data-heavy or admin tools) can signal account compromise, side work by insiders, or automation errors. This use case combines time-of-day signals with per-app duration compared to a rolling median to reduce noise for routine shift work.",
+  "implementation": "Feed shift schedules from HR or facilities into a lookup to refine off-hours. Maintain an allow list for on-call and batch accounts. `eventstats` medians are a starting point; consider ML assistants or user-level baselines for large estates. Triage with the impossible-travel and privilege use cases. Respect privacy: aggregate before HR notification policies.",
+  "visualization": "Heatmap: events by user hour; table: top users for off-hours; scatter: `session_duration_sec` by app (spot long tails).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "Citrix — Monitor and Director session analytics",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/director-monitoring-solutions.html"
+    }
+  ],
+  "knownFalsePositives": "Global BPO, weekend SRE, and batch job operators naturally use 'off hours' and niche published apps. OU- or country-based baselines, holiday and on-call calendars, and a minimum deviation from a 30-day user habit reduce one-off 'weird' from critical insider.",
+  "mitreAttack": [
+    "T1078",
+    "T1074"
+  ],
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• `index=xd` with `session`+`app_usage` including `app_name` and duration (or `session_end`-`start`). `lookups/shift_by_site` for off-hours, `lookups/allow_accounts` (batch/on-call) to drop noise.\n\nStep 1 — Configure data collection\nIf duration absent: `eval` from epoch fields, guard nulls. `SEDCMD-` to normalize `app_name` (strip publisher). Optional summary index: nightly per-user `dc(app)` and median `du` to seed baselines. Respect privacy: aggregate before HR steps.\n\nStep 2 — Create the search and alert\n`off` hours per region: start 22–5 local; add weekend flag. `eventstats` medians need enough volume per app—exclude rare apps in subsearch. Pilot one BU: tune `ev>5` and `appc>15` from baseline; raise if shift FP. Throttle: user+1d.\n\nStep 3 — Validate\nOne-week Director app usage top-line vs Splunk `dc(app_name)` for sample users. Manually recompute one app’s median `du` vs `eventstats` to verify.\n\nStep 4 — Operationalize\nHeatmap: hour x user. Escalation: L2 for off-hours+longsess on `sensitive_apps` lookup; L3+HR only per policy. Run after impossible-travel. Quarterly: FP review; union with UBA. Document lawful monitoring approval.",
+  "grandmaExplanation": "We learn what a normal work pattern looks like in your app farm, then flag the odd late nights, odd weekends, and strangely long stints in unusual tools — so you see odd use before a loss happens."
+}

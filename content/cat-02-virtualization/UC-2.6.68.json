@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.68",
+  "title": "Citrix Endpoint Management Remote Wipe/Lock Action Tracking",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:endpoint:mdm:command\"` with `action` (`wipe`, `lock`, `reset`, `unenroll`), `outcome` (`acknowledged`, `completed`, `failed`, `timeout`), `latency_ms`, `device_id`, `requester`, `incident_id`; CEM admin audit of remote actions if emitted separately to `sourcetype=\"citrix:endpoint:audit\"` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.",
+  "spl": "index=xd sourcetype=\"citrix:endpoint:mdm:command\" action IN (\"wipe\",\"lock\",\"reset\",\"unenroll\")\n| eval ok=if(match(lower(coalesce(outcome, status, \"\")), \"(completed|acknowledged|success)\"), 1, 0)\n| eval late=if(tonumber(coalesce(latency_ms, 0))>120000, 1, 0)\n| where ok=0 OR late=1\n| eval action=upper(action)\n| timechart span=1h count by action, outcome\n| fillnull value=0",
+  "description": "Remote lock and wipe are the last line when a device is lost or a user leaves under duress. Stalled, failed, or abnormally slow commands can leave data exposed longer than policy allows, while repeated failures may indicate a rooted device or network blocks. CEM can emit the MDM command lifecycle. This use case reports success rate, median latency, and long-tail timeouts by action type, and it feeds security and audit teams a durable trail of who requested each destructive action and whether it completed.",
+  "value": "Remote lock and wipe are the last line when a device is lost or a user leaves under duress. Stalled, failed, or abnormally slow commands can leave data exposed longer than policy allows, while repeated failures may indicate a rooted device or network blocks. CEM can emit the MDM command lifecycle. This use case reports success rate, median latency, and long-tail timeouts by action type, and it feeds security and audit teams a durable trail of who requested each destructive action and whether it completed.",
+  "implementation": "Ensure both the command result stream and a tamper-resistant admin audit of `requester` and business justification (ticket id) are present. Set RTO expectations (for example lock within two minutes on cellular). Page security operations on any `wipe` or `unenroll` that fails or exceeds latency SLO, with device last-seen time for triage. Weekly review of counts versus HR-driven terminations. Retain 13 months in line with HR and privacy counsel. Suppress test-lab device IDs. Never send full device payloads to a shared room without masking sensitive fields.",
+  "visualization": "Gauge: success rate by action; timeline of long-running commands; table of failed devices with `requester` and `incident_id`.",
+  "cimModels": [
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "title": "Device security actions (enterprise mobility — Apple/Android context)",
+      "url": "https://docs.citrix.com/en-us/citrix-endpoint-management/citrix-endpoint-mdm-mam/endpoint-management-mdm-mam-cio.html"
+    }
+  ],
+  "knownFalsePositives": "HR terminations, lost-device workflows, and security-driven remote lock are legitimate high-volume events. Join HR tickets or service desk 'lost device' cases; a wipe without a ticket in the batch window is the real finding.",
+  "mitreAttack": [
+    "T1485"
+  ],
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_daas",
+    "citrix_xem"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Legal and HR sign-off on logging requesters; CEM at a build that includes detailed command results; time sync.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeduplicate command retries. Map vendor-specific status strings to the four outcomes above. Hash device identifiers in lower environments.\n\nStep 2 — Create the search and alert\nRun a scheduled search every 5 minutes for failures. Route full-text evidence only to a restricted index role.\n\nStep 3 — Validate\nIn test, send lock and a selective wipe, confirm latency fields. For wipe, use a virtual lab or manufacturer reset workflow only.\n\nStep 4 — Operationalize\nQuarterly runbook drill with a paper incident; check that the audit trail is complete for auditors.",
+  "grandmaExplanation": "When a phone must be locked or wiped from afar, we watch that the order actually finished on time, so a lost or stolen device is not still wide open when every minute matters."
+}

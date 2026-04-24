@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.47",
+  "title": "OpenSearch Shard Recovery Stall Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "OpenSearch `_cat/recovery` or `_plugins/_recovery` equivalent (`files_percent`, `bytes_percent`, `stage`, `index`, `shard`, `node`)",
+  "app": "Custom scripted input (OpenSearch REST API)",
+  "spl": "index=database sourcetype=\"opensearch:recovery\"\n| where (files_percent < 100 AND stage!=\"done\") OR stage IN (\"index\",\"translog\",\"finalize\")\n| eval stall_age_min=round((now()-_time)/60,1)\n| where stall_age_min > 30\n| stats latest(files_percent) as files_pct latest(bytes_percent) as bytes_pct latest(stage) as stage by index, shard, node",
+  "description": "Shard recoveries that fail to complete indicate disk or network bottlenecks during node replacement or rolling upgrades. OpenSearch operators track recovery stage and percent like Elasticsearch.",
+  "value": "Reduces time-to-green after failures by catching stuck recoveries before search capacity degrades for extended periods.",
+  "implementation": "Poll the recovery API on the same cadence as Elasticsearch equivalents. Normalize sourcetype at ingest. Align thresholds with maintenance windows and large shard counts.",
+  "visualization": "Table (index, shard, stage, percent), Timeline (recovery), Single value (stuck count).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "OpenSearch REST API — cat recovery",
+      "url": "https://docs.opensearch.org/latest/api-reference/cat/cat-recovery/"
+    }
+  ],
+  "equipment": [
+    "elasticsearch"
+  ],
+  "equipmentModels": [
+    "elasticsearch_es",
+    "elasticsearch_opensearch"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

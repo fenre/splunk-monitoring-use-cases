@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.5.35",
+  "title": "ActiveMQ Slow Consumer and Cursor Memory Pressure (Prefetch Backlog)",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=messaging` `sourcetype=activemq:broker` per-destination MBeans `org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*` (`CursorMemoryUsage`, `MemoryPercentUsage`, `SlowConsumer`)",
+  "app": "Splunk Add-on for JMX (Splunkbase 2647) with destination-level polling",
+  "spl": "index=messaging sourcetype=\"activemq:broker\" earliest=-4h\n| eval dest=coalesce(DestinationName, destination_name)\n| eval cursor_pct=coalesce(cursor_percent_usage, round(CursorMemoryUsage*100/nullif(MemoryLimit,0),1))\n| eval slow=coalesce(SlowConsumer, slow_consumer, 0)\n| eval mem_pct=coalesce(MemoryPercentUsage, memory_percent_usage)\n| where slow==1 OR cursor_pct > 70 OR (mem_pct > 60 AND match(dest, \"(?i)consumer|dispatch|tmp\"))\n| table _time, broker_name, dest, slow, cursor_pct, mem_pct, EnqueueCount, DequeueCount",
+  "description": "Slow consumers hold prefetched messages in broker-side cursors; `CursorMemoryUsage` climbing toward limits is the operational mirror of client prefetch backlog. `SlowConsumer` flags on the MBean align with broker-side detection of clients that cannot keep pace.",
+  "value": "Surfaces consumer-side latency before global producer flow control trips, especially on high-prefetch JMS clients.",
+  "implementation": "Poll destination MBeans at moderate frequency to avoid JMX overload. Map `dest` naming to owning teams. Pair results with client GC logs or thread dumps when `SlowConsumer` toggles true.",
+  "visualization": "Heatmap (destination × cursor %), line chart of cursor memory, table filtered to `SlowConsumer=1`.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache ActiveMQ — Slow Consumer Handling",
+      "url": "https://activemq.apache.org/slow-consumer-handling"
+    },
+    {
+      "title": "Apache ActiveMQ — JMX",
+      "url": "https://activemq.apache.org/jmx.html"
+    }
+  ],
+  "equipment": [
+    "activemq"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We spot queues where readers are falling behind and the server is holding too many prefetched messages in memory, which is an early warning before everything jams up."
+}

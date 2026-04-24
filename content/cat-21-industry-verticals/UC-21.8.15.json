@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.8.15",
+  "title": "Asterisk CDR Codec and Post-Dial Delay Anomalies",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Quality"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`index=voip` `sourcetype=asterisk:cdr` (Master.csv fields: `disposition`, `billsec`, `duration`, `dstchannel`, `lastapp`, `lastdata`)",
+  "app": "Asterisk CDR to CSV via `cdr-csv` + Universal Forwarder, or ODBC CDR mirror to DB + DB Connect",
+  "spl": "index=voip sourcetype=asterisk:cdr\n| eval billsec=tonumber(billsec), duration=tonumber(duration)\n| eval pdd=duration-billsec\n| eval codec=coalesce(lastdata, dstcodec)\n| where disposition=\"ANSWERED\" AND billsec>0\n| bin _time span=1h\n| stats median(pdd) as med_pdd, count as answered_calls, dc(codec) as codec_mix by _time, host\n| where med_pdd > 4 OR codec_mix > 3",
+  "description": "Post-dial delay (PDD) approximated as `duration - billsec` on answered calls highlights SIP routing or transcoding stalls. A rising median PDD or exploding mix of codecs per hour often precedes MOS complaints even when trunks show green.",
+  "value": "Speeds root-cause analysis for voice quality tickets by separating RTP issues from pure capacity problems using existing CDR fields.",
+  "implementation": "Ensure `asterisk:cdr` field extraction matches your `Master.csv` column order—common positions documented in Asterisk samples. If using custom CDR fields for negotiated codec, map to `dstcodec`. Tune PDD threshold: mobile interconnection may legitimately be higher. Investigate codec_mix>3 as transcoding or misconfigured peering.",
+  "visualization": "Line chart (med_pdd), Pie chart (codec share), Table (trunk groups).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Asterisk Documentation — CDR",
+      "url": "https://docs.asterisk.org/Operation/Logging/Call-Detail-Records-CDR/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "asterisk",
+    "db_connect"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Consistent CSV headers in `cdr.conf`.\n• Exclude conference bridges if they skew PDD.\n\nStep 1 — Validate PDD vs PCAP on a test call.\n\nStep 2 — Join with SIP `INVITE` logs if available.\n\nStep 3 — Document carrier-specific baselines.\n\nStep 4 — Feed ITSI KPI if using premium.",
+  "grandmaExplanation": "We measure how long it takes calls to actually start talking and whether too many different audio formats are in play, which usually means scratchy or one-way sound.",
+  "telcoUseCase": "Troubleshooting one-way audio and post-dial delay — track `billsec`, `amaflags`, and negotiated codec fields in Master.csv-style CDR."
+}

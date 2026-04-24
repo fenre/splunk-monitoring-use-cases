@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.2.37",
+  "title": "Dell VxRail vSAN Cluster Free Capacity and Rebuild Headroom",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Resilience"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=vxrail` `sourcetype=\"vxrail:vsan_capacity\"` with fields `cluster_id`, `used_capacity_tb`, `total_capacity_tb`, `slack_space_tb`, `host_failures_to_tolerate`",
+  "app": "Custom (vSAN Datastore Capabilities API snapshot), VMware PowerCLI export to HEC",
+  "spl": "index=vxrail sourcetype=\"vxrail:vsan_capacity\" earliest=-6h\n| eval free_pct=100*((total_capacity_tb-used_capacity_tb)/total_capacity_tb)\n| eval slack_pct=if(isnotnull(slack_space_tb), 100*(slack_space_tb/total_capacity_tb), null())\n| where free_pct<=25 OR slack_pct<=5\n| stats latest(free_pct) as free_pct, latest(slack_pct) as slack_pct, latest(host_failures_to_tolerate) as hftt by cluster_id\n| sort free_pct",
+  "description": "VxRail vSAN needs slack space to absorb rebuilds after a host or disk failure. Monitoring logical free percentage and vSAN slack metrics together explains when the cluster can no longer tolerate the policy’s `Failures to tolerate` during maintenance.",
+  "value": "Supports safe one-node maintenance by proving enough free slack exists for resync before taking a host down.",
+  "implementation": "Schedule a job that captures vSAN cluster capacity summaries per VxRail cluster ID. Map VMware fields such as `freeCapacity` and `totalCapacity` into TB. Join with policy summary if available. Tune thresholds to your FTT=1 vs FTT=2 designs.",
+  "visualization": "Cluster treemap (used vs free), Single value (clusters under runway threshold), Timechart (free_pct).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "VMware vSAN Design Guide — sizing slack space",
+      "url": "https://core.vmware.com/resource/vmware-vsan-design-guide"
+    }
+  ],
+  "equipment": [
+    "vmware",
+    "vxrail"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.39",
+  "title": "Citrix SD-WAN Application Steering and QoS Enforcement",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=sdwan` `sourcetype=\"citrix:sdwan:app_route\"` (application name, `path_selected`, `qos_class`); or `sourcetype=\"citrix:sdwan:qos\"` with `drops`, `queue_depth`, `app_name` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "No official Splunk TA for Citrix SD-WAN. Ingest via syslog from SD-WAN appliances and SD-WAN Center, or poll NITRO/REST API from SD-WAN Orchestrator. SNMP polling available for basic metrics. Suggested custom sourcetypes follow the `citrix:sdwan:*` convention.",
+  "spl": "index=sdwan (sourcetype=\"citrix:sdwan:app_route\" OR sourcetype=\"citrix:sdwan:qos\") earliest=-4h\n| eval drops=tonumber(drops), app=coalesce(app_name, application, \"unknown\"), psel=coalesce(path_selected, selected_path, \"unknown\")\n| bin _time span=5m\n| stats sum(drops) as total_drops, count as dec_events, values(psel) as paths_used, values(qos_class) as qos by _time, app, site_id\n| where total_drops>0 OR dec_events>1000\n| table _time, site_id, app, total_drops, dec_events, paths_used, qos",
+  "description": "Application-aware routing and queuing are core to SD-WAN value. Monitoring which path each app uses, when drops occur in a class of service, and when steering decisions change frequently exposes misconfiguration, license limits, and congestion on steered traffic that affects voice, video, and business apps.",
+  "value": "Application-aware routing and queuing are core to SD-WAN value. Monitoring which path each app uses, when drops occur in a class of service, and when steering decisions change frequently exposes misconfiguration, license limits, and congestion on steered traffic that affects voice, video, and business apps.",
+  "implementation": "Import application-to-QoS mapping from the orchestrator. Track drops and deep queue signs per class. For steering churn, use `path_selected` with `streamstats` to count changes per 5m for major apps. Involve the network and app teams when a critical app rides a backup path. Pair with underlay stats from the same time window to separate LAN vs WAN causes.",
+  "visualization": "Stacked area: drop count by `qos_class`; Sankey or table: `app` to `path_selected` distribution; timechart: steering change rate for top apps.",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "references": [
+    {
+      "title": "Citrix — SD-WAN application quality of service",
+      "url": "https://docs.citrix.com/en-us/citrix-sd-wan/11-4/application-qos.html"
+    }
+  ],
+  "knownFalsePositives": "QoS class and application steering re-profiles from VoIP or SaaS tuning shift steering counters in bulk. Compare before and after a policy commit ID; a single day of movement after a documented change is usually tuning, not random steering failure.",
+  "equipment": [
+    "citrix",
+    "snmp",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_sdwan",
+    "snmp_generic"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites: Per-app routing and QoS with stable app key; reference table of primary path and expected qos_class. Step 1: Configure data collection — If very chatty, pre-aggregate on the forwarder; props [citrix:sdwan:app_route] and [citrix:sdwan:qos] with FIELDALIAS for app_name, path_selected, qos_class, and drops. Step 2: Create the search and alert — First alert on rising drops in the voice or call-control class; add a path drift report using streamstats on path_selected outside approved change windows; start with total_drops>0 and tune. Step 3: Validate — During maintenance on a reference site, compare Splunk to SD-WAN UI: `index=sdwan (sourcetype=\"citrix:sdwan:app_route\" OR sourcetype=\"citrix:sdwan:qos\") earliest=-1h | stats values(path_selected), sum(drops) by app, site_id`. Step 4: Operationalize — Feed steering review and carrier disputes; if drops persist post-tuning, escalate to Citrix SD-WAN and WAN architecture teams.",
+  "grandmaExplanation": "We see which work apps the network put on which road and when important traffic is getting bumped to the back of the line — so you catch slow apps and wobbly calls before the whole day feels broken."
+}

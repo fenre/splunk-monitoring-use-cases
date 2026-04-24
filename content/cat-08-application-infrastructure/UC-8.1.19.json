@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.1.19",
+  "title": "Tomcat Access Log Response Time Percentiles",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=web` `sourcetype=tomcat:access` (W3C or extended format with elapsed time)",
+  "app": "Splunk Add-on for Tomcat (Splunkbase app 2911)",
+  "spl": "index=web sourcetype=\"tomcat:access\"\n| eval elapsed_ms=coalesce('time-taken', time_taken, timetaken, duration_ms)\n| where isnotnull(elapsed_ms) AND elapsed_ms>0\n| timechart span=5m perc95(elapsed_ms) as p95_ms by host\n| where p95_ms > 2000",
+  "description": "Tomcat access logs with `%D` or `time-taken` show end-to-end request duration. Rising P95 latency often precedes thread pool exhaustion and timeouts.",
+  "value": "Teams catch Tomcat slowdowns before pools saturate and users see widespread timeouts.",
+  "implementation": "Enable the AccessLogValve with elapsed time (`%D` microseconds or equivalent). Ingest with the Splunk Add-on for Tomcat. Normalize milliseconds at ingest or in SPL. Baseline P95 per application and seasonality.",
+  "visualization": "Line chart (P95 elapsed ms), table (top slow hosts), single value (current P95 vs SLO).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Add-on for Tomcat (Splunkbase)",
+      "url": "https://splunkbase.splunk.com/app/2911"
+    },
+    {
+      "title": "Apache Tomcat Access Log Valve",
+      "url": "https://tomcat.apache.org/tomcat-10.0-doc/config/valve.html#Access_Log_Valve"
+    }
+  ],
+  "equipment": [
+    "tomcat"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Tomcat (Splunkbase app 2911).\n• Ensure the following data sources are available: `index=web` `sourcetype=tomcat:access` (W3C or extended format with elapsed time).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Tomcat access logging including request duration; forward logs into Splunk with the Tomcat add-on; confirm the elapsed-time field is extracted as `time-taken` or map it to `elapsed_ms` in SPL.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"tomcat:access\"\n| eval elapsed_ms=coalesce('time-taken', time_taken, timetaken, duration_ms)\n| where isnotnull(elapsed_ms) AND elapsed_ms>0\n| timechart span=5m perc95(elapsed_ms) as p95_ms by host\n| where p95_ms > 2000\n```\n\nUnderstanding this SPL\n\n**Tomcat Access Log Response Time Percentiles** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=tomcat:access` (W3C or extended format with elapsed time). **App/TA**: Splunk Add-on for Tomcat (Splunkbase app 2911). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (P95 elapsed ms), table (top slow hosts), single value (current P95 vs SLO)..",
+  "grandmaExplanation": "We watch how long your Java site takes to answer requests so your team can fix slowdowns before the whole app feels stuck."
+}

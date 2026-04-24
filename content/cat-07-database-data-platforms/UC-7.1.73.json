@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.73",
+  "title": "Cassandra Dropped Mutations and Read Timeouts",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`cassandra:system` log; JVM `cassandra:gc` long pauses correlated",
+  "app": "UF for `system.log`; optional GC log forwarder as `cassandra:gc`",
+  "spl": "index=database (sourcetype=\"cassandra:system\" OR sourcetype=\"cassandra:gc\")\n| search \"DroppedMutation\" OR \"ReadTimeout\" OR \"Operation timed out\" OR (sourcetype=\"cassandra:gc\" AND \"GC pause\" AND pause_time_ms>2000)\n| rex field=_raw \"(?<timeout_kind>Read|Write|CAS) timeout\"\n| bin _time span=5m\n| stats count as events values(timeout_kind) as kinds by host, _time\n| where events >= 10",
+  "description": "Dropped mutations and read timeouts mean coordinators could not complete requests in time—often GC, overload, or replica unavailability. Treating log bursts as a first-class signal reduces mean time to detect compared to waiting for client dashboards.",
+  "value": "Protects revenue-critical APIs backed by Cassandra from silent degradation when a subset of replicas is sick.",
+  "implementation": "Normalize log levels; use `TRANSFORMS` to extract `coordinator`, `keyspace`, `table` when present. Ingest GC logs with `pause_time_ms` extracted for correlation searches (`join`). Suppress known load-test hosts. Page when event rate exceeds 10 per 5 minutes outside drills.",
+  "visualization": "Timeline (events), Table (host, kinds), Overlay GC pause max line.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache Cassandra — Timeouts",
+      "url": "https://cassandra.apache.org/doc/latest/cassandra/configuration/cass_yaml.html#request-timeout"
+    }
+  ],
+  "equipment": [
+    "cassandra",
+    "nodetool"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

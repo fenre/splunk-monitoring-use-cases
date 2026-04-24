@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.41",
+  "title": "FSLogix and Profile Container Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=\"WinEventLog:Application\"` source=FSLogix* or `Message=*FSLogix*`, `Perfmon:LogicalDisk` on profile share, `sourcetype=\"WinEventLog:System\"` for VHD/Filter Manager; `index=uberagent` `sourcetype=\"uberAgent:Logon:LogonDetail\"` for profile phase timing; optional SMB `\\Server\\path` path latency with synthetic scripts into `sourcetype=fslogix:synthetic`",
+  "app": "Splunk Add-on for Microsoft Windows, uberAgent UXM (Splunkbase 1448), Microsoft FSLogix policy documentation",
+  "spl": "index=windows (sourcetype=\"WinEventLog:Application\" (source=\"*FSLogix*\" OR source=\"*frx*\")) OR (sourcetype=\"WinEventLog:System\" EventCode=50)\n| search match(_raw, \"(?i)FSLogix|frx|profile|containe|VHDX|VHD |reparse|reconnect|load.*fail|attach.*fail|size|quota|latency\")\n| eval severity=if(match(_raw, \"(?i)fail|error|could not|denied|timeout|locked|reparse\"), \"error\", if(match(_raw, \"(?i)warn|slow|throttl|retry\"), \"warning\", \"info\"))\n| where severity!=\"info\"\n| join type=left user [search index=uberagent sourcetype=\"uberAgent:Logon:LogonDetail\" earliest=-4h | stats latest(ProfileLoad) as uem_profile_s by user]\n| table _time, host, user, Message, severity, uem_profile_s",
+  "description": "FSLogix profile and Office container disks live on fast SMB file shares. Slow attach, VHD reconnection failures, runaway VHDX growth, and share latency surface as long logon times or read-only profiles. Correlating FSLogix Application events with the profile phase in uberAgent logon data isolates the share path versus client-side issues faster than GPO review alone.",
+  "value": "FSLogix profile and Office container disks live on fast SMB file shares. Slow attach, VHD reconnection failures, runaway VHDX growth, and share latency surface as long logon times or read-only profiles. Correlating FSLogix Application events with the profile phase in uberAgent logon data isolates the share path versus client-side issues faster than GPO review alone.",
+  "implementation": "Ingest all FSLogix-related Application events and enable logical disk or SMB perf counters for share volumes. Set alerts on new error text patterns and on profile time >30s p95. Track VHD file size with a daily scripted inventory if not in events. For multi-site, tag share names with region and add synthetic SMB probes. Join carefully on `user` to avoid overmatching service accounts.",
+  "visualization": "Timeline (FSLogix errors), Line chart (profile phase from uberAgent), Table (VHD size growth if inventoried).",
+  "cimModels": [
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "title": "FSLogix documentation - Microsoft",
+      "url": "https://learn.microsoft.com/en-us/fslogix/"
+    }
+  ],
+  "knownFalsePositives": "Antivirus on-access scans, profile container rehydration, and one-off VHDX compact jobs spike FSLogix I/O errors briefly on large profiles. Use a short time window, exclude the backup hours job class, and check FSLogix filter and driver version against the last Windows LCU.",
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_uberagent"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows, uberAgent UXM (Splunkbase 1448) on VDAs.\n• Ensure the following data sources are available: `sourcetype=\"WinEventLog:Application\"` for FSLogix, `sourcetype=\"WinEventLog:System\"` for VHD, optional perfmon for the profile volume.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable `FSLogix` and `frx` logging in policy. Add inputs for the profile server share. Create a `ProfileLoad` or equivalent field alignment with uberAgent so joins work. If join noise appears, use `session_id` or `user_sid` as the join key instead of `user` when available.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; set subsearch window to your session length policy):\n\n```spl\nindex=windows (sourcetype=\"WinEventLog:Application\" (source=\"*FSLogix*\" OR source=\"*frx*\")) OR (sourcetype=\"WinEventLog:System\" EventCode=50)\n| search match(_raw, \"(?i)FSLogix|frx|profile|containe|VHDX|VHD |reparse|reconnect|load.*fail|attach.*fail|size|quota|latency\")\n| eval severity=if(match(_raw, \"(?i)fail|error|could not|denied|timeout|locked|reparse\"), \"error\", if(match(_raw, \"(?i)warn|slow|throttl|retry\"), \"warning\", \"info\"))\n| where severity!=\"info\"\n| join type=left user [search index=uberagent sourcetype=\"uberAgent:Logon:LogonDetail\" earliest=-4h | stats latest(ProfileLoad) as uem_profile_s by user]\n| table _time, host, user, Message, severity, uem_profile_s\n```\n\nStep 3 — Validate\nCompare against a known bad profile in test. If `ProfileLoad` field name varies, `rename` in the subsearch. Confirm join cardinality (<50k) per run.\n\nStep 4 — Operationalize\nSend critical FSLogix errors to the file services team. Pair with a capacity check on the profile share to prevent sudden space exhaustion.",
+  "grandmaExplanation": "We watch the shared disk files that hold a person’s desktop and settings, and we flag when they are slow, full, or won’t re-open after sleep — so you catch login pain before it hurts real work."
+}

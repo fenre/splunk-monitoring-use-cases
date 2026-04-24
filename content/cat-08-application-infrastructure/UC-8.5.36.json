@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.5.36",
+  "title": "ActiveMQ Network of Brokers Topology and Bridge Events",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Change",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=messaging` `sourcetype=activemq:log` broker logs for `NetworkConnector`, duplex bridges, transport start/stop, and `Discovery` events",
+  "app": "Splunk Universal Forwarder on `activemq.log`",
+  "spl": "index=messaging sourcetype=\"activemq:log\" earliest=-7d\n| search (\"NetworkConnector\" OR \"network bridge\" OR \"duplex\" OR \"DiscoveryNetworkConnector\" OR \"Started network bridge\" OR \"Stopped network bridge\" OR \"bridge to\" OR \"Establishing network connection\")\n| rex field=_raw \"NetworkConnector\\s+(?<connector>\\S+)\"\n| stats count as events latest(_raw) as sample by host, connector\n| sort -events",
+  "description": "In a network of brokers, bridge connections carry cross-site traffic; unexpected stops or flapping `NetworkConnector` lines correlate with split-brain message routing and duplicate delivery risk. Structured alerting on these log signatures supports DR drills and firewall change validation.",
+  "value": "Makes hub-and-spoke or mesh broker layouts observable from the canonical broker log stream without relying on ad-hoc grep during incidents.",
+  "implementation": "Normalize multi-line log wrapping. Build allowlists for planned maintenance connectors. Enrich with CMDB site codes via `host` lookup. For duplex=false links, separate inbound vs outbound patterns in follow-on searches.",
+  "visualization": "Timeline of connector keywords, top connectors by event volume, geographic/site facet if enriched.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache ActiveMQ — Networks of Brokers",
+      "url": "https://activemq.apache.org/networks-of-brokers"
+    },
+    {
+      "title": "Apache ActiveMQ — Discovery",
+      "url": "https://activemq.apache.org/features"
+    }
+  ],
+  "equipment": [
+    "activemq"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We record when the links between clustered messaging hubs start, stop, or flap so wide-area routing problems are visible right away."
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.1.39",
+  "title": "Proxmox Ceph Cluster HEALTH_WARN and OSD Flap Detection",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Fault",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=virtualization` `sourcetype=\"proxmox:ceph\"` (JSON from `ceph -s -f json` poller) or `sourcetype=syslog` `program=ceph` with `health_status`, `osd_count`, `message`",
+  "app": "Proxmox TA or custom scripted input on any MON-capable node, `Splunk_TA_nix` for syslog",
+  "spl": "index=virtualization (sourcetype=\"proxmox:ceph\" OR (sourcetype=syslog program=ceph)) earliest=-1h\n| eval hs=coalesce(health_status, health)\n| where hs!=\"HEALTH_OK\" OR like(_raw, \"%down%\") OR like(_raw, \"%flapp%\")\n| stats latest(hs) as health, values(message) as detail by host\n| sort health",
+  "description": "Hyperconverged Proxmox clusters using Ceph depend on quorum, MON, and OSD stability. HEALTH_WARN often precedes data unavailability when additional failures stack. Early detection buys time to replace OSDs or fix networks before pools go read-only.",
+  "value": "Prevents surprise VM I/O stalls by alerting on Ceph health regression while the cluster can still self-heal.",
+  "implementation": "Poll `ceph -s -f json` every 60–120s from a privileged service account and index as `proxmox:ceph`, or forward ceph daemon syslog. Extract `health.status`, `osdmap` counts, and slow/unfound PG hints if present. Page on first non-OK health. Trend OSD `up/in` counts for flap detection.",
+  "visualization": "Single value (cluster health), Timechart (OSD up count), Table (hosts reporting warnings).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Ceph Documentation — Monitoring OSDs",
+      "url": "https://docs.ceph.com/en/latest/rados/operations/monitoring-osd-pg/"
+    },
+    {
+      "title": "Proxmox VE Wiki — Ceph Monitor",
+      "url": "https://pve.proxmox.com/wiki/Deploy_Hyper-Converged_Ceph_Cluster"
+    }
+  ],
+  "equipment": [
+    "ceph",
+    "linux",
+    "proxmox",
+    "syslog"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

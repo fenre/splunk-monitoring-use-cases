@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.6.22",
+  "title": "WildFly server.log Error Logger Spike",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=application` `sourcetype=jboss:server`",
+  "app": "JBoss/WildFly log forwarding",
+  "spl": "index=application sourcetype=\"jboss:server\"\n| regex _raw=\"(?i)(ERROR|WFLYCTL|Exception|failed to|failure)\"\n| bin _time span=5m\n| stats count by host\n| where count > 30",
+  "description": "WildFly clusters emit subsystem errors (datasources, messaging, EJB) in server.log with distinct codes.",
+  "value": "Shortens Java EE incident response versus generic OS monitoring.",
+  "implementation": "Use `cluster` to group stack traces; tune for bootstrap noise.",
+  "visualization": "Timechart, table of logger categories if parsed.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "WildFly Admin Guide — Access Logging",
+      "url": "https://docs.wildfly.org/"
+    }
+  ],
+  "equipment": [
+    "jboss"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: JBoss/WildFly log forwarding.\n• Ensure the following data sources are available: `index=application` `sourcetype=jboss:server`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNarrow WFLY tokens to your deployment (omit broad `WFLYSRV` if too noisy).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=application sourcetype=\"jboss:server\"\n| search \" ERROR \" OR \" WFLYCTL\" OR \" WFLYSRV\"\n| search \"ERROR\" OR \"failure\" OR \"exception\"\n| bin _time span=5m\n| stats count by host\n| where count > 30\n```\n\nUnderstanding this SPL\n\n**WildFly server.log Error Logger Spike** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=application` `sourcetype=jboss:server`. **App/TA**: JBoss/WildFly log forwarding. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Timechart, table of logger categories if parsed..",
+  "grandmaExplanation": "We count serious messages from your Java application server so failures are loud early."
+}

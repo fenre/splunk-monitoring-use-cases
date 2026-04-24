@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.2.27",
+  "title": "Memcached listen_disabled_num Connection Overruns",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=cache` `sourcetype=memcached:stats` (`listen_disabled_num`)",
+  "app": "Custom scripted input (`stats`)",
+  "spl": "index=cache sourcetype=\"memcached:stats\"\n| sort 0 _time\n| delta listen_disabled_num as ldd_delta\n| where ldd_delta > 0\n| table _time, host, listen_disabled_num, ldd_delta",
+  "description": "`listen_disabled_num` increments when connections are dropped because the listen backlog is full—clients experience timeouts.",
+  "value": "Surfaces network or application storms exceeding Memcached accept capacity.",
+  "implementation": "Alert on positive deltas; compare with `accepting_conns` and `curr_connections`. Scale out or raise backlog carefully with OS tuning.",
+  "visualization": "Line chart (counter), alert feed (delta>0), correlation with app deploys.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Memcached protocol — Statistics",
+      "url": "https://github.com/memcached/memcached/blob/master/doc/protocol.txt"
+    }
+  ],
+  "equipment": [
+    "memcached"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`stats`).\n• Ensure the following data sources are available: `index=cache` `sourcetype=memcached:stats` (`listen_disabled_num`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nField must be extracted as numeric; some templates prefix `STAT`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cache sourcetype=\"memcached:stats\"\n| sort 0 _time\n| delta listen_disabled_num as ldd_delta\n| where ldd_delta > 0\n| table _time, host, listen_disabled_num, ldd_delta\n```\n\nUnderstanding this SPL\n\n**Memcached listen_disabled_num Connection Overruns** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=cache` `sourcetype=memcached:stats` (`listen_disabled_num`). **App/TA**: Custom scripted input (`stats`). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (counter), alert feed (delta>0), correlation with app deploys..",
+  "grandmaExplanation": "We notice when your cache stops accepting new connections so you fix overload before apps hang."
+}

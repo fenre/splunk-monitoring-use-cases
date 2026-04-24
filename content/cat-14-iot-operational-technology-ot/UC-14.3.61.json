@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.61",
+  "title": "Aranet Atmospheric Pressure Delta — Door or Filter Breach Indicator",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Physical Security",
+    "Physical"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=environment` `sourcetype=aranet:sensor` `pressure_hpa` time series per clean zone",
+  "app": "MQTT or HEC ingest for Aranet barometric sensors",
+  "spl": "index=environment sourcetype=aranet:sensor sensor_id=* pressure_hpa=*\n| sort 0 _time\n| streamstats window=6 global=f earliest(pressure_hpa) as p0 latest(pressure_hpa) as p1 by sensor_id\n| eval delta_hpa=round(p1-p0,2)\n| where abs(delta_hpa) > 2.5\n| table _time, sensor_id, location, p0, p1, delta_hpa\n| eval abs_delta=abs(delta_hpa)\n| sort - abs_delta",
+  "description": "Sudden pressure steps in zoned facilities can indicate opened airlocks, blown filters, or failed dampers when correlated with access control. Aranet atmospheric pressure sensors sampled every few minutes make a coarse differential-pressure proxy when dedicated DP transmitters are not wired to BMS.",
+  "value": "Adds environmental corroboration for physical security and contamination controls without installing separate DP wiring everywhere.",
+  "implementation": "Requires stable indoor placement away from weather-dominated entries; pair with outdoor reference sensor subtracted in `eval` if available. `streamstats` window=6 assumes ~30 minutes of 5-minute polls—adjust for your cadence. Tune `delta_hpa` (hPa) to facility noise floor; correlate with door badge and HVAC mode changes to reduce false positives.",
+  "visualization": "Line chart (pressure_hpa), Timeline (alerts), Overlay with door access logs via `join`.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Aranet — air quality and atmospheric pressure sensors",
+      "url": "https://aranet.com/"
+    },
+    {
+      "title": "Splunk Docs: streamstats command",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats"
+    }
+  ],
+  "equipment": [
+    "aranet",
+    "mqtt"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Reference sensor or weather feed optional but strongly recommended.\n• Document HVAC economizer cycles that move pressure.\n\nStep 1 — Backtest window on a year of data.\n\nStep 2 — Add `by zone_id` if multiple sensors per room.\n\nStep 3 — Physical security runbook cross-links.\n\nStep 4 — Privacy review if combined with badge data.",
+  "grandmaExplanation": "We watch for sudden air pressure jumps that can mean someone left a secure door open or air filtration isn’t holding pressure like it should."
+}

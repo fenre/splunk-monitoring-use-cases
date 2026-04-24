@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.53",
+  "title": "Citrix Delivery Group Desktop Assignment Changes",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:events\"` (desktop assignment, entitlement, and machine assignment changes; admin actions); `index=xd` `sourcetype=\"citrix:monitor:odata\"` `Machines` or `Assignments` if you take periodic inventory snapshots; optional Microsoft-365/Entra sign-in or AD audit for correlating the same `user` principal",
+  "app": "Template for Citrix XenDesktop 7 (`TA-XD7-Broker`); optional Citrix Monitor OData for snapshot-based diff",
+  "spl": "index=xd sourcetype=\"citrix:broker:events\"\n| where event_type IN (\"DesktopAssignmentChange\", \"MachineAssignment\", \"EntitlementChange\") OR match(_raw, \"(?i)(assignment|entitlement|desktop.?.?user|user.?.?machine)\")\n| eval user_key=coalesce(user, UPN, sam_account, \"unknown\")\n| eval dg=coalesce(delivery_group, desktop_group, \"Unknown\")\n| eval machine=coalesce(machine_name, machine, \"Unassigned\")\n| eval change=coalesce(change_type, action, event_type, \"change\")\n| eval actor=coalesce(admin_user, Admin, \"unknown\")\n| bin _time span=1h\n| stats count as changes, values(change) as change_types, values(user_key) as users_touched, values(machine) as machines by dg, _time, actor\n| where changes>0\n| sort - _time\n| table _time, actor, dg, change_types, users_touched, machines, changes",
+  "description": "Desktop and machine assignments determine who can reach which host pool, including support jump boxes and high-risk clinical or trading desktops. A mistaken assignment can grant a broad security group direct access to a gold image, or remove access during an incident. You should log add/remove actions on assignments with the acting admin, delivery group, user or group principal, and machine where applicable. Day-to-day automation may drive many rows — the control is the unexpected actor, off-hours change, or assignment outside an approved list of groups, not the volume alone.",
+  "value": "Desktop and machine assignments determine who can reach which host pool, including support jump boxes and high-risk clinical or trading desktops. A mistaken assignment can grant a broad security group direct access to a gold image, or remove access during an incident. You should log add/remove actions on assignments with the acting admin, delivery group, user or group principal, and machine where applicable. Day-to-day automation may drive many rows — the control is the unexpected actor, off-hours change, or assignment outside an approved list of groups, not the volume alone.",
+  "implementation": "Map broker admin events into `citrix:broker:events` with stable field names. Create a `lookup` of approved automation service accounts. Alert when `actor` is not in the list and the hour is outside change windows, or when a new Active Directory group is added to a sensitive delivery group. If your broker is quiet, supplement with hourly OData `Machines` output diffed in a saved search. Feed results to the identity and access team for recertification evidence.",
+  "visualization": "Timeline of changes by admin, table of the last 50 events with before/after if your feed includes it, single value of changes in last 24 h compared to 30-day average.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Assign machines to users in CVAD",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/delivery-groups-machines.html"
+    },
+    {
+      "title": "Manage machine catalogs and delivery groups",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/manage-cds.html"
+    }
+  ],
+  "knownFalsePositives": "HR bulk moves, department restructuring, and large hiring batches legitimately reassign many desktops the same day. Join to the HR feed or the bulk ticket before treating mass assignment as malicious admin action.",
+  "mitreAttack": [
+    "T1098"
+  ],
+  "equipment": [
+    "citrix",
+    "m365"
+  ],
+  "equipmentModels": [
+    "citrix_cvad"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-XD7-Broker` with admin audit events enabled; optional Citrix Monitor OData for inventory diff.\n• Ensure the following data sources are available: broker or Studio audit trail events with actor and subject; time sync across controllers.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIf Event IDs or `event_type` values differ by version, normalize with `eval` and a case statement. Truncate PII in `user` if your privacy policy requires hashing — keep a reversible vault outside Splunk for investigations.\n\nStep 2 — Create the search and alert\nTighten the `match` on `_raw` after you know your exact `Message` format. A minimal start:\n\n```spl\nindex=xd sourcetype=\"citrix:broker:events\" event_type=\"AdminAction\" matchstr=\"*assignment*\"\n| table _time, admin_user, user, delivery_group, Message\n```\n\n**Citrix Delivery Group Desktop Assignment Changes** — Add `| join` to your `lookup approved_admins` when ready.\n\nStep 3 — Validate\nRun a test assignment in non-production, confirm a row, and backfill one week of history. Compare to Citrix Director or Studio logs.\n\nStep 4 — Operationalize\nRoute unexpected rows to a security distribution list, attach to quarterly recertification, and do not page on automation noise once baselined.",
+  "grandmaExplanation": "We record when someone’s desktop is tied to a different person or group than before, so risky or surprise access changes are visible in plain reporting, not only inside the admin console."
+}

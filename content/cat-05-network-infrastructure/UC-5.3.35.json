@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.35",
+  "title": "Citrix ADC AAA Audit Trail and Command Logging",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:syslog\"` — AAA, audit, `NITRO` or `API` command, `nsconfig` save, `set`, `add`, `rm` actions, `CLI`, `GUI` login, admin usernames, source IP",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "spl": "index=netscaler sourcetype=\"citrix:netscaler:syslog\" (\"audit\" OR NITRO OR \"nsconfig\" OR \"cmd\" OR \"set \" OR \"add \" OR \"rm \" OR \"save ns config\" OR \"Command\" OR \"local\" OR API)\n| eval admin=coalesce(adc_user, admin_user, user, \"unknown\")\n| eval action=if(match(_raw, \"(?i)save[\\\\s_]+ns[\\\\s_]+config\"),\"config_save\",if(match(_raw, \"(?i)NITRO|Rest|API|HTTP\"),\"api\",\"cli_gui\"))\n| bin _time span=1h\n| stats count as cmds, values(action) as actions, dc(_raw) as unique_patterns by _time, host, admin\n| where cmds>0\n| sort - cmds\n| table _time, host, admin, actions, unique_patterns, cmds",
+  "description": "Administrative changes on a Citrix ADC (CLI, GUI, and NITRO API) are security- and compliance-relevant. Retaining a tamper-resistant audit trail of who did what, when, from where—and whether configuration was saved—supports investigations, break-glass reviews, and control frameworks that expect full accountability for network edge devices.",
+  "value": "Administrative changes on a Citrix ADC (CLI, GUI, and NITRO API) are security- and compliance-relevant. Retaining a tamper-resistant audit trail of who did what, when, from where—and whether configuration was saved—supports investigations, break-glass reviews, and control frameworks that expect full accountability for network edge devices.",
+  "implementation": "Enable audit logging, command logging, and API access logging on the ADC; ensure administrators cannot disable logging without a separate control. Forward to `index=netscaler` with role-based read restrictions in Splunk. Retention per policy. Consider streaming critical commands to a write-once store. Alert on new admin accounts, off-hours `save ns config` bursts, or API keys used from new subnets.",
+  "visualization": "Table: recent high-risk commands, user timeline, count of `save` events per day, map of source IP (if approved).",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+    },
+    {
+      "title": "Citrix ADC — Auditing and logging",
+      "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/system/audit-logging.html"
+    }
+  ],
+  "knownFalsePositives": "NetScaler MAS, ADM, Ansible, and Terraform can log thousands of CLI-style actions that resemble privilege abuse. Allowlist automation source IPs and runbook SIDs; require interactive shell or a change outside the automation role for escalation.",
+  "mitreAttack": [
+    "T1078",
+    "T1098"
+  ],
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_netscaler"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• NetScaler 12+ audit features enabled per security standard.\n• Splunk access controls: admin logs readable only to security and few network owners.\n\nStep 1 — Configure data collection\nPoint syslog to HEC with TLS. Verify timestamp and NTP. Mask sensitive strings if required. Use SNI-capable log forwarders if in cloud.\n\nStep 2 — Create the search and alert\nBuild saved searches for: after-hours `save`, bulk deletions, user adds, and API mass operations. Throttle to avoid noise; route to a ticket with session context link.\n\nStep 3 — Validate\nIn lab, run benign commands, save config, and call a read-only NITRO endpoint. Confirm all appear with correct `admin` and source address.\n\nStep 4 — Operationalize\nQuarterly review: unused accounts, API keys, and certificate trust for automation callers.",
+  "grandmaExplanation": "We keep a clear diary of who changed the important boxes at the network edge, including remote control sessions — so no one tampers without leaving fingerprints we can show auditors and managers."
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.76",
+  "title": "Citrix Client Ecosystem and Platform Distribution",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:workspace:client\"` (client build, device OS, channel); `sourcetype=\"citrix:hdx:connect\"` (endpoint type, firmware where available); `sourcetype=\"citrix:broker:session\"` (Workspace version from session metadata) when exposed Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "Citrix Cloud / CVAD session metadata export, Syslog or API from supported thin clients, Template for Citrix add-ons in use at your site",
+  "spl": "index=xd (sourcetype=\"citrix:workspace:client\" OR sourcetype=\"citrix:hdx:connect\" OR sourcetype=\"citrix:broker:session\") earliest=-7d\n| eval os=coalesce(client_os, device_os, platform, \"unknown\"), ver=coalesce(workspace_version, app_version, client_version, \"unknown\"), dev=coalesce(device_type, endpoint_type, \"unknown\")\n| bin _time span=1d\n| stats count as sessions by _time, os, ver, dev\n| sort -sessions\n| head 200",
+  "description": "Supported, patched clients are a common compliance and support requirement. A live distribution of Workspace app versions, client operating systems, thin-client firmware, and device classes gives IT and security teams a single place to see drift, plan upgrades, and retire unsupported platforms before they become an audit finding or a break-fix incident.",
+  "value": "Supported, patched clients are a common compliance and support requirement. A live distribution of Workspace app versions, client operating systems, thin-client firmware, and device classes gives IT and security teams a single place to see drift, plan upgrades, and retire unsupported platforms before they become an audit finding or a break-fix incident.",
+  "implementation": "Pull version fields on every new session or daily heartbeat, depending on the feed. Add lookups for LTS/allowed builds. Schedule monthly compliance PDF or CSV. Partner with end-user computing to nudge or block at the gateway for builds below a floor. For BYOD, show OS mix separately from corporate-managed endpoints.",
+  "visualization": "Pie: OS; bar: Workspace app version; treemap: device class; line: unsupported share over time after campaigns.",
+  "cimModels": [
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "title": "Citrix Workspace app — Lifecycle milestones",
+      "url": "https://docs.citrix.com/en-us/citrix-workspace-app-for-windows/technical-overview-lifecycle-milestones.html"
+    }
+  ],
+  "knownFalsePositives": "Kiosks, BYOD, contractors, and field forces skew the client OS and form-factor mix. Baseline by OU, region, and device class; a move away from a single internal gold image is often expected diversity, not client sprawl out of control.",
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_daas"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• `index=xd`; NTP on forwarders. In `props.conf` use `FIELDALIAS-` per sourcetype so `client_os`/`app_version`/`device_type` line up with the SPL. CSV lookup `approved_citrix_clients` with `os,min_build` for compliance joins.\n\nStep 1 — Configure data collection\nLab: one Windows, macOS, thin client—document field names. If versions sit in `_raw`, add `REPORT-` in `transforms.conf` and wire from `props`. Extract firmware for Wyse/IGEL if present.\n\nStep 2 — Create the search and report\nMonthly saved search; add `| lookup approved_citrix_clients` and `eval noncom=if(ver<min_build,1,0)`. Panels: pie OS, bar top `ver`, table noncompliance by `os`. Optional alert: new `ver` in 7d.\n\nStep 3 — Validate\nReconcile session totals to Director; `rare ver` to catch bad parsing; sample 5 hosts vs UEM.\n\nStep 4 — Operationalize\nExport to asset mgmt; enforce min client at NetScaler/Store at policy threshold. L2 if noncompliance > SLO; Security for audit. Re-tune after CWA LTS changes.",
+  "grandmaExplanation": "We list who uses which gizmo and which version of the little program that opens the remote office — so you are not caught with old, out-of-support gear when rules or a security scare demand everyone update."
+}

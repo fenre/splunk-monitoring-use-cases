@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.2.29",
+  "title": "PostgreSQL Replication Slot Lag and WAL Retention",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`pg_replication_slots` (`slot_name`, `slot_type`, `active`, `restart_lsn`, `confirmed_flush_lsn`, `retained_bytes` / lag derived in SQL)",
+  "app": "Splunk DB Connect (Splunkbase 2686), JDBC Driver for Postgres (Splunkbase 6152)",
+  "spl": "index=database sourcetype=\"postgresql:replication_slots\"\n| eval lag_bytes=tonumber(lag_bytes)\n| where lag_bytes > 1073741824\n| stats max(lag_bytes) as max_lag_bytes latest(active) as active by slot_name, database, host\n| eval lag_gb=round(max_lag_bytes/1073741824,2)\n| sort -lag_gb",
+  "description": "Inactive or lagging logical replication slots retain WAL and can fill the primary disk; this is a well-known PostgreSQL production failure mode for CDC and standby consumers.",
+  "value": "Prevents primary outages from WAL bloat and protects logical decoding consumers before they exceed RPO.",
+  "implementation": "Poll pg_replication_slots with pg_wal_lsn_diff or retained_bytes if available on your version. Alert on lag_bytes crossing capacity thresholds or when critical slots are inactive unexpectedly. Map slot_name to owning teams and Debezium/ETL pipelines.",
+  "visualization": "Table (slot, lag GB, active), Line chart (lag trend), Single value (max lag).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "PostgreSQL — Replication Slots",
+      "url": "https://www.postgresql.org/docs/current/warm-standby.html#STREAMING-REPLICATION-SLOTS"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "db_connect",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "postgresql_pg"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

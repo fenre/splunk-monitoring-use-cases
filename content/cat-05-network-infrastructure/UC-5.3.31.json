@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.31",
+  "title": "Citrix ADC Compression Savings and CPU Impact",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:perf\"` — compression `bytes_in`, `bytes_out`, `cpu_use_pct` (for packet engine and overall), vserver; optional `citrix:netscaler:syslog` for comp errors",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "spl": "index=netscaler sourcetype=\"citrix:netscaler:perf\" (\"compress\" OR comp_ OR gzip OR deflate)\n| eval bytes_in=coalesce(compress_bytes_in, comp_bytes_in, 0), bytes_out=coalesce(compress_bytes_out, comp_bytes_out, 0), cpu=coalesce(cpu_use_pct, packet_cpu_use_pct, 0)\n| eval comp_ratio=if(bytes_out>0, round((bytes_in-bytes_out)/bytes_in*100,1), 0), savings_mb=if(bytes_in>0, (bytes_in-bytes_out)/1024/1024, 0)\n| bin _time span=5m\n| stats avg(comp_ratio) as avg_comp_pct, sum(savings_mb) as total_saved_mb, avg(cpu) as avg_cpu, max(cpu) as peak_cpu by _time, host, lbvserver\n| where avg_comp_pct>0\n| where peak_cpu>85 AND avg_comp_pct<5\n| table _time, host, lbvserver, avg_comp_pct, total_saved_mb, avg_cpu, peak_cpu",
+  "description": "HTTP compression shrinks bytes on the wire but costs CPU on the Application Delivery Controller. Monitoring compression ratio, bandwidth saved, and CPU headroom together prevents turning compression on blindly when hardware is already near limits. A low savings percentage with high CPU can justify selective policies (only text types) or moving compression to origins.",
+  "value": "HTTP compression shrinks bytes on the wire but costs CPU on the Application Delivery Controller. Monitoring compression ratio, bandwidth saved, and CPU headroom together prevents turning compression on blindly when hardware is already near limits. A low savings percentage with high CPU can justify selective policies (only text types) or moving compression to origins.",
+  "implementation": "Ingest NITRO compression and CPU counters into `citrix:netscaler:perf`. Join per vserver or content group. Add alerts for CPU above policy threshold while compression impact is low (candidates to disable) and for high savings with headroom (good candidates to expand). Document SSL versus compress ordering if applicable.",
+  "visualization": "Line chart: compression percent saved, overlay CPU; table of top vservers by saved megabytes; stacked bar: CPU time estimate by feature if available.",
+  "cimModels": [
+    "Performance"
+  ],
+  "references": [
+    {
+      "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+    },
+    {
+      "title": "Citrix ADC — Compression",
+      "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/optimization/compression.html"
+    }
+  ],
+  "knownFalsePositives": "Turning on compression for new vservers or reclassifying mostly encrypted traffic lowers compression savings and can raise packet-engine CPU. A recent vserver or policy object change in NetScaler and a before/after diff explain a benign re-baseline quickly.",
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_netscaler"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• `index=netscaler` with compression bytes (`compress_*`/`comp_*`) and `cpu_use_pct` or per-PE; `lbvserver` when present. Note SSL offload: compression is often on plaintext only—state that in the SOP.\n\nStep 1 — Configure data collection\nOne TA poll per interval binding CPU+comp. If multi-PE, pre-`stats` by host. `props` to force `tonumber()`. Tag vservers with text vs binary policy if split.\n\nStep 2 — Create the search and alert\nSPL `peak_cpu>85 AND avg_comp_pct<5` means high CPU, low gain—narrow to `text/*` or disable. Inverse: `avg_comp_pct>20 AND avg_cpu<70` to expand. Set CPU threshold 80–90 by MPX/VPX class in lookup. Ignore first hour after ADC reboot (warmup).\n\nStep 3 — Validate\nSame large object twice: compare ratio to `stat ns` on ADC. A/B: disable one vserver’s comp, confirm ratio drop and lower CPU in Splunk.\n\nStep 4 — Operationalize\nPanel: comp ratio + same-axis CPU; table top vservers by `total_saved_mb`. Escalation: cap team. Review after SSL/cipher or vCPU change. Cross-check high CPU with other ADC features in perf sourcetype.",
+  "grandmaExplanation": "We see how much squeezing the traffic saves on the wire versus how hard it makes the box work — so we keep pages fast without burning out the engine doing pointless squeezing."
+}

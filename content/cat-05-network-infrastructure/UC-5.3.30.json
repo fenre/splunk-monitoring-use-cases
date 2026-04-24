@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.30",
+  "title": "Citrix ADC Integrated Cache Hit Ratio",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:perf\"` (NITRO): cache hits, misses, bytes served from cache, `cache` memory; optional `sourcetype=\"citrix:netscaler:syslog\"` for cache service events",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "spl": "index=netscaler sourcetype=\"citrix:netscaler:perf\" (\"ic_cache\" OR \"ico_\" OR cache_hits OR cache_misses)\n| eval hits=coalesce(cache_hits, ico_hits, 0), misses=coalesce(cache_misses, ico_misses, 0)\n| eval mem_use_pct=coalesce(cache_mem_use_pct, cache_mem_util, 0)\n| bin _time span=5m\n| stats sum(hits) as sum_hits, sum(misses) as sum_miss, avg(mem_use_pct) as cache_mem, latest(host) as adc by _time, host\n| eval hit_ratio=if((sum_hits+sum_misses)>0, round(sum_hits/(sum_hits+sum_misses)*100,2), 0)\n| where hit_ratio < 50 OR cache_mem > 90\n| table _time, adc, sum_hits, sum_miss, hit_ratio, cache_mem",
+  "description": "The Citrix ADC integrated content cache can offload origin servers for static and cacheable content. A falling hit ratio increases origin load and latency; high cache memory pressure can evict hot objects. Monitoring hit ratio, miss volume, and cache memory guides TTL tuning, object sizing, and capacity for content-heavy services.",
+  "value": "The Citrix ADC integrated content cache can offload origin servers for static and cacheable content. A falling hit ratio increases origin load and latency; high cache memory pressure can evict hot objects. Monitoring hit ratio, miss volume, and cache memory guides TTL tuning, object sizing, and capacity for content-heavy services.",
+  "implementation": "Poll NITRO for integrated cache object statistics or use the TA’s scripted metrics into `citrix:netscaler:perf`. Align on per-content-group rollups. Alert on sustained hit ratio drop week over week, or memory utilization over 90% for multiple intervals. Log cache flush events in syslog and correlate to deployments.",
+  "visualization": "Line chart: hit ratio; area chart: hits vs misses; gauge: cache memory usage.",
+  "cimModels": [
+    "Performance"
+  ],
+  "references": [
+    {
+      "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+    },
+    {
+      "title": "Citrix ADC — Integrated caching",
+      "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/optimization/integrated-caching.html"
+    }
+  ],
+  "knownFalsePositives": "Cold start after a big content push, a new app, or a deliberate cache clear tanks integrated cache hit ratio for hours. A post-publish grace period and a rolling median, not a hard static percentage, avoid nightly false positives after deploys.",
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_netscaler"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• `index=netscaler` `sourcetype=citrix:netscaler:perf`; integrated cache feature licensed. 7d baseline of hit/miss. Clarify in runbook: counter delta vs rate from NITRO; use `streamstats` if cumulative.\n\nStep 1 — Configure data collection\nTA poll 1–5m; in `props` coalesce `ico_hits/ico_misses` into `cache_hits`/`cache_misses`. `eval` defensively with `tonumber()`. Ingest syslog for manual `flush`/`clear` to annotate drops.\n\nStep 2 — Create the search and alert\n`hit_ratio<50` and `cache_mem>90` are defaults: override per `lbvserver` in `lookups/adc_cache_slo` (static APIs expect low hit rate). Add WoW drop alert: 20+ points sustained 1h. Suppress on deploy token. Alert miss spike: possible cache bust/attack.\n\nStep 3 — Validate\nPurge a URL: miss spike, then hit recovery; mem follows pressure. Mismatch to `stat cache` on ADC CLI means wrong counter mapping—fix `props` before prod alerts.\n\nStep 4 — Operationalize\nPanels: line hit %, area hits+misses, gauge mem, drill to `host`. Owner: app (TTL, cacheability), platform (sizing). Escalation: P2 if origin 5xx/latency rise with ratio drop. Tag releases in dashboard to explain sudden shifts.",
+  "grandmaExplanation": "We see how often the system answers from its own memory of pages versus asking the back office again — so we know when the edge stops helping and the main computers get hammered."
+}

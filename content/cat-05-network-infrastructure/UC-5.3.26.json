@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.26",
+  "title": "Citrix ADC nFactor Authentication Pipeline Failures",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:syslog\"` — nFactor, AAA, login schema, `saml` assertion errors, `timeout`, IdP `unreachable`, `factor` sequence failures",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "spl": "index=netscaler sourcetype=\"citrix:netscaler:syslog\" (nFactor OR \"login schema\" OR AAA OR SAML OR \"factor\" OR IdP OR \"assertion\" OR \"epa\")\n( \"failed\" OR \"error\" OR \"timeout\" OR \"unreachable\" OR \"invalid\" OR \"reject\" )\n| rex field=_raw \"(?i)(?<fail_reason>schema|timeout|SAML|assertion|IdP|LDAP|radius)\"\n| bin _time span=5m\n| stats count as failures, values(fail_reason) as reasons, dc(client_ip) as src_ips, latest(host) as adc by auth_policy, _time\n| where failures >= 3\n| sort - failures\n| table _time, adc, auth_policy, reasons, src_ips, failures",
+  "description": "Citrix ADC nFactor ties multiple authentication steps (VPN, web apps, user directories, SAML) into one pipeline. Login schema parse errors, per-factor timeouts, SAML attribute or assertion mismatches, or IdP reachability issues strand users in partial login states. Tracking these failures protects both availability (users cannot sign in) and security (forced fallbacks, repeated attempts, or mis-issued factors).",
+  "value": "Citrix ADC nFactor ties multiple authentication steps (VPN, web apps, user directories, SAML) into one pipeline. Login schema parse errors, per-factor timeouts, SAML attribute or assertion mismatches, or IdP reachability issues strand users in partial login states. Tracking these failures protects both availability (users cannot sign in) and security (forced fallbacks, repeated attempts, or mis-issued factors).",
+  "implementation": "Send AAA, audit, and authentication-related syslog to `index=netscaler` as `citrix:netscaler:syslog`. Classify by factor type (SAML, LDAP, RADIUS, EPA). Alert on growing failure rates for a given policy, IdP down messages, and schema errors after config pushes. Cross-reference with change records for nFactor flow edits.",
+  "visualization": "Time chart of auth failures by reason, top policies table, map or table of source IPs (if allowed by privacy policy).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+    },
+    {
+      "title": "Citrix ADC — nFactor authentication",
+      "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/aaatm-authentication.html"
+    }
+  ],
+  "knownFalsePositives": "Password expirations, MFA re-enrollment, and IdP key rollouts can flood nFactor with benign auth failure bursts. Add directory and IdP change windows, and a per-identity cap, before an automated credential-stuffing assumption.",
+  "mitreAttack": [
+    "T1078",
+    "T1110",
+    "T1556"
+  ],
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_netscaler"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• High-volume auth syslog in `index=netscaler` with time sync.\n• Knowledge of nFactor flow names and IdP hostnames (for allowlists and enrichment).\n• Optional: extract `auth_policy` from structured fields if the TA provides them.\n\nStep 1 — Configure data collection\nEnable detailed authentication result logging. Forward only necessary fields to satisfy privacy policy. If client IP is masked, use session correlation IDs instead for drilldown.\n\nStep 2 — Create the search and alert\nRun the search; set thresholds per population (for example, IdP unreachable = page immediately; gradual SAML errors = warn after N events in 5 minutes). Throttle repeat alerts for the same root cause string.\n\nStep 3 — Validate\nIn lab, break SAML metadata temporarily or point to a bad IdP; confirm log lines and alert firing. Restore and clear.\n\nStep 4 — Operationalize\nRunbook: verify IdP health, cert expiry, attribute maps, and DNS for IdP. Escalate to identity team with payload snippets (redacted).",
+  "grandmaExplanation": "We follow the sign-in path step by step on the access gateway — so we notice when passwords, extra checks, or partner logins break before a whole company is locked out or attackers hammer the front door."
+}

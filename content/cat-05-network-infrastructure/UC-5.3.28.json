@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.28",
+  "title": "Citrix ADC TCP Connection Multiplexing Analysis",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:appflow\"` HTTP records with TPS/response time fields, or `sourcetype=\"citrix:netscaler:perf\"` for connection reuse, keep-alive, and throughput",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "spl": "index=netscaler (sourcetype=\"citrix:netscaler:perf\" OR sourcetype=\"citrix:netscaler:appflow\")\n| eval cps=coalesce(connections_per_sec, http_reqs_per_sec, 0), reuse_pct=coalesce(tcp_reuse_percent, connection_reuse_pct, 0), p95_latency_ms=coalesce(p95_resp_time_ms, app_resp_time_95, 0)\n| bin _time span=5m\n| stats avg(cps) as tps, avg(reuse_pct) as avg_reuse, avg(p95_latency_ms) as p95_ms by _time, host, lbvserver\n| where p95_ms > 500 AND avg_reuse < 30 AND tps > 0\n| table _time, host, lbvserver, tps, avg_reuse, p95_ms",
+  "description": "Citrix ADC multiplexes many client connections onto fewer server-side connections through reuse and keep-alive, improving efficiency on backends. A falling reuse rate with rising front-end TPS, paired with high tail latency, can signal pool saturation, keep-alive misconfiguration, or backend slowness. The goal is to connect traffic shape to latency before servers exhaust ephemeral ports or file descriptors.",
+  "value": "Citrix ADC multiplexes many client connections onto fewer server-side connections through reuse and keep-alive, improving efficiency on backends. A falling reuse rate with rising front-end TPS, paired with high tail latency, can signal pool saturation, keep-alive misconfiguration, or backend slowness. The goal is to connect traffic shape to latency before servers exhaust ephemeral ports or file descriptors.",
+  "implementation": "Populate `citrix:netscaler:perf` from NITRO with TCP and HTTP vserver service metrics where available, and align AppFlow-derived TPS and response-time percentiles. Normalize field names in props if your TA uses custom aliases. Create baselines for reuse and p95 by application; alert when reuse drops and p95 increases together during steady load.",
+  "visualization": "Dual-axis line chart: TPS and reuse percent; scatter of reuse versus p95 latency; table of offending vservers.",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "references": [
+    {
+      "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+    },
+    {
+      "title": "Citrix ADC — Load balancing and connection management",
+      "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/load-balancing.html"
+    }
+  ],
+  "knownFalsePositives": "Backups, large file transfers, and diagnostic pcap or throughput tests can change multiplexing patterns compared to a typical web session. A four-week same-hour and per-vserver baseline separates traffic shape tests from a real service degradation pattern.",
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_netscaler"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Metrics fields in `index=netscaler` from NITRO poll or HEC: connection reuse, keep-alive, TPS, response-time histograms.\n• Documented mapping from vserver to microservice SLOs.\n\nStep 1 — Configure data collection\nSet poll interval 1–5 minutes; align system clock. Store raw counters and precompute deltas in scheduled search if needed (delta of new connections, etc.).\n\nStep 2 — Create the search and alert\nAdjust `coalesce` field list to your deployment. Use anomaly detection (predict or ML Toolkit) for optional adaptive thresholds on p95. Alert when reuse drops below baseline and p95 exceeds SLO for two consecutive windows.\n\nStep 3 — Validate\nIn lab, disable keep-alive to backend briefly and confirm reuse and latency move as expected. Revert.\n\nStep 4 — Operationalize\nHand off to platform owners with a recommendation tree: check pool size, check backend time, review TCP parameters on vserver and service group.",
+  "grandmaExplanation": "We look at how well the system reuses the pipes to the back-end computers versus opening new ones — so we spot waste and slowness before the whole checkout flow crawls to a stop."
+}

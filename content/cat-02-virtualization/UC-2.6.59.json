@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.59",
+  "title": "Citrix Analytics for Security Risk Indicators",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=citrix` `sourcetype=\"citrix:analytics:security\"` with `risk_score`, `risk_type`, `user_principal`, `threat_vector`, `event_subtype` (anomalous sign-in, data exfiltration heuristics, compromised credential signals, insider-risk scores) ingested through Citrix Analytics Add-on for Splunk (Splunkbase 6280); optional append of `sourcetype=\"citrix:gateway:syslog\"` for corroboration",
+  "app": "Citrix Analytics Add-on for Splunk (Splunkbase 6280) — imports risk insights and associated events from Citrix Analytics for Security. Supports both Performance and Security analytics data.",
+  "spl": "index=citrix sourcetype=\"citrix:analytics:security\"\n| eval risk=tonumber(coalesce(risk_score, score, 0))\n| eval rtype=lower(coalesce(risk_type, event_subtype, category, \"unknown\"))\n| where risk>=70 OR like(rtype, \"%exfil%\") OR like(rtype, \"%anomal%auth%\") OR like(rtype, \"%insider%\")\n| stats latest(risk) as max_risk, values(threat_vector) as vectors, count as event_count by user_principal, rtype\n| sort - max_risk\n| head 200",
+  "description": "Citrix Analytics for Security aggregates behavioral signals on access to virtual apps and data: anomalous authentication patterns, data-exfiltration heuristics, and composite insider-threat style scores. Forwarding these indicators into a security operations index lets analysts create high-fidelity detections, hunt across users and risk types, and tune response playbooks (step-up, session recording review, or account disable) without only relying on raw gateway noise. The goal is to surface the risk-ranked narrative Microsoft and Citrix already compute, enriched with your corporate identity context in downstream workflows.",
+  "value": "Citrix Analytics for Security aggregates behavioral signals on access to virtual apps and data: anomalous authentication patterns, data-exfiltration heuristics, and composite insider-threat style scores. Forwarding these indicators into a security operations index lets analysts create high-fidelity detections, hunt across users and risk types, and tune response playbooks (step-up, session recording review, or account disable) without only relying on raw gateway noise. The goal is to surface the risk-ranked narrative Microsoft and Citrix already compute, enriched with your corporate identity context in downstream workflows.",
+  "implementation": "Enable the Security data export in Citrix Cloud and connect Splunkbase 6280 with least-privilege API credentials. Classify `risk_type` into SOC tiers: authentication anomalies versus exfiltration signals versus insider risk. Send critical scores (for example 85 plus) to your incident queue with a direct link to Citrix Cloud investigation. Deduplicate on `user_principal` and five-minute windows to control noise. Add identity context from your directory or HR feed via lookup. Comply with privacy review before storing raw risk text in long retention.",
+  "visualization": "Stacked bar of risk events by type; top risky users table; Sankey or sequence chart from sign-in to risk event when fields allow.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "Citrix Analytics Add-on for Splunk (Splunkbase 6280)",
+      "url": "https://splunkbase.splunk.com/app/6280"
+    },
+    {
+      "title": "Citrix Analytics for Security",
+      "url": "https://docs.citrix.com/en-us/citrix-analytics/security-analytics.html"
+    }
+  ],
+  "knownFalsePositives": "Purple-team, pen-test, and synthetic risk scenarios feed Citrix security analytics the same spiky indicators as real attack. Add project tags, test user lists, and time-bound exercise windows, then tune severity when only analytics risk score moves without corroboration.",
+  "mitreAttack": [
+    "T1078",
+    "T1110"
+  ],
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_daas"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Entitlements for Citrix Security Analytics; export job healthy in Citrix Cloud; 6280 app configured; dedicated index for sensitive signals with restricted roles.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap vendor fields, mask where required, and test volume. Align clock across Citrix and identity systems for correlation.\n\nStep 2 — Create the search and alert\nStart with a daily digest, then add real-time only for the highest decile. Wire response actions per your playbooks; avoid duplicate alerts for the same person from parallel products without correlation rules.\n\nStep 3 — Validate\nReconcile sample events in Splunk with the Citrix console for the same user and time window; document any delay between cloud scoring and index arrival.\n\nStep 4 — Operationalize\nTrain shifts on disambiguation between false job travel and true credential theft, and run quarterly false-positive reviews.",
+  "grandmaExplanation": "We take the service’s own warnings about odd sign-ins, risky behavior, and possible data grab attempts and make them easy for your security team to act on, so a stolen login or an insider case does not stay invisible behind normal noise."
+}

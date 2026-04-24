@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.5.33",
+  "title": "ActiveMQ Producer Flow Control Activation Events",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=messaging` `sourcetype=activemq:log` (`activemq.log` lines referencing producer flow control, blocked producers, or usage limits)",
+  "app": "Splunk Universal Forwarder monitoring `activemq.log` / `wrapper.log`",
+  "spl": "index=messaging sourcetype=\"activemq:log\" earliest=-24h\n| regex _raw=\"(?i)Producer Flow Control|blocking message production|BlockingProducer|Usage Manager.*(Memory|Store|Temp)|message production.*blocked\"\n| rex field=_raw max_match=1 \"(?i)(?<usage_component>Memory|Store|Temp)(?:\\s+[Uu]sage)?\"\n| stats count as flow_events latest(_raw) as sample by host, usage_component\n| where flow_events >= 3\n| sort -flow_events",
+  "description": "When memory, store, or temp usage crosses configured watermarks, ActiveMQ enables producer flow control and publishers stall—often the first user-visible symptom of downstream consumer slowness or oversized messages. Log lines mentioning flow control are high-signal operational events.",
+  "value": "Shortens MTTR for send-timeouts and thread pileups in producers by proving the broker deliberately slowed publishers rather than a vague network fault.",
+  "implementation": "Set log level to capture INFO/WARN usage-manager messages in production (avoid DEBUG noise). Dedupe on host + minute for paging. Correlate with `activemq:broker` usage percentages from JMX on the same timestamp.",
+  "visualization": "Timeline of flow-control keywords, top hosts by event count, drilldown to raw log sample.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache ActiveMQ — Producer Flow Control",
+      "url": "https://activemq.apache.org/producer-flow-control"
+    },
+    {
+      "title": "Apache ActiveMQ — Features",
+      "url": "https://activemq.apache.org/features"
+    }
+  ],
+  "equipment": [
+    "activemq"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We notice when the broker tells senders to pause because it is running out of room, which explains sudden slowdowns in apps that publish messages."
+}

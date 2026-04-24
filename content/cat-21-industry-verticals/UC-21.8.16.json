@@ -1,0 +1,50 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.8.16",
+  "title": "Asterisk Active Channel Saturation vs Licensed Session Ceiling",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`index=voip` `sourcetype=asterisk:ami` `Event=CoreShowChannelsComplete` snapshots or scripted `asterisk -rx \"core show channels count\"` metrics",
+  "app": "AMI polling script + Universal Forwarder, optional SNMP if exported",
+  "spl": "index=voip sourcetype=asterisk:ami Event=\"CoreShowChannelsComplete\"\n| lookup asterisk_license_limits host OUTPUT session_license_limit AS license_ceiling\n| eval active=tonumber(ListItems), license_ceiling=tonumber(license_ceiling)\n| eval util_pct=round(100*active/nullif(license_ceiling,0),2)\n| where util_pct > 85\n| table _time, host, active, license_ceiling, util_pct\n| sort - util_pct",
+  "description": "When concurrent channels approach licensed or CPU limits, new calls receive congestion tones even though individual trunks look healthy. Ingesting periodic AMI channel inventory provides a leading indicator before busy-hour meltdown.",
+  "value": "Protects revenue and emergency call completion by triggering capacity augments or rerouting before hard blocking begins.",
+  "implementation": "Poll AMI `Action: CoreShowChannels` and capture `ListItems` from the completing event, or run CLI `core show channels` every minute via scripted input emitting `active_channels`. Maintain a lookup `session_license_limit` per `host` (commercial Asterisk or appliance cap). Alert above 85% utilization for 10 minutes. Cross-check CPU from OS metrics.",
+  "visualization": "Gauge (util_pct), Line chart (active vs ceiling), Table (forecasted exhaust).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Asterisk Wiki — AMI Actions (CoreShowChannels)",
+      "url": "https://wiki.asterisk.org/wiki/display/AST/Asterisk+11+Manager+Action_CoreShowChannels"
+    },
+    {
+      "title": "Splunk Docs: Run shell scripts as scripted inputs",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Configurescriptedinputs"
+    }
+  ],
+  "equipment": [
+    "asterisk",
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_generic"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Lookup CSV `asterisk_license_limits.csv` with host, session_license_limit.\n• `inputlookup` join in SPL if not embedded in events.\n\nStep 1 — Use `lookup` command: `| lookup asterisk_license_limits host OUTPUT session_license_limit`.\n\nStep 2 — Validate AMI parsing against `asterisk -rx` manual count.\n\nStep 3 — Seasonal busy-hour overlay on dashboard.\n\nStep 4 — Escalation runbook to add SIP trunks or VMs.",
+  "grandmaExplanation": "We watch how many phone calls are active at once compared to the system’s limit so the phone company doesn’t suddenly start busy-signaling everyone during rush hour.",
+  "telcoUseCase": "Trunk sizing for service providers — compare live channel usage from AMI `CoreShowChannels` snapshots to commercial license limits or engineered busy hour."
+}

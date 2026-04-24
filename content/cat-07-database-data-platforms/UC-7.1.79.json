@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.79",
+  "title": "Snowflake Task Execution Failures and Retries",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operational",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.TASK_HISTORY` as `snowflake:task_history`",
+  "app": "Splunk Add-on for Snowflake (Splunkbase 5390)",
+  "spl": "index=datawarehouse sourcetype=\"snowflake:task_history\"\n| where STATE=\"failed\" OR match(upper(coalesce(ERROR_MESSAGE,\"\")),\"ERROR\") OR RETURN_VALUE=\"FAILED\"\n| eval err=coalesce(ERROR_CODE, ERROR_MESSAGE)\n| bin _time span=1h\n| stats count as failures values(err) as errors latest(SCHEDULED_TIME) as last_sched by NAME, SCHEMA_NAME, DATABASE_NAME, _time\n| where failures >= 3",
+  "description": "Failed tasks silently break incremental pipelines—downstream tables stop updating while consumers assume freshness. Clustering failures by task name and schema speeds root-cause analysis across dbt/Snowflake orchestration stacks.",
+  "value": "Prevents stale executive metrics and broken downstream ML features when SQL tasks stop committing.",
+  "implementation": "Map TASK_HISTORY columns (`NAME`, `SCHEMA_NAME`, `DATABASE_NAME`, `STATE`, `ERROR_CODE`, `ERROR_MESSAGE`, `SCHEDULED_TIME`, `COMPLETED_TIME`). Handle retries: dedupe on `QUERY_ID` if present. Link to `snowflake:query_history` for the failing statement text. Maintenance windows via lookup on database/schema.",
+  "visualization": "Timeline (failures), Table (task, errors), Sankey to query_id drilldown.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Snowflake TASK_HISTORY",
+      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/task_history"
+    }
+  ],
+  "equipment": [
+    "snowflake"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

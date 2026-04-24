@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.64",
+  "title": "ClickHouse Background Pool Saturation (Merges vs Mutations)",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`system.metrics` / `system.events` style gauges as `clickhouse:asynchronous_metrics` or `clickhouse:system_events`",
+  "app": "Periodic export of `system.metrics` where metric like '%Merge%' or '%Mutation%'",
+  "spl": "index=database (sourcetype=\"clickhouse:asynchronous_metrics\" OR sourcetype=\"clickhouse:system_events\")\n| search metric IN (\"BackgroundMergePoolTask\",\"BackgroundMergesAndMutationsPoolTask\",\"Mutation\") OR match(metric,\"Merge\")\n| eval v=tonumber(value)\n| bin _time span=5m\n| stats avg(v) as pool_tasks by metric, host, _time\n| eventstats avg(pool_tasks) as baseline by metric, host\n| where pool_tasks > baseline*2 AND pool_tasks > 10",
+  "description": "When background merge and mutation pools stay saturated, new parts accumulate and interactive queries queue behind maintenance work. Metric spikes differentiate normal batch windows from pathological contention.",
+  "value": "Prevents cascading latency where operational DDL and ingestion compete for the same thread pools.",
+  "implementation": "Map exact metric names from your ClickHouse version (`system.metrics` / asynchronous_metrics). Some deployments expose `BackgroundSchedulePoolTask`. Create a baseline per business day. Correlate with `clickhouse:merges` active merge count and running mutations search.",
+  "visualization": "Line chart (pool_tasks by metric), Overlay with active merges count.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ClickHouse — system.metrics",
+      "url": "https://clickhouse.com/docs/en/operations/system-tables/metrics"
+    }
+  ],
+  "equipment": [
+    "clickhouse"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.5.34",
+  "title": "ActiveMQ Advisory Message Storm Detection",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=messaging` `sourcetype=activemq:web` Jetty/HTTP access logs for the broker’s web console or REST, or `sourcetype=activemq:log` when advisory consumers are enabled and logged",
+  "app": "Universal Forwarder on Jetty request log; optional custom logging of advisory consumers",
+  "spl": "index=messaging sourcetype=\"activemq:web\" earliest=-4h\n| search uri_path=\"*Advisory*\" OR uri_path=\"*advisory*\" OR request_uri=\"*ActiveMQ.Advisory*\"\n| bucket _time span=5m\n| stats count as advisory_http_hits by _time, host, client_ip\n| eventstats median(advisory_http_hits) as med by host\n| where advisory_http_hits > med*5 AND advisory_http_hits > 500\n| table _time, host, client_ip, advisory_http_hits, med",
+  "description": "Advisory topics carry connection and destination lifecycle events; a buggy client or misconfigured bridge that churns subscriptions can generate huge advisory traffic and CPU load. Spikes in HTTP access to `ActiveMQ.Advisory` paths or console polling often precede broker saturation.",
+  "value": "Protects shared brokers from self-inflicted advisory storms that look like organic traffic growth until thread dumps show advisory fan-out.",
+  "implementation": "Ensure Tomcat/Jetty access logs include `uri_path` or `request_uri`. Baseline per environment; tune multiplier and floor. For log-only sites, mirror with `activemq:log` searches on `Advisory`.",
+  "visualization": "Line chart (advisory HTTP hits), table (client_ip, count), anomaly overlay vs median.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache ActiveMQ — Advisory Message",
+      "url": "https://activemq.apache.org/advisory-message"
+    },
+    {
+      "title": "Apache ActiveMQ — Web Console",
+      "url": "https://activemq.apache.org/web-console"
+    }
+  ],
+  "equipment": [
+    "activemq"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch for unusual bursts of internal notification traffic that can overwhelm the messaging server when something is reconnecting or subscribing in a tight loop."
+}

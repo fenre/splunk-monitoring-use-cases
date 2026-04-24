@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.2.36",
+  "title": "oVirt / RHV Storage Domain Used Percent and Low-Space Warning",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=virtualization` `sourcetype=\"ovirt:storagedomain\"` from `/api/storagedomains` with fields `name`, `used_percent`, `available`, `status`",
+  "app": "Custom oVirt REST scripted input",
+  "spl": "index=virtualization sourcetype=\"ovirt:storagedomain\" earliest=-4h\n| where used_percent>=85 OR available<536870912000\n| stats latest(used_percent) as pct, latest(available) as avail_bytes, latest(status) as st by name\n| eval avail_tb=round(avail_bytes/1099511627776,2)\n| table name, pct, avail_tb, st\n| sort -pct",
+  "description": "oVirt blocks new disk operations when domains enter low-space conditions. Trending `used_percent` and absolute free bytes highlights domains approaching maintenance thresholds before snapshots or template imports fail.",
+  "value": "Avoids surprise storage-domain lockouts during VM provisioning and backup merges.",
+  "implementation": "Poll `/api/storagedomains` and compute utilization from `used` and `available` if `used_percent` is not provided. Alert at tiered thresholds (warn 80%, critical 90%). Exclude ISO domains if they are intentionally full. Correlate with SAN thin reclaim jobs.",
+  "visualization": "Gauge (used %), Table (domains sorted by utilization), Timechart (pct trend).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "oVirt Admin Guide — Storage domains",
+      "url": "https://www.ovirt.org/documentation/admin-guide/chap-Storage.html"
+    }
+  ],
+  "equipment": [
+    "ovirt"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

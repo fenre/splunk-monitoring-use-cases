@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.135",
+  "title": "macOS Splunk Universal Forwarder Heartbeat and KV Store Queue Backlog",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Operational"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "Splunk internal logs forwarded from UF: `index=_internal` or customer `index=infra_int` with `source=*splunkd.log*` and `Metrics` log channel if enabled",
+  "app": "Splunk Universal Forwarder on macOS, Splunk Observability optional; no extra TA required beyond UF",
+  "spl": "index=_internal source=*splunkd.log* host=* TermType=Forwarded\n| bin _time span=15m\n| stats dc(host) as reporting_hosts by _time\n| join type=left _time [\n    search index=_internal source=*metrics.log* group=tcpout_connections name=*\n    | bin _time span=15m\n    | stats avg(current_queue) as avg_queue by _time, host\n    | where avg_queue > 10000\n    | stats count as hosts_with_queue_pressure by _time\n]\n| fillnull value=0 hosts_with_queue_pressure",
+  "description": "A silent Universal Forwarder on macOS still breaks compliance when it stops phone-home or queues explode during VPN outages. Combining presence of `splunkd` forwarded events with TCP output queue metrics surfaces dead agents before log gaps invalidate security monitoring.",
+  "value": "Restores observability SLAs by detecting offline or back-pressured macOS forwarders before log loss exceeds audit windows.",
+  "implementation": "Forward a minimal `_internal` slice (splunkd, metrics) from endpoints only if policy permits—many teams duplicate to a restricted `infra_int` index with transforms dropping payloads. On the search head, build a baseline count of hosts per 15m bucket; alert when a known-population host disappears or when `metrics.log` `tcpout_connections` shows `current_queue` sustained above your tier (example 10k). For pure heartbeat without internal indexes, use a custom `sourcetype=uf_heartbeat` one-liner script instead.",
+  "visualization": "Area chart (reporting_hosts over time), Table (missing hosts vs CMDB), Single value (hosts_with_queue_pressure).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Docs: Forward data from Splunk Enterprise internal indexes",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Forwarddatafrominternalsindexes"
+    },
+    {
+      "title": "Splunk Docs: Monitor internal Splunk Enterprise logs",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Troubleshooting/Monitorinternalsplunklogs"
+    }
+  ],
+  "equipment": [
+    "macos"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• CMDB or saved list of expected `host` values for macOS UFs.\n• Legal/security approval for `_internal` forwarding.\n\nStep 1 — If `_internal` is blocked, deploy `sourcetype=uf_heartbeat` with a 5m cron.\n\nStep 2 — Use `inputlookup` expected_hosts and `| stats` to find missing.\n\nStep 3 — Validate by stopping splunkd on a canary.\n\nStep 4 — Route alerts to endpoint ops with VPN health correlation.",
+  "grandmaExplanation": "We check that the little log-forwarding program on each Mac is still talking to Splunk so we don’t think we’re protected when logs have actually stopped."
+}

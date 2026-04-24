@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.6.31",
+  "title": "RabbitMQ Message Redelivery Rate Spike",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "RabbitMQ HTTP management API `/api/queues` `message_stats.redeliver` (and derivatives)",
+  "app": "RabbitMQ management plugin + scripted/HEC poller (`sourcetype=rabbitmq:queue`)",
+  "spl": "index=messaging sourcetype=\"rabbitmq:queue\"\n| eval redeliver_rate=coalesce(message_stats.redeliver_details.rate, redeliver_rate, 0)\n| where redeliver_rate > 5\n| timechart span=5m sum(redeliver_rate) as redeliver_eps by vhost, name",
+  "description": "Sustained redeliveries indicate consumers that ack late, crash mid-processing, or encounter poison messages—often before queue depth alarms fire.",
+  "value": "Surfaces flaky consumers and retry storms that waste broker resources and inflate end-to-end latency.",
+  "implementation": "Normalize field names after JSON extraction (some collectors flatten with underscores). Baseline per queue. Alert when redeliver rate exceeds historical p95 for 15 minutes.",
+  "visualization": "Line chart (redeliver rate by queue), Table (worst queues), Single value (cluster redeliver EPS).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "RabbitMQ — Confirms and Acknowledgements",
+      "url": "https://www.rabbitmq.com/docs/confirms"
+    },
+    {
+      "title": "RabbitMQ — Consumer Prefetch",
+      "url": "https://www.rabbitmq.com/docs/consumer-prefetch"
+    }
+  ],
+  "equipment": [
+    "rabbitmq"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We watch when the same messages are being tried again and again, which usually means a worker keeps failing or crashing."
+}

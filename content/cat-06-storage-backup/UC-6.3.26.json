@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "6.3.26",
+  "title": "Ceph Cluster OSD nearfull and full Capacity Flags",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`ceph -s -f json` or `ceph df` summary indexed as `sourcetype=ceph:status` (same feed as UC-6.1.14) with `health_detail`/`summary` fields",
+  "app": "Custom scripted input / ceph-mgr prometheus exporter translated to events",
+  "spl": "index=storage sourcetype=\"ceph:status\" earliest=-30m\n| search \"nearfull\" OR \"full\" OR \"backfillfull\"\n| eval flag=coalesce(health_detail, summary, health_summary)\n| stats latest(_time) as last_seen latest(health) as health latest(flag) as detail latest(osd_up) as osd_up latest(osd_in) as osd_in by cluster_name\n| sort - last_seen",
+  "description": "When too many OSDs cross `nearfull` or `full` thresholds, Ceph stops accepting client writes to affected pools—an operational outage distinct from generic `HEALTH_WARN` text.",
+  "value": "Gives storage SREs a dedicated alert for capacity-induced write suppression so they can expand the cluster or reweight OSDs before applications freeze.",
+  "implementation": "Ensure your JSON parser preserves `health.checks` messages or the stringified `health_detail` blob containing `nearfull`. If using Prometheus instead, map `ceph_osd_nearfull` gauges into Splunk metrics and mirror this logic with `mstats`. Pair with UC-6.1.14 for overall health.",
+  "visualization": "Single value (clusters in nearfull), table (cluster, detail), link to OSD utilization dashboard.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Ceph Documentation — Monitoring OSDs",
+      "url": "https://docs.ceph.com/en/latest/rados/operations/monitoring-osds/"
+    },
+    {
+      "title": "Ceph Documentation — Full OSDs",
+      "url": "https://docs.ceph.com/en/latest/rados/operations/add-or-rm-osds/"
+    }
+  ],
+  "equipment": [
+    "ceph",
+    "prometheus"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

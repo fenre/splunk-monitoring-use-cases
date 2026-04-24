@@ -8760,3 +8760,555 @@ index=voip sourcetype="cdr:voip"
 
 ---
 
+### UC-5.3.23 · Citrix ADC AppFlow Export Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Citrix ADC AppFlow exports flow records to external IPFIX collectors for traffic analytics. If exports are dropped, ignored, or templates do not match the collector, you lose visibility into application traffic and may miss security or capacity signals. Monitoring AppFlow health ensures flow telemetry continuously reaches Splunk and your collectors, and surfaces misconfiguration before export backlogs or silent data loss.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:syslog"` or `sourcetype="citrix:netscaler:appflow"` — AppFlow export counters, IPFIX collector reachability, flows sent/ignored/dropped, template mismatch events
+- **SPL:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:appflow")
+(("appflow" AND ("drop" OR "ignore" OR "template" OR "collector" OR "IPFIX")) OR match(_raw, "(?i)flow.*(export|discard)"))
+| eval flow_action=coalesce(action, export_status, "unknown")
+| bin _time span=5m
+| stats count as events, dc(host) as adc_count by _time, host, flow_action
+| where match(flow_action, "(?i)(drop|ignore|fail|mismatch)") OR events > 100
+| sort - _time
+| table _time, host, flow_action, events, adc_count
+```
+- **Implementation:** Enable AppFlow on the ADC and point collectors at your IPFIX endpoints. Forward `citrix:netscaler:syslog` (export health and template messages) and `citrix:netscaler:appflow` (decapsulated or forwarded flow records) to `index=netscaler`. Alert on sustained drops/ignores, collector unreachable messages, or template mismatch events. Correlate with network path and collector capacity. Baseline normal flow export rates per ADC to detect drift.
+- **Visualization:** Time chart of AppFlow export events by action, single value for drops per hour, table of hosts with template or collector errors.
+- **CIM Models:** Network_Traffic
+- **Known false positives:** Collector restarts, IPFIX template or vendor upgrades, and short collector maintenance can log drops, ignores, and template mismatch while things resync. A collector and template-version lookup plus a minimum sustained drop rate cut one-off resync noise.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — AppFlow overview](https://docs.citrix.com/en-us/citrix-adc/current-release/application-firewall-analytics/appflow-analytics.html)
+
+---
+
+### UC-5.3.24 · Citrix ADC Web Application Firewall (WAF) Violations
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Citrix ADC Web Application Firewall inspects HTTP traffic for common attacks (SQL injection, cross-site scripting, JSON/XML threats) and policy violations. Spikes in violations, or critical signatures firing in enforcement mode, indicate active attacks or misconfigured applications. Distinguishing learning mode noise from enforcement blocks, and monitoring geographic blocks, keeps incident response focused and reduces false positives.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:syslog"` WAF log profile output — `violation_type`, `severity`, `policy_name`, `profile_name`, `url`, `learning` vs `enforcement` mode, geo block actions
+- **SPL:**
+```spl
+index=netscaler sourcetype="citrix:netscaler:syslog" (WAF OR "Application Firewall" OR APPFW)
+| rex field=_raw "(?i)(?<violation>SQL|XSS|JSON|XML|CSRF|OWASP)"
+| eval is_learning=if(match(_raw, "(?i)learning"), 1, 0)
+| where NOT (is_learning=1 AND match(_raw, "(?i)info"))
+| bin _time span=15m
+| stats count as hits, values(violation) as violation_types, dc(url) as unique_urls, latest(host) as adc by policy_name, _time
+| where hits > 0
+| sort - hits
+| table _time, adc, policy_name, violation_types, unique_urls, hits
+```
+- **Implementation:** Send WAF log profile output to syslog and index as `citrix:netscaler:syslog`. Parse violation type, action (block, learn, log), and policy. Build correlation searches for attack categories (SQL, XSS, JSON injection) and for geo-IP block actions if logged. Tune thresholds by application: public APIs may legitimately spike; internal apps should not. Use lookups for known scanner IPs and pen-test windows.
+- **Visualization:** Stacked column chart of violations by type over time, treemap of policies, drilldown to sample URLs (sanitized).
+- **CIM Models:** Intrusion_Detection, Web
+- **Known false positives:** Large legitimate uploads, public marketing scans, and PCI or vendor ASV external scans can trip WAF blocks that look like attacks. A scanner and OWASP test calendar, with URL and VIP scope, keep compliance testing from driving SOC fatigue.
+- **MITRE ATT&CK:** T1190
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — Web App Firewall](https://docs.citrix.com/en-us/citrix-adc/current-release/application-firewall.html)
+
+---
+
+### UC-5.3.25 · Citrix ADC Bot Management Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Citrix ADC Bot Management classifies clients (good automation, bad bots, unknown) and can enforce CAPTCHA, allow, or deny. Tracking category mix and enforcement rates surfaces credential stuffing, scraping, and misclassified good bots. A rising bad or unknown share, or high CAPTCHA rates, can indicate attack campaigns or policy tuning needs before user experience or origin load suffers.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:appflow"` or `sourcetype="citrix:netscaler:syslog"` — bot classification (`captcha`, `allow`, `deny`, `good_bot`, `bad_bot`, `unknown`), request counts, client IP
+- **SPL:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:appflow" OR sourcetype="citrix:netscaler:syslog") ("bot" OR "BOT" OR captcha OR "reputation")
+| eval bot_class=if(match(_raw, "(?i)good"),"good", if(match(_raw, "(?i)bad|malici"),"bad", if(match(_raw, "(?i)unknown|unclass"),"unknown","other")))
+| eval action=if(match(_raw, "(?i)deny|block"),"deny", if(match(_raw, "(?i)captcha"),"captcha", if(match(_raw, "(?i)allow|pass"),"allow","other")))
+| bin _time span=15m
+| stats count as reqs, sum(eval(action="captcha")) as captcha_hits, sum(eval(action="deny")) as deny_hits, sum(eval(action="allow")) as allow_hits by _time, host, bot_class
+| eval bot_to_human_ratio=if(allow_hits+deny_hits>0, round((deny_hits+captcha_hits)/(allow_hits+deny_hits+captcha_hits+0.001)*100,1), 0)
+| where bot_class IN ("bad","unknown") OR bot_to_human_ratio > 25
+| table _time, host, bot_class, reqs, allow_hits, captcha_hits, deny_hits, bot_to_human_ratio
+```
+- **Implementation:** Enable bot signatures and logging to appflow and/or syslog. Ensure HTTP headers or log fields that carry bot decision and action are extracted. Index to `index=netscaler`. Build baselines for allow versus challenge versus block per major application. Alert on bad-bot surges, spikes in unknown classification, or CAPTCHA rate jumps that exceed normal human traffic patterns.
+- **Visualization:** Area chart of requests by bot class, pie chart of enforcement actions, table of ratio of challenged or denied to total session starts.
+- **CIM Models:** Intrusion_Detection, Web
+- **Known false positives:** Search crawlers, uptime monitors, and partner health checks produce bot signatures on public apps. Map by URL, VIP, and user-agent; robots.txt-crawler traffic to marketing edges should not feed the same fraud threshold as protected apps.
+- **MITRE ATT&CK:** T1110, T1190
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — Bot management](https://docs.citrix.com/en-us/citrix-adc/current-release/bot-management.html)
+
+---
+
+### UC-5.3.26 · Citrix ADC nFactor Authentication Pipeline Failures
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Security
+- **Value:** Citrix ADC nFactor ties multiple authentication steps (VPN, web apps, user directories, SAML) into one pipeline. Login schema parse errors, per-factor timeouts, SAML attribute or assertion mismatches, or IdP reachability issues strand users in partial login states. Tracking these failures protects both availability (users cannot sign in) and security (forced fallbacks, repeated attempts, or mis-issued factors).
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:syslog"` — nFactor, AAA, login schema, `saml` assertion errors, `timeout`, IdP `unreachable`, `factor` sequence failures
+- **SPL:**
+```spl
+index=netscaler sourcetype="citrix:netscaler:syslog" (nFactor OR "login schema" OR AAA OR SAML OR "factor" OR IdP OR "assertion" OR "epa")
+( "failed" OR "error" OR "timeout" OR "unreachable" OR "invalid" OR "reject" )
+| rex field=_raw "(?i)(?<fail_reason>schema|timeout|SAML|assertion|IdP|LDAP|radius)"
+| bin _time span=5m
+| stats count as failures, values(fail_reason) as reasons, dc(client_ip) as src_ips, latest(host) as adc by auth_policy, _time
+| where failures >= 3
+| sort - failures
+| table _time, adc, auth_policy, reasons, src_ips, failures
+```
+- **Implementation:** Send AAA, audit, and authentication-related syslog to `index=netscaler` as `citrix:netscaler:syslog`. Classify by factor type (SAML, LDAP, RADIUS, EPA). Alert on growing failure rates for a given policy, IdP down messages, and schema errors after config pushes. Cross-reference with change records for nFactor flow edits.
+- **Visualization:** Time chart of auth failures by reason, top policies table, map or table of source IPs (if allowed by privacy policy).
+- **CIM Models:** Authentication
+- **Known false positives:** Password expirations, MFA re-enrollment, and IdP key rollouts can flood nFactor with benign auth failure bursts. Add directory and IdP change windows, and a per-identity cap, before an automated credential-stuffing assumption.
+- **MITRE ATT&CK:** T1078, T1110, T1556
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — nFactor authentication](https://docs.citrix.com/en-us/citrix-adc/current-release/aaatm-authentication.html)
+
+---
+
+### UC-5.3.27 · Citrix ADC Surge Queue and Spillover Events
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Availability
+- **Value:** When demand exceeds a virtual server capacity settings, connections queue in the surge buffer or spill to backup vservers, affecting latency and success rates. Sustained surge depth or repeated spillover indicates undersized `maxclient` values, pool exhaustion, or slow backends. Early detection keeps user-visible failures and cascade overload off backup paths.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:syslog"` or NITRO-derived `sourcetype="citrix:netscaler:perf"` — `surge_queue` depth, `spillover`, `maxclient`, vserver, backup vserver
+- **SPL:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:perf") ("surge" OR "spillover" OR "max client" OR maxclient OR "SURGEQ")
+| rex field=_raw max_match=0 "(?i)depth[\\s:=]+(?<surge_depth>\\d+)"
+| eval has_spillover=if(match(_raw, "(?i)spillover"),1,0)
+| eval vserver=coalesce(vserver_name, if(match(_raw, "(?i)vserver[\\s:]+(?<vs>\\S+)"), vs, null()))
+| bin _time span=5m
+| stats count as events, max(surge_depth) as max_depth, max(has_spillover) as spillover_flag, values(vserver) as vserver_list, latest(host) as adc by _time, host
+| where spillover_flag=1 OR max_depth>0 OR events>0
+| eval vserver=mvindex(vserver_list,0)
+| sort - _time
+| table _time, adc, vserver, max_depth, spillover_flag, events
+```
+- **Implementation:** Source spillover and surge events from `citrix:netscaler:syslog` (state change messages) and, if available, counter polls into `citrix:netscaler:perf` for queue depth. Parse vserver and backup vserver names. Set alert conditions on non-zero queue depth for more than a few intervals, and any spillover to backup, unless during known tests.
+- **Visualization:** Time chart of max surge depth by vserver, event list for spillover with backup target, link to app response-time panels.
+- **CIM Models:** Alerts
+- **Known false positives:** Marketing flash events, all-hands streams, and go-live go intentionally into surge and spillover. Only escalate when a capacity group is saturated past its ceiling, spillover outlasts the business runbook event, or scale actions fail, not for every high-traffic hour.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — Load balancing and surge protection](https://docs.citrix.com/en-us/citrix-adc/current-release/load-balancing.html)
+
+---
+
+### UC-5.3.28 · Citrix ADC TCP Connection Multiplexing Analysis
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Citrix ADC multiplexes many client connections onto fewer server-side connections through reuse and keep-alive, improving efficiency on backends. A falling reuse rate with rising front-end TPS, paired with high tail latency, can signal pool saturation, keep-alive misconfiguration, or backend slowness. The goal is to connect traffic shape to latency before servers exhaust ephemeral ports or file descriptors.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:appflow"` HTTP records with TPS/response time fields, or `sourcetype="citrix:netscaler:perf"` for connection reuse, keep-alive, and throughput
+- **SPL:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:perf" OR sourcetype="citrix:netscaler:appflow")
+| eval cps=coalesce(connections_per_sec, http_reqs_per_sec, 0), reuse_pct=coalesce(tcp_reuse_percent, connection_reuse_pct, 0), p95_latency_ms=coalesce(p95_resp_time_ms, app_resp_time_95, 0)
+| bin _time span=5m
+| stats avg(cps) as tps, avg(reuse_pct) as avg_reuse, avg(p95_latency_ms) as p95_ms by _time, host, lbvserver
+| where p95_ms > 500 AND avg_reuse < 30 AND tps > 0
+| table _time, host, lbvserver, tps, avg_reuse, p95_ms
+```
+- **Implementation:** Populate `citrix:netscaler:perf` from NITRO with TCP and HTTP vserver service metrics where available, and align AppFlow-derived TPS and response-time percentiles. Normalize field names in props if your TA uses custom aliases. Create baselines for reuse and p95 by application; alert when reuse drops and p95 increases together during steady load.
+- **Visualization:** Dual-axis line chart: TPS and reuse percent; scatter of reuse versus p95 latency; table of offending vservers.
+- **CIM Models:** Network_Traffic
+- **Known false positives:** Backups, large file transfers, and diagnostic pcap or throughput tests can change multiplexing patterns compared to a typical web session. A four-week same-hour and per-vserver baseline separates traffic shape tests from a real service degradation pattern.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — Load balancing and connection management](https://docs.citrix.com/en-us/citrix-adc/current-release/load-balancing.html)
+
+---
+
+### UC-5.3.29 · Citrix ADC Frontend vs Backend RTT Analysis
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Separating client-side from server-side round-trip time on the Application Delivery Controller pinpoints where delay accumulates: last mile, middle mile, or data center. AppFlow or equivalent records expose both legs so you can tell user Wi-Fi issues from database latency without guessing. Sustained backend-side RTT growth drives pool tuning and app fixes; client-heavy RTT points to peering, DNS, or edge problems.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:appflow"` with client-side and server-side RTT (or first-byte timing) — fields such as `client_rtt_ms`, `server_rtt_ms`, `app_resp_time`, vserver, URL host
+- **SPL:**
+```spl
+index=netscaler sourcetype="citrix:netscaler:appflow"
+| eval client_rtt=coalesce('client_rtt_ms', 'avg_client_rtt', client_rtt, 0), server_rtt=coalesce('server_rtt_ms', 'avg_server_rtt', server_rtt, 0)
+| where client_rtt>0 OR server_rtt>0
+| eval rtt_diff=abs(client_rtt - server_rtt), segment=if(client_rtt>1.2*server_rtt,
+  "client_network", if(server_rtt>1.2*client_rtt, "server_network_or_backend", "balanced"))
+| bin _time span=5m
+| stats median(client_rtt) as p50_c, median(server_rtt) as p50_s, p95(client_rtt) as p95_c, p95(server_rtt) as p95_s, count as flows by _time, host, vserver, segment
+| where p95_c>200 OR p95_s>200 OR p95_s>1.5*p95_c
+| table _time, host, vserver, segment, p50_c, p50_s, p95_c, p95_s, flows
+```
+- **Implementation:** Enable AppFlow with timing fields; ensure the Splunk TA extracts numeric RTT. Index to `index=netscaler`. If field names differ, create aliases in props. Use segment classification to tag tickets (network vs app). Add geo or ASN for client leg only if policy allows. Trend weekly for capacity reports.
+- **Visualization:** Stacked time chart: median client vs server RTT, heatmap of vservers by segment, box plot for tail latency by region.
+- **CIM Models:** Performance
+- **Known false positives:** Carrier maintenance, path diversity tests, and SD-WAN 'what-if' exercises widen frontend-versus-backend RTT for many users at once. Carrier notification feeds and per-site overlays reduce global RTT blips to false positives when the core path is under test only.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — AppFlow and analytics](https://docs.citrix.com/en-us/citrix-adc/current-release/application-analytics.html)
+
+---
+
+### UC-5.3.30 · Citrix ADC Integrated Cache Hit Ratio
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** The Citrix ADC integrated content cache can offload origin servers for static and cacheable content. A falling hit ratio increases origin load and latency; high cache memory pressure can evict hot objects. Monitoring hit ratio, miss volume, and cache memory guides TTL tuning, object sizing, and capacity for content-heavy services.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:perf"` (NITRO): cache hits, misses, bytes served from cache, `cache` memory; optional `sourcetype="citrix:netscaler:syslog"` for cache service events
+- **SPL:**
+```spl
+index=netscaler sourcetype="citrix:netscaler:perf" ("ic_cache" OR "ico_" OR cache_hits OR cache_misses)
+| eval hits=coalesce(cache_hits, ico_hits, 0), misses=coalesce(cache_misses, ico_misses, 0)
+| eval mem_use_pct=coalesce(cache_mem_use_pct, cache_mem_util, 0)
+| bin _time span=5m
+| stats sum(hits) as sum_hits, sum(misses) as sum_miss, avg(mem_use_pct) as cache_mem, latest(host) as adc by _time, host
+| eval hit_ratio=if((sum_hits+sum_misses)>0, round(sum_hits/(sum_hits+sum_misses)*100,2), 0)
+| where hit_ratio < 50 OR cache_mem > 90
+| table _time, adc, sum_hits, sum_miss, hit_ratio, cache_mem
+```
+- **Implementation:** Poll NITRO for integrated cache object statistics or use the TA’s scripted metrics into `citrix:netscaler:perf`. Align on per-content-group rollups. Alert on sustained hit ratio drop week over week, or memory utilization over 90% for multiple intervals. Log cache flush events in syslog and correlate to deployments.
+- **Visualization:** Line chart: hit ratio; area chart: hits vs misses; gauge: cache memory usage.
+- **CIM Models:** Performance
+- **Known false positives:** Cold start after a big content push, a new app, or a deliberate cache clear tanks integrated cache hit ratio for hours. A post-publish grace period and a rolling median, not a hard static percentage, avoid nightly false positives after deploys.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — Integrated caching](https://docs.citrix.com/en-us/citrix-adc/current-release/optimization/integrated-caching.html)
+
+---
+
+### UC-5.3.31 · Citrix ADC Compression Savings and CPU Impact
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** HTTP compression shrinks bytes on the wire but costs CPU on the Application Delivery Controller. Monitoring compression ratio, bandwidth saved, and CPU headroom together prevents turning compression on blindly when hardware is already near limits. A low savings percentage with high CPU can justify selective policies (only text types) or moving compression to origins.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:perf"` — compression `bytes_in`, `bytes_out`, `cpu_use_pct` (for packet engine and overall), vserver; optional `citrix:netscaler:syslog` for comp errors
+- **SPL:**
+```spl
+index=netscaler sourcetype="citrix:netscaler:perf" ("compress" OR comp_ OR gzip OR deflate)
+| eval bytes_in=coalesce(compress_bytes_in, comp_bytes_in, 0), bytes_out=coalesce(compress_bytes_out, comp_bytes_out, 0), cpu=coalesce(cpu_use_pct, packet_cpu_use_pct, 0)
+| eval comp_ratio=if(bytes_out>0, round((bytes_in-bytes_out)/bytes_in*100,1), 0), savings_mb=if(bytes_in>0, (bytes_in-bytes_out)/1024/1024, 0)
+| bin _time span=5m
+| stats avg(comp_ratio) as avg_comp_pct, sum(savings_mb) as total_saved_mb, avg(cpu) as avg_cpu, max(cpu) as peak_cpu by _time, host, lbvserver
+| where avg_comp_pct>0
+| where peak_cpu>85 AND avg_comp_pct<5
+| table _time, host, lbvserver, avg_comp_pct, total_saved_mb, avg_cpu, peak_cpu
+```
+- **Implementation:** Ingest NITRO compression and CPU counters into `citrix:netscaler:perf`. Join per vserver or content group. Add alerts for CPU above policy threshold while compression impact is low (candidates to disable) and for high savings with headroom (good candidates to expand). Document SSL versus compress ordering if applicable.
+- **Visualization:** Line chart: compression percent saved, overlay CPU; table of top vservers by saved megabytes; stacked bar: CPU time estimate by feature if available.
+- **CIM Models:** Performance
+- **Known false positives:** Turning on compression for new vservers or reclassifying mostly encrypted traffic lowers compression savings and can raise packet-engine CPU. A recent vserver or policy object change in NetScaler and a before/after diff explain a benign re-baseline quickly.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — Compression](https://docs.citrix.com/en-us/citrix-adc/current-release/optimization/compression.html)
+
+---
+
+### UC-5.3.32 · Citrix ADC DNS/ADNS Service Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Authoritative and DNS proxy workloads on the Application Delivery Controller (ADNS) must resolve fast and with valid responses. Spikes in failure codes, DNSSEC validation errors, or response-time percentiles show overload, bad zones, or upstream issues before applications fail name resolution. Query-rate anomalies also reveal floods or cache misses.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:syslog"` — ADNS, DNS, `Rcode`, response time, query rate; `sourcetype="citrix:netscaler:snmp"` for DNS process load if polled
+- **SPL:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:snmp") (ADNS OR "dns" OR nameserver OR NXDOMAIN OR SERVFAIL OR DNSSEC OR Rcode)
+| eval is_fail=if(match(_raw, "(?i)(SERVFAIL|Refused|timeout)"),1,0)
+| rex field=_raw max_match=0 "response[\\s:]+(?<rtt_parsed>\\d+)\\s*ms"
+| eval rtt=coalesce(dns_rtt_ms, rtt_parsed)
+| bin _time span=5m
+| stats count as events, sum(is_fail) as fail_ct, p95(rtt) as p95_rtt, dc(dns_name) as zones, latest(host) as adc by _time, host
+| where fail_ct>0 OR p95_rtt>150 OR events/300 > 10000
+| table _time, adc, events, fail_ct, p95_rtt, zones
+```
+- **Implementation:** Forward high-severity and DNS service syslog to `index=netscaler`. Parse Rcode, query type, and latency if available. For SNMP, poll process CPU and request counters. Alert on any sustained SERVFAIL, DNSSEC `Bogus` or `Insecure` transition when policy says secure, and on p95 latency above SLO. Rate-limit log volume with filters if needed.
+- **Visualization:** Time chart: queries per second and failures, single value: p95 response time, table: top failure strings.
+- **CIM Models:** Network_Resolution_DNS
+- **Known false positives:** Zone transfers, GSLB health-test flaps during data center failovers, and auth DNS provider cutovers are expected noisy periods for ADNS. DNS change records and a minimum-down duration stop single-probe wobble from looking like a hard outage.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — DNS](https://docs.citrix.com/en-us/citrix-adc/current-release/dns/dns-citrix.html)
+
+---
+
+### UC-5.3.33 · Citrix SDX Platform Health (Partition Resources)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Citrix NetScaler SDX hosts multiple isolated VPX instances. Platform health is about partition CPU and memory, hypervisor and VPX liveness, and out-of-band LOM, power, and cooling. A stressed partition throttles applications before obvious syslog noise; LOM, PSU, or fan alarms demand hardware attention before a blade fails.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:snmp"` — per-partition or host CPU, memory, LOM, PSU, fan, platform sensors; `sourcetype="citrix:netscaler:syslog"` for hypervisor, VPX state, and hardware alarms
+- **SPL:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:snmp" OR sourcetype="citrix:netscaler:syslog") ("SDX" OR "Xen" OR "partition" OR "VPX" OR LOM OR PSU OR FAN OR "throttle")
+| eval part_cpu=coalesce(adc_partition_cpu_use_pct, sdx_cpu_use_pct, 0), part_mem=coalesce(adc_partition_mem_use_pct, sdx_mem_use_pct, 0)
+| eval alarm=if(match(_raw, "(?i)(PSU|FAN|LOM|redundant|failed|critical)"),1,0)
+| bin _time span=5m
+| stats max(part_cpu) as max_cpu, max(part_mem) as max_mem, sum(alarm) as alarm_events, values(host) as hosts by _time, sdx_name, partition_id
+| where max_cpu>85 OR max_mem>90 OR alarm_events>0
+| table _time, sdx_name, partition_id, max_cpu, max_mem, alarm_events, hosts
+```
+- **Implementation:** Poll SNMP with SDX/MPX and ADC-specific OIDs into `citrix:netscaler:snmp`. Forward `citrix:netscaler:syslog` for hypervisor, VPX, and platform events. Enrich with asset tags for slot, data hall, and power feed. Page on high partition utilization versus entitlement, and on any hardware or LOM down events.
+- **Visualization:** Heatmap of partitions by CPU, horizontal bar: memory, timeline of hardware alarms, table of active VPX count per host.
+- **CIM Models:** Performance
+- **Known false positives:** Reallocating vCPU, memory, or network on an SDX partition during tenant maintenance or SVM work can show short resource stress on instances. SVM and SDX change windows and 'tenant in flight' tags isolate planned partition churn from hardware failure.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — SDX (multi-tenant platform)](https://docs.citrix.com/en-us/citrix-adc/)
+
+---
+
+### UC-5.3.34 · Citrix ADC Cluster Configuration Replication
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** A Citrix ADC cluster must keep a consistent configuration and routing view across members. If replication lags, quorum drifts, or a split is possible, different nodes can run divergent policy—bad for availability and for policy enforcement. The goal is to detect async failures and membership changes before a maintenance window or failure widens the gap.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:syslog"` — `cluster`, `quorum`, `nsync`/`propagation`, `split` brain, `replication` lag, `node` up/down, config sync
+- **SPL:**
+```spl
+index=netscaler sourcetype="citrix:netscaler:syslog" ("cluster" OR CLIP OR CCO OR NSYNC OR "quorum" OR "propagat" OR "split-brain" OR "split brain" OR "nsync" OR "replication" OR configsync OR "RHI")
+| eval severity=if(match(_raw, "(?i)(split|mismatch|fail|unreachable)"),"high", if(match(_raw, "(?i)warn|lag|delay"),"medium","low"))
+| rex field=_raw "(?i)cluster[\\s:]+(?<cluster_id>\\S+)"
+| bin _time span=5m
+| stats count as events, values(severity) as severities, latest(host) as node by _time, cluster_id, host
+| where like(mvjoin(severities, " "), "%high%") OR like(mvjoin(severities, " "), "%medium%")
+| table _time, cluster_id, host, node, severities, events
+```
+- **Implementation:** Send cluster and nsync service logs to `index=netscaler`. If your deployment exposes a numeric lag metric via NITRO, mirror it in `citrix:netscaler:perf` for more precise SLO. Alert on any split-brain, repeated sync failures, or member departures outside change windows. Automate a ticket with last known `show cluster instance` if full context is in logs (mask secrets).
+- **Visualization:** State timeline: cluster size and roles, time chart: sync-failure count, list: members with last heartbeat string.
+- **CIM Models:** Change
+- **Known false positives:** Rolling firmware, patch, or build pushes put ADC cluster nodes out of config sync for minutes on purpose. A rolling-maintenance tag and a lag-duration threshold, not a few seconds of diff during upgrade, are the right filters.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — High availability and clustering](https://docs.citrix.com/en-us/citrix-adc/current-release/getting-started-with-citrix-adc/high-availability-citrix.html)
+
+---
+
+### UC-5.3.35 · Citrix ADC AAA Audit Trail and Command Logging
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Administrative changes on a Citrix ADC (CLI, GUI, and NITRO API) are security- and compliance-relevant. Retaining a tamper-resistant audit trail of who did what, when, from where—and whether configuration was saved—supports investigations, break-glass reviews, and control frameworks that expect full accountability for network edge devices.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:syslog"` — AAA, audit, `NITRO` or `API` command, `nsconfig` save, `set`, `add`, `rm` actions, `CLI`, `GUI` login, admin usernames, source IP
+- **SPL:**
+```spl
+index=netscaler sourcetype="citrix:netscaler:syslog" ("audit" OR NITRO OR "nsconfig" OR "cmd" OR "set " OR "add " OR "rm " OR "save ns config" OR "Command" OR "local" OR API)
+| eval admin=coalesce(adc_user, admin_user, user, "unknown")
+| eval action=if(match(_raw, "(?i)save[\\s_]+ns[\\s_]+config"),"config_save",if(match(_raw, "(?i)NITRO|Rest|API|HTTP"),"api","cli_gui"))
+| bin _time span=1h
+| stats count as cmds, values(action) as actions, dc(_raw) as unique_patterns by _time, host, admin
+| where cmds>0
+| sort - cmds
+| table _time, host, admin, actions, unique_patterns, cmds
+```
+- **Implementation:** Enable audit logging, command logging, and API access logging on the ADC; ensure administrators cannot disable logging without a separate control. Forward to `index=netscaler` with role-based read restrictions in Splunk. Retention per policy. Consider streaming critical commands to a write-once store. Alert on new admin accounts, off-hours `save ns config` bursts, or API keys used from new subnets.
+- **Visualization:** Table: recent high-risk commands, user timeline, count of `save` events per day, map of source IP (if approved).
+- **CIM Models:** Change
+- **Known false positives:** NetScaler MAS, ADM, Ansible, and Terraform can log thousands of CLI-style actions that resemble privilege abuse. Allowlist automation source IPs and runbook SIDs; require interactive shell or a change outside the automation role for escalation.
+- **MITRE ATT&CK:** T1078, T1098
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — Auditing and logging](https://docs.citrix.com/en-us/citrix-adc/current-release/system/audit-logging.html)
+
+---
+
+### UC-5.3.36 · Citrix ADC API Gateway Policy Evaluation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Performance
+- **Value:** API gateway policies on Citrix ADC enforce OpenAPI shapes, XML/JSON validation, authentication, and rate limits. Mis-specified definitions cause load failures; validation errors may reflect attack traffic; 429 storms show mis-tuned quotas or abuse. Monitoring policy evaluation alongside latency keeps both security and user experience within SLO.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:syslog"` and `sourcetype="citrix:netscaler:appflow"` — API definition load errors, policy `throttle`, `rate` limit, JSON/XML validation failures, `HTTP_4xx/5xx` on API vservers
+- **SPL:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:appflow") ("API" OR "openapi" OR swagger OR "json" OR "xml" OR throttle OR "rate" OR "429" OR validation OR xss OR "schema")
+| eval is_block=if(status=429 OR match(_raw,"(?i)429|throttl|deny"),1,0)
+| eval val_err=if(match(_raw,"(?i)(invalid|schema|validation|malform)"),1,0)
+| bin _time span=5m
+| stats count as hits, sum(is_block) as throttled, sum(val_err) as val_fail, p95(resp_time_ms) as p95_lat by _time, host, vserver
+| where throttled>10 OR val_fail>0 OR p95_lat>1000
+| table _time, host, vserver, hits, throttled, val_fail, p95_lat
+```
+- **Implementation:** Send AppFlow or security logs with status, vserver, and response time to `index=netscaler`. Map each API product to a vserver name. Extract policy name and error class from syslog for definition load issues. Alert on definition load failure, sustained 429 above baseline, or validation error spikes uncorrelated with version rollouts.
+- **Visualization:** Time chart: throttles vs successes, bar: validation failure types, table: top API paths by error (hashed if needed).
+- **CIM Models:** Web
+- **Known false positives:** A new API version or microservice can spike policy evaluation and 401/403 on synthetic tests that are supposed to fail. The API release calendar and a synthetic-monitor IP allowlist keep release-day noise from looking like a policy bypass wave.
+- **MITRE ATT&CK:** T1190, T1110
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix ADC — API gateway](https://docs.citrix.com/en-us/citrix-adc/current-release/api-gateway.html)
+
+---
+
+### UC-5.3.37 · Citrix ADC Pooled Licensing Utilization
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity, Compliance
+- **Value:** Pooled licensing ties multiple instances to a shared consumption meter (vCPUs, throughput, or other entitlements on supported platforms). Approaching the pool cap or entering grace or violation states risks forced throttling, feature loss, or audit findings where license position must be provable. Monitoring utilization versus entitlement is both a capacity and a compliance control.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)
+- **Data Sources:** `index=netscaler` `sourcetype="citrix:netscaler:syslog"` or `sourcetype="citrix:netscaler:perf"` from NITRO — `license` pool usage percent, vCPU, throughput entitlement, `pool` name, `grace` or `expir`
+- **SPL:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:perf") ("pooled" OR "license pool" OR vCPU OR throughput OR entitlement OR CBM OR "ceiling" OR grace OR expir)
+| eval pool_pct=coalesce(license_pool_use_pct, pooled_license_use_pct, 0), vcpu=coalesce(allocated_vcpus, 0), thr_mbps=coalesce(throughput_mbps, 0)
+| eval capacity_flag=if(pool_pct>90 OR match(_raw,"(?i)grace|violation|denied"),1,0)
+| bin _time span=1h
+| stats max(pool_pct) as max_pool, max(vcpu) as peak_vcpu, max(thr_mbps) as peak_thr, max(capacity_flag) as risk by _time, host, pool_name
+| where max_pool>80 OR risk=1
+| table _time, host, pool_name, max_pool, peak_vcpu, peak_thr, risk
+```
+- **Implementation:** Ingest NITRO license and pooled-capacity output via TA scripted input into `citrix:netscaler:perf` and capture syslog warnings from `ns` `license` `pool`. Set thresholds at 80% (planning) and 90% (urgent) for pool use. Log proof-of-use reports with Splunk for quarterly true-ups. Add alerts for grace-period entry or license server connectivity loss (where applicable).
+- **Visualization:** Gauge: pool use percent, line chart: vCPU and throughput, table: top consumers by `host` and `pool_name`.
+- **CIM Models:** Compute_Inventory
+- **Known false positives:** Month-end or true-up and moving pools between license servers or ADC pooled capacity events swing utilization. License calendar and a pool rebalancing maintenance window are better context than a one-day overage in isolation.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler), [Citrix — Licensing and pooled capacity](https://www.citrix.com/support/licensing/)
+
+---
+
+### UC-5.3.38 · Citrix SD-WAN Virtual Path Loss, Jitter, and Latency
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Citrix SD-WAN virtual paths carry business traffic between sites and cloud services. Packet loss, jitter, latency, and voice-style mean opinion score (MOS) metrics reveal path quality before users open tickets. Tracking path state changes pinpoints when the fabric moved traffic or when a path stopped meeting policy for quality of experience.
+- **App/TA:** No official Splunk TA for Citrix SD-WAN. Ingest via syslog from SD-WAN appliances and SD-WAN Center, or poll NITRO/REST API from SD-WAN Orchestrator. SNMP polling available for basic metrics. Suggested custom sourcetypes follow the `citrix:sdwan:*` convention.
+- **Data Sources:** `index=sdwan` `sourcetype="citrix:sdwan:virtual_path"` or SD-WAN appliance syslog/JSON with fields `path_name`, `site_id`, `loss_pct`, `jitter_ms`, `latency_ms`, `mos` (where available), `path_state` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=sdwan sourcetype="citrix:sdwan:virtual_path" earliest=-4h
+| eval loss=tonumber(loss_pct), jit=tonumber(jitter_ms), lat=tonumber(latency_ms), mos=tonumber(mos)
+| bin _time span=5m
+| stats avg(loss) as avg_loss, avg(jit) as avg_jit, avg(lat) as avg_lat, avg(mos) as avg_mos, latest(path_state) as path_state by _time, site_id, path_name
+| where avg_loss>2 OR avg_jit>30 OR avg_lat>150 OR (isnotnull(avg_mos) AND avg_mos<3.5) OR match(lower(path_state),"(?i)down|bad|degraded")
+| table _time, site_id, path_name, avg_loss, avg_jit, avg_lat, avg_mos, path_state
+```
+- **Implementation:** Ingest per-virtual-path telemetry on a 1–5 minute cadence. Align thresholds to site baselines and voice or video SLOs. Alert on sustained loss or latency above policy, MOS below the floor, or explicit degraded state. Correlate with carrier incidents and change windows. Document how path reselection affects latency (acceptable vs regression).
+- **Visualization:** Timechart: loss, jitter, latency per path; line: MOS; overlay annotations for path state changes; table: worst paths in the last hour by site.
+- **CIM Models:** Network_Traffic
+- **Known false positives:** Failover tests on microwave or cellular backup links and carrier brownouts create real loss and jitter on the standby path. SD-WAN test flags and a 'virtual path in test' change record show expected pain versus unexplained production degradation on primary only.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix — SD-WAN paths and quality metrics](https://docs.citrix.com/en-us/citrix-sd-wan/)
+
+---
+
+### UC-5.3.39 · Citrix SD-WAN Application Steering and QoS Enforcement
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Application-aware routing and queuing are core to SD-WAN value. Monitoring which path each app uses, when drops occur in a class of service, and when steering decisions change frequently exposes misconfiguration, license limits, and congestion on steered traffic that affects voice, video, and business apps.
+- **App/TA:** No official Splunk TA for Citrix SD-WAN. Ingest via syslog from SD-WAN appliances and SD-WAN Center, or poll NITRO/REST API from SD-WAN Orchestrator. SNMP polling available for basic metrics. Suggested custom sourcetypes follow the `citrix:sdwan:*` convention.
+- **Data Sources:** `index=sdwan` `sourcetype="citrix:sdwan:app_route"` (application name, `path_selected`, `qos_class`); or `sourcetype="citrix:sdwan:qos"` with `drops`, `queue_depth`, `app_name` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=sdwan (sourcetype="citrix:sdwan:app_route" OR sourcetype="citrix:sdwan:qos") earliest=-4h
+| eval drops=tonumber(drops), app=coalesce(app_name, application, "unknown"), psel=coalesce(path_selected, selected_path, "unknown")
+| bin _time span=5m
+| stats sum(drops) as total_drops, count as dec_events, values(psel) as paths_used, values(qos_class) as qos by _time, app, site_id
+| where total_drops>0 OR dec_events>1000
+| table _time, site_id, app, total_drops, dec_events, paths_used, qos
+```
+- **Implementation:** Import application-to-QoS mapping from the orchestrator. Track drops and deep queue signs per class. For steering churn, use `path_selected` with `streamstats` to count changes per 5m for major apps. Involve the network and app teams when a critical app rides a backup path. Pair with underlay stats from the same time window to separate LAN vs WAN causes.
+- **Visualization:** Stacked area: drop count by `qos_class`; Sankey or table: `app` to `path_selected` distribution; timechart: steering change rate for top apps.
+- **CIM Models:** Network_Traffic
+- **Known false positives:** QoS class and application steering re-profiles from VoIP or SaaS tuning shift steering counters in bulk. Compare before and after a policy commit ID; a single day of movement after a documented change is usually tuning, not random steering failure.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix — SD-WAN application quality of service](https://docs.citrix.com/en-us/citrix-sd-wan/11-4/application-qos.html)
+
+---
+
+### UC-5.3.40 · Citrix SD-WAN WAN Link Health and Standby Failover
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** SD-WAN sites often bond multiple WAN links with a defined active and standby plan. Health checks, utilization, and failover events show when the primary is saturated, when a standby unexpectedly carries traffic, and when a metered link risks billing overages. Early visibility shortens repair time and controls cost.
+- **App/TA:** No official Splunk TA for Citrix SD-WAN. Ingest via syslog from SD-WAN appliances and SD-WAN Center, or poll NITRO/REST API from SD-WAN Orchestrator. SNMP polling available for basic metrics. Suggested custom sourcetypes follow the `citrix:sdwan:*` convention.
+- **Data Sources:** `index=sdwan` `sourcetype="citrix:sdwan:wan_link"` with `link_id`, `role` (active|standby|backup), `util_in_pct`, `util_out_pct`, `state`, `failover_event`, `metered_bytes` (if billing meter applies) Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=sdwan sourcetype="citrix:sdwan:wan_link" earliest=-24h
+| eval uin=tonumber(util_in_pct), uout=tonumber(util_out_pct), mbytes=tonumber(metered_bytes), fo=if(match(lower(failover_event),"(?i)yes|true|1|fail"),1,0)
+| bin _time span=5m
+| stats max(uin) as max_in, max(uout) as max_out, max(mbytes) as max_meter, sum(fo) as failover by _time, site_id, link_id, role, state
+| where max_in>90 OR max_out>90 OR failover>0 OR match(lower(state),"(?i)down|failed") OR (role="standby" AND max_in>1 AND max_out>1)
+| table _time, site_id, link_id, role, state, max_in, max_out, max_meter, failover
+```
+- **Implementation:** Tag each link with `metered` in a lookup for finance alerts. Alert on failover, sustained high utilization, or standby link carrying production traffic (possible mis-balance). Roll up to site level for a single on-call view. For meter overages, daily sums against monthly caps from procurement.
+- **Visualization:** Gauge: active link utilization; timeline: failovers; table: top sites for metered bytes; state timeline per link.
+- **CIM Models:** Network_Traffic
+- **Known false positives:** Primary WAN maintenance and fiber cuts that force use of a healthy standby for hours are often correct behavior. The false positive is treating standby use as 'down'; page when standby is unhealthy, asymmetric routing fails, or primary does not return after the maintenance close.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix — SD-WAN high availability and links](https://docs.citrix.com/en-us/citrix-sd-wan/11-4/high-availability.html)
+
+---
+
+### UC-5.3.41 · Citrix SD-WAN High Availability and VRRP Status
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Appliance and control-plane high availability, including VRRP and overlay tunnels, must stay stable for uninterrupted forwarding. Spurious VRRP transitions, split roles between peers, or tunnel flaps create brownouts. Monitoring role and tunnel state over time localizes a failing unit or a broadcast domain issue on the LAN side of the edge.
+- **App/TA:** No official Splunk TA for Citrix SD-WAN. Ingest via syslog from SD-WAN appliances and SD-WAN Center, or poll NITRO/REST API from SD-WAN Orchestrator. SNMP polling available for basic metrics. Suggested custom sourcetypes follow the `citrix:sdwan:*` convention.
+- **Data Sources:** `index=sdwan` `sourcetype="citrix:sdwan:ha"` (pair role: active|standby), `sourcetype="citrix:sdwan:vrrp"` (VRRP group, state, priority), `sourcetype="citrix:sdwan:tunnel"` (IPsec/overlay up/down) as needed Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=sdwan (sourcetype="citrix:sdwan:ha" OR sourcetype="citrix:sdwan:vrrp" OR sourcetype="citrix:sdwan:tunnel") earliest=-4h
+| eval role=lower(coalesce(ha_role, vrrp_state, "")), tstate=lower(coalesce(tunnel_state, "")), vtrans=if(match(_raw, "(?i)vrrp|transition|master|backup"),1,0)
+| bin _time span=1m
+| stats latest(role) as cur_role, latest(tstate) as tun, sum(vtrans) as vrrp_events by _time, site_id, group_id
+| where match(cur_role,"(?i)unknown|init|disabled") OR match(tun,"(?i)down|degraded|failed") OR vrrp_events>0
+| table _time, site_id, group_id, cur_role, tun, vrrp_events
+```
+- **Implementation:** Correlate HA and VRRP with power and link events from the same site. Set thresholds: any tunnel down over 1 minute; more than N VRRP events per 15 minutes; active role unknown for either peer. For paired appliances, a dashboard row per site should show mirror roles; mismatch triggers immediate investigation. Document flapping that maps to known firmware bugs and upgrade paths.
+- **Visualization:** Timeline: HA role per site; line: VRRP event rate; state matrix: two appliances per site with color; tunnel up/down count.
+- **CIM Models:** Alerts
+- **Known false positives:** Lab VRRP and preemption tuning, or a forced failover on a test link, can flip SD-WAN HA state repeatedly. Non-production edge groups, or a minimum flap count in production, avoid paging on a deliberate HA exercise.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix — SD-WAN high availability and redundancy](https://docs.citrix.com/en-us/citrix-sd-wan/11-4/high-availability.html)
+
+---
+
+### UC-5.3.42 · Citrix SD-WAN Orchestrator Config Push Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** The SD-WAN Orchestrator (or center) applies policies and feature templates across the fleet. When pushes fail, sites can drift or stay on stale rules. Primary reachability problems and job-level errors show risk at scale, not one box at a time. A single bad change set that fails in many sites needs rollback attention fast.
+- **App/TA:** No official Splunk TA for Citrix SD-WAN. Ingest via syslog from SD-WAN appliances and SD-WAN Center, or poll NITRO/REST API from SD-WAN Orchestrator. SNMP polling available for basic metrics. Suggested custom sourcetypes follow the `citrix:sdwan:*` convention.
+- **Data Sources:** `index=sdwan` `sourcetype="citrix:sdwan:orchestrator"` (job id, `change_set`, `result`, `error_code`, `target_appliance`); optional reachability from `sourcetype="citrix:sdwan:mgmt"` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
+- **SPL:**
+```spl
+index=sdwan (sourcetype="citrix:sdwan:orchestrator" OR sourcetype="citrix:sdwan:mgmt") earliest=-24h
+| eval ok=if(match(lower(result),"(?i)success|ok|applied"),1,0), fail=if(match(lower(result),"(?i)fail|error|timeout|denied|partial"),1,0), nreach=if(match(lower(error_code),"(?i)unreach|no route|refused|tls|auth|503"),1,0)
+| bin _time span=15m
+| stats count as jobs, sum(ok) as okc, sum(fail) as failc, sum(nreach) as reach_fails, dc(target_appliance) as appliances by _time, change_set
+| where failc>0 OR reach_fails>0
+| table _time, change_set, jobs, okc, failc, reach_fails, appliances
+```
+- **Implementation:** Ingest job completion and management heartbeat logs. Tag each job with a change ticket. Alert on any push failure, growing count of `target_appliance` in error, or management-plane unreachability. For fleet-wide failure, start rollback of the `change_set` in the product and notify change owner. For chronic single appliance failure, look at time sync, cert expiry, and last-seen in inventory.
+- **Visualization:** Timechart: failed jobs per 15m; table: `change_set` with failure rates; list: top appliances by failed attempts; health tile: orchestrator reachability.
+- **CIM Models:** Change
+- **Known false positives:** Wide orchestrator template pushes for acquired branches or RMA replacements will fail for offline appliances in bulk. A site-reachability join and a batch job with retry and grace separate expected partial failure from a broken orchestrator core.
+- **Last reviewed:** 2026-04-24
+
+- **References:** [Citrix — SD-WAN Orchestrator administration](https://docs.citrix.com/en-us/citrix-sd-wan-orchestrator/)
+
+---

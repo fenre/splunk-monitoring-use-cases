@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.1.23",
+  "title": "Traefik JSON Access Log Request Duration",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=web` `sourcetype=traefik:access` JSON access log (`Duration` in nanoseconds)",
+  "app": "Add On for Traefik Proxy (Splunkbase app 6733)",
+  "spl": "index=web sourcetype=\"traefik:access\"\n| eval dur_ms=round(Duration/1000000, 3)\n| timechart span=5m perc95(dur_ms) as p95_ms by RouterName\n| where p95_ms > 1500",
+  "description": "Traefik access logs expose `Duration` per request. P95 by `RouterName` or `ServiceName` isolates slow routes and backends.",
+  "value": "Pinpoints which Traefik routers degrade first during incidents.",
+  "implementation": "Enable JSON access logs; install the Traefik add-on or parse `Duration`, `DownstreamStatus`, and router fields at ingest.",
+  "visualization": "Line chart (P95 per router), table (worst services), histogram of durations.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Add On for Traefik Proxy (Splunkbase)",
+      "url": "https://splunkbase.splunk.com/app/6733"
+    },
+    {
+      "title": "Traefik — Logs and Access Logs",
+      "url": "https://doc.traefik.io/traefik/observability/logs-and-access-logs/"
+    }
+  ],
+  "equipment": [
+    "traefik"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Add On for Traefik Proxy (Splunkbase app 6733).\n• Ensure the following data sources are available: `index=web` `sourcetype=traefik:access` JSON access log (`Duration` in nanoseconds).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse JSON access format; if fields are in `_raw`, add `spath` or KV extraction for `Duration`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"traefik:access\"\n| eval dur_ms=round(Duration/1000000, 3)\n| timechart span=5m perc95(dur_ms) as p95_ms by RouterName\n| where p95_ms > 1500\n```\n\nUnderstanding this SPL\n\n**Traefik JSON Access Log Request Duration** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=traefik:access` JSON access log (`Duration` in nanoseconds). **App/TA**: Add On for Traefik Proxy (Splunkbase app 6733). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (P95 per router), table (worst services), histogram of durations..",
+  "grandmaExplanation": "We measure how long each routing rule takes so you can see which path hurts users first."
+}

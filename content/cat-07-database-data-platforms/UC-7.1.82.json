@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.82",
+  "title": "Snowflake Failed Login and MFA Anomaly Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.LOGIN_HISTORY` authentication factors on `snowflake:login_history`",
+  "app": "Splunk Add-on for Snowflake (Splunkbase 5390)",
+  "spl": "index=datawarehouse sourcetype=\"snowflake:login_history\"\n| eval ok=if(IS_SUCCESS=\"true\" OR IS_SUCCESS=\"TRUE\" OR IS_SUCCESS=1,1,0)\n| eval mfa=coalesce(SECOND_AUTHENTICATION_FACTOR, second_authentication_factor,\"\")\n| eval mfa_fail=if(ok=0 AND match(coalesce(ERROR_MESSAGE,\"\"),\"(?i)mfa|multi-?factor|second factor\"),1,0)\n| eval priv_bypass=if(ok=1 AND match(USER_NAME,\"(?i)admin\") AND (mfa=\"\" OR match(mfa,\"(?i)not applicable\")),1,0)\n| where ok=0 OR mfa_fail=1 OR priv_bypass=1\n| bin _time span=1h\n| stats count as events values(ERROR_MESSAGE) as err dc(CLIENT_IP) as ips max(mfa_fail) as had_mfa_error max(priv_bypass) as had_priv_no_mfa by USER_NAME, _time\n| where events > 5 OR had_mfa_error=1",
+  "description": "Credential attacks produce failed logins, while risky configuration can allow privileged roles to authenticate without a second factor. Combining failure volume with MFA field presence highlights both brute-force and policy-bypass patterns worth investigating.",
+  "value": "Reduces account takeover and privileged-access risk for Snowflake-native and hybrid SSO deployments.",
+  "implementation": "Map `FIRST_AUTHENTICATION_FACTOR`, `SECOND_AUTHENTICATION_FACTOR`, `IS_SUCCESS`, `ERROR_MESSAGE`, `CLIENT_IP` per TA version. Maintain `privileged_snowflake_users.csv` instead of hardcoding roles in production. For IdP-MFA, expect `SECOND_AUTHENTICATION_FACTOR` to be empty—tune the MFA-bypass stanza to your SSO model. Correlate with IdP sign-in logs.",
+  "visualization": "Timeline (events), Table (user, ok, err, ips), Map (CLIENT_IP).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Snowflake LOGIN_HISTORY",
+      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/login_history"
+    },
+    {
+      "title": "Snowflake — Multi-factor authentication",
+      "url": "https://docs.snowflake.com/en/user-guide/security-mfa"
+    }
+  ],
+  "equipment": [
+    "snowflake"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

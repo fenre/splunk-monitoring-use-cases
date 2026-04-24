@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.24",
+  "title": "Citrix ADC Web Application Firewall (WAF) Violations",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:syslog\"` WAF log profile output — `violation_type`, `severity`, `policy_name`, `profile_name`, `url`, `learning` vs `enforcement` mode, geo block actions",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "spl": "index=netscaler sourcetype=\"citrix:netscaler:syslog\" (WAF OR \"Application Firewall\" OR APPFW)\n| rex field=_raw \"(?i)(?<violation>SQL|XSS|JSON|XML|CSRF|OWASP)\"\n| eval is_learning=if(match(_raw, \"(?i)learning\"), 1, 0)\n| where NOT (is_learning=1 AND match(_raw, \"(?i)info\"))\n| bin _time span=15m\n| stats count as hits, values(violation) as violation_types, dc(url) as unique_urls, latest(host) as adc by policy_name, _time\n| where hits > 0\n| sort - hits\n| table _time, adc, policy_name, violation_types, unique_urls, hits",
+  "description": "Citrix ADC Web Application Firewall inspects HTTP traffic for common attacks (SQL injection, cross-site scripting, JSON/XML threats) and policy violations. Spikes in violations, or critical signatures firing in enforcement mode, indicate active attacks or misconfigured applications. Distinguishing learning mode noise from enforcement blocks, and monitoring geographic blocks, keeps incident response focused and reduces false positives.",
+  "value": "Citrix ADC Web Application Firewall inspects HTTP traffic for common attacks (SQL injection, cross-site scripting, JSON/XML threats) and policy violations. Spikes in violations, or critical signatures firing in enforcement mode, indicate active attacks or misconfigured applications. Distinguishing learning mode noise from enforcement blocks, and monitoring geographic blocks, keeps incident response focused and reduces false positives.",
+  "implementation": "Send WAF log profile output to syslog and index as `citrix:netscaler:syslog`. Parse violation type, action (block, learn, log), and policy. Build correlation searches for attack categories (SQL, XSS, JSON injection) and for geo-IP block actions if logged. Tune thresholds by application: public APIs may legitimately spike; internal apps should not. Use lookups for known scanner IPs and pen-test windows.",
+  "visualization": "Stacked column chart of violations by type over time, treemap of policies, drilldown to sample URLs (sanitized).",
+  "cimModels": [
+    "Intrusion_Detection",
+    "Web"
+  ],
+  "references": [
+    {
+      "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+    },
+    {
+      "title": "Citrix ADC — Web App Firewall",
+      "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/application-firewall.html"
+    }
+  ],
+  "knownFalsePositives": "Large legitimate uploads, public marketing scans, and PCI or vendor ASV external scans can trip WAF blocks that look like attacks. A scanner and OWASP test calendar, with URL and VIP scope, keep compliance testing from driving SOC fatigue.",
+  "mitreAttack": [
+    "T1190"
+  ],
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_netscaler"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Splunk_TA_citrix-netscaler with WAF-relevant syslog in `index=netscaler`.\n• WAF log profile bound to vservers; consistent timestamp and severity.\n• Field extractions for violation and policy names (or rely on `rex` in the search for first rollout).\n\nStep 1 — Configure data collection\nOn the ADC, enable logging for the WAF profile: violations, learn vs block decisions, and geo policy hits if used. Forward to Splunk. Avoid logging full request bodies in production if policy forbids; hash or truncate as required.\n\nStep 2 — Create the search and alert\nRun the SPL. Alert on sustained elevation above baseline, or on any critical OWASP category in enforcement from sensitive apps. Add suppressions for learning-only noise where appropriate. Integrate with your incident queue for critical spikes.\n\nStep 3 — Validate\nUse a safe lab request that triggers a test signature in log-only mode, then in block mode, and confirm events and counts. Verify learning-mode traffic is classified correctly.\n\nStep 4 — Operationalize\nDashboard for SecOps, weekly digest for App owners, and runbook steps for false positive tuning ( relax rule, add exception, or fix application).",
+  "grandmaExplanation": "We watch the web front door for attack patterns the security filter catches — so we see serious break-in attempts and broken apps before customers or auditors get a nasty surprise."
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "15.3.42",
+  "title": "NVR Recording Segment Gap Detection vs Expected FPS",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=physical` `sourcetype=nvr:recording_health` JSON or CSV from Milestone, Genetec, or Hikvision SDK exports with `segment_start_epoch`, `segment_end_epoch`, `camera_id`",
+  "app": "Custom scripted export via NVR REST API + HEC, or VMS SIEM connector",
+  "spl": "index=physical sourcetype=nvr:recording_health camera_id=*\n| sort 0 camera_id segment_start_epoch\n| streamstats window=1 global=f last(segment_end_epoch) as prev_end by camera_id\n| eval gap_sec=segment_start_epoch-prev_end\n| where isnotnull(prev_end) AND gap_sec > 15\n| table camera_id, prev_end, segment_start_epoch, gap_sec\n| sort - gap_sec",
+  "description": "Regulators and prosecutors ask whether video exists for a full timeline. Comparing contiguous recording segments per camera surfaces silent gaps longer than motion-mask explanations—often disk stalls, RAID degradation, or timezone skew after DST.",
+  "value": "Produces defensible proof that continuous recording obligations are met, or flags gaps while footage might still be recovered from buffer.",
+  "implementation": "Export segment metadata every 5 minutes; do not index full video in Splunk. Ensure epoch times are UTC. `gap_sec > 15` matches many jurisdictions' tolerance—tighten for high-security sites. Handle multiplexed streams by `camera_id`+`stream` key. Join with storage latency metrics.",
+  "visualization": "Gantt-style (custom viz) or Table (gaps), Line chart (gap count per site).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Milestone XProtect — logging and auditing",
+      "url": "https://www.milestonesys.com/"
+    },
+    {
+      "title": "Splunk Docs: HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "cctv"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• API rate limits respected on NVR.\n• Legal team sets acceptable gap threshold.\n\nStep 1 — Validate against VMS built-in gap report.\n\nStep 2 — DST simulation in lab.\n\nStep 3 — Chain of custody SOP for exports.\n\nStep 4 — Optional `fillnull` for missing export windows.",
+  "grandmaExplanation": "We check that recorded video doesn’t have unexplained holes in the timeline, which matters when footage might be evidence."
+}

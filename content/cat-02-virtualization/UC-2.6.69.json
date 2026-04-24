@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.69",
+  "title": "Citrix Endpoint Management Server Health",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=main` or `index=app` with `sourcetype=\"citrix:endpoint:server:health\"` or JMX/log-derived metrics: `jvm_thread_blocked`, `db_pool_in_use`, `db_pool_max`, `scheduler_backlog`, `queue_depth`, `ssl_cert_expiry_date`; `sourcetype=\"WinEventLog:Application\"` for Java and database errors on Windows-hosted CEM; `localhost_access_log` (application server) sourcetype if applicable; Linux `sourcetype=\"syslog\"` for appliances Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.",
+  "spl": "index=app (sourcetype=\"citrix:endpoint:server:health\" OR sourcetype=\"citrix:cep:jmx\")\n| eval blocked=tonumber(coalesce(jvm_thread_blocked, blocked_threads, 0))\n| eval db_use=tonumber(coalesce(db_pool_in_use, db_active, 0))\n| eval db_max=tonumber(coalesce(db_pool_max, db_total, 1))\n| eval back=tonumber(coalesce(scheduler_backlog, job_queue, async_queue, 0))\n| eval cert_days=if(isnotnull(ssl_cert_expiry_date), round((strptime(ssl_cert_expiry_date,\"%Y-%m-%d\")-now())/86400,0), null())\n| eval db_pct=if(db_max>0, round(100*db_use/db_max,1), 0)\n| where blocked>50 OR back>1000 OR db_pct>90 OR (isnotnull(cert_days) AND cert_days<=30)\n| stats latest(blocked) as blocked, latest(db_pct) as db_pool_util_pct, latest(back) as queue_backlog, latest(cert_days) as ssl_cert_days_left by host, role\n| sort - db_pool_util_pct",
+  "description": "The Citrix Endpoint Management application tier sits on a JVM, a relational database, and background schedulers that push policy and app commands. Thread starvation, pool exhaustion, or a stuck job queue can surface as flapping device check-ins and mass policy drift before a simple `ping` fails. Server-side health metrics plus SSL and database utilization give a root-cause-friendly picture that complements per-device UCs. Certificate expiry on the CEM public endpoint is a classic near-miss that full-stack monitoring should never leave to an annual calendar reminder alone.",
+  "value": "The Citrix Endpoint Management application tier sits on a JVM, a relational database, and background schedulers that push policy and app commands. Thread starvation, pool exhaustion, or a stuck job queue can surface as flapping device check-ins and mass policy drift before a simple `ping` fails. Server-side health metrics plus SSL and database utilization give a root-cause-friendly picture that complements per-device UCs. Certificate expiry on the CEM public endpoint is a classic near-miss that full-stack monitoring should never leave to an annual calendar reminder alone.",
+  "implementation": "Instrument each CEM node: JVM thread dumps on alert, JDBC pool via JMX, scheduler backlog from application logs, and a synthetic login or API every five minutes. Forward Windows or Linux system logs. Alert in stages: queue backlog over a static threshold, DB pool over 90 percent for ten minutes, blocked threads over 50 for two samples, and SSL cert under 30 days. Pair with database server KPIs. Document rolling patch windows and scale-out when a single node saturates. Keep an HA pair or cluster view so you alert on the worst node and the cluster average.",
+  "visualization": "Node grid: pool percent, queue depth, blocked threads; line chart: backlog with deploy markers; cert countdown single value for public VIP.",
+  "cimModels": [
+    "Application_State"
+  ],
+  "references": [
+    {
+      "title": "Citrix Endpoint Management — supported topologies and sizing context",
+      "url": "https://docs.citrix.com/en-us/citrix-endpoint-management/citrix-endpoint-mdm-mam.html"
+    }
+  ],
+  "knownFalsePositives": "EMM database maintenance, index jobs, and load balancer or SSL work on the CEM server tier can return slow or error responses that resemble outage. EMM maint tags on app and DB, plus a sustained 5xx rate, filter single blips.",
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_daas",
+    "citrix_xem"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Admin access to JMX (secured); DB performance counters; a clear mapping from hostname to CEM site role; TLS inventory for all listener endpoints.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse least-privilege JMX. Omit connection strings in logs. Baseline a normal business week before thresholds.\n\nStep 2 — Create the search and alert\nTie to maintenance windows. Page on SLO burn for the synthetic probe plus internal saturation signals together to reduce false positives.\n\nStep 3 — Validate\nIn test, cap the DB connection pool in a throwaway node, assert pool and error logs align. For SSL, use a test cert with a near `notAfter` if your CA allows it.\n\nStep 4 — Operationalize\nAdd to the EUC and database shared on-call line for saturation alerts; run a tabletop twice a year for total CEM outage.",
+  "grandmaExplanation": "We watch the big computer that talks to all the work phones for overload, long lines of waiting jobs, and an expiring public lock on the website, so the whole system does not go shaky for everyone at once."
+}

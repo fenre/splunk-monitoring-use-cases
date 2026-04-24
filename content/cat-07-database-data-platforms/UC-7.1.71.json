@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.71",
+  "title": "Cassandra Hinted Handoff Queue Growth",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Resilience"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "JMX `org.apache.cassandra.metrics:type=HintsService` or `nodetool hints` output ingested as `cassandra:system` metrics events",
+  "app": "Splunk Add-on for JMX polling hints metrics, or scripted `nodetool hints list` / `nodetool gethints` counters",
+  "spl": "index=database sourcetype=\"cassandra:system\"\n| search \"HintsService\" OR \"hints in progress\" OR \"HintsDescriptor\"\n| eval hints_pending=coalesce(tonumber(total_hints), tonumber(hints_in_progress))\n| where hints_pending > 10000\n| timechart span=15m max(hints_pending) as hints by host\n| streamstats window=3 global=f delta(hints) as hints_delta\n| where hints_delta > 5000",
+  "description": "Growing hinted handoff backlogs mean writes could not be delivered while peers were down; if hints cannot drain, you risk data loss after TTL on hints expires. Trending queue growth highlights nodes that cannot catch up after outages.",
+  "value": "Supports RPO/RTO commitments after partial failures by forcing repair and capacity actions before hints expire.",
+  "implementation": "Prefer JMX `TotalHintsInProgress` or `HintsService` MBean counters every 60s via `jmx.conf`. If log-only, parse periodic diagnostic jobs that emit numeric hints. Baseline per cluster; alert on sustained upward slope for 45+ minutes. Pair with `cassandra:nodetool_status` DOWN nodes.",
+  "visualization": "Area chart (hints by host), Single value (cluster total hints).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache Cassandra — Hinted handoff",
+      "url": "https://cassandra.apache.org/doc/latest/cassandra/architecture/storage-engine.html#hints"
+    }
+  ],
+  "equipment": [
+    "cassandra",
+    "nodetool"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

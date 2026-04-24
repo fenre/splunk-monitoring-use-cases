@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.8.13",
+  "title": "Asterisk Queue Log Abandon Rate and Service Level Breach",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Business"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`index=voip` `sourcetype=asterisk:queue_log` pipe-delimited events (`COMPLETEAGENT`, `ABANDON`, `ENTERQUEUE`, `CONNECT`)",
+  "app": "Asterisk `queue_log` file monitoring via Universal Forwarder",
+  "spl": "index=voip sourcetype=asterisk:queue_log\n| eval q=coalesce(queue, qname)\n| eval is_abandon=if(event=\"ABANDON\",1,0), is_enter=if(event=\"ENTERQUEUE\",1,0), is_answer=if(event=\"CONNECT\",1,0)\n| bin _time span=1h\n| stats sum(is_enter) as enters, sum(is_abandon) as abandons, sum(is_answer) as answers by _time, host, q\n| eval abandon_rate=round(100*abandons/nullif(enters,0),2)\n| eval sla_met=round(100*answers/nullif(enters,0),2)\n| where enters>30 AND (abandon_rate>15 OR sla_met<75)",
+  "description": "The Asterisk `queue_log` is the canonical source for ENTERQUEUE, ABANDON, and CONNECT events. Hourly abandon percentage and connect ratio highlight understaffed intervals or misrouted IVR paths before executive dashboards show revenue impact.",
+  "value": "Protects revenue and NPS on carrier or enterprise contact centers running Asterisk queues by exposing abandon spikes within an hour.",
+  "implementation": "Monitor `/var/log/asterisk/queue_log` with correct line breaking (each line is one event). Extract `event`, `qname`/`queue`, and hold time fields if present on ABANDON. Tune thresholds: retail often tolerates higher abandons than emergency services. Join with workforce management schedules via lookup on `q`.",
+  "visualization": "Line chart (abandon_rate, sla_met), Bar chart (worst queues), Heatmap (hour × queue).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Asterisk Documentation — Queue logs",
+      "url": "https://docs.asterisk.org/Operation/Logging/Queue-Logs/"
+    },
+    {
+      "title": "Splunk Docs: Monitor files and directories",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitorfilesanddirectories"
+    }
+  ],
+  "equipment": [
+    "asterisk"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• `props.conf` `LINE_BREAKER` for queue_log pipe format.\n• Clock sync between Asterisk and Splunk.\n\nStep 1 — Validate event counts against `queue show stats`.\n\nStep 2 — Exclude marketing test campaigns via ANI lookup.\n\nStep 3 — Alert routing to WFM team with queue name.\n\nStep 4 — Archive raw queue_log for regulatory retention if required.",
+  "grandmaExplanation": "We track how many people hang up while waiting on hold so managers can add staff or fix routing before customers get really angry.",
+  "telcoUseCase": "Contact center queue analytics on Asterisk `queue_log` — correlate abandons with staffing without exporting CDR to a separate warehouse."
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.65",
+  "title": "Netskope First-Time Cloud Application Access by User (Shadow IT Signal)",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Netskope activity events, `sourcetype=netskope:events`",
+  "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
+  "spl": "index=casb sourcetype=\"netskope:events\" earliest=-2d\n| eval app=coalesce(app_name, app, service)\n| eval user=coalesce(user, user_key, os_username)\n| stats earliest(_time) as first_hit dc(category) as cat_count values(category) as category by user, app\n| where first_hit >= relative_time(now(), \"-24h\")\n| lookup sanctioned_saas_apps.csv app OUTPUT sanctioned\n| where sanctioned!=\"true\" OR isnull(sanctioned)\n| table user, app, category, first_hit\n| sort user, app",
+  "description": "Employees adopt new SaaS tools continuously. The first time a user accesses an unsanctioned application is the earliest moment for governance—before data volumes grow and before accounts sprawl across the tenant.",
+  "value": "Feeds CASB governance queues with a forward-looking metric rather than waiting for DLP or malware outcomes.",
+  "implementation": "Maintain `sanctioned_saas_apps.csv` from architecture review decisions. Use summary indexing or KV store for historical first-seen to reduce search cost on large tenants. Exclude browser update and OS background traffic via `traffic_type` filters.",
+  "visualization": "Table (user, new app, category), Bar chart (new apps per week), Funnel (discovered → reviewed → sanctioned).",
+  "references": [
+    {
+      "title": "Splunkbase — Netskope Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/3808"
+    },
+    {
+      "title": "Netskope — Cloud app discovery",
+      "url": "https://www.netskope.com/products/cloud-security"
+    }
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "netskope"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.2.26",
+  "title": "Squid Upstream and Peer Connection Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=proxy` `sourcetype=squid:cache` (cache.log warnings/errors)",
+  "app": "Custom (Squid `cache.log` forwarding)",
+  "spl": "index=proxy sourcetype=\"squid:cache\"\n| search (\"Connection to\" AND failed) OR \"CONNECT tunnel error\" OR \"Network unreachable\"\n| rex field=_raw \"(?<peer>\\d+\\.\\d+\\.\\d+\\.\\d+|\\S+:\\d+)\"\n| stats count by peer\n| sort -count",
+  "description": "cache.log records parent/peer connect failures, TLS issues, and routing errors that may not appear as 5xx in access logs yet.",
+  "value": "Explains intermittent proxy failures during upstream maintenance or path MTU issues.",
+  "implementation": "Enable informative logging; rotate and forward cache.log. Tune noise from benign peer flaps.",
+  "visualization": "Table (peer × count), timeline of failures, link to network change calendar.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Squid Configuration Manual — Access Log",
+      "url": "http://www.squid-cache.org/Doc/config/access_log/"
+    }
+  ],
+  "equipment": [
+    "squid"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Squid `cache.log` forwarding).\n• Ensure the following data sources are available: `index=proxy` `sourcetype=squid:cache` (cache.log warnings/errors).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nValidate search terms against your Squid major version; adjust phrases for your locale.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"squid:cache\"\n| search (\"Connection to\" AND failed) OR \"CONNECT tunnel error\" OR \"Network unreachable\"\n| rex field=_raw \"(?<peer>\\d+\\.\\d+\\.\\d+\\.\\d+|\\S+:\\d+)\"\n| stats count by peer\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Squid Upstream and Peer Connection Failures** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` `sourcetype=squid:cache` (cache.log warnings/errors). **App/TA**: Custom (Squid `cache.log` forwarding). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (peer × count), timeline of failures, link to network change calendar..",
+  "grandmaExplanation": "We read your proxy’s diary for signs its upstream friends stopped answering."
+}

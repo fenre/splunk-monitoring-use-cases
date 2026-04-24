@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.51",
+  "title": "MongoDB Sharded Cluster Chunk Migration Failures",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Mongos/router logs (`moveChunk`, `MigrationFailed`, `ChunkMoveError`), sourcetype `mongodb:log`",
+  "app": "Splunk Add-on for MongoDB log forwarding, or HEC from MongoDB Atlas / self-managed `mongod`/`mongos` log paths",
+  "spl": "index=database sourcetype=\"mongodb:log\"\n| search (\"FailedToStartChunkMigration\" OR \"migration failed\" OR \"moveChunk failed\" OR \"ChunkMigrationFailed\")\n| rex field=message \"ns:\\s+(?<ns>[^\\s]+)\"\n| bin _time span=5m\n| stats count as failures values(message) as samples by host, ns, _time\n| where failures >= 3",
+  "description": "Failed chunk migrations leave jumbo chunks, hot shards, and incomplete balancing; applications see uneven latency and capacity risk on a single shard. Detecting repeated migration failures early prevents outages when one shard becomes the only write path.",
+  "value": "Gives the platform team time to fix network partitions, disk space, or config metadata issues before customer-facing latency spikes and shard exhaustion.",
+  "implementation": "Forward `mongos` and config server logs to Splunk; assign `mongodb:log` in `props.conf` with correct `TIME_FORMAT` for your MongoDB log version. Tag `host` with mongos identity. Create a correlation lookup for approved maintenance windows. Alert when three or more failure signatures occur within five minutes per namespace.",
+  "visualization": "Timeline (failures over time), Table (host, ns, failures, sample message), Map (shard host roles if enriched).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "MongoDB — sharding chunk migration",
+      "url": "https://www.mongodb.com/docs/manual/core/sharding-balancer-administration/"
+    },
+    {
+      "title": "MongoDB log messages reference",
+      "url": "https://www.mongodb.com/docs/manual/reference/log-messages/"
+    }
+  ],
+  "equipment": [
+    "mongodb",
+    "mongosh"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

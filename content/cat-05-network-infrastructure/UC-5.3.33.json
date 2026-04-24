@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.33",
+  "title": "Citrix SDX Platform Health (Partition Resources)",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:snmp\"` — per-partition or host CPU, memory, LOM, PSU, fan, platform sensors; `sourcetype=\"citrix:netscaler:syslog\"` for hypervisor, VPX state, and hardware alarms",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "spl": "index=netscaler (sourcetype=\"citrix:netscaler:snmp\" OR sourcetype=\"citrix:netscaler:syslog\") (\"SDX\" OR \"Xen\" OR \"partition\" OR \"VPX\" OR LOM OR PSU OR FAN OR \"throttle\")\n| eval part_cpu=coalesce(adc_partition_cpu_use_pct, sdx_cpu_use_pct, 0), part_mem=coalesce(adc_partition_mem_use_pct, sdx_mem_use_pct, 0)\n| eval alarm=if(match(_raw, \"(?i)(PSU|FAN|LOM|redundant|failed|critical)\"),1,0)\n| bin _time span=5m\n| stats max(part_cpu) as max_cpu, max(part_mem) as max_mem, sum(alarm) as alarm_events, values(host) as hosts by _time, sdx_name, partition_id\n| where max_cpu>85 OR max_mem>90 OR alarm_events>0\n| table _time, sdx_name, partition_id, max_cpu, max_mem, alarm_events, hosts",
+  "description": "Citrix NetScaler SDX hosts multiple isolated VPX instances. Platform health is about partition CPU and memory, hypervisor and VPX liveness, and out-of-band LOM, power, and cooling. A stressed partition throttles applications before obvious syslog noise; LOM, PSU, or fan alarms demand hardware attention before a blade fails.",
+  "value": "Citrix NetScaler SDX hosts multiple isolated VPX instances. Platform health is about partition CPU and memory, hypervisor and VPX liveness, and out-of-band LOM, power, and cooling. A stressed partition throttles applications before obvious syslog noise; LOM, PSU, or fan alarms demand hardware attention before a blade fails.",
+  "implementation": "Poll SNMP with SDX/MPX and ADC-specific OIDs into `citrix:netscaler:snmp`. Forward `citrix:netscaler:syslog` for hypervisor, VPX, and platform events. Enrich with asset tags for slot, data hall, and power feed. Page on high partition utilization versus entitlement, and on any hardware or LOM down events.",
+  "visualization": "Heatmap of partitions by CPU, horizontal bar: memory, timeline of hardware alarms, table of active VPX count per host.",
+  "cimModels": [
+    "Performance"
+  ],
+  "references": [
+    {
+      "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+    },
+    {
+      "title": "Citrix ADC — SDX (multi-tenant platform)",
+      "url": "https://docs.citrix.com/en-us/citrix-adc/"
+    }
+  ],
+  "knownFalsePositives": "Reallocating vCPU, memory, or network on an SDX partition during tenant maintenance or SVM work can show short resource stress on instances. SVM and SDX change windows and 'tenant in flight' tags isolate planned partition churn from hardware failure.",
+  "equipment": [
+    "citrix",
+    "hyperv",
+    "snmp",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_netscaler",
+    "snmp_generic"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites: SNMP v3 credentials and OIDs; syslog to index=netscaler; map partition_id to line-of-business and VPX list. Step 1: Configure data collection — Use TA transforms to normalize adc_partition_cpu_use_pct, sdx_name, and partition_id; throttle very chatty OIDs; keep clock sync between CMC, hypervisor, and guests. Step 2: Create the search and alert — Set CPU>85% and mem>90% to match VPX entitlements; treat any LOM/PSU/FAN critical alarm as sev-1 outside maintenance; start with sustained high CPU over 30m before tuning down. Step 3: Validate — After a VPX migration or CPU share change, run `index=netscaler sourcetype=\"citrix:netscaler:snmp\" earliest=-1h | stats max(*) by sdx_name, partition_id` and compare to SDX management UI. Step 4: Operationalize — Datacenter SOP for RMA, update CMDB, plan capacity; if partitions stay saturated, escalate to Citrix platform and data center operations; add hardware alarm routing in alerts.conf.",
+  "grandmaExplanation": "We look at the big shared machine that runs many virtual load balancers — so we know when a slice of it is choking, when power or cooling wobble, or when the hidden management path dies before a whole cabinet of apps vanishes."
+}

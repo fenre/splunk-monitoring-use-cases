@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.69",
+  "title": "Cassandra Tombstone Warnings on Read Path",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Cassandra `system.log` lines for tombstone thresholds, sourcetype `cassandra:system`",
+  "app": "Universal Forwarder on Cassandra nodes with `monitor://` on `cassandra/logs/system.log`",
+  "spl": "index=database sourcetype=\"cassandra:system\"\n| search \"tombstone\" AND (\"WARN\" OR \"ERROR\" OR \"ReadCommand\")\n| rex field=_raw \"Read (?<read_type>\\w+) query.* scanned (?<scanned>\\d+) tombstones.* limit (?<limit>\\d+)\"\n| eval over_limit=if(scanned>limit,1,0)\n| stats count as warn_events max(scanned) as max_tombstones by keyspace, table, host\n| where warn_events >= 5 OR max_tombstones > 10000",
+  "description": "Reads that cross large numbers of tombstones slow every replica and can trigger GC storms; log warnings are the fastest signal that TTL, delete patterns, or compaction are misaligned with access paths.",
+  "value": "Avoids surprise latency incidents during batch deletes or TTL changes and guides data modeling fixes before timeouts dominate.",
+  "implementation": "Set `props.conf` `LINE_BREAKER` for multiline stack traces; extract `keyspace` and `table` via `EXTRACT-cassandra_table`. Tune `tombstone_warn_threshold` awareness—alerts should fire below catastrophic defaults. Pair with `cassandra:nodetool_cfstats` `Droppable tombstone` metrics.",
+  "visualization": "Timeline (warn_events), Table (keyspace, table, max_tombstones).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache Cassandra — Tombstones",
+      "url": "https://cassandra.apache.org/doc/latest/cassandra/developing/cql/dml.html#deletes"
+    }
+  ],
+  "equipment": [
+    "cassandra",
+    "nodetool"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

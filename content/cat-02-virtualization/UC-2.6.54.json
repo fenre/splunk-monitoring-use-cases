@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.54",
+  "title": "RDS Licensing Validation for Multi-Session Hosts",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=windows` `sourcetype=\"WinEventLog:Application\"` with `Source=\"*TerminalServices*\"` or `Microsoft-Windows-TerminalServices-LSM*`, Windows license service events, Remote Desktop license server events (42, 4105, 22, 23, 25, 28); `index=windows` on the license server and `sourcetype=\"WinEventLog:RemoteDesktopServices*\"` where available; `index=xd` `sourcetype=\"citrix:broker:events\"` for multi-session brokering context",
+  "app": "Splunk Add-on for Microsoft Windows on session hosts and on Remote Desktop License Servers; optional scripted WMI or `Get-CimInstance` poll for `Win32_TerminalServiceSetting` and grace period on hosts",
+  "spl": "index=windows (sourcetype=\"WinEventLog:Application\" OR sourcetype=\"WinEventLog:RemoteDesktopServices*\" OR source=\"*TerminalServices*\")\n| where EventCode IN (22, 23, 25, 28, 38, 4105) OR like(lower(_raw),\"%license%\") OR like(lower(_raw),\"%grace%\") OR like(lower(_raw),\"%remote desktop%\") OR like(lower(_raw),\"%rd licen%\")\n| eval kind=if(like(lower(_raw),\"%grace%\"),\"grace\", if(like(lower(_raw),\"%expir%\"),\"expiry\",\"license_event\"))\n| eval server=coalesce(license_server, LicenseServer, host)\n| bin _time span=1d\n| stats count as daily_events, values(EventCode) as codes, values(kind) as kinds by server, _time\n| where daily_events>0\n| sort - daily_events\n| table _time, server, daily_events, codes, kinds",
+  "description": "Session hosts that offer multiple concurrent RDP and Citrix sessions need valid Remote Desktop Services client access licenses, healthy communication with the license server list, and clear visibility into per-device versus per-user mode and any grace period. A host in grace can appear healthy until a deadline passes and new sessions are refused. A broken license server list string — wrong DNS, firewall, or certificate — is a common misconfiguration. Collect license warnings from Application and the Remote Desktop service channels on each multi-session VDA, and aggregate the same on license servers. Pair with your Citrix per-user and Microsoft RDS-CAL entitlements in procurement, not in Splunk, but use Splunk to prove the runtime state matches policy.",
+  "value": "Session hosts that offer multiple concurrent RDP and Citrix sessions need valid Remote Desktop Services client access licenses, healthy communication with the license server list, and clear visibility into per-device versus per-user mode and any grace period. A host in grace can appear healthy until a deadline passes and new sessions are refused. A broken license server list string — wrong DNS, firewall, or certificate — is a common misconfiguration. Collect license warnings from Application and the Remote Desktop service channels on each multi-session VDA, and aggregate the same on license servers. Pair with your Citrix per-user and Microsoft RDS-CAL entitlements in procurement, not in Splunk, but use Splunk to prove the runtime state matches policy.",
+  "implementation": "Enable verbose Remote Desktop license logging in Windows where supported. Add a small scripted input to dump `HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\RCM\\Licensing` or PowerShell `Get-RDLicense` output daily on license servers. Alert on any `grace` or `0-day` grace start, any event that says license server is unreachable, and any 4105 with severity error. Deduplicate license servers. Document which Citrix and Microsoft agreements cover which host pools. Tune out duplicate Windows noise per build.",
+  "visualization": "Table of last license error per host, timechart of daily_events by server, single value of hosts in grace, network diagram optional with manual overlay.",
+  "cimModels": [
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "title": "Remote Desktop Services and licensing (Microsoft Learn)",
+      "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/remote/remote-desktop-services-terms"
+    },
+    {
+      "title": "Citrix — supported operating systems and RDS context",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/system-requirements.html"
+    }
+  ],
+  "knownFalsePositives": "License key renewals, grace period during true-up, and a temporary license server failover can log RDS or Citrix session licensing warnings. Map to the license key expiry calendar and only escalate when users are actually blocked at session connection.",
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Windows add-on; reachability from forwarders to license servers; UDP/TCP 135 and RPC ranges documented.\n• Ensure the following data sources are available: Application and RDS-specific event logs; optional dedicated license server in `index=windows` with its own `host` value.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBuild a `lookup` of expected license server FQDNs per site. Ingest the license server farm first — it is the source of truth for issuance errors. Ingest all multi-session session hosts. Merge Citrix and Microsoft terms of use in a runbook; Splunk is evidence, not a license calculator.\n\nStep 2 — Create the search and alert\nHarden `EventCode` lists per your Windows build. A parallel search for unreachability:\n\n```spl\nindex=windows \"Remote Desktop License Servers\" OR \"The Remote Desktop license server is not available\"\n| table _time, host, EventCode, Message\n```\n\n**RDS Licensing Validation for Multi-Session Hosts** — Require two matching events in 15 minutes before a page, to reduce one-off flaps. Join `host` to a lookup that classifies the machine as `multi_session=true` to avoid false positives on single-session VDI where RDS CAL rules differ.\n\nStep 3 — Validate\nStop the license service in a lab (not production) briefly and assert Splunk shows the follow-on events. Reconcile Event IDs to Microsoft’s table for your build.\n\nStep 4 — Operationalize\nAttach dashboards to the Windows license operations team, not only Citrix, because CAL issues are shared. Revisit when migrating license servers to new hardware or DNS aliases.",
+  "grandmaExplanation": "We make sure the shared Windows “terminal server” style licensing stays healthy on machines that run many people at once, so you are not suddenly blocked by grace periods or a dead license server list."
+}

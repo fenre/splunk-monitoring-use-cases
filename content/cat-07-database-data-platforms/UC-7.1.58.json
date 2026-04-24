@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.58",
+  "title": "ClickHouse Stuck or Failed Mutations",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operational",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`system.mutations` ingested as `clickhouse:mutations`",
+  "app": "Scheduled export from ClickHouse system tables to HEC",
+  "spl": "index=database sourcetype=\"clickhouse:mutations\"\n| where is_done==0 OR is_done==\"false\" OR latest_failed_part!=\"\" OR isNull(is_done)\n| eval backlog=tonumber(parts_to_do)\n| where backlog > 50 OR match(_raw,\"exception\") OR match(_raw,\"Cannot\")\n| stats max(backlog) as max_parts_todo latest(latest_fail_reason) as fail_reason by database, table, mutation_id, host\n| sort -max_parts_todo",
+  "description": "ALTER … UPDATE/DELETE mutations that stall leave schema and data in limbo and block merges. Tracking `parts_to_do` and failure columns prevents silent drift where applications assume DDL has fully applied.",
+  "value": "Avoids incorrect analytics and compliance exposure when partial mutations leave old values visible longer than expected.",
+  "implementation": "Export `SELECT * FROM system.mutations WHERE not is_done OR latest_failed_part != ''` every few minutes. Map `mutation_id`, `command`, `parts_to_do`, `latest_fail_reason`, `latest_failed_part`. Kill or retry policies should be documented in runbooks; alert on backlog growth for >30 minutes.",
+  "visualization": "Table (mutation_id, command, max_parts_todo, fail_reason), Line chart (parts_to_do trend).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ClickHouse — Mutations",
+      "url": "https://clickhouse.com/docs/en/sql-reference/statements/alter/update"
+    },
+    {
+      "title": "ClickHouse — system.mutations",
+      "url": "https://clickhouse.com/docs/en/operations/system-tables/mutations"
+    }
+  ],
+  "equipment": [
+    "clickhouse"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

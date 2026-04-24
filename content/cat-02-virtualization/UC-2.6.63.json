@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.63",
+  "title": "DaaS Autoscale Cloud Economics Tracking",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=cloud` or `index=azure` `sourcetype=\"azure:consume:export\"` with `cost`, `resource_id`, `tag_pool`, `meter`; `index=xd` `sourcetype=\"citrix:mc:autoscale\"` with `power_action`, `machine_count`, `session_count`, `host_pool`; `index=xd` `sourcetype=\"citrix:brokering:summary\"` for active sessions; optional FinOps CSV via `inputlookup`",
+  "app": "Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.",
+  "spl": "index=cloud sourcetype=\"azure:consume:export\" (resource_type=\"*compute*\" OR resource_type=\"*virtual*\")\n| eval tag_pool=if(isnotnull(citrix_host_pool) AND citrix_host_pool!=\"\", citrix_host_pool, coalesce(resource_name, resource_id, \"unmapped\"))\n| bin _time span=1d\n| stats sum(tonumber(cost,0)) as daily_cost by _time, tag_pool\n| join type=left _time, tag_pool [\n  search index=xd (sourcetype=\"citrix:mc:autoscale\" OR sourcetype=\"citrix:brokering:summary\")\n  | eval tag_pool=coalesce(host_pool, delivery_group, catalog_name, \"unmapped\")\n  | bin _time span=1d\n  | stats max(session_count) as peak_sessions, latest(machine_count) as reported_machines by _time, tag_pool\n  ]\n| eval cost_per_session=if(peak_sessions>0, round(daily_cost/peak_sessions,3), null())\n| where isnotnull(daily_cost) AND daily_cost>0\n| table _time, tag_pool, daily_cost, peak_sessions, reported_machines, cost_per_session",
+  "description": "DaaS autoscale can chase session demand, but public-cloud bills reflect clock time, instance families, and lingering powered-on capacity as much as user counts. Blending host-pool or delivery-group session peaks with tag-aligned cloud spend shows scale-out efficiency, expensive idle headroom, and cost-per-active-session trends. Finance and platform teams get a defensible way to right-size buffer percentages, change instance SKUs, or tune shutdown aggressiveness without only trusting static dashboards in the admin consoles.",
+  "value": "DaaS autoscale can chase session demand, but public-cloud bills reflect clock time, instance families, and lingering powered-on capacity as much as user counts. Blending host-pool or delivery-group session peaks with tag-aligned cloud spend shows scale-out efficiency, expensive idle headroom, and cost-per-active-session trends. Finance and platform teams get a defensible way to right-size buffer percentages, change instance SKUs, or tune shutdown aggressiveness without only trusting static dashboards in the admin consoles.",
+  "implementation": "Tag or label cloud VMs with a stable `citrix_host_pool` value matching Splunk's brokering or MCS data. Ingest a daily (or hourly) cost feed with the same key. Build weekly reports: cost per session by pool, unused powered-on hours, and autoscale event counts versus cost deltas. Set soft alerts for sudden jumps in cost-per-session or sustained idle high-water marks after scale events. Engage FinOps to validate currency and amortization. Never alert on cost alone without a session denominator except for obvious billing anomalies. Document that bursty test traffic can skew short windows.",
+  "visualization": "Line chart of cost per session by pool; stacked area of instance hours paid versus sessions; table of autoscale power actions and next-day cost impact.",
+  "cimModels": [
+    "Performance"
+  ],
+  "references": [
+    {
+      "title": "Autoscale in Citrix DaaS",
+      "url": "https://docs.citrix.com/en-us/citrix-daas-service-delivery-machines/delivery-groups/autoscale-daas.html"
+    },
+    {
+      "title": "Microsoft Cost Management (export cost data to external tools)",
+      "url": "https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/analyze-cost-data-azure"
+    }
+  ],
+  "knownFalsePositives": "Reserved instances, committed use, and org-wide 'always on' capacity for compliance can make idle-looking cloud spend look 'bad' in a simple dollars-per-day cap. Join FinOps baselines and the business minimum seat count, not a lone threshold.",
+  "equipment": [
+    "azure",
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_daas"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Consistent resource tagging; billing API permissions; at least 14 days of both cost and session history before trusting ratios.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap catalog or delivery group names in Citrix to tag keys. Fix any untagged SKUs in cloud before go-live to avoid a large unmapped spend bucket.\n\nStep 2 — Create the search and alert\nStart with a monthly executive summary; set anomaly alerts on week-over-week cost-per-session per pool using `anomalydetection` or static thresholds.\n\nStep 3 — Validate\nReconcile a single pool for one day against the cloud console subtotal; reconcile session peaks against Citrix Director or equivalent.\n\nStep 4 — Operationalize\nTie into FinOps and change management when autoscale policy or instance family changes are proposed.",
+  "grandmaExplanation": "We line up what the virtual desktops cost in the public cloud with how many people actually used them, so you can see waste from machines left running and tune the auto-sizing rules with numbers everyone trusts."
+}

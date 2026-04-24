@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.1.54",
+  "title": "ZooKeeper Follower Sync Lag vs Quorum Leader",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`mntr` follower sync fields (`zk_synced_followers`, `zk_followers`, `zk_pending_syncs`) on `zookeeper:mntr`",
+  "app": "Central collector aggregating `mntr` per host",
+  "spl": "index=infrastructure sourcetype=\"zookeeper:mntr\"\n| eval followers=tonumber(zk_followers)\n| eval synced=tonumber(zk_synced_followers)\n| eval pending=tonumber(zk_pending_syncs)\n| eval lag=followers-synced\n| where zk_server_state=\"leader\" AND (lag>0 OR pending>10)\n| table _time, host, followers, synced, pending, lag",
+  "description": "When the leader reports fewer synced followers than quorum size or rising pending syncs, new proposals are at risk and read-after-write consistency degrades for sensitive clients.",
+  "value": "Prevents split-brain-like symptoms in stacks that assume strong ZK session semantics during failures.",
+  "implementation": "Only leader nodes emit follower counts—filter `zk_server_state` in parser. Poll frequently during changes. Join with `zookeeper:ruok` health checks. Alert when lag persists >2 polling intervals.",
+  "visualization": "Line chart (synced vs followers), Single value (pending syncs).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ZooKeeper Admin Guide",
+      "url": "https://zookeeper.apache.org/doc/current/zookeeperAdmin.html"
+    }
+  ],
+  "equipment": [
+    "zookeeper"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

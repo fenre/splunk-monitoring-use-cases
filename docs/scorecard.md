@@ -27,23 +27,23 @@ Grades:
 
 ## Global rollup
 
-- **Total UCs:** 6,508
-- **Weighted composite score:** 62.9 — overall grade **Bronze**
+- **Total UCs:** 6,587
+- **Weighted composite score:** 72.8 — overall grade **Silver**
 
 ## Per-category scorecard
 
 | Cat | Category | UCs | Refs | KFP | MITRE* | Fresh | Prov. | Samples | Composite | Grade |
 | --- | -------- | --- | ---- | --- | ------ | ----- | ----- | ------- | --------- | ----- |
-| 1 | Server & Compute | 275 | 100.0% | 0.4% | 0% | 6d | 100 | 1.8% | **65.2** | **Bronze** |
-| 2 | Virtualization | 124 | 100.0% | 0.8% | 0% | — | 100 | 0.0% | **50.1** | **Needs work** |
+| 1 | Server & Compute | 275 | 100.0% | 0.4% | 0% | 8d | 100 | 1.8% | **65.2** | **Bronze** |
+| 2 | Virtualization | 176 | 100.0% | 30.1% | 34% | 0d | 85 | 29.5% | **72.2** | **Silver** |
 | 3 | Containers & Orchestration | 129 | 100.0% | 0.0% | 0% | — | 92 | 0.8% | **48.2** | **Needs work** |
 | 4 | Cloud Infrastructure | 227 | 100.0% | 0.9% | 83% | — | 100 | 0.9% | **58.5** | **Bronze** |
-| 5 | Network Infrastructure | 354 | 100.0% | 1.1% | 0% | — | 99 | 0.8% | **50.0** | **Needs work** |
+| 5 | Network Infrastructure | 374 | 100.0% | 6.4% | 5% | 0d | 98 | 6.1% | **66.6** | **Bronze** |
 | 6 | Storage & Backup | 81 | 100.0% | 1.2% | 0% | — | 100 | 0.0% | **50.2** | **Needs work** |
 | 7 | Database & Data Platforms | 122 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
 | 8 | Application Infrastructure | 106 | 100.0% | 0.9% | 0% | — | 100 | 0.0% | **50.1** | **Needs work** |
 | 9 | Identity & Access Management | 104 | 100.0% | 100.0% | 84% | — | 100 | 1.0% | **73.5** | **Silver** |
-| 10 | Security Infrastructure | 2,402 | 100.0% | 100.0% | 85% | — | 88 | 0.0% | **70.5** | **Silver** |
+| 10 | Security Infrastructure | 2,409 | 100.0% | 100.0% | 85% | 0d | 88 | 0.3% | **85.5** | **Gold** |
 | 11 | Email & Collaboration | 107 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
 | 12 | DevOps & CI/CD | 88 | 100.0% | 0.0% | 0% | — | 100 | 1.1% | **50.1** | **Needs work** |
 | 13 | Observability & Monitoring Stack | 143 | 100.0% | 0.0% | 0% | — | 100 | 0.7% | **50.1** | **Needs work** |
@@ -55,7 +55,7 @@ Grades:
 | 19 | Compute Infrastructure (HCI & Converged) | 72 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
 | 20 | Cost & Capacity Management | 77 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
 | 21 | Industry Verticals | 129 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
-| 22 | Regulatory and Compliance Frameworks | 1,332 | 100.0% | 100.0% | 10% | — | 96 | 0.0% | **65.1** | **Bronze** |
+| 22 | Regulatory and Compliance Frameworks | 1,332 | 100.0% | 100.0% | 10% | 2d | 96 | 0.0% | **80.1** | **Silver** |
 | 23 | Business Analytics & Executive Intelligence | 63 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
 
 \* MITRE coverage counts only UCs whose `pillar` is `security` or `both`.
@@ -64,10 +64,10 @@ Grades:
 
 | Grade | Categories | Total UCs |
 | ----- | ---------- | --------- |
-| **Gold** | 0 | 0 |
-| **Silver** | 3 | 2,611 |
-| **Bronze** | 4 | 2,064 |
-| **Needs work** | 16 | 1,833 |
+| **Gold** | 1 | 2,409 |
+| **Silver** | 4 | 1,717 |
+| **Bronze** | 4 | 1,106 |
+| **Needs work** | 14 | 1,355 |
 
 ## How to improve a score
 

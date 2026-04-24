@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.40",
+  "title": "Citrix App Layering Health and Layer Attach Status",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=\"WinEventLog:Application\"` on ELM/connector servers (`unifltr`, `pvs`, `svmgr`), `sourcetype=\"citrix:vda:events\"` for layer attach, `sourcetype=\"citrix:pvs:events\"` when App Layering pairs with PVS, HTTP(S) or scripted inputs from App Layering ELM APIs if you export jobs to text",
+  "app": "Splunk Add-on for Microsoft Windows, custom scripted or HEC input for App Layering management API, Template for Citrix XenDesktop 7 (TA-XD7-Broker) for VDA",
+  "spl": "index=windows OR index=xd (sourcetype=\"WinEventLog:Application\" OR sourcetype=\"citrix:vda:events\" OR sourcetype=\"citrix:pvs:events\") match(_raw, \"(?i)App\\s*Layer|layering|unifl|svmgr|ELM|layer (attach|mount|roll|package|not found|fail|cache)\")\n| eval component=if(match(host, \"(?i)elm|layering|manager\"), \"elm\", if(match(_raw, \"(?i)PVS|vDisk\"), \"pvs\", \"vda\"))\n| where match(_raw, \"(?i)fail|error|timeout|unavail|mismatch|cache.*(miss|full|corrupt)|not mounted\")\n| bin _time span=15m\n| stats count, values(Message) as msg_sample, dc(host) as hosts, dc(user) as users by _time, component, host\n| sort - count",
+  "description": "Citrix App Layering delivers OS and application layers to MCS, PVS, and elastic deployments. The elastic appliance, packaging connector, and on-VDA mount stack must all stay healthy; a failed package cache, attach timeout, or ELM/connector outage blocks user desktops at boot or sign-in. Windows Application logs on the ELM and connector roles plus VDA layer messages paint an end-to-end path from packaging through attach.",
+  "value": "Citrix App Layering delivers OS and application layers to MCS, PVS, and elastic deployments. The elastic appliance, packaging connector, and on-VDA mount stack must all stay healthy; a failed package cache, attach timeout, or ELM/connector outage blocks user desktops at boot or sign-in. Windows Application logs on the ELM and connector roles plus VDA layer messages paint an end-to-end path from packaging through attach.",
+  "implementation": "Classify hosts by `elm|connector|vda` using a host lookup. When ELM is Linux-only, push syslog or a JSON HEC path instead of `WinEventLog`. Track cache disk usage for packaging machines via a separate capacity UC. Deduplicate noisy retry loops with `streamstats` or by trimming `count`>100/min bursts.",
+  "visualization": "Swimlane (ELM vs VDA issues), Table (message samples), Single value (open critical errors in 24h).",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Citrix App Layering - Monitor and troubleshoot",
+      "url": "https://docs.citrix.com/en-us/citrix-app-layering/4/monitor/monitor.html"
+    }
+  ],
+  "knownFalsePositives": "Elastic layering attach on first logon, layer pack upgrades, and user-driven layer repair can show transient 'not ready' or attach warnings. Correlate with a new published layer version and first-boot after publish before assuming broken layering infrastructure.",
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_cvad"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows, HEC or scripted API collector for the App Layering management service as needed, optional PVS/TA inputs.\n• Ensure the following data sources are available: `sourcetype=\"WinEventLog:Application\"` on ELM/connector, `sourcetype=\"citrix:vda:events\"`, optional `sourcetype=\"citrix:pvs:events\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nList every role that participates in image creation and run-time mount. Ingest with consistent time zones. If you run elastic layering with cloud connectors, add cloud connector logs. Tag `component` in `transforms.conf` at index time to simplify searching.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; expand host regex to your naming standard):\n\n```spl\nindex=windows OR index=xd (sourcetype=\"WinEventLog:Application\" OR sourcetype=\"citrix:vda:events\" OR sourcetype=\"citrix:pvs:events\") match(_raw, \"(?i)App\\s*Layer|layering|unifl|svmgr|ELM|layer (attach|mount|roll|package|not found|fail|cache)\")\n| eval component=if(match(host, \"(?i)elm|layering|manager\"), \"elm\", if(match(_raw, \"(?i)PVS|vDisk\"), \"pvs\", \"vda\"))\n| where match(_raw, \"(?i)fail|error|timeout|unavail|mismatch|cache.*(miss|full|corrupt)|not mounted\")\n| bin _time span=15m\n| stats count, values(Message) as msg_sample, dc(host) as hosts, dc(user) as users by _time, component, host\n| sort - count\n```\n\nStep 3 — Validate\nReboot a VDA in test and confirm no unexpected errors; inject a known bad layer removed from ELM. Confirm PVS co-paths if you stack technologies.\n\nStep 4 — Operationalize\nRun parallel with the imaging pipeline UC; route ELM hard failures to the image build team, attach failures to the VDA on-call.",
+  "grandmaExplanation": "We read the service logs for the “layers” of apps stacked onto a virtual desktop, from the back-room packaging server to the moment they snap into place on login — so you catch bad stacks before they hurt real work."
+}

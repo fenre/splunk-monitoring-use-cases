@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.3.18",
+  "title": "Snowflake Failed Login Detection",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.LOGIN_HISTORY` (`IS_SUCCESS`, `ERROR_MESSAGE`, `USER_NAME`, `REPORTED_CLIENT_TYPE`, `CLIENT_IP`)",
+  "app": "Splunk DB Connect (Splunkbase 2686), Splunk DBX Add-on for Snowflake JDBC (Splunkbase 6153)",
+  "spl": "index=datawarehouse sourcetype=\"snowflake:login_history\"\n| where IS_SUCCESS==\"false\" OR IS_SUCCESS==\"FALSE\" OR IS_SUCCESS==0\n| bin _time span=1h\n| stats count as failures dc(CLIENT_IP) as distinct_ips values(ERROR_MESSAGE) as errors by USER_NAME, _time\n| where failures > 20 OR distinct_ips > 5",
+  "description": "Brute-force and credential stuffing against Snowflake appear as bursts of failed logins in LOGIN_HISTORY. Security teams baseline failures per user and source IP.",
+  "value": "Reduces account takeover risk and supports insider-threat reviews without relying only on Snowflake-native notifications.",
+  "implementation": "Schedule ACCOUNT_USAGE.LOGIN_HISTORY replication to Splunk (respecting latency of the view). Hash or tokenize usernames if required by privacy policy. Tune thresholds per SSO vs local users. Correlate with Okta/Azure AD logs if federated.",
+  "visualization": "Table (user, failures, IPs), Map (client_ip), Timeline (failed attempts).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Snowflake LOGIN_HISTORY view",
+      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/login_history"
+    },
+    {
+      "title": "DBX Add-on for Snowflake JDBC",
+      "url": "https://splunkbase.splunk.com/app/6153"
+    }
+  ],
+  "equipment": [
+    "azure",
+    "db_connect",
+    "okta",
+    "servicenow",
+    "snowflake"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

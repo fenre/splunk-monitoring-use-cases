@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.15.11",
+  "title": "Suricata IDS Alert Volume Spike per Sensor (Signature Storm or Blind Spot Detection)",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Operational",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Suricata EVE `alert` events (`sourcetype=suricata:alert` or `suricata:event`); Snort `alert` events (`sourcetype=snort` per TA)",
+  "app": "Splunk TA for Suricata (Splunkbase 4242)",
+  "spl": "index=ids (sourcetype=\"suricata:alert\" OR sourcetype=\"suricata:event\" OR sourcetype=\"snort\") earliest=-48h\n| eval sensor=coalesce(sensor_name, host, hostname)\n| bin _time span=1h\n| stats count by _time, sensor\n| eventstats avg(count) as mu, stdev(count) as sigma by sensor\n| where count > mu+4*sigma AND count > 100\n| sort -count",
+  "description": "A sudden order-of-magnitude increase in alerts from one sensor usually means a new noisy rule was enabled, a mirror or tap failed asymmetrically, or a worm is spreading inside a VLAN. Conversely, a flatline may mean the sensor stopped seeing traffic. Both conditions threaten detection SLAs.",
+  "value": "Gives SOC managers an operational control metric that is independent of whether individual signatures are true positives.",
+  "implementation": "Standardise `sensor` naming in `inputs.conf` or heavy-forwarder metadata. Lower the `count > 100` floor on lab sensors. When alerts fire, open a bridge with NetOps to validate SPAN health. Pair with `suricata:stats` if exported for dropped-packet visibility.",
+  "visualization": "Time chart (alerts per sensor), Table (sensor, z-score), Single value (sensors breaching threshold).",
+  "references": [
+    {
+      "title": "Splunkbase — TA for Suricata",
+      "url": "https://splunkbase.splunk.com/app/4242"
+    },
+    {
+      "title": "Suricata — Statistics counters",
+      "url": "https://docs.suricata.io/en/latest/capture-statistics.html"
+    }
+  ],
+  "securityDomain": "soc_operations",
+  "equipment": [
+    "suricata"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

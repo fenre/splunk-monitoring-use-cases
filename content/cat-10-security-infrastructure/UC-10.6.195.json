@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.6.195",
+  "title": "Citrix Clipboard and File Transfer Data Exfiltration",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:hdx:clipboard\"`, `sourcetype=\"citrix:hdx:filetransfer\"` (copy, paste, upload, download policy results); fields `direction`, `policy_result` (allowed|blocked|warned), `bytes`, `session_id`, `user` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "No official Splunk TA for HDX policy telemetry. Ingest via Windows Event Logs from VDAs (Session Recording event detection policies log clipboard and file transfer actions), or use Citrix Analytics for Security which surfaces DLP-related risk indicators. Splunk Add-on for Microsoft Windows for event log collection.",
+  "spl": "index=xd (sourcetype=\"citrix:hdx:clipboard\" OR sourcetype=\"citrix:hdx:filetransfer\") earliest=-24h\n| eval ok=if(match(lower(policy_result),\"(?i)allow|permit|pass\"),1,0), blk=if(match(lower(policy_result),\"(?i)block|deny\"),1,0), b=tonumber(bytes)\n| bin _time span=1h\n| stats sum(b) as tot_bytes, sum(blk) as blocks, sum(ok) as allows, count as ops by _time, user, direction\n| where tot_bytes>50000000 OR blocks>10 OR (allows>100 AND tot_bytes>100000000)\n| table _time, user, direction, tot_bytes, blocks, allows, ops",
+  "description": "Clipboard and client drive file transfer are common exfiltration paths from virtual apps and desktops. Tracking bulk bytes, blocked versus allowed actions, and repeated policy denials highlights both policy enforcement health and potential abuse of allowed channels. Large allowed transfers on sensitive groups warrant follow-up even when not blocked.",
+  "value": "Clipboard and client drive file transfer are common exfiltration paths from virtual apps and desktops. Tracking bulk bytes, blocked versus allowed actions, and repeated policy denials highlights both policy enforcement health and potential abuse of allowed channels. Large allowed transfers on sensitive groups warrant follow-up even when not blocked.",
+  "implementation": "Ingest HDX session agent or endpoint management logs with policy outcome. Map users to data-sensitivity tiers. Alert on blocked surge (misconfig or attack), or allowed bytes over threshold for protected groups. Pair with DLP from the guest OS if available. Never log full clipboard text; use size and direction only where required by policy.",
+  "visualization": "Timechart: blocked vs allowed by direction; table: top users by bytes; pie: policy outcomes.",
+  "cimModels": [
+    "DLP"
+  ],
+  "references": [
+    {
+      "title": "Citrix — HDX client drive and clipboard redirection policy",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/policies/reference/citrix-policy-settings/ica-client-settings.html"
+    }
+  ],
+  "knownFalsePositives": "Help desk remote support, vendor assists, and power users with clipboard and drive mapping in policy for troubleshooting can look like exfil. Restrict high alerts to DLP-tagged data classes, sensitive file extensions, and destinations outside the approved exfil list.",
+  "mitreAttack": [
+    "T1115",
+    "T1039"
+  ],
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_daas"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites: HDX clipboard and file transfer events with policy_result and direction; data_classification_by_user or group lookup. Step 1: Configure data collection — Use a restricted index; props [citrix:hdx:clipboard] and [citrix:hdx:filetransfer] with FIELDALIAS for user, session_id, bytes; do not log clipboard text, only size bands if policy demands. Step 2: Create the search and alert — Two tracks: security (blocks, large allows on sensitive users) and ops (global block spike after policy push); start hourly tot_bytes>50M or blocks>10, tune. Step 3: Validate — In a non-prod group run `index=xd (sourcetype=\"citrix:hdx:clipboard\" OR sourcetype=\"citrix:hdx:filetransfer\") earliest=-1h | stats sum(bytes) by user, direction, policy_result` after a controlled file copy. Step 4: Operationalize — Insider-risk review under privacy policy; if sustained high-volume exfil pattern, escalate to security operations and Citrix EUC policy owners.",
+  "grandmaExplanation": "We watch copy-paste and file moves between the office desktop in the cloud and the local machine — so you see when someone tries to sneak data out or when the safety rules trip a lot at once."
+}

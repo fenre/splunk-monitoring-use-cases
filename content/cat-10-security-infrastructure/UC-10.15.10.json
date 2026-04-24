@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.15.10",
+  "title": "Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Anomaly"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Suricata EVE JSON TLS events, commonly `sourcetype=suricata:tls` when using the Splunk TA for Suricata",
+  "app": "Splunk TA for Suricata (Splunkbase 4242)",
+  "spl": "index=ids sourcetype=\"suricata:tls\" earliest=-7d\n| eval ja3=coalesce(ja3, ja3_hash, tls_ja3)\n| eval src_ip=coalesce(src_ip, src)\n| eval dest_ip=coalesce(dest_ip, dest)\n| where isnotnull(ja3) AND ja3!=\"\"\n| eventstats dc(src_ip) as ja3_src_rarity by ja3\n| where ja3_src_rarity <= 5\n| stats dc(dest_ip) as unique_servers count as handshakes values(server_name) as sni_samples by src_ip, ja3\n| where handshakes >= 12 AND unique_servers >= 6\n| sort -handshakes",
+  "description": "Most enterprise clients present a small set of JA3 hashes from standard browsers and patch levels. A source IP generating many connections with a rarely seen JA3 while contacting diverse destinations may indicate custom malware, red-team tooling, or outdated TLS stacks being abused.",
+  "value": "Adds behaviour-based coverage on encrypted channels where payload inspection is not available.",
+  "implementation": "Confirm Suricata outputs `tls` events in EVE JSON and that the TA maps them to `suricata:tls`. Tune `ja3_hits` using a 7-day window on your own data. Enrich `src_ip` with DHCP or AD identity. Exclude known vulnerability scanners and patch-management relays via lookup.",
+  "visualization": "Table (src_ip, JA3, connection count), Hunt timeline, Pair with `suricata:flow` for byte ratios.",
+  "references": [
+    {
+      "title": "Splunkbase — TA for Suricata",
+      "url": "https://splunkbase.splunk.com/app/4242"
+    },
+    {
+      "title": "Suricata EVE JSON format",
+      "url": "https://docs.suricata.io/en/latest/output/eve/eve-json-format.html"
+    }
+  ],
+  "securityDomain": "network",
+  "equipment": [
+    "suricata"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

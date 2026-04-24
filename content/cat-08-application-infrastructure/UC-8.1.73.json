@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.1.73",
+  "title": "Memcached Expired Items vs Evicted Items Ratio",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operational",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`stats` `expired_unfetched`, `evicted_unfetched` (and totals) on `memcached:stats`",
+  "app": "Full `stats` scrape to Splunk",
+  "spl": "index=infrastructure sourcetype=\"memcached:stats\"\n| eval expu=tonumber(expired_unfetched)\n| eval evu=tonumber(evicted_unfetched)\n| bin _time span=5m\n| stats latest(expu) as expired latest(evu) as evicted by host, _time\n| streamstats window=2 global=f delta(expired) as d_exp delta(evicted) as d_ev by host\n| eval ratio=if(d_ev>0, round(d_exp/d_ev,2), null())\n| where d_ev > 100 AND (isnull(ratio) OR ratio < 0.5)",
+  "description": "Healthy caches often expire items cleanly; a surge in evictions with few expirations means TTLs are too long for the working set or memory is undersized—latency becomes unpredictable.",
+  "value": "Guides TTL policy and memory sizing with evidence instead of guessing from average item size alone.",
+  "implementation": "Field names vary slightly by version; alias in `props.conf`. If counters absent, upgrade memcached. Use maintenance windows to ignore post-restart zero states.",
+  "visualization": "Line chart (d_exp, d_ev), Single value (ratio).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Memcached stats semantics",
+      "url": "https://github.com/memcached/memcached/wiki/Stats"
+    }
+  ],
+  "equipment": [
+    "memcached"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.3.23",
+  "title": "Citrix ADC AppFlow Export Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:syslog\"` or `sourcetype=\"citrix:netscaler:appflow\"` — AppFlow export counters, IPFIX collector reachability, flows sent/ignored/dropped, template mismatch events",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "spl": "index=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:appflow\")\n((\"appflow\" AND (\"drop\" OR \"ignore\" OR \"template\" OR \"collector\" OR \"IPFIX\")) OR match(_raw, \"(?i)flow.*(export|discard)\"))\n| eval flow_action=coalesce(action, export_status, \"unknown\")\n| bin _time span=5m\n| stats count as events, dc(host) as adc_count by _time, host, flow_action\n| where match(flow_action, \"(?i)(drop|ignore|fail|mismatch)\") OR events > 100\n| sort - _time\n| table _time, host, flow_action, events, adc_count",
+  "description": "Citrix ADC AppFlow exports flow records to external IPFIX collectors for traffic analytics. If exports are dropped, ignored, or templates do not match the collector, you lose visibility into application traffic and may miss security or capacity signals. Monitoring AppFlow health ensures flow telemetry continuously reaches Splunk and your collectors, and surfaces misconfiguration before export backlogs or silent data loss.",
+  "value": "Citrix ADC AppFlow exports flow records to external IPFIX collectors for traffic analytics. If exports are dropped, ignored, or templates do not match the collector, you lose visibility into application traffic and may miss security or capacity signals. Monitoring AppFlow health ensures flow telemetry continuously reaches Splunk and your collectors, and surfaces misconfiguration before export backlogs or silent data loss.",
+  "implementation": "Enable AppFlow on the ADC and point collectors at your IPFIX endpoints. Forward `citrix:netscaler:syslog` (export health and template messages) and `citrix:netscaler:appflow` (decapsulated or forwarded flow records) to `index=netscaler`. Alert on sustained drops/ignores, collector unreachable messages, or template mismatch events. Correlate with network path and collector capacity. Baseline normal flow export rates per ADC to detect drift.",
+  "visualization": "Time chart of AppFlow export events by action, single value for drops per hour, table of hosts with template or collector errors.",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "references": [
+    {
+      "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+    },
+    {
+      "title": "Citrix ADC — AppFlow overview",
+      "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/application-firewall-analytics/appflow-analytics.html"
+    }
+  ],
+  "knownFalsePositives": "Collector restarts, IPFIX template or vendor upgrades, and short collector maintenance can log drops, ignores, and template mismatch while things resync. A collector and template-version lookup plus a minimum sustained drop rate cut one-off resync noise.",
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_netscaler"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Install Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler) and assign data to `index=netscaler`.\n• Ingest `citrix:netscaler:syslog` (AppFlow export status, IPFIX errors) and `citrix:netscaler:appflow` where used for flow telemetry.\n• Document collector IPs, ports, and template versions in your runbook.\n\nStep 1 — Configure data collection\nOn the ADC, configure AppFlow actions and collectors; enable logging of export failures. Use syslog forwarding to Splunk for export health messages. Ensure time sync (NTP) between ADC, collectors, and Splunk. If fields are extracted (`action`, `export_status`, `collector_ip`), confirm they line up with vendor documentation in props transforms.\n\nStep 2 — Create the search and alert\nRun the provided SPL. Save as a scheduled search or real-time alert when drops, ignores, or template/collector errors exceed baseline (for example, any template mismatch, or drop rate sustained for 10 minutes). Add a lookup for known maintenance windows to suppress noise.\n\nStep 3 — Validate\nGenerate a controlled export failure in a lab (wrong collector port or stop collector) and confirm events appear in `index=netscaler` and the search fires. Restore service and confirm clear.\n\nStep 4 — Operationalize\nAdd panels to a NetOps dashboard, route high-severity alerts to on-call, and document triage: verify collector health, network ACLs, template versions, and ADC packet engine load.",
+  "grandmaExplanation": "We watch whether the load balancer keeps sending its detailed traffic reports to the analytics system — so we catch broken exports or bad settings before we fly blind on what applications are really doing."
+}

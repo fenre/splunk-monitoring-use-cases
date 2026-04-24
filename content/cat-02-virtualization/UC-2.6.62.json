@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.62",
+  "title": "Citrix Workspace Service Feed Availability",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:workspace:feed\"` with `feed_url`, `http_status`, `latency_ms`, `store_name`, `resource_count`, `error_code`; client-side or synthetic probe events from StoreFront/Workspace; optional `sourcetype=\"citrix:cloud:connector:svc\"` for dependency failures affecting aggregation Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.",
+  "spl": "index=xd sourcetype=\"citrix:workspace:feed\"\n| eval ok=if(match(coalesce(http_status, status, \"200\"), \"^(200|204)$\"), 1, 0)\n| eval lat=tonumber(coalesce(latency_ms, response_time_ms, 0))\n| where ok=0 OR lat>2000 OR tonumber(coalesce(resource_count, -1))=0\n| eval issue=case(ok=0, \"http_or_feed_error\", lat>2000, \"high_latency\", tonumber(coalesce(resource_count,0))=0, \"empty_catalog\", true(), \"other\")\n| timechart span=5m count by issue, store_name\n| fillnull value=0",
+  "description": "The Citrix Workspace service must enumerate feeds, aggregate resources from brokering and cloud sources, and stay responsive over HTTPS. Certificate problems, API throttling, or connector outages can produce empty start menus, missing apps, or flapping resource lists that mimic client bugs. Synthetics and server-side feed diagnostics measure availability and latency to the user-facing document endpoints and tie failures to a specific store, region, or IDP, shortening mean time to restore before broad ticket spikes.",
+  "value": "The Citrix Workspace service must enumerate feeds, aggregate resources from brokering and cloud sources, and stay responsive over HTTPS. Certificate problems, API throttling, or connector outages can produce empty start menus, missing apps, or flapping resource lists that mimic client bugs. Synthetics and server-side feed diagnostics measure availability and latency to the user-facing document endpoints and tie failures to a specific store, region, or IDP, shortening mean time to restore before broad ticket spikes.",
+  "implementation": "Deploy both passive logs (if available from Citrix) and a lightweight synthetic that requests the same feed entry points the clients use, tagged by region. Send results to a dedicated index with five-minute resolution. Set SLOs (for example 99.9 percent under one second) per region. Alert on two consecutive non-200 responses, zero resources returned for any active directory group, or latency above two seconds. Pair alerts with 2.6.16 and 2.6.60 when the failure is identity-related. Keep separate dashboards for on-premises stores versus cloud Workspace.",
+  "visualization": "Uptime and latency SLO by region; heatmap of feed errors; single value: resources returned versus expected baseline from yesterday same hour.",
+  "cimModels": [
+    "Application_State"
+  ],
+  "references": [
+    {
+      "title": "Citrix Workspace app — technical overview and connectivity",
+      "url": "https://docs.citrix.com/en-us/citrix-workspace-app-for-windows.html"
+    },
+    {
+      "title": "Configure Workspace experience (Citrix DaaS)",
+      "url": "https://docs.citrix.com/en-us/citrix-daas-service/integrate-identity-serve-apps-and-data.html"
+    }
+  ],
+  "knownFalsePositives": "CDN or public DNS hiccups and Workspace app cache refresh during brand changes can depress feed availability for everyone. External synthetic and provider status, plus internal app publishing, separate vendor blips from StoreFront or broker issues.",
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_daas"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Known-good feed URL list per environment; HEC token with TLS; optional allowlist of probe sources.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPlace synthetics at user-like vantage points: office egress and two home-sim paths if possible. Validate certificates at each step.\n\nStep 2 — Create the search and alert\nTie alerts to a quiet-hours suppression only when maintenance is logged. Add child searches that split identity versus broker failures by outcome codes.\n\nStep 3 — Validate\nInduce 403/401 in test with a bad token, confirm the feed search fires. Revert and confirm clear.\n\nStep 4 — Operationalize\nAdd runbook link for empty catalog: ordered checks for brokering, cloud connector, and identity, with owners.",
+  "grandmaExplanation": "We watch the front door that fills the app list and checks that it answers quickly and is not empty, so people are not stuck staring at a blank start menu when the service behind it is the part that is broken."
+}

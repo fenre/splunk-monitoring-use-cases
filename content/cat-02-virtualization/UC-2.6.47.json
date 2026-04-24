@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.47",
+  "title": "Workspace App Client Version Distribution",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:events\"` (session or connection events that carry `ClientVersion`, `ClientProductId`, and `ClientAddress` or platform tags); `index=xd` `sourcetype=\"citrix:monitor:odata\"` `Sessions` resource if the broker event lacks detail",
+  "app": "Template for Citrix XenDesktop 7 (`TA-XD7-Broker`) and optional Citrix Monitor OData poller for session details",
+  "spl": "index=xd sourcetype=\"citrix:broker:events\" (event_type=\"SessionConnection\" OR event_type=\"ConnectionLogon\" OR event_type=\"SessionInfo\")\n| eval cv=coalesce(client_version, ClientVersion, workspace_version, \"unknown\")\n| eval platform=coalesce(client_platform, os_type, client_os, \"unknown\")\n| where cv!=\"unknown\"\n| stats count as sessions, dc(user) as users, dc(host) as hosts by cv, platform\n| eventstats sum(sessions) as total_sessions\n| eval pct=round(100 * sessions / total_sessions, 2)\n| sort - sessions\n| table cv, platform, users, sessions, pct",
+  "description": "Citrix Workspace app versions and platforms drift quickly — users defer upgrades, some branches are blocked by legacy tools, and mobile platforms patch on different cadences. A wide long tail of old clients increases your support cost, security exposure, and feature inconsistency. Reporting client version share by platform (Windows, Mac, Linux, iOS, Android) supports compliance with internal standards, tells you which upgrade campaigns worked, and highlights obsolete builds that should be blocked at the gateway. This is not a one-time audit; you want scheduled visibility after every gateway or StoreFront change.",
+  "value": "Citrix Workspace app versions and platforms drift quickly — users defer upgrades, some branches are blocked by legacy tools, and mobile platforms patch on different cadences. A wide long tail of old clients increases your support cost, security exposure, and feature inconsistency. Reporting client version share by platform (Windows, Mac, Linux, iOS, Android) supports compliance with internal standards, tells you which upgrade campaigns worked, and highlights obsolete builds that should be blocked at the gateway. This is not a one-time audit; you want scheduled visibility after every gateway or StoreFront change.",
+  "implementation": "Ensure client version fields are present on at least one reliable event (often session start from broker or a Monitor OData `Sessions` backfill). Build a `lookup` of approved `client_version` per platform. Schedule a weekly or daily report, not an alert, unless a version is explicitly banned — then alert when `pct` for that version is nonzero. For executive views, show stacked percentage bars by platform. Feed the data into your software-asset and endpoint-management teams for package targeting.",
+  "visualization": "Pie or treemap of versions, stacked bar by platform, table of versions with percent of sessions, optional single value for count of unapproved clients via lookup match.",
+  "cimModels": [
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "title": "Citrix Workspace app lifecycle matrix",
+      "url": "https://docs.citrix.com/en-us/citrix-workspace-app-for-windows/whats-new.html"
+    },
+    {
+      "title": "Session data from Monitor (context)",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/monitor-service.html"
+    }
+  ],
+  "knownFalsePositives": "Ring-based Workspace app rollouts, Intune staged deployments, and pilot AD groups will skew the version mix from week to week. Chart by update channel and OU, not a single org-wide 'must be 100% latest' line that will never hold during pilots.",
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Template for Citrix XenDesktop 7 (`TA-XD7-Broker`); optional Citrix Monitor OData for richer session details.\n• Ensure the following data sources are available: broker events with client metadata; or OData `Sessions` with client version and device details.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nVerify field names with `| fieldsummary` in a 24-hour window. If only opaque build numbers arrive, add a `lookup` to friendly names. Deduplicate multiple events per logon to avoid double counting with `| dedup` on session and day where appropriate for reporting, but not for per-connection analytics.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report; adjust `event_type` list):\n\n```spl\nindex=xd sourcetype=\"citrix:broker:events\" (event_type=\"SessionConnection\" OR event_type=\"ConnectionLogon\")\n| eval cv=coalesce(client_version, ClientVersion, \"unknown\")\n| eval platform=coalesce(client_platform, client_os, \"unknown\")\n| where cv!=\"unknown\"\n| stats count as sessions, dc(user) as users by cv, platform\n| eventstats sum(sessions) as total_sessions\n| eval pct=round(100 * sessions / total_sessions, 2)\n| sort - sessions\n| table cv, platform, users, sessions, pct\n```\n\n**Workspace App Client Version Distribution** — Add `| inputlookup approved_workspace_clients` and `| where isnull(approved)` to flag rows that breach policy, if you maintain such a list.\n\nStep 3 — Validate\nCheck totals against a Citrix Director session export for a test day. Differences often come from unauthenticated or prelogon events — exclude those with a filter on event type if needed.\n\nStep 4 — Operationalize\nPublish the report to a portal, attach it to change windows for client upgrades, and re-run after any VPN or gateway change that alters the client path.",
+  "grandmaExplanation": "We list which app versions and device types are actually connecting, so you see who is behind on upgrades before support tickets and old bugs come back in waves."
+}

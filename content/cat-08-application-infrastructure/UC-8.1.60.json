@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.1.60",
+  "title": "ZooKeeper znode Count and Data Tree Growth",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`zk_znode_count` and `zk_approximate_data_size` on `zookeeper:mntr`",
+  "app": "`mntr` scripted input",
+  "spl": "index=infrastructure sourcetype=\"zookeeper:mntr\"\n| eval nodes=tonumber(zk_znode_count)\n| eval bytes=tonumber(zk_approximate_data_size)\n| bin _time span=1d\n| stats latest(nodes) as znodes latest(bytes) as approx_bytes by host, _time\n| streamstats window=30 global=f delta(znodes) as node_growth by host\n| where node_growth > 100000 OR approx_bytes > 10737418240",
+  "description": "Runaway znode creation fills memory and lengthens snapshot times—common when automation misuses configuration paths or when consumers churn ephemeral parents inefficiently.",
+  "value": "Prevents lengthy recovery and JVM pressure during snapshot and purge cycles.",
+  "implementation": "Daily rollups reduce noise. Join with change calendar. Validate `zk_approximate_data_size` availability on your ZK release.",
+  "visualization": "Line chart (znodes), Area chart (approx_bytes).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ZooKeeper Admin — quotas",
+      "url": "https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands"
+    }
+  ],
+  "equipment": [
+    "zookeeper"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

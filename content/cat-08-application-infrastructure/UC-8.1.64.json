@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.1.64",
+  "title": "Memcached Eviction Rate Spike Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`stats` field `evictions` as `memcached:stats`",
+  "app": "Telegraf or scripted stats collector",
+  "spl": "index=infrastructure sourcetype=\"memcached:stats\"\n| eval ev=tonumber(evictions)\n| bin _time span=1m\n| stats latest(ev) as evictions_cumulative by host, _time\n| streamstats window=2 global=f delta(evictions_cumulative) as ev_delta by host\n| where ev_delta > 1000",
+  "description": "Sudden eviction bursts mean working set no longer fits memory and hot keys are being discarded—latency to the origin spikes next. Delta on the `evictions` counter surfaces bursts better than absolute totals.",
+  "value": "Prevents cache stampede scenarios during flash sales or batch jobs that pollute the working set.",
+  "implementation": "If your collector emits per-interval deltas already, search `evictions` directly without `streamstats`. Correlate with `bytes` and `limit_maxbytes`. Scale threshold with cluster QPS.",
+  "visualization": "Line chart (ev_delta), Timeline alerts.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Memcached wiki — eviction",
+      "url": "https://github.com/memcached/memcached/wiki/UserManual"
+    }
+  ],
+  "equipment": [
+    "memcached"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

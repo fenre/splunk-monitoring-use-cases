@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.75",
+  "title": "End-to-End Citrix Session Launch Time",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:events\"` (`event_type=SessionLogon` with `logon_duration_ms` and sub-phase fields); `sourcetype=\"uberAgent:Logon:LogonDetail\"` for VDA phase breakdown; `sourcetype=\"citrix:hdx:connect\"` for client-to-session handshake timing; Director OData exports if used Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "uberAgent UXM (Splunkbase 1448) for phase insight; Template for Citrix XenDesktop 7 (TA-XD7-Broker) and Citrix Monitor Service OData; optional ITSI for service aggregation",
+  "spl": "index=xd (sourcetype=\"citrix:broker:events\" event_type=\"SessionLogon\" OR sourcetype=\"uberAgent:Logon:LogonDetail\" OR sourcetype=\"citrix:hdx:connect\") earliest=-4h\n| eval total_ms=tonumber(coalesce(logon_duration_ms, total_logon_ms, 0)), phase=coalesce(phase, \"e2e\")\n| bin _time span=15m\n| stats median(total_ms) as p50, perc95(total_ms) as p95, count as n, values(phase) as phases by _time, delivery_group\n| where p95>90000\n| table _time, delivery_group, p50, p95, n, phases",
+  "description": "End-to-end session launch is the user-perceived time from initial click in Workspace through brokering, host start, logon, and HDX connect until a usable session is ready. Splunking all phases in one time series exposes whether delays sit in the broker, the hypervisor, the profile, the identity stack, or the client—so teams do not guess where to invest tuning effort.",
+  "value": "End-to-end session launch is the user-perceived time from initial click in Workspace through brokering, host start, logon, and HDX connect until a usable session is ready. Splunking all phases in one time series exposes whether delays sit in the broker, the hypervisor, the profile, the identity stack, or the client—so teams do not guess where to invest tuning effort.",
+  "implementation": "Prefer uberAgent for automatic phase split on the VDA; supplement with broker events for the brokering and VM start portions. Clock-sync all tiers. Set SLOs per delivery group. Create drill-down dashboards from the same search as phase-specific panels. For cloud services, add Citrix DaaS connector latency where exposed in logs. Pair with a synthetic transaction from a test account for continuous proof.",
+  "visualization": "Stacked time by phase, Sankey of phase share for p95, single value SLO, compare regions or delivery groups side by side.",
+  "cimModels": [
+    "Performance"
+  ],
+  "references": [
+    {
+      "title": "uberAgent — Logon and session performance",
+      "url": "https://splunkbase.splunk.com/app/1448"
+    },
+    {
+      "title": "Citrix — Session launch and logon process",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/logon-processes.html"
+    }
+  ],
+  "knownFalsePositives": "Image rollout weeks and semester starts push session launch time for the whole user base at once. A same-day-of-week rolling median and a Studio publish window exclusion reduce Monday-morning false positives on pure latency.",
+  "equipment": [
+    "citrix",
+    "hyperv",
+    "itsi"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_daas",
+    "citrix_uberagent"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• `index=xd`: broker `SessionLogon` with `logon_duration_ms`, uberAgent `Logon:LogonDetail` phases, `citrix:hdx:connect` for handshake. NTP: broker, VDA, domain within 1s. Join key: `session_id` or `correlation_id` across sources.\n\nStep 1 — Configure data collection\n`props` EVAL- for numeric if strings. Pilot uberAgent on one delivery group. If mixing Director ODATA export, use same `delivery_group` string as broker. `FIELDALIAS-` to collapse `total_logon_ms` variants.\n\nStep 2 — Create the search and alert\nSet SLO ms per `delivery_group` in lookup; replace 90000. Alert on p95 breach 3x consecutive 15m bins. Add synthetic login every 15m (service account) for control channel. Excluded: scheduled maintenance DGs in lookup.\n\nStep 3 — Validate\nFor one p95: Director logon phase breakdown same minute as Splunk `values(phase)`. If only broker total, uberAgent should attribute profile vs GPO delay.\n\nStep 4 — Operationalize\nDashboard: stacked by phase, single-value p95, compare regions. EUC QBR: overlay with image/VDA/GPO change markers. Escalation: long `Group Policy` to AD team; `Profile` to FS/FSLogix; `ICA/HDX` to network; TAC if broker/DaaS service gap isolated.",
+  "grandmaExplanation": "We time the whole path from the moment you click to when the remote desktop is truly ready — so the right team fixes the real slow step instead of everyone blaming the network at once."
+}

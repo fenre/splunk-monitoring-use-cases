@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.43",
+  "title": "MongoDB Long-Running Operations (currentOp)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`db.currentOp({\"active\":true,\"secs_running\":{\"$gt\":0}})` JSON export",
+  "app": "Splunk DB Connect with MongoDB JDBC (Splunkbase 7095), or scripted mongosh export to HEC",
+  "spl": "index=database sourcetype=\"mongodb:currentop\"\n| where secs_running > 60 OR waitingForLock==\"true\"\n| stats max(secs_running) as max_sec latest(op) as op latest(ns) as ns by opid, host\n| sort -max_sec",
+  "description": "Operations stuck in currentOp with high secs_running or waitingForLock tie up WiredTiger tickets and delay replication. This is standard MongoDB operations monitoring for runaway aggregations, migrations, and index builds.",
+  "value": "Prevents cluster-wide latency incidents by surfacing blocking and long-lived operations before they exhaust database resources.",
+  "implementation": "Every 30–60 seconds, collect active ops from mongos/mongod. Include opid, ns, op, secs_running, waitingForLock, query shape (hashed). Exclude legitimate index builds via op type lookup. Alert when secs_running exceeds policy or waitingForLock persists.",
+  "visualization": "Table (opid, ns, op, duration), Timeline (long ops), Single value (count blocked).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "MongoDB db.currentOp",
+      "url": "https://www.mongodb.com/docs/manual/reference/method/db.currentOp/"
+    },
+    {
+      "title": "DBX Add-on for MongoDB JDBC (Splunkbase)",
+      "url": "https://splunkbase.splunk.com/app/7095"
+    }
+  ],
+  "equipment": [
+    "db_connect",
+    "mongodb"
+  ],
+  "equipmentModels": [
+    "mongodb_mongod",
+    "mongodb_wiredtiger"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

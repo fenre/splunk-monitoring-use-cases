@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.66",
+  "title": "ClickHouse Kafka Engine Table Consumer Lag",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`system.kafka_consumers` or materialized Kafka engine errors in `clickhouse:server_log`",
+  "app": "DB Connect export of `system.kafka_consumers`; UF for broker/CH logs",
+  "spl": "index=database sourcetype=\"clickhouse:server_log\"\n| search \"StorageKafka\" AND (\"Exception\" OR \"ERROR\" OR \"Failed to commit\" OR \"RDKAFKA\")\n| rex field=_raw \"table\\s+`?(?<kafka_table>[\\w\\.]+)`?\"\n| bin _time span=5m\n| stats count as errors by kafka_table, host, _time\n| where errors >= 10",
+  "description": "Kafka engine tables stall when consumers cannot parse messages, commit offsets, or keep up with producers; downstream materialized views then serve stale analytics. Error bursts in `StorageKafka` logs pinpoint the table and host faster than broker-only lag dashboards.",
+  "value": "Protects near-real-time pipelines feeding fraud detection and operations KPIs from silent backlog growth.",
+  "implementation": "Prefer exporting `SELECT * FROM system.kafka_consumers` when available (fields like `assignments`, `exceptions` vary by version). Complement with server log monitoring as above. Correlate with Kafka broker metrics and ClickHouse `max_insert_block_size`. Tune alert for error rate vs baseline.",
+  "visualization": "Timeline (errors), Table (kafka_table, host), Single value (open consumer exceptions).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ClickHouse — Kafka engine",
+      "url": "https://clickhouse.com/docs/en/engines/table-engines/integrations/kafka"
+    }
+  ],
+  "equipment": [
+    "clickhouse"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

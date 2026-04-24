@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.66",
+  "title": "Citrix Endpoint Management App Distribution Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:endpoint:app:deploy\"` with `app_id`, `app_name`, `action` (`install`/`update`), `outcome`, `error_category` (`VPP`, `app_store`, `enterprise`, `mdm_push`), `device_platform`, `user_id`, `vpp_code` when available Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.",
+  "spl": "index=xd sourcetype=\"citrix:endpoint:app:deploy\" outcome!=\"success\"\n| eval cat=lower(coalesce(error_category, failure_bucket, app_source, \"unknown\"))\n| eval app=coalesce(app_name, app_id, \"unknown\")\n| eval plat=coalesce(device_platform, os_type, \"unknown\")\n| where like(cat, \"%vpp%\") OR like(cat, \"%app%store%\") OR like(cat, \"%enterprise%\") OR like(cat, \"%push%\") OR isnotnull(vpp_code)\n| timechart span=1h count by cat, plat\n| fillnull value=0",
+  "description": "Pushing in-house, store, and volume-purchase programs (VPP) apps through CEM depends on correct tokens, licenses, and platform-specific constraints. A burst of VPP or enterprise install failures is often an Apple Business Manager or Google side issue; steady enterprise failures can point to signing or package corruption. This use case breaks down failures by channel so mobile operations can open the right vendor ticket, roll back a bad build, or fix token drift without re-imaging the whole estate.",
+  "value": "Pushing in-house, store, and volume-purchase programs (VPP) apps through CEM depends on correct tokens, licenses, and platform-specific constraints. A burst of VPP or enterprise install failures is often an Apple Business Manager or Google side issue; steady enterprise failures can point to signing or package corruption. This use case breaks down failures by channel so mobile operations can open the right vendor ticket, roll back a bad build, or fix token drift without re-imaging the whole estate.",
+  "implementation": "Ingest CEM app deployment or command-result logs. Tag errors into coarse buckets (VPP, public store, enterprise/internal). Mask user identifiers in shared dashboards. Alert when failures for a specific `app_id` cross a threshold in two consecutive hours, or when VPP-scoped errors exceed the prior week at the same time of day. Keep a runbook for common codes (license exhausted, not compatible OS, app removed from store). Pair with app owners so version bumps are not silent. Rate-limit noisy beta cohorts in test rings.",
+  "visualization": "Stacked area of failures by error bucket; top failing apps table; link from `vpp_code` to Apple’s code reference where applicable.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Distribute and manage mobile apps in Citrix Endpoint Management",
+      "url": "https://docs.citrix.com/en-us/citrix-endpoint-management/mdm-mam/endpoint-management-mdm-mam-mdx-apps.html"
+    }
+  ],
+  "knownFalsePositives": "Mass in-house app signings, App Store re-releases, and line-of-business app updates can fail in parallel for reasons unrelated to attack. Time-correlate with MAM app version publish and the signing cert rotation ticket before user-level malware assumptions.",
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_daas",
+    "citrix_xem"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• CEM and store connectors healthy; at least 30 days of history to learn seasonality; owners per published app in a lookup file.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap raw messages to a stable `error_category` with regex extractions. Keep large payloads in a separate summary index if needed for volume.\n\nStep 2 — Create the search and alert\nTie alerts to `app_id` and include recent change tickets from your change system via lookup. Suppress for rolling pilot groups in their own tag.\n\nStep 3 — Validate\nIn non-production, release a test enterprise app and force a controlled failure, confirm the category field.\n\nStep 4 — Operationalize\nAdd this chart to the mobile apps CAB deck and track mean time to correct per channel.",
+  "grandmaExplanation": "We track when the company’s pushed apps fail to install from the public store, the volume-license pool, or your own package, so the right support path opens and people are not stuck without the tools their job needs."
+}

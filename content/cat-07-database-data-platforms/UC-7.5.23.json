@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.5.23",
+  "title": "ClickHouse Mutation and Lightweight Delete Backlog",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Change",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`system.mutations` (`database`, `table`, `mutation_id`, `parts_to_do`, `is_done`, `create_time`)",
+  "app": "Splunk DB Connect or scripted poll of system.mutations",
+  "spl": "index=database sourcetype=\"clickhouse:mutations\"\n| where is_done==0 OR is_done==\"false\"\n| where parts_to_do > 100\n| stats max(parts_to_do) as backlog latest(create_time) as started by database, table, mutation_id, host\n| sort -backlog",
+  "description": "Large parts_to_do counts mean ALTER UPDATE/DELETE mutations are not finishing—common after bulk changes or schema migrations on MergeTree tables.",
+  "value": "Avoids surprise query slowdowns and replication delay when mutations pile up across shards.",
+  "implementation": "Ingest mutations every few minutes; normalize is_done as boolean. Alert when any open mutation exceeds parts_to_do policy. Correlate with disk IO and merges. Cancel or throttle mutations per runbook.",
+  "visualization": "Table (table, mutation_id, backlog), Line chart (parts_to_do), Single value (open mutations).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ClickHouse Mutations guide",
+      "url": "https://clickhouse.com/docs/en/sql-reference/statements/kill#kill-mutation"
+    }
+  ],
+  "equipment": [
+    "clickhouse",
+    "db_connect"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

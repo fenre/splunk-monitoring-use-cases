@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.74",
+  "title": "Snowflake Warehouse Auto-Suspend and Auto-Resume Event Frequency",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Cost",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_EVENTS_HISTORY` ingested as `snowflake:warehouse_events`",
+  "app": "Splunk Add-on for Snowflake (Splunkbase 5390) with `WAREHOUSE_EVENTS_HISTORY` input, or DB Connect scheduled query",
+  "spl": "index=datawarehouse sourcetype=\"snowflake:warehouse_events\"\n| eval ev=upper(coalesce(EVENT_NAME, event_name))\n| where match(ev,\"SUSPEND\") OR match(ev,\"RESUME\")\n| bin _time span=1h\n| stats count as events dc(ev) as event_types by WAREHOUSE_NAME, _time\n| eventstats median(events) as med_events by WAREHOUSE_NAME\n| where events > med_events*3 AND events > 20",
+  "description": "Chronic auto-resume thrash burns credits and hides real workload signals, while a sudden drop in suspend/resume activity can mean policies were widened and spend is drifting. Tracking event frequency per warehouse makes finance and platform conversations data-driven.",
+  "value": "Controls Snowflake runaway spend and catches misconfigured auto-suspend intervals before invoices spike.",
+  "implementation": "Enable the warehouse events input in the add-on’s `inputs.conf` (respect ACCOUNT_USAGE latency). Normalize `EVENT_NAME` casing. Build a 30-day median baseline per warehouse. Exclude dev sandboxes via lookup. Alert on thrash (high count) and on zero events for 24h on warehouses expected to idle.",
+  "visualization": "Line chart (events by warehouse), Histogram (hour-of-day thrash).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Snowflake WAREHOUSE_EVENTS_HISTORY",
+      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/warehouse_events_history"
+    },
+    {
+      "title": "Splunk Add-on for Snowflake",
+      "url": "https://splunkbase.splunk.com/app/5390"
+    }
+  ],
+  "equipment": [
+    "snowflake"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

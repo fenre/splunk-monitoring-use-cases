@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.6.198",
+  "title": "Citrix Session Watermarking Enforcement Errors",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:hdx:policy\"` (watermark, screen capture, recording policy apply); `sourcetype=\"citrix:session:recording:control\"` (recording and screenshot rules); VDA and broker events indicating policy not applied or client mismatch Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "No official Splunk TA for HDX policy telemetry. Ingest via Windows Event Logs from VDAs (Session Recording event detection policies log clipboard and file transfer actions), or use Citrix Analytics for Security which surfaces DLP-related risk indicators. Splunk Add-on for Microsoft Windows for event log collection.",
+  "spl": "index=xd (sourcetype=\"citrix:hdx:policy\" OR sourcetype=\"citrix:session:recording:control\") earliest=-24h\n| eval wm_fail=if(match(_raw, \"(?i)watermark.?(fail|error|not.?(applied|enforced))\"),1,0), cap_fail=if(match(_raw, \"(?i)screen(shot|.?capture).*(deny|block|violation|not.?(allowed|permitted))\"),1,0), pol=coalesce(policy_name, policy_set, \"unknown\")\n| where wm_fail=1 OR cap_fail=1\n| bin _time span=1h\n| stats count as err, values(host) as vda, values(pol) as policies by _time, user, session_id\n| where err>0\n| table _time, user, session_id, vda, err, policies",
+  "description": "Watermarking and screen-capture policy protect regulated data in virtual sessions. When the policy stack fails to apply, sessions may run without visible traceability, violating policy intent. Spikes in enforcement errors after image updates, agent upgrades, or client releases warrant rollback or targeted patching before auditors find a gap in technical controls.",
+  "value": "Watermarking and screen-capture policy protect regulated data in virtual sessions. When the policy stack fails to apply, sessions may run without visible traceability, violating policy intent. Spikes in enforcement errors after image updates, agent upgrades, or client releases warrant rollback or targeted patching before auditors find a gap in technical controls.",
+  "implementation": "Correlate errors with a version lookup for Workspace app and VDA. Prioritize high-sensitivity delivery groups. For Session Recording, watch storage and service health in a related availability use case. If errors reference unknown clients, treat as a compliance gap and block out-of-revision clients at the gateway where policy allows.",
+  "visualization": "Timechart: enforcement errors; table: by `policy_name` and VDA build; list: example raw messages for the support team.",
+  "cimModels": [
+    "Network_Sessions"
+  ],
+  "references": [
+    {
+      "title": "Citrix — Session Watermarking",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/session-recording.html"
+    }
+  ],
+  "knownFalsePositives": "Workspaces in a pilot or older build that do not support watermarking yet, or a policy in report-only, will log 'not enforced' style errors. A minimum supported Workspace build matrix and feature flag per ring avoid a false compliance gap report.",
+  "mitreAttack": [
+    "T1113"
+  ],
+  "equipment": [
+    "citrix"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_daas"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• `index=xd`; `citrix:hdx:policy` and `citrix:session:recording:control` in Splunk; stable `user`+`session_id` for triage. Retain hot data long enough for audit (e.g. 90d).\n\nStep 1 — Configure data collection\n`props.conf`/`REPORT-` to extract `policy_name` if embedded in `_raw`. After image or VDA change, log one forced failure and one success; tune regexes to those strings. Tag delivery groups: lookup `sensitive_dg` for alert routing.\n\nStep 2 — Create the search and alert\nSev-2: `err>0` in 1h for DGs in `sensitive_dg`. Post-upgrade: 24h watch with `quantity=1` on first hit. Throttle: same `user+session_id` 15m. Add panel: timechart of `wm_fail` vs `cap_fail` split by `pol`.\n\nStep 3 — Validate\nReconcile event count to Director policy results or a VDA test session. False positives: compare to DaaS health subsystems vs real `wm_fail=1`.\n\nStep 4 — Operationalize\nMonthly compliance PDF: sample raw with policy ID. Escalation: L2 EUC (rollback); L3 TAC with VDA+Workspace build. RFO: attach Splunk time window for regulated apps. Pair with session-recording health use case.",
+  "grandmaExplanation": "We look for the moment the “name-stamped screen” and “no sneaky screen shots” rules fail to take hold — so you are not left telling auditors the protection was on when it quietly was not."
+}

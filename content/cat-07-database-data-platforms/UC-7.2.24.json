@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.2.24",
+  "title": "ClickHouse ReplicatedMergeTree Replication Queue Depth",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`system.replicas` columns `queue_size`, `absolute_delay`, `is_readonly`, `log_pointer`, `log_max_index`",
+  "app": "Splunk DB Connect or scripted input polling ClickHouse system tables",
+  "spl": "index=database sourcetype=\"clickhouse:replicas\"\n| eval lag_ops=log_max_index-log_pointer\n| where queue_size > 1000 OR absolute_delay > 300 OR is_readonly==1\n| stats max(queue_size) as max_queue max(absolute_delay) as max_delay_sec by database, table, host\n| sort -max_queue",
+  "description": "A growing queue_size or large absolute_delay on ReplicatedMergeTree tables means inserts are not propagating; replicas may become inconsistent or read-only. This is primary HA monitoring for ClickHouse clusters.",
+  "value": "Protects analytic SLAs and prevents silent replica divergence when ZooKeeper or network issues slow replication.",
+  "implementation": "Poll system.replicas every minute for production tables. Alert on queue_size and absolute_delay thresholds tuned to insert volume. Correlate with ZooKeeper latency and background pool metrics.",
+  "visualization": "Line chart (queue_size by table), Table (top delays), Single value (read-only replicas).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ClickHouse system.replicas",
+      "url": "https://clickhouse.com/docs/en/operations/system-tables/replicas"
+    }
+  ],
+  "equipment": [
+    "clickhouse",
+    "db_connect",
+    "zookeeper"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

@@ -1,6 +1,6 @@
 # Splunk Infrastructure Monitoring Use Cases
 
-A curated collection of **6,500+ IT infrastructure monitoring use cases** for Splunk, organized across 23 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
+A curated collection of **6,575+ IT infrastructure monitoring use cases** for Splunk, organized across 23 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
 
 Browse them in the **interactive dashboard** or use the **machine-readable catalog** (`catalog.json`) for automation and integrations.
 
@@ -187,7 +187,7 @@ Additional fields are available for security use cases (MITRE ATT&CK, detection 
 - **Search** across all use cases by keyword, UC-ID, or SPL content (Cmd/Ctrl+K shortcut)
 - **Filter by equipment** you have (e.g. "Cisco", "AWS", "VMware") with optional model-level drill-down
 - **Sort** by criticality, difficulty, name, or category
-- **Virtual scrolling** for large lists (6,500+ use cases rendered on demand)
+- **Virtual scrolling** for large lists (6,575+ use cases rendered on demand)
 - **Non-technical view** with plain-language outcomes per category, backed by a per-UC `grandmaExplanation` (one-to-three-sentence "explain it to my grandma" summary) rendered on every card, panel, search result, and recently-added list when the toggle is on — see [docs/grandma-explanations.md](docs/grandma-explanations.md)
 - **Quick-win starters** highlighted per category for fast implementation
 - **Print-friendly** layout with dedicated print stylesheet

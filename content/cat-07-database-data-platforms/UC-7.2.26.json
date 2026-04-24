@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.2.26",
+  "title": "ZooKeeper Quorum Follower Sync Gap",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "ZooKeeper `mntr` four-letter word output: `zk_followers`, `zk_synced_followers` (standalone mode omits followers)",
+  "app": "Custom scripted input (`echo mntr | nc localhost 2181`) or ZooKeeper AdminServer metrics",
+  "spl": "index=zookeeper sourcetype=\"zookeeper:mntr\"\n| where isnotnull(zk_followers) AND zk_followers > 0\n| eval follower_gap=zk_followers-zk_synced_followers\n| where follower_gap > 0 OR zk_synced_followers < zk_followers\n| timechart span=5m max(follower_gap) as unsynced_followers by host",
+  "description": "When zk_synced_followers lags zk_followers, part of the ensemble is not caught up—often precursing split-brain risk or dependent service outages (Kafka, ClickHouse, HBase).",
+  "value": "Gives early warning before Kafka controller churn or ClickHouse replica read-only transitions caused by ensemble instability.",
+  "implementation": "Poll mntr on each ZooKeeper peer. Parse integers for zk_followers and zk_synced_followers. Skip or branch standalone nodes. Alert when gap > 0 for more than two consecutive polls. Correlate with latency and outstanding_requests.",
+  "visualization": "Line chart (follower gap), Table (ensemble host, followers, synced), Single value (gap).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache ZooKeeper — The Four Letter Words (mntr)",
+      "url": "https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands"
+    }
+  ],
+  "equipment": [
+    "clickhouse",
+    "kafka",
+    "zookeeper"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

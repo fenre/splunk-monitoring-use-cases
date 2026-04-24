@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.2.35",
+  "title": "OpenStack Cinder Backend Free Capacity and Over-Subscription Risk",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=openstack` `sourcetype=\"openstack:cinder\"` or `openstack:cinder_scheduler` with fields `backend`, `free_gb`, `total_gb`, `provisioned_gb`",
+  "app": "OpenStack Add-on for Splunk (Splunkbase app 2905) or scheduled `openstack volume backend pool show` JSON via HEC",
+  "spl": "index=openstack sourcetype=\"openstack:cinder\" earliest=-4h\n| eval free_pct=100*(free_gb/total_gb)\n| eval thin_risk=if(provisioned_gb>(free_gb*2), 1, 0)\n| where free_pct<=15 OR thin_risk=1\n| stats latest(free_gb) as free, latest(total_gb) as total, latest(provisioned_gb) as prov by backend\n| sort free",
+  "description": "Cinder capacity is often thin-provisioned at the array. Low `free_gb` on a backend blocks new volume attaches and can surprise operators when snapshots inflate consumption.",
+  "value": "Aligns OpenStack quota discussions with physical free space so tenant growth does not outpace array headroom.",
+  "implementation": "Export scheduler pool stats or parse `cinder-volume` capacity update logs. Normalize `backend` names to match service catalog. Combine free-space alerts with array vendor telemetry where available. Document expected over-subscription ratio per storage class.",
+  "visualization": "Bar chart (free GB by backend), Table (backends under threshold), Timechart (free_pct).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "OpenStack Cinder — Capacity planning",
+      "url": "https://docs.openstack.org/cinder/latest/admin/capacity-planning.html"
+    }
+  ],
+  "equipment": [
+    "openstack"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

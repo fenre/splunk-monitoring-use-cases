@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.1.28",
+  "title": "Envoy Downstream HTTP 429 Local Rate Limit",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Security"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=mesh` `sourcetype=envoy:stats` (`http.*.downstream_rq_429` counters)",
+  "app": "Envoy admin `/stats`, OpenTelemetry Collector, or Prometheus scraper to Splunk",
+  "spl": "index=mesh sourcetype=\"envoy:stats\"\n| search \"downstream_rq_429\"\n| rex \"http\\\\.(?<listener>[^.]+)\\\\.downstream_rq_429=(?<v>\\d+)\"\n| stats latest(v) as rq_429 by listener\n| where rq_429 > 0",
+  "description": "429 responses from local rate limits protect upstreams but can signal abuse, mis-tuned quotas, or partner traffic spikes.",
+  "value": "Balances protection with customer impact when throttling engages.",
+  "implementation": "Scrape Prometheus text or stats lines; ensure listener dimensions are parsed. Correlate with `envoy.access` logs if enabled.",
+  "visualization": "Single value (429 rate), line chart per listener, table (cluster × route).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Envoy — Statistics overview",
+      "url": "https://www.envoyproxy.io/docs/envoy/latest/operations/statistics"
+    }
+  ],
+  "equipment": [
+    "envoy",
+    "opentelemetry",
+    "prometheus"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Envoy admin `/stats`, OpenTelemetry Collector, or Prometheus scraper to Splunk.\n• Ensure the following data sources are available: `index=mesh` `sourcetype=envoy:stats` (`http.*.downstream_rq_429` counters).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMetric naming varies by Envoy version; broaden search to `*rq_429*` if your scrape format differs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=mesh sourcetype=\"envoy:stats\"\n| search \"downstream_rq_429\"\n| rex \"http\\\\.(?<listener>[^.]+)\\\\.downstream_rq_429=(?<v>\\d+)\"\n| stats latest(v) as rq_429 by listener\n| where rq_429 > 0\n```\n\nUnderstanding this SPL\n\n**Envoy Downstream HTTP 429 Local Rate Limit** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=mesh` `sourcetype=envoy:stats` (`http.*.downstream_rq_429` counters). **App/TA**: Envoy admin `/stats`, OpenTelemetry Collector, or Prometheus scraper to Splunk. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Single value (429 rate), line chart per listener, table (cluster × route)..",
+  "grandmaExplanation": "We spot when your mesh starts telling clients to slow down so you can tell real attacks from bad settings."
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.136",
+  "title": "macOS MDM Enrollment and User Channel Check-In SLA",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "MDM vendor API logs (Jamf Pro, Workspace ONE, Intune macOS) forwarded as JSON/HEC, or `sourcetype=jamf:computer_inventory` style feeds",
+  "app": "Jamf Pro, Microsoft Intune, VMware Workspace ONE — via HEC or scripted pull TA patterns; optional Cisco Secure Endpoint TA for corroboration",
+  "spl": "index=mdm sourcetype=jamf:computer_inventory OR sourcetype=intune:device OR sourcetype=ws1:device\n| eval last_seen_epoch=coalesce(tonumber(last_contact_time_epoch), tonumber(last_seen_epoch))\n| eval hours_since=round((now()-last_seen_epoch)/3600,2)\n| where isnotnull(mdm_enrolled) AND mdm_enrolled=false OR hours_since > 48\n| table _time, host, serial_number, mdm_enrolled, udid, hours_since, management_source\n| sort - hours_since",
+  "description": "macOS devices that fall out of MDM enrollment lose policy baselines for disk encryption, firewall, and update cadence. Comparing enrollment flags and last MDM check-in timestamps surfaces unmanaged or ghost systems before auditors do.",
+  "value": "Protects configuration compliance on Apple endpoints by catching MDM channel loss within hours instead of at quarterly inventory.",
+  "implementation": "Ingest your MDM tool’s device export or webhook stream. Normalize fields: `mdm_enrolled` boolean, `last_contact_time_epoch`, `serial_number`, `udid`. For Jamf, mirror the classic Splunk-for-Jamf sourcetype naming; for Intune Graph pulls, use `intune:device`. Schedule hourly; alert when `mdm_enrolled=false` on corporately tagged assets or `hours_since > 48`. Join Splunk asset lookups for loaner exclusions.",
+  "visualization": "Map (optional by site), Table (stale check-ins), Single value (unenrolled count).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apple Platform Deployment — MDM overview",
+      "url": "https://support.apple.com/guide/deployment/depd0f22e45/web"
+    },
+    {
+      "title": "Splunk Docs: HTTP Event Collector setup",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "cisco",
+    "macos",
+    "vmware"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• HEC token or modular input with API credentials stored in Splunk secret storage.\n• Field aliases aligned across MDM vendors.\n\nStep 1 — Backfill baseline with a one-time `inputlookup` merge.\n\nStep 2 — Alert routing to mobile device team with serial for Apple GSX lookup.\n\nStep 3 — Validate against MDM console UI for a test device put in airplane mode.\n\nStep 4 — Document BYOD exclusion rules.",
+  "grandmaExplanation": "We make sure company Macs are still properly enrolled in the management system so security settings don’t quietly fall off."
+}

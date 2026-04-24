@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.1.23",
+  "title": "GitLab Merge Request Pipeline Success Rate Drop",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Quality",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=gitlab:pipeline` merge-request pipeline events with `status`, `project_path`",
+  "app": "GitLab Add-on for Splunk (Splunkbase 6848) or GitLab webhook HEC",
+  "spl": "index=devops sourcetype=\"gitlab:pipeline\" object_kind=merge_request_event OR source=merge_request\n| bin _time span=1d\n| eval ok=if(status=\"success\",1,0)\n| stats sum(ok) as ok count as total by project_path, _time\n| eval success_pct=round(100*ok/total,1)\n| where total>=20 AND success_pct < 85\n| sort 0 project_path _time\n| streamstats current=f last(success_pct) as prev_pct by project_path\n| where isnotnull(prev_pct) AND success_pct < prev_pct - 10",
+  "description": "Sudden drops in MR pipeline pass rate often precede flaky tests, runner issues, or policy changes.",
+  "value": "Gives engineering leads an early signal when merge quality regresses before default-branch protections fail.",
+  "implementation": "Ingest MR pipeline payloads; tune minimum daily volume. Compare 1d success rate to prior day; alert on >10pt drop.",
+  "visualization": "Line chart (success_pct by project), Single value (worst project).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "GitLab Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/6848"
+    },
+    {
+      "title": "GitLab CI/CD logs to Splunk (Lantern)",
+      "url": "https://lantern.splunk.com/Data_Descriptors/GitLab/Getting_Gitlab_CICD_data_out_of_a_Gitlab_Pipeline_into_Splunk"
+    }
+  ],
+  "equipment": [
+    "gitlab"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

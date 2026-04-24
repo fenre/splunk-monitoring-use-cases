@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.60",
+  "title": "Identity Provider (SAML/AAD) Integration Failures",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:cloud:connector:saml\"` or `sourcetype=\"citrix:workspace:saml:diag\"` with `error_code`, `idp_name`, `cert_subject`, `assertion_user`; `index=azure` `sourcetype=\"azure:aad:signin\"` for conditional access failures, certificate-based auth issues, and UPN mismatch; `index=citrix` `sourcetype=\"citrix:analytics:security\"` optional risk layer Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.",
+  "spl": "index=xd (sourcetype=\"citrix:workspace:saml:diag\" OR sourcetype=\"citrix:cloud:connector:saml\")\n| eval err=lower(coalesce(error_code, error, message, \"\")), src=\"citrix_saml\", user=coalesce(user_principal, saml_nameid, subject)\n| where like(err, \"%cert%\") OR like(err, \"%signature%\") OR like(err, \"%nameid%\") OR like(err, \"%audience%\") OR like(err, \"%mismatch%\") OR match(err, \"(AADSTS|MSIS)\")\n| eval userPrincipalName=user, errorCode=err\n| append [\n  search index=azure sourcetype=\"azure:aad:signin\" result!=\"Success\"\n  (resourceDisplayName=\"*citrix*\" OR resourceDisplayName=\"*Citrix*\" OR appDisplayName=\"Citrix Workspace\")\n  | eval src=\"entra_signin\"\n  | fields _time, userPrincipalName, result, conditionalAccessStatus, errorCode, src\n  ]\n| stats count by userPrincipalName, result, errorCode, src\n| sort - count",
+  "description": "Workspace and StoreFront sign-ins that rely on SAML or Microsoft Entra ID can fail when federation certificates roll without coordination, when conditional access policies block legacy protocols, or when NameID/UPN mapping between directories drifts. Users experience intermittent or total login failure while infrastructure monitors still show green VDAs. Correlating Citrix-side assertion errors with Entra sign-in results isolates the owning team (identity vs Citrix) quickly and prevents prolonged outages during certificate and trust changes.",
+  "value": "Workspace and StoreFront sign-ins that rely on SAML or Microsoft Entra ID can fail when federation certificates roll without coordination, when conditional access policies block legacy protocols, or when NameID/UPN mapping between directories drifts. Users experience intermittent or total login failure while infrastructure monitors still show green VDAs. Correlating Citrix-side assertion errors with Entra sign-in results isolates the owning team (identity vs Citrix) quickly and prevents prolonged outages during certificate and trust changes.",
+  "implementation": "Ingest Citrix Workspace or connector SAML diagnostic logs to a dedicated sourcetype and map certificate expiry fields. Ingest Microsoft Entra sign-in logs for applications matching Citrix. Build a time-synced join on user and a five-minute window, not a naive transaction. Alert when SAML signature or certificate errors exceed a small baseline, or when Entra returns conditional access block codes for the Citrix app only. Add change tickets for cert rotations with automatic suppression. Document IdP cert fingerprints in a lookup for drift detection. Review privacy before storing full assertion bodies.",
+  "visualization": "Side-by-side timeline: Citrix SAML errors versus Entra failure codes; table of UPNs with both streams; single value of unique users blocked in one hour.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "Citrix Cloud identity providers and authentication",
+      "url": "https://docs.citrix.com/en-us/citrix-cloud/citrix-cloud-management/identity-providers-in-citrix-cloud.html"
+    },
+    {
+      "title": "Splunk add-on: Microsoft Cloud Services (Entra / Azure data)",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    }
+  ],
+  "knownFalsePositives": "IdP certificate rollover, Azure AD B2B guest quirks, and MFA enrollment bursts create transient SAML or token errors that look like integration failure. Use IdP health feeds, cert expiry lead time, and directory maintenance; ignore sub-minute blips at login peaks.",
+  "mitreAttack": [
+    "T1556"
+  ],
+  "equipment": [
+    "azure",
+    "citrix",
+    "m365"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_daas"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Entra app registrations for Citrix with sign-in logging to Splunk; Citrix identity provider configuration documented; time synchronized across data centers.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOnboard both feeds before enabling loud alerts. Normalize user keys: prefer `userPrincipalName` on both sides when possible.\n\nStep 2 — Create the search and alert\nStart with a daily top-errors report, then add correlation. Tune out pentest and known break-glass accounts with a lookup.\n\nStep 3 — Validate\nIn a test tenant, run a lab certificate swap and assert both index families record related failures. Restore the trust and confirm return to normal.\n\nStep 4 — Operationalize\nAdd this flow to the identity change calendar; require Citrix and identity joint ownership for cert updates.",
+  "grandmaExplanation": "We line up the sign-in story from the identity side with the one from the virtual-workspace side, so when folks cannot log in you see whether a trust certificate, a policy block, or a name mismatch is the real villain."
+}

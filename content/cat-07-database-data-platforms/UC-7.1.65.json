@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.65",
+  "title": "ClickHouse Detached Parts Accumulation",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`system.detached_parts` or `system.parts` with `detached` flag ingested as `clickhouse:parts`",
+  "app": "Scheduled SQL `SELECT database, table, count() cnt FROM system.detached_parts GROUP BY database, table` to HEC",
+  "spl": "index=database sourcetype=\"clickhouse:parts\"\n| where detached==1 OR match(_raw,\"detached\")\n| stats dc(partition) as detached_partitions sum(rows) as detached_rows latest(reason) as detach_reason by database, table, host\n| where detached_partitions > 3 OR detached_rows > 1000000",
+  "description": "Detached parts often follow failed merges, hardware errors, or manual `DETACH PART` operations; unchecked growth implies data integrity work and risks query failures when ATTACH is attempted inconsistently across replicas.",
+  "value": "Surfaces silent disk consumption and replication repair work before backups and restores become mandatory.",
+  "implementation": "If using `system.detached_parts`, emit `database`, `table`, `partition_id`, `name`, `reason` per row or aggregate `count` hourly. If only `system.parts` is available, filter `active=0` and name patterns per your export. Alert on new reasons containing `broken` or sudden partition count jumps.",
+  "visualization": "Table (database, table, detached_partitions, detach_reason), Line chart (detached row count).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ClickHouse — system.detached_parts",
+      "url": "https://clickhouse.com/docs/en/operations/system-tables/detached_parts"
+    }
+  ],
+  "equipment": [
+    "clickhouse"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

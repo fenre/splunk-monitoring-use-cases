@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.63",
+  "title": "ClickHouse INSERT Throughput and Batch Row Efficiency",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`system.query_log` for `query_kind` Insert, sourcetype `clickhouse:query_log`",
+  "app": "HEC/DB Connect export of query_log",
+  "spl": "index=database sourcetype=\"clickhouse:query_log\"\n| where query_kind=\"Insert\"\n| eval rows_written=tonumber(written_rows)\n| eval dur_ms=tonumber(query_duration_ms)\n| eval rows_per_sec=if(dur_ms>0, round(1000*rows_written/dur_ms,0), null())\n| bin _time span=15m\n| stats median(rows_per_sec) as med_rps p10(rows_written) as p10_batch_rows by host, _time\n| where p10_batch_rows < 1000 AND med_rps < 50000",
+  "description": "Tiny insert batches inflate part count and merge pressure even when nominal QPS looks fine. Monitoring median throughput and batch row percentiles exposes anti-patterns from application drivers before merge backlogs form.",
+  "value": "Guards ingestion pipelines against accidental per-row inserts that degrade cluster-wide performance.",
+  "implementation": "Ensure `written_rows` and `query_kind` are extracted for HTTP and native insert paths. Baseline med_rps per workload; tune thresholds per table. Pair with `clickhouse:parts` active_parts panel. Work with app teams to raise batch sizes or use async insert settings.",
+  "visualization": "Line chart (med_rps, p10_batch_rows), Scatter (written_rows vs duration).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ClickHouse — Insert best practices",
+      "url": "https://clickhouse.com/docs/en/guides/best-practices/sparse-primary-indexes"
+    }
+  ],
+  "equipment": [
+    "clickhouse"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

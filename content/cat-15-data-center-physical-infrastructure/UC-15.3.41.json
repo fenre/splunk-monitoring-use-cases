@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "15.3.41",
+  "title": "ONVIF IP Camera RTSP Session Disconnect Burst",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Physical Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=physical` VMS/NVR diagnostic logs with `sourcetype=onvif:events` or `sourcetype=nvr:rtsp` containing `Stream`, `Teardown`, `401`, `404` tokens",
+  "app": "Milestone XProtect / Genetec / Axis AVHS forwarded syslog, or Universal Forwarder monitoring NVR application logs",
+  "spl": "index=physical (sourcetype=onvif:events OR sourcetype=nvr:rtsp OR sourcetype=hikvision:isapi)\n| search RTSP OR rtsp OR Stream OR teardown OR Disconnect OR 454\n| bin _time span=5m\n| stats count as drops by _time, host, camera_id\n| where drops > 30",
+  "description": "Surveillance clients reopen RTSP sessions constantly; a burst of teardowns or `454 Session Not Found` errors often precedes camera power loss, firmware faults, or switch PoE budget exhaustion. Counting drops per camera distinguishes flaky cameras from single NVR restarts.",
+  "value": "Restores evidentiary continuity by catching video transport failures before operators notice black tiles on the wall.",
+  "implementation": "Normalize `camera_id` from ONVIF `ReferenceToken` or NVR channel GUID. Ingest NVR logs via syslog with `sourcetype=nvr:rtsp` or reuse vendor add-on sourcetypes. Tune `drops > 30` to camera bitrate and keyframe interval. Correlate with PoE `switch` SNMP if available.",
+  "visualization": "Timeline (drops), Table (camera_id, drops), Topology (optional).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ONVIF — Streaming specification overview",
+      "url": "https://www.onvif.org/"
+    },
+    {
+      "title": "Splunk Connect for Syslog (Splunkbase 4740)",
+      "url": "https://splunkbase.splunk.com/app/4740"
+    }
+  ],
+  "equipment": [
+    "cctv",
+    "snmp",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "snmp_generic"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Time sync between cameras, NVR, Splunk.\n• Channel-to-asset lookup.\n\nStep 1 — Sample logs during camera reboot.\n\nStep 2 — Exclude scheduled VMS upgrades.\n\nStep 3 — Correlate with access control for tamper hypothesis.\n\nStep 4 — Retention per legal hold policy.",
+  "grandmaExplanation": "We count how often the video stream drops for each camera so security teams notice failing feeds before an incident happens."
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.55",
+  "title": "GPU Driver Version and License Status (NVIDIA GRID / vGPU)",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=uberagent` `sourcetype=\"uberAgent:GPU:Performance\"`, `sourcetype=\"uberAgent:GPU:NVIDIA\"`, or host inventory GPU sourcetypes for `driverVersion`, vGPU name, `licenseState`, and utilization; `index=xd` `sourcetype=\"citrix:vda:events\"` for Citrix agent–reported hardware state when the hypervisor and NVIDIA vGPU have integration events; `index=windows` `sourcetype=\"WinEventLog:System\"` for NVIDIA service failures",
+  "app": "uberAgent UXM (Splunkbase 1448) with GPU monitoring enabled; NVIDIA vGPU on supported hypervisors; optional Splunk add-on for Windows for NVIDIA-sourced events",
+  "spl": "index=uberagent (sourcetype=\"uberAgent:GPU:NVIDIA\" OR sourcetype=\"uberAgent:GPU:Performance\")\n| eval host_name=coalesce(host, dest_host, machine)\n| eval driver=coalesce(driverVersion, driver_version, nvidia_driver_version, \"unknown\")\n| eval lic=lower(coalesce(licenseState, license_state, vgpu_license_state, \"unknown\"))\n| eval vgpu_name=coalesce(vgpuType, vgpu_type, vgpu, \"Unknown\")\n| eval errs=tonumber(coalesce(fatal_count, 0)) + tonumber(coalesce(uncorrectable_ecc, 0))\n| where (lic!=\"licensed\" AND lic!=\"ok\" AND lic!=\"n/a\" AND lic!=\"active\") OR like(lic, \"%unlic%\") OR like(lic, \"%fail%\") OR errs>0\n| stats latest(driver) as driver_version, max(lic) as license_state, latest(vgpu_name) as vgpu, max(errs) as err_signals by host_name\n| table host_name, driver_version, vgpu, license_state, err_signals",
+  "description": "NVIDIA vGPU and GRID licensing tie guest driver versions, hypervisor, and a license service together. A guest can boot but fall back to a restricted mode, lose hardware encode, or see session failures if the license server is unreachable, the wrong `driverVersion` is paired with a host driver, or ECC errors pass a threshold. Citrix 3D workloads, Teams optimization, and browser video offload all depend on a healthy, licensed GPU path. This use case unifies uberAgent (or an equivalent) GPU performance and license state with optional Citrix VDA hardware health. Treat driver skew across a catalog as an image problem; treat isolated license loss as a network or license server problem.",
+  "value": "NVIDIA vGPU and GRID licensing tie guest driver versions, hypervisor, and a license service together. A guest can boot but fall back to a restricted mode, lose hardware encode, or see session failures if the license server is unreachable, the wrong `driverVersion` is paired with a host driver, or ECC errors pass a threshold. Citrix 3D workloads, Teams optimization, and browser video offload all depend on a healthy, licensed GPU path. This use case unifies uberAgent (or an equivalent) GPU performance and license state with optional Citrix VDA hardware health. Treat driver skew across a catalog as an image problem; treat isolated license loss as a network or license server problem.",
+  "implementation": "Enable the GPU-related uberAgent options that match your hypervisor. Confirm `index=uberagent` has one row per host per minute at minimum. Build a `lookup` of approved `driverVersion` for each vGPU type and image generation. Alert when `licenseState` is not `Licensed` for more than 15 minutes, or when `driverVersion` is not in the approved list, or when fatal GPU errors increment. Excluded dedicated physical GPUs from vGPU license logic if you run mixed modes. For Citrix, tag hosts that run HDX 3D Pro policies so the alert is routed to the DaaS and NVIDIA contact points.",
+  "visualization": "Table of hosts with `driverVersion`, vGPU type, and license; heatmap of license problems over time; line chart of GPU utilization for affected hosts, linked to a Citrix app session panel.",
+  "cimModels": [
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "title": "NVIDIA vGPU software documentation",
+      "url": "https://docs.nvidia.com/grid/index.html"
+    },
+    {
+      "title": "HDX 3D Pro — Citrix (context for GPU use)",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/hdx-3d-pro.html"
+    }
+  ],
+  "knownFalsePositives": "Host driver upgrades, vGPU rebalancing, and cluster rolling reboots can trip NVIDIA GRID license or driver state checks for minutes. Use host maintenance and GPU cluster change windows, with persistence after the last reboot, before a fleet GPU incident.",
+  "equipment": [
+    "citrix",
+    "hyperv"
+  ],
+  "equipmentModels": [
+    "citrix_cvad",
+    "citrix_uberagent"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: uberAgent with GPU, NVIDIA vGPU in supported configuration; optional VDA service events; Windows forwarder for System events from the NVIDIA service.\n• Ensure the following data sources are available: `index=uberagent` GPU sourcetypes; `index=xd` optional; consistent `host` keys.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap vendor fields to a shared schema. If two hosts on the same hypervisor show different `driverVersion`, investigate template drift. If `licenseState` flaps, capture license server and DNS tickets.\n\nStep 2 — Create the search and alert\nSimplify the primary SPL for day one: run only the `index=uberagent` arm until the append path is vetted. Example:\n\n```spl\nindex=uberagent sourcetype=\"uberAgent:GPU:NVIDIA\"\n| eval lic=coalesce(licenseState, \"unknown\")\n| where lic!=\"Licensed\" OR like(lower(lic), \"%fail%\")\n| table _time, host, driverVersion, licenseState, vgpuType\n```\n\n**GPU Driver Version and License Status (NVIDIA GRID / vGPU)** — Once stable, reintroduce the `append` to `index=xd` and deduplicate on `host_name`.\n\nStep 3 — Validate\nIn a pre-production cluster, block license port traffic briefly, confirm the alert, restore, and assert recovery. Test driver roll-forward in a canary group.\n\nStep 4 — Operationalize\nOwn jointly between virtualization and Citrix teams. Re-evaluate on every new NVIDIA and Citrix LTSR combination because driver pairs change.",
+  "grandmaExplanation": "We check that the shared graphics card inside your virtual desktops has the right software and a current license, so heavy apps and video do not go silent in reduced mode or fail when people need them most."
+}

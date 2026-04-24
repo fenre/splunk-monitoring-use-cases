@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "6.1.34",
+  "title": "Pure Storage Array Data Reduction Ratio Collapse",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "FlashArray `/array/space` or Unified Add-on array capacity events (JSON) indexed as `purestorage:*` or legacy `PureStorage_REST`",
+  "app": "Pure Storage Unified Add-on for Splunk (Splunkbase 5513)",
+  "spl": "index=storage (sourcetype=\"purestorage:*\" OR sourcetype=\"PureStorage_REST\") earliest=-7d\n| eval drr=coalesce(data_reduction_ratio, space_data_reduction_ratio, total_reduction)\n| where isnotnull(drr) AND drr > 0\n| sort 0 _time\n| stats first(drr) as drr_start last(drr) as drr_end by array_name\n| eval drop_pct=round((drr_start-drr_end)/drr_start*100,1)\n| where drr_start > 2 AND drop_pct > 25\n| table array_name drr_start drr_end drop_pct",
+  "description": "A sudden drop in data-reduction ratio often means new noisy workloads, encryption of source data, or loss of thin-provisioned savings—and usable physical capacity burns faster than forecasts.",
+  "value": "Gives capacity owners early warning before free space cliffs, so they can rebalance volumes, change backup patterns, or expand arrays without emergency outages.",
+  "implementation": "Ingest array-level space metrics at least hourly. Baseline the 7-day average reduction ratio per array and alert when the live ratio falls more than ~25% below that baseline. Validate field names against a sample event from your TA version; map REST `space.data_reduction` into `data_reduction_ratio` at ingest if the TA does not already.",
+  "visualization": "Line chart (ratio trend), bar chart (delta vs baseline), table (array, drop %).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Pure Storage Unified Add-on for Splunk (Splunkbase)",
+      "url": "https://splunkbase.splunk.com/app/5513"
+    },
+    {
+      "title": "Splunk Connect for Syslog — Pure Storage",
+      "url": "https://splunk.github.io/splunk-connect-for-syslog/main/sources/vendor/PureStorage/pure_storage/"
+    }
+  ],
+  "equipment": [
+    "pure_storage"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

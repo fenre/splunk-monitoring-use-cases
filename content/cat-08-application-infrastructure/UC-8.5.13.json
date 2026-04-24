@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.5.13",
+  "title": "Varnish Ban and Purge Request Bursts",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Change"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`index=cache` `sourcetype=varnish:vsl` or management log with `BAN` / `RP` tags",
+  "app": "varnishlog forwarding (tagged VSL) or `varnishhist` pipeline",
+  "spl": "index=cache sourcetype=\"varnish:vsl\"\n| search \"BAN\" OR \"PURGE\"\n| bin _time span=5m\n| stats count by _time\n| where count > 50",
+  "description": "Sudden ban/purge storms may follow bad deploys, cache poisoning response, or automation bugs.",
+  "value": "Correlates cache invalidation with content management changes.",
+  "implementation": "Ship filtered VSL lines to reduce volume; include username if management ACL logs it.",
+  "visualization": "Timeline (events/min), table (operators), link to CMS releases.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "varnishstat — Varnish reference",
+      "url": "https://varnish-cache.org/docs/trunk/reference/varnishstat.html"
+    }
+  ],
+  "equipment": [
+    "varnish"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: varnishlog forwarding (tagged VSL) or `varnishhist` pipeline.\n• Ensure the following data sources are available: `index=cache` `sourcetype=varnish:vsl` or management log with `BAN` / `RP` tags.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIf VSL is unavailable, approximate via HTTP PURGE requests logged at the edge.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cache sourcetype=\"varnish:vsl\"\n| search \"BAN\" OR \"PURGE\"\n| bin _time span=5m\n| stats count by _time\n| where count > 50\n```\n\nUnderstanding this SPL\n\n**Varnish Ban and Purge Request Bursts** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=cache` `sourcetype=varnish:vsl` or management log with `BAN` / `RP` tags. **App/TA**: varnishlog forwarding (tagged VSL) or `varnishhist` pipeline. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Timeline (events/min), table (operators), link to CMS releases..",
+  "grandmaExplanation": "We spot unusual mass invalidation of your cache so bad deploys do not silently flush content."
+}

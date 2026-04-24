@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.59",
+  "title": "Aranet Probe Battery Percent and Stale Telemetry Gap Detection",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=environment` `sourcetype=aranet:sensor` with `battery_pct`, `sensor_id`, `gateway_id` timestamps",
+  "app": "Aranet Cloud → HEC, or MQTT ingest (Splunkbase #1890 / #7575)",
+  "spl": "index=environment sourcetype=aranet:sensor sensor_id=*\n| stats latest(battery_pct) as batt, latest(_time) as last_seen by sensor_id, location\n| eval hours_since_seen=round((now()-last_seen)/3600,2)\n| where batt < 15 OR hours_since_seen > 2\n| table sensor_id, location, batt, hours_since_seen\n| sort hours_since_seen desc",
+  "description": "Aranet probes run on primary cells; when battery percentage falls or uplinks stop while gateways remain healthy, environmental compliance dashboards go stale. Combining `battery_pct` with time-since-last-event differentiates dying sensors from broker outages.",
+  "value": "Prevents undetected excursions in GxP or food storage by forcing battery swaps before telemetry gaps exceed SOP limits.",
+  "implementation": "Extract `battery_pct` from Aranet JSON (`battery` or `batteryVoltage` mapped to percent if needed). Ingest at least hourly. Alert when `battery_pct < 15` or no event for >2 hours while peer sensors on the same `gateway_id` continue reporting—indicates dead node versus gateway fault.",
+  "visualization": "Table (sensors stale or low battery), Timeline (gaps), Single value (count at risk).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Aranet FAQ — sensor power",
+      "url": "https://aranet.com/"
+    },
+    {
+      "title": "Splunk Docs: HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "aranet",
+    "mqtt"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Inventory lookup with expected reporting cadence per sensor class.\n• Exclude sensors intentionally shelved.\n\nStep 1 — Use `bucket` command for gap detection across irregular MQTT bursts if needed.\n\nStep 2 — Pair with gateway health UC in network category.\n\nStep 3 — Validate by removing battery in lab.\n\nStep 4 — CMMS integration for work orders.",
+  "grandmaExplanation": "We make sure each little sensor is still checking in and isn’t about to die from a low battery, so temperature records stay trustworthy."
+}

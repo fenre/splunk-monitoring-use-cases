@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.70",
+  "title": "Citrix ShareFile Storage Zone Controller Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=sharefile` `sourcetype=\"citrix:sharefile:storagezone\"` (zone state, service heartbeat, sync queue depth, connector status); optional `sourcetype=\"citrix:sharefile:connector\"` for Storage Zone Connectors; fields like `zone_id`, `zone_state`, `sync_backlog`, `hosting_mode` (on_prem|cloud), `connector_health` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.",
+  "spl": "index=sharefile (sourcetype=\"citrix:sharefile:storagezone\" OR sourcetype=\"citrix:sharefile:connector\")\n| eval zone_ok=if(match(lower(zone_state),\"(?i)online|healthy|up\"),1,0), backlog=tonumber(coalesce(sync_backlog, queue_depth, 0)), conn_ok=if(match(lower(connector_health),\"(?i)ok|up|connected\") OR isnull(connector_health),1,0)\n| bin _time span=5m\n| stats min(zone_ok) as min_zone, max(backlog) as max_backlog, min(conn_ok) as min_connector, values(hosting_mode) as hosting by zone_id, _time\n| where min_zone=0 OR max_backlog>10000 OR min_connector=0\n| table _time, zone_id, hosting, min_zone, max_backlog, min_connector",
+  "description": "ShareFile content collaboration depends on healthy Storage Zone Controllers and connectors. Monitoring zone online state, synchronization backlog, split between on-premises and cloud-hosted zones, and connector health early exposes outages, replication stalls, and hybrid path failures that block file access, uploads, and business workflows.",
+  "value": "ShareFile content collaboration depends on healthy Storage Zone Controllers and connectors. Monitoring zone online state, synchronization backlog, split between on-premises and cloud-hosted zones, and connector health early exposes outages, replication stalls, and hybrid path failures that block file access, uploads, and business workflows.",
+  "implementation": "Ingest Storage Zone Controller and Storage Zone Connector logs (syslog, file, or API export) with consistent timestamps and time zones. Tag each zone with `hosting_mode` to separate on-prem vs customer-managed cloud. Define backlog thresholds from your baseline; alert when a zone is not online, backlog grows beyond an agreed cap, or any connector is unhealthy. Pair with Citrix Cloud status and network path tests for the control plane if applicable.",
+  "visualization": "Single-value: zones unhealthy count; timechart: max sync backlog by zone; table: zone_id, hosting_mode, min zone state, max backlog, connector health; pie or bar: on-prem vs cloud event volume (sanity for split reporting).",
+  "cimModels": [
+    "Application_State"
+  ],
+  "references": [
+    {
+      "title": "Citrix — StorageZones Controller",
+      "url": "https://docs.citrix.com/en-us/citrix-content-collaboration/storage-zones-controller/4-storage-zones-controllers.html"
+    }
+  ],
+  "knownFalsePositives": "Storage zone controller OS patching, SSL updates, and LB health flaps can look like a storage outage when both nodes bounce. A planned maintenance flag on the SZC pair and a dual-node quorum check avoid false SEV-1s on a rolling upgrade.",
+  "equipment": [
+    "citrix",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "citrix_daas",
+    "citrix_sharefile"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites\n• Storage Zone Controller and connector logs (or API export) available to Splunk with field extraction for `zone_state`, `sync_backlog` or equivalent, and `hosting_mode`.\n• Reference architecture doc listing zone IDs, on-prem vs cloud, and which connectors serve each site.\n\nStep 1 — Configure data collection\nSend controller and connector output to a dedicated index. Normalize time to UTC. Map vendor-specific status strings to `zone_state` and `connector_health` for consistent `eval` rules.\n\nStep 2 — Create the search and alert\nRun the base SPL, tune `max_backlog` and health string patterns to your build. Create alerts: any zone not online for 10 minutes, backlog over threshold for two consecutive 5m buckets, or any connector not healthy for 15 minutes.\n\nStep 3 — Validate\nCompare panel counts to the admin console. Inject or replay a test event where backlog spikes in a non-production zone.\n\nStep 4 — Operationalize\nAdd the panels to a ShareFile operations dashboard, route alerts to the collaboration and storage teams, and document escalation when cloud-hosted vs on-prem path differs.",
+  "grandmaExplanation": "We keep an eye on the boxes that host your shared files and the helpers that move them between the cloud and your own office — so you catch file-sync stalls and down zones before they stop real work."
+}

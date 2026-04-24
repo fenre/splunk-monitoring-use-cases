@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "8.1.57",
+  "title": "ZooKeeper Snapshot and Transaction Log Size Growth",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "`mntr` `zk_approximate_data_size` / `zk_znode_count`; UF disk metrics on `dataDir` / `dataLogDir` (e.g. `df` sourcetype) for true filesystem growth",
+  "app": "Scripted `mntr` to Splunk plus host metrics for the ZooKeeper journal and snapshot directories",
+  "spl": "index=infrastructure sourcetype=\"zookeeper:mntr\"\n| eval approx=tonumber(zk_approximate_data_size)\n| eval nodes=tonumber(zk_znode_count)\n| bin _time span=1h\n| stats latest(approx) as approx_bytes latest(nodes) as znodes by host, _time\n| streamstats window=24 global=f delta(approx_bytes) as bytes_per_hour by host\n| where bytes_per_hour > 1073741824 OR approx_bytes > 5368709120",
+  "description": "Sharp growth in approximate data size or znode footprint usually precedes full disks on `dataDir`/`dataLogDir` and longer snapshot cycles—both extend recovery time after failures.",
+  "value": "Avoids emergency purges and extended downtime when txn logs or snapshots consume the data volume.",
+  "implementation": "Poll `mntr` hourly for trend; add `df` or Prometheus `node_filesystem_size_bytes` for the volumes backing txn logs and snapshots. When alerts fire, verify `autopurge.snapRetainCount` / `snapCount` and that snapshots complete (check `zookeeper:log` for snapshot messages).",
+  "visualization": "Line chart (approx_bytes, bytes_per_hour), Table (host).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ZooKeeper — Data directory",
+      "url": "https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_dataDir"
+    }
+  ],
+  "equipment": [
+    "zookeeper"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

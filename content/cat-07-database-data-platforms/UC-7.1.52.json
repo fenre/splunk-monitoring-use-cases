@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.52",
+  "title": "MongoDB Index Build Progress via CurrentOp",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`db.currentOp({\"command.createIndexes\": {$exists: true}})` snapshots ingested as `mongodb:currentop`",
+  "app": "Splunk Add-on for MongoDB or custom scripted input polling `currentOp` every 30–60s",
+  "spl": "index=database sourcetype=\"mongodb:currentop\"\n| search op=\"command\" AND match(_raw,\"createIndexes\")\n| eval done=tonumber(mvindex('progress.done',0))\n| eval total=tonumber(mvindex('progress.total',0))\n| eval pct=if(total>0, round(100*done/total,1), null())\n| where isnotnull(pct) AND pct < 95 AND secs_running > 900\n| table _time, host, ns, secs_running, pct, opid",
+  "description": "Long-running index builds with stalled `progress` fields tie up resources and can block deployments or maintenance. Watching `progress.done` versus `progress.total` alongside runtime distinguishes healthy long builds from stuck operations before they overlap peak traffic.",
+  "value": "Reduces the chance of surprise storage and CPU saturation during change windows and helps DBAs decide when to kill or reschedule a build.",
+  "implementation": "Poll `currentOp` via mongosh or the TA’s operational input; flatten `progress.done`, `progress.total`, `secs_running`, `ns`, and `opid` into indexed fields in `props.conf` (KV/JSON extraction). Exclude `idleSessionTimeout` noise. Dashboard with threshold: runtime >15m and completion <95%. Alert only outside approved maintenance if builds are rare in production.",
+  "visualization": "Bar chart (pct complete by opid), Table (ns, secs_running, pct), Line chart (pct over time per opid).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "MongoDB — currentOp",
+      "url": "https://www.mongodb.com/docs/manual/reference/command/currentOp/"
+    },
+    {
+      "title": "MongoDB — index builds",
+      "url": "https://www.mongodb.com/docs/manual/core/index-creation/"
+    }
+  ],
+  "equipment": [
+    "mongodb",
+    "mongosh"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

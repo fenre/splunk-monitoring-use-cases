@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.61",
+  "title": "ClickHouse Disk Usage by Table and Partition",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`system.parts` bytes on disk ingested as `clickhouse:parts`",
+  "app": "Scheduled SQL aggregations to Splunk HEC",
+  "spl": "index=database sourcetype=\"clickhouse:parts\"\n| eval gb=round(tonumber(bytes_on_disk)/1073741824,3)\n| stats sum(gb) as table_gb by database, table, partition, host\n| eventstats sum(table_gb) as host_total by host\n| eval pct_of_host=round(100*table_gb/host_total,2)\n| where pct_of_host > 25 AND table_gb > 0.5\n| sort -table_gb",
+  "description": "A single partition or table consuming a disproportionate share of a host’s disk predicts `No space left` events and forces emergency TTL changes. Percent-of-host views highlight outliers even when absolute gigabytes look normal cluster-wide.",
+  "value": "Supports proactive storage purchasing and TTL/archival decisions before ingest stops.",
+  "implementation": "Export `SELECT database, table, partition, sum(bytes_on_disk) bytes_on_disk FROM system.parts WHERE active GROUP BY database, table, partition` daily or hourly. Normalize `partition` as string. Maintain capacity lookup for expected growth; alert when any table exceeds 25% of host disk for two consecutive runs.",
+  "visualization": "Treemap (database.table), Table (partition, table_gb, pct_of_host).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ClickHouse — system.parts",
+      "url": "https://clickhouse.com/docs/en/operations/system-tables/parts"
+    }
+  ],
+  "equipment": [
+    "clickhouse"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.8.12",
+  "title": "FreePBX Asterisk PJSIP Endpoint Registration Flapping",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "IT Operations",
+  "industry": "Telecommunications",
+  "dataSources": "`index=voip` `sourcetype=asterisk:full` or `sourcetype=asterisk:pjsip` containing `REGISTER` / `Removed contact` / `Endpoint.*is now Reachable` messages",
+  "app": "Asterisk full log forwarding via Universal Forwarder, optional FreePBX `full` log path `/var/log/asterisk/full`",
+  "spl": "index=voip (sourcetype=asterisk:full OR sourcetype=asterisk:pjsip)\n| search \"Endpoint\" \"Unreachable\" OR \"Removed contact\" OR \"REGISTER\"\n| rex field=_raw \"Endpoint\\s+(?<endpoint>\\S+)\"\n| bin _time span=10m\n| stats count as state_events, dc(_raw) as unique_msgs by _time, host, endpoint\n| where state_events > 15",
+  "description": "PJSIP registrations that oscillate between reachable and unreachable degrade both inbound DIDs and emergency calling. Mining Asterisk full logs for unreachable transitions and removed contacts exposes flaky trunks or UDP timeout misconfigurations before helpdesk volume spikes.",
+  "value": "Improves voice availability by catching registration flaps early—often fixable with qualify frequency, TLS, or firewall UDP timeout tuning.",
+  "implementation": "Forward `/var/log/asterisk/full` with `sourcetype=asterisk:full` (props can also split `pjsip` facility if you use structured logging). Extract `endpoint` or `AOR` identifiers. Alert when event rate per endpoint crosses threshold in 10 minutes. Enrich with edge firewall logs if available.",
+  "visualization": "Timeline (state_events by endpoint), Table (worst endpoints), Choropleth (site) if geo-tagged.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Asterisk Documentation — PJSIP configuration",
+      "url": "https://docs.asterisk.org/Configuration/Channel-Drivers/SIP/Configuring-res_pjsip/"
+    },
+    {
+      "title": "FreePBX Wiki — Asterisk Logs",
+      "url": "https://wiki.freepbx.org/display/PPS/Asterisk+Logs"
+    }
+  ],
+  "equipment": [
+    "asterisk"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Time sync NTP on Asterisk host and Splunk indexer.\n• `TIME_FORMAT` in props if timestamps are non-standard.\n\nStep 1 — Tune rex for your distro’s log format.\n\nStep 2 — Exclude known maintenance windows.\n\nStep 3 — Validate against `pjsip show endpoints` during failure.\n\nStep 4 — Document carrier escalation when trunk-side.",
+  "grandmaExplanation": "We notice when office phones or internet phone lines keep dropping and reconnecting, so calls don’t fail in the middle of important conversations.",
+  "telcoUseCase": "SIP trunk and desk phone stability — detect endpoints that repeatedly lose registration, indicating WAN jitter, expired certs, or NAT binding issues."
+}

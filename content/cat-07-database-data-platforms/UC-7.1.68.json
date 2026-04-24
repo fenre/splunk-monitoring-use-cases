@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.68",
+  "title": "Cassandra Read and Write Latency P99 by Keyspace",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`nodetool cfstats` / `nodetool tablestats` per table ingested as `cassandra:nodetool_cfstats`",
+  "app": "Scripted nodetool collector on each node; optional JMX `ClientRequest` latency metrics via TA-JMX",
+  "spl": "index=database sourcetype=\"cassandra:nodetool_cfstats\"\n| eval r99=tonumber(Percentile_99th_read_latency_ms)\n| eval w99=tonumber(Percentile_99th_write_latency_ms)\n| where r99 > 50 OR w99 > 50\n| stats max(r99) as read_p99_ms max(w99) as write_p99_ms by keyspace_name, table_name, host\n| sort -read_p99_ms",
+  "description": "Table-level 99th percentile latencies isolate hot partitions and compaction debt before mean cluster metrics move. Keyspace-level rollups help tenant owners understand SLA risk on shared rings.",
+  "value": "Prevents customer-visible timeouts by steering tuning (compaction, caching, consistency level) to the right tables.",
+  "implementation": "Normalize nodetool output: map `Keyspace`, `Table`, and latency percentiles to consistent field names (`keyspace_name`, `table_name`, `Percentile_99th_read_latency_ms`). Poll every 5 minutes. If your C* version prints microseconds, convert in `props.conf` `EVAL`. Join with application release calendar for correlation.",
+  "visualization": "Heatmap (keyspace × host for read_p99_ms), Line chart trends.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Apache Cassandra — nodetool tablestats",
+      "url": "https://cassandra.apache.org/doc/latest/cassandra/tools/nodetool/tablestats.html"
+    }
+  ],
+  "equipment": [
+    "cassandra",
+    "nodetool"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

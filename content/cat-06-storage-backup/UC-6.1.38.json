@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "6.1.38",
+  "title": "TrueNAS SCALE ZFS Pool Scrub Errors and Stalled Scrubs",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Data Quality",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "TrueNAS REST `pool` resource (`scan` subsection) via scripted input or HEC with `sourcetype=truenas:pool`",
+  "app": "Custom TrueNAS REST collector (API key) — complements archived TA Freenas (Splunkbase 6192) patterns",
+  "spl": "index=storage sourcetype=\"truenas:pool\" earliest=-24h\n| eval scan_fn=coalesce(scan_function, scan.type)\n| eval scan_st=coalesce(scan_state, scan.state)\n| eval scan_err=coalesce(scan_errors, scan.errors, 0)\n| where scan_fn=\"SCRUB\" AND (scan_err > 0 OR scan_st!=\"FINISHED\" AND scan_st!=\"ACTIVE\")\n| stats latest(scan_err) as scrub_errors latest(scan_st) as scrub_state latest(scan_progress) as progress by hostname pool_name\n| sort - scrub_errors",
+  "description": "Scrubs that stop mid-flight or report checksum errors indicate latent disk or controller issues; ignoring them allows silent corruption to spread before replication catches it.",
+  "value": "Forces timely disk replacement and validates that automated scrub schedules actually complete—critical for ZFS pools backing VMware, backup landing zones, and file shares.",
+  "implementation": "Poll `/api/v2.0/pool` and expand nested `scan` data. Normalize TrueNAS CORE vs SCALE field paths (`scan.state` vs flat keys). Alert on any `scan_errors > 0` immediately; warn if a scrub stays non-`FINISHED` longer than twice your expected duration.",
+  "visualization": "Table (pool, scrub state, errors), timeline (scrub start/stop), single value (pools with errors).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "TrueNAS API documentation",
+      "url": "https://www.truenas.com/docs/scale/scaleuireference/systemsettings/advanced/"
+    },
+    {
+      "title": "OpenZFS — zpool scrub",
+      "url": "https://openzfs.github.io/openzfs-docs/man/master/8/zpool-scrub.8.html"
+    }
+  ],
+  "equipment": [
+    "truenas"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

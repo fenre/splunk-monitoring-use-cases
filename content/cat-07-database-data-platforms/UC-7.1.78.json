@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.78",
+  "title": "Snowflake Snowpipe File Ingest Lag from Pipe Usage",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Data Quality",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.PIPE_USAGE_HISTORY` as `snowflake:pipe_usage`",
+  "app": "Splunk Add-on for Snowflake (Splunkbase 5390)",
+  "spl": "index=datawarehouse sourcetype=\"snowflake:pipe_usage\"\n| eval files=tonumber(FILES_INSERTED)\n| eval credits=tonumber(CREDITS_USED)\n| bin _time span=1h\n| stats sum(files) as files_in sum(credits) as pipe_credits by PIPE_NAME, _time\n| streamstats window=24 global=f avg(files_in) as baseline_files by PIPE_NAME\n| where baseline_files > 10 AND files_in < baseline_files*0.25",
+  "description": "A sudden collapse in files inserted through a pipe often means stage notifications, IAM roles, or event bridges broke—landing zone data piles up while dashboards still look “fresh enough” until SLAs miss. Comparing hourly inserts to a same-hour baseline catches partial outages.",
+  "value": "Protects near-real-time analytics and revenue reporting fed by cloud storage landing zones.",
+  "implementation": "Enable PIPE_USAGE_HISTORY input; confirm `PIPE_NAME`, `FILES_INSERTED`, `START_TIME` mapping. For multi-region pipes, split by `PIPE_SCHEMA`. Pair with cloud storage object-count metrics. Tune seasonality (use same day-of-week window) if workloads are cyclic.",
+  "visualization": "Line chart (files_in vs baseline), Single value (worst pipe drop %).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Snowflake PIPE_USAGE_HISTORY",
+      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/pipe_usage_history"
+    }
+  ],
+  "equipment": [
+    "snowflake"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

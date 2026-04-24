@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.2.25",
+  "title": "Akamai Guardicore Asset Label and Segmentation Group Drift",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Configuration",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Guardicore inventory or policy sync events, `sourcetype=guardicore:agent` or `guardicore:inventory` (confirm per TA version)",
+  "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
+  "spl": "index=microseg sourcetype=\"guardicore:agent\" earliest=-7d\n| eval labels=coalesce(labels, asset_labels, segmentation_labels)\n| eval app=coalesce(application, app_name, hostname)\n| stats latest(labels) as current_labels, earliest(_time) as first_seen by agent_id, hostname\n| lookup guardicore_asset_baseline.csv hostname OUTPUT expected_labels\n| where isnotnull(expected_labels) AND current_labels!=expected_labels\n| table hostname, expected_labels, current_labels, first_seen",
+  "description": "Microsegmentation only stays accurate when workload labels reflect the current application owner, environment, and compliance tier. Drift between expected labels from CMDB and labels observed in Guardicore indicates missed decommission steps, cloning errors, or unauthorised workload promotion.",
+  "value": "Prevents silent erosion of zero trust enforcement as the estate changes faster than manual reviews.",
+  "implementation": "Export a weekly baseline CSV from Guardicore or CMDB with authoritative `hostname → expected_labels`. Schedule this search daily; exceptions require CAB approval. For large container fleets, key on orchestration cluster plus pod template hash instead of hostname alone.",
+  "visualization": "Table (drifted assets), Bar chart (drift by business unit), Trend (count of drifts per week).",
+  "references": [
+    {
+      "title": "Splunkbase — Akamai Guardicore Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/7426"
+    },
+    {
+      "title": "Akamai Guardicore Centra administration",
+      "url": "https://docs.akamai.com/guardicore/"
+    }
+  ],
+  "securityDomain": "network",
+  "equipment": [
+    "guardicore"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

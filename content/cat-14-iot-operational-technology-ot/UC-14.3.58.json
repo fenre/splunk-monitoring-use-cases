@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.3.58",
+  "title": "Aranet Wireless Sensor RSSI Degradation and Mesh Margin",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=environment` `sourcetype=aranet:sensor` JSON from Aranet Cloud API, Aranet PRO MQTT, or LoRa gateway bridge with `rssi_dbm` / `signal_quality_pct`",
+  "app": "MQTT Modular Input (Splunkbase #1890) or MQTT Topics Ingestor (Splunkbase #7575), HTTP Event Collector for Aranet Cloud REST, optional Splunk Edge Hub MQTT",
+  "spl": "index=environment sourcetype=aranet:sensor sensor_id=*\n| stats latest(rssi_dbm) as rssi, latest(signal_quality_pct) as sigq by sensor_id, location\n| where rssi < -115 OR sigq < 30\n| table sensor_id, location, rssi, sigq\n| sort rssi",
+  "description": "Aranet LoRa sensors at the edge of RF coverage produce intermittent gaps before they go fully offline. Tracking RSSI or vendor signal quality percentage predicts dropped CO₂/temperature samples in cleanrooms, labs, and cold chains.",
+  "value": "Stops blind spots in regulated environmental monitoring by moving or repeating gateways before sensors mute.",
+  "implementation": "When ingesting Aranet JSON, map `rssi` from the gateway payload (dBm) or compute `signal_quality_pct` if the broker exposes a 0–100 score. Poll at the same cadence as telemetry (5–15 min). Alert when RSSI is weaker than −115 dBm (tune per antenna) or `signal_quality_pct` < 30 for two consecutive intervals. Correlate with new metal racking or relocated chillers.",
+  "visualization": "Choropleth or floorplan heatmap (RSSI), Table (worst sensors), Line chart (RSSI trend).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Aranet — technical documentation (sensor data export)",
+      "url": "https://aranet.com/"
+    },
+    {
+      "title": "MQTT Modular Input (Splunkbase 1890)",
+      "url": "https://splunkbase.splunk.com/app/1890"
+    }
+  ],
+  "equipment": [
+    "aranet",
+    "edge_hub",
+    "mqtt"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Stable `sensor_id` key shared with CMMS.\n• If only CSV export exists, use `inputcsv` batch jobs until streaming lands.\n\nStep 1 — Normalize RSSI field name across Aranet4 vs PRO lines.\n\nStep 2 — Baseline winter vs summer RF noise.\n\nStep 3 — Validate by walking sensors away from gateway in lab.\n\nStep 4 — Auto-task facilities when >5 sensors breach.",
+  "grandmaExplanation": "We check how strong the wireless signal is for environmental sensors so they don’t go quiet in the corners of a building."
+}

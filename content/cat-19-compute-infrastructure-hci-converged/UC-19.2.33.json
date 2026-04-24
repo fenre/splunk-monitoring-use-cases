@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "19.2.33",
+  "title": "Proxmox Ceph Pool NEARFULL and OSD Space Pressure",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=virtualization` `sourcetype=\"proxmox:ceph_pool\"` with fields `pool_name`, `stored_pct`, `pg_num`, `flags`",
+  "app": "Custom `ceph df detail -f json` poller or Proxmox TA cluster resource feed",
+  "spl": "index=virtualization sourcetype=\"proxmox:ceph_pool\" earliest=-4h\n| where stored_pct>=75 OR match(flags, \"(?i)nearfull\") OR match(flags, \"(?i)backfill_toofull\")\n| stats latest(stored_pct) as pct_used by pool_name\n| sort -pct_used",
+  "description": "Ceph pools back Proxmox VM disks and ISO libraries. Crossing utilization thresholds triggers backfill throttling and risks write freezes when `nearfull` or `full` ratios are hit cluster-wide.",
+  "value": "Gives storage teams runway to expand OSDs or rebalance PGs before tenant VM writes stall.",
+  "implementation": "Ingest `ceph df detail` JSON every 15 minutes. Compute `stored_pct` from `stored` / `max_avail` per pool. Track `flags` for nearfull/full. Combine with alert on aggregate cluster raw free percent from `ceph osd df`.",
+  "visualization": "Gauge (pool utilization), Table (pools over threshold), Timechart (pct_used trend).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Ceph — Monitoring OSDs and PGs",
+      "url": "https://docs.ceph.com/en/latest/rados/operations/monitoring-osd-pg/"
+    }
+  ],
+  "equipment": [
+    "ceph",
+    "proxmox"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

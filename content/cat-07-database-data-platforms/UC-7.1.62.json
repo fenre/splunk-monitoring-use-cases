@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.62",
+  "title": "ClickHouse Mark Cache and Uncompressed Cache Hit Ratio",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`system.asynchronous_metrics` ingested as `clickhouse:asynchronous_metrics`",
+  "app": "Metrics exporter (Prometheus→HEC) or periodic `SELECT metric, value FROM system.asynchronous_metrics` batch",
+  "spl": "index=database sourcetype=\"clickhouse:asynchronous_metrics\"\n| where match(metric,\"MarkCache\") OR match(metric,\"UncompressedCache\")\n| eval hit=if(match(metric,\"Hits\"), value, null())\n| eval miss=if(match(metric,\"Misses\"), value, null())\n| stats sum(hit) as hits sum(miss) as misses by host, _time\n| eval hit_ratio=round(hits/(hits+misses+0.001)*100,2)\n| where hit_ratio < 70",
+  "description": "Low mark or uncompressed cache hit ratios force more disk reads for the same queries, inflating latency after restarts or cache churn. Watching the hit ratio explains sudden query slowdowns that CPU metrics miss.",
+  "value": "Speeds diagnosis of cold-cache incidents and validates sizing after hardware changes.",
+  "implementation": "Emit asynchronous metrics every 60s with fields `metric`, `value`. Pivot Hits/Misses pairs for MarkCache and UncompressedCache in Splunk (metric names follow ClickHouse defaults). After restart, expect temporary drops; alert only when sustained below baseline for >1 hour compared to prior week.",
+  "visualization": "Line chart (hit_ratio), Area chart (hits vs misses stacked).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ClickHouse — system.asynchronous_metrics",
+      "url": "https://clickhouse.com/docs/en/operations/system-tables/asynchronous_metrics"
+    }
+  ],
+  "equipment": [
+    "clickhouse"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

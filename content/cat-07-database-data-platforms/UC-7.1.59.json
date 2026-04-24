@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "7.1.59",
+  "title": "ClickHouse Dictionary Reload and Source Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Data Quality",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`system.dictionaries` status and dictionary-related errors in `clickhouse:server_log`",
+  "app": "DB Connect/HEC for `system.dictionaries`; UF for `clickhouse-server.log`",
+  "spl": "index=database (sourcetype=\"clickhouse:system_events\" OR sourcetype=\"clickhouse:server_log\")\n| search (\"Dictionary\" AND (\"failed\" OR \"error\" OR \"timeout\" OR \"Could not load\")) OR (sourcetype=\"clickhouse:system_events\" AND event=\"DictionaryReloadFailed\")\n| rex field=_raw \"dictionary\\s+(?<dict_name>[\\w\\.]+)\"\n| stats count as errors latest(_raw) as sample by host, dict_name\n| where errors >= 3",
+  "description": "External dictionaries that fail to reload leave joins and dimension enrichment serving stale or empty values, silently skewing reports. Log and dictionary-status monitoring makes those failures visible before executives act on bad numbers.",
+  "value": "Protects revenue and operations reporting that depends on fresh reference data (currency, territory, product hierarchy).",
+  "implementation": "Option A: periodically `SELECT name, status, last_exception FROM system.dictionaries` and HEC as a dedicated sourcetype (e.g. `clickhouse:dictionaries`). Option B: ingest server logs and key off `Dictionary` error strings. Set transforms to extract `dictionary` name. Correlate with source database outages.",
+  "visualization": "Table (dict_name, errors, sample), Timeline of reload failures.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "ClickHouse — Dictionaries",
+      "url": "https://clickhouse.com/docs/en/sql-reference/dictionaries"
+    }
+  ],
+  "equipment": [
+    "clickhouse"
+  ],
+  "status": "draft",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team"
+}

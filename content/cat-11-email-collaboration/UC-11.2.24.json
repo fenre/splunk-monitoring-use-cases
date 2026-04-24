@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "11.2.24",
+  "title": "SharePoint Online Bulk File Download Anomaly (Short Window)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Anomaly"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=ms:o365:management` `Operation=FileDownloaded` for SharePoint",
+  "app": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055)",
+  "spl": "index=o365 sourcetype=\"ms:o365:management\" Workload=SharePoint Operation=\"FileDownloaded\" earliest=-1h\n| eval actor=coalesce(UserId, UserPrincipalName, userId, \"\")\n| stats count by actor\n| eventstats perc95(count) as p95\n| eval threshold=max(200, ceil(5*p95))\n| where count > threshold\n| sort -count",
+  "description": "A user downloading far more SharePoint files than peers in a one-hour window may indicate mass exfiltration, compromised credentials, or misconfigured sync clients.",
+  "value": "Provides a statistical alternative to static thresholds so SOCs catch insiders and attackers without tuning per-department baselines manually.",
+  "implementation": "Adjust the minimum floor (`200`) to tenant size. Exclude known migration or eDiscovery service principals via lookups. For very large tenants, run on summary data or increase window to 4h. Validate `Operation` remains `FileDownloaded` after Microsoft schema updates.",
+  "visualization": "Table (actor × download count), timechart of total downloads, single value (flagged actors).",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Office 365",
+      "url": "https://splunkbase.splunk.com/app/4055"
+    },
+    {
+      "title": "Audit log activities — FileDownloaded",
+      "url": "https://learn.microsoft.com/en-us/microsoft-365/compliance/audit-log-activities"
+    }
+  ],
+  "equipment": [
+    "m365",
+    "sharepoint"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

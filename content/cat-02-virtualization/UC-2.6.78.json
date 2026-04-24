@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.6.78",
+  "title": "Citrix Session Recording Pipeline and Storage Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=xd` `sourcetype=\"citrix:session:recording:server\"` (service up, IIS app pool, admin API), `sourcetype=\"citrix:session:recording:storage\"` (free space, file age), `sourcetype=\"citrix:session:recording:search\"` (indexing lag, playback requests); Windows performance or `sourcetype=WinHostMon` for disk Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
+  "app": "No official Splunk TA for Citrix Session Recording. Ingest via Windows Event Logs from the Session Recording Server (Splunk Add-on for Microsoft Windows), IIS logs from the SR web player, and optionally SR database queries via Splunk DB Connect.",
+  "spl": "index=xd (sourcetype=\"citrix:session:recording:server\" OR sourcetype=\"citrix:session:recording:storage\" OR sourcetype=\"citrix:session:recording:search\") earliest=-24h\n| eval g=tonumber(free_gb), low_disk=if((isnotnull(g) AND g<10) OR match(_raw, \"(?i)low.?space|disk.?full\"),1,0), lag_sec=tonumber(index_lag_sec), down=if(match(_raw, \"(?i)service.?(not.?(start|run)|down|stop|fail)\"),1,0)\n| bin _time span=5m\n| stats max(low_disk) as risk_disk, max(lag_sec) as max_lag, max(down) as down_ev by _time, host\n| where risk_disk=1 OR max_lag>300 OR down_ev=1\n| table _time, host, risk_disk, max_lag, down_ev",
+  "description": "Session recording is often a compliance and insider-risk control. The recording service, search index, and long-term file storage must be healthy, searchable within agreed latency, and large enough to retain evidence. Failures in any tier create a gap where activity is not provable even though policy requires recording. Monitoring capacity and playback availability closes that gap operationally and for audits.",
+  "value": "Session recording is often a compliance and insider-risk control. The recording service, search index, and long-term file storage must be healthy, searchable within agreed latency, and large enough to retain evidence. Failures in any tier create a gap where activity is not provable even though policy requires recording. Monitoring capacity and playback availability closes that gap operationally and for audits.",
+  "implementation": "Separate alerts: infrastructure (service down, disk, SQL), pipeline lag (ingest to searchable), and product errors on playback. Plan retention tiering: hot, warm, and archive. Test restore and playback quarterly. If storage is object-backed, add bucket health and cost monitors outside Splunk and link the dashboard here.",
+  "visualization": "Gauges: free space and index lag; timeline: down events; table: last successful backup or archive job per site if logged.",
+  "cimModels": [
+    "Network_Sessions"
+  ],
+  "references": [
+    {
+      "title": "Citrix — Session Recording architecture and storage",
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/session-recording.html"
+    }
+  ],
+  "knownFalsePositives": "Replay storage maintenance, index rebuild, NFS or SMB blips, and backlog drain after a recording server patch pause ingestion. Align with storage and CIFS tickets; a growing backlog with no matching maintenance is the sustained failure case.",
+  "mitreAttack": [
+    "T1562"
+  ],
+  "equipment": [
+    "citrix",
+    "db_connect",
+    "iis"
+  ],
+  "equipmentModels": [
+    "citrix_cvad"
+  ],
+  "lastReviewed": "2026-04-24",
+  "detailedImplementation": "Prerequisites: Centralized Windows or platform logs and disk metrics from the Session Recording cluster; agreed max search delay (SLO) from compliance. Step 1: Configure data collection — Install forwarders on each recording node; props.conf stanzas [citrix:session:recording:server], [citrix:session:recording:storage], [citrix:session:recording:search] with EXTRACT for free_gb, index_lag_sec, and service state; tag host with site in a lookup session_recording_site_map.csv. Step 2: Create the search and alert — Severe: service down for two poll cycles; warning: free space <20% for one hour or index_lag>300s (tune to your SLO, starting stricter and relaxing after baseline). Step 3: Validate — After a controlled load test, run `index=xd (sourcetype=\"citrix:session:recording:*\") earliest=-2h | stats max(index_lag_sec) as lag, min(free_gb) as disk by host` and compare to the SR admin console. Step 4: Operationalize — Add to the compliance control pack with owner sign-off; if evidence gaps or lag persist, escalate to Citrix Session Recording and storage administrators.",
+  "grandmaExplanation": "We watch the “security camera in the app” from the recorder box to the hard drives to the search box — so you are not left saying you can prove a session when the tape was full, late, or missing."
+}
