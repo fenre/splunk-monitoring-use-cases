@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.9.11",
+  "title": "OpenStack Control Plane RabbitMQ Queue Depth by Service",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Reliability"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`index=openstack` `sourcetype=\"openstack:rabbitmq\"` OR `sourcetype=\"rabbitmq:metrics\"` — `vhost`, `queue`, `messages_ready`, `messages_unacked`, `consumer_count`",
+  "app": "Prometheus scrape or RabbitMQ management API poller",
+  "spl": "index=openstack (sourcetype=\"openstack:rabbitmq\" OR sourcetype=\"rabbitmq:metrics\") earliest=-1h\n| eval depth=tonumber(messages_ready)+tonumber(messages_unacked)\n| eval consumers=tonumber(consumer_count)\n| where depth>5000 OR (consumers==0 AND depth>0)\n| stats latest(depth) as qdepth, latest(consumers) as cons by vhost, queue",
+  "description": "Deep AMQP queues mean async RPC backlogs across Nova, Neutron, and Cinder. Consumer drops predict widespread API timeouts.",
+  "value": "Preserves API responsiveness during traffic spikes and upgrades.",
+  "implementation": "Ingest per-queue metrics every minute. Page on depth SLO breach. Tie queues to owning service via naming convention.",
+  "visualization": "Timechart depth; table worst queues; consumer count sparkline.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "OpenStack Message Queue (Oslo.messaging)",
+      "url": "https://docs.openstack.org/oslo.messaging/latest/"
+    }
+  ],
+  "equipment": [
+    "openstack",
+    "prometheus",
+    "rabbitmq"
+  ],
+  "status": "verified",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups."
+}

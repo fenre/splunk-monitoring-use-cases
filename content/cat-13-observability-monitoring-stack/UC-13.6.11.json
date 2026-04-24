@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.6.11",
+  "title": "Grafana LDAP and OAuth Team Sync Failure Events",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Security"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=observability` `sourcetype=grafana:log` auth client (`auth.client_error`, LDAP, OAuth), `grafana:audit` sync failures",
+  "app": "Grafana with LDAP/OIDC, log shipper",
+  "spl": "index=observability sourcetype=\"grafana:log\" (ldap OR oauth OR oidc OR \"team sync\")\n| search \"error\" OR \"failed\" OR \"invalid_grant\" OR \"unable to authenticate\" OR \"connection reset\"\n| stats count, latest(_time) as t, values(logger) as loggers by auth_provider, host\n| where count >= 10\n| sort -count",
+  "description": "Identity sync failures strand new hires without dashboard access and can leave stale group memberships in regulated environments. Centralizing LDAP/OAuth errors accelerates IdP cutovers and surfaces certificate or clock skew issues.",
+  "value": "Prevents productivity loss after directory changes and tightens access consistency across HA Grafana nodes.",
+  "implementation": "Tag `auth_provider` (`ldap`, `azuread`, `okta`). Correlate with IdP health dashboards. Alert on sustained `count` growth versus 7-day baseline, not single blips.",
+  "visualization": "Timechart by provider, table of error signatures, link to IdP incident tickets.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Grafana — Authentication",
+      "url": "https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/configure-authentication/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "azure",
+    "grafana",
+    "m365",
+    "okta"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We collect sign-in system errors from your directory and single sign-on connections. If those break, people lose access to charts even when the charts themselves are fine."
+}

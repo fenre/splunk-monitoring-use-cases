@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.7.14",
+  "title": "Control-M Calendar-Based Scheduling Conflict Detection",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Configuration",
+    "Risk"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`index=batch` `sourcetype=controlm:audit` (calendar/order changes), `sourcetype=controlm:job` confirming effective run days",
+  "app": "Control-M audit trail export, EM database CDC, or syslog",
+  "spl": "index=batch sourcetype=\"controlm:audit\"\n| search object_type IN (\"CALENDAR\",\"ORDER\",\"JOB\") AND match(lower(action),\"(?i)create|update|delete\")\n| eval cal_key=coalesce(calendar_name, object_name)\n| bin _time span=1h\n| stats dc(user) as editors, count as changes, values(action) as actions by cal_key, _time\n| where changes >= 5 AND editors >= 2\n| sort -changes",
+  "description": "Shared calendars coordinate holidays and fiscal periods; conflicting edits from multiple operators can create impossible schedules or duplicate firings. Auditing calendar mutations alongside job cardinality exposes risky overlap before production dates misfire.",
+  "value": "Reduces preventable missed batches around holidays and fiscal close when calendars are edited under pressure.",
+  "implementation": "Align `calendar_name` field between audit and job feeds. If join cardinality is high, replace with `lookup calendars_jobs.csv`. Alert on `DELETE` actions touching calendars referenced by finance-tier jobs.",
+  "visualization": "Network diagram (calendar → jobs), change timeline, table of editors vs impacted job counts.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "BMC Control-M Calendars",
+      "url": "https://documents.bmc.com/supportu/controlm/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "controlm",
+    "syslog"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch when shared holiday calendars get edited and how many jobs rely on them. If lots of jobs depend on a calendar that many people just changed, we highlight the risk of clashes or missed runs."
+}

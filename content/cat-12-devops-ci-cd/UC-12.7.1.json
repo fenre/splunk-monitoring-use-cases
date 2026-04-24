@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.7.1",
+  "title": "Argo CD ApplicationSet Controller Drift — Generated Applications vs Cluster Reality",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Configuration",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=devops` `sourcetype=argocd:applicationset` (controller reconcile events, status.conditions), optional `sourcetype=argocd:application` for join",
+  "app": "Splunk Add-on for Argo CD, Argo CD ApplicationSet controller logs to HEC",
+  "spl": "index=devops sourcetype=\"argocd:applicationset\"\n| eval gen_count=mvcount(mvdedup(split(mvjoin(generated_apps, \",\"), \",\")))\n| eval ready=if(match(lower(status_phase),\"(?i)healthy|synced|successful\"),1,0)\n| where ready=0 OR match(lower(message),\"(?i)error|failed|unable to generate\")\n| stats latest(_time) as last_event, values(status_phase) as phases, latest(message) as msg, max(gen_count) as apps_claimed by applicationset_name, namespace, cluster\n| sort -last_event",
+  "description": "ApplicationSet is the factory for Argo CD Applications; when the controller cannot materialize expected apps or reports degraded conditions, new environments and tenants silently stop receiving GitOps coverage. Tracking reconcile errors and generated-app cardinality catches template mistakes, generator misconfigurations, and permission regressions before clusters run understaffed.",
+  "value": "Prevents missing Application resources that would leave namespaces without sync policies, which otherwise surface only as unexplained deployment stalls or manual hotfixes.",
+  "implementation": "Enable structured logging or HEC events from the ApplicationSet controller with fields such as applicationset_name, generated_apps, status_phase, and message. Normalize multi-value app lists. Schedule hourly; join to argocd:application for orphan detection if an ApplicationSet claims N apps but fewer exist with matching labels.",
+  "visualization": "Single-value (open ApplicationSet faults), timechart of error rate by cluster, table (ApplicationSet × phase × message).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Argo CD — ApplicationSet",
+      "url": "https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "argocd"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch the factory that automatically creates application records from your templates. If that factory starts skipping products or throwing errors, we raise the alarm before whole teams are left without their usual safety checks."
+}

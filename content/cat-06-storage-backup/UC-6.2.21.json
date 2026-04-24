@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "6.2.21",
+  "title": "Ceph placement group stuck inactive unclean undersized or stale states",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`ceph pg dump` JSON indexed as `ceph:pg`",
+  "app": "Custom scripted input; heavy forwarder",
+  "spl": "index=storage sourcetype=\"ceph:pg\" earliest=-30m\n| eval st=coalesce(pg_state, state)\n| where match(st, \"(?i)inactive|unclean|undersized|stale\")\n| stats dc(pg_id) as bad_pgs values(st) as states by pool_name, cluster_name\n| sort - bad_pgs",
+  "description": "Stuck PG states mean data is not fully available or not meeting min_size. Left unchecked, they threaten read/write availability and prolong recovery after node loss.",
+  "value": "Prioritizes ceph engineer triage before client timeouts cascade into application outages.",
+  "implementation": "Prefer JSON `pg dump` over parsing text; include `pgid`, `state`, `pool_name`. Throttle alerts until `bad_pgs` > threshold for 10 minutes to avoid flap during small blips.",
+  "visualization": "Single value (bad PG count), table (pool, states).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Ceph Documentation — monitoring",
+      "url": "https://docs.ceph.com/en/latest/radosgw/"
+    },
+    {
+      "title": "Red Hat Ceph Storage — troubleshooting",
+      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/"
+    }
+  ],
+  "equipment": [
+    "ceph"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "9.x",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

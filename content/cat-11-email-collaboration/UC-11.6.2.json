@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "11.6.2",
+  "title": "Proofpoint MTA Business Email Compromise and Spoofing Telemetry",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Fraud"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=proofpoint:mta` Proofpoint message transport / message logs with SPF, DKIM, DMARC, or fraud disposition fields",
+  "app": "Proofpoint On-Demand Add-on for Splunk (`Splunk_TA_ProofpointOD`)",
+  "spl": "index=email sourcetype=\"proofpoint:mta\" earliest=-24h\n| eval from_addr=coalesce(sender, Sender, mailfrom, \"\")\n| eval auth=coalesce(authentication_results, Authentication_Results, spf_dkim, \"\")\n| eval subj=coalesce(subject, Subject, \"\")\n| where match(lower(auth), \"(?i)fail|softfail|dmarc.fail|spf.fail|compauth.*fail\") OR match(lower(subj), \"(?i)wire|invoice|urgent.*payment|ceo|gift card)\")\n| eval pps=coalesce(pp_message_id, message_id, MessageID, \"\")\n| stats count values(subj) as subjects by from_addr auth\n| sort -count",
+  "description": "MTA logs capture authentication outcomes on inbound mail—failures and suspicious subjects often precede BEC payloads that TAP may score later. Surfacing high-volume failing senders complements TAP impostor scores with protocol-level evidence.",
+  "value": "Accelerates BEC triage for messaging teams and supplies forensic context for vendor impersonation and payroll fraud attempts.",
+  "implementation": "(1) Enable detailed MTA logging to Splunk. (2) Tune subject regex for your industry. (3) Allow-list bulk marketing domains via lookup. (4) Correlate with `proofpoint_tap_siem` on `message_id`. (5) Route high counts to fraud operations.",
+  "visualization": "Table (sender, auth summary, count), Sankey to internal recipients if field exists, timeline.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Proofpoint — Email fraud defense",
+      "url": "https://www.proofpoint.com/us/products/email-protection/email-fraud-defense"
+    },
+    {
+      "title": "Splunkbase — Splunk Add-on for Proofpoint On Demand",
+      "url": "https://splunkbase.splunk.com/app/3185"
+    }
+  ],
+  "mitreAttack": [
+    "T1566.002"
+  ],
+  "securityDomain": "threat",
+  "equipment": [
+    "proofpoint"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We scan Proofpoint mail-routing logs for fake or misaligned sender authentication and sketchy payment-themed subjects to catch business email scams early."
+}

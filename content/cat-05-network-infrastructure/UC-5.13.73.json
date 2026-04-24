@@ -41,10 +41,9 @@
     "cisco"
   ],
   "equipmentModels": [
-    "cisco_catalyst_center",
-    "cisco_thousandeyes",
     "cisco_meraki",
-    "cisco_sdwan"
+    "cisco_sdwan",
+    "cisco_thousandeyes"
   ],
   "detailedImplementation": "Prerequisites\n• UCs 5.13.16, 5.13.68, 5.13.69, 5.13.71 implemented and validated; all feeds healthy (see UC-5.13.74 for pipeline health).\n• Indexes: `catalyst`, `sdwan` (or your SD-WAN index), `cisco_network` for Meraki, Te index behind **`stream_index`**.\n\nStep 1 — Data contracts\n- Document canonical fields: `healthScore` (campus), `health_score` (SD-WAN), `health_score` (Meraki), `network.latency` (ThousandEyes OTel) — all four must be visible in a test time range before publishing the panel.\n- Align Meraki/SD-WAN field names via `eval` in the `stats` that feed `appendcols` if your build differs from the example.\n\nStep 2 — Baseline SPL\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:networkhealth\" | stats latest(healthScore) as campus_health | appendcols [search index=sdwan sourcetype=\"cisco:sdwan:*\" | stats latest(health_score) as wan_health] | appendcols [search index=cisco_network sourcetype=\"meraki:api\" | stats avg(health_score) as branch_health] | appendcols [search `stream_index` thousandeyes.test.type=\"agent-to-server\" | stats avg(network.latency) as te_latency_s | eval te_latency_ms=round(te_latency_s*1000,1)] | eval overall_health=round((campus_health+coalesce(wan_health,campus_health)+coalesce(branch_health,campus_health))/3,1) | table campus_health wan_health branch_health te_latency_ms overall_health\n```\n\nStep 3 — Executive UX\n- Use consistent color bands (e.g. green >80, yellow 60–80, red <60) for health scores; show Te latency in ms with a red threshold line.\n- Add deep links: campus → Network Health UC; WAN → 5.13.69; ISE/cross-product → 5.13.68; Te path → 5.13.71.\n\nStep 4 — Governance\n- Review weekly: missing inputs (`coalesce` hiding gaps), macro drift on **`stream_index`**, and SD-WAN/Meraki API credential expiry.",
   "grandmaExplanation": "We combine the health of your entire network — campus, branches, wide-area connections, and internet paths — into one executive view so leadership can see the big picture.",

@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.6.15",
+  "title": "Grafana Loki Log Query Cardinality Explosion Detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=observability` `sourcetype=grafana:log` Loki querier `stats` lines, `component=loki` or `logger=tsdb.loki`",
+  "app": "Grafana + Loki, metrics from `loki_discarded_samples_total` mirrored to Splunk optional",
+  "spl": "index=observability sourcetype=\"grafana:log\" loki\n| search \"lines processed\" OR \"total entries\" OR \"post-filter\" OR \"chunk fetch\"\n| eval heavy=if(match(lower(_raw),\"(?i)high cardinality|large query|max chunks|too many entries\"),1,0)\n| rex field=_raw \"(?i)streams[=:](?<streams>\\d+)\"\n| bin _time span=5m\n| stats sum(heavy) as heavy_hits, median(streams) as med_streams, count as log_lines by _time, org_id\n| where heavy_hits > 0 OR med_streams > 5000\n| sort -heavy_hits",
+  "description": "LogQL queries that explode into millions of streams degrade Loki queriers and front-ends, often triggered by unbounded label selectors after deployments. Surfacing heavy-query signatures from Grafana’s Loki client logs protects the shared logging tier.",
+  "value": "Avoids querier OOM loops and keeps incident investigations fast when Loki backs Explore.",
+  "implementation": "Prefer shipping Loki `query_stats` JSON if available; map `streams`, `chunks_downloaded`, `queue_time_seconds`. Coach teams to use bounded time ranges and recording rules for high-fanout filters.",
+  "visualization": "Timechart of heavy_hits, table of offending org_id, histogram of streams.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Grafana Loki — Best practices",
+      "url": "https://grafana.com/docs/loki/latest/get-started/best-practices/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "grafana"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We look for searches in your log database that accidentally touch too many streams. Those searches can slow down logging for everyone, so we catch the pattern early."
+}

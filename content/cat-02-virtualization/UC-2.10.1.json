@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.10.1",
+  "title": "VxRail vSAN Disk Group Decommission and Evacuation Events",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Change",
+    "Availability"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`index=vxrail` `sourcetype=\"vxrail:vsan\"` — `cluster_id`, `disk_group_uuid`, `operation` (decom|remove), `status`, `bytes_to_resync`",
+  "app": "Custom modular input from VxRail Manager `/rest/vxm/v1/system` and vSAN health exports; align with VMware TA patterns",
+  "spl": "index=vxrail sourcetype=\"vxrail:vsan\" earliest=-24h\n| eval op=lower(coalesce(operation, op))\n| where match(op, \"(?i)decom|remove|evac\")\n| eval st=lower(status)\n| where st!=\"success\" OR tonumber(bytes_to_resync)>0\n| stats latest(bytes_to_resync) as pending_bytes by cluster_id, disk_group_uuid",
+  "description": "Disk group removals trigger large resync traffic. Monitoring decommission status prevents accidental removal during production peaks and validates evacuation completeness.",
+  "value": "Avoids data unavailability during hardware swaps and confirms cluster resilience.",
+  "implementation": "Poll vSAN tasks after each maintenance. Alert on non-success or growing resync bytes. Correlate with `vxrail:physical_disk` SMART events.",
+  "visualization": "Timeline decommission; gauge resync bytes; table disk groups.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Dell VxRail Support — vSAN operations",
+      "url": "https://www.dell.com/support/product-details/product-id.vxrail"
+    }
+  ],
+  "equipment": [
+    "vmware",
+    "vxrail"
+  ],
+  "status": "verified",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch your integrated rack-scale cluster—disks, updates, support uploads, and copy jobs—so small hardware or software issues do not grow into long outages."
+}

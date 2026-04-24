@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.7.13",
+  "title": "Control-M Job Output Scanning for Business-Critical Keywords",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Data Quality",
+    "Operational"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`index=batch` `sourcetype=controlm:job` with captured `job_output` snippet, or sidecar `controlm:job:output` events",
+  "app": "Control-M output collection via log adapter, SFTP drop, or Automation API",
+  "spl": "index=batch sourcetype=\"controlm:job\"\n| search job_output=\"*POSTING*FAILED*\" OR job_output=\"*BALANCE*MISMATCH*\" OR job_output=\"*ORA-*\" OR job_output=\"*DEADLOCK*\"\n| rex field=job_output max_match=20 \"(?<hit>(?i)posting failed|balance mismatch|ORA-[0-9]{5}|deadlock)\"\n| stats count, values(job_name) as jobs, latest(order_id) as last_order by hit, folder\n| sort -count",
+  "description": "Many batch jobs exit zero while printing fatal business errors in stdout; keyword monitoring on captured output catches financial and data-integrity failures that exit codes miss. Splunk makes those strings first-class searchable evidence.",
+  "value": "Closes the gap between technical success and business correctness for ledger, settlement, and ERP extracts.",
+  "implementation": "Trim output to last N KB to control license cost; store full logs in cheap object storage with a pointer field. Maintain `critical_phrases.csv` lookup and use `lookup` instead of hard-coded OR chain for maintainability.",
+  "visualization": "Top keyword bar chart, job output viewer panel, trend of hits per folder.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "BMC Control-M — Viewpoint job output",
+      "url": "https://documents.bmc.com/supportu/controlm/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "controlm"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "Sometimes a job says it finished fine but the printed log still says money did not balance. We search those log lines for your critical phrases so that kind of hidden failure still raises an alarm."
+}

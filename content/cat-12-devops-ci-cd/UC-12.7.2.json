@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.7.2",
+  "title": "Argo CD Notification Service Delivery Failure Rate",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Reliability",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=devops` `sourcetype=argocd:server` lines from `argocd-notifications-controller` (delivery attempts, webhooks, Slack/email errors)",
+  "app": "Splunk Add-on for Argo CD, HEC from notifications controller stdout",
+  "spl": "index=devops sourcetype=\"argocd:server\" (component=notifications OR logger=\"*notifications*\")\n| eval failed=if(match(_raw,\"(?i)failed to send|delivery failed|non-ok status|error sending|retry exhausted\"),1,0)\n| bin _time span=15m\n| stats count as attempts, sum(failed) as failures by _time, destination_service, trigger\n| eval fail_rate=round(100*failures/nullif(attempts,0),2)\n| where fail_rate > 5 AND attempts >= 10\n| sort -fail_rate",
+  "description": "Argo CD’s notification controller turns sync and health transitions into operator signals; when deliveries fail, on-call teams learn about broken deployments late or not at all. Measuring failure rate per destination isolates broken webhooks, expired tokens, and rate-limited chat integrations.",
+  "value": "Restores trustworthy GitOps alerting so incidents are acknowledged while rollbacks are still cheap.",
+  "implementation": "Ship notifications controller logs with component tags to Splunk. Extract destination_service (slack, teams, webhook URL host) and trigger (on-sync-failed, on-health-degraded). Tune thresholds per integration; exclude planned maintenance windows using a lookup.",
+  "visualization": "Line chart (fail_rate over time by destination), stacked bar (attempts vs failures), table of sample error messages.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Argo CD — Notifications",
+      "url": "https://argo-cd.readthedocs.io/en/stable/operator-manual/notifications/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "argocd"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We count how often the system fails to send the automatic messages that tell people something went wrong with releases. If those messages keep failing, we flag it so teams are not left in the dark."
+}

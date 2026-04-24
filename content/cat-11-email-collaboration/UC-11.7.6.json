@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "11.7.6",
+  "title": "Asterisk AMI ConfBridge Concurrent Participant Load",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=voip` · `sourcetype=\"asterisk:ami\"`",
+  "app": "Custom TA, HEC, or Universal Forwarder mapping Asterisk logs to `asterisk:pjsip`, `asterisk:cdr`, `asterisk:queue_log`, `asterisk:full`, `asterisk:messages`, `asterisk:security`, `asterisk:ami`",
+  "spl": "index=voip sourcetype=\"asterisk:ami\" earliest=-4h\n| eval action=coalesce(event, Action, \"\")\n| eval bridge=coalesce(confbridge, Bridge, conference, \"\")\n| where match(lower(action), \"(?i)confbridge\")\n| eval join=if(match(lower(action), \"(?i)join|enter\"),1,0)\n| eval leave=if(match(lower(action), \"(?i)leave|end\"),1,0)\n| streamstats sum(join) as j sum(leave) as l by bridge\n| eval participants=j-l\n| timechart max(participants) by bridge",
+  "description": "Large conferences stress CPU and licensing. Tracking concurrent Confbridge members prevents all-hands meltdowns.",
+  "value": "Protects executive and investor calls; informs host sizing.",
+  "implementation": "(1) AMI read-only user with Confbridge events. (2) Validate Action parsing. (3) Threshold alerts per bridge. (4) Correlate with MOS UC.",
+  "visualization": "Area max concurrency; table peak by bridge.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Asterisk Wiki",
+      "url": "https://wiki.asterisk.org/wiki/display/AST/Documentation"
+    },
+    {
+      "title": "Splunk — Monitor network ports",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitornetworkports"
+    },
+    {
+      "title": "AMI events",
+      "url": "https://wiki.asterisk.org/wiki/display/AST/Asterisk+Manager+Interface+Events"
+    }
+  ],
+  "equipment": [
+    "asterisk"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We track how crowded conference bridges are so big meetings stay stable."
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.6.5",
+  "title": "Grafana User Login Audit and Session Anomalies",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Audit",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=observability` `sourcetype=grafana:audit` authentication events (`action=login`, `logout`, failed auth)",
+  "app": "Grafana audit logging to file/Loki/HEC",
+  "spl": "index=observability sourcetype=\"grafana:audit\"\n| search action=\"login*\" OR action=\"logout*\" OR match(lower(_raw),\"(?i)invalid password|auth failed\")\n| eval failed=if(match(lower(_raw),\"(?i)invalid|failed|denied\"),1,0)\n| bin _time span=1h\n| stats count as attempts, sum(failed) as fails, dc(username) as users by _time, src_ip, org_id\n| eval fail_rate=round(100*fails/nullif(attempts,0),2)\n| where fails >= 15 OR fail_rate > 25\n| sort -fails",
+  "description": "Credential stuffing and stolen SSO tokens surface as clustered failed Grafana logins or impossible travel patterns between IP addresses. Hourly rollups on audit events provide a lightweight detective control without full SIEM noise.",
+  "value": "Supports identity investigations and demonstrates access monitoring for regulated Grafana deployments.",
+  "implementation": "Ensure `username`, `src_ip`, and `action` are extracted. Enrich `src_ip` with geo ASN lookup. Join to HR offboarding list for terminated-account usage. Forward to Enterprise Security if available.",
+  "visualization": "Choropleth map, timeline of failed logins, top src_ip bar chart.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Grafana — Audit logs",
+      "url": "https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/audit-grafana/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "grafana"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We summarize sign-in successes and failures by hour and location. Unusual bursts of failures can mean someone is guessing passwords or using a stolen login."
+}

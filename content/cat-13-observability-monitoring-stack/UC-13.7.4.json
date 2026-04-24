@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.7.4",
+  "title": "Fluentd Worker Process Crash and Supervisor Restart Detection",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Fault",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=fluent` `sourcetype=fluentd:log` supervisor messages (`worker.*died`, `respawn`, `SIGTERM`)",
+  "app": "Container stdout/stderr or systemd journal",
+  "spl": "index=fluent sourcetype=\"fluentd:log\"\n| search \"worker\" AND (\"died\" OR \"exit\" OR \"SIGSEGV\" OR \"respawn\" OR \"unexpected error\")\n| bin _time span=5m\n| stats count, values(worker_id) as workers by _time, host\n| where count >= 3\n| sort -count",
+  "description": "Fluentd multi-worker mode amplifies throughput but multiplies crash blast radius; rapid respawns indicate plugin native crashes, OOM kills, or poison messages. Early detection preserves at-least-once delivery assumptions.",
+  "value": "Reduces unexplained log holes during deployments and flags unstable custom plugins.",
+  "implementation": "Include Kubernetes `pod_name` for DaemonSets. Join to node memory pressure metrics. Page when `count` exceeds baseline during non-deploy windows.",
+  "visualization": "Timeline annotations, bar chart (restarts by host), table with linked stack traces.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Fluentd — Multi-process workers",
+      "url": "https://docs.fluentd.org/deployment/multi-process-workers"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "kubernetes",
+    "log_pipeline"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We count how often worker processes die and come back. Frequent restarts mean the log shipper is unstable and you could lose messages between crashes."
+}

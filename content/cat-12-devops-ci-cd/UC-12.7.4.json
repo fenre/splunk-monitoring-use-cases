@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.7.4",
+  "title": "Argo CD API RBAC Violation Attempts — Unauthorized Sync and Delete",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=devops` `sourcetype=argocd:server` API audit lines (403/Forbidden, permission denied, RBAC decision)",
+  "app": "Splunk Add-on for Argo CD, Argo CD `--enable-grpc-web` audit middleware or proxy logs",
+  "spl": "index=devops sourcetype=\"argocd:server\"\n| search \"403\" OR \"Forbidden\" OR \"permission denied\" OR \"not allowed\" OR \"RBAC\"\n| rex field=_raw \"(?i)(?P<verb>sync|delete|update|patch|create).*application\\\\s+(?P<app>[^\\\\s]+)\"\n| stats count, values(user) as users, values(remote_ip) as src_ips by app, verb\n| where count >= 5\n| sort -count",
+  "description": "Repeated denied sync or delete attempts often precede insider misuse, stolen tokens, or automation using the wrong service account. Centralizing Argo CD API denials gives security teams a high-fidelity signal without waiting for Kubernetes audit noise.",
+  "value": "Supports least-privilege enforcement and proves detective control coverage for GitOps platforms under SOC2 or internal SRE policy.",
+  "implementation": "Confirm API server logs include authenticated user or OIDC subject and source IP. Add allowlists for known CI service accounts. Forward to a security index with stricter retention; pair with SOAR for automatic ticket creation on novel user+app pairs.",
+  "visualization": "Bar chart (denials by user), heatmap (user × application), timeline with drilldown to raw log lines.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Argo CD — RBAC",
+      "url": "https://argo-cd.readthedocs.io/en/stable/operator-manual/rbac/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "argocd",
+    "kubernetes",
+    "m365"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We track when someone tries to change or remove deployments but is told they are not allowed. A burst of those tries can mean a stolen password or a broken script, so we surface it quickly."
+}

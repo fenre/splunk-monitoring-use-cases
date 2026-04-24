@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.6.4",
+  "title": "Grafana Plugin Installation and Version Mismatch Detection",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Configuration",
+    "Operational"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=observability` `sourcetype=grafana:log` plugin loader, `sourcetype=grafana:audit` plugin enable/disable",
+  "app": "Grafana HA pair with synchronized plugins, config management diff to Splunk",
+  "spl": "index=observability (sourcetype=\"grafana:log\" OR sourcetype=\"grafana:audit\")\n| search plugin OR \"plugin*version\"\n| rex field=_raw \"(?i)plugin[=_](?<plugin_id>[a-zA-Z0-9._-]+)\"\n| eval ver=coalesce(plugin_version, version)\n| stats values(ver) as versions, dc(ver) as ver_dc, latest(_time) as t by plugin_id, host\n| where ver_dc > 1\n| sort -ver_dc",
+  "description": "Highly available Grafana clusters with skewed plugin versions produce phantom panel errors that reproduce on one node only. Comparing reported plugin versions across hosts catches incomplete rollouts before users open tickets.",
+  "value": "Eliminates flaky dashboard behavior during rolling upgrades and supports change audit evidence.",
+  "implementation": "Augment with nightly API scrape `/api/plugins` ingested as JSON with `sourcetype=grafana:plugins`. Alert when `ver_dc>1` for `plugin_id` in the same `stack` field. Exclude dev hosts via lookup.",
+  "visualization": "Table (plugin × host × version), Treemap of drift count, timeline of plugin audit actions.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Grafana — Plugins",
+      "url": "https://grafana.com/docs/grafana/latest/plugins/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "grafana"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We compare plugin versions across your dashboard servers. If one server is behind, people can see errors only sometimes, and this catches that mismatch early."
+}

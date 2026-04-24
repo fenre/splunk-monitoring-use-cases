@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "9.8.7",
+  "title": "BeyondTrust Remote Support Session Duration and Concurrent Analyst Trending",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Operational",
+    "Capacity"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`sourcetype=beyondtrust:session` PRA session start/end with analyst (rep) and customer identifiers",
+  "app": "Splunk Add-on for BeyondTrust Privileged Remote Access",
+  "spl": "index=pam sourcetype=\"beyondtrust:session\" earliest=-24h\n| eval rep=coalesce(rep_user, RepUser, analyst, technician, user, UserName, \"\")\n| eval cust=coalesce(customer_id, Customer, end_user, \"\")\n| eval dur_min=coalesce(duration_min, round(duration_sec/60,1), round((SessionDurationSeconds)/60,1))\n| eval sess=coalesce(session_id, SessionID, \"\")\n| bin _time span=15m\n| stats dc(sess) as concurrent_sessions avg(dur_min) as avg_duration perc95(dur_min) as p95_duration by _time rep\n| where concurrent_sessions>=3 OR p95_duration>90\n| sort _time",
+  "description": "Support desks using BeyondTrust PRA must balance responsiveness with license consumption and supervisor oversight. Trending concurrent sessions and duration percentiles exposes understaffing, training issues, or potential session piggybacking.",
+  "value": "Optimizes PRA licensing and staffing forecasts while surfacing unusual analyst behavior patterns for quality assurance.",
+  "implementation": "(1) Normalize representative and customer fields across PRA editions. (2) Confirm `duration_min` or compute from start/end. (3) Use `perc95()` for session-duration percentiles (Splunk `stats`). (4) Segment internal IT vs vendor MSP accounts. (5) Review weekly with service desk management.",
+  "visualization": "Dual-axis line (concurrent sessions vs p95 duration), heatmap (rep × hour), table of peak intervals.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "BeyondTrust — Privileged Remote Access",
+      "url": "https://www.beyondtrust.com/privileged-remote-access"
+    },
+    {
+      "title": "Splunk Docs — stats functions (percentiles)",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Commonstatsfunctions"
+    }
+  ],
+  "securityDomain": "access",
+  "equipment": [
+    "beyondtrust"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We track how many BeyondTrust support sessions run at once and how long they last so help-desk leaders can plan coverage."
+}

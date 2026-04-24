@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.9.3",
+  "title": "OpenStack Cinder Volume Attach and Detach Error Rate",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault",
+    "Reliability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=openstack` `sourcetype=\"openstack:cinder\"` — `volume_id`, `instance_uuid`, `action` (attach|detach), `status`, `message`",
+  "app": "Cinder API / volume driver logs to Splunk",
+  "spl": "index=openstack sourcetype=\"openstack:cinder\" earliest=-24h\n| eval st=lower(coalesce(status, result))\n| eval act=lower(coalesce(action, operation))\n| where match(act, \"(?i)attach|detach\")\n| eval ok=if(match(st, \"(?i)success|complete\"),1,0)\n| bin _time span=1h\n| stats count as n, sum(ok) as okc by _time, backend, host\n| eval err_rate=round(100*(n-okc)/n,2)\n| where err_rate>5",
+  "description": "Attach failures trap instances in BUILD or ERROR and break stateful apps. Trending error rates by backend isolates driver or SAN regressions.",
+  "value": "Improves storage SLOs for databases and Kubernetes volumes on Cinder.",
+  "implementation": "Tag backend driver name. Baseline hourly success ratio. Alert on spikes after upgrades.",
+  "visualization": "Timechart error rate; breakdown by backend; top error messages.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "OpenStack Cinder",
+      "url": "https://openstack.org/cinder"
+    }
+  ],
+  "equipment": [
+    "openstack"
+  ],
+  "status": "verified",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups."
+}

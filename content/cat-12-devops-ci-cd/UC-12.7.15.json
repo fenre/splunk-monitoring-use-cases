@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.7.15",
+  "title": "Control-M Server and Gateway Resource Saturation — DB Connections and Thread Pools",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=batch` `sourcetype=controlm:alert` EMS saturation, `sourcetype=controlm:audit` diagnostic; optional OS metrics with `host` tag matching EM",
+  "app": "Control-M Enterprise Manager logs, database client errors, Splunk Infrastructure Add-on",
+  "spl": "index=batch sourcetype=\"controlm:alert\" OR sourcetype=\"controlm:audit\"\n| search \"connection pool\" OR \"thread pool\" OR \"out of memory\" OR \"database\" OR \"too many connections\" OR \"ORA-00020\" OR \"SQL*Net\"\n| eval sev=case(match(_raw,\"(?i)critical|severe\"),\"critical\", match(_raw,\"(?i)warn\"),\"warning\", 1=1,\"info\")\n| stats count, latest(_time) as last_evt, values(controlm_server) as servers by signature, sev\n| where count>=3\n| sort -count",
+  "description": "The Control-M server tier collapses under connection leaks, JDBC pool exhaustion, and JVM thread starvation long before jobs fail visibly. Mining alert and audit signatures for database and thread pressure gives platform owners a leading indicator.",
+  "value": "Avoids enterprise-wide scheduling brownouts during month-end peaks and shortens war-room time when EM is unstable.",
+  "implementation": "Normalize `signature` with `rex` or `eval` to strip timestamps. Enrich with DB AWR snapshots via DB Connect for correlation. Route critical sev to platform NOC. Tune noise with allowlists for known maintenance scripts.",
+  "visualization": "Timechart of alert rate by signature, gauge (open critical), table with server and DBA owner.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "BMC Control-M Enterprise Manager",
+      "url": "https://documents.bmc.com/supportu/controlm/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "controlm",
+    "db_connect"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch the central brain of your batch system for signs it is running out of database links or worker threads. Catching that early prevents a quiet slowdown from turning into a company-wide scheduling outage."
+}

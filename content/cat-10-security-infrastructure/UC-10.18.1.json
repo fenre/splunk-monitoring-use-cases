@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.18.1",
+  "title": "Broadcom Symantec SEP Virus Definition and Content Update Compliance",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=symantec:ep:agent:file` SEPM client inventory / agent status events with definition or content revision timestamps",
+  "app": "Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772)",
+  "spl": "index=endpoint sourcetype=\"symantec:ep:agent:file\" earliest=-24h\n| eval host=coalesce(Computer_Name, computer_name, host)\n| eval def_age_days=round((now()-coalesce(strptime(Definition_Date, \"%Y-%m-%d %H:%M:%S\"), strptime(Definitions_Date, \"%m/%d/%Y %H:%M:%S\"), _time))/86400, 1)\n| where def_age_days>2 OR match(lower(_raw), \"(?i)out of date|update failed|definitions overdue\")\n| stats latest(def_age_days) as definition_age_d values(Definition_Version) as def_version by host\n| sort -definition_age_d",
+  "description": "Endpoints with stale antivirus definitions or failed content updates lose parity with the latest threats and often violate internal patch or AV SLAs. Tracking definition age from SEP agent status events exposes offline laptops, broken SEPM communication, and policy gaps before outbreaks occur.",
+  "value": "Reduces exposure window to zero-days and supports audit evidence that endpoint protection content is current fleet-wide, prioritizing remediation for the worst laggards.",
+  "implementation": "(1) Ingest SEPM agent status or client inventory dumps via the Symantec EP TA into `index=endpoint`. (2) Confirm field extractions for definition date and version; adjust `strptime` formats to match your locale. (3) Set SLA thresholds (for example definitions older than 48 hours). (4) Join `host` to CMDB for owner and site. (5) Alert SecOps and desktop support on sustained non-compliance.",
+  "visualization": "Table (host, definition age, version), single-value (percent compliant), bar chart (count of stale hosts by OU).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Add-on for Symantec Endpoint Protection",
+      "url": "https://splunkbase.splunk.com/app/2772"
+    },
+    {
+      "title": "Symantec Endpoint Protection — managing virus and spyware definitions",
+      "url": "https://knowledge.broadcom.com/external/article/178870/manage-virus-and-spyware-definitions-on.html"
+    }
+  ],
+  "securityDomain": "endpoint",
+  "equipment": [
+    "broadcom_symantec"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We check whether company laptops and servers have up-to-date virus signatures from Broadcom Symantec so malware cannot slip in through outdated protection."
+}

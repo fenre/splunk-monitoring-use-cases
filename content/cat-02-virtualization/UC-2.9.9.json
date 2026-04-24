@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.9.9",
+  "title": "OpenStack Nova Instance State Stuck in BUILD or ERROR",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault",
+    "Availability"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`index=openstack` `sourcetype=\"openstack:nova\"` — `instance_uuid`, `vm_state`, `task_state`, `power_state`, `host`",
+  "app": "Nova state audit from `nova list --fields` JSON or notifications",
+  "spl": "index=openstack sourcetype=\"openstack:nova\" earliest=-6h\n| eval vs=lower(coalesce(vm_state, state))\n| eval ts=lower(coalesce(task_state, task))\n| where vs=\"build\" OR vs=\"error\" OR match(ts, \"(?i)scheduling|networking|block_device\")\n| eval age_sec=now()-tonumber(state_changed_epoch)\n| where age_sec>900\n| stats max(age_sec) as max_age by instance_uuid, host, vs",
+  "description": "Instances stuck mid-build consume quotas and mask scheduler or image issues. Long-lived ERROR states often indicate recurring hardware faults.",
+  "value": "Protects tenant SLAs and prevents ghost capacity consumption.",
+  "implementation": "Snapshot state every few minutes. Alert when age exceeds 15 minutes. Auto-open tickets with hypervisor and image id.",
+  "visualization": "Single value stuck count; table oldest instances; timeline transitions.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "OpenStack Nova Instance States",
+      "url": "https://docs.openstack.org/nova/latest/reference/vm-states.html"
+    }
+  ],
+  "equipment": [
+    "hyperv",
+    "openstack"
+  ],
+  "status": "verified",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups."
+}

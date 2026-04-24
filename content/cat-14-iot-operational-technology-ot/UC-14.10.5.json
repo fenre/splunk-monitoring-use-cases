@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.10.5",
+  "title": "Aranet Temperature vs CO2 Correlation as Occupancy Proxy",
+  "criticality": "low",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Analytics",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=environment` · `sourcetype=\"aranet:sensor\"` (co2_ppm, temp_c, humidity_pct, pressure_hpa, battery_pct, rssi_dbm)",
+  "app": "Custom HEC or scripted input from Aranet Cloud API / Aranet PRO base station",
+  "spl": "index=environment sourcetype=\"aranet:sensor\" earliest=-7d\n| eval temp=tonumber(coalesce(temp_c, \"\"))\n| eval co2=tonumber(coalesce(co2_ppm, \"\"))\n| where isnotnull(temp) AND isnotnull(co2)\n| bucket _time span=15m\n| stats avg(temp) as temp_c avg(co2) as co2_ppm by _time location\n| eval co2_per_deg=if(temp_c!=0, co2_ppm/temp_c, null())\n| stats avg(co2_per_deg) as co2_intensity stdev(co2_per_deg) as variability by location\n| where co2_intensity>30",
+  "description": "CO2 rises with occupancy while temperature may lag; a rolling CO₂-per-degree intensity metric highlights stale-air zones independent of thermostat readings alone.",
+  "value": "Informs demand-controlled ventilation and space planning.",
+  "implementation": "(1) Stable clock sync on sensors. (2) Minimum sample per window. (3) Review outliers after holidays.",
+  "visualization": "Bar chart of co2_intensity by wing; table of high-variability rooms.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Aranet — environmental monitoring",
+      "url": "https://aranet.com/"
+    },
+    {
+      "title": "ASHRAE — IAQ",
+      "url": "https://www.ashrae.org/"
+    },
+    {
+      "title": "OSHA indoor air",
+      "url": "https://www.osha.gov/indoor-air-quality"
+    }
+  ],
+  "equipment": [
+    "aranet"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We compare heat and carbon dioxide to guess which areas are actually crowded."
+}

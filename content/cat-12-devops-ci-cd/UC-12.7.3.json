@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.7.3",
+  "title": "Argo CD Repo-Server Connection Errors and Manifest Cache Miss Rate",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=devops` `sourcetype=argocd:server` (repo-server pod logs), optional Git provider latency fields from sidecar",
+  "app": "Splunk Add-on for Argo CD, Kubernetes log collector with pod labels",
+  "spl": "index=devops sourcetype=\"argocd:server\" (component=repo-server OR pod_name=\"*repo-server*\")\n| eval conn_err=if(match(_raw,\"(?i)connection refused|tls handshake|i/o timeout|repository not found|authentication required|rpc error\"),1,0)\n| eval cache_miss=if(match(_raw,\"(?i)cache miss|manifest cache miss|revision cache\"),1,0)\n| bin _time span=5m\n| stats sum(conn_err) as conn_errors, sum(cache_miss) as cache_misses, count as log_lines by _time, repo_url_host\n| eval miss_rate=round(100*cache_misses/nullif(log_lines,0),2)\n| where conn_errors > 0 OR miss_rate > 15\n| sort -conn_errors",
+  "description": "The repo-server fetches and caches Git manifests for every sync; TLS failures, credential expiry, and Git platform outages appear as connection errors, while cache churn forces expensive refetches that slow every reconciliation. Jointly trending these signals distinguishes transient Git blips from systemic credential or scaling problems.",
+  "value": "Reduces sync latency and prevents cascading sync failures during Git incidents or mis-rotated deploy keys.",
+  "implementation": "Ensure repo URL hostnames are extracted to repo_url_host. Correlate with Git provider status pages. Alert on sustained conn_err > 0 for a single host over 15 minutes or cache miss_rate spikes versus 7-day baseline.",
+  "visualization": "Dual-axis timechart (connection errors vs miss rate), top repo_url_host bar chart, event timeline for TLS/credential errors.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Argo CD — Repo server",
+      "url": "https://argo-cd.readthedocs.io/en/stable/operator-manual/high_availability/#repo-server"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "argocd",
+    "kubernetes"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch the part of the system that talks to your source code vault. If it cannot connect or keeps re-downloading everything from scratch, we spot it early so deployments do not stall across the board."
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.7.3",
+  "title": "Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`index=pve` `sourcetype=\"proxmox:task\"` (pmxcfs, cluster join) and `sourcetype=\"proxmox:ha\"` with corosync/pmxcfs keywords; optional dedicated `sourcetype=\"linux_syslog\"` host corosync file",
+  "app": "Splunk Universal Forwarder with inputs on `/var/log/corosync/corosync.log` and `journalctl -u corosync`; tag or merge into `proxmox:task` patterns",
+  "spl": "index=pve (sourcetype=\"proxmox:task\" OR sourcetype=\"proxmox:ha\") earliest=-4h\n| search match(lower(_raw), \"(?i)quorum|qdevice|not quorate|lost.*quorum|split.?brain|totem.*fault|ring.*fault\")\n| eval sev=if(match(lower(_raw), \"(?i)lost.*quorum|not quorate|split.?brain\"), \"critical\", \"warning\")\n| bin _time span=5m\n| stats count as sigs, values(host) as nodes by sev, _time\n| where sigs>=5 AND sev=\"critical\"",
+  "description": "Quorum loss freezes cluster management APIs and can strand operators during incidents. Corosync and pmxcfs messages are the earliest observable signals of ring faults, vote drift, or qdevice misconfiguration.",
+  "value": "Shortens time-to-detect for cluster brain-split conditions and prevents destructive manual intervention on partially connected nodes.",
+  "implementation": "Route corosync logs with host, ring, and node identity. Build eventtypes for quorum phrases. Page on critical phrases; throttle warnings with a sustained-count threshold. Correlate with NIC driver updates and switch port events.",
+  "visualization": "Timeline of quorum-related signals; choropleth or table of affected nodes; raw drilldown.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Proxmox Cluster Manager pvecm",
+      "url": "https://pve.proxmox.com/pve-docs/chapter-pvecm.html"
+    }
+  ],
+  "equipment": [
+    "proxmox",
+    "syslog"
+  ],
+  "status": "verified",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We listen for signs that the servers lost agreement on who is in charge, which is when automatic fixes can accidentally make things worse unless people step in carefully."
+}

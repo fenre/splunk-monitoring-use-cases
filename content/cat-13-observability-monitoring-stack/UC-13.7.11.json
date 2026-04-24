@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.7.11",
+  "title": "Fluentd Tag Routing Misconfiguration — Unmatched Records and Null Route",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Configuration",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=fluent` `sourcetype=fluentd:log` pattern-not-matched, `no_match` drops, default route warnings",
+  "app": "Fluentd with `@label` diagnostics enabled",
+  "spl": "index=fluent sourcetype=\"fluentd:log\"\n| search \"pattern not matched\" OR \"no patterns matched\" OR \"record is suppressed\" OR \"disable_router\" OR \"unmatched\"\n| rex field=_raw \"tag=(?<tag>[\\\\w._-]+)\"\n| stats count, values(tag) as tags by host, config_file\n| where count >= 20\n| sort -count",
+  "description": "After adding new container namespaces or syslog facilities, tags often fail to match `<match>` stanzas, silently sending events to the wrong store or dropping them. Log signatures for unmatched tags expose config gaps quickly.",
+  "value": "Stops blind spots when Kubernetes labels change or legacy apps rotate facility codes.",
+  "implementation": "Augment with a metrics counter from `fluent-plugin-prometheus` for `router_no_match`. Map `config_file` to Git repo paths. Alert on new `tag` values appearing in this search.",
+  "visualization": "Treemap (host × tag), table of top unmatched tags, diff vs previous week.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Fluentd — Config syntax",
+      "url": "https://docs.fluentd.org/configuration/config-file"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "log_pipeline",
+    "prometheus",
+    "syslog"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We catch log streams that no longer match any routing rule. Those streams might never reach your security archive even though the agent still runs."
+}

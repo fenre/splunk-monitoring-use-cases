@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.6.8",
+  "title": "Grafana API Token Usage and Expiration Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Operational"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=observability` `sourcetype=grafana:audit` token create/revoke, `grafana:log` auth middleware with token id hash",
+  "app": "Grafana service account & token governance export",
+  "spl": "index=observability sourcetype=\"grafana:audit\"\n| search token OR \"service account\"\n| eval expires_ts=strptime(expires_at,\"%Y-%m-%dT%H:%M:%SZ\")\n| eval days_left=round((expires_ts-now())/86400,1)\n| where action=\"create\" OR action=\"revoke\" OR days_left < 14\n| stats latest(days_left) as ttl_days, latest(action) as last_action, values(name) as token_name by token_id, user\n| sort ttl_days",
+  "description": "Expired Grafana tokens break automation silently until dashboards or exporters fail en masse. Tracking creation, revocation, and time-to-live centrally prevents surprise outages in CI and observability glue code.",
+  "value": "Reduces authentication-related incident volume and supports key rotation compliance.",
+  "implementation": "If `expires_at` is absent, join to `/api/auth/keys` nightly snapshot. Never log raw secret; use token fingerprint. Alert when `ttl_days<7` for tokens used by production data pipelines.",
+  "visualization": "Gantt-style TTL chart, table (token_name × ttl_days), pie of tokens by owner team.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Grafana — HTTP API authentication",
+      "url": "https://grafana.com/docs/grafana/latest/developers/http_api/authentication/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "grafana",
+    "m365"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We list access tokens that are about to expire or were just changed. That way automated jobs do not suddenly lose permission in the middle of the night."
+}

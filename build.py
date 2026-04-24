@@ -300,7 +300,7 @@ EQUIPMENT = [
     # ── Application Servers ────────────────────────────────────────────────
     {"id": "tomcat", "label": "Apache Tomcat", "tas": ["Tomcat", "tomcat", "Catalina"]},
     {"id": "jboss", "label": "WildFly / JBoss", "tas": ["WildFly", "JBoss", "wildfly", "jboss"]},
-    {"id": "phpfpm", "label": "PHP-FPM", "tas": ["PHP-FPM", "php-fpm"]},
+    {"id": "phpfpm", "label": "PHP-FPM", "tas": ["PHP-FPM", "php-fpm", "phpfpm"]},
 
     # ── Caching & Proxy ────────────────────────────────────────────────────
     {"id": "varnish", "label": "Varnish Cache", "tas": ["Varnish", "varnish"]},
@@ -409,7 +409,7 @@ EQUIPMENT = [
 
     {"id": "cloudflare", "label": "Cloudflare", "tas": ["Cloudflare", "cloudflare"]},
     {"id": "guardicore", "label": "Akamai Guardicore", "tas": ["Guardicore", "guardicore"]},
-    {"id": "broadcom_symantec", "label": "Broadcom / Symantec SSE", "tas": ["Symantec", "symantec", "Broadcom"]},
+    {"id": "broadcom_symantec", "label": "Broadcom / Symantec SSE", "tas": ["Symantec", "symantec", "Broadcom", "bluecoat", "Blue Coat"]},
     {"id": "forcepoint", "label": "Forcepoint ONE", "tas": ["Forcepoint", "forcepoint"]},
     {"id": "sonicwall", "label": "SonicWall", "tas": ["SonicWall", "sonicwall", "dell:sonicwall"]},
 

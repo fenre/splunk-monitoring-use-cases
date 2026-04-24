@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.6.13",
+  "title": "Grafana Alerting Notification Channel Delivery Failures",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Reliability",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=observability` `sourcetype=grafana:alerting` contact point dispatch logs, integration errors",
+  "app": "Grafana unified alerting with debug logging to Splunk",
+  "spl": "index=observability sourcetype=\"grafana:alerting\"\n| search \"notification\" OR contact_point OR contactPoint\n| eval failed=if(match(lower(_raw),\"(?i)failed to send|delivery failed|retry|429|503|invalid webhook\"),1,0)\n| bin _time span=5m\n| stats count as attempts, sum(failed) as failures by _time, contact_point, integration_type\n| eval fail_rate=round(100*failures/nullif(attempts,0),2)\n| where failures > 0 AND fail_rate > 1\n| sort -failures",
+  "description": "When Slack webhooks or PagerDuty routing keys break, Grafana fires alerts that never arrive—worse than noisy paging because teams assume silence means health. Channel-level failure rates isolate broken integrations quickly.",
+  "value": "Restores confidence that Grafana-native alerting paths actually reach on-call tools.",
+  "implementation": "Normalize `integration_type` (`slack`, `pagerduty`, `teams`). Deduplicate on `fingerprint` if present. Create a dead-letter index for raw payloads with secrets redacted.",
+  "visualization": "Line chart (fail_rate by channel), pie of integration types failing, table with last error snippet.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Grafana — Alerting notifications",
+      "url": "https://grafana.com/docs/grafana/latest/alerting/configure-notifications/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "grafana",
+    "hardware_bmc",
+    "pagerduty"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_edac"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We track failed deliveries for alert messages to chat and paging tools. Silence is dangerous if it is because messages never left the building."
+}

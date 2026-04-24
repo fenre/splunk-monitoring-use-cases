@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.7.5",
+  "title": "Ansible Playbook Execution Duration Trending by Play and Role",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=iac` `sourcetype=ansible:result` with per-play `duration` (seconds) and `play`, `role` from callback JSON",
+  "app": "Ansible Splunk HTTP Event Collector callback, ARA export, or AWX job event normalizer",
+  "spl": "index=iac sourcetype=\"ansible:result\"\n| where isnotnull(duration) AND duration > 0\n| bin _time span=1d\n| stats median(duration) as p50, perc95(duration) as p95, count as runs by _time, playbook, play, role\n| eventstats median(p95) as baseline by playbook, play, role\n| where p95 > baseline * 1.5 AND runs >= 5\n| sort -p95",
+  "description": "Run duration creep in specific plays or roles is an early sign of module inefficiency, network degradation, or hosts accumulating configuration debt. Trending p95 by play isolates the slow slice of long playbooks without blaming the entire automation surface.",
+  "value": "Guides refactoring priorities and prevents surprise CI timeouts or maintenance windows that overrun change freezes.",
+  "implementation": "Ensure callback payloads include hierarchical fields (playbook, play, role) and duration in seconds. Exclude ad-hoc `-m shell` runs if needed via `job_type`. Use 30-day baseline; tune multiplier per environment.",
+  "visualization": "Line chart (p95 duration by play over time), treemap (time spent by role), table of worst regressions.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Ansible — Callback plugins",
+      "url": "https://docs.ansible.com/ansible/latest/plugins/callback.html"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "ansible"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We track how long each chapter of your automation takes day to day. If one chapter suddenly takes much longer, we point to it so you can fix the slow part before it breaks your maintenance window."
+}

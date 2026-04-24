@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "6.1.52",
+  "title": "NetApp ONTAP SnapMirror lag versus configured recovery point objective",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "SnapMirror relationship metrics in `netapp:ontap:snapmirror` (and related fields on `netapp:ontap:vol`)",
+  "app": "Splunk Add-on for NetApp Data ONTAP (`TA-netapp_ontap`)",
+  "spl": "index=storage sourcetype=\"netapp:ontap:snapmirror\"\n| eval lag_sec=coalesce(lag_time, relationship_lag_seconds, lag_seconds, if(isnotnull(lag_time_millis), round(lag_time_millis/1000,0), null()))\n| eval rpo_sec=coalesce(policy_rpo_seconds, rpo_seconds, 3600)\n| where isnotnull(lag_sec) AND lag_sec > rpo_sec\n| eval breach_ratio=round(lag_sec/rpo_sec,2)\n| stats max(lag_sec) as max_lag max(rpo_sec) as policy_rpo max(breach_ratio) as breach by relationship_name, destination_path, cluster_name\n| sort - max_lag",
+  "description": "Comparing lag to each relationship's RPO catches bandwidth, snapshot lock, and schedule drift that a static minute threshold misses. This aligns monitoring with how DR policies are actually written.",
+  "value": "Prioritizes replication backlog before audits or failover drills, preserving RPO commitments for NAS and SAN DR pairs.",
+  "implementation": "Poll `/api/snapmirror/relationships` via the TA and extract `lag_time`, `policy`, and `healthy`. Convert ISO8601 lag to seconds if needed using `strptime`. Alert when lag exceeds `rpo_sec` for two consecutive samples; throttle during bulk resync using a `state` filter.",
+  "visualization": "Scatter (RPO vs lag), timechart of lag by relationship, table of worst breaches.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Add-on for NetApp Data ONTAP (Splunkbase)",
+      "url": "https://splunkbase.splunk.com/app/1664"
+    },
+    {
+      "title": "SnapMirror overview",
+      "url": "https://docs.netapp.com/us-en/ontap/snapmirror/index.html"
+    }
+  ],
+  "equipment": [
+    "netapp"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "9.x",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

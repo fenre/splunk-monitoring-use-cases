@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "11.6.1",
+  "title": "Proofpoint TAP URL Defense Click-Time Protection Follow-Through Rate",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Operational"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=proofpoint:click` Proofpoint URL click-tracking and rewrite events (Threat Defense / TAP URL isolation)",
+  "app": "Proofpoint On-Demand Add-on for Splunk (`Splunk_TA_ProofpointOD`) or Proofpoint SIEM syslog mapped to `proofpoint:click`",
+  "spl": "index=email sourcetype=\"proofpoint:click\" earliest=-7d\n| eval rewritten=coalesce(urlRewritten, URLRewritten, rewritten, \"unknown\")\n| eval disposition=coalesce(threatStatus, ThreatStatus, disposition, \"\")\n| eval user=coalesce(clickUser, recipient, Recipient, \"\")\n| where rewritten=\"true\" OR match(lower(_raw), \"(?i)rewrite\")\n| stats count(eval(match(lower(disposition),\"(?i)malicious|blocked|click.*block\"))) as blocked_clicks count as total_clicks by user\n| eval follow_through_pct=round(100*(total_clicks-blocked_clicks)/total_clicks,2)\n| where total_clicks>=5 AND follow_through_pct>20\n| sort -follow_through_pct",
+  "description": "URL rewriting is only effective if users stop after the warning. Measuring how often rewritten malicious links still record a risky follow-through highlights training gaps, aggressive users, or mobile clients skipping interstitials.",
+  "value": "Quantifies the human layer of TAP and drives targeted simulations or policy tightening for repeat click-through populations.",
+  "implementation": "(1) Ingest Proofpoint click telemetry with rewrite and final disposition fields. (2) Align field names to your TA version; use `spath` if JSON is nested. (3) Exclude mailer daemons via lookup. (4) Baseline departments. (5) Pair with LMS or HR nudges for outliers.",
+  "visualization": "Bar chart (follow-through % by user or OU), line chart (weekly rate), table of top users.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Proofpoint — Targeted Attack Protection (URL defense)",
+      "url": "https://www.proofpoint.com/us/products/advanced-threat-protection/targeted-attack-protection"
+    },
+    {
+      "title": "Splunkbase — Splunk Add-on for Proofpoint On Demand",
+      "url": "https://splunkbase.splunk.com/app/3185"
+    }
+  ],
+  "securityDomain": "threat",
+  "equipment": [
+    "proofpoint",
+    "syslog"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We measure how often people still click dangerous links even after Proofpoint rewrites them, so training can focus on the riskiest users."
+}

@@ -37,8 +37,8 @@
     "cisco"
   ],
   "equipmentModels": [
-    "cisco_catalyst_center",
-    "cisco_meraki"
+    "cisco_meraki",
+    "cisco_sdwan"
   ],
   "detailedImplementation": "Prerequisites\n• UC-5.13.16 complete; `cisco:dnac:networkhealth` events with `healthScore`.\n• Meraki org API with TA 5580 writing `meraki:api` to an index (here `cisco_network`) with fields for branch health/availability.\n\nStep 1 — Meraki Add-on 5580\n- Install TA 5580; create credentials with API key and select organization(s).\n- Enable inputs for organization status, device health, or uplink health (names vary by version — use **Data inputs** in Splunk to confirm `sourcetype=meraki:api` and sample fields).\n- Verify `health_score` exists or derive, e.g. `| eval health_score=if(healthy,\"100\",50)` from raw fields you do have.\n\nStep 2 — Catalyst (7538)\n- Confirm `networkhealth` input on `index=catalyst` per prior UCs; note poll interval and site scope.\n\nStep 3 — Baseline SPL\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:networkhealth\" | stats latest(healthScore) as campus_health by _time | appendcols [search index=cisco_network sourcetype=\"meraki:api\" | stats avg(health_score) as branch_health count(eval(status=\"offline\")) as offline_branches by _time] | eval campus_vs_branch=campus_health-branch_health | where abs(campus_vs_branch) > 15 | table _time campus_health branch_health offline_branches campus_vs_branch\n```\n\nStep 4 — Interpretation\n- **Campus low, Meraki high:** triage SD-Access, Catalyst site, and WAN to campus.\n- **Meraki branch_health low with offline devices:** use Meraki dashboard and UC drill-downs; correlate with Meraki `status` in raw events.\n- **Both low:** look for regional or carrier impact.",
   "grandmaExplanation": "We compare how your main office network and branch office networks are doing to see if problems are hitting everywhere or just certain locations.",

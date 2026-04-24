@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.7.5",
+  "title": "Proxmox VE ZFS Replication Lag and Error Trending",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=pve` `sourcetype=\"proxmox:replication\"` — `guest`, `source`, `target`, `last_sync_epoch`, `fail_count`, `error`, `duration_sec`",
+  "app": "Scripted input or UF watching `pvesr` status JSON / `zfs` replication logs on source nodes",
+  "spl": "index=pve sourcetype=\"proxmox:replication\" earliest=-24h\n| eval lag_sec=now()-tonumber(coalesce(last_sync_epoch, last_sync, last_run_epoch))\n| eval errs=tonumber(coalesce(fail_count, errors, error_count))\n| where lag_sec>3600 OR errs>0 OR match(lower(coalesce(error, _raw)), \"(?i)error|fail\")\n| stats latest(lag_sec) as repl_lag_sec, max(errs) as err_peak, values(error) as err_msgs by guest, target\n| sort - repl_lag_sec",
+  "description": "ZFS replication provides asynchronous DR copies for many Proxmox estates. Growing lag or intermittent errors predict broken snapshots, network saturation, or target pool exhaustion before the standby site is useless.",
+  "value": "Holds RPO targets and speeds root-cause analysis between replication endpoints.",
+  "implementation": "Normalize last-sync timestamps to epoch seconds. Alert when lag exceeds policy minutes or `fail_count` increments. Enrich with pool free-space from `proxmox:storage` on the target.",
+  "visualization": "Area chart replication lag; single value worst pair; table of error strings.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Proxmox Storage Replication",
+      "url": "https://pve.proxmox.com/wiki/Storage_Replication"
+    }
+  ],
+  "equipment": [
+    "proxmox"
+  ],
+  "status": "verified",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We check how far behind the safety copy is compared to the live system, and whether the copy process is throwing errors."
+}

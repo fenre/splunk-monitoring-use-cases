@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.7.7",
+  "title": "Proxmox VE QEMU Guest Agent API Failures and Timeouts",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operational",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=pve` `sourcetype=\"proxmox:pveproxy\"` — API: `command`, `vmid`, `http_status`, `duration_ms`, `user` (guest-agent RPC paths)",
+  "app": "Enable `pveproxy` access logging to Splunk via UF; redact secrets; map agent-related endpoints",
+  "spl": "index=pve sourcetype=\"proxmox:pveproxy\" earliest=-4h\n| eval cmd=lower(coalesce(command, api_cmd, uri_path))\n| where match(cmd, \"(?i)agent|qemu.*guest|guest-ping|guest-info|guest-exec\")\n| eval hs=tonumber(replace(coalesce(http_status, status_code), \"[^0-9]\", \"\"))\n| eval fail=if(hs>=400 OR match(lower(coalesce(result, _raw)), \"(?i)timeout|error|no guest agent\"), 1, 0)\n| stats count as calls, sum(fail) as fails, dc(vmid) as guests by user\n| eval fail_pct=round(100*fails/calls,2)\n| where fails>0 AND fail_pct>5",
+  "description": "Guest-agent RPC failures break clean quiescing for backups, IP reporting, and orchestration playbooks. A rising failure ratio often tracks QEMU upgrades, virtio-serial issues, or agents disabled inside guests.",
+  "value": "Preserves automation reliability and avoids surprise manual console work during maintenance.",
+  "implementation": "Parse proxy logs with method, path, and status. Alert on sustained failure percentage. Join `vmid` to CMDB. Automate tickets to owners to reinstall or enable the agent.",
+  "visualization": "Timechart of failure rate; table of users and affected guests.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "QEMU Guest Agent on Proxmox",
+      "url": "https://pve.proxmox.com/wiki/Qemu-guest-agent"
+    }
+  ],
+  "equipment": [
+    "hardware_bmc",
+    "proxmox"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_edac"
+  ],
+  "status": "verified",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch whether the helper inside each virtual machine still answers health checks from the host, since backups and tidy shutdowns depend on that handshake."
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.7.7",
+  "title": "Ansible AWX Job Template Concurrent Execution Queue Depth",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=iac` `sourcetype=ansible:awx` metrics snapshot from Automation Controller `/api/v2/metrics/` or scheduled job inventory API",
+  "app": "AWX / Ansible Automation Platform metrics exporter to Splunk (scripted input)",
+  "spl": "index=iac sourcetype=\"ansible:awx\"\n| eval pending=coalesce(pending_jobs, queue_pending, jobs_pending)\n| eval running=coalesce(running_jobs, jobs_running)\n| where isnotnull(pending)\n| bin _time span=5m\n| stats max(pending) as max_pending, max(running) as max_running, latest(instance_group) as ig by _time, controller_host\n| where max_pending > 25\n| sort -max_pending",
+  "description": "AWX serializes work across instance groups; a growing pending queue means execution capacity, database performance, or container limits are saturated. Early detection preserves SLA for patching and compliance runs that must finish overnight.",
+  "value": "Avoids surprise job backlog during patch Tuesday and informs horizontal scaling of execution planes.",
+  "implementation": "Poll `/api/v2/metrics/` or custom telemetry job that emits pending_jobs and running_jobs per controller. Tag `instance_group`. Correlate with PostgreSQL latency and container CPU on execution nodes.",
+  "visualization": "Area chart (pending vs running over time), single-value gauge (max pending), table by instance group.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Red Hat Ansible Automation Platform — Metrics",
+      "url": "https://docs.ansible.com/automation-platform/latest/html/administration/metrics.html"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "ansible",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "postgresql_pg"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch how many automation jobs are waiting in line versus running. If the waiting line gets too long, we warn you before overnight maintenance jobs spill into business hours."
+}

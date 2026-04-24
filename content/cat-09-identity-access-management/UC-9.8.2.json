@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "9.8.2",
+  "title": "BeyondTrust Password Safe Credential Checkout and Check-In Cycle Time",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operational",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=beyondtrust:vault` Password Safe checkout, check-in, and heartbeat events",
+  "app": "Splunk Add-on for BeyondTrust Password Safe or syslog/HEC parser to `beyondtrust:vault`",
+  "spl": "index=pam sourcetype=\"beyondtrust:vault\" earliest=-7d\n| eval evt=lower(coalesce(event_type, EventType, action, Action, \"\"))\n| eval acct=coalesce(account_name, AccountName, credential, \"\")\n| eval user=coalesce(user, UserName, requester, \"\")\n| eval sess=coalesce(session_id, SessionID, checkout_id, CheckoutID, \"\")\n| eval t_checkout=if(match(evt,\"checkout\"),_time,null())\n| eval t_checkin=if(match(evt,\"checkin|check.in|return\"),_time,null())\n| stats min(t_checkout) as checkout_ts max(t_checkin) as checkin_ts by user acct sess\n| eval hours_open=round((checkin_ts-checkout_ts)/3600,2)\n| where hours_open>4 OR isnull(checkin_ts)\n| table checkout_ts checkin_ts user acct hours_open",
+  "description": "Credentials checked out for many hours increase lateral movement risk if an endpoint is compromised. Measuring checkout-to-check-in duration enforces least-privilege time bounds and detects abandoned sessions.",
+  "value": "Reduces standing privilege exposure and gives IAM leaders quantitative insight into Password Safe hygiene versus policy targets.",
+  "implementation": "(1) Align `event_type` strings to checkout and check-in pairs. (2) If `transaction` is heavy, pre-build session IDs in the TA. (3) Set max checkout SLA (for example four hours) by asset tier via lookup. (4) Auto-expire in Password Safe where supported. (5) Feed outliers to line managers monthly.",
+  "visualization": "Histogram (duration distribution), table (longest checkouts), timeline.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "BeyondTrust — Password Safe",
+      "url": "https://www.beyondtrust.com/privileged-password-management"
+    },
+    {
+      "title": "Splunk Docs — transaction",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Transaction"
+    }
+  ],
+  "securityDomain": "access",
+  "equipment": [
+    "beyondtrust",
+    "hashicorp",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "hashicorp_vault"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We measure how long people hold borrowed passwords from BeyondTrust so overdue check-ins that extend risk are flagged."
+}

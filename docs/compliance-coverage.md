@@ -1,12 +1,12 @@
 # Compliance coverage report
 
-Status: **passed**  |  Generated: 2026-04-22T11:55:17Z
+Status: **passed**  |  Generated: 2026-04-24T21:01:32Z
 
 ## Summary
 
-* UC files checked: **6485**
-* UC files valid:   **6485**
-* Compliance entries: **1988**
+* UC files checked: **7330**
+* UC files valid:   **7330**
+* Compliance entries: **2035**
 * Findings: **0** (errors: **0**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
@@ -14,13 +14,13 @@ Status: **passed**  |  Generated: 2026-04-22T11:55:17Z
 
 * Clause coverage %: **100.0**
 * Priority-weighted %: **100.0**
-* Assurance-adjusted %: **68.0993**
+* Assurance-adjusted %: **68.3263**
 
 ## Per tier
 
 | Tier | Clause % | Priority-weighted % | Assurance-adjusted % |
 |------|----------|----------------------|-----------------------|
-| tier-1 | 100.0 | 100.0 | 79.2719 |
+| tier-1 | 100.0 | 100.0 | 79.6749 |
 | tier-2 | 100.0 | 100.0 | 53.7342 |
 | tier-3 | 100.0 | 100.0 | 50.0 |
 
@@ -68,7 +68,7 @@ Status: **passed**  |  Generated: 2026-04-22T11:55:17Z
 | nerc-cip | 100.0 | 100.0 | 70.0 |
 | nesa-uae-ias | 100.0 | 100.0 | 50.0 |
 | nis2 | 100.0 | 100.0 | 66.2281 |
-| nist-800-53 | 100.0 | 100.0 | 69.4805 |
+| nist-800-53 | 100.0 | 100.0 | 72.7273 |
 | nist-csf | 100.0 | 100.0 | 67.5393 |
 | no-kbf-nve | 100.0 | 100.0 | 50.0 |
 | no-personopplysningsloven | 100.0 | 100.0 | 50.0 |
@@ -141,7 +141,7 @@ Status: **passed**  |  Generated: 2026-04-22T11:55:17Z
 | NERC CIP@current | 2 | 100.0 | 100.0 | 70.0 |
 | NESA IAS@v2 (2020) | 2 | 100.0 | 100.0 | 50.0 |
 | NIS2@Directive (EU) 2022/2555 | 1 | 100.0 | 100.0 | 66.2281 |
-| NIST 800-53@Rev. 5 | 1 | 100.0 | 100.0 | 69.4805 |
+| NIST 800-53@Rev. 5 | 1 | 100.0 | 100.0 | 72.7273 |
 | NIST CSF@1.1 | 1 | 100.0 | 100.0 | 100.0 |
 | NIST CSF@2.0 | 1 | 100.0 | 100.0 | 61.4907 |
 | NO KBF@2012 as amended | 2 | 100.0 | 100.0 | 50.0 |

@@ -54,17 +54,6 @@
     }
   ],
   "knownFalsePositives": "Service accounts and machine accounts (ending with $) generate high volumes of logon events — these are filtered by the search. Scheduled tasks running under named accounts are expected.",
-  "equipment": [
-    "windows"
-  ],
-  "equipmentModels": [],
-  "status": "verified",
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "grandmaExplanation": "We check that every action on computers handling sensitive government data can be traced back to a specific person. No anonymous or shared accounts should be used.",
-  "detailedImplementation": "Prerequisites\n• Ensure the following data sources are available: `WinEventLog:Security`, `cui_hosts.csv` lookup.\n• Install and configure: Splunk Add-on for Microsoft Windows (742), Splunk Enterprise Security (263).\n\nStep 1 — Configure data collection\nVerify that all required data sources are ingesting into Splunk. Maintain the CUI-scoped lookups (cui_hosts.csv, cui_network_segments.csv, etc.) with current asset inventory.\n\nStep 2 — Create the search and alert\nRun the following SPL (save as report or alert):\n\n```spl\nindex=wineventlog sourcetype=WinEventLog:Security EventCode IN (4624, 4648, 4672) earliest=-24h\n| lookup cui_hosts.csv ComputerName AS dest OUTPUT cui_flag\n| where cui_flag=\"true\"\n| eval user=coalesce(TargetUserName, SubjectUserName)\n| eval logon_type=case(Logon_Type=\"2\",\"Interactive\", Logon_Type=\"3\",\"Network\", Logon_Type=\"10\",\"RemoteInteractive\", true(),Logon_Type)\n| stats dc(dest) AS systems_accessed count AS actions values(logon_type) AS logon_types BY user\n| where user!=\"-\" AND user!=\"SYSTEM\" AND user!=\"*$\"\n| sort - actions\n| table user, systems_accessed, actions, logon_types\n```\n\nStep 3 — Validate\nConfirm expected results against known CUI systems. Verify lookup tables are populated and field extractions are correct.\n\nStep 4 — Operationalize\nSchedule the search at an appropriate interval. Route findings to the compliance ticketing queue. Table of users with system count and action count. Bar chart of logon types per user. Single value for total unique users on CUI systems.",
-  "lastReviewed": "2026-04-22",
   "requiredFields": [
     "_time",
     "user",
@@ -72,5 +61,12 @@
     "Logon_Type",
     "EventCode",
     "cui_flag"
-  ]
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-22",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "Prerequisites\n• Ensure the following data sources are available: `WinEventLog:Security`, `cui_hosts.csv` lookup.\n• Install and configure: Splunk Add-on for Microsoft Windows (742), Splunk Enterprise Security (263).\n\nStep 1 — Configure data collection\nVerify that all required data sources are ingesting into Splunk. Maintain the CUI-scoped lookups (cui_hosts.csv, cui_network_segments.csv, etc.) with current asset inventory.\n\nStep 2 — Create the search and alert\nRun the following SPL (save as report or alert):\n\n```spl\nindex=wineventlog sourcetype=WinEventLog:Security EventCode IN (4624, 4648, 4672) earliest=-24h\n| lookup cui_hosts.csv ComputerName AS dest OUTPUT cui_flag\n| where cui_flag=\"true\"\n| eval user=coalesce(TargetUserName, SubjectUserName)\n| eval logon_type=case(Logon_Type=\"2\",\"Interactive\", Logon_Type=\"3\",\"Network\", Logon_Type=\"10\",\"RemoteInteractive\", true(),Logon_Type)\n| stats dc(dest) AS systems_accessed count AS actions values(logon_type) AS logon_types BY user\n| where user!=\"-\" AND user!=\"SYSTEM\" AND user!=\"*$\"\n| sort - actions\n| table user, systems_accessed, actions, logon_types\n```\n\nStep 3 — Validate\nConfirm expected results against known CUI systems. Verify lookup tables are populated and field extractions are correct.\n\nStep 4 — Operationalize\nSchedule the search at an appropriate interval. Route findings to the compliance ticketing queue. Table of users with system count and action count. Bar chart of logon types per user. Single value for total unique users on CUI systems.",
+  "grandmaExplanation": "We check that every action on computers handling sensitive government data can be traced back to a specific person. No anonymous or shared accounts should be used."
 }

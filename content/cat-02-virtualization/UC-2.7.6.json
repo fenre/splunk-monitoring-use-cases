@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.7.6",
+  "title": "Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Operations"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=pve` `sourcetype=\"proxmox:firewall\"` — `chain`, `action`, `proto`, `dport`, `src`, `dst`, `vmid`, `log_prefix`",
+  "app": "UF with `nft`/`iptables` LOG rules or consolidated `pve-firewall` log sink; rate-limit high-volume rules",
+  "spl": "index=pve sourcetype=\"proxmox:firewall\" earliest=-24h\n| eval ac=lower(coalesce(action, verdict))\n| where ac=\"drop\" OR ac=\"reject\"\n| eval rk=coalesce(chain, rule, ruleid, log_prefix)\n| stats count as hits, dc(src) as uniq_src, values(dport) as ports by vmid, rk, dst\n| sort -hits\n| head 50",
+  "description": "Hypervisor-level denies show east-west segmentation issues, compromised guests, or misapplied templates. Aggregating denies by guest and rule focuses policy fixes and incident triage without drowning in single-flow noise.",
+  "value": "Improves zero-trust posture inside the virtualization tier and reduces mean time to containment.",
+  "implementation": "Log selected deny chains with prefixes. Roll up hourly. Maintain a lookup of approved scanners. Alert when new vmid/rule combinations spike above a 30-day baseline.",
+  "visualization": "Bar chart top deny rules; pie by vmid; drilldown raw events.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Proxmox VE Firewall",
+      "url": "https://pve.proxmox.com/pve-docs/chapter-pve-firewall.html"
+    }
+  ],
+  "equipment": [
+    "hyperv",
+    "proxmox"
+  ],
+  "status": "verified",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We summarize which virtual machines are being blocked from talking to others and which rule did the blocking, to spot misconfiguration or suspicious chatter."
+}

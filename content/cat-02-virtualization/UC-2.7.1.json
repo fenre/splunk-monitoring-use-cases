@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.7.1",
+  "title": "Proxmox VE HA Manager Fencing and Live Migration Events",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`index=pve` `sourcetype=\"proxmox:ha\"` — `pve-ha-crm` / `pve-ha-lrm`: `node`, `vmid`, `action` (fence|migrate|relocate), `quorate`, `service`",
+  "app": "Splunk Universal Forwarder on Proxmox nodes (journald units `pve-ha-crm`, `pve-ha-lrm`) with `props.conf` for `proxmox:ha`",
+  "spl": "index=pve sourcetype=\"proxmox:ha\" earliest=-24h\n| eval act=lower(coalesce(action, ha_action, op))\n| where match(act, \"(?i)fence|stonith|migrate|relocate\") OR match(lower(_raw), \"(?i)lost quorum|not quorate|fence\")\n| rex field=_raw \"(?i)VM\\s+(?<vmid_num>\\d+)\"\n| eval vmid=coalesce(vmid, vmid_num)\n| stats count as ev, values(act) as actions, latest(quorate) as last_quorate by node, vmid\n| sort - ev",
+  "description": "HA fencing and forced migrations are the last resort for guest availability on Proxmox clusters. When these events cluster in time or correlate with lost quorum, operators risk split-brain, repeated restarts, or guests left unmanaged during node failure.",
+  "value": "Surfaces imminent or ongoing cluster partition scenarios so you can validate votes, qdevice, and storage before tenants see rolling outages.",
+  "implementation": "Forward HA manager logs from every cluster member with a consistent sourcetype. Use FIELDALIAS to normalize `action` and `quorate`. Create a correlation search for fence bursts per node and for `quorate=false` transitions. Tie alerts to your hardware management channel when STONITH is involved.",
+  "visualization": "Single value (active HA incidents), timechart of fence/migrate rate, table by node and vmid.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Proxmox VE HA Manager",
+      "url": "https://pve.proxmox.com/pve-docs/chapter-ha-manager.html"
+    }
+  ],
+  "equipment": [
+    "proxmox"
+  ],
+  "status": "verified",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch the cluster’s automatic safety switches—when it forces a guest to move or cuts power to a bad node—so people running virtual machines are not surprised by sudden reboots or stuck services."
+}

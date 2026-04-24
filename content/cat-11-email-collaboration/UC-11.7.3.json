@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "11.7.3",
+  "title": "Asterisk Queue Log Wait Time Versus SLA Threshold",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operational",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=voip` · `sourcetype=\"asterisk:queue_log\"`",
+  "app": "Custom TA, HEC, or Universal Forwarder mapping Asterisk logs to `asterisk:pjsip`, `asterisk:cdr`, `asterisk:queue_log`, `asterisk:full`, `asterisk:messages`, `asterisk:security`, `asterisk:ami`",
+  "spl": "index=voip sourcetype=\"asterisk:queue_log\" earliest=-24h\n| eval ev=coalesce(event, Event, \"\")\n| eval wait=tonumber(coalesce(wait, data2, Wait, hold_time, \"\"))\n| where match(lower(ev), \"(?i)connect|completecaller|completeagent\") AND isnotnull(wait)\n| eval sla_seconds=120\n| eval breach=if(wait>sla_seconds,1,0)\n| stats avg(wait) as avg_wait p95=perc95(wait) sum(breach) as breaches count as answered by queue",
+  "description": "Queue wait drives abandons and poor satisfaction. `queue_log` is authoritative for time-to-answer versus IVR timestamps alone.",
+  "value": "Aligns staffing to SLAs and highlights dialplan regressions after upgrades.",
+  "implementation": "(1) Parse queue_log fields for your Asterisk version. (2) Set `sla_seconds`. (3) Alert on p95 or breach rate. (4) Optional join to CDR for abandons.",
+  "visualization": "Timechart p95; KPI breach %; bar by queue.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Asterisk Wiki",
+      "url": "https://wiki.asterisk.org/wiki/display/AST/Documentation"
+    },
+    {
+      "title": "Splunk — Monitor network ports",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitornetworkports"
+    },
+    {
+      "title": "Asterisk queue_log",
+      "url": "https://wiki.asterisk.org/wiki/display/AST/Queue+Logs"
+    }
+  ],
+  "equipment": [
+    "asterisk"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We measure real hold times so queue service promises are honest."
+}

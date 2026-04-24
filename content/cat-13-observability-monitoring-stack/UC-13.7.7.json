@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.7.7",
+  "title": "Fluentd Filter Plugin Drop Rate — Records Removed by rewrite/grep",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=fluent` `sourcetype=fluentd:plugins` filter plugins with `emit_count` in vs out, or `fluentd:log` drop counters",
+  "app": "Fluentd 1.x filter metrics via monitor agent",
+  "spl": "index=fluent sourcetype=\"fluentd:plugins\"\n| where match(plugin_type, \"^filter\")\n| eval dropped=coalesce(dropped_records, num_errors, filter_dropped)\n| eval processed=coalesce(emit_records, emit_count, 1)\n| bin _time span=15m\n| stats sum(dropped) as drops, sum(processed) as proc by _time, plugin_id, host\n| eval drop_rate=round(100*drops/nullif(proc,0),3)\n| eventstats median(drop_rate) as baseline by plugin_id\n| where drop_rate > baseline * 3 AND drop_rate > 0.1\n| sort -drop_rate",
+  "description": "Aggressive `grep`, `record_transformer`, or sampling filters can silently discard security-relevant events after a bad regex deploy. Baseline drop_rate per filter to catch configuration mistakes.",
+  "value": "Protects compliance-sensitive logs from accidental over-filtering.",
+  "implementation": "If drops are not exposed, diff ingress totals pre/post filter using separate plugin metrics. Document allowed drop ceilings per filter in a lookup for static thresholds.",
+  "visualization": "Area chart (drop_rate), table (plugin × host), annotation for config deploys.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Fluentd — Filter plugins",
+      "url": "https://docs.fluentd.org/filter"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "log_pipeline"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We measure how many log lines each filtering step throws away. If that jumps after a change, you might be accidentally deleting important evidence."
+}

@@ -4,7 +4,6 @@
   "title": "Database Backup and Archive Log Retention Verification",
   "criticality": "critical",
   "difficulty": "intermediate",
-  "subcategory": "7.4",
   "monitoringType": [
     "Availability"
   ],
@@ -12,15 +11,13 @@
   "dataSources": "Oracle RMAN output, SQL Server msdb backup history, PostgreSQL pg_backup (or vendor logs)",
   "app": "`splunk_app_db_connect`, backup job logs",
   "spl": "| dbxquery connection=\"oracle_prod\" query=\"SELECT status, start_time, end_time, output_bytes FROM v\\$rman_backup_job_details WHERE start_time > SYSDATE-1 ORDER BY start_time DESC\"\n| search status!=\"COMPLETED\"\n| table status start_time end_time output_bytes",
+  "description": "Failed or missing backups and unarchived redo logs risk data loss and prevent point-in-time recovery. Verifying backup success and archive log retention ensures RPO is met.",
+  "value": "Failed or missing backups and unarchived redo logs risk data loss and prevent point-in-time recovery. Verifying backup success and archive log retention ensures RPO is met.",
+  "implementation": "Ingest backup job status (RMAN, SQL Server backup history, or backup vendor logs). Alert on any failed or incomplete backup. Track archive log destination space and retention; alert when space is low or retention is below policy.",
+  "visualization": "Table (last backup, status, duration), Gauge (backup success %), Timeline of backup jobs.",
   "cimModels": [
     "N/A"
   ],
-  "description": "Failed or missing backups and unarchived redo logs risk data loss and prevent point-in-time recovery. Verifying backup success and archive log retention ensures RPO is met.",
-  "value": "Failed or missing backups and unarchived redo logs risk data loss and prevent point-in-time recovery. Verifying backup success and archive log retention ensures RPO is met.",
-  "grandmaExplanation": "Failed or missing backups and unarchived redo logs risk data loss and prevent point--time recovery — so slow queries, failed backups, and odd changes surface early.",
-  "implementation": "Ingest backup job status (RMAN, SQL Server backup history, or backup vendor logs). Alert on any failed or incomplete backup. Track archive log destination space and retention; alert when space is low or retention is below policy.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `splunk_app_db_connect`, backup job logs.\n• Ensure the following data sources are available: Oracle RMAN output, SQL Server msdb backup history, PostgreSQL pg_backup (or vendor logs).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest backup job status (RMAN, SQL Server backup history, or backup vendor logs). Alert on any failed or incomplete backup. Track archive log destination space and retention; alert when space is low or retention is below policy.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| dbxquery connection=\"oracle_prod\" query=\"SELECT status, start_time, end_time, output_bytes FROM v\\$rman_backup_job_details WHERE start_time > SYSDATE-1 ORDER BY start_time DESC\"\n| search status!=\"COMPLETED\"\n| table status start_time end_time output_bytes\n```\n\nUnderstanding this SPL\n\n**Database Backup and Archive Log Retention Verification** — Failed or missing backups and unarchived redo logs risk data loss and prevent point-in-time recovery. Verifying backup success and archive log retention ensures RPO is met.\n\nDocumented **Data sources**: Oracle RMAN output, SQL Server msdb backup history, PostgreSQL pg_backup (or vendor logs). **App/TA** (typical add-on context): `splunk_app_db_connect`, backup job logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Pipeline stage (see **Database Backup and Archive Log Retention Verification**): dbxquery connection=\"oracle_prod\" query=\"SELECT status, start_time, end_time, output_bytes FROM v\\$rman_backup_job_details WHERE start_ti…\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **Database Backup and Archive Log Retention Verification**): table status start_time end_time output_bytes\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (last backup, status, duration), Gauge (backup success %), Timeline of backup jobs.",
-  "visualization": "Table (last backup, status, duration), Gauge (backup success %), Timeline of backup jobs.",
   "references": [
     {
       "title": "Splunk Lantern — use case library",
@@ -28,6 +25,16 @@
     }
   ],
   "equipment": [
-    "db_connect"
-  ]
+    "db_connect",
+    "mssql",
+    "oracle",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "oracle_oracle_db",
+    "postgresql_pg"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `splunk_app_db_connect`, backup job logs.\n• Ensure the following data sources are available: Oracle RMAN output, SQL Server msdb backup history, PostgreSQL pg_backup (or vendor logs).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest backup job status (RMAN, SQL Server backup history, or backup vendor logs). Alert on any failed or incomplete backup. Track archive log destination space and retention; alert when space is low or retention is below policy.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| dbxquery connection=\"oracle_prod\" query=\"SELECT status, start_time, end_time, output_bytes FROM v\\$rman_backup_job_details WHERE start_time > SYSDATE-1 ORDER BY start_time DESC\"\n| search status!=\"COMPLETED\"\n| table status start_time end_time output_bytes\n```\n\nUnderstanding this SPL\n\n**Database Backup and Archive Log Retention Verification** — Failed or missing backups and unarchived redo logs risk data loss and prevent point-in-time recovery. Verifying backup success and archive log retention ensures RPO is met.\n\nDocumented **Data sources**: Oracle RMAN output, SQL Server msdb backup history, PostgreSQL pg_backup (or vendor logs). **App/TA** (typical add-on context): `splunk_app_db_connect`, backup job logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Pipeline stage (see **Database Backup and Archive Log Retention Verification**): dbxquery connection=\"oracle_prod\" query=\"SELECT status, start_time, end_time, output_bytes FROM v\\$rman_backup_job_details WHERE start_ti…\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **Database Backup and Archive Log Retention Verification**): table status start_time end_time output_bytes\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (last backup, status, duration), Gauge (backup success %), Timeline of backup jobs.",
+  "grandmaExplanation": "Failed or missing backups and unarchived redo logs risk data loss and prevent point--time recovery — so slow queries, failed backups, and odd changes surface early.",
+  "subcategory": "7.4"
 }

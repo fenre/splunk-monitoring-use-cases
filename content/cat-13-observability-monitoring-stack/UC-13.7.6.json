@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.7.6",
+  "title": "Fluent Bit Chunk Flush Latency P95 Trending",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=fluent` `sourcetype=fluentbit:storage` chunk flush metrics, `fluentbit:metrics` histograms",
+  "app": "Fluent Bit HTTP `/api/v1/storage` + `/api/v1/metrics` scraped to Splunk",
+  "spl": "index=fluent sourcetype=\"fluentbit:storage\" OR sourcetype=\"fluentbit:metrics\"\n| eval flush_ms=coalesce(flush_time_ms, flush_duration_ms, if(isnotnull(chunk_flush_time_ns), chunk_flush_time_ns/1000000, null()))\n| where isnotnull(flush_ms)\n| bin _time span=5m\n| stats perc95(flush_ms) as p95_flush, count as n by _time, output_name, host\n| eventstats median(p95_flush) as med by output_name\n| where p95_flush > med * 2 AND n > 20\n| sort -p95_flush",
+  "description": "Rising flush latency means outputs (Splunk HEC, Kafka, S3) are slowing or network RTT is degrading; p95 catches tail pain that averages hide. Early warning prevents chunk backlog growth on edge agents.",
+  "value": "Stabilizes edge logging on constrained hardware and prevents storm-induced drops.",
+  "implementation": "Normalize nanoseconds to milliseconds once at ingest. If metrics lack per-output latency, approximate with `storage_chunks.up` age fields. Correlate with regional network dashboards.",
+  "visualization": "Line chart (p95 by output), heatmap (host × output), single-value (worst p95).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Fluent Bit — Storage",
+      "url": "https://docs.fluentbit.io/manual/administration/buffering-and-storage"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "kafka",
+    "log_pipeline"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We track how long each batch of logs waits to be handed off. If that wait grows, the edge device is getting backed up even if averages still look okay."
+}

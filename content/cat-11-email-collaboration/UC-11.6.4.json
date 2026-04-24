@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "11.6.4",
+  "title": "Proofpoint Spam and Content Filter False-Positive Rate Trending",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Quality",
+    "Operational"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`sourcetype=proofpoint:filter` spam and content filter verdict events including quarantine or bulk scores",
+  "app": "Proofpoint On-Demand Add-on for Splunk (`Splunk_TA_ProofpointOD`)",
+  "spl": "index=email sourcetype=\"proofpoint:filter\" earliest=-30d@d\n| eval verdict=coalesce(verdict, Verdict, disposition, Disposition, \"\")\n| eval fp_flag=coalesce(false_positive, user_release, admin_override, \"\")\n| bin _time span=1d\n| stats count(eval(match(lower(verdict),\"(?i)spam|bulk|block\"))) as filtered count(eval(match(lower(fp_flag),\"(?i)yes|true|released|override\"))) as fp_signals count as total by _time\n| eval fp_rate_pct=round(100*fp_signals/total,3)\n| timechart span=1d avg(fp_rate_pct) as avg_fp_rate",
+  "description": "Aggressive anti-spam settings reduce malware but starve the business of legitimate mail. Trending false-positive or release overrides from filter logs quantifies user pain and guides policy easing before executives miss critical messages.",
+  "value": "Balances deliverability with security, reduces help-desk volume, and documents messaging quality for customer-facing teams.",
+  "implementation": "(1) Ingest filter verdict and release telemetry; field names vary by POD—validate extractions. (2) Join to service-desk tickets tagged email for ground truth. (3) Alert when FP rate exceeds baseline. (4) Segment bulk vs strict spam. (5) Coordinate changes with messaging admins.",
+  "visualization": "Line chart (false-positive rate over time), bar chart (releases by rule), table of top affected recipients.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Proofpoint support — message filtering",
+      "url": "https://help.proofpoint.com/"
+    },
+    {
+      "title": "Splunkbase — Splunk Add-on for Proofpoint On Demand",
+      "url": "https://splunkbase.splunk.com/app/3185"
+    }
+  ],
+  "securityDomain": "soc_operations",
+  "equipment": [
+    "proofpoint"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch Proofpoint spam-filter logs for signs that too much real mail is being blocked so support is not flooded with ‘missing email’ tickets."
+}

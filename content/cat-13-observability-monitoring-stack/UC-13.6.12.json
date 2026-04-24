@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.6.12",
+  "title": "Grafana Explore Query Volume and Slow Query Detection",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=observability` `sourcetype=grafana:log` `component=context` or `logger=tsdb` Explore requests with latency",
+  "app": "Grafana Enterprise audit of queries or debug logging with request IDs",
+  "spl": "index=observability sourcetype=\"grafana:log\" /api/ds/query\n| search \"Explore\" OR \"panelId=0\" OR query_source=\"explore\"\n| eval ms=coalesce(query_duration_ms, duration_ms)\n| bin _time span=10m\n| stats count as qps_bucket, median(ms) as p50, perc95(ms) as p95 by _time, user, datasource_uid\n| where p95 > 8000 OR qps_bucket > 200\n| sort -p95",
+  "description": "Ad-hoc Explore sessions can accidentally issue high-cardinality PromQL or full-table SQL scans that starve production datasources. Tracking latency and request bursts per user guides guardrails and training.",
+  "value": "Protects shared metrics and warehouse clusters from exploratory query storms.",
+  "implementation": "If Explore cannot be tagged, infer from `referer` containing `/explore`. Redact literal queries in logs; hash the query text field. Pair with datasource-side query logs for ground truth.",
+  "visualization": "Scatter (qps vs p95), top users table, heatmap of datasource_uid.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Grafana — Explore",
+      "url": "https://grafana.com/docs/grafana/latest/explore/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "grafana",
+    "hardware_bmc"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_edac"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch heavy ad-hoc searches in the data exploration view. If someone accidentally runs something huge, we see the slowdown spike before it hurts shared systems."
+}

@@ -34,11 +34,12 @@
     }
   ],
   "equipment": [
-    "cisco"
+    "cisco",
+    "syslog"
   ],
   "equipmentModels": [
-    "cisco_catalyst_center",
-    "cisco_ise"
+    "cisco_ise",
+    "cisco_sdwan"
   ],
   "detailedImplementation": "Prerequisites\n• UC-5.13.21 and UC-5.13.40 complete; `index=catalyst` `cisco:dnac:issue` and `index=ise` `cisco:ise:*` (or equivalent) with overlapping time coverage.\n• Field alignment: `managementIpAddress` on Catalyst Center issues must match the NAS or access device address ISE reports as `nas_ip_address` (rename in subsearch to `managementIpAddress` for the join).\n\nStep 1 — TA 7538 accounts\n- Configure **Catalyst Center** per UC-5.13.1 (Intent API polling for Assurance/issues).\n- Add an **ISE** account in the same TA to your ISE admin/API endpoint; enable ISE data types required for your auth visibility (e.g. admin API streams per TA documentation).\n- Optional: forward ISE RADIUS/syslog to Splunk and parse as `cisco:ise:syslog` for pass/fail granularity if API fields are insufficient.\n\nStep 2 — Baseline SPL\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:issue\" category=\"Onboarding\" | join type=left managementIpAddress [search index=ise sourcetype=\"cisco:ise:*\" | stats count as auth_failures by nas_ip_address | rename nas_ip_address as managementIpAddress] | where isnotnull(auth_failures) | stats count as correlated_issues sum(auth_failures) as total_auth_failures by deviceName, managementIpAddress | sort -total_auth_failures\n```\n\nStep 3 — Tuning\n- Tighten `category` to your onboarding/triage taxonomy if it differs from `Onboarding`.\n- If `managementIpAddress` is missing on issues, use `coalesce(managementIpAddress,deviceIp,host)` on the left after verifying field names in your data.\n- For volume, consider `tstats` summaries or a **lookup** of latest ISE auth failures by NAS IP to replace the subsearch in production.\n\nStep 4 — Runbook\n- **High total_auth_failures** with correlated issues: investigate ISE policy, RADIUS shared secret, and endpoint identity.\n- **Correlated issues without ISE signal:** confirm ISE input health and that `nas_ip_address` truly maps to the same device IP you see in Catalyst Center.",
   "grandmaExplanation": "We connect the dots between network problems and login system problems to quickly figure out whether it is the network or the authentication server that is causing people to fail to connect.",

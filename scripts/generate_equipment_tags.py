@@ -51,7 +51,8 @@ from equipment_lib import compile_patterns, load_equipment, match_equipment
 
 # Repo root = this file's parent's parent.
 _REPO_ROOT = _SCRIPTS_DIR.parent
-_UC_ROOT = _REPO_ROOT / "use-cases"
+_CONTENT_UC_ROOT = _REPO_ROOT / "content"
+_LEGACY_UC_ROOT = _REPO_ROOT / "use-cases"
 
 # Canonical sidecar field order. Mirrors
 # scripts/generate_phase3_1_backfill.py so repeated runs of all generators
@@ -112,8 +113,9 @@ _MIN_LEN_NARRATIVE = 4
 
 
 def _iter_sidecar_paths() -> Iterable[Path]:
-    """Yield every UC sidecar JSON file under ``use-cases/``."""
-    yield from sorted(_UC_ROOT.rglob("uc-*.json"))
+    """Yield every UC sidecar JSON file under ``content/`` and ``use-cases/``."""
+    yield from sorted(_CONTENT_UC_ROOT.rglob("UC-*.json"))
+    yield from sorted(_LEGACY_UC_ROOT.rglob("uc-*.json"))
 
 
 def _read_sidecar(path: Path) -> Optional[Dict]:
@@ -145,7 +147,7 @@ def _compute_tags(
     app_text = (sidecar.get("app") or "").replace("`", "")
     narrative_text = " ".join(
         (sidecar.get(f) or "").replace("`", "")
-        for f in ("spl", "dataSources", "implementation")
+        for f in ("spl", "dataSources", "implementation", "description")
     )
 
     eq_app, models_app = match_equipment(

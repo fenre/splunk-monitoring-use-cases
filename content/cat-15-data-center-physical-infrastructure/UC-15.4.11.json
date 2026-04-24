@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "15.4.11",
+  "title": "APC UPS SNMP Battery Replacement Prediction from Age and Impedance",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Reliability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=power|cooling|environment` · `sourcetype=\"snmp:apc:ups\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment)",
+  "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions",
+  "spl": "index=power sourcetype=\"snmp:apc:ups\" earliest=-30d\n| eval age_months=tonumber(coalesce(battery_age_months, \"\"))\n| eval imp=tonumber(coalesce(upsAdvBatteryReplaceIndicator, upsSmartBatteryReplace, battery_replace_flag, \"\"))\n| eval bad=if(age_months>36 OR imp=2 OR match(lower(_raw), \"(?i)replace battery\"),1,0)\n| where bad=1\n| stats latest(age_months) as age_months values(ups_name) as ups by host",
+  "description": "End-of-life batteries collapse runtime suddenly; SNMP replace indicators and age heuristics schedule swaps before failure.",
+  "value": "Avoids simultaneous multi-string failures after a heat wave.",
+  "implementation": "(1) Validate vendor-specific replace OID mapping. (2) Integrate with procurement SKU.",
+  "visualization": "Table due-for-replacement; timeline.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Schneider Electric — APC product support",
+      "url": "https://www.se.com/ww/en/product-category/3100-2000-pdu/"
+    },
+    {
+      "title": "Splunk Connect for SNMP",
+      "url": "https://splunkbase.splunk.com/apps#/search=connect%20for%20snmp"
+    }
+  ],
+  "equipment": [
+    "apc_dc",
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_apc",
+    "snmp_generic"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We flag old or failing UPS batteries before they quit in an outage."
+}

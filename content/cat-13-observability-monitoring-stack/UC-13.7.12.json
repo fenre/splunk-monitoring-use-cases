@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.7.12",
+  "title": "Fluentd Hot-Reload Configuration Change Detection",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Change",
+    "Configuration"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=fluent` `sourcetype=fluentd:log` SIGHUP reload, `--under-supervisor` restart, config diff banners",
+  "app": "ConfigMap-reloaded Fluentd DaemonSet, systemd unit",
+  "spl": "index=fluent sourcetype=\"fluentd:log\"\n| search \"Reloading\" OR \"restarting\" OR \"SIGHUP\" OR \"config reload\" OR \"got signal\"\n| eval change_id=coalesce(config_version, checksum, config_hash)\n| stats earliest(_time) as first_seen, latest(_time) as last_seen, dc(change_id) as versions by host\n| where versions > 1 OR last_seen > relative_time(now(), \"-15m\")\n| sort -last_seen",
+  "description": "Frequent hot reloads during business hours may indicate a broken GitOps loop or manual edits fighting automation. Correlating reload events with error spikes proves whether a change caused instability.",
+  "value": "Supports safe CI/CD for logging pipelines and speeds rollback decisions.",
+  "implementation": "Emit `config_hash` from your renderer for deterministic IDs. Join to deployment events from Kubernetes audit. Exclude known nightly reload jobs via lookup.",
+  "visualization": "Timeline of reloads, table (host × versions), correlation with downstream error rate.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Fluentd — Signals",
+      "url": "https://docs.fluentd.org/deployment/signals"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "kubernetes",
+    "log_pipeline"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We note when the log shipper reloads its settings without a full restart. Too many reloads in a short time often means an automation loop or people editing live configs."
+}

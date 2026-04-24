@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.6.7",
+  "title": "Grafana Dashboard Version History and Revert Event Tracking",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Change",
+    "Audit"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=observability` `sourcetype=grafana:audit` dashboard save, restore, version rollback",
+  "app": "Grafana Enterprise audit or open-source audit file shipping",
+  "spl": "index=observability sourcetype=\"grafana:audit\"\n| search dashboard AND (action=\"*save*\" OR action=\"*restore*\" OR action=\"*version*\" OR match(lower(_raw),\"(?i)revert|rollback\"))\n| stats count, earliest(_time) as first_t, latest(_time) as last_t, values(action) as actions by dashboard_uid, user\n| eval actions_join=mvjoin(actions, \" \")\n| where count >= 5 OR match(lower(actions_join),\"(?i)revert|restore\")\n| sort -count",
+  "description": "Frequent saves or sudden reverts on production dashboards may indicate edit wars, automation mistakes, or unauthorized changes. A consolidated audit trail supports governance without blocking legitimate iteration.",
+  "value": "Preserves dashboard integrity for executive KPIs and regulated operational views.",
+  "implementation": "Map `dashboard_uid` to human titles via nightly API export. Alert on `revert` actions outside business hours. Pair with GitOps provisioning diffs if dashboards are code-managed.",
+  "visualization": "Timeline (version events), sankey (user → dashboard), count of reverts per org.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Grafana — Dashboard versions",
+      "url": "https://grafana.com/docs/grafana/latest/dashboards/build-dashboards/manage-version-history/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "grafana"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We track when important charts are edited or rolled back to older versions. That helps you notice fights over numbers or changes that should not have happened."
+}

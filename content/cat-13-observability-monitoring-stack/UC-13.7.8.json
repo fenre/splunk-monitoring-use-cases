@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.7.8",
+  "title": "Fluent Bit Storage Backlog File Count and Age",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity",
+    "Reliability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=fluent` `sourcetype=fluentbit:storage` chunks up/metrics, filesystem backlog counters",
+  "app": "Fluent Bit storage metrics HTTP endpoint",
+  "spl": "index=fluent sourcetype=\"fluentbit:storage\"\n| eval chunks_up=coalesce(chunks_up, up_chunks, storage_chunks_up)\n| eval max_age_sec=coalesce(chunk_up_age_sec, oldest_chunk_age_sec)\n| where chunks_up > 50 OR max_age_sec > 600\n| stats latest(chunks_up) as up, latest(max_age_sec) as age by host, input_name, output_name\n| sort -age",
+  "description": "Persistent chunk files that do not drain indicate the output is slower than ingress for extended periods—often TLS issues, HEC 503s, or disk IO limits on IoT gateways. Count and age together separate brief spikes from stuck backlogs.",
+  "value": "Prevents storage exhaustion on edge devices and highlights regional Splunk indexer saturation.",
+  "implementation": "Align `input_name`/`output_name` with Fluent Bit config. Join to host disk free metrics. Alert when `age` exceeds RPO targets for that log class.",
+  "visualization": "Dual-axis (chunks × age), map of edge sites, table sorted by age.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Fluent Bit — Monitoring",
+      "url": "https://docs.fluentbit.io/manual/administration/monitoring"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "log_pipeline"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We count old log batches still waiting on disk. If they sit too long, the device could run out of space or start deleting data."
+}

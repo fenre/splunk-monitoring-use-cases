@@ -4,7 +4,6 @@
   "title": "Database Connection Pool Exhaustion",
   "criticality": "critical",
   "difficulty": "intermediate",
-  "subcategory": "7.4",
   "monitoringType": [
     "Availability"
   ],
@@ -12,15 +11,13 @@
   "dataSources": "Oracle `V$SESSION`/`V$PROCESS`, PostgreSQL `pg_stat_activity`, MySQL `SHOW PROCESSLIST`, SQL Server `sys.dm_exec_connections`",
   "app": "`splunk_app_db_connect`, database performance views",
   "spl": "| dbxquery connection=\"oracle_prod\" query=\"SELECT COUNT(*) AS conn_count FROM v\\$session WHERE type='USER'\"\n| eval usage_pct=round(conn_count/400*100, 1)\n| where usage_pct > 85\n| table conn_count usage_pct",
+  "description": "When the application connection pool or database max_connections is exhausted, new requests fail with connection errors. Detecting high connection count and pool saturation prevents outages.",
+  "value": "When the application connection pool or database max_connections is exhausted, new requests fail with connection errors. Detecting high connection count and pool saturation prevents outages.",
+  "implementation": "Use DB Connect to poll session/connection count every 1–5 minutes. Compare to max_connections (or pool size). Alert when utilization exceeds 85%. Correlate with application logs for connection leak or traffic spike.",
+  "visualization": "Gauge (connection count vs max), Line chart (connections over time), Table (by program/user).",
   "cimModels": [
     "N/A"
   ],
-  "description": "When the application connection pool or database max_connections is exhausted, new requests fail with connection errors. Detecting high connection count and pool saturation prevents outages.",
-  "value": "When the application connection pool or database max_connections is exhausted, new requests fail with connection errors. Detecting high connection count and pool saturation prevents outages.",
-  "grandmaExplanation": "When the application connection pool or database max_connections is exhausted, new requests fail with connection errors — so slow queries, failed backups, and odd changes surface early.",
-  "implementation": "Use DB Connect to poll session/connection count every 1–5 minutes. Compare to max_connections (or pool size). Alert when utilization exceeds 85%. Correlate with application logs for connection leak or traffic spike.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `splunk_app_db_connect`, database performance views.\n• Ensure the following data sources are available: Oracle `V$SESSION`/`V$PROCESS`, PostgreSQL `pg_stat_activity`, MySQL `SHOW PROCESSLIST`, SQL Server `sys.dm_exec_connections`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse DB Connect to poll session/connection count every 1–5 minutes. Compare to max_connections (or pool size). Alert when utilization exceeds 85%. Correlate with application logs for connection leak or traffic spike.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| dbxquery connection=\"oracle_prod\" query=\"SELECT COUNT(*) AS conn_count FROM v\\$session WHERE type='USER'\"\n| eval usage_pct=round(conn_count/400*100, 1)\n| where usage_pct > 85\n| table conn_count usage_pct\n```\n\nUnderstanding this SPL\n\n**Database Connection Pool Exhaustion** — When the application connection pool or database max_connections is exhausted, new requests fail with connection errors. Detecting high connection count and pool saturation prevents outages.\n\nDocumented **Data sources**: Oracle `V$SESSION`/`V$PROCESS`, PostgreSQL `pg_stat_activity`, MySQL `SHOW PROCESSLIST`, SQL Server `sys.dm_exec_connections`. **App/TA** (typical add-on context): `splunk_app_db_connect`, database performance views. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Pipeline stage (see **Database Connection Pool Exhaustion**): dbxquery connection=\"oracle_prod\" query=\"SELECT COUNT(*) AS conn_count FROM v\\$session WHERE type='USER'\"\n• `eval` defines or adjusts **usage_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where usage_pct > 85` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Database Connection Pool Exhaustion**): table conn_count usage_pct\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (connection count vs max), Line chart (connections over time), Table (by program/user).",
-  "visualization": "Gauge (connection count vs max), Line chart (connections over time), Table (by program/user).",
   "references": [
     {
       "title": "Splunk Lantern — use case library",
@@ -28,6 +25,17 @@
     }
   ],
   "equipment": [
-    "db_connect"
-  ]
+    "db_connect",
+    "mssql",
+    "mysql",
+    "oracle",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "oracle_oracle_db",
+    "postgresql_pg"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `splunk_app_db_connect`, database performance views.\n• Ensure the following data sources are available: Oracle `V$SESSION`/`V$PROCESS`, PostgreSQL `pg_stat_activity`, MySQL `SHOW PROCESSLIST`, SQL Server `sys.dm_exec_connections`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse DB Connect to poll session/connection count every 1–5 minutes. Compare to max_connections (or pool size). Alert when utilization exceeds 85%. Correlate with application logs for connection leak or traffic spike.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| dbxquery connection=\"oracle_prod\" query=\"SELECT COUNT(*) AS conn_count FROM v\\$session WHERE type='USER'\"\n| eval usage_pct=round(conn_count/400*100, 1)\n| where usage_pct > 85\n| table conn_count usage_pct\n```\n\nUnderstanding this SPL\n\n**Database Connection Pool Exhaustion** — When the application connection pool or database max_connections is exhausted, new requests fail with connection errors. Detecting high connection count and pool saturation prevents outages.\n\nDocumented **Data sources**: Oracle `V$SESSION`/`V$PROCESS`, PostgreSQL `pg_stat_activity`, MySQL `SHOW PROCESSLIST`, SQL Server `sys.dm_exec_connections`. **App/TA** (typical add-on context): `splunk_app_db_connect`, database performance views. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Pipeline stage (see **Database Connection Pool Exhaustion**): dbxquery connection=\"oracle_prod\" query=\"SELECT COUNT(*) AS conn_count FROM v\\$session WHERE type='USER'\"\n• `eval` defines or adjusts **usage_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where usage_pct > 85` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Database Connection Pool Exhaustion**): table conn_count usage_pct\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (connection count vs max), Line chart (connections over time), Table (by program/user).",
+  "grandmaExplanation": "When the application connection pool or database max_connections is exhausted, new requests fail with connection errors — so slow queries, failed backups, and odd changes surface early.",
+  "subcategory": "7.4"
 }

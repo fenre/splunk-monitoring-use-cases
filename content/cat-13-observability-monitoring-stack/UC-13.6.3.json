@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.6.3",
+  "title": "Grafana Unified Alerting Rule Evaluation Duration and Timeout Rate",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Reliability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=observability` `sourcetype=grafana:alerting` evaluator metrics, NGalert scheduler logs",
+  "app": "Grafana metrics scrape to Splunk (Telegraf), or log forwarder with `component=ngalert`",
+  "spl": "index=observability sourcetype=\"grafana:alerting\"\n| eval slow_eval=if(isnotnull(eval_duration_ms) AND eval_duration_ms > 5000,1,0)\n| eval timeout_hit=if(match(lower(_raw),\"(?i)context deadline exceeded|evaluation timeout|cancelled\"),1,0)\n| bin _time span=5m\n| stats count as evals, sum(slow_eval) as slow_cnt, sum(timeout_hit) as timeouts, median(eval_duration_ms) as med_ms by _time, rule_group, org_id\n| eval slow_rate=round(100*slow_cnt/nullif(evals,0),2)\n| where timeouts > 0 OR slow_rate > 10\n| sort -timeouts",
+  "description": "Heavy PromQL or high-cardinality queries in alert rules stall the Grafana scheduler, delaying pages across unrelated services. Tracking evaluation duration and timeout strings isolates toxic rule groups before on-call trust erodes.",
+  "value": "Protects paging reliability and prevents alert silences caused by backlog, not silence configs.",
+  "implementation": "If only logs exist, parse `eval_duration_ms` via `rex`. Export Grafana internal metrics (`grafana_alerting_rule_evaluations_total`) via Prometheus remote_write to Splunk Observability if available. Tune thresholds per org tier.",
+  "visualization": "Heatmap (rule_group × eval ms), timechart of timeout count, table of worst med_ms.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Grafana — Alerting",
+      "url": "https://grafana.com/docs/grafana/latest/alerting/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "grafana",
+    "prometheus"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch how long alert checks take and how often they time out. If checks get too slow, warnings about real fires may arrive late, so we surface the slow rules before that happens."
+}

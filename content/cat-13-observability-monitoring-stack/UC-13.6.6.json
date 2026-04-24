@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.6.6",
+  "title": "Grafana Annotation Creation Rate for Deployment Correlation",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Change",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=observability` `sourcetype=grafana:audit` annotation create/update, or API-ingested annotation events",
+  "app": "Grafana audit + CI webhook annotator",
+  "spl": "index=observability sourcetype=\"grafana:audit\"\n| search annotation OR \"tags=*deploy*\"\n| eval deploy_tag=if(match(lower(tags),\"(?i)deploy|release|rollback\"),1,0)\n| bin _time span=1h\n| stats count as anno_rate, sum(deploy_tag) as deploy_markers by _time, dashboard_uid, org_id\n| eventstats median(anno_rate) as med_rate by dashboard_uid\n| where anno_rate > med_rate * 4 AND anno_rate > 10\n| sort -anno_rate",
+  "description": "Annotation storms often coincide with flapping CI jobs or runaway automation posting duplicate deployment markers, which obscures incident timelines. Spikes in annotation rate per dashboard highlight misconfigured pipelines before charts become unreadable.",
+  "value": "Keeps Grafana timelines trustworthy for blameless postmortems and customer communications.",
+  "implementation": "Normalize `dashboard_uid` from audit payloads. If annotations arrive via custom HEC, set `sourcetype=grafana:audit` for consistency. Exclude synthetic monitors using a tag filter.",
+  "visualization": "Timechart (annotations/hour), breakdown by `user` or `service`, table of dashboards with spikes.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Grafana — Annotations",
+      "url": "https://grafana.com/docs/grafana/latest/dashboards/build-dashboards/annotate-visualizations/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "grafana"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch how many timeline markers get added to charts. If a broken script starts flooding markers, we catch it so people can still read what changed during an outage."
+}

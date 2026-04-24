@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "16.6.2",
+  "title": "Opsgenie Zero-Recipient and Heartbeat Lapse — On-Call Routing Gaps",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Risk"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`index=alerts` `sourcetype=opsgenie:alert` notify events, `sourcetype=opsgenie:heartbeat` expired pings",
+  "app": "Opsgenie Splunk integration, Outgoing Webhook/OEC forwarder",
+  "spl": "index=alerts (sourcetype=\"opsgenie:alert\" OR sourcetype=\"opsgenie:heartbeat\")\n| eval alert_gap=if(sourcetype=\"opsgenie:alert\" AND (match(lower(message),\"(?i)no recipients|empty rotation|no one on-call\") OR recipients_count=0 OR mvcount(recipients)=0),1,0)\n| eval hb_gap=if(sourcetype=\"opsgenie:heartbeat\" AND status IN (\"expired\",\"inactive\"),1,0)\n| where alert_gap=1 OR hb_gap=1\n| stats count, latest(_time) as t, values(team) as teams by integration_name, source\n| sort -count",
+  "description": "Opsgenie alerts that fire with zero recipients or heartbeats that expire without follow-up indicate broken rotations, deleted schedules, or integration misrouting—distinct from PagerDuty schedule exports. Catching these patterns prevents silent failures in hybrid paging estates.",
+  "value": "Ensures hybrid Opsgenie + PagerDuty environments still have a human on the hook during sev-1 events.",
+  "implementation": "Normalize `recipients` multivalue field from JSON arrays. Join to `team` roster CSV for expected coverage. Differentiate from UC-16.2.22 (PagerDuty schedule gaps) by focusing on Opsgenie sourcetypes only.",
+  "visualization": "Timeline of zero-recipient alerts, table (integration × team), map of expired heartbeats by region.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Opsgenie — Heartbeats",
+      "url": "https://support.atlassian.com/opsgenie/docs/heartbeat-monitoring/"
+    },
+    {
+      "title": "Opsgenie for Splunk",
+      "url": "https://splunkbase.splunk.com/app/3759"
+    }
+  ],
+  "equipment": [
+    "pagerduty"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We look for emergency signals that nobody was scheduled to receive, and for heartbeat checks that died quietly. Either situation means an alarm might never reach a person."
+}

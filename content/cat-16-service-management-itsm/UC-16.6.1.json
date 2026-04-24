@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "16.6.1",
+  "title": "PagerDuty Escalation Policy Timeout Rate — Incidents Missing Step Acknowledgements",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operational",
+    "Reliability"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`index=alerts` `sourcetype=pagerduty:incident` with `escalation_policy`, `escalation_levels`, `first_acknowledgement_at`, `created_at`",
+  "app": "PagerDuty REST API poller or Event Orchestration webhook normalizer",
+  "spl": "index=alerts sourcetype=\"pagerduty:incident\"\n| eval created_epoch=coalesce(created_at_epoch, strptime(created_at, \"%Y-%m-%dT%H:%M:%SZ\"))\n| eval ack_epoch=coalesce(first_acknowledgement_at_epoch, strptime(first_acknowledgement_at, \"%Y-%m-%dT%H:%M:%SZ\"))\n| eval ack_delay_sec=ack_epoch-created_epoch\n| eval step_timeout=coalesce(escalation_policy_step_timeout_sec, 600)\n| eval missed_step=if(isnull(ack_epoch) OR ack_delay_sec > step_timeout,1,0)\n| bin _time span=1d\n| stats count as inc, sum(missed_step) as missed by _time, escalation_policy, service_name\n| eval timeout_rate=round(100*missed/nullif(inc,0),2)\n| where timeout_rate > 15 AND inc >= 5\n| sort -timeout_rate",
+  "description": "Escalation policies encode contractual response times; when acknowledgements consistently arrive after configured step timeouts, teams burn trust in paging and auto-escalations become noise. Measuring timeout_rate per policy surfaces rotation and training gaps.",
+  "value": "Improves MTTA for customer-impacting services and validates on-call process investments.",
+  "implementation": "Map `step_timeout` from exported escalation policy JSON if not on each incident. Treat `missed` carefully for low-urgency incidents. Pair with schedule coverage UCs for root cause.",
+  "visualization": "Line chart (timeout_rate by policy), stacked bar (missed vs met), table of worst services.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "PagerDuty — Escalation policies",
+      "url": "https://support.pagerduty.com/docs/escalation-policies"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "pagerduty"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We measure how often incidents are not acknowledged within the time your playbook allows. If that happens a lot, the escalation ladder is not matching real life."
+}

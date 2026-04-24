@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.7.12",
+  "title": "Control-M Workload Policy Violation and SLA Breach Risk",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Risk"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`index=batch` `sourcetype=controlm:alert` policy breach, `sourcetype=controlm:job` with `sla_met`, `due_time`",
+  "app": "Control-M/EM alerting integration to Splunk HEC",
+  "spl": "index=batch (sourcetype=\"controlm:alert\" OR sourcetype=\"controlm:job\")\n| eval policy_hit=if(sourcetype=\"controlm:alert\" AND match(lower(alert_type),\"(?i)workload|policy|resource\"),1,0)\n| eval sla_risk=if(sourcetype=\"controlm:job\" AND (sla_met=\"false\" OR match(lower(status),\"(?i)late|overdue\")),1,0)\n| where policy_hit=1 OR sla_risk=1\n| stats count, latest(_time) as last_seen, values(job_name) as jobs by policy_name, folder, controlm_server\n| sort -count",
+  "description": "Workload policies enforce CPU, job concurrency, and time-window guardrails; violations predict contention that will breach job SLAs or overrun change windows. Correlating policy alerts with concrete job outcomes separates noisy tuning from real risk.",
+  "value": "Supports operational risk dashboards and prevents cross-application stampedes on shared mainframe or open-systems capacity.",
+  "implementation": "Map vendor-specific alert_type strings via lookup. Require `controlm_server` for multi-EM estates. Exclude test folders with an allowlist. Schedule near-real-time for policy alerts, hourly rollups for SLA trending.",
+  "visualization": "Stacked bar (violations by policy), timeline with annotation markers, pie of affected folders.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "BMC Control-M Workload Policies",
+      "url": "https://documents.bmc.com/supportu/controlm/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "controlm"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We flag when scheduling rules meant to keep the system fair are broken or when jobs are on track to miss their promised finish time. That helps you act before one team’s rush hurts everyone else."
+}

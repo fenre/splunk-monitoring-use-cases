@@ -56,6 +56,10 @@
     "approval_status",
     "host"
   ],
+  "equipment": [
+    "jira",
+    "servicenow"
+  ],
   "status": "verified",
   "lastReviewed": "2026-04-22",
   "splunkVersions": [
@@ -63,11 +67,7 @@
     "Cloud"
   ],
   "reviewer": "N/A",
-  "grandmaExplanation": "We keep track of monitors it change-management approval rates and detects configuration drift without corresponding change tickets, providing evidence of coso principle 11 technology general controls. This matters because it catches problems that could lead to audit findings or compliance gaps.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: Change-management ticket systems (ServiceNow/Jira), configuration-management database (CMDB), configuration-compliance scans.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest change-ticket and config-drift events with change_ticket_ref, approval_status, change_type; (2) correlate drift with change tickets; (3) schedule daily; (4) escalate unauthorised changes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype IN (change_tickets, config_drift) earliest=-30d\n| eval is_change=if(sourcetype=\"change_tickets\", 1, 0)\n| eval is_drift=if(sourcetype=\"config_drift\", 1, 0)\n| eval approved_change=if(is_change=1 AND approval_status=\"approved\", 1, 0)\n| eval unauthorized_change=if(is_change=1 AND approval_status!=\"approved\", 1, 0)\n| stats sum(is_change) AS total_changes sum(approved_change) AS approved sum(unauthorized_change) AS unauthorized sum(is_drift) AS drift_events dc(host) AS affected_hosts BY business_unit\n| eval approval_rate=if(total_changes>0, round(100*approved/total_changes, 1), 100)\n| eval risk_level=case(unauthorized>0 OR drift_events>5, \"high\", drift_events>0, \"medium\", true(), \"low\")\n| where risk_level!=\"low\"\n| table business_unit, total_changes, approved, unauthorized, approval_rate, drift_events, affected_hosts, risk_level\n```\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
-  "subcategory": "22.50#1",
-  "equipment": [
-    "jira",
-    "servicenow"
-  ]
+  "grandmaExplanation": "We keep track of monitors it change-management approval rates and detects configuration drift without corresponding change tickets, providing evidence of coso principle 11 technology general controls. This matters because it catches problems that could lead to audit findings or compliance gaps.",
+  "subcategory": "22.50#1"
 }

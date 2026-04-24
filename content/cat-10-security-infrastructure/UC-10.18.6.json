@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.18.6",
+  "title": "Broadcom Symantec SEP Unmanaged Endpoint Discovery vs Agent Heartbeat",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Inventory",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Corporate asset inventory lookup (CSV) joined to `sourcetype=symantec:ep:agent:file` last-seen telemetry",
+  "app": "Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772)",
+  "spl": "| inputlookup corporate_endpoints.csv\n| rename hostname AS Computer_Name\n| fields Computer_Name OU owner\n| join type=left Computer_Name [search index=endpoint sourcetype=\"symantec:ep:agent:file\" earliest=-7d\n| eval Computer_Name=coalesce(Computer_Name, computer_name, host)\n| stats latest(_time) as last_sep_seen latest(Agent_Version) as sep_version by Computer_Name]\n| eval days_since_sep=round((now()-last_sep_seen)/86400,2)\n| where isnull(last_sep_seen) OR days_since_sep>3\n| sort days_since_sep desc",
+  "description": "Assets without a healthy SEP agent are blind spots for malware and policy enforcement. Comparing authoritative inventory to recent `symantec:ep:agent:file` heartbeats finds missing, broken, or decommissioned agents that still appear in CMDB.",
+  "value": "Closes coverage gaps for endpoint protection SLAs and supports merger, BYOD, and contractor device governance programs.",
+  "implementation": "(1) Maintain `corporate_endpoints.csv` with canonical hostnames aligned to SEPM naming. (2) Schedule daily agent status ingestion. (3) Tune grace period for mobile users (for example three to seven days). (4) Auto-open tickets to desktop services. (5) Exclude lab VLANs via lookup.",
+  "visualization": "Table (host, OU, owner, days since SEP), single-value (unmanaged count), bar chart by OU.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Add-on for Symantec Endpoint Protection",
+      "url": "https://splunkbase.splunk.com/app/2772"
+    },
+    {
+      "title": "Splunk Docs — inputlookup",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Inputlookup"
+    }
+  ],
+  "securityDomain": "endpoint",
+  "equipment": [
+    "broadcom_symantec"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We compare the official list of company computers with Broadcom Symantec agent check-ins to find machines that should be protected but are not reporting in."
+}

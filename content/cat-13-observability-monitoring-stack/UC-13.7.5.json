@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.7.5",
+  "title": "Fluentd Memory Buffer Utilization Approaching Limit",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=fluent` `sourcetype=fluentd:plugins` buffer queue length vs `buffer_total_limit`",
+  "app": "Fluentd monitor agent, Prometheus exporter optional",
+  "spl": "index=fluent sourcetype=\"fluentd:plugins\"\n| eval used=coalesce(buffer_queue_length, buffer_stage_length, queue_length)\n| eval lim=coalesce(buffer_total_limit, buffer_chunk_limit, total_limit)\n| eval pct=round(100*used/nullif(lim,0),1)\n| where pct > 75 OR used > 0 AND lim-used < 500\n| stats latest(pct) as buf_pct, latest(used) as q, latest(lim) as cap by host, plugin_id\n| sort -buf_pct",
+  "description": "Memory buffers protect against short downstream outages; running near the ceiling leaves no headroom for bursts and precedes blocking `emit` calls. Percent-of-limit tracking triggers proactive scaling.",
+  "value": "Avoids tail drops on bursty services like ingress controllers during attacks or viral traffic.",
+  "implementation": "Some plugins expose only chunk counts—map to bytes via avg chunk size calibration. Combine with `sourcetype=fluentd:log` overflow messages for corroboration.",
+  "visualization": "Gauge charts per plugin, heatmap (host × buffer pct), alert table.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Fluentd — Buffer section parameters",
+      "url": "https://docs.fluentd.org/configuration/buffer-section"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "log_pipeline",
+    "prometheus"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch how full the in-memory holding area is before logs are written to disk or sent onward. If it is almost full, you are one spike away from trouble."
+}

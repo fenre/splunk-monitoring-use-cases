@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.6.1",
+  "title": "Grafana Dashboard Load Time P95 Trending",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=observability` `sourcetype=grafana:log` HTTP access lines with `path=/api/dashboards/*` and `duration_ms` or parseable latency",
+  "app": "Grafana file or Loki shipping, Splunk Connect for Grafana, or reverse-proxy JSON logs",
+  "spl": "index=observability sourcetype=\"grafana:log\"\n| search \"/api/dashboards\" OR \"/d/\"\n| eval ms=coalesce(duration_ms, request_duration_ms, response_time_ms)\n| where isnotnull(ms)\n| bin _time span=15m\n| stats perc95(ms) as p95_load_ms, count as hits by _time, host\n| eventstats median(p95_load_ms) as baseline by host\n| where p95_load_ms > baseline * 1.4 AND hits > 30\n| sort -p95_load_ms",
+  "description": "Slow dashboard loads frustrate incident responders and hide behind average metrics when a few heavy clients dominate. Tracking p95 per Grafana instance catches database pressure, plugin overhead, and auth latency regressions early.",
+  "value": "Keeps operational and executive dashboards usable during incidents when seconds matter.",
+  "implementation": "Prefer structured JSON access logs; if only text, `rex` latency from nginx-style fields. Exclude asset paths (`public/build`). Split by `org_id` if present. Correlate with Postgres slow-query logs.",
+  "visualization": "Line chart (p95 ms), histogram of latency, top dashboards by total time (sum of ms).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Grafana — Configure log level",
+      "url": "https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/#log"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "grafana",
+    "nginx"
+  ],
+  "equipmentModels": [
+    "nginx_open"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We measure how long it takes people to open dashboards. If that suddenly gets much slower, we flag it so troubleshooting screens stay fast when teams are already stressed."
+}

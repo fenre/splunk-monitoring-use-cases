@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.18.8",
+  "title": "Broadcom Symantec ProxySG SSL Inspection Bypass Category Audit",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=bluecoat:proxysg:access:syslog` ProxySG access logs including URL category and SSL inspection outcome fields",
+  "app": "Blue Coat ProxySG Add-on for Splunk (Splunkbase) or Splunk Connect for Syslog with TA field extractions",
+  "spl": "index=proxy sourcetype=\"bluecoat:proxysg:access:syslog\" earliest=-24h\n| eval cat=coalesce(cs_categories, category, url_category, \"\")\n| eval ssl_state=coalesce(ssl_inspection, ssl_scan_result, inspection_status, \"\")\n| eval user=coalesce(cs_username, user, suser, \"\")\n| where match(lower(cat), \"(?i)financial|health|ssl|tunnel|bypass|no.inspect\") OR match(lower(ssl_state), \"(?i)bypass|tunnel|failed|not.inspected\")\n| stats count sum(sc_bytes) as bytes by user cat ssl_state\n| eval mb=round(bytes/1048576,2)\n| sort -count",
+  "description": "SSL inspection bypass rules reduce visibility into encrypted threats and data exfiltration. Auditing ProxySG traffic that skips inspection or uses high-risk categories validates that exceptions are narrow and justified.",
+  "value": "Supports zero-trust web policies and regulatory expectations for encrypted traffic visibility without blocking every false-positive banking site.",
+  "implementation": "(1) Confirm `cs_categories` and SSL inspection fields extract per your SGOS and TA version. (2) Maintain an approved-bypass lookup for known break-glass URLs. (3) Weekly SecOps review of top users. (4) Correlate with DLP and CASB signals. (5) Tune categories for local privacy law.",
+  "visualization": "Table (user, category, inspection state, MB transferred), bar chart (top categories), timeline.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Connect for Syslog",
+      "url": "https://splunkbase.splunk.com/app/4740"
+    },
+    {
+      "title": "Broadcom ProxySG product documentation",
+      "url": "https://knowledge.broadcom.com/external/article/169284/symantec-proxy-product-documentation.html"
+    }
+  ],
+  "securityDomain": "network",
+  "equipment": [
+    "broadcom_symantec",
+    "syslog"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We review Broadcom ProxySG web logs where security scanning was skipped so hidden malware or leaks in encrypted sites are not missed."
+}

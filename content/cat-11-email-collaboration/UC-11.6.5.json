@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "11.6.5",
+  "title": "Proofpoint Outbound Email Volume Anomaly Detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=proofpoint:mta` outbound message accept / relay events with direction or sender metadata",
+  "app": "Proofpoint On-Demand Add-on for Splunk (`Splunk_TA_ProofpointOD`)",
+  "spl": "index=email sourcetype=\"proofpoint:mta\" earliest=-30d@d\n| eval dir=coalesce(direction, Direction, msg_direction, \"\")\n| eval from_domain=replace(coalesce(sender, Sender, mailfrom, \"\"), \"^[^@]+@\", \"\")\n| where match(lower(dir), \"(?i)out|originating\") OR match(lower(_raw), \"(?i)outbound\")\n| bin _time span=1d\n| stats count as msgs by _time from_domain\n| eventstats avg(msgs) as baseline stdev(msgs) as sd by from_domain\n| eval sd_safe=if(sd=0 OR isnull(sd),1,sd)\n| eval z=round((msgs-baseline)/sd_safe,2)\n| where z>4 AND msgs>100\n| sort -z",
+  "description": "Sudden spikes in outbound volume from a domain or tenant slice can indicate a compromised account blasting spam or exfiltrating data via email. Baselines per sending domain highlight outliers before blocklisting harms reputation.",
+  "value": "Protects mail reputation and catches bulk phishing or BEC exfiltration early by watching Proofpoint MTA throughput rather than only content verdicts.",
+  "implementation": "(1) Normalize outbound detection using direction fields or message type. (2) Exclude marketing campaign domains via lookup. (3) Use 30-day baselines with z-score or MLTK if licensed. (4) On alert, pivot to `proofpoint_tap_siem` for malicious classifications. (5) Automate mailbox disables via SOAR with approval.",
+  "visualization": "Line chart (daily msgs by domain), table (domain, z-score, raw count), single-value alert panel.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Proofpoint — Email protection platform",
+      "url": "https://www.proofpoint.com/us/products/email-protection"
+    },
+    {
+      "title": "Splunk Docs — anomaly detection with stats",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Commonstatsfunctions"
+    }
+  ],
+  "mitreAttack": [
+    "T1534"
+  ],
+  "securityDomain": "threat",
+  "equipment": [
+    "proofpoint"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We compare normal outbound email volume to today’s traffic so a hijacked mailbox blasting junk is noticed quickly."
+}

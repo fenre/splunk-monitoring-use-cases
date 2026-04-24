@@ -29,10 +29,11 @@
     }
   ],
   "equipment": [
-    "cisco"
+    "cisco",
+    "servicenow"
   ],
   "equipmentModels": [
-    "cisco_catalyst_center"
+    "cisco_sdwan"
   ],
   "detailedImplementation": "Prerequisites\n• UC-5.13.23 (issues and/or event notifications) with `cisco:dnac:issue` and optional `cisco:dnac:event:notification` on `index=catalyst`.\n• Splunk On-Call app or SOAR app installed; credentials and routing keys provisioned.\n\nStep 1 — Field validation\n- Sample: `sourcetype=\"cisco:dnac:issue\"` — confirm `priority`, `status`, `name`, `deviceName`, `siteId`.\n- Sample: `sourcetype=\"cisco:dnac:event:notification\"` — confirm `eventSeverity`, `description` (values 1–4 or string per your TA); adjust `eventSeverity<=2` if your schema uses strings.\n\nStep 2 — Saved search / alert\n- **Schedule:** every 5 minutes, **time range:** last 5 minutes, **trigger:** number of results > 0.\n- **Throttle / dedup:** use `dedup` on `issueId` or `eventId` or use ITSI/SOAR-side deduplication to avoid storms during flapping conditions.\n\nStep 3 — On-Call action\n- Map `severity` token to VictorOps message type; pass `routing_key=network-ops` (or per-team keys by `siteId` via `lookup`).\n- Set **Entity** to `catalyst-center-$deviceName$` for merge in VictorOps timeline.\n\nStep 4 — SOAR playbook (optional)\n- Ingest alert via HEC with JSON containing `alert_source`, `severity`, `deviceName`, `siteId`.\n- Playbook steps: create ticket, page, call **Catalyst Center Command Runner** `POST /dna/intent/api/v1/network-device-poller/cli/read` (see current API docs for path/auth) with approved read-only commands — only after change-control approval.\n\nStep 5 — Baseline SPL\n\n```spl\nindex=catalyst ((sourcetype=\"cisco:dnac:issue\" (priority=\"P1\" OR priority=\"P2\") status!=\"RESOLVED\") OR (sourcetype=\"cisco:dnac:event:notification\" eventSeverity<=2)) | eval alert_source=case(sourcetype=\"cisco:dnac:issue\",\"Assurance Issue: \".name, sourcetype=\"cisco:dnac:event:notification\",\"Event: \".description, 1==1,\"Unknown\") | eval severity=case(priority=\"P1\" OR eventSeverity=1,\"critical\", priority=\"P2\" OR eventSeverity=2,\"high\", 1==1,\"medium\") | table _time alert_source severity deviceName siteId\n```",
   "grandmaExplanation": "We automatically send the most critical Catalyst Center alerts to your on-call team and incident management system so no one has to manually watch for problems.",

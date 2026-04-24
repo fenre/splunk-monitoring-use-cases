@@ -54,9 +54,18 @@
     }
   ],
   "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "requiredFields": [
+    "actor",
+    "audit_t",
+    "closed_at",
+    "closed_epoch",
+    "incident_id",
+    "incident_id]"
+  ],
   "equipment": [
     "itsi"
   ],
+  "lastReviewed": "2026-04-22",
   "premiumApps": [
     "Splunk Enterprise Security",
     {
@@ -66,15 +75,6 @@
     },
     "Splunk OT Security Add-on"
   ],
-  "grandmaExplanation": "We watch for tracks privileged edits to occupational health and safety systems tied to offshore operations. This is critical because gaps here could mean serious regulatory exposure or security blind spots.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk OT Security Add-on (5151), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).\n• Ensure the following data sources are available: Windows Security Event Logs, network infrastructure logs, OT/ICS system logs, power grid SCADA, petroleum control systems, government system audit trails, identity management systems, security incident reports.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain supporting lookups (classified hosts, sectors, transfers) aligned to Norwegian regulatory language. (2) Schedule searches with Europe/Oslo time semantics for reporting cutoffs. (3) Route ES notables to the correct national security, OT, or privacy queues. (4) Quarterly false-positive tuning with HR, operations, and legal stakeholders.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=app sourcetype=\"hse:incident\" earliest=-180d status=\"closed\"\n| join type=inner incident_id [| search index=app sourcetype=\"hse:audit\" action=\"update\" | stats max(_time) as audit_t by incident_id]\n| eval closed_epoch=strptime(closed_at,\"%Y-%m-%d %H:%M:%S\")\n| where audit_t > closed_epoch\n| table incident_id, closed_at, audit_t, actor\n```\n\nUnderstanding this SPL\n\n**HSE system audit trails (HSE)** — Tracks privileged edits to occupational health and safety systems tied to offshore operations.\n\nDocumented **Data sources**: Windows Security Event Logs, network infrastructure logs, OT/ICS system logs, power grid SCADA, petroleum control systems, government system audit trails, identity management systems, security incident reports. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk OT Security Add-on (5151), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: app; **sourcetype**: hse:incident. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=app, sourcetype=\"hse:incident\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• `eval` defines or adjusts **closed_epoch** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where audit_t > closed_epoch` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**HSE system audit trails (HSE)** — Tracks privileged edits to occupational health and safety systems tied to offshore operations.\n\nDocumented **Data sources**: Windows Security Event Logs, network infrastructure logs, OT/ICS system logs, power grid SCADA, petroleum control systems, government system audit trails, identity management systems, security incident reports. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk OT Security Add-on (5151), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\nOutput fields: actor, audit_t, closed_at, closed_epoch, incident_id, incident_id].\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (events by host), Table (top users), Single value (policy violations).",
-  "lastReviewed": "2026-04-22",
-  "requiredFields": [
-    "actor",
-    "audit_t",
-    "closed_at",
-    "closed_epoch",
-    "incident_id",
-    "incident_id]"
-  ]
+  "grandmaExplanation": "We watch for tracks privileged edits to occupational health and safety systems tied to offshore operations. This is critical because gaps here could mean serious regulatory exposure or security blind spots."
 }

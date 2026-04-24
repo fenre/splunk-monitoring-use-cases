@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.7.11",
+  "title": "Control-M Agent Availability and Heartbeat Gap Detection",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Operational"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`index=batch` `sourcetype=controlm:agent` heartbeat, status, and disconnect events from Agent-to-Server tunnel",
+  "app": "Control-M/Agent diagnostic forwarder, syslog, or Automation API poller",
+  "spl": "index=batch sourcetype=\"controlm:agent\"\n| eval host=coalesce(agent_host, node_id, host)\n| stats latest(_time) as last_seen, latest(status) as agent_status, values(message) as msgs by host\n| eval gap_sec=now()-last_seen\n| where gap_sec > 900 OR match(lower(agent_status),\"(?i)down|disconnected|unavailable\")\n| sort -gap_sec",
+  "description": "Silent agent loss leaves jobs unrunnable on remote hosts while the schedule still assumes capacity exists. Heartbeat gaps are the fastest signal before a mountain of late jobs appears in the Enterprise Manager.",
+  "value": "Reduces batch outage duration on distributed platforms and proves agent resiliency for audit questions.",
+  "implementation": "Normalize timestamps to UTC; agents behind NAT may batch heartbeats—tune gap_sec per region. Enrich with CMDB owner and escalation tier. Pair with network device logs for path failures.",
+  "visualization": "Choropleth or location map of agents, single-value (agents in gap), timeline of disconnect reasons.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "BMC Control-M — Agent",
+      "url": "https://documents.bmc.com/supportu/controlm/9.0.21/en-US/Documentation/Agent.htm"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "controlm",
+    "syslog"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We check that each remote worker regularly checks in. If one stops checking in, we alert you quickly so work does not pile up invisibly on that machine."
+}

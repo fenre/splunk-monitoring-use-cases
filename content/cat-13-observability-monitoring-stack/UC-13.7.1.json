@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.7.1",
+  "title": "Fluentd Buffer Overflow and Retry Exhaustion Events",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Reliability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=fluent` `sourcetype=fluentd:log` supervisor/worker, buffer plugin diagnostics",
+  "app": "Fluentd deployment with file/system buffer, log forwarder to Splunk HEC",
+  "spl": "index=fluent sourcetype=\"fluentd:log\"\n| search \"buffer\" AND (\"overflow\" OR \"chunk full\" OR \"retry limit\" OR \"giving up\" OR \"emit error\")\n| stats count, latest(_time) as t, values(plugin_id) as plugins by host, buffer_path\n| where count >= 5\n| sort -count",
+  "description": "When Fluentd cannot flush faster than inputs arrive, chunks block and events are dropped or stalled—often the first sign of downstream indexer saturation. Tracking overflow and retry-exhaustion strings prioritizes the correct output plugin to fix.",
+  "value": "Prevents silent log loss during traffic spikes and gives SREs a faster cue than disk-full pages alone.",
+  "implementation": "Tag `plugin_id` from structured logs when possible. Correlate with Splunk indexer queue KPIs. Tune `retry_forever` and secondary destinations per vendor guidance.",
+  "visualization": "Event timeline, bar chart (host × plugin), single-value (open buffer faults).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Fluentd — Buffering",
+      "url": "https://docs.fluentd.org/buffer"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "log_pipeline"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We read the collector’s own diary for signs it is out of space to hold logs while sending them onward. If it starts giving up on retries, we raise the alarm before logs vanish."
+}

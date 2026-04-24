@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "2.7.4",
+  "title": "Proxmox VE Live Migration Completion Time and Error Rate",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=pve` `sourcetype=\"proxmox:task\"` — QEMU migrate UPID tasks: `type`, `vmid`, `src_node`, `dst_node`, `duration_sec`, `status`",
+  "app": "UF shipping `pvedaemon` / `pvestatd` task transcripts; map `qmigrate` operations to fields",
+  "spl": "index=pve sourcetype=\"proxmox:task\" earliest=-24h\n| eval t=lower(coalesce(type, task_type, operation))\n| where match(t, \"(?i)qmigrate|migrate\")\n| eval dur=tonumber(coalesce(duration_sec, duration))\n| eval ok=if(match(lower(coalesce(status, result)), \"(?i)ok|success\"),1,0)\n| stats count as migrations, median(dur) as med_dur, perc95(dur) as p95_dur,\n    sum(eval(if(ok==0,1,0))) as failed by src_node, dst_node\n| where failed>0 OR p95_dur>600",
+  "description": "Live migrations should finish quickly and without errors during host maintenance. Long tail durations or failures highlight inadequate migration network bandwidth, storage latency, or pinned CPU configurations.",
+  "value": "Keeps host evacuation and hardware refresh projects on schedule while avoiding hidden guest impact.",
+  "implementation": "Filter only migration task types to reduce noise. Establish per–node-pair baselines. Alert on failures immediately; warn on p95 above your SLO. Compare with `proxmox:pveproxy` latency and `proxmox:storage` latency in the same window.",
+  "visualization": "Heat map of p95 duration by node pair; timechart median migration time; table of failed vmid samples.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "QEMU/KVM Migration on Proxmox",
+      "url": "https://pve.proxmox.com/wiki/QEMU/KVM_Migration"
+    }
+  ],
+  "equipment": [
+    "proxmox"
+  ],
+  "status": "verified",
+  "lastReviewed": "2025-06-01",
+  "splunkVersions": [
+    "9.x",
+    "8.x"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We time how long it takes to move a running computer from one physical machine to another, and flag when those moves fail or drag on."
+}

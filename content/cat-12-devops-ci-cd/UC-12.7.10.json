@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "12.7.10",
+  "title": "Control-M Job Dependency Chain Critical Path Delay Analysis",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`index=batch` `sourcetype=controlm:job` with `job_name`, `order_id`, `start_time`, `end_time`, `predecessor_jobs` or SMART Table topology lookup",
+  "app": "BMC Control-M Automation API / EM Web Services → HEC, or CTM Kafka connector",
+  "spl": "index=batch sourcetype=\"controlm:job\"\n| eval start_epoch=coalesce(start_epoch, strptime(start_time,\"%Y-%m-%d %H:%M:%S\"))\n| eval end_epoch=coalesce(end_epoch, strptime(end_time,\"%Y-%m-%d %H:%M:%S\"))\n| eval runtime_sec=end_epoch-start_epoch\n| where isnotnull(runtime_sec) AND runtime_sec >= 0\n| stats median(runtime_sec) as med_rt, perc90(runtime_sec) as p90_rt, values(job_name) as chain, count as runs by order_id, folder\n| eventstats median(p90_rt) as folder_p90_peer by folder\n| where p90_rt > folder_p90_peer * 1.5 AND runs >= 3\n| sort -p90_rt",
+  "description": "Batch chains often have a single pacing job; when its runtime stretches, every downstream consumer misses the file or database refresh window. Aggregating runtime percentiles per order_id highlights the critical path before the last hop fails.",
+  "value": "Protects downstream SLAs for billing, supply chain, and data products fed by Control-M orchestration.",
+  "implementation": "If predecessor metadata is not in events, join to a topology CSV exported from Control-M Planning. Compare each order_id’s p90 runtime to the same folder’s peer median to catch chains that lag their own history without maintaining SLA lookup tables.",
+  "visualization": "Gantt-style timeline panel, waterfall chart (job runtime by order_id), table of top p90_rt chains.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "BMC Control-M documentation",
+      "url": "https://documents.bmc.com/supportu/controlm/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "equipment": [
+    "controlm",
+    "hardware_bmc",
+    "kafka"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-01",
+  "splunkVersions": [
+    "9.x",
+    "10.x",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We measure which linked batches are taking longer than usual end to end. That tells you where a slow step is holding up everything that comes after it, before the whole nightly chain misses its deadline."
+}

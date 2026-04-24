@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.18.2",
+  "title": "Broadcom Symantec SEP SONAR Behavioral Detection Rate Trending",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Anomaly"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=symantec:ep:proactive:file` SONAR / proactive threat events from SEP clients",
+  "app": "Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772)",
+  "spl": "index=endpoint sourcetype=\"symantec:ep:proactive:file\" earliest=-30d@d\n| eval risk=coalesce(Risk_Name, risk_name, Threat_Name, threat_name, \"SONAR\")\n| bin _time span=1d\n| stats count by _time risk\n| eventstats avg(count) as baseline stdev(count) as sd by risk\n| eval sd_safe=if(sd=0 OR isnull(sd),1,sd)\n| eval z_score=round((count-baseline)/sd_safe,2)\n| where z_score>3 OR count>baseline*4",
+  "description": "SONAR and behavioral layers catch file-less and polymorphic malware that signatures miss. Sudden spikes in proactive detections can signal a new campaign, a policy misconfiguration, or an aggressive false-positive signature.",
+  "value": "Gives SOC early warning on behavioral malware waves and helps tune SONAR sensitivity before help-desk volume or business disruption rises.",
+  "implementation": "(1) Enable proactive / SONAR log forwarding from SEPM. (2) Normalize `Risk_Name` and `Actual_Action` fields. (3) Baseline daily counts per risk category over 30 days. (4) Alert on statistical spikes and cross-check with release notes for new definitions. (5) Feed top risks into threat hunting.",
+  "visualization": "Multi-series line chart (blocked vs monitored over time), stacked bar by risk family, table of spike days.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Add-on for Symantec Endpoint Protection — sourcetypes",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/SymantecEP/Sourcetypes/"
+    },
+    {
+      "title": "Broadcom — SONAR protection overview",
+      "url": "https://knowledge.broadcom.com/external/article/180854/understanding-sonar.html"
+    }
+  ],
+  "securityDomain": "endpoint",
+  "equipment": [
+    "broadcom_symantec"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "catalog-team",
+  "grandmaExplanation": "We watch Broadcom Symantec’s behavioral anti-malware layer for unusual bursts of suspicious activity so new attacks are caught early."
+}
