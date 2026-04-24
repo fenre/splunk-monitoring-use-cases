@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.10",
+  "title": "Client Health Trending by Time",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:clienthealth (Catalyst Center client health feed)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:clienthealth\" | timechart span=1h avg(scoreDetail{}.healthyClientsPercentage) as healthy_pct by scoreDetail{}.scoreCategory.scoreCategory",
+  "description": "Tracks client health percentages over time to identify patterns such as degradation during peak hours, recurring issues, or the impact of changes.",
+  "value": "Time-based trending reveals patterns invisible in point-in-time snapshots: peak-hour degradation, weekend improvements, or the impact of configuration changes.",
+  "implementation": "With the client health input writing to `index=catalyst` at regular intervals, keep sufficient retention (for example 90 days) for `timechart` baselines. If `healthyClientsPercentage` is not numeric in some events, add `where isnum()` before the chart. Align dashboard time pickers with business hours to see shift-based patterns clearly.",
+  "visualization": "Line timechart of healthy_pct by category, overlay markers for change windows, stat panels for min/max/avg over the range.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• **clienthealth** must be **continuous** into `cisco:dnac:clienthealth`; retain **90+ days** for seasonal baselines (retail peaks, return-to-office patterns).\n• **Assurance** license; Catalyst **2.3.5+** for consistent `healthyClientsPercentage` in nested `scoreDetail`.\n• API user roles consistent with other Assurance read feeds; confirm **WLC-**managed clients are in inventory or wireless percentages look artificially low.\n• `docs/implementation-guide.md` for index sizing (low volume, but do not use a 1-day test index in production by mistake).\n\nStep 1 — Configure data collection\n• **Intent API:** `GET /dna/intent/api/v1/client-health`.\n• **TA input name:** **clienthealth**; sourcetype `cisco:dnac:clienthealth`, index `catalyst`.\n• **Default interval:** **900s**; `timechart span=1h` expects several polls per hour to average inside each bucket in busy environments.\n• **Volume:** still **aggregate** events—disk growth is modest compared to **flow** or **syslog** indices.\n• **Key metrics for this search:** `scoreDetail{}.healthyClientsPercentage` and `scoreDetail{}.scoreCategory.scoreCategory` (series names).\n\nStep 2 — Create the search and alert\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:clienthealth\" | timechart span=1h avg(scoreDetail{}.healthyClientsPercentage) as healthy_pct by scoreDetail{}.scoreCategory.scoreCategory\n```\n\nUnderstanding this SPL (span choice, null handling, and SLO lines)\n• **`span=1h`** smooths 15m polls; try **`30m`** for campus incidents, **`4h`** for long-range exec trends (hides short spikes—pick based on audience).\n• **`avg(healthyClientsPercentage)`** only works if the field is **numeric**—add **`| where isnum(healthyClientsPercentage)`** in a pre-search or wrap with **`where mvcount`** logic if the TA sometimes emits null arrays.\n• **Legend series** will mirror **Catalyst** category groupings; hide noisy series in **Dashboard Studio** if “All clients” drowns out a focused line you care about.\n• Draw a **visual reference** at your agreed **SLO** (e.g. **90%** healthy) in the chart settings—the SPL does not hard-code SLO text.\n\n**Pipeline walkthrough**\n• `timechart` buckets to one hour and averages the nested `healthyClientsPercentage` for each `scoreCategory` name.\n• **Multiple** lines make **divergence** between wireless-focused vs wired-focused categories easy to see—interpretation depends on the exact **strings** in your data.\n• Cross-reference with **change calendar** for WLC upgrades, RADIUS work, or new SSIDs.\n\nStep 3 — Validate\n• Compare a single **hour** to **Catalyst > Client health** for that hour (small **rounding** diffs are normal between JSON and UI).\n• If one series is **flat at 100%**, the category may be **inapplicable** to your design—not necessarily an error.\n• Gaps: verify **ingest** lag (`_indextime - _time`) is minutes, not hours; fix forwarder/queue if not.\n• After a **TA upgrade**, re-check **`| fieldsummary`** for renamed nested paths.\n\nStep 4 — Operationalize\n• **Placement:** **trend row** of the **Catalyst executive** or **NOC** dashboard; default **30 days** with a **1d/7d/24h** token strip.\n• **Annotations:** add markers for **code upgrades** and **HLD**-documented “expected dip” events so leadership does not misread a planned blip.\n• **Pair** with a **per-site** filter token when the **TA** or a **post-process** enriches **site**—global-only charts hide a single **bad building**.\n• **Do not** use this chart for **P1** detection without **issue**-based UCs; it lags user-perceived **Wi-Fi** pain during micro-outages.\n\nStep 5 — Troubleshooting\n• **Nulls in the chart:** wrong MV path or empty **scoreDetail** on that poll; validate one **full JSON** and adjust field names in the SPL.\n• **Percentages out of 0–100 range** in edge builds: **clamp** in presentation or open a TAC case; do not hide silently.\n• **Sawtooth on poll alignment:** you may be **re-ingesting** duplicate buckets—`dedup` on known keys in an intermediate **summary** if needed.\n• **Region mismatch vs GUI:** the modular input may be **global** while an engineer looks at a **single site** in the UI—align **scope** in the TA where filters exist.\n",
+  "grandmaExplanation": "We track how your users' network experience changes throughout the day and week, so you can spot patterns and fix recurring problems.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

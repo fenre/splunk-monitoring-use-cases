@@ -1,0 +1,69 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.32",
+  "title": "Compliance Drift Detection (Was Compliant, Now Not)",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Change"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IT Operations",
+  "controlFamily": "log-source-completeness",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "CM-3",
+      "mode": "detects-violation-of",
+      "assurance": "partial",
+      "assurance_rationale": "Detects unauthorized configuration changes by identifying devices that drift from compliant to non-compliant state.",
+      "controlObjective": "Identifies when a device moves from COMPLIANT to NON_COMPLIANT for a given policy type so unauthorised or untracked change (CM-3) can be investigated.",
+      "evidenceArtifact": "Alert or report `UC-5.13.32` listing deviceName, complianceType, and status transition; include Splunk time range in the case record for the security or change team."
+    },
+    {
+      "regulation": "SOX ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Change.Mgmt",
+      "mode": "detects-violation-of",
+      "assurance": "partial",
+      "assurance_rationale": "Identifies configuration changes outside of authorized change management processes by detecting compliance drift.",
+      "controlObjective": "Gives a detective signal that configuration on financial-reporting–relevant network equipment may have changed outside approved change management (ITGC change controls).",
+      "evidenceArtifact": "Same drift report; tie each row to a change ticket ID via lookup or manual reconciliation for external audit (SOX ITGC workpapers)."
+    }
+  ],
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:compliance (complianceStatus, deviceName, complianceType over time)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:compliance\" | stats latest(complianceStatus) as current_status earliest(complianceStatus) as previous_status by deviceName, complianceType | where current_status=\"NON_COMPLIANT\" AND previous_status=\"COMPLIANT\" | table deviceName complianceType current_status previous_status",
+  "description": "Detects devices that were previously compliant but have drifted to non-compliant status, indicating unauthorized changes or configuration drift.",
+  "value": "Compliance drift means something changed — either an unauthorized modification, a failed change, or a new policy that existing configs do not meet. Catching drift early prevents audit findings.",
+  "implementation": "Enable the `compliance` input. Use a time range that includes at least two polling cycles per device. Pair with change records to distinguish policy updates from unauthorized edits.",
+  "visualization": "Table (deviceName, complianceType, current_status, previous_status), alert list for drift events.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:compliance (complianceStatus, deviceName, complianceType over time).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the `compliance` input. Use a time range that includes at least two polling cycles per device. Pair with change records to distinguish policy updates from unauthorized edits.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:compliance\" | stats latest(complianceStatus) as current_status earliest(complianceStatus) as previous_status by deviceName, complianceType | where current_status=\"NON_COMPLIANT\" AND previous_status=\"COMPLIANT\" | table deviceName complianceType current_status previous_status\n```\n\nUnderstanding this SPL\n\n**Compliance Drift Detection (Was Compliant, Now Not)** — Compliance drift means something changed — either an unauthorized modification, a failed change, or a new policy that existing configs do not meet. Catching drift early prevents audit findings.\n\n**Pipeline walkthrough**\n\n• `stats` compares the earliest and latest `complianceStatus` seen in the window for each `deviceName` and `complianceType` pair.\n• The `where` clause keeps rows where the path moved from `COMPLIANT` to `NON_COMPLIANT`, highlighting regression rather than steady failure.\n• `table` presents a simple evidence list for SOC or audit follow-up.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Consider visualizations: Table (deviceName, complianceType, current_status, previous_status), alert list for drift events.",
+  "grandmaExplanation": "We catch devices that used to follow all the rules but have recently stopped, which usually means someone changed something they should not have.",
+  "prerequisiteUseCases": [
+    "UC-5.13.28",
+    "UC-5.13.30"
+  ],
+  "wave": "run"
+}

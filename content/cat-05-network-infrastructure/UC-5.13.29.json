@@ -1,0 +1,66 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.29",
+  "title": "Non-Compliant Device Alerting",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IT Operations",
+  "controlFamily": "log-source-completeness",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "CM-6",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Monitors device configuration compliance status against Catalyst Center policies, providing evidence of configuration baseline enforcement.",
+      "controlObjective": "Flags non-compliant devices quickly so configuration drift against the enforced baseline (CM-6) is detected and fixed before it becomes a wider failure.",
+      "evidenceArtifact": "Alert `UC-5.13.29` on the NON_COMPLIANT search (tickets, email, or webhook) with a weekly summary to the change board; include deviceName and managementIpAddress in the alert body."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "1.1.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Demonstrates network device configuration compliance monitoring as part of firewall and router configuration standards.",
+      "controlObjective": "Contributes to PCI DSS 1.1.1 by alerting when in-scope device configurations fall out of the documented and approved state.",
+      "evidenceArtifact": "Alert and ticket export showing each NON_COMPLIANT event with timestamps; archive to a restricted report index for assessor review if required by your QSA process."
+    }
+  ],
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:compliance (complianceStatus, deviceName, managementIpAddress, complianceType)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:compliance\" complianceStatus=\"NON_COMPLIANT\" | stats count as violation_count values(complianceType) as violation_types by deviceName, managementIpAddress | sort -violation_count",
+  "description": "Alerts when devices fall out of compliance with Catalyst Center policies, identifying which devices have violations and what type of compliance failure occurred.",
+  "value": "Non-compliant devices represent security and operational risk. Immediate alerting ensures violations are remediated before they lead to incidents or audit findings.",
+  "implementation": "Enable the `compliance` input. Schedule the alert **every 30 minutes**; **throttle by deviceName** (for example **4 hours**) to limit noise during bulk config pushes. `GET /dna/intent/api/v2/compliance/detail` via the **compliance** TA input (see UC-5.13.28).",
+  "visualization": "Table (violation_count, violation_types by device), list panel for email or ticket bodies.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Catalyst Add-on (Splunkbase 7538); **compliance** data in `index=catalyst`, sourcetype `cisco:dnac:compliance`.\n• Same **Intent API** context as the overview: `GET /dna/intent/api/v2/compliance/detail`; **TA input name** **compliance**; default **900s** poll (see **UC-5.13.28** for field definitions).\n• API user can read **compliance** results for the managed device inventory; align **virtual domain / site** scope with what security reviews in the **Catalyst** UI.\n• Runbook owner for **remediation** and for **Catalyst** policy ownership (change window coordination).\n\nStep 1 — Configure data collection\n• **API:** `GET /dna/intent/api/v2/compliance/detail` (device-level compliance detail; exact filtering may depend on **TA** version and modular input options).\n• **TA input:** **compliance**; sourcetype `cisco:dnac:compliance`.\n• **Key fields for alerts:** `complianceStatus`, **`deviceName`**, `managementIpAddress` (or IP field your TA maps), `complianceType` (**RUNNING_CONFIG**, **IMAGE**, **PSIRT**, **EOX**, **NETWORK_SETTINGS**).\n\nStep 2 — Create the search and alert\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:compliance\" complianceStatus=\"NON_COMPLIANT\" | stats count as violation_count values(complianceType) as violation_types by deviceName, managementIpAddress | sort -violation_count\n```\n\nUnderstanding this SPL\n• Focuses on **`NON_COMPLIANT`** only; **`violation_count`** can exceed **1** if multiple **policy evaluations** or **time buckets** are merged—tune with **`dedup`** or **`| stats latest() by deviceName, complianceType`** if your team counts **one row per device** for ticketing.\n• **`values(complianceType)`** lists **which** policy families failed on that device; pair with the **Catalyst** Compliance page for the **exact** failing rule or diff.\n\n**Pipeline walkthrough**\n• Filters the compliance feed, aggregates **violations** and **types** by **device** identifiers, and sorts to put the **worst** systems first for **email/ITSM** payloads.\n\n**Alerting recommendations**\n• **Schedule:** run the alert on a **30-minute** cadence (balance between **MTTD** and **API/event noise**; faster than **15m** is rarely needed for **config drift** that is not security-PSIRT-critical).\n• **Throttle / suppression:** **throttle by `deviceName` for 4 hours** (or use **per-result** throttling) to **avoid alert storms during bulk template pushes** when many devices flip **NON_COMPLIANT** and back to **COMPLIANT** in the same maintenance window. Combine with a **“maintenance”** time window token if you use **Splunk** scheduled maintenance.\n\nStep 3 — Validate\n• Compare the **set of `deviceName` values** and **`complianceType` failures** to **Catalyst Center > Compliance** for the same time—counts may differ if Splunk’s window spans **two** polls; use **“last 35 minutes”** to match a **30m** schedule.\n• Confirm **`managementIpAddress`** (or your IP field) matches **Catalyst** inventory for **NOC** reachability in the **ticket** body.\n\nStep 4 — Operationalize\n• **Alert actions:** open **ticket** with top **5** devices from **`sort`**, include **`violation_types`**, link to **UC-5.13.28** **dashboard** for **% COMPLIANT** context.\n• **P1** only for **IMAGE** or **PSIRT** non-compliance if your **policy** says so; **RUNNING_CONFIG** drift may be **P2** with a **4h** follow-up in many orgs—document the matrix in the runbook.\n\nStep 5 — Troubleshooting\n• **Spikes during change:** if **hundreds** of alerts fire, verify **throttle by device** and a **change record**; **pause** the alert for the **CAB** window if safe.\n• **False negatives:** if **Catalyst** shows **NON_COMPLIANT** but Splunk is quiet, check **sourcetype** routing, **index-time** filter, and **Catalyst** **scope** (Splunk may be **global** while the engineer filtered **one site**).\n• **Duplicate device names:** use **device serial** or **id** in **`stats by`** if the TA enriches it—naming collisions across sites exist.\n• **PSIRT-specific failures:** follow **Cisco** advisory **remediation** in **Catalyst** first; Splunk is the **notifier**, not the **patch** engine.",
+  "grandmaExplanation": "We immediately flag any network device that stops meeting the required configuration standards, so your team can fix it before it becomes a security risk.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

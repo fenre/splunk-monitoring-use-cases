@@ -1,0 +1,66 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.46",
+  "title": "Configuration Change Audit Trail",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Change",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IT Operations",
+  "controlFamily": "log-source-completeness",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "CM-3",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Records configuration, provisioning, and template-related changes made through Catalyst Center, supporting change control evidence.",
+      "controlObjective": "Helps ensure configuration changes to managed infrastructure are visible and attributable, aligning with NIST 800-53 CM-3 (configuration change control) for the operations plane.",
+      "evidenceArtifact": "Saved search `UC-5.13.46` with export or dashboard snapshot tied to a change record when reviewing CM-3 effectiveness."
+    },
+    {
+      "regulation": "SOX ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.ChangeMgmt.Approval",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Exposes who initiated configuration and provisioning work on in-scope network equipment for reconciliation with approved change records.",
+      "controlObjective": "Supports matching Catalyst Center-originated changes to authorized change management tickets for financial-reporting–relevant network controls.",
+      "evidenceArtifact": "Monthly CSV or scheduled PDF from `UC-5.13.46` cross-walked to the change-ticket list in the SOX control sample."
+    }
+  ],
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:audit:logs (Catalyst Center audit; configuration, provisioning, template-related auditRequestType values)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:audit:logs\" (auditRequestType=\"CONFIG*\" OR auditRequestType=\"*PROVISION*\" OR auditRequestType=\"*TEMPLATE*\") | stats count as change_count values(auditDescription) as actions by auditUserName, auditIpAddress | sort -change_count",
+  "description": "Tracks all configuration changes made through Catalyst Center, including template deployments, provisioning actions, and policy changes.",
+  "value": "Configuration changes are the leading cause of network outages. A complete audit trail enables rapid rollback and root-cause identification.",
+  "implementation": "Enable the `audit_logs` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls audit log data from the Catalyst Center Intent API `/dna/intent/api/v1/audit/logs` every 5 minutes. Key fields: `auditRequestType`, `auditDescription`, `auditUserName`, `auditTimestamp`, `auditIpAddress`.",
+  "visualization": "Table (auditUserName, auditIpAddress, change_count, actions), timechart of config-related events, drilldown to raw events for ticket correlation.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:audit:logs (Catalyst Center audit; configuration, provisioning, template-related auditRequestType values).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the `audit_logs` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls audit log data from the Catalyst Center Intent API `/dna/intent/api/v1/audit/logs` every 5 minutes. Key fields: `auditRequestType`, `auditDescription`, `auditUserName`, `auditTimestamp`, `auditIpAddress`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:audit:logs\" (auditRequestType=\"CONFIG*\" OR auditRequestType=\"*PROVISION*\" OR auditRequestType=\"*TEMPLATE*\") | stats count as change_count values(auditDescription) as actions by auditUserName, auditIpAddress | sort -change_count\n```\n\nUnderstanding this SPL\n\n**Configuration Change Audit Trail** — Configuration changes are the leading cause of network outages. A complete audit trail enables rapid rollback and root-cause identification.\n\n**Pipeline walkthrough**\n\n• Uses wildcard filters on `auditRequestType` to keep configuration, provisioning, and template activities.\n• `stats` counts changes per `auditUserName` and `auditIpAddress` and lists distinct `auditDescription` values in the `actions` multivalue field.\n• `sort -change_count` surfaces the heaviest changers for review or approval alignment.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Consider visualizations: Table (auditUserName, auditIpAddress, change_count, actions), timechart of config-related events, drilldown to raw events for ticket correlation.",
+  "grandmaExplanation": "We record every configuration change made to your network through Catalyst Center, so you always know who changed what and when.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

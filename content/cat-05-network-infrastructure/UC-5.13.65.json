@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.65",
+  "title": "Critical Event Notification Alerting (Severity 1-2)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Catalyst Center Platform event notifications via HEC webhook → `sourcetype=cisco:dnac:event:notification`",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + Splunk HEC for Catalyst Center webhook event notifications",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:event:notification\" (eventSeverity=1 OR eventSeverity=2) | stats count as event_count values(eventCategory) as categories latest(description) as last_description by eventType, eventSeverity | sort eventSeverity -event_count",
+  "description": "Alerts on Catalyst Center severity 1 and 2 event notifications, which represent the most critical platform and network events requiring immediate response.",
+  "value": "Severity 1-2 events represent critical failures or security incidents. Real-time alerting via webhooks ensures sub-minute detection compared to the TA's 15-minute polling cycle.",
+  "implementation": "Requires the HEC + webhook + Event Notification pipeline from UC-5.13.64. **Sourcetype:** `cisco:dnac:event:notification`. **HEC URL:** `https://<host>:8088/services/collector/event` with `Authorization: Splunk <HEC-token>`. In Catalyst Center, ensure subscriptions include severity 1 and 2 for Network, System, and Security (and others as your policy requires). If `eventSeverity` is delivered as a string, normalize in props or add `| eval eventSeverity=tonumber(eventSeverity)` before filtering. For alerting in Splunk: save this search with `eventSeverity=1` as highest priority, route to on-call, and add SMS/email. Optional: add `lookup` for eventType to a runbook table.",
+  "visualization": "Table (eventType, eventSeverity, event_count, last_description), time chart of S1/S2 over time, single value of open critical notifications.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• UC-5.13.64 complete: HEC token, Webhook destination, and at least one active Event Notification subscription to Splunk with `sourcetype=cisco:dnac:event:notification` and `index=catalyst`.\n\nStep 1 — Confirm field typing\n- Run `| fieldsummary eventSeverity` to see whether the field is numeric or string. Use `| where (eventSeverity=1 OR eventSeverity=2 OR eventSeverity=\"1\" OR eventSeverity=\"2\")` if mixed.\n\nStep 2 — HEC and Catalyst Center (recap)\n- Splunk: HEC on port 8088, token scoped to the catalyst index; Global Settings: enable SSL and indexes as per your hardening standard.\n- Catalyst Center: Webhook to `/services/collector/event`; for JSON events, the body must be valid HEC format (`{\"event\":{...}}` or `{\"event\": \"...\" }` per Splunk HEC spec).\n- Event Notifications: subscribe to **all** categories you must react to for S1/S2, not just Network.\n\nStep 3 — Search / alert\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:event:notification\" (eventSeverity=1 OR eventSeverity=2) | stats count as event_count values(eventCategory) as categories latest(description) as last_description by eventType, eventSeverity | sort eventSeverity -event_count\n```\n\nStep 4 — Operationalize\n- Alert when `count>0` in last 5m for S1, throttle per `eventType` to avoid flapping. Pair with `sendemail` or ITSM ticket integration. Compare latency with TA pollers (UC-5.13.1 / issues) in post-incident review.",
+  "grandmaExplanation": "We immediately flag the most serious alerts that Catalyst Center sends in real time, so critical problems are caught in seconds, not minutes.",
+  "prerequisiteUseCases": [
+    "UC-5.13.64"
+  ],
+  "wave": "walk"
+}

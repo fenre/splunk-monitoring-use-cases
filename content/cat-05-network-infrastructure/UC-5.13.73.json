@@ -1,0 +1,58 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.73",
+  "title": "Multi-Domain Network Health Executive Dashboard",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Operational",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Multiple Cisco domain sourcetypes: `cisco:dnac:networkhealth`, `cisco:sdwan:*`, `meraki:api`, ThousandEyes OTel stream",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + `Cisco ThousandEyes App for Splunk` (Splunkbase 7719) + `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:networkhealth\" | stats latest(healthScore) as campus_health | appendcols [search index=sdwan sourcetype=\"cisco:sdwan:*\" | stats latest(health_score) as wan_health] | appendcols [search index=cisco_network sourcetype=\"meraki:api\" | stats avg(health_score) as branch_health] | appendcols [search `stream_index` thousandeyes.test.type=\"agent-to-server\" | stats avg(network.latency) as te_latency_s | eval te_latency_ms=round(te_latency_s*1000,1)] | eval overall_health=round((campus_health+coalesce(wan_health,campus_health)+coalesce(branch_health,campus_health))/3,1) | table campus_health wan_health branch_health te_latency_ms overall_health",
+  "description": "Provides a unified executive dashboard combining health scores from Catalyst Center (campus), SD-WAN (WAN), Meraki (branch), and ThousandEyes (external paths) into a single multi-domain view.",
+  "value": "Executives need one view of network health, not four consoles. This dashboard combines all Cisco network domains into a single composite health score.",
+  "implementation": "1. **7538 (Catalyst, SD-WAN, optional Cyber Vision):** Configure Catalyst Center + vManage per UC-5.13.1 / UC-5.13.16 / UC-5.13.69.\n2. **5580 (Meraki):** Org API to `meraki:api` in `index=cisco_network` (UC-5.13.70).\n3. **7719 (ThousandEyes):** OTel stream + **`stream_index`** macro for agent-to-server tests (UC-5.13.71).\n4. **Composite:** The `coalesce` terms avoid null WAN/branch in partial deployments; replace with 0 or separate panels if you need strict math.\n5. **Dashboard:** Dashboard Studio (or Simple XML) with one row per domain + headline single values for `overall_health` and `te_latency_ms`.",
+  "visualization": "Executive row: large single values for campus_health, wan_health, branch_health, te_latency_ms, overall_health; treemap of domain status; link-out drilldowns to UC-5.13.68–5.13.72 panel searches.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    },
+    {
+      "title": "Cisco ThousandEyes App (Splunkbase 7719)",
+      "url": "https://splunkbase.splunk.com/app/7719"
+    },
+    {
+      "title": "Cisco Meraki Add-on (Splunkbase 5580)",
+      "url": "https://splunkbase.splunk.com/app/5580"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center",
+    "cisco_thousandeyes",
+    "cisco_meraki",
+    "cisco_sdwan"
+  ],
+  "detailedImplementation": "Prerequisites\n• UCs 5.13.16, 5.13.68, 5.13.69, 5.13.71 implemented and validated; all feeds healthy (see UC-5.13.74 for pipeline health).\n• Indexes: `catalyst`, `sdwan` (or your SD-WAN index), `cisco_network` for Meraki, Te index behind **`stream_index`**.\n\nStep 1 — Data contracts\n- Document canonical fields: `healthScore` (campus), `health_score` (SD-WAN), `health_score` (Meraki), `network.latency` (ThousandEyes OTel) — all four must be visible in a test time range before publishing the panel.\n- Align Meraki/SD-WAN field names via `eval` in the `stats` that feed `appendcols` if your build differs from the example.\n\nStep 2 — Baseline SPL\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:networkhealth\" | stats latest(healthScore) as campus_health | appendcols [search index=sdwan sourcetype=\"cisco:sdwan:*\" | stats latest(health_score) as wan_health] | appendcols [search index=cisco_network sourcetype=\"meraki:api\" | stats avg(health_score) as branch_health] | appendcols [search `stream_index` thousandeyes.test.type=\"agent-to-server\" | stats avg(network.latency) as te_latency_s | eval te_latency_ms=round(te_latency_s*1000,1)] | eval overall_health=round((campus_health+coalesce(wan_health,campus_health)+coalesce(branch_health,campus_health))/3,1) | table campus_health wan_health branch_health te_latency_ms overall_health\n```\n\nStep 3 — Executive UX\n- Use consistent color bands (e.g. green >80, yellow 60–80, red <60) for health scores; show Te latency in ms with a red threshold line.\n- Add deep links: campus → Network Health UC; WAN → 5.13.69; ISE/cross-product → 5.13.68; Te path → 5.13.71.\n\nStep 4 — Governance\n- Review weekly: missing inputs (`coalesce` hiding gaps), macro drift on **`stream_index`**, and SD-WAN/Meraki API credential expiry.",
+  "grandmaExplanation": "We combine the health of your entire network — campus, branches, wide-area connections, and internet paths — into one executive view so leadership can see the big picture.",
+  "prerequisiteUseCases": [
+    "UC-5.13.16",
+    "UC-5.13.68",
+    "UC-5.13.69",
+    "UC-5.13.71"
+  ],
+  "wave": "run"
+}

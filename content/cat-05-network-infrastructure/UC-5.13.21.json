@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.21",
+  "title": "Assurance Issue Summary by Priority and Category",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:issue (Catalyst Center /dna/intent/api/v1/issues; Assurance issues with priority, category, name, status, deviceId)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:issue\" | stats count by priority, category, name | sort -priority -count",
+  "description": "Provides a summary of all active Catalyst Center Assurance issues grouped by priority (P1-P4) and category, enabling rapid triage.",
+  "value": "Catalyst Center's AI/ML engine detects issues automatically. Centralizing these in Splunk enables cross-domain correlation and unified incident management.",
+  "implementation": "Enable the `issue` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls the Intent API `/dna/intent/api/v1/issues` endpoint. Key fields: `priority` (P1-P4), `category` (Onboarding, Connected, Performance, etc.), `name` (issue description), `status`, `deviceId`.",
+  "visualization": "Table (count by priority, category, name), bar chart (count by priority), pie chart (share by category).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• **issue** modular input writing `cisco:dnac:issue` to `index=catalyst` (Cisco Catalyst Add-on 7538).\n• Catalyst **2.3.5+** for stable **`priority` / `status` / `category` / `name`** strings; confirm **`RESOLVED` vs `Resolved` vs localized** text matches your `stats` and filters in downstream searches.\n• Service account: **`SUPER-ADMIN-ROLE`** or **`NETWORK-ADMIN-ROLE`** with read rights to the **issues** API (tenant-specific—**observer**-only is often too limited in **MSP**-locked orgs).\n• Map **`category`** (e.g. **Onboarding, Connected, Performance**) to your **ITIL** or **ServiceNow** service taxonomy in documentation before automating tickets.\n• `docs/implementation-guide.md` for modular input **secrets** and **logging** level on the **heavy forwarder** / **search head** running the input.\n\nStep 1 — Configure data collection\n• **Intent API:** `GET /dna/intent/api/v1/issues` (paged; the TA may pass **query parameters** for **active** vs. **all**—check the add-on’s **Advanced** options and `README` for the exact filter set).\n• **TA input name:** **issue**; sourcetype `cisco:dnac:issue`, index `catalyst`.\n• **Default / recommended interval:** **300 seconds (5 minutes)** is common for fresher backlogs; **15 minutes** is acceptable in rate-limited environments—**match** the interval to your **NOC**’s “how stale is acceptable” policy.\n• **Volume:** **one row per issue** on each successful poll, or paged **batches**—scales with **open** and **reopened** issues, not with traffic flows.\n• **Key fields in raw data:** `priority` (P1–P4), `category`, `name` (title), `status`, `deviceId`, `issueId` (or equivalent) for ITSM **correlation**.\n\nStep 2 — Create the search and alert\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:issue\" | stats count by priority, category, name | sort -priority -count\n```\n\nUnderstanding this SPL (Pareto triage, text sort of `P*`, and noise)\n• This is a **top-N Pareto** for **triage**—not a full issue **queue** list. The highest **counts** are **repeaters**; a **rare** **P1** can still be **one row** but must not be **ignored** in real ops (pair with a **P1** **alerting** UC).\n• **Lexicographic** sort on **`priority`**: for plain **`P1`…`P4`** strings this is usually **fine**; if Cisco ever adds **`P10`**, add **`| eval sev=replace(priority,\"P(\\d+)\", \"\\1\") | ...`** in a **macro**—for crawl, monitor after upgrades.\n• If the TA sends **closed** issues in every poll, **add** `where status!=\"RESOLVED\"` in a v2 (or filter at the **input** if supported) so **counts** reflect **workable** backlog.\n• **Name churn** on upgrades: keep a **lookup** to map **retired** issue titles for **year-over-year** **reports**.\n\n**Pipeline walkthrough**\n• Scopes **`cisco:dnac:issue`** in `catalyst`.\n• **`stats count`** for each **priority / category / name** combination.\n• **`sort -priority -count`** lists higher **priority** first, then **highest** **volume** within the band (subject to string sort caveat above).\n\nStep 3 — Validate\n• Run **`| stats count by priority`** to see the **P1–P4** mix; a sudden **P1** spike is either an **outage** or a **product** classification change.\n• Compare top **name/category** rows to **Catalyst Center > Issues** for the **same** window; **Splunk** may count **repeated** **polls** of the same open issue as multiple events if the TA is misconfigured—**dedup** `issueId` in a validation search if you see **inflated** counts.\n• `| timechart count` to confirm **continuous** **ingest**, not a **one-time** import.\n• **`where isnotnull(issueId)`** if you plan **ITSM** **correlation**.\n\nStep 4 — Operationalize\n• **Dashboard layout:** **table** in the **left two-thirds** of a **NOC** triage page; **bar chart of count by `priority`** on the right for **at-a-glance** **severity** mix.\n• **Time picker default:** **7 days** for **weekly** ops; **24 hours** in **incident** mode.\n• **Row color:** in Dashboard Studio, set **`P1`** **rows** to **red**; **P4** **muted** so teams focus correctly.\n• **Hand-off** to **Problem Management** when the same **name** sits at high **count** for **weeks**.\n\nStep 5 — Troubleshooting\n• **No `issue` events:** **issue** **input** disabled, **wrong** **index**, or **RBAC**—fix **API** user **role** and **Catalyst** **URL** first.\n• **All issues `RESOLVED` in Splunk but UI shows open**—enable **“active only”**-style **filters** in the add-on, or the TA is pulling the **wrong** **status** set.\n• **Spike on first** **poll**—**historical** **replay**; narrow the time **range** after **steady** state.\n• **Priority** **strings** **changed** in an upgrade—**normalize** in a **macro** and re-test **triage** **dashboards** before **executive** review.\n",
+  "grandmaExplanation": "We collect all the problems that Catalyst Center's AI engine has found on your network and organize them by urgency, so your team knows what to fix first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

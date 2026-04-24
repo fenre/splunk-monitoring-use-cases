@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.33",
+  "title": "Compliance Violation Detail Drill-Down",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IT Operations",
+  "controlFamily": "log-source-completeness",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "CM-6",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Monitors device configuration compliance status against Catalyst Center policies, providing evidence of configuration baseline enforcement.",
+      "controlObjective": "Surfaces the exact rule failure, message, and suggested fix per device to support prompt remediation consistent with configuration settings (CM-6).",
+      "evidenceArtifact": "Report `UC-5.13.33` (tabular violation list) and optional CSV for ticket bulk upload; keep with other CM-6 evidence for assessor review."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "1.1.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Demonstrates network device configuration compliance monitoring as part of firewall and router configuration standards.",
+      "controlObjective": "Gives assessors the concrete non-conformities and remediation text for in-scope device configuration, supporting 1.1.1 in operation.",
+      "evidenceArtifact": "Dashboard table or saved search with violationType and remediationAction fields; include sample tickets closed against each class of finding."
+    }
+  ],
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:compliance (complianceStatus, violations, deviceName, complianceType; nested fields may require spath)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:compliance\" complianceStatus=\"NON_COMPLIANT\" | spath output=violations path=violations{} | mvexpand violations | spath input=violations | table deviceName complianceType violationType violationMessage remediationAction | sort deviceName complianceType",
+  "description": "Provides detailed violation-level information for non-compliant devices, including the specific rule violated, the violation message, and suggested remediation actions.",
+  "value": "Operations teams need actionable detail to remediate violations. This drill-down provides the specific violation and recommended fix for each non-compliant device.",
+  "implementation": "Enable the `compliance` input. Confirm the TA normalises `violations` (JSON or multivalue) as expected. Adjust `spath` paths if the payload structure differs in your version.",
+  "visualization": "Table (deviceName, complianceType, violationType, violationMessage, remediationAction) with drilldowns.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:compliance (complianceStatus, violations, deviceName, complianceType; nested fields may require spath).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the `compliance` input. Confirm the TA normalises `violations` (JSON or multivalue) as expected. Adjust `spath` paths if the payload structure differs in your version.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:compliance\" complianceStatus=\"NON_COMPLIANT\" | spath output=violations path=violations{} | mvexpand violations | spath input=violations | table deviceName complianceType violationType violationMessage remediationAction | sort deviceName complianceType\n```\n\nUnderstanding this SPL\n\n**Compliance Violation Detail Drill-Down** — Operations teams need actionable detail to remediate violations. This drill-down provides the specific violation and recommended fix for each non-compliant device.\n\n**Pipeline walkthrough**\n\n• Starts with non-compliant records only, then `spath` pulls structured violation details from the nested payload.\n• `mvexpand` creates one row per violation when multiple issues exist for a single device or policy type.\n• The second `spath` extracts typed fields (for example `violationType`, `remediationAction`) and `table` produces an operator-facing remediation checklist.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Consider visualizations: Table (deviceName, complianceType, violationType, violationMessage, remediationAction) with drilldowns.",
+  "grandmaExplanation": "We give your team the exact details of what is wrong with each non-compliant device and what to do to fix it.",
+  "prerequisiteUseCases": [
+    "UC-5.13.29"
+  ],
+  "wave": "walk"
+}

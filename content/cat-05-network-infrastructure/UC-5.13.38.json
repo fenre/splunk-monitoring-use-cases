@@ -1,0 +1,80 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.38",
+  "title": "Advisory Remediation Progress Tracking",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Vulnerability",
+    "Operational"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IT Operations",
+  "controlFamily": "regulation-specific",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "SI-2",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Tracks Cisco PSIRT security advisories affecting managed devices, providing evidence of vulnerability awareness and remediation tracking as required by NIST 800-53 Flaw Remediation.",
+      "controlObjective": "Demonstrates continuous monitoring of vendor-published security advisories for all managed network infrastructure.",
+      "evidenceArtifact": "Saved search over index=catalyst sourcetype=cisco:dnac:securityadvisory scheduled daily; advisory counts and affected device lists exported to compliance dashboard."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "RA-5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Contributes to vulnerability scanning by tracking known vendor-published vulnerabilities, though it does not replace active scanning tools.",
+      "controlObjective": "Provides a vendor-authoritative vulnerability feed for network infrastructure to complement active vulnerability scanning.",
+      "evidenceArtifact": "Dashboard panel showing advisory severity distribution and affected device counts, refreshed with each TA poll cycle."
+    },
+    {
+      "regulation": "ISO-27001",
+      "version": "2022",
+      "clause": "A.8.8",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Tracks remediation progress of technical vulnerabilities by comparing current vs historical affected device counts.",
+      "controlObjective": "Demonstrates that identified vulnerabilities are being actively remediated over time.",
+      "evidenceArtifact": "Trending report showing advisory affected-device counts decreasing over 30-day windows; exported monthly for management review."
+    }
+  ],
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:securityadvisory (advisoryId, severity, deviceId, advisoryTitle; compare windows with earliest/latest)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:securityadvisory\" | stats dc(deviceId) as current_affected by advisoryId, severity, advisoryTitle | appendcols [search index=catalyst sourcetype=\"cisco:dnac:securityadvisory\" earliest=-30d latest=-7d | stats dc(deviceId) as previous_affected by advisoryId] | eval remediation_pct=if(previous_affected>0, round((previous_affected-current_affected)*100/previous_affected,1), \"N/A\") | where current_affected > 0 | sort severity -current_affected",
+  "description": "Tracks the remediation progress of security advisories over time by comparing current affected device counts against historical baselines.",
+  "value": "Vulnerability remediation is a process, not a one-time event. Tracking progress demonstrates active management and identifies stalled remediation efforts.",
+  "implementation": "Enable the `securityadvisory` input. `appendcols` requires aligned `advisoryId` order between the two `stats` outputs; for production, consider a `join` on `advisoryId` or `lookup` of precomputed baselines. Validate that subsearch time bounds cover representative weeks.",
+  "visualization": "Table (advisoryId, severity, current_affected, previous_affected, remediation_pct), column chart of remediation_pct.",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:securityadvisory (advisoryId, severity, deviceId, advisoryTitle; compare windows with earliest/latest).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the `securityadvisory` input. `appendcols` requires aligned `advisoryId` order between the two `stats` outputs; for production, consider a `join` on `advisoryId` or `lookup` of precomputed baselines. Validate that subsearch time bounds cover representative weeks.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:securityadvisory\" | stats dc(deviceId) as current_affected by advisoryId, severity, advisoryTitle | appendcols [search index=catalyst sourcetype=\"cisco:dnac:securityadvisory\" earliest=-30d latest=-7d | stats dc(deviceId) as previous_affected by advisoryId] | eval remediation_pct=if(previous_affected>0, round((previous_affected-current_affected)*100/previous_affected,1), \"N/A\") | where current_affected > 0 | sort severity -current_affected\n```\n\nUnderstanding this SPL\n\n**Advisory Remediation Progress Tracking** — Vulnerability remediation is a process, not a one-time event. Tracking progress demonstrates active management and identifies stalled remediation efforts.\n\n**Pipeline walkthrough**\n\n• The main `stats` builds current exposure per advisory using distinct `deviceId` counts in the user-selected (typically recent) window.\n• The subsearch repeats the count for a historical slice (`earliest=-30d latest=-7d`) as a simple baseline of previous blast radius by `advisoryId`.\n• `remediation_pct` approximates the percentage drop in affected devices; `where current_affected > 0` keeps only still-relevant work items.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Consider visualizations: Table (advisoryId, severity, current_affected, previous_affected, remediation_pct), column chart of remediation_pct.",
+  "grandmaExplanation": "We track how quickly your team is fixing security vulnerabilities by comparing how many devices are still affected compared to last month.",
+  "prerequisiteUseCases": [
+    "UC-5.13.34",
+    "UC-5.13.37"
+  ],
+  "wave": "run"
+}

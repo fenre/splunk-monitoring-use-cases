@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.31",
+  "title": "Compliance by Rule/Policy Category",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IT Operations",
+  "controlFamily": "log-source-completeness",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "CM-6",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Monitors device configuration compliance status against Catalyst Center policies, providing evidence of configuration baseline enforcement.",
+      "controlObjective": "Breaks non-compliance out by `complianceType` so the organisation can see which control settings fail most often, supporting focused remediation under CM-6.",
+      "evidenceArtifact": "Saved search or dashboard panel `UC-5.13.31` (violations and affected device counts by category) with drilldown; attach to the CM evidence pack for each review period."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "1.1.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Demonstrates network device configuration compliance monitoring as part of firewall and router configuration standards.",
+      "controlObjective": "Clarifies which classes of device configuration (for example image versus running config) drive failures, helping prove coverage of 1.1.1 in practice.",
+      "evidenceArtifact": "Dashboard export and optional lookup table of remediation owners per `complianceType` for QSA walkthroughs."
+    }
+  ],
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:compliance (complianceType, deviceName, complianceStatus)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:compliance\" complianceStatus=\"NON_COMPLIANT\" | stats count as violations dc(deviceName) as affected_devices by complianceType | sort -violations",
+  "description": "Breaks down non-compliance by policy rule category to identify which compliance areas (running config, image, PSIRT, etc.) have the most violations.",
+  "value": "Not all compliance violations are equal. Breaking down by rule category reveals whether the problem is configuration drift, outdated images, or unpatched vulnerabilities.",
+  "implementation": "Enable the `compliance` input. If `complianceType` is nested, use `spath` or field aliases from the TA so category names appear consistently.",
+  "visualization": "Bar chart (violations by complianceType), table with affected device counts.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:compliance (complianceType, deviceName, complianceStatus).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the `compliance` input. If `complianceType` is nested, use `spath` or field aliases from the TA so category names appear consistently.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:compliance\" complianceStatus=\"NON_COMPLIANT\" | stats count as violations dc(deviceName) as affected_devices by complianceType | sort -violations\n```\n\nUnderstanding this SPL\n\n**Compliance by Rule/Policy Category** — Not all compliance violations are equal. Breaking down by rule category reveals whether the problem is configuration drift, outdated images, or unpatched vulnerabilities.\n\n**Pipeline walkthrough**\n\n• Keeps only failing checks so the chart is not swamped with passing noise.\n• `stats` counts how many non-compliant results appear for each `complianceType` and how many unique `deviceName` values that represents.\n• Sorting by `-violations` shows which policy families need engineering attention first.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Consider visualizations: Bar chart (violations by complianceType), table with affected device counts.",
+  "grandmaExplanation": "We show you exactly which types of rules are being broken most often — is it configuration settings, outdated software, or security patches that are missing?",
+  "prerequisiteUseCases": [
+    "UC-5.13.28"
+  ],
+  "wave": "walk"
+}

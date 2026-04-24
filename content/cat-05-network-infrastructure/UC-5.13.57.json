@@ -1,0 +1,66 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.57",
+  "title": "Image Distribution and Upgrade Progress Tracking",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operational",
+    "Change"
+  ],
+  "splunkPillar": "Observability",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "CM-2",
+      "mode": "detects-violation-of",
+      "assurance": "partial",
+      "assurance_rationale": "Detects devices running software versions that deviate from the Catalyst Center golden image baseline.",
+      "controlObjective": "Identifies firmware non-compliance against the approved software baseline.",
+      "evidenceArtifact": "Saved search UC-5.13.56 scheduled daily; non-compliant device list exported to change management dashboard."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "SI-2",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Supports flaw remediation by tracking firmware version compliance and upgrade progress.",
+      "controlObjective": "Demonstrates that devices are being maintained on approved software versions.",
+      "evidenceArtifact": "Firmware compliance percentage trending report; upgrade success/failure dashboard."
+    }
+  ],
+  "dataSources": "Catalyst Center Intent API SWIM distribution status via custom scripted input or webhooks → `sourcetype=cisco:dnac:swim`",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + custom scripted input for SWIM API",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:swim\" upgradeStatus=* | stats count by upgradeStatus, deviceFamily | eval status_order=case(upgradeStatus=\"SUCCESS\",1,upgradeStatus=\"IN_PROGRESS\",2,upgradeStatus=\"SCHEDULED\",3,upgradeStatus=\"FAILED\",4,1==1,5) | sort status_order -count",
+  "description": "Tracks the progress of firmware distribution and upgrade operations across the managed device fleet, showing success, in-progress, scheduled, and failed states.",
+  "value": "Large-scale firmware upgrades are high-risk operations. Real-time progress tracking ensures failures are caught immediately and upgrade windows are respected.",
+  "implementation": "Ingest `upgradeStatus` (and related metadata) from Catalyst Center SWIM into `sourcetype=cisco:dnac:swim` using the same poller as UC-5.13.55. Primary Intent API: `GET /dna/intent/api/v1/network-device-image-updates` (often returns schedule, state, and device identifiers; field names may include versions of SUCCESS, IN_PROGRESS, FAILED, etc.). Re-authenticate on each run or cache the token with expiry handling via `POST /dna/system/api/v1/auth/token`.\n\n**Scripted input example** (`interval` aligned to your change window, for example 300–900 seconds during upgrades):\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/TA_catalyst_swim/bin/collect_swim.py]\ninterval = 300\nsourcetype = cisco:dnac:swim\nindex = catalyst\ndisabled = 0\n```\n\n**HEC / event notifications (optional):** For faster state transitions, register Catalyst Center event notifications (if your release exposes SWIM task events) to Splunk HEC and merge into the same sourcetype or a secondary `cisco:dnac:swim:event` that you `union` in dashboards.",
+  "visualization": "Stacked bar or column chart of count by `upgradeStatus` and `deviceFamily`, single values for in-progress and failed, timeline if `_time` from event notifications is used.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• UC-5.13.55 live with SWIM data in `index=catalyst`, `sourcetype=cisco:dnac:swim`.\n\nStep 1 — API and fields\nPoll `GET /dna/intent/api/v1/network-device-image-updates` after `POST /dna/system/api/v1/auth/token`. Normalize the API’s state strings into a field `upgradeStatus` (for example map Catalyst Center’s enumeration to `SUCCESS`, `IN_PROGRESS`, `SCHEDULED`, `FAILED` for consistent SPL). Include `deviceFamily` in each event. If the API returns nested tasks, either flatten in the script or index one event per (device, task).\n\nStep 2 — Real-time path\nIf you enable Platform event notifications to HEC, set the HEC `sourcetype` to `cisco:dnac:swim` or a parallel sourcetype and add an `| union` in dashboards, or use `collect` in an alert to a summary index for trending.\n\nStep 3 — Search\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:swim\" upgradeStatus=* | stats count by upgradeStatus, deviceFamily | eval status_order=case(upgradeStatus=\"SUCCESS\",1,upgradeStatus=\"IN_PROGRESS\",2,upgradeStatus=\"SCHEDULED\",3,upgradeStatus=\"FAILED\",4,1==1,5) | sort status_order -count\n```\n\nStep 4 — Validate\nTrigger a test upgrade in a lab and confirm `upgradeStatus` transitions and counts match Catalyst Center SWIM job UI.\n\nStep 5 — Operationalize\nUse during change windows: dashboard refresh 1–5 min, optional alerts on rising `FAILED` or stalled `IN_PROGRESS` beyond an SLA window.",
+  "grandmaExplanation": "We track the progress of software updates across your entire network, showing which devices have been updated, which are in progress, and which failed.",
+  "prerequisiteUseCases": [
+    "UC-5.13.55"
+  ],
+  "wave": "walk"
+}

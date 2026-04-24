@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.4",
+  "title": "Device Health by Category (Access/Distribution/Core/Router/Wireless)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:devicehealth (Catalyst Center /dna/intent/api/v1/device-health)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:devicehealth\" | stats avg(overallHealth) as avg_health count as device_count count(eval(overallHealth<50)) as unhealthy_count by deviceType | eval unhealthy_pct=round(unhealthy_count*100/device_count,1) | sort -unhealthy_pct",
+  "description": "Breaks down device health by network role category (access, distribution, core, router, wireless controller), revealing which infrastructure tier is most affected.",
+  "value": "Enables targeted remediation by identifying which tier of the network architecture is contributing most to overall health degradation.",
+  "implementation": "Complete UC-5.13.1 baseline ingestion first, then use this search for role-tier rollups. Ensure `deviceType` is populated in your events; if your naming differs, map values with a lookup. Pin the panel to a dashboard for monthly operations reviews and capacity planning.",
+  "visualization": "Bar chart (unhealthy_pct or avg_health by deviceType), table with device_count and unhealthy_count, pie chart of tier mix when combined with a fleet summary.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:devicehealth (Catalyst Center /dna/intent/api/v1/device-health).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nComplete UC-5.13.1 baseline ingestion first, then use this search for role-tier rollups. Ensure `deviceType` is populated in your events; if your naming differs, map values with a lookup. Pin the panel to a dashboard for monthly operations reviews and capacity planning.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:devicehealth\" | stats avg(overallHealth) as avg_health count as device_count count(eval(overallHealth<50)) as unhealthy_count by deviceType | eval unhealthy_pct=round(unhealthy_count*100/device_count,1) | sort -unhealthy_pct\n```\n\nUnderstanding this SPL\n\n**Device Health by Category (Access/Distribution/Core/Router/Wireless)** — Enables targeted remediation by identifying which tier of the network architecture is contributing most to overall health degradation.\n\nDocumented **Data sources**: index=catalyst, sourcetype cisco:dnac:devicehealth (Catalyst Center /dna/intent/api/v1/device-health). **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: catalyst; **sourcetype**: cisco:dnac:devicehealth. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• `stats` groups by `deviceType`, computing average `overallHealth`, device inventory counts, and how many report health under 50.\n• `eval` turns raw counts into `unhealthy_pct` for comparable severity across different fleet sizes per tier.\n• `sort -unhealthy_pct` ranks the worst tiers first so you can open UC-5.13.1 drilldowns for specific devices in that type.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (unhealthy_pct or avg_health by deviceType), table with device_count and unhealthy_count, pie chart of tier mix when combined with a fleet summary.",
+  "grandmaExplanation": "We show you which part of your network — access switches, core routers, or wireless controllers — is having the most problems, so you know where to focus.",
+  "prerequisiteUseCases": [
+    "UC-5.13.1"
+  ],
+  "wave": "walk"
+}

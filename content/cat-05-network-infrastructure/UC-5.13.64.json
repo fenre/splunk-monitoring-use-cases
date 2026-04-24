@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.64",
+  "title": "Event Notification Volume and Type Distribution",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Catalyst Center Platform event notifications via HEC webhook → `sourcetype=cisco:dnac:event:notification`",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + Splunk HEC for Catalyst Center webhook event notifications",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:event:notification\" | stats count as event_count by eventType, eventCategory, eventSeverity | sort -event_count",
+  "description": "Provides an overview of all Catalyst Center Platform event notifications received via webhook, categorized by type, category, and severity.",
+  "value": "Event notifications are Catalyst Center's real-time alerting channel. Understanding the volume and distribution establishes a baseline and validates the notification pipeline.",
+  "implementation": "Configure Catalyst Center Platform to send event notifications to Splunk via HEC webhook:\n\n1. **Create a Splunk HEC token:**\n   - In Splunk, go to Settings → Data Inputs → HTTP Event Collector\n   - Create a new token with `sourcetype=cisco:dnac:event:notification` and `index=catalyst`\n   - Note the HEC URL and token value\n\n2. **Configure Catalyst Center webhook destination:**\n   - Navigate to System → Settings → External Services → Destinations → Webhook\n   - Add a new webhook destination:\n     - Name: `Splunk-HEC`\n     - URL: `https://<splunk-hec-host>:8088/services/collector/event`\n     - Method: POST\n     - Headers: `Authorization: Splunk <your-HEC-token>`\n     - Trust certificate: configure as needed for your TLS setup\n   - Test the webhook to verify connectivity\n\n3. **Subscribe to event notifications:**\n   - Navigate to Platform → Developer Toolkit → Event Notifications\n   - For each event type you want to monitor (Network, System, Security, App, Integration):\n     - Create a notification rule\n     - Select the Splunk-HEC webhook destination\n     - Configure severity filters (recommend: all severities for comprehensive monitoring)\n\n4. **Validate in Splunk:**\n   - Run: `index=catalyst sourcetype=\"cisco:dnac:event:notification\" | head 10`\n   - Verify events arrive with expected fields: `eventType`, `eventCategory`, `eventSeverity`, `description`, `timestamp`",
+  "visualization": "Bar chart of event_count by `eventType`, treemap or pivot by `eventCategory` and `eventSeverity`, single value of total event volume in window.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Splunk with HTTP Event Collector enabled; network path from Catalyst Center to Splunk:8088 (or your load balancer fronting HEC); TLS plan for production.\n\nStep 1 — HEC in Splunk\n- Settings → Data Inputs → HTTP Event Collector → New Token.\n- Set source type to `cisco:dnac:event:notification` (or set default in `inputs.conf` for the token).\n- Index: `catalyst` (or a dedicated `catalyst_events`).\n- Record the HEC global URL, typically `https://<sh-or-hfw>:8088/services/collector/event` and the `Authorization: Splunk <token>` header value.\n\nStep 2 — Catalyst Center Webhook destination\n- System → Settings → External Services (or **Design → Network Settings** → **Event Notifications** / **Webhooks** depending on release) — add **Webhook** destination: URL as above, POST, add header for Splunk. Complete SSL trust (upload CA or allow with governance approval).\n- Test: Catalyst Center may offer “Send test” — then verify in `index=catalyst`.\n\nStep 3 — Event Notification subscriptions\n- **Platform** → **Developer Toolkit** → **Event Notifications** — for each class (Network, System, Security, App, Integration), add rules pointing to the Splunk webhook, broad severities to build this baseline view.\n\nStep 4 — Field extraction\n- If the payload is JSON, ensure **props.conf** for this sourcetype has `KV_MODE=json` or use **SEARCH-TIME** `spath` in dashboards. Normalize `eventType`, `eventCategory`, `eventSeverity` in the collector if you need consistent casing.\n\nStep 5 — Search\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:event:notification\" | stats count as event_count by eventType, eventCategory, eventSeverity | sort -event_count\n```\n\nStep 6 — Validate\n- Baseline daily volume; alert if zero events when you expect a heartbeat of admin activity. Document subscription scope so volume changes are explainable after Catalyst Center upgrades.",
+  "grandmaExplanation": "We track all the real-time alerts that Catalyst Center sends, showing what types of events are happening and how often.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

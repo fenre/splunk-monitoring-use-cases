@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.47",
+  "title": "Privileged User Activity Monitoring",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "privileged-session-recording",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "AC-6",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Monitors privileged and identity-management actions in Catalyst Center to support least-privilege review and incident detection.",
+      "controlObjective": "Surfaces who exercises powerful accounts and identity controls on the management system, helping enforce NIST 800-53 AC-6 (least privilege) in practice through detective review.",
+      "evidenceArtifact": "Dashboard or alert `UC-5.13.47` with monthly privileged-activity printout and reviewer sign-off for access governance."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "AU-2",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Retention of auditable events for high-risk administrative actions on Catalyst Center for security monitoring.",
+      "controlObjective": "Confirms the auditable event stream includes privileged-identity and role-management work needed for log review (AU-2) on the control plane.",
+      "evidenceArtifact": "Same saved search, tied to the SIEM or log-management retention schedule and sampling notes for the audit function."
+    }
+  ],
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:audit:logs (Catalyst Center audit; user, role, permission, and admin-sounding auditRequestType values)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:audit:logs\" (auditUserName=\"admin\" OR auditRequestType=\"*USER*\" OR auditRequestType=\"*ROLE*\" OR auditRequestType=\"*PERMISSION*\") | stats count as action_count dc(auditRequestType) as unique_actions values(auditRequestType) as action_types by auditUserName, auditIpAddress | sort -action_count",
+  "description": "Monitors activity from privileged accounts (admins, super-admins) and user/role management actions to detect potential abuse or compromised credentials.",
+  "value": "Privileged accounts can cause maximum damage. Monitoring their activity detects unauthorized use, credential compromise, and insider threats.",
+  "implementation": "Enable the `audit_logs` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls audit log data from the Catalyst Center Intent API `/dna/intent/api/v1/audit/logs` every 5 minutes. Key fields: `auditRequestType`, `auditDescription`, `auditUserName`, `auditTimestamp`, `auditIpAddress`.",
+  "visualization": "Table (auditUserName, auditIpAddress, action_count, unique_actions, action_types), alert on spikes or new admin sources.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:audit:logs (Catalyst Center audit; user, role, permission, and admin-sounding auditRequestType values).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the `audit_logs` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls audit log data from the Catalyst Center Intent API `/dna/intent/api/v1/audit/logs` every 5 minutes. Key fields: `auditRequestType`, `auditDescription`, `auditUserName`, `auditTimestamp`, `auditIpAddress`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:audit:logs\" (auditUserName=\"admin\" OR auditRequestType=\"*USER*\" OR auditRequestType=\"*ROLE*\" OR auditRequestType=\"*PERMISSION*\") | stats count as action_count dc(auditRequestType) as unique_actions values(auditRequestType) as action_types by auditUserName, auditIpAddress | sort -action_count\n```\n\nUnderstanding this SPL\n\n**Privileged User Activity Monitoring** — Privileged accounts can cause maximum damage. Monitoring their activity detects unauthorized use, credential compromise, and insider threats.\n\n**Pipeline walkthrough**\n\n• Filters to likely privileged traffic: literal `admin` usernames and USER/ROLE/PERM-related request types (tune to your account naming standard).\n• `stats` measures volume, unique action types, and lists raw `auditRequestType` values per `auditUserName` and `auditIpAddress` source pair.\n• `sort -action_count` orders the noisiest or most active sources for follow-up or correlation with PAM and IdP tools.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Consider visualizations: Table (auditUserName, auditIpAddress, action_count, unique_actions, action_types), alert on spikes or new admin sources.",
+  "grandmaExplanation": "We keep a close eye on what your most powerful admin accounts are doing on Catalyst Center, catching anything unusual that could mean trouble.",
+  "prerequisiteUseCases": [
+    "UC-5.13.45"
+  ],
+  "wave": "walk"
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.49",
+  "title": "After-Hours Administrative Activity",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "privileged-session-recording",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "AC-2",
+      "mode": "detects-violation-of",
+      "assurance": "partial",
+      "assurance_rationale": "Detects administrative activity outside normal business hours, which may indicate unauthorized account usage.",
+      "controlObjective": "Flags administrative actions occurring outside approved maintenance windows or business hours.",
+      "evidenceArtifact": "Saved search UC-5.13.49 scheduled daily; results exported to security review dashboard for SOC triage."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Access.Review",
+      "mode": "detects-violation-of",
+      "assurance": "contributing",
+      "assurance_rationale": "Supports access review by identifying administrative activity patterns outside normal business operations.",
+      "controlObjective": "Provides evidence of after-hours access monitoring for IT general control reviews.",
+      "evidenceArtifact": "Weekly summary of after-hours admin actions by user, exported to the ITGC evidence pack."
+    }
+  ],
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:audit:logs (Catalyst Center /dna/intent/api/v1/audit/logs; all administrative audit events with timestamps)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:audit:logs\" | eval hour=strftime(_time, \"%H\") | eval day=strftime(_time, \"%a\") | where (hour<6 OR hour>22) OR (day=\"Sat\" OR day=\"Sun\") | stats count as after_hours_actions values(auditRequestType) as action_types by auditUserName, auditIpAddress | sort -after_hours_actions",
+  "description": "Identifies administrative actions performed outside normal business hours (before 6am, after 10pm, or on weekends), which may indicate unauthorized access.",
+  "value": "After-hours admin activity is a common indicator of insider threats, compromised accounts, or unauthorized maintenance. Flagging it enables rapid investigation.",
+  "implementation": "Enable the `audit_logs` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls audit log data from the Catalyst Center Intent API `/dna/intent/api/v1/audit/logs` every 5 minutes. Key fields: `auditRequestType`, `auditDescription`, `auditUserName`, `auditTimestamp`, `auditIpAddress`.",
+  "visualization": "Table (auditUserName, auditIpAddress, after_hours_actions, action_types), timeline panel for manual review, optional alert to SOC when a known admin baseline changes.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:audit:logs (Catalyst Center /dna/intent/api/v1/audit/logs; all administrative audit events with timestamps).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the `audit_logs` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls audit log data from the Catalyst Center Intent API `/dna/intent/api/v1/audit/logs` every 5 minutes. Key fields: `auditRequestType`, `auditDescription`, `auditUserName`, `auditTimestamp`, `auditIpAddress`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:audit:logs\" | eval hour=strftime(_time, \"%H\") | eval day=strftime(_time, \"%a\") | where (hour<6 OR hour>22) OR (day=\"Sat\" OR day=\"Sun\") | stats count as after_hours_actions values(auditRequestType) as action_types by auditUserName, auditIpAddress | sort -after_hours_actions\n```\n\nUnderstanding this SPL\n\n**After-Hours Administrative Activity** — After-hours admin activity is a common indicator of insider threats, compromised accounts, or unauthorized maintenance. Flagging it enables rapid investigation.\n\n**Pipeline walkthrough**\n\n• Ingests all audit log events, then `eval` derives hour (24h string) and weekday abbreviation from event time.\n• `where` keeps only late night, very early morning, or weekend work based on the stated policy; adjust to your time zone and business hours.\n• `stats` totals actions and lists `auditRequestType` values for each `auditUserName` and `auditIpAddress`.\n• `sort -after_hours_actions` shows the heaviest out-of-band usage first for triage with the identity team.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Consider visualizations: Table (auditUserName, auditIpAddress, after_hours_actions, action_types), timeline panel for manual review, optional alert to SOC when a known admin baseline changes.",
+  "grandmaExplanation": "We flag any Catalyst Center admin work done late at night or on weekends, because that is unusual and could mean someone is up to no good.",
+  "prerequisiteUseCases": [
+    "UC-5.13.45"
+  ],
+  "wave": "walk"
+}

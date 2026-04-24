@@ -1,0 +1,58 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.59",
+  "title": "End-of-Life / End-of-Support Software Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Vulnerability",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IT Operations",
+  "controlFamily": "regulation-specific",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "SA-22",
+      "mode": "detects-violation-of",
+      "assurance": "partial",
+      "assurance_rationale": "Identifying EoL/EoS software on the managed fleet is a key step toward replacing or upgrading components that are no longer supported, supporting unsupported-component controls.",
+      "controlObjective": "Flags devices and versions that are end-of-life or out of support so the organization can plan upgrades before relying on unpatched software.",
+      "evidenceArtifact": "Report from UC-5.13.59 listing `eolStatus`, `eolDate`, and `deviceFamily` with ticket references for hardware/software refresh or upgrade projects."
+    }
+  ],
+  "dataSources": "Catalyst Center Intent API EoL data and SWIM inventory → `sourcetype=cisco:dnac:swim`",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + custom scripted input for SWIM / lifecycle API",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:swim\" (eolStatus=\"END_OF_LIFE\" OR eolStatus=\"END_OF_SUPPORT\" OR eolStatus=\"END_OF_SW_MAINTENANCE\") | stats count as affected_devices values(runningVersion) as versions by deviceFamily, eolStatus, eolDate | sort eolDate",
+  "description": "Identifies devices running software versions that have reached or are approaching end-of-life or end-of-support status, using Catalyst Center lifecycle data.",
+  "value": "EoL/EoS software no longer receives security patches. Identifying affected devices enables proactive upgrade planning before vulnerabilities emerge.",
+  "implementation": "Combine **SWIM inventory** (`GET /dna/intent/api/v1/network-device-image-updates` and `GET /dna/intent/api/v1/image/importation`) with **lifecycle** fields exposed for your Catalyst Center version (Cisco has published lifecycle/EoL context in product APIs; consult the current Intent API reference for the exact EoL endpoint in your release — for example endpoints under software/lifecycle that return `eolStatus`, `eolDate` tied to `runningVersion` / platform). Your poller for `sourcetype=cisco:dnac:swim` should output normalized fields: `eolStatus` (for example `END_OF_LIFE`, `END_OF_SUPPORT`, `END_OF_SW_MAINTENANCE`), `eolDate`, `deviceFamily`, `runningVersion`, `deviceName`.\n\n**Scripted input:**\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/TA_catalyst_swim/bin/collect_swim.py]\ninterval = 86400\nsourcetype = cisco:dnac:swim\nindex = catalyst\ndisabled = 0\n```\n\nRun daily (or weekly) to reduce API load; for critical fleets, add a more frequent EoL-only pass if the API supports a lightweight lifecycle query. Store credentials in Splunk’s credential store; use `POST /dna/system/api/v1/auth/token` for authentication.",
+  "visualization": "Table (deviceFamily, eolStatus, eolDate, versions, affected_devices), timeline of upcoming EoL dates, single value of affected device count.",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• UC-5.13.55 complete so SWIM inventory (versions per device) is in Splunk.\n\nStep 1 — API strategy\n- Base inventory: `GET /dna/intent/api/v1/network-device-image-updates` and related device detail if needed to resolve `deviceFamily` and `runningVersion`.\n- EoL attributes: In your API release, use the published lifecycle/EOX Intent paths that return end-of-life and support end dates for a given product/software combination; merge results in the script on (`deviceFamily` or PIDs) and `runningVersion`.\n- Auth: `POST /dna/system/api/v1/auth/token` for every job or on token refresh.\n\nThe script should emit a consistent `eolStatus` vocabulary matching your SPL: `END_OF_LIFE`, `END_OF_SUPPORT`, or `END_OF_SW_MAINTENANCE` (or map Cisco’s values to these).\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/TA_catalyst_swim/bin/collect_swim.py]\ninterval = 86400\nsourcetype = cisco:dnac:swim\nindex = catalyst\ndisabled = 0\n```\n\nStep 2 — Search\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:swim\" (eolStatus=\"END_OF_LIFE\" OR eolStatus=\"END_OF_SUPPORT\" OR eolStatus=\"END_OF_SW_MAINTENANCE\") | stats count as affected_devices values(runningVersion) as versions by deviceFamily, eolStatus, eolDate | sort eolDate\n```\n\nStep 3 — Validate\nCompare a few rows to Cisco.com / Catalyst Center lifecycle information for the same product version.\n\nStep 4 — Operationalize\nFeed capacity planning; pair with change management for upgrade waves. NIST-800-53 SA-22 alignment: treat results as a backlog of unsupported components until remediated.",
+  "grandmaExplanation": "We find devices running old software that Cisco no longer supports or patches, which means they could have unfixed security holes.",
+  "prerequisiteUseCases": [
+    "UC-5.13.55"
+  ],
+  "wave": "walk"
+}

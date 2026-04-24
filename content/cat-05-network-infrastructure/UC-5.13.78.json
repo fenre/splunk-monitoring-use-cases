@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.78",
+  "title": "Catalyst Center License Utilization Tracking",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity",
+    "Inventory"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Catalyst Center Intent API `/dna/intent/api/v1/licenses/summary` via custom scripted input → `sourcetype=cisco:dnac:license`",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + custom scripted input (license poller)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:license\" | stats latest(totalLicenses) as total latest(consumedLicenses) as consumed latest(availableLicenses) as available by licenseType | eval utilization_pct=round(consumed*100/total,1) | eval status=case(utilization_pct>90,\"Critical\",utilization_pct>75,\"Warning\",1==1,\"Healthy\") | sort -utilization_pct",
+  "description": "Tracks Catalyst Center license utilization by type, alerting when license consumption approaches capacity limits.",
+  "value": "Running out of licenses prevents onboarding new devices. Proactive tracking ensures license procurement happens before capacity is exhausted.",
+  "implementation": "Catalyst Center license data requires polling the Intent API.\n\nAPI endpoint:\n• `GET /dna/intent/api/v1/licenses/summary` — license counts by type\n• `GET /dna/intent/api/v1/licenses/device/count` — per-device license usage\n\nCreate a custom scripted input:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/TA_catalyst_license/bin/collect_licenses.py]\ninterval = 86400\nsourcetype = cisco:dnac:license\nindex = catalyst\ndisabled = 0\n```\n\nThe script polls license summary data daily and outputs fields: `licenseType`, `totalLicenses`, `consumedLicenses`, `availableLicenses`, `expirationDate`.",
+  "visualization": "Table: licenseType, total, consumed, available, utilization_pct, status; gauge or single value per license type; trend of utilization_pct over 90 days if stored in summary or indexed daily snapshots.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• UC-5.13.1 complete (Catalyst API token, connectivity).\n• Ability to install a small **custom app** or **add-on** on the same tier as other scripted inputs (often Heavy Forwarder). Python 3 with `requests` to call DNAC with OAuth2 client credentials or existing TA token if exposed to script (prefer separate least-privilege API user for license reads).\n\nStep 1 — API calls\n- **Summary:** `GET https://<dnac>/dna/intent/api/v1/licenses/summary` — parse JSON for each license type and counts.\n- **Device count (optional):** `GET /dna/intent/api/v1/licenses/device/count` for enforcement vs inventory reconciliation.\n- Auth: `X-Auth-Token` from Catalyst Center auth API per Cisco documentation; refresh before expiry in the script.\n\nStep 2 — Script output\n- One **Splunk** event per license type (or one JSON with `multikv` expansion in parsing) with fields: `licenseType`, `totalLicenses`, `consumedLicenses`, `availableLicenses`, `expirationDate` (ISO-8601 string).\n- Sourcetype: `cisco:dnac:license` — add **props.conf** for line-breaking if one event is multi-line JSON.\n\nStep 3 — inputs.conf (example path)\n- Place the script under `$SPLUNK_HOME/etc/apps/<your_app>/bin/collect_licenses.py` and reference it from `inputs.conf` as in the short implementation. Set `interval = 86400` (daily) or `3600` for faster burn-down visibility.\n- Set `index = catalyst` and `sourcetype = cisco:dnac:license`.\n\nStep 4 — Baseline SPL\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:license\" | stats latest(totalLicenses) as total latest(consumedLicenses) as consumed latest(availableLicenses) as available by licenseType | eval utilization_pct=round(consumed*100/total,1) | eval status=case(utilization_pct>90,\"Critical\",utilization_pct>75,\"Warning\",1==1,\"Healthy\") | sort -utilization_pct\n```\n\nStep 5 — Alerting\n- Alert when `status` is `Warning` or `Critical` or when `availableLicenses` is below procurement lead-time threshold (eval via lookup of SKU lead time).\n\nStep 6 — Security\n- Store API credentials in **passwords.conf** (storage endpoint) or OS keychain — never in cleartext in the script; integrate with **splunklib** binding if using modular input pattern.",
+  "grandmaExplanation": "We track how many of your Catalyst Center licenses are being used and warn you before you run out, so new devices can always be added.",
+  "prerequisiteUseCases": [
+    "UC-5.13.1"
+  ],
+  "wave": "walk"
+}

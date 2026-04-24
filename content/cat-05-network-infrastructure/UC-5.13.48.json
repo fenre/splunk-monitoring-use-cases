@@ -1,0 +1,67 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.48",
+  "title": "Failed API/Login Attempt Detection",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "privileged-session-recording",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "AC-7",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Detects repeated failed authentication attempts against the management system to support account lockout and response workflows.",
+      "controlObjective": "Implements a detective control for patterns of unsuccessful logon or auth-related audit entries consistent with NIST 800-53 AC-7 expectations for the control plane when thresholds are policy-aligned.",
+      "evidenceArtifact": "Alert or report from `UC-5.13.48` with threshold, ticket ID for lockout, and runbook for credential abuse investigation."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "SI-4",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Uses audit telemetry to flag potential malicious authentication activity against the management platform (system-level monitoring of security-relevant events).",
+      "controlObjective": "Contributes to continuous monitoring of information-system security by watching authentication failure patterns in Catalyst Center logs.",
+      "evidenceArtifact": "Same alert, referenced in the SOC monitoring standard operating procedure for management-plane auth failures."
+    }
+  ],
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:audit:logs (Catalyst Center audit; auth-related request types and failure substrings in auditDescription)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:audit:logs\" (auditRequestType=\"*LOGIN*\" OR auditRequestType=\"*AUTH*\") (auditDescription=\"*fail*\" OR auditDescription=\"*denied*\" OR auditDescription=\"*error*\" OR auditDescription=\"*invalid*\") | stats count as failed_attempts by auditUserName, auditIpAddress | where failed_attempts > 3 | sort -failed_attempts",
+  "description": "Detects multiple failed login or API authentication attempts against Catalyst Center, which may indicate brute-force attacks or misconfigured integrations.",
+  "value": "Failed authentication attempts are a primary indicator of credential attacks. Detecting them early enables account lockout and IP blocking before a breach occurs.",
+  "implementation": "Enable the `audit_logs` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls audit log data from the Catalyst Center Intent API `/dna/intent/api/v1/audit/logs` every 5 minutes. Key fields: `auditRequestType`, `auditDescription`, `auditUserName`, `auditTimestamp`, `auditIpAddress`.",
+  "visualization": "Table (auditUserName, auditIpAddress, failed_attempts), map of source IP if you enrich, alert when threshold is exceeded in a short window (use a shorter `stats` or `bin` in production).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:audit:logs (Catalyst Center audit; auth-related request types and failure substrings in auditDescription).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the `audit_logs` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls audit log data from the Catalyst Center Intent API `/dna/intent/api/v1/audit/logs` every 5 minutes. Key fields: `auditRequestType`, `auditDescription`, `auditUserName`, `auditTimestamp`, `auditIpAddress`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:audit:logs\" (auditRequestType=\"*LOGIN*\" OR auditRequestType=\"*AUTH*\") (auditDescription=\"*fail*\" OR auditDescription=\"*denied*\" OR auditDescription=\"*error*\" OR auditDescription=\"*invalid*\") | stats count as failed_attempts by auditUserName, auditIpAddress | where failed_attempts > 3 | sort -failed_attempts\n```\n\nUnderstanding this SPL\n\n**Failed API/Login Attempt Detection** — Failed authentication attempts are a primary indicator of credential attacks. Detecting them early enables account lockout and IP blocking before a breach occurs.\n\n**Pipeline walkthrough**\n\n• Keeps authentication-related `auditRequestType` values and failure markers in `auditDescription` to reduce noise from successful actions.\n• `stats` tallies `failed_attempts` per `auditUserName` and `auditIpAddress` in the current search window; tighten with `bin` on `_time` for short-window brute-force use cases.\n• `where failed_attempts > 3` applies a simple threshold; tune the number to match NIST, SOC, and IdP lockout policy.\n• `sort -failed_attempts` prioritises the highest-risk sources for blocking or case creation.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Consider visualizations: Table (auditUserName, auditIpAddress, failed_attempts), map of source IP if you enrich, alert when threshold is exceeded in a short window (use a shorter `stats` or `bin` in production).",
+  "grandmaExplanation": "We catch repeated failed login attempts to Catalyst Center, which could mean someone is trying to break in or a system has the wrong password.",
+  "prerequisiteUseCases": [
+    "UC-5.13.45"
+  ],
+  "wave": "walk"
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.66",
+  "title": "Event Notification Delivery Failure Tracking",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Catalyst Center Platform event notifications via HEC webhook → `sourcetype=cisco:dnac:event:notification`, Splunk internal logs",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + Splunk HEC for Catalyst Center webhook event notifications",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:event:notification\" | bin _time span=1h | stats count as received_events by _time | eventstats avg(received_events) as avg_events stdev(received_events) as stdev_events | where received_events < (avg_events - 2*stdev_events) OR received_events=0 | eval gap_type=if(received_events=0, \"Complete delivery gap\", \"Unusual drop in notifications\") | table _time received_events avg_events gap_type",
+  "description": "Monitors the flow of event notifications from Catalyst Center to detect delivery failures, gaps, or webhook connectivity issues.",
+  "value": "If the webhook pipeline fails, critical events go undetected. Monitoring delivery health ensures the real-time alerting channel stays reliable.",
+  "implementation": "**Primary data:** `index=catalyst` `sourcetype=cisco:dnac:event:notification` (HEC as in UC-5.13.64). **HEC health:** In parallel, monitor `index=_internal` `source=*metrics.log* OR source=*splunkd.log*` for HEC 4xx/5xx, connection errors, or token failures (tune to your log volume). If HEC is on a forwarder, also watch `metrics.log` for `group=per_source_metrics` and `per_sourcetype` throughput. **Catalyst Center side:** if the product exposes webhook **delivery** status in the admin UI, align drops with Splunk gaps. For this UC’s SPL: hourly bucketing and statistical drop detection flag \"quiet\" hours; tune `stdev` when volume is very low. **Catalyst Center** webhook URL remains `https://<splunk>:8088/services/collector/event` with the Splunk HEC `Authorization` header. Document maintenance windows (Catalyst or Splunk) so the alert can be suppressed.",
+  "visualization": "Time series of `received_events` with `avg_events` band, table of `gap_type` and timestamps, combine with a panel of HEC error count from _internal on the same dashboard.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Steady HEC event flow from UC-5.13.64 for at least a week to build a non-zero `avg_events` baseline per hour; otherwise `stdev` is unstable (consider longer `span=1d` in quiet environments or use fixed minimum thresholds).\n\nStep 1 — HEC and webhook stability\n- Verify Catalyst Center can reach `https://<host>:8088` and that TLS, DNS, and firewall rules are static.\n- In Splunk, watch `index=_internal` for `httpevent` / `httpinput` (exact component names depend on version) and failed parsing.\n- Optional: a synthetic \"heartbeat\" subscription in Catalyst Center that emits a low-severity test event (if your policy allows) to guarantee non-zero volume.\n\nStep 2 — Anomaly search\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:event:notification\" | bin _time span=1h | stats count as received_events by _time | eventstats avg(received_events) as avg_events stdev(received_events) as stdev_events | where received_events < (avg_events - 2*stdev_events) OR received_events=0 | eval gap_type=if(received_events=0, \"Complete delivery gap\", \"Unusual drop in notifications\") | table _time received_events avg_events gap_type\n```\n\nStep 3 — Complementary check\n- `index=_internal log_level=ERROR *http* *collector*` (adjust) for HEC server-side issues.\n\nStep 4 — Validate\n- Pause webhook in lab (or block port) and confirm this search fires within a bucket or two. Restore and confirm return to normal.\n\nStep 5 — Operationalize\n- Page when `gap_type` is `Complete delivery gap` during business-impacting hours; for `Unusual drop`, require correlation with known change tickets.",
+  "grandmaExplanation": "We make sure the alert pipeline from Catalyst Center is working properly and flag when notifications stop arriving, which could mean the connection is broken.",
+  "prerequisiteUseCases": [
+    "UC-5.13.64"
+  ],
+  "wave": "walk"
+}

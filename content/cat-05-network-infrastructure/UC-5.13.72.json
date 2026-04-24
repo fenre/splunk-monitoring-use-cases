@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.72",
+  "title": "Catalyst Center + Cyber Vision OT Device Correlation",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Inventory"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`sourcetype=cisco:dnac:devicehealth` (network devices), `sourcetype=cisco:cybervision:devices` (OT devices via same TA 7538)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:devicehealth\" | stats latest(overallHealth) as network_health by managementIpAddress, deviceName, siteId | join type=left managementIpAddress [search index=cybervision sourcetype=\"cisco:cybervision:devices\" | stats count as ot_devices values(deviceType) as ot_types by gatewayIp | rename gatewayIp as managementIpAddress] | where isnotnull(ot_devices) | table deviceName managementIpAddress siteId network_health ot_devices ot_types | sort -ot_devices",
+  "description": "Correlates Catalyst Center network device health with Cyber Vision OT device inventory to identify network switches that serve operational technology environments and monitor their health priority.",
+  "value": "Network devices serving OT environments have higher criticality — a switch failure affecting a manufacturing floor or SCADA system has safety and production implications beyond typical IT impact.",
+  "implementation": "1. **TA 7538:** Enable Catalyst **devicehealth** (Intent API) to `index=catalyst` `cisco:dnac:devicehealth` with `managementIpAddress`, `deviceName`, `siteId`, `overallHealth` (UC-5.13.1).\n2. **Cyber Vision in same TA:** Configure Cyber Vision account/inputs for **devices** data → `sourcetype=cisco:cybervision:devices` (often `index=cybervision` — align with the SPL or change the index in the subsearch).\n3. **Join key:** Map Cyber Vision `gatewayIp` to Catalyst **management** IP of the L3/L2 gateway serving OT segments; adjust to `ip`/`deviceId` if your CV export uses a different key.\n4. **Scope:** Use `siteId` in dashboards to separate IT-only from OT-adjacent sites after validation in lab.",
+  "visualization": "Table: deviceName, managementIpAddress, siteId, network_health, ot_devices, ot_types; color network_health by band; bar chart of ot_devices per site.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center",
+    "cisco_cybervision"
+  ],
+  "detailedImplementation": "Prerequisites\n• UC-5.13.1 live for device health.\n• Cyber Vision inventory flowing through TA 7538 as `cisco:cybervision:devices` (confirm index name and field names: `gatewayIp`, `deviceType`).\n\nStep 1 — API / inputs (7538)\n- **Catalyst Center:** `GET /dna/intent/api/v1/device-health` (poll via TA) — see Catalyst Center API documentation for version-specific paths.\n- **Cyber Vision:** Enable the **devices** (or device inventory) input in the TA; verify in Splunk: `index=cybervision sourcetype=\"cisco:cybervision:devices\" | head 5` and confirm `gatewayIp` matches your Catalyst management IPs or adjust join keys.\n\nStep 2 — Correlation key hygiene\n- If `gatewayIp` is not the same as Catalyst `managementIpAddress`, use a **lookup** CSV of gateway IP ↔ switch Mgmt IP, or `eval` a normalized IP from FQDN.\n- For IPv6, ensure string formats match (no compressed vs full mismatch).\n\nStep 3 — Baseline SPL\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:devicehealth\" | stats latest(overallHealth) as network_health by managementIpAddress, deviceName, siteId | join type=left managementIpAddress [search index=cybervision sourcetype=\"cisco:cybervision:devices\" | stats count as ot_devices values(deviceType) as ot_types by gatewayIp | rename gatewayIp as managementIpAddress] | where isnotnull(ot_devices) | table deviceName managementIpAddress siteId network_health ot_devices ot_types | sort -ot_devices\n```\n\nStep 4 — Runbook\n- **High `ot_devices`, low `network_health`:** treat as SEV for OT-impacting outage; loop in OT/ICS and physical plant.\n- **OT types unexpected:** possible mis-attribution of gateway IP — revalidate the join in lab.",
+  "grandmaExplanation": "We connect your network device health data with your industrial/OT device data to flag when a network switch serving factory or critical systems is in trouble.",
+  "prerequisiteUseCases": [
+    "UC-5.13.1"
+  ],
+  "wave": "run"
+}

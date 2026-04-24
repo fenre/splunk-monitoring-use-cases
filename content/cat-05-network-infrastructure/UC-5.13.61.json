@@ -1,0 +1,67 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.61",
+  "title": "Rogue AP and aWIPS Alert Monitoring",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "AC-18",
+      "mode": "detects-violation-of",
+      "assurance": "partial",
+      "assurance_rationale": "Detects rogue wireless access points and wireless intrusion attempts, enforcing authorized wireless access controls.",
+      "controlObjective": "Identifies unauthorized wireless infrastructure connected to the managed network.",
+      "evidenceArtifact": "Alert on UC-5.13.61 triggering for rogue AP or aWIPS events; alert history and investigation notes in triggered alerts."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "11.2.1",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Monitors for unauthorized wireless access points as required by PCI DSS wireless monitoring controls.",
+      "controlObjective": "Provides continuous rogue wireless detection for PCI DSS cardholder data environment protection.",
+      "evidenceArtifact": "Rogue AP detection dashboard with alert history; quarterly scan equivalence documentation for QSA review."
+    }
+  ],
+  "dataSources": "Catalyst Center event notifications (Security type) via HEC webhook → `sourcetype=cisco:dnac:event:notification`, or `sourcetype=cisco:dnac:issue` category=Security",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + optional Splunk HEC for event notifications",
+  "spl": "index=catalyst (sourcetype=\"cisco:dnac:issue\" category=\"Security\" (name=\"*rogue*\" OR name=\"*aWIPS*\" OR name=\"*unauthorized*\")) OR (sourcetype=\"cisco:dnac:event:notification\" eventType=\"SECURITY\" (description=\"*rogue*\" OR description=\"*wireless intrusion*\")) | stats count as alert_count values(name) as alert_types by deviceName, siteId | sort -alert_count",
+  "description": "Monitors for rogue access point detections and aWIPS (Adaptive Wireless Intrusion Prevention System) alerts from Catalyst Center, which indicate unauthorized wireless infrastructure.",
+  "value": "Rogue APs represent a direct security threat — they can be used for eavesdropping, man-in-the-middle attacks, or unauthorized network access. Immediate detection is critical.",
+  "implementation": "Rogue AP alerts appear in two ways:\n\n1. **Via TA (already configured):** Rogue AP issues appear as `sourcetype=cisco:dnac:issue` with `category=Security`. Filter the existing issue input for security-related names.\n\n2. **Via Event Notifications (recommended for real-time):** Configure Catalyst Center Platform event notifications:\n   a. Navigate to Platform → Developer Toolkit → Event Notifications\n   b. Create a new notification with Type=SECURITY\n   c. Set destination to a Splunk HEC endpoint:\n      - URL: `https://your-splunk-hec:8088/services/collector/event`\n      - Method: POST\n      - Headers: `Authorization: Splunk <HEC-token>`\n   d. Use `sourcetype=cisco:dnac:event:notification`\n   e. Subscribe to Security events including rogue AP and aWIPS categories",
+  "visualization": "Table (deviceName, siteId, alert_count, alert_types), timeline of security alerts, drilldown to raw event in Catalyst Center.",
+  "cimModels": [
+    "Intrusion_Detection"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• UC-5.13.60 context (APs managed in Catalyst Center) and the `issue` input enabled to `cisco:dnac:issue` (UC-5.13.21).\n• For real-time: Splunk HEC token with `sourcetype=cisco:dnac:event:notification` and `index=catalyst`.\n\nStep 1 — TA path (pull)\n**Intent API (TA):** The TA already polls `GET /dna/intent/api/v1/issues` into `cisco:dnac:issue`. Filter: `category=\"Security\"` and name text matching rogue/aWIPS/unauthorized. No new stanza is required; validate field `name` exists for your build.\n\nStep 2 — HEC path (push)\n1. In Splunk: Settings → Data Inputs → HTTP Event Collector — create a token, set index `catalyst`, default sourcetype `cisco:dnac:event:notification` (or set sourcetype in the JSON `event` metadata if using raw endpoint).\n2. In Catalyst Center: add a **Webhook** destination: URL `https://<splunk-hec>:8088/services/collector/event`, method POST, header `Authorization: Splunk <HEC-token>`, content type per your integration (HEC raw vs JSON). Under Platform → Developer Toolkit → Event Notifications, create a Security subscription for rogue and wireless-intrusion related events, pointing at that destination.\n3. Ingest test event and run `index=catalyst sourcetype=\"cisco:dnac:event:notification\" | head 5`.\n\nStep 3 — Combined SPL\n\n```spl\nindex=catalyst (sourcetype=\"cisco:dnac:issue\" category=\"Security\" (name=\"*rogue*\" OR name=\"*aWIPS*\" OR name=\"*unauthorized*\")) OR (sourcetype=\"cisco:dnac:event:notification\" eventType=\"SECURITY\" (description=\"*rogue*\" OR description=\"*wireless intrusion*\")) | stats count as alert_count values(name) as alert_types by deviceName, siteId | sort -alert_count\n```\n\n**Note:** If `name` is null on HEC path, add `coalesce` with `description` in `values()`.\n\nStep 4 — Operationalize\nHigh-severity alert to SecOps; include drilldown to Catalyst Center Wireless Assurance/Security view.",
+  "grandmaExplanation": "We catch unauthorized wireless access points that someone has plugged into your network, which could be a security threat or an attack tool.",
+  "prerequisiteUseCases": [
+    "UC-5.13.60"
+  ],
+  "wave": "walk"
+}

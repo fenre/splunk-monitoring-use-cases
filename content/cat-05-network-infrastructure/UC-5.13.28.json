@@ -1,0 +1,66 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.28",
+  "title": "Device Compliance Status Overview",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IT Operations",
+  "controlFamily": "log-source-completeness",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "CM-6",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Monitors device configuration compliance status against Catalyst Center policies, providing evidence of configuration baseline enforcement.",
+      "controlObjective": "Provides continuous visibility into how many devices meet Catalyst Center compliance policies versus how many are out of policy for NIST 800-53 CM-6 (configuration settings).",
+      "evidenceArtifact": "Saved search `UC-5.13.28` over `index=catalyst` and `cisco:dnac:compliance` (scheduled daily), exported to the compliance evidence dashboard; alert optional when NON_COMPLIANT share exceeds the agreed threshold."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "1.1.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Demonstrates network device configuration compliance monitoring as part of firewall and router configuration standards.",
+      "controlObjective": "Contributes to PCI DSS 1.1.1 by showing network security control configuration is monitored against an enforced baseline in Catalyst Center.",
+      "evidenceArtifact": "Same saved search and dashboard as the primary UC artefact, with a monthly PDF or CSV compliance snapshot for the CDE/network boundary device population covered by the feed."
+    }
+  ],
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:compliance (Catalyst Center /dna/intent/api/v2/compliance/detail; fields complianceStatus, deviceName, complianceType)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:compliance\" | stats count by complianceStatus | eventstats sum(count) as _total | eval pct=round(100*count/_total,1)",
+  "description": "Provides an overview of device compliance status across the managed infrastructure as reported by Catalyst Center compliance policies.",
+  "value": "Compliance is a continuous requirement. This overview shows at a glance how many devices are compliant, non-compliant, or in error state.",
+  "implementation": "Enable the `compliance` input in the Cisco Catalyst TA. The TA polls `GET /dna/intent/api/v2/compliance/detail` on a **900s** default interval. Key fields: `complianceStatus` (COMPLIANT, NON_COMPLIANT, ERROR, IN_PROGRESS, NOT_APPLICABLE), `deviceName`, `complianceType` (RUNNING_CONFIG, IMAGE, PSIRT, EOX, NETWORK_SETTINGS).",
+  "visualization": "Pie or donut (count by complianceStatus), single value (compliant %), table with status and percentage.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Catalyst Add-on for Splunk (Splunkbase 7538) installed; **compliance** feed landing in `index=catalyst` with sourcetype `cisco:dnac:compliance`.\n• Catalyst Center **2.2+** (confirm **Intent API v2** in your build); service account with **`NETWORK-ADMIN-ROLE`** or higher read access to **Compliance** APIs (exact role names may vary by version—verify in ISE/AAA for the API user).\n• Retention and export policy aligned to **NIST/PCI** evidence needs (often **90–365 days** in the `catalyst` index or a **summary** index for compliance snapshots).\n• See `docs/implementation-guide.md` for `inputs.conf`, secure credential storage, and index sizing.\n\nStep 1 — Configure data collection\n• **Intent API:** `GET /dna/intent/api/v2/compliance/detail`.\n• **TA input name:** **compliance**; sourcetype `cisco:dnac:compliance`.\n• **Default interval:** **900 seconds (15 minutes)**—balance API load vs freshness; shorten only if your change-approval process requires it.\n• **Key fields:** `complianceStatus` (**COMPLIANT**, **NON_COMPLIANT**, **ERROR**, **IN_PROGRESS**, **NOT_APPLICABLE**), `deviceName`, `complianceType` (**RUNNING_CONFIG**, **IMAGE**, **PSIRT**, **EOX**, **NETWORK_SETTINGS**).\n• **Volume note:** the TA may emit **one or many events** per poll—use **dedup**/`latest` in downstream panels if you see duplicate **deviceName** + **complianceType** rows per bucket.\n\nStep 2 — Create the search and report\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:compliance\" | stats count by complianceStatus | eventstats sum(count) as _total | eval pct=round(100*count/_total,1)\n```\n\nUnderstanding this SPL\n• **`stats` + `eventstats`** yields a **stable percentage** of each `complianceStatus` value for the selected window (prefer **`eventstats`** over `sum(count)` in **`eval`** alone for clarity at scale).\n• Filter with `complianceType=<value>` in a **post-process** or **base + append** if you need **separate** pies per policy family (for example **IMAGE** vs **RUNNING_CONFIG**).\n\n**Pipeline walkthrough**\n• Scopes **`cisco:dnac:compliance`**; rolls up **counts** and attaches **%** of total for dashboard tiles and audit tables.\n\nStep 3 — Validate\n• **Compare the percentage of devices in each status (especially COMPLIANT vs NON_COMPLIANT) against the Catalyst Center Compliance dashboard** for the same scope and time—Splunk and the UI should agree within one **poll**.\n• Spot-check a few **deviceName** values that appear as **ERROR** or **IN_PROGRESS** in Splunk and confirm the same in the GUI.\n• Run **`| timechart count by complianceStatus`** to ensure **continuous** ingestion; long gaps indicate TA or API issues, not a silent “all green” network.\n\nStep 4 — Operationalize\n• **Dashboard:** donut or bar by **complianceStatus**, **single value** for **% COMPLIANT**, plus a **table** of top exceptions when filtered to **NON_COMPLIANT**.\n• **Evidence:** schedule this saved search **daily** and archive CSV/PDF to your GRC or evidence store per your control framework.\n• **IN_PROGRESS spikes** often follow **bulk template pushes**—annotate change windows on the panel so teams do not misread a temporary state.\n\nStep 5 — Troubleshooting\n• **No events:** enable **compliance** input, re-check **Catalyst** base URL, token, and role; search **`splunkd.log`** for **HTTP 401/403/429**.\n• **Partial statuses only:** your policies may be **unassigned** for some platforms—**NOT_APPLICABLE** dominance is a **Catalyst** configuration topic, not a Splunk parse bug.\n• **Count mismatch vs UI:** align **time zone**, **device inventory scope** (virtual domain / site), and **dedup** logic with what the operator filters in the **Compliance** UI.\n• **Stuck IN_PROGRESS:** confirm **on-device** or **Catalyst** jobs are not **stalled**; open **TAC** if compliance jobs **never** complete for a class of devices.",
+  "grandmaExplanation": "We show you how many of your network devices meet the required configuration standards and how many do not.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

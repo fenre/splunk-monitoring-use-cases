@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.13",
+  "title": "Client Health by Site",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:clienthealth (Catalyst Center client health feed)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:clienthealth\" | stats avg(scoreDetail{}.scoreCategory.value) as avg_health sum(scoreDetail{}.clientCount) as total_clients by siteId | eval health_status=case(avg_health>=75,\"Healthy\",avg_health>=50,\"Fair\",1==1,\"Poor\") | sort avg_health",
+  "description": "Aggregates client health metrics by Catalyst Center site, enabling location-based comparison of user experience quality.",
+  "value": "Comparing client health across sites reveals whether problems are localized (single building) or systemic (infrastructure-wide), guiding remediation priority.",
+  "implementation": "Requires UC-5.13.9 and site-level `siteId` in each event. If only UUIDs are present, add a `lookup` to friendly site names. Run during business hours to compare user populations fairly; for 24/7 sites, add a time-of-day trellis or a separate night-shift view.",
+  "visualization": "Table (siteId, avg_health, total_clients, health_status), bar chart, map if joined with geo for campus locations.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:clienthealth (Catalyst Center client health feed).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRequires UC-5.13.9 and site-level `siteId` in each event. If only UUIDs are present, add a `lookup` to friendly site names. Run during business hours to compare user populations fairly; for 24/7 sites, add a time-of-day trellis or a separate night-shift view.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:clienthealth\" | stats avg(scoreDetail{}.scoreCategory.value) as avg_health sum(scoreDetail{}.clientCount) as total_clients by siteId | eval health_status=case(avg_health>=75,\"Healthy\",avg_health>=50,\"Fair\",1==1,\"Poor\") | sort avg_health\n```\n\nUnderstanding this SPL\n\n**Client Health by Site** — Comparing client health across sites reveals whether problems are localized (single building) or systemic (infrastructure-wide), guiding remediation priority.\n\nDocumented **Data sources**: index=catalyst, sourcetype cisco:dnac:clienthealth (Catalyst Center client health feed). **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: catalyst; **sourcetype**: cisco:dnac:clienthealth. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• `stats` groups all events to each `siteId`, averaging the nested per-category `value` and summing the nested `clientCount` in one pass. Field semantics follow how Catalyst Center parallelizes the arrays in your data.\n• `case` in `health_status` maps `avg_health` to Healthy, Fair, or Poor to mirror common executive bands; adjust the numeric cutoffs to match your SLOs.\n• `sort avg_health` lists the most troubled sites at the top so a regional NOC can open UC-5.13.5 for devices as a follow-on where relevant.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (siteId, avg_health, total_clients, health_status), bar chart, map if joined with geo for campus locations.",
+  "grandmaExplanation": "We compare how users at different buildings and offices experience the network, so you can see which locations need help first.",
+  "prerequisiteUseCases": [
+    "UC-5.13.9"
+  ],
+  "wave": "walk"
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.39",
+  "title": "Advisory Severity Distribution and Risk Scoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Vulnerability"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IT Operations",
+  "controlFamily": "regulation-specific",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "SI-2",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Tracks Cisco PSIRT security advisories affecting managed devices, providing evidence of vulnerability awareness and remediation tracking as required by NIST 800-53 Flaw Remediation.",
+      "controlObjective": "Demonstrates continuous monitoring of vendor-published security advisories for all managed network infrastructure.",
+      "evidenceArtifact": "Saved search over index=catalyst sourcetype=cisco:dnac:securityadvisory scheduled daily; advisory counts and affected device lists exported to compliance dashboard."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "RA-5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Contributes to vulnerability scanning by tracking known vendor-published vulnerabilities, though it does not replace active scanning tools.",
+      "controlObjective": "Provides a vendor-authoritative vulnerability feed for network infrastructure to complement active vulnerability scanning.",
+      "evidenceArtifact": "Dashboard panel showing advisory severity distribution and affected device counts, refreshed with each TA poll cycle."
+    }
+  ],
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:securityadvisory (severity, advisoryId, deviceId)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:securityadvisory\" | stats dc(advisoryId) as advisory_count dc(deviceId) as affected_devices by severity | eval risk_weight=case(severity=\"CRITICAL\",10,severity=\"HIGH\",7,severity=\"MEDIUM\",4,severity=\"LOW\",1,1==1,0) | eval weighted_risk=advisory_count*risk_weight | sort -weighted_risk",
+  "description": "Calculates a weighted risk score based on advisory severity and affected device count, providing a prioritized view of organizational vulnerability exposure.",
+  "value": "Raw advisory counts do not reflect actual risk. Weighting by severity provides a more accurate picture of organizational exposure for executive reporting.",
+  "implementation": "Enable the `securityadvisory` input. Adjust `risk_weight` numbers to match your risk team’s model; optionally multiply by `affected_devices` for a population-aware score instead of `advisory_count` alone.",
+  "visualization": "Bar chart (weighted_risk by severity), table combining advisory_count, affected_devices, and weighted_risk.",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:securityadvisory (severity, advisoryId, deviceId).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the `securityadvisory` input. Adjust `risk_weight` numbers to match your risk team’s model; optionally multiply by `affected_devices` for a population-aware score instead of `advisory_count` alone.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:securityadvisory\" | stats dc(advisoryId) as advisory_count dc(deviceId) as affected_devices by severity | eval risk_weight=case(severity=\"CRITICAL\",10,severity=\"HIGH\",7,severity=\"MEDIUM\",4,severity=\"LOW\",1,1==1,0) | eval weighted_risk=advisory_count*risk_weight | sort -weighted_risk\n```\n\nUnderstanding this SPL\n\n**Advisory Severity Distribution and Risk Scoring** — Raw advisory counts do not reflect actual risk. Weighting by severity provides a more accurate picture of organizational exposure for executive reporting.\n\n**Pipeline walkthrough**\n\n• `stats` measures how many distinct advisories and devices appear for each `severity` band, summarising the exposure envelope.\n• `case` maps each severity label to a numeric `risk_weight` for simple scoring.\n• `weighted_risk` multiplies the breadth of unique advisories by that weight, and `sort` shows the most significant columns first (extend the formula to include `affected_devices` as needed).\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Consider visualizations: Bar chart (weighted_risk by severity), table combining advisory_count, affected_devices, and weighted_risk.",
+  "grandmaExplanation": "We calculate a risk score for your network based on how many security warnings exist and how serious they are, giving you one number to track improvement.",
+  "prerequisiteUseCases": [
+    "UC-5.13.34"
+  ],
+  "wave": "walk"
+}

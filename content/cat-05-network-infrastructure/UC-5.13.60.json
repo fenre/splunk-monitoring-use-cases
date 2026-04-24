@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.60",
+  "title": "Access Point Health and Availability",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=cisco:dnac:devicehealth` (AP devices filtered from device health data)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:devicehealth\" deviceType=\"Unified AP\" OR deviceType=\"ACCESS_POINT\" | stats latest(overallHealth) as health_score latest(reachabilityHealth) as reachability count as poll_count by deviceName, siteId | eval ap_status=case(reachability=\"Unreachable\",\"Down\",health_score<50,\"Degraded\",1==1,\"Healthy\") | sort health_score",
+  "description": "Monitors the health and availability of wireless access points using Catalyst Center device health data, filtered to AP device types.",
+  "value": "Access points are the wireless user's connection to the network. AP failures immediately affect user connectivity. Proactive health monitoring prevents wireless outages.",
+  "implementation": "This UC uses the standard `devicehealth` input (already enabled for UC-5.13.1). Access points appear as `deviceType=\"Unified AP\"` or `\"ACCESS_POINT\"` in the device health data. No additional input is needed. Data path: Catalyst Center Intent API `GET /dna/intent/api/v1/device-health` → TA poller → `index=catalyst` `sourcetype=cisco:dnac:devicehealth`.",
+  "visualization": "Table (deviceName, siteId, health_score, ap_status), single value of degraded or down APs, time chart of health_score.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• `Cisco Catalyst Add-on for Splunk` (7538) installed; `devicehealth` input enabled to `index=catalyst` (see UC-5.13.1).\n\nStep 1 — Data source (standard TA path)\nThe Intent API `GET /dna/intent/api/v1/device-health` is polled by the TA; `sourcetype=cisco:dnac:devicehealth` includes wired and wireless devices. Filter in SPL using `deviceType` values Catalyst Center populates for APs, commonly `Unified AP` or `ACCESS_POINT` (verify a `| top deviceType` in your tenant).\n\nStep 2 — Search\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:devicehealth\" deviceType=\"Unified AP\" OR deviceType=\"ACCESS_POINT\" | stats latest(overallHealth) as health_score latest(reachabilityHealth) as reachability count as poll_count by deviceName, siteId | eval ap_status=case(reachability=\"Unreachable\",\"Down\",health_score<50,\"Degraded\",1==1,\"Healthy\") | sort health_score\n```\n\nStep 3 — Validate\nConfirm AP models appear under the expected `deviceType` string; if your deployment uses a different value, add it to the OR list.\n\nStep 4 — Operationalize\nDashboard for NOC; alert when `ap_status` is Down or Degraded above a threshold. No custom API polling required for this UC.",
+  "grandmaExplanation": "We watch the health of every wireless access point to make sure they are all working properly, catching problems before people lose their WiFi.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

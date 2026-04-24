@@ -1,0 +1,55 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.75",
+  "title": "ITSI Service Modeling for Catalyst Center",
+  "criticality": "high",
+  "difficulty": "expert",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "All `cisco:dnac:*` sourcetypes via ITSI KPI base searches",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + `Splunk IT Service Intelligence`",
+  "spl": "| from datamodel:\"ITSI_KPI_Summary\" | where service_name=\"*Catalyst Center*\" | stats latest(kpi_urgency) as urgency latest(alert_level) as alert_level by service_name, kpiid, itsi_kpi_id | sort -urgency",
+  "description": "Creates an ITSI service model for Catalyst Center infrastructure with KPIs derived from device health, client health, network health, and issue data, enabling service-centric monitoring and correlation.",
+  "value": "ITSI service modeling transforms per-device/per-sourcetype monitoring into business-service health, enabling correlation across all Catalyst Center data streams and integration with IT service management.",
+  "implementation": "Create an ITSI service for Catalyst Center with the following KPI base searches:\n\n1. **Device Health KPI:** `index=catalyst sourcetype=\"cisco:dnac:devicehealth\" | stats avg(overallHealth) as device_health count(eval(overallHealth<50)) as unhealthy_devices`\n2. **Client Health KPI:** `index=catalyst sourcetype=\"cisco:dnac:clienthealth\" | stats avg(scoreDetail{}.scoreCategory.value) as client_health`\n3. **Network Health KPI:** `index=catalyst sourcetype=\"cisco:dnac:networkhealth\" | stats latest(healthScore) as network_health`\n4. **Issue Volume KPI:** `index=catalyst sourcetype=\"cisco:dnac:issue\" (priority=\"P1\" OR priority=\"P2\") status!=\"RESOLVED\" | stats count as critical_issues`\n5. **Compliance KPI:** `index=catalyst sourcetype=\"cisco:dnac:compliance\" complianceStatus=\"NON_COMPLIANT\" | stats count as non_compliant_devices`\n\nConfigure entity types: Network Device (matched on `deviceName`), Site (matched on `siteId`).\n\nSet thresholds: Green (device_health>75, critical_issues=0), Yellow (device_health 50-75 OR critical_issues 1-3), Red (device_health<50 OR critical_issues>3).",
+  "visualization": "ITSI Service Analyzer deep dive; glass table with KPI tiles; Episode Review for correlated episodes; optional deep link to Splunk dashboards for raw SPL drilldown.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco",
+    "itsi"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "premiumApps": [
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    }
+  ],
+  "detailedImplementation": "Prerequisites\n• Splunk ITSI installed and licensed; service admin access.\n• UC-5.13.1, 5.13.9, 5.13.16, 5.13.21 feeding the listed sourcetypes into `index=catalyst`.\n\nStep 1 — Create the service\n- **Configuration** → **Services** → **Service_template** or new service: name e.g. “Catalyst Center – Network Assurance”.\n- Set **Importance** and **Team** per your org; link to business services (Campus Access, WAN Edge) as parent/child if modeled.\n\nStep 2 — KPI base searches (paste into each KPI’s base search; set search mode to **Generic** or **Ad hoc** per ITSI version)\n- **Device Health** — poll `cisco:dnac:devicehealth`; use `avg(overallHealth)` and unhealthy count as separate KPIs or one combined with thresholding on `device_health`.\n- **Client Health** — `cisco:dnac:clienthealth` may store scores in nested JSON; if `scoreDetail{}.scoreCategory.value` does not parse in your version, replace with `spath` or a known numeric field from your sample event (e.g. `healthScore`).\n- **Network Health** — `latest(healthScore)` from `cisco:dnac:networkhealth` per site or global as you prefer.\n- **Critical issues** — filter `cisco:dnac:issue` for P1/P2 and not RESOLVED.\n- **Compliance** — count `NON_COMPLIANT` from `cisco:dnac:compliance`.\n\nStep 3 — Entities\n- **Entity type** “Network Device”: field `deviceName` (or `deviceId` if unique). **Site:** `siteId` with optional lookup to human-readable site name.\n- Enable **Entity rules** to auto-attach devices from search results.\n\nStep 4 — Thresholding and episodes\n- Map Green/Yellow/Red as in the short implementation; enable **Episode action** rules to page on Red and open ServiceNow when linked.\n\nStep 5 — Validation SPL (ITSI summary)\n\n```spl\n| from datamodel:\"ITSI_KPI_Summary\" | where service_name=\"*Catalyst Center*\" | stats latest(kpi_urgency) as urgency latest(alert_level) as alert_level by service_name, kpiid, itsi_kpi_id | sort -urgency\n```\n\nNote: Field names (`kpi_urgency`, `alert_level`) may vary by ITSI version — use **Lookup** on the ITSI Summary index or the content pack’s data model definition in your build.",
+  "grandmaExplanation": "We create a service-level view of your Catalyst Center infrastructure in ITSI, combining all the health data into a single service health score that shows how the network is serving the business.",
+  "prerequisiteUseCases": [
+    "UC-5.13.1",
+    "UC-5.13.9",
+    "UC-5.13.16",
+    "UC-5.13.21"
+  ],
+  "wave": "run"
+}

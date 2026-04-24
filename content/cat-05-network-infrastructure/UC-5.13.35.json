@@ -1,0 +1,76 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.35",
+  "title": "Critical/High PSIRT Alerting",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Vulnerability"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IT Operations",
+  "controlFamily": "regulation-specific",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "SI-2",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Tracks Cisco PSIRT security advisories affecting managed devices, providing evidence of vulnerability awareness and remediation tracking as required by NIST 800-53 Flaw Remediation.",
+      "controlObjective": "Demonstrates continuous monitoring of vendor-published security advisories for all managed network infrastructure.",
+      "evidenceArtifact": "Saved search over index=catalyst sourcetype=cisco:dnac:securityadvisory scheduled daily; advisory counts and affected device lists exported to compliance dashboard."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "RA-5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Contributes to vulnerability scanning by tracking known vendor-published vulnerabilities, though it does not replace active scanning tools.",
+      "controlObjective": "Provides a vendor-authoritative vulnerability feed for network infrastructure to complement active vulnerability scanning.",
+      "evidenceArtifact": "Dashboard panel showing advisory severity distribution and affected device counts, refreshed with each TA poll cycle."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "6.3.1",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Alerts on critical and high severity vendor security advisories, supporting PCI DSS requirements to identify and rank vulnerabilities.",
+      "controlObjective": "Ensures critical vendor-published vulnerabilities are flagged within hours of detection by Catalyst Center.",
+      "evidenceArtifact": "Alert action on UC-5.13.35 firing for severity CRITICAL/HIGH advisories; alert history in triggered alerts log."
+    }
+  ],
+  "dataSources": "index=catalyst, sourcetype cisco:dnac:securityadvisory (severity, deviceId, cveId, advisoryId, advisoryTitle)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:securityadvisory\" (severity=\"CRITICAL\" OR severity=\"HIGH\") | stats dc(deviceId) as affected_devices values(cveId) as cves latest(advisoryId) as advisory by severity, advisoryTitle | sort severity -affected_devices",
+  "description": "Alerts on critical and high severity PSIRTs affecting managed devices, with the count of affected devices and associated CVEs.",
+  "value": "Critical and high PSIRTs require immediate remediation. Alerting with affected device counts helps prioritize patching based on blast radius.",
+  "implementation": "Enable the `securityadvisory` input. Use as a scheduled alert with low latency for CRITICAL, and include advisoryTitle and cves in the payload for analysts.",
+  "visualization": "Table (affected_devices, cves, advisory by severity and title), top-N list for P1 remediation.",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:securityadvisory (severity, deviceId, cveId, advisoryId, advisoryTitle).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the `securityadvisory` input. Use as a scheduled alert with low latency for CRITICAL, and include advisoryTitle and cves in the payload for analysts.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:securityadvisory\" (severity=\"CRITICAL\" OR severity=\"HIGH\") | stats dc(deviceId) as affected_devices values(cveId) as cves latest(advisoryId) as advisory by severity, advisoryTitle | sort severity -affected_devices\n```\n\nUnderstanding this SPL\n\n**Critical/High PSIRT Alerting** — Critical and high PSIRTs require immediate remediation. Alerting with affected device counts helps prioritize patching based on blast radius.\n\n**Pipeline walkthrough**\n\n• Filters the advisory stream down to the two most severe `severity` levels.\n• `stats` measures distinct impacted `deviceId` values, collects related `cveId` values, and keeps the most recent `advisoryId` per `severity` and `advisoryTitle` group.\n• `sort` orders by `severity` then descending `affected_devices` to emphasise the largest exposures.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Consider visualizations: Table (affected_devices, cves, advisory by severity and title), top-N list for P1 remediation.",
+  "grandmaExplanation": "We immediately flag the most dangerous security vulnerabilities found on your network devices and tell you how many devices are at risk.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.77",
+  "title": "Network Change MTTR Analysis",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Operational"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`sourcetype=cisco:dnac:issue` (issue lifecycle), `sourcetype=cisco:dnac:audit:logs` (change context)",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:issue\" status=\"RESOLVED\" | eval detect_time=_time | eval resolve_duration_hrs=round((resolved_time-detect_time)/3600,1) | stats avg(resolve_duration_hrs) as avg_mttr_hrs median(resolve_duration_hrs) as median_mttr_hrs p90(resolve_duration_hrs) as p90_mttr_hrs count as resolved_issues by category | join type=left category [search index=catalyst sourcetype=\"cisco:dnac:audit:logs\" auditRequestType=\"CONFIG*\" | stats count as related_changes by category] | eval change_correlation=if(isnotnull(related_changes),\"Changes detected\",\"No changes\") | sort avg_mttr_hrs",
+  "description": "Analyzes mean time to repair (MTTR) for Catalyst Center issues and correlates with configuration changes to determine whether changes are improving or degrading resolution times.",
+  "value": "MTTR is the key operational efficiency metric. Correlating with configuration changes reveals whether changes are helping (reducing MTTR) or hurting (introducing new issues).",
+  "implementation": "1. **Issues:** Requires `cisco:dnac:issue` with `status=RESOLVED`, a valid **creation** time and **resolved** time — the SPL uses `_time` as detect and `resolved_time` as resolution; if your payload uses `creationTime`/`lastUpdatedTime`, rewrite `eval` lines to match **epoch** seconds.\n2. **Audit:** `cisco:dnac:audit:logs` from Intent API audit stream; `auditRequestType=\"CONFIG*\"` filters configuration changes. If your field is `auditRequestType` vs `requestType`, adjust.\n3. **Join on category:** Both issue and audit must share a stable `category` string; if audit lacks `category`, join on `siteId` + time window instead (advanced).\n4. **Schedule:** Weekly or monthly report; store in summary index for trending.\n5. **Privacy:** Audit logs may contain usernames — restrict role access to this report.",
+  "visualization": "Table: category, avg_mttr_hrs, median_mttr_hrs, p90_mttr_hrs, resolved_issues, related_changes, change_correlation; optional timechart of avg MTTR by week; box plot of resolve_duration_hrs.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• UC-5.13.21 (issues) and UC-5.13.46 (audit / change awareness) with time-aligned data.\n• Confirmed field names for resolution time on `cisco:dnac:issue` — common names: `resolvedTime`, `resolved_time`, or epoch in `status` transition — inspect one RESOLVED event with `| fieldsummary`.\n\nStep 1 — Intent API context\n- **Issues:** `GET /dna/intent/api/v1/issues` (poll via TA) — fields depend on DNAC version; map to `resolved_time` in props if needed.\n- **Audit:** Intent API audit logs (path per version) — filter configuration-related operations; `auditRequestType` often prefixes with `CONFIG`.\n\nStep 2 — Join reality check\n- If `category` is not present on audit events, replace the join with:\n  - `| join siteId [ search ... audit ... | ... ]` or\n  - **Transaction** on `siteId` with `maxspan=24h` between issue open and audit (heavier).\n\nStep 3 — Baseline SPL\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:issue\" status=\"RESOLVED\" | eval detect_time=_time | eval resolve_duration_hrs=round((resolved_time-detect_time)/3600,1) | stats avg(resolve_duration_hrs) as avg_mttr_hrs median(resolve_duration_hrs) as median_mttr_hrs p90(resolve_duration_hrs) as p90_mttr_hrs count as resolved_issues by category | join type=left category [search index=catalyst sourcetype=\"cisco:dnac:audit:logs\" auditRequestType=\"CONFIG*\" | stats count as related_changes by category] | eval change_correlation=if(isnotnull(related_changes),\"Changes detected\",\"No changes\") | sort avg_mttr_hrs\n```\n\nStep 4 — Interpretation\n- **Rising MTTR with high related_changes:** review change windows, CAB, and back-out plans.\n- **Falling MTTR with changes:** may indicate faster automation (good) or under-reporting of issues (validate data quality).",
+  "grandmaExplanation": "We measure how long it takes to fix network problems and whether recent changes are making things better or worse.",
+  "prerequisiteUseCases": [
+    "UC-5.13.21",
+    "UC-5.13.46"
+  ],
+  "wave": "run"
+}

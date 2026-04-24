@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.13.55",
+  "title": "Software Image Inventory and Version Summary",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Inventory",
+    "Configuration"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Catalyst Center Intent API `/dna/intent/api/v1/image/importation` via custom scripted input → `sourcetype=cisco:dnac:swim`",
+  "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + custom scripted input for SWIM API",
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:swim\" | stats dc(deviceName) as device_count values(runningVersion) as versions by deviceFamily, platformId | sort -device_count",
+  "description": "Provides a complete inventory of software images running across all managed devices, grouped by platform family and running version, using Catalyst Center's SWIM data.",
+  "value": "Knowing exactly which software versions are running on every device is foundational for firmware compliance, vulnerability management, and upgrade planning.",
+  "implementation": "The Cisco Catalyst TA does not poll SWIM data natively. Create a custom scripted input that authenticates to Catalyst Center and polls the SWIM endpoints.\n\nAPI endpoints:\n• `POST /dna/system/api/v1/auth/token` — authenticate and get a token\n• `GET /dna/intent/api/v1/network-device-image-updates` — get device image update status\n• `GET /dna/intent/api/v1/image/importation` — list available images\n• `GET /dna/intent/api/v1/compliance/detail?complianceType=IMAGE` — image compliance\n\nCreate a scripted input in your custom app:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/TA_catalyst_swim/bin/collect_swim.py]\ninterval = 3600\nsourcetype = cisco:dnac:swim\nindex = catalyst\ndisabled = 0\n```\n\nThe script should:\n1. Authenticate to Catalyst Center using `POST /dna/system/api/v1/auth/token`\n2. Call `GET /dna/intent/api/v1/network-device-image-updates` to get current running versions\n3. Output JSON events with fields: `deviceName`, `deviceFamily`, `platformId`, `runningVersion`, `targetVersion`, `imageCompliance`, `lastUpgradeDate`\n4. Store credentials in Splunk's credential store (passwords.conf) — never hardcode\n\nAlternatively, configure Catalyst Center Platform event notifications for SWIM events and send to Splunk via HEC webhook.",
+  "visualization": "Table (platform, version, device count), Bar chart (version distribution), Single value (total managed devices).",
+  "cimModels": [
+    "Compute_Inventory"
+  ],
+  "references": [
+    {
+      "title": "Splunkbase app 7538",
+      "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_center"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) for shared credential and index patterns, plus a custom app (for example `TA_catalyst_swim`) that hosts the SWIM collection script and `inputs.conf`.\n• Target index: `catalyst` and recommended sourcetype: `cisco:dnac:swim`.\n• For Splunk app layout and passwords/credential store usage, see docs/implementation-guide.md\n\nStep 1 — Ingestion path (not covered by a single TA sourcetype)\nThe Cisco Catalyst TA does not ship a native SWIM poller. Use one of:\n**A) Scripted input (recommended for inventory):** Poll the Catalyst Center Intent API after obtaining a token.\n- Authenticate: `POST /dna/system/api/v1/auth/token` (token in `X-Auth-Token` for subsequent calls).\n- Device/update status: `GET /dna/intent/api/v1/network-device-image-updates` (running image, upgrade state).\n- Image library: `GET /dna/intent/api/v1/image/importation` (imported/golden image metadata as applicable).\n- Image compliance: `GET /dna/intent/api/v1/compliance/detail?complianceType=IMAGE` (compliance vs golden/baseline when modeled in Catalyst Center).\n\nExample `inputs.conf`:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/TA_catalyst_swim/bin/collect_swim.py]\ninterval = 3600\nsourcetype = cisco:dnac:swim\nindex = catalyst\ndisabled = 0\n```\n\nThe Python (or PowerShell) script should: read controller URL and secrets from Splunk’s credential store, request a token, paginate if the API returns `response`/`total` patterns, and print one JSON line (or one multiline event) per device or per poll batch with fields such as `deviceName`, `deviceFamily`, `platformId`, `runningVersion`, `targetVersion`, `imageCompliance`, `lastUpgradeDate`.\n\n**B) Webhook/HEC:** If Catalyst Center can emit platform events for SWIM lifecycle milestones, point the webhook destination to Splunk HEC and set `sourcetype=cisco:dnac:swim` (or a dedicated `cisco:dnac:swim:event` if you want to split poll vs event).\n\nStep 2 — Create the search\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:swim\" | stats dc(deviceName) as device_count values(runningVersion) as versions by deviceFamily, platformId | sort -device_count\n```\n\nStep 3 — Validate\n`index=catalyst sourcetype=\"cisco:dnac:swim\" | head 20` — confirm `deviceFamily`, `platformId`, and `runningVersion` are populated and counts match Catalyst Center UI.\n\nStep 4 — Operationalize\nSave as report/dashboard; add scheduled exports for compliance teams. Visualizations: table of platform and versions, bar chart of version distribution, single value of managed device count.",
+  "grandmaExplanation": "We catalog the software version running on every network device so you always know what is out there and what needs updating.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}
