@@ -1,0 +1,89 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.46.3",
+  "title": "Privileged-role specialist training — admins lacking annual deep-training",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "CISO",
+  "controlFamily": "training-effectiveness",
+  "exclusions": "Does NOT cover general awareness training (covered by 22.46.1); focuses on privileged-role-specific training.",
+  "evidence": "Saved search 'priv_role_training' (weekly) emits PAM-managed accounts whose owner lacks a current specialist certificate.",
+  "compliance": [
+    {
+      "regulation": "HIPAA",
+      "version": "2013-final",
+      "clause": "§164.308(a)(5)(ii)(A)",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Security reminders and periodic training for workforce; extends to privileged roles."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "12.6.3",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PCI 12.6.3 annual security awareness training must cover role-specific risks."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "AT-3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "AT-3 role-based training."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "An admin has no specialist training record in the last 365 days; the UC fires the next week.",
+    "negativeScenario": "All admins have a current specialist training record; no alert.",
+    "fixtureRef": "sample-data/uc-22.46.3-fixture.json"
+  },
+  "dataSources": "LMS specialist-course completions, PAM vault inventory with owner mapping.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "| rest /services/pam/vault-inventory splunk_server=*\n| fields user account_type\n| where account_type=\"privileged\"\n| join user [search index=lms sourcetype=completion course_id=priv_security_training earliest=-365d | stats max(_time) as last_completion by user]\n| where (now()-last_completion)>31536000 OR isnull(last_completion)\n| table user account_type last_completion",
+  "description": "Provides a named list of privileged-role owners whose specialist training is overdue — a recurring theme in internal audits of ITGC.",
+  "value": "Makes the 'role-based training' requirement evidence-backed rather than policy-on-paper.",
+  "implementation": "(1) Tag PAM vault entries with the owner; (2) map course completions to users in the LMS; (3) run weekly; (4) auto-enrol overdue owners.",
+  "visualization": "Table of overdue admins, bar chart of departments, single-value 'admins with current specialist training'.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
+      "title": "45 CFR Part 164 — HIPAA",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "New privileged users within 30 days of onboarding have a grace window; allow-list via onboarding_date.",
+  "mitreAttack": [],
+  "detectionType": "Anomaly",
+  "securityDomain": "access",
+  "requiredFields": [
+    "user",
+    "account_type",
+    "last_completion"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

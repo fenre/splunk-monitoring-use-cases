@@ -1,0 +1,117 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.95",
+  "title": "PCI-DSS 6.2 — Bespoke-software SDLC: code-review + SAST completion before CDE deploy",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "Head of Platform",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT build or review the code; attests the required SDLC gates completed for any artifact deployed to a CDE service.",
+  "evidence": "Saved search 'pci_6_2_sdlc_gates' (hourly) emits per deploy: artifact, commit_sha, sast_state, review_state, deployed_at, gates_met, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "6.2",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI-DSS 6.2 Bespoke and custom software — gate adherence is directly evidenced."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.8.25",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.25 Secure development lifecycle — directly evidenced."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC8.1",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SOC 2 CC8.1 Change management — contributing."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.ChangeMgmt.Testing",
+      "clauseUrl": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SOX-ITGC ChangeMgmt.Testing — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Deploying a commit whose Veracode scan reports overall_state=fail returns gates_met=0.",
+    "negativeScenario": "A deploy with SAST pass + approved PR review is absent.",
+    "fixtureRef": "sample-data/uc-22.11.95-fixture.json",
+    "attackTechnique": "T1195"
+  },
+  "dataSources": "`index=cicd` sourcetype=github:actions OR sourcetype=gitlab:pipeline; SAST output `index=security` sourcetype=veracode:scan; CDE-service lookup `cde_services.csv`.",
+  "app": "Splunk Add-on for GitHub",
+  "spl": "index=cicd sourcetype IN (github:actions,gitlab:pipeline) event_type=deployment target_env IN (\"prod-cde\") earliest=-24h\n| stats latest(_time) AS deployed_at latest(commit_sha) AS commit_sha BY artifact service\n| join type=outer commit_sha\n  [search index=security sourcetype=veracode:scan earliest=-30d\n   | stats latest(overall_state) AS sast_state BY commit_sha]\n| join type=outer commit_sha\n  [search index=cicd event_type=pr_review state=approved earliest=-30d\n   | stats latest(reviewer) AS reviewer BY commit_sha\n   | eval review_state=\"approved\"]\n| eval gates_met=if(sast_state=\"pass\" AND review_state=\"approved\",1,0)\n| where gates_met=0\n| table artifact commit_sha service deployed_at sast_state review_state gates_met",
+  "description": "For every deploy to a CDE service, assert that SAST passed and a PR review was approved before deploy. PCI-DSS 6.2 mandates a documented SDLC.",
+  "value": "Replaces the pre-release tick-box with continuous gate-enforcement evidence. Auditors see the commit→gate→deploy chain for every CDE deploy.",
+  "implementation": "(1) Route CI/CD + SAST events; (2) maintain cde_services.csv; (3) schedule UC hourly; (4) gates_met=0 opens a security ticket; (5) pipeline policy revisions add gates.",
+  "visualization": "Table of gate-missing deploys, bar chart by service, single value 'recent deploys missing gates'.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "SOX-ITGC PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1195/",
+      "title": "MITRE ATT&CK — T1195",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Hotfix deploys via break-glass workflow have an alternate review path — exclude with the workflow label hotfix=true when attested separately.",
+  "mitreAttack": [
+    "T1195"
+  ],
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "artifact",
+    "commit_sha",
+    "target_env",
+    "event_type",
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

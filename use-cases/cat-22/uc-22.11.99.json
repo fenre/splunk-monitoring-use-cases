@@ -1,0 +1,116 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.99",
+  "title": "PCI-DSS 10.3 — Audit log integrity: tampering/deletion detection on CDE log source",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "CISO",
+  "controlFamily": "evidence-continuity",
+  "exclusions": "Does NOT prevent tampering; raises on attempts to clear, delete, or modify CDE audit logs.",
+  "evidence": "Saved search 'pci_10_3_log_tamper' (every 10m) emits per event: host, action, actor, target_log, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "10.3",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI-DSS 10.3 Audit logs protected from modification — directly evidenced."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.8.15",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.15 Logging — directly evidenced."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC7.2",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SOC 2 CC7.2 — contributing."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Logging.Integrity",
+      "clauseUrl": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SOX-ITGC Logging.Integrity — directly evidenced."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Clearing a Windows Security log on a CDE test host (EventCode 1102) fires the UC.",
+    "negativeScenario": "Normal log rotation via scheduled task (with matching ticket) does NOT fire.",
+    "fixtureRef": "sample-data/uc-22.11.99-fixture.json",
+    "attackTechnique": "T1070.001"
+  },
+  "dataSources": "`index=windows` EventCode IN (1102,104); `index=linux` auditd log clears, syslog `rotated-by-hand`.",
+  "app": "Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833)",
+  "spl": "search (index=windows sourcetype=WinEventLog:Security EventCode=1102) OR (index=windows sourcetype=WinEventLog:System EventCode=104) OR (index=linux sourcetype=auditd type=CONFIG_CHANGE op=remove_rule) earliest=-10m\n| eval action=case(EventCode=1102,\"audit_log_cleared\",EventCode=104,\"event_log_cleared\",op=\"remove_rule\",\"auditd_rule_removed\",true(),\"unknown\")\n| rename TargetUserName AS actor host AS host\n| table host action actor target_log",
+  "description": "PCI-DSS 10.3 requires audit logs be protected from modification and deletion. This UC fires on the exact telemetry those operations emit.",
+  "value": "A cleared Windows Security log on a CDE host is a near-certain indicator of attacker presence. Closing the detection gap to 10 minutes saves forensics time.",
+  "implementation": "(1) Forward Windows Security + System + Linux auditd to Splunk; (2) schedule UC every 10m; (3) hit opens a P1 to IR + isolates host; (4) quarterly IR drill validates response.",
+  "visualization": "Table of events by action, time chart, single value 'clears in last hour'.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "SOX-ITGC PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1070/",
+      "title": "MITRE ATT&CK — T1070.001",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Host-retirement scripts may legitimately clear logs — exclude only with scheduled-retirement ticket linked.",
+  "mitreAttack": [
+    "T1070.001"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "host",
+    "EventCode",
+    "TargetUserName",
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

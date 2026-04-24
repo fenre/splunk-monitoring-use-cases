@@ -1,17 +1,17 @@
 # Splunk Use Cases — PCI DSS compliance
 
 App ID: `splunk-uc-pci-dss`  
-App version: **6.1.0**  
-Generated: `2026-04-18T17:28:10Z`  
+App version: **7.1.0**  
+Generated: `2026-04-22T11:55:17Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
-This app packages **137 use cases** from the upstream catalogue that cite Payment Card Industry Data Security Standard (`pci-dss`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
+This app packages **140 use cases** from the upstream catalogue that cite Payment Card Industry Data Security Standard (`pci-dss`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
 
 * Regulation tier: **1**
 * Jurisdictions: GLOBAL
 * Versions covered: v3.2.1, v4.0
-* UCs by criticality: critical = 45, high = 69, medium = 23
+* UCs by criticality: critical = 45, high = 71, medium = 24
 
 
 ## Most-referenced clauses
@@ -25,7 +25,7 @@ This app packages **137 use cases** from the upstream catalogue that cite Paymen
 | `3.4.1` | 3 |
 | `5.3.1` | 3 |
 | `6.3.1` | 3 |
-| `1.2.1` | 2 |
+| `6.3.3` | 3 |
 
 ## Installation
 
@@ -69,6 +69,9 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 
 | UC | Title | Criticality | Clauses |
 |----|-------|-------------|---------|
+| UC-1.4.8 | PCIe Link Width and Speed Degradation | medium | 6.3.3 |
+| UC-10.12.7 | PCI DSS Log Review Compliance | high | 10.4.1 |
+| UC-10.12.15 | PCI Scope Validation | high | 12.5.2 |
 | UC-22.3.43 | DORA Art.8 — ICT risk identification: newly discovered high-severity exposure on critical financial services | critical | 11.3.1 |
 | UC-22.6.53 | ISO/IEC 27001:2022 Clause 7.2 — Competence evidence: role-based training completion | medium | 12.6 |
 | UC-22.8.31 | SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary | high | 4.2.1 |

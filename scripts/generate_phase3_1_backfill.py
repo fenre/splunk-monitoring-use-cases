@@ -51,6 +51,7 @@ from typing import Any, Dict, List, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SIDECAR_DIR = REPO_ROOT / "use-cases" / "cat-22"
+CONTENT_DIR = REPO_ROOT / "content" / "cat-22-regulatory-compliance"
 MANIFEST_PATH = REPO_ROOT / "data" / "per-regulation" / "phase3.1.json"
 
 # Canonical sidecar field order. Mirrors Phase 2.3 generator so that
@@ -209,6 +210,10 @@ def _load_manifest() -> List[Dict[str, Any]]:
 
 
 def _sidecar_path(uc_id: str) -> Path:
+    """Resolve a UC sidecar checking content/ (canonical) before use-cases/."""
+    content_path = CONTENT_DIR / f"UC-{uc_id}.json"
+    if content_path.exists():
+        return content_path
     return SIDECAR_DIR / f"uc-{uc_id}.json"
 
 

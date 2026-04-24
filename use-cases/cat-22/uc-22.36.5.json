@@ -1,0 +1,75 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.36.5",
+  "title": "DSAR request-type mix anomaly — zero-deletion skew indicating broken workflow",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "DPO",
+  "controlFamily": "data-subject-request-lifecycle",
+  "exclusions": "Does NOT evaluate the correctness of an individual DSAR outcome; only the statistical mix across the programme.",
+  "evidence": "Saved search 'dsar_request_type_mix' (weekly) compares the current-week request-type distribution against a rolling 12-week baseline and alerts on >3σ drift.",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.12(2)",
+      "mode": "detects-violation-of",
+      "assurance": "contributing",
+      "assurance_rationale": "A month with zero erasures across a 10,000-subject controller is a statistical anomaly worth investigating; this UC raises the signal."
+    },
+    {
+      "regulation": "CCPA",
+      "version": "CPRA (as amended)",
+      "clause": "§1798.130(a)",
+      "mode": "detects-violation-of",
+      "assurance": "contributing",
+      "assurance_rationale": "CCPA reporting metrics require accurate categorisation; a sudden request-type skew often means a broken form."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A code change accidentally routes all 'delete my data' buttons to the access-request endpoint; in the following week the UC fires with a 99% access / 1% deletion mix (baseline 60/40).",
+    "negativeScenario": "Normal week-over-week fluctuation in request-type mix does NOT fire.",
+    "fixtureRef": "sample-data/uc-22.36.5-fixture.json"
+  },
+  "dataSources": "DSAR ticketing system request-type field, historic aggregates from compliance summary index.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=dsar sourcetype=onetrust:dsar OR sourcetype=servicenow:privacy earliest=-84d\n| bin _time span=7d\n| stats count by _time request_type\n| eventstats sum(count) as total by _time\n| eval ratio=count/total\n| stats avg(ratio) as baseline, stdev(ratio) as baseline_sd latest(ratio) as current by request_type\n| eval drift=abs(current-baseline)\n| where drift>(3*baseline_sd) AND baseline_sd>0\n| table request_type baseline current drift baseline_sd",
+  "description": "Detects statistically anomalous drift in the distribution of DSAR request types (access / rectification / erasure / portability / opt-out). A sudden zero-erasure week across a large estate is usually a symptom of a broken UX flow rather than genuine user choice.",
+  "value": "Makes the common 'silent bug in the privacy portal' failure mode visible without waiting for a complaint.",
+  "implementation": "(1) Ensure DSAR events emit a canonical request_type from an allow-list; (2) run weekly; (3) on fire, open a DPO + engineering review ticket.",
+  "visualization": "Stacked area of request-type mix over 12 weeks, bar chart of current-vs-baseline deltas, single-value 'drift categories this week'.",
+  "cimModels": [
+    "Ticket_Management"
+  ],
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+      "title": "Regulation (EU) 2016/679 — GDPR",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?lawCode=CIV&division=3.&title=1.81.5.&part=4.&chapter=&article=",
+      "title": "California CCPA/CPRA",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Seasonal campaigns (e.g., year-end 'delete my data' reminders) legitimately shift the mix; maintain a known-campaign lookup to dampen the signal for those windows.",
+  "mitreAttack": [],
+  "detectionType": "Anomaly",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "request_type",
+    "_time"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

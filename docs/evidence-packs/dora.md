@@ -70,29 +70,29 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 ### 4.1 Contributing UC detail
 
 <a id='uc-22-11-103'></a>
-- **UC-22.11.103** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.11.103** — PCI-DSS 11.3 — Vulnerability programme: overdue scan cadence and unremediated high-severity
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.11.103.json`](../../use-cases/cat-22/uc-22.11.103.json)
 <a id='uc-22-11-105'></a>
-- **UC-22.11.105** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.11.105** — PCI-DSS 12.10 — Incident response: IR readiness — playbook exercise evidence
+  - Control family: `ir-drill-evidence`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.11.105.json`](../../use-cases/cat-22/uc-22.11.105.json)
 <a id='uc-22-11-106'></a>
-- **UC-22.11.106** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.11.106** — PCI-DSS 12.3 — Targeted risk analysis: frequency adherence for per-requirement TRAs
+  - Control family: `policy-to-control-traceability`
+  - Owner: `CISO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.11.106.json`](../../use-cases/cat-22/uc-22.11.106.json)
 <a id='uc-22-11-97'></a>
-- **UC-22.11.97** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.11.97** — PCI-DSS 8.4 — MFA coverage: administrative access to CDE without MFA
+  - Control family: `privileged-session-recording`
+  - Owner: `CISO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.11.97.json`](../../use-cases/cat-22/uc-22.11.97.json)
 <a id='uc-22-3-1'></a>
 - **UC-22.3.1** —
   - Control family: `—`
@@ -226,35 +226,35 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-3-41'></a>
-- **UC-22.3.41** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.3.41** — DORA Art.6 — ICT risk-management framework evidence: control catalogue drift detection
+  - Control family: `policy-to-control-traceability`
+  - Owner: `CISO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.3.41.json`](../../use-cases/cat-22/uc-22.3.41.json)
 <a id='uc-22-3-42'></a>
-- **UC-22.3.42** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.3.42** — DORA Art.7 — ICT systems inventory completeness: unmanaged endpoints attached to financial services
+  - Control family: `log-source-completeness`
+  - Owner: `Head of IT Operations`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.3.42.json`](../../use-cases/cat-22/uc-22.3.42.json)
 <a id='uc-22-3-43'></a>
-- **UC-22.3.43** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.3.43** — DORA Art.8 — ICT risk identification: newly discovered high-severity exposure on critical financial services
+  - Control family: `regulation-specific`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.3.43.json`](../../use-cases/cat-22/uc-22.3.43.json)
 <a id='uc-22-3-44'></a>
-- **UC-22.3.44** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.3.44** — DORA Art.17 — ICT incident classification timeliness: major-incident clock evidence
+  - Control family: `ir-drill-evidence`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.3.44.json`](../../use-cases/cat-22/uc-22.3.44.json)
 <a id='uc-22-3-45'></a>
-- **UC-22.3.45** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.3.45** — DORA Art.24 — Digital operational-resilience testing: test-plan execution attestation
+  - Control family: `ir-drill-evidence`
+  - Owner: `CISO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.3.45.json`](../../use-cases/cat-22/uc-22.3.45.json)
 <a id='uc-22-3-5'></a>
 - **UC-22.3.5** —
   - Control family: `—`
@@ -334,53 +334,53 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-6-46'></a>
-- **UC-22.6.46** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.6.46** — ISO/IEC 27001:2022 Clause 6.1 — Risk-assessment evidence: live risk register decay
+  - Control family: `board-exec-reporting`
+  - Owner: `CISO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.6.46.json`](../../use-cases/cat-22/uc-22.6.46.json)
 <a id='uc-22-6-51'></a>
-- **UC-22.6.51** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.6.51** — ISO/IEC 27001:2022 Annex A.5.24 — Incident-management planning: runbook currency attestation
+  - Control family: `ir-drill-evidence`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.6.51.json`](../../use-cases/cat-22/uc-22.6.51.json)
 <a id='uc-22-6-52'></a>
-- **UC-22.6.52** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.6.52** — ISO/IEC 27001:2022 Annex A.5.25 — Event classification decisions: SIEM-to-incident triage traceability
+  - Control family: `ir-drill-evidence`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.6.52.json`](../../use-cases/cat-22/uc-22.6.52.json)
 <a id='uc-22-8-32'></a>
-- **UC-22.8.32** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.32** — SOC 2 CC6.7 — System boundary & data-transmission control: unapproved egress destinations
+  - Control family: `data-flow-cross-border`
+  - Owner: `Head of Platform`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.32.json`](../../use-cases/cat-22/uc-22.8.32.json)
 <a id='uc-22-8-33'></a>
-- **UC-22.8.33** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.33** — SOC 2 CC7.1 — System-operations monitoring: uptime attestation and alert-noise governance
+  - Control family: `log-source-completeness`
+  - Owner: `Head of IT Operations`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.33.json`](../../use-cases/cat-22/uc-22.8.33.json)
 <a id='uc-22-8-34'></a>
-- **UC-22.8.34** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.34** — SOC 2 CC7.3 — Evaluated events: threshold breaches without documented rationale
+  - Control family: `ir-drill-evidence`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.34.json`](../../use-cases/cat-22/uc-22.8.34.json)
 <a id='uc-22-8-35'></a>
-- **UC-22.8.35** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.35** — SOC 2 CC7.4 — Incident response: post-incident review completion SLA
+  - Control family: `ir-drill-evidence`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.35.json`](../../use-cases/cat-22/uc-22.8.35.json)
 <a id='uc-22-8-37'></a>
-- **UC-22.8.37** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.37** — SOC 2 CC9.1 — Risk-mitigation activity: vendor-risk action closure SLA
+  - Control family: `third-party-activity`
+  - Owner: `Procurement`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.37.json`](../../use-cases/cat-22/uc-22.8.37.json)
 
 ## 5. Evidence collection
 

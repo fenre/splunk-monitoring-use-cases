@@ -1,0 +1,102 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.93",
+  "title": "PCI-DSS 3.3 — Sensitive authentication data: cleartext PAN/CVV detection in logs",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "DPO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT enforce masking (application-side); identifies occurrences of cleartext PAN or full-track data in application logs as a compliance violation.",
+  "evidence": "Saved search 'pci_3_3_cleartext_sad' (every 10m) outputs: sourcetype, host, line_id, match_type, redaction_status, to compliance_summary_sensitive (access-controlled).",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "3.3",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI-DSS 3.3 Sensitive authentication data not stored after authorisation — directly evidenced in the logs pipeline."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.8.12",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.12 Data leakage prevention — contributing."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "C1.1",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SOC 2 C1.1 — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Injecting a synthetic event with '4242424242424242' into a monitored sourcetype fires the UC within 10m.",
+    "negativeScenario": "Payment events with PAN already masked (4242******4242) are absent.",
+    "fixtureRef": "sample-data/uc-22.11.93-fixture.json",
+    "attackTechnique": "T1005"
+  },
+  "dataSources": "`index=app` sourcetypes from payment applications; `index=web` access logs; redaction-pipeline attestation events.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=app OR index=web earliest=-10m\n| eval pan_match=if(match(_raw,\"(?<![0-9])(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})(?![0-9])\"),1,0)\n| eval cvv_match=if(match(_raw,\"(?i)cvv=[0-9]{3,4}\"),1,0)\n| where pan_match=1 OR cvv_match=1\n| eval match_type=case(pan_match=1 AND cvv_match=1,\"pan+cvv\",pan_match=1,\"pan\",true(),\"cvv\")\n| stats count BY sourcetype host match_type",
+  "description": "Detects cleartext PAN or CVV patterns in application / web logs. PCI-DSS 3.3 prohibits storing sensitive authentication data post-authorisation; logs containing such data are a direct non-conformance.",
+  "value": "Reduces the window between a logging regression introducing a cleartext PAN and the compliance team's discovery from 'next log review' to 10 minutes.",
+  "implementation": "(1) Apply a separate restrictive index for hits (ACL); (2) schedule UC every 10m; (3) hit creates a P1 to DPO + app owner; (4) index-time redaction must be fixed + backfill scrub; (5) monthly DPO report.",
+  "visualization": "Timechart of match_count, table of top offending sourcetypes, single value 'detections in last hour'.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1005/",
+      "title": "MITRE ATT&CK — T1005",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Synthetic test data may look like a PAN — allow-list via the synthetic_test flag in the application.",
+  "mitreAttack": [
+    "T1005"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_raw",
+    "sourcetype",
+    "host",
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

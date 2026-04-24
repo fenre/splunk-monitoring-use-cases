@@ -41,9 +41,9 @@ Applies to controllers and processors established in the UK and to those outside
 ## 3. Catalogue coverage at a glance
 
 - **Clauses tracked**: 20
-- **Clauses covered by at least one UC**: 0 / 20 (0.0%)
-- **Priority-weighted coverage**: 0.0%
-- **Contributing UCs**: 0
+- **Clauses covered by at least one UC**: 5 / 20 (25.0%)
+- **Priority-weighted coverage**: 23.7%
+- **Contributing UCs**: 4
 - **Derived via `derivesFrom`**: parent `gdpr` (mode `identity`). Identity-mode derivatives inherit the parent's full clause set unless explicitly diverged. This pack reports coverage against the **inherited parent clause inventory** so the auditor view is comparable to the parent. Inherited mappings carry assurance degraded one step from the parent and are marked `provenance: derived-from-parent` in the UC sidecar. Native hand-authored mappings take precedence. Known divergences are listed in `data/regulations.json derivesFrom[].divergences`.
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
@@ -56,10 +56,10 @@ Because this regulation derives from `gdpr` with identity inheritance, the claus
 |---|---|---|---|---|
 | [`Art.5`](https://www.legislation.gov.uk/eur/2016/679/article/Art.5) | Principles of processing | 1.0 | `—` | _not yet covered_ |
 | [`Art.6`](https://www.legislation.gov.uk/eur/2016/679/article/Art.6) | Lawful basis | 1.0 | `—` | _not yet covered_ |
-| [`Art.7`](https://www.legislation.gov.uk/eur/2016/679/article/Art.7) | Conditions for consent | 0.7 | `—` | _not yet covered_ |
+| [`Art.7`](https://www.legislation.gov.uk/eur/2016/679/article/Art.7) | Conditions for consent | 0.7 | `contributing` | [UC-22.8.39](#uc-22-8-39) |
 | [`Art.15`](https://www.legislation.gov.uk/eur/2016/679/article/Art.15) | Right of access | 1.0 | `—` | _not yet covered_ |
 | [`Art.16`](https://www.legislation.gov.uk/eur/2016/679/article/Art.16) | Right to rectification | 0.7 | `—` | _not yet covered_ |
-| [`Art.17`](https://www.legislation.gov.uk/eur/2016/679/article/Art.17) | Right to erasure | 1.0 | `—` | _not yet covered_ |
+| [`Art.17`](https://www.legislation.gov.uk/eur/2016/679/article/Art.17) | Right to erasure | 1.0 | `partial` | [UC-22.49.5](#uc-22-49-5) |
 | [`Art.18`](https://www.legislation.gov.uk/eur/2016/679/article/Art.18) | Right to restrict processing | 0.7 | `—` | _not yet covered_ |
 | [`Art.20`](https://www.legislation.gov.uk/eur/2016/679/article/Art.20) | Right to data portability | 0.7 | `—` | _not yet covered_ |
 | [`Art.21`](https://www.legislation.gov.uk/eur/2016/679/article/Art.21) | Right to object | 0.7 | `—` | _not yet covered_ |
@@ -71,9 +71,36 @@ Because this regulation derives from `gdpr` with identity inheritance, the claus
 | [`Art.33`](https://www.legislation.gov.uk/eur/2016/679/article/Art.33) | Breach notification to supervisory authority | 1.0 | `—` | _not yet covered_ |
 | [`Art.34`](https://www.legislation.gov.uk/eur/2016/679/article/Art.34) | Breach communication to data subjects | 1.0 | `—` | _not yet covered_ |
 | [`Art.35`](https://www.legislation.gov.uk/eur/2016/679/article/Art.35) | DPIA | 0.7 | `—` | _not yet covered_ |
-| [`Art.44`](https://www.legislation.gov.uk/eur/2016/679/article/Art.44) | International transfers — general principle | 1.0 | `—` | _not yet covered_ |
-| [`Art.45`](https://www.legislation.gov.uk/eur/2016/679/article/Art.45) | Transfers via adequacy decision | 0.7 | `—` | _not yet covered_ |
-| [`Art.46`](https://www.legislation.gov.uk/eur/2016/679/article/Art.46) | Transfers subject to safeguards | 0.7 | `—` | _not yet covered_ |
+| [`Art.44`](https://www.legislation.gov.uk/eur/2016/679/article/Art.44) | International transfers — general principle | 1.0 | `partial` | [UC-22.38.5](#uc-22-38-5) |
+| [`Art.45`](https://www.legislation.gov.uk/eur/2016/679/article/Art.45) | Transfers via adequacy decision | 0.7 | `contributing` | [UC-22.38.5](#uc-22-38-5) |
+| [`Art.46`](https://www.legislation.gov.uk/eur/2016/679/article/Art.46) | Transfers subject to safeguards | 0.7 | `full` | [UC-22.38.4](#uc-22-38-4) |
+
+### 4.1 Contributing UC detail
+
+<a id='uc-22-38-4'></a>
+- **UC-22.38.4** — Transfer Impact Assessment currency — stale Schrems II assessments
+  - Control family: `data-flow-cross-border`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.38.4.json`](../../use-cases/cat-22/uc-22.38.4.json)
+<a id='uc-22-38-5'></a>
+- **UC-22.38.5** — Bulk regulated-data export targeting non-adequate jurisdiction
+  - Control family: `data-flow-cross-border`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.38.5.json`](../../use-cases/cat-22/uc-22.38.5.json)
+<a id='uc-22-49-5'></a>
+- **UC-22.49.5** — Cryptographic erasure attestation — per-asset destruction evidence
+  - Control family: `retention-end-enforcement`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.49.5.json`](../../use-cases/cat-22/uc-22.49.5.json)
+<a id='uc-22-8-39'></a>
+- **UC-22.8.39** — SOC 2 P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes
+  - Control family: `data-subject-request-lifecycle`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.39.json`](../../use-cases/cat-22/uc-22.8.39.json)
 
 ## 5. Evidence collection
 
@@ -156,14 +183,12 @@ Clauses tracked in `data/regulations.json` that are **not yet covered** by any U
 | Clause | Topic | Priority |
 |---|---|---|
 | `Art.15` | Right of access | 1.0 |
-| `Art.17` | Right to erasure | 1.0 |
 | `Art.25` | Data protection by design and by default | 1.0 |
 | `Art.28` | Processor obligations | 1.0 |
 | `Art.30` | Records of processing | 1.0 |
 | `Art.32` | Security of processing | 1.0 |
 | `Art.33` | Breach notification to supervisory authority | 1.0 |
 | `Art.34` | Breach communication to data subjects | 1.0 |
-| `Art.44` | International transfers — general principle | 1.0 |
 | `Art.5` | Principles of processing | 1.0 |
 | `Art.6` | Lawful basis | 1.0 |
 | `Art.16` | Right to rectification | 0.7 |
@@ -172,9 +197,6 @@ Clauses tracked in `data/regulations.json` that are **not yet covered** by any U
 | `Art.21` | Right to object | 0.7 |
 | `Art.22` | Automated decision making | 0.7 |
 | `Art.35` | DPIA | 0.7 |
-| `Art.45` | Transfers via adequacy decision | 0.7 |
-| `Art.46` | Transfers subject to safeguards | 0.7 |
-| `Art.7` | Conditions for consent | 0.7 |
 
 ## 12. Questions an auditor should ask
 

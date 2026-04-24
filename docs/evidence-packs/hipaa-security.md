@@ -275,23 +275,23 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-6-53'></a>
-- **UC-22.6.53** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.6.53** — ISO/IEC 27001:2022 Clause 7.2 — Competence evidence: role-based training completion
+  - Control family: `training-effectiveness`
+  - Owner: `HR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.6.53.json`](../../use-cases/cat-22/uc-22.6.53.json)
 <a id='uc-22-8-31'></a>
-- **UC-22.8.31** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.31** — SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary
+  - Control family: `crypto-drift`
+  - Owner: `CISO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.31.json`](../../use-cases/cat-22/uc-22.8.31.json)
 <a id='uc-22-8-38'></a>
-- **UC-22.8.38** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.38** — SOC 2 C1.1 — Confidentiality: sensitive-data exposure at the egress boundary
+  - Control family: `data-flow-cross-border`
+  - Owner: `DPO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.38.json`](../../use-cases/cat-22/uc-22.8.38.json)
 
 ## 5. Evidence collection
 

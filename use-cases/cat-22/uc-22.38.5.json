@@ -1,0 +1,128 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.38.5",
+  "title": "Bulk regulated-data export targeting non-adequate jurisdiction",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "data-flow-cross-border",
+  "exclusions": "Does NOT evaluate small single-record flows (covered by 22.38.1); targets bulk operations ≥1GB or ≥10k records.",
+  "evidence": "Saved search 'bulk_export_cross_border' (every 10 min) outputs bulk export operations whose destination geography lacks adequacy or SCC cover.",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.44",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Art.44 general principle for transfers is directly enforced by blocking bulk exports without safeguards."
+    },
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.45",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.45 adequacy decision list membership is directly queried."
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.28",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "DORA Art.28 ICT third-party oversight implicates cross-border data dependencies."
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.44",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.44 (parent assurance='full'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.44",
+        "parentAssurance": "full",
+        "inheritanceMode": "identity"
+      }
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.45",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.45 (parent assurance='partial'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step. Divergence recorded — SME review should confirm scope fit.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.45",
+        "parentAssurance": "partial",
+        "inheritanceMode": "identity",
+        "divergenceNote": "UK adequacy decisions managed by ICO/UK government, not EU Commission."
+      }
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A SQL dump of 250k customer records is written to an S3 bucket in a non-adequate jurisdiction; the UC fires within 10 min.",
+    "negativeScenario": "A bulk export to an adequacy-listed or SCC-covered jurisdiction does NOT fire.",
+    "fixtureRef": "sample-data/uc-22.38.5-fixture.json",
+    "attackTechnique": "T1567"
+  },
+  "dataSources": "DB export audit logs, cloud storage PUT events, DLP bulk-operation classifications, sanctioned_transfer_jurisdictions.csv.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=db_audit action=export OR (index=cloud_storage action=PutObject bytes>1073741824) earliest=-10m\n| lookup data_classification.csv object_key OUTPUT classification regulated_scope\n| where isnotnull(regulated_scope)\n| `get_geolocation(dest_ip)`\n| lookup sanctioned_transfer_jurisdictions.csv country as dest_country OUTPUT scc_active adequacy_decision\n| where isnull(scc_active) AND isnull(adequacy_decision)\n| table _time user object_key classification regulated_scope dest_country bytes",
+  "description": "Intersects bulk export operations (DB dumps, large cloud uploads) with destination geolocation and the sanctioned-transfer catalogue. Bulk exports targeting non-adequate jurisdictions without SCCs are a category of breach that requires immediate executive escalation.",
+  "value": "Turns post-hoc 'where did our customer dataset go?' incident forensics into real-time prevention.",
+  "implementation": "(1) Ensure DB and cloud storage layers emit size + destination; (2) maintain classification and jurisdiction lookups; (3) schedule every 10 min; (4) SOAR auto-blocks destination if exception policy permits.",
+  "visualization": "World-map of bulk exports, table of findings with destination geography, single-value 'bulk exports within sanctioned geographies'.",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+      "title": "Regulation (EU) 2016/679 — GDPR",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "Regulation (EU) 2022/2554 — DORA",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1567/",
+      "title": "MITRE ATT&CK — T1567 Exfiltration Over Web Service",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Bona-fide DR or migration operations authorised under a dedicated exception ID must be logged to a migrations.csv allow-list.",
+  "mitreAttack": [
+    "T1567"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "network",
+  "requiredFields": [
+    "user",
+    "object_key",
+    "dest_ip",
+    "bytes",
+    "_time"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

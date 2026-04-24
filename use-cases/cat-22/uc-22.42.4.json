@@ -1,0 +1,99 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.42.4",
+  "title": "CAB approval bypass — change pushed before scheduled window",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IT Operations",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT evaluate emergency changes with a retro-CR (handled explicitly via approval_type=emergency).",
+  "evidence": "Saved search 'cab_bypass' (hourly) emits pipeline apply events outside the CR scheduled window.",
+  "compliance": [
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC8.1",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "Direct evidence of an unapproved change path."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "CM-3",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "Direct evidence of an unapproved change path."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Change.Approval",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "SOX ITGC change-approval deficiency pattern."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A deployment pipeline applies a change 2 hours before the CR scheduled window; the UC fires within the hour.",
+    "negativeScenario": "Pipeline apply inside the scheduled window; no alert.",
+    "fixtureRef": "sample-data/uc-22.42.4-fixture.json",
+    "attackTechnique": "T1562.001"
+  },
+  "dataSources": "CI/CD pipeline apply events tagged with change_id, ServiceNow CR schedule data.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=change sourcetype=prod:apply earliest=-1h\n| join change_id [search index=itsm sourcetype=servicenow:change | fields change_id window_start window_end approval_type]\n| eval start_s=strptime(window_start,\"%Y-%m-%dT%H:%M:%SZ\"), end_s=strptime(window_end,\"%Y-%m-%dT%H:%M:%SZ\")\n| where approval_type!=\"emergency\" AND (_time<start_s OR _time>end_s)\n| table _time change_id applied_by window_start window_end",
+  "description": "Correlates every production apply event to its CR scheduled window and emits those that landed outside the declared window. Out-of-window changes that are not flagged as emergency are a primary ITGC deficiency.",
+  "value": "Turns CAB approval from a calendar event into an operational control with per-change evidence.",
+  "implementation": "(1) Force CI/CD pipelines to emit change_id; (2) ingest CR schedule data; (3) run hourly; (4) SOAR auto-freezes the pipeline on hit.",
+  "visualization": "Table of out-of-window applies, bar chart of offending pipelines, single-value '% of changes applied in window'.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://www.aicpa-cima.com/resources/download/2017-trust-services-criteria-with-revised-points-of-focus-2022",
+      "title": "AICPA Trust Services Criteria",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1562/001/",
+      "title": "MITRE ATT&CK — T1562.001 Impair Defenses: Disable Tools",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Timezone-normalised window_start/window_end is critical; a TZ mismatch will falsely flag correct changes.",
+  "mitreAttack": [
+    "T1562.001"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "change_id",
+    "window_start",
+    "window_end",
+    "_time"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

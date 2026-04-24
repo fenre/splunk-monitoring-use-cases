@@ -1,31 +1,31 @@
 # Splunk Use Cases — GDPR compliance
 
 App ID: `splunk-uc-gdpr`  
-App version: **6.1.0**  
-Generated: `2026-04-18T17:28:10Z`  
+App version: **7.1.0**  
+Generated: `2026-04-22T11:55:17Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
-This app packages **82 use cases** from the upstream catalogue that cite General Data Protection Regulation (`gdpr`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
+This app packages **99 use cases** from the upstream catalogue that cite General Data Protection Regulation (`gdpr`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
 
 * Regulation tier: **1**
 * Jurisdictions: EU, EEA
 * Versions covered: 2016/679
-* UCs by criticality: critical = 21, high = 55, medium = 6
+* UCs by criticality: critical = 22, high = 71, medium = 6
 
 
 ## Most-referenced clauses
 
 | Clause | UCs tagging this clause |
 |--------|-------------------------|
+| `Art.7` | 16 |
+| `Art.32` | 8 |
 | `Art.44` | 7 |
 | `Art.45` | 7 |
 | `Art.46` | 7 |
-| `Art.32` | 6 |
+| `Art.6` | 6 |
 | `Art.33` | 5 |
-| `Art.7` | 5 |
 | `Art.17` | 4 |
-| `Art.47` | 4 |
 
 ## Installation
 
@@ -69,6 +69,23 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 
 | UC | Title | Criticality | Clauses |
 |----|-------|-------------|---------|
+| UC-9.3.12 | Consent Grant Abuse | critical | Art.7 |
+| UC-10.3.89 | Disable Defender Submit Samples Consent Feature | high | Art.32 |
+| UC-10.4.24 | Azure AD Block User Consent For Risky Apps Disabled | high | Art.7 |
+| UC-10.4.39 | O365 Admin Consent Bypassed by Service Principal | high | Art.7 |
+| UC-10.4.45 | O365 Block User Consent For Risky Apps Disabled | high | Art.7 |
+| UC-10.4.75 | O365 File Permissioned Application Consent Granted by User | high | Art.6 |
+| UC-10.4.79 | O365 Mail Permissioned Application Consent Granted by User | high | Art.6 |
+| UC-10.4.111 | O365 Tenant Wide Admin Consent Granted | high | Art.7 |
+| UC-10.4.114 | O365 User Consent Blocked for Risky Application | high | Art.7 |
+| UC-10.4.115 | O365 User Consent Denied for OAuth Application | high | Art.7 |
+| UC-10.7.137 | Azure AD Admin Consent Bypassed by Service Principal | high | Art.7 |
+| UC-10.7.154 | Azure AD OAuth Application Consent Granted By User | high | Art.6 |
+| UC-10.7.166 | Azure AD Tenant Wide Admin Consent Granted | high | Art.7 |
+| UC-10.7.167 | Azure AD User Consent Blocked for Risky Application | high | Art.7 |
+| UC-10.7.168 | Azure AD User Consent Denied for OAuth Application | high | Art.7 |
+| UC-10.11.62 | Zscaler Data Protection Policy Effectiveness | high | Art.32 |
+| UC-11.3.11 | Collaboration App Permission and Consent Audit | high | Art.6 |
 | UC-22.1.1 | GDPR PII Detection in Application Log Data | critical | Art.5, Art.6 |
 | UC-22.1.2 | GDPR Data Subject Access Request Fulfillment Tracking | critical | Art.15, Art.16, Art.17… |
 | UC-22.1.3 | GDPR Breach Notification Timeline Monitoring | critical | Art.33, Art.72 |

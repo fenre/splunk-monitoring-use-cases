@@ -1,17 +1,17 @@
 # Splunk Use Cases — HIPAA Security compliance
 
 App ID: `splunk-uc-hipaa-security`  
-App version: **6.1.0**  
-Generated: `2026-04-18T17:28:10Z`  
+App version: **7.1.0**  
+Generated: `2026-04-22T11:55:17Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
-This app packages **76 use cases** from the upstream catalogue that cite HIPAA Security Rule (`hipaa-security`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
+This app packages **79 use cases** from the upstream catalogue that cite HIPAA Security Rule (`hipaa-security`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
 
 * Regulation tier: **1**
 * Jurisdictions: US
 * Versions covered: 2013-final
-* UCs by criticality: critical = 36, high = 36, medium = 4
+* UCs by criticality: critical = 38, high = 37, medium = 4
 
 
 ## Most-referenced clauses
@@ -19,13 +19,13 @@ This app packages **76 use cases** from the upstream catalogue that cite HIPAA S
 | Clause | UCs tagging this clause |
 |--------|-------------------------|
 | `§164.312(e)(1)` | 8 |
+| `§164.312(b)` | 5 |
 | `§164.308(a)(1)` | 4 |
 | `§164.308(a)(5)` | 4 |
-| `§164.312(b)` | 4 |
 | `§164.312(c)(1)` | 4 |
 | `§164.502(b)` | 4 |
 | `§164.502(e)` | 4 |
-| `§164.310(d)(1)` | 3 |
+| `§164.308(a)(6)` | 3 |
 
 ## Installation
 
@@ -69,6 +69,8 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 
 | UC | Title | Criticality | Clauses |
 |----|-------|-------------|---------|
+| UC-10.12.16 | ePHI Access Audit | critical | §164.312(b) |
+| UC-10.12.17 | HIPAA Transmission Security | high | §164.312(e) |
 | UC-22.6.53 | ISO/IEC 27001:2022 Clause 7.2 — Competence evidence: role-based training completion | medium | §164.308(a)(5) |
 | UC-22.8.31 | SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary | high | §164.312(e)(1) |
 | UC-22.8.38 | SOC 2 C1.1 — Confidentiality: sensitive-data exposure at the egress boundary | high | §164.312(e)(1) |
@@ -127,6 +129,7 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.10.53 | Subcontractor Access — Downstream API Keys Touching ePHI Interfaces | critical | §164.502(e) |
 | UC-22.10.54 | Third-Party Data Sharing — O365 Sharing Links to External Domains on PHI Libraries | critical | §164.502(b), §164.514(e) |
 | UC-22.10.55 | Cloud Service Provider — ePHI Hosting Admin Actions in AWS or Azure Audit | critical | §164.308(a)(1), §164.502(e) |
+| UC-22.10.56 | HIPAA §164.308(a)(6) — Security incident response lifecycle evidence | critical | §164.308(a)(6) |
 | UC-22.35.1 | Audit-log continuity: detect indexing gap indicating lost evidence | critical | §164.312(b) |
 | UC-22.35.2 | Log tamper detection via write-once-read-many chain-of-custody | critical | §164.312(c)(1) |
 | UC-22.35.4 | Log signing chain integrity — cryptographic signature drift on evidence archive | critical | §164.312(c)(1) |

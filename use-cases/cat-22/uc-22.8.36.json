@@ -1,0 +1,79 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.8.36",
+  "title": "SOC 2 CC1.1 — Integrity and ethical values: code-of-conduct acknowledgement trail",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "HR",
+  "controlFamily": "training-effectiveness",
+  "exclusions": "Does NOT test the substance of the code of conduct; attests that every active employee has acknowledged the current version within policy cadence.",
+  "evidence": "Saved search 'soc2_cc1_1_coc_ack' (daily) emits per employee: user, hire_date, latest_ack_version, latest_ack_date, is_compliant, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC1.1",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CC1.1 Integrity and ethical values — acknowledgement coverage is the direct evidence."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "6.3",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "ISO/IEC 27001:2022 Clause 6.3 Competence — contributing; the CoC is one training module."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A user with no CoC acknowledgement in 13 months returns is_compliant=0.",
+    "negativeScenario": "A user who acknowledged the current version within the year is absent.",
+    "fixtureRef": "sample-data/uc-22.8.36-fixture.json"
+  },
+  "dataSources": "`index=hr` sourcetype=hr:employee (active roster); `index=hr` sourcetype=lms:acknowledgement; policy-version lookup `coc_versions.csv`.",
+  "app": "Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=hr sourcetype=hr:employee status=active earliest=-30d\n| stats latest(hire_date) AS hire_date BY user\n| join user type=outer\n  [search index=hr sourcetype=lms:acknowledgement module=code_of_conduct earliest=-2y\n   | stats latest(version) AS latest_ack_version latest(_time) AS latest_ack_date BY user]\n| lookup coc_versions.csv AS latest OUTPUT current_version\n| eval is_compliant=if(latest_ack_version==current_version AND latest_ack_date>now()-31536000,1,0)\n| where is_compliant=0\n| table user hire_date latest_ack_version latest_ack_date is_compliant",
+  "description": "Surfaces active employees who have not acknowledged the current code-of-conduct version within the last 12 months.",
+  "value": "Removes the audit finding 'CoC acknowledgement trail is incomplete' by making HR's coverage measurable daily.",
+  "implementation": "(1) Nightly HR roster sync; (2) maintain coc_versions.csv; (3) schedule UC daily; (4) is_compliant=0 triggers an HR reminder email; (5) quarterly compliance report.",
+  "visualization": "Table of non-acknowledging users, bar chart by department, single value 'non-compliant users'.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Employees within their 30-day grace window are excluded via hire_date.",
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "user",
+    "hire_date",
+    "module",
+    "version",
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

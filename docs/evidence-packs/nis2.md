@@ -284,17 +284,17 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-3-42'></a>
-- **UC-22.3.42** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.3.42** — DORA Art.7 — ICT systems inventory completeness: unmanaged endpoints attached to financial services
+  - Control family: `log-source-completeness`
+  - Owner: `Head of IT Operations`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.3.42.json`](../../use-cases/cat-22/uc-22.3.42.json)
 <a id='uc-22-3-44'></a>
-- **UC-22.3.44** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.3.44** — DORA Art.17 — ICT incident classification timeliness: major-incident clock evidence
+  - Control family: `ir-drill-evidence`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.3.44.json`](../../use-cases/cat-22/uc-22.3.44.json)
 <a id='uc-22-39-1'></a>
 - **UC-22.39.1** —
   - Control family: `—`

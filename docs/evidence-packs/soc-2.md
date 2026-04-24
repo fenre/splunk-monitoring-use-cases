@@ -72,77 +72,77 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 ### 4.1 Contributing UC detail
 
 <a id='uc-22-11-101'></a>
-- **UC-22.11.101** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.11.101** — PCI-DSS 10.6 — Log review: daily-review evidence for CDE data sources
+  - Control family: `evidence-continuity`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.11.101.json`](../../use-cases/cat-22/uc-22.11.101.json)
 <a id='uc-22-11-104'></a>
-- **UC-22.11.104** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.11.104** — PCI-DSS 11.4 — Intrusion detection: IDS signature/health attestation + untuned alert monitoring
+  - Control family: `log-source-completeness`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.11.104.json`](../../use-cases/cat-22/uc-22.11.104.json)
 <a id='uc-22-11-105'></a>
-- **UC-22.11.105** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.11.105** — PCI-DSS 12.10 — Incident response: IR readiness — playbook exercise evidence
+  - Control family: `ir-drill-evidence`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.11.105.json`](../../use-cases/cat-22/uc-22.11.105.json)
 <a id='uc-22-11-91'></a>
-- **UC-22.11.91** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.11.91** — PCI-DSS 1.3 — CDE network boundary: unauthorised flows between CDE and untrusted networks
+  - Control family: `regulation-specific`
+  - Owner: `Head of Platform`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.11.91.json`](../../use-cases/cat-22/uc-22.11.91.json)
 <a id='uc-22-11-92'></a>
-- **UC-22.11.92** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.11.92** — PCI-DSS 2.2 — Secure configuration baseline: drift from approved hardening template
+  - Control family: `policy-to-control-traceability`
+  - Owner: `Head of Platform`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.11.92.json`](../../use-cases/cat-22/uc-22.11.92.json)
 <a id='uc-22-11-93'></a>
-- **UC-22.11.93** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.11.93** — PCI-DSS 3.3 — Sensitive authentication data: cleartext PAN/CVV detection in logs
+  - Control family: `regulation-specific`
+  - Owner: `DPO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.11.93.json`](../../use-cases/cat-22/uc-22.11.93.json)
 <a id='uc-22-11-95'></a>
-- **UC-22.11.95** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.11.95** — PCI-DSS 6.2 — Bespoke-software SDLC: code-review + SAST completion before CDE deploy
+  - Control family: `policy-to-control-traceability`
+  - Owner: `Head of Platform`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.11.95.json`](../../use-cases/cat-22/uc-22.11.95.json)
 <a id='uc-22-11-96'></a>
-- **UC-22.11.96** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.11.96** — PCI-DSS 8.3 — Strong authentication: password-only logins against privileged accounts
+  - Control family: `privileged-session-recording`
+  - Owner: `CISO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.11.96.json`](../../use-cases/cat-22/uc-22.11.96.json)
 <a id='uc-22-11-99'></a>
-- **UC-22.11.99** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.11.99** — PCI-DSS 10.3 — Audit log integrity: tampering/deletion detection on CDE log source
+  - Control family: `evidence-continuity`
+  - Owner: `CISO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.11.99.json`](../../use-cases/cat-22/uc-22.11.99.json)
 <a id='uc-22-12-38'></a>
-- **UC-22.12.38** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.12.38** — SOX-ITGC ChangeMgmt.Testing — Financial-system change test-evidence completeness
+  - Control family: `policy-to-control-traceability`
+  - Owner: `CFO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.12.38.json`](../../use-cases/cat-22/uc-22.12.38.json)
 <a id='uc-22-12-39'></a>
-- **UC-22.12.39** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.12.39** — SOX-ITGC ChangeMgmt.Approval — Segregation of duties in financial-system change approval
+  - Control family: `policy-to-control-traceability`
+  - Owner: `CFO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.12.39.json`](../../use-cases/cat-22/uc-22.12.39.json)
 <a id='uc-22-12-40'></a>
-- **UC-22.12.40** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.12.40** — SOX-ITGC Operations.JobSchedule — Batch-schedule monitoring: financial-job exception visibility
+  - Control family: `regulation-specific`
+  - Owner: `CFO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.12.40.json`](../../use-cases/cat-22/uc-22.12.40.json)
 <a id='uc-22-35-2'></a>
 - **UC-22.35.2** —
   - Control family: `—`
@@ -186,23 +186,23 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-6-49'></a>
-- **UC-22.6.49** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.6.49** — ISO/IEC 27001:2022 Clause 9.1 — Monitoring programme coverage: KPI telemetry uptime
+  - Control family: `log-source-completeness`
+  - Owner: `Head of Platform`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.6.49.json`](../../use-cases/cat-22/uc-22.6.49.json)
 <a id='uc-22-6-52'></a>
-- **UC-22.6.52** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.6.52** — ISO/IEC 27001:2022 Annex A.5.25 — Event classification decisions: SIEM-to-incident triage traceability
+  - Control family: `ir-drill-evidence`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.6.52.json`](../../use-cases/cat-22/uc-22.6.52.json)
 <a id='uc-22-6-55'></a>
-- **UC-22.6.55** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.6.55** — ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence
+  - Control family: `policy-to-control-traceability`
+  - Owner: `Head of IT Operations`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.6.55.json`](../../use-cases/cat-22/uc-22.6.55.json)
 <a id='uc-22-8-1'></a>
 - **UC-22.8.1** —
   - Control family: `—`
@@ -324,59 +324,59 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-8-31'></a>
-- **UC-22.8.31** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.31** — SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary
+  - Control family: `crypto-drift`
+  - Owner: `CISO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.31.json`](../../use-cases/cat-22/uc-22.8.31.json)
 <a id='uc-22-8-32'></a>
-- **UC-22.8.32** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.32** — SOC 2 CC6.7 — System boundary & data-transmission control: unapproved egress destinations
+  - Control family: `data-flow-cross-border`
+  - Owner: `Head of Platform`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.32.json`](../../use-cases/cat-22/uc-22.8.32.json)
 <a id='uc-22-8-33'></a>
-- **UC-22.8.33** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.33** — SOC 2 CC7.1 — System-operations monitoring: uptime attestation and alert-noise governance
+  - Control family: `log-source-completeness`
+  - Owner: `Head of IT Operations`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.33.json`](../../use-cases/cat-22/uc-22.8.33.json)
 <a id='uc-22-8-34'></a>
-- **UC-22.8.34** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.34** — SOC 2 CC7.3 — Evaluated events: threshold breaches without documented rationale
+  - Control family: `ir-drill-evidence`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.34.json`](../../use-cases/cat-22/uc-22.8.34.json)
 <a id='uc-22-8-35'></a>
-- **UC-22.8.35** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.35** — SOC 2 CC7.4 — Incident response: post-incident review completion SLA
+  - Control family: `ir-drill-evidence`
+  - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.35.json`](../../use-cases/cat-22/uc-22.8.35.json)
 <a id='uc-22-8-36'></a>
-- **UC-22.8.36** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.36** — SOC 2 CC1.1 — Integrity and ethical values: code-of-conduct acknowledgement trail
+  - Control family: `training-effectiveness`
+  - Owner: `HR`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.36.json`](../../use-cases/cat-22/uc-22.8.36.json)
 <a id='uc-22-8-37'></a>
-- **UC-22.8.37** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.37** — SOC 2 CC9.1 — Risk-mitigation activity: vendor-risk action closure SLA
+  - Control family: `third-party-activity`
+  - Owner: `Procurement`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.37.json`](../../use-cases/cat-22/uc-22.8.37.json)
 <a id='uc-22-8-38'></a>
-- **UC-22.8.38** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.38** — SOC 2 C1.1 — Confidentiality: sensitive-data exposure at the egress boundary
+  - Control family: `data-flow-cross-border`
+  - Owner: `DPO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.38.json`](../../use-cases/cat-22/uc-22.8.38.json)
 <a id='uc-22-8-39'></a>
-- **UC-22.8.39** —
-  - Control family: `—`
-  - Owner: `—`
+- **UC-22.8.39** — SOC 2 P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes
+  - Control family: `data-subject-request-lifecycle`
+  - Owner: `DPO`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`use-cases/cat-22/uc-22.8.39.json`](../../use-cases/cat-22/uc-22.8.39.json)
 <a id='uc-22-8-4'></a>
 - **UC-22.8.4** —
   - Control family: `—`

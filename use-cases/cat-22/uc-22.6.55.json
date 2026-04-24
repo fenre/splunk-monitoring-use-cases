@@ -1,0 +1,93 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.6.55",
+  "title": "ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "IT Operations",
+  "owner": "Head of IT Operations",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT approve or reject changes; attests that 'normal' and 'emergency' changes have the required CAB approval record before implementation.",
+  "evidence": "Saved search 'iso_27001_8_1_cab_approval' (hourly) emits per change: change_id, type, implemented_at, cab_approved_at, approval_met, approver, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "8.1",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 8.1 Operational planning and control — CAB approval adherence is the direct control signal."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.ChangeMgmt.Approval",
+      "clauseUrl": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SOX-ITGC ChangeMgmt.Approval — directly evidenced."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC8.1",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SOC 2 CC8.1 — change management — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Closing a change with approval_status='rejected' but state='implemented' returns approval_met=0.",
+    "negativeScenario": "A change approved by a CAB-role user before implementation is absent.",
+    "fixtureRef": "sample-data/uc-22.6.55-fixture.json"
+  },
+  "dataSources": "`index=change` sourcetype=servicenow:change; approver-role lookup `cab_roles.csv`.",
+  "app": "Splunk Add-on for ServiceNow",
+  "spl": "index=change sourcetype=servicenow:change state IN (implemented,closed) earliest=-7d\n| stats latest(type) AS type latest(_time) AS implemented_at latest(approval_status) AS approval_status latest(approver) AS approver latest(approval_date) AS cab_approved_at BY change_id\n| lookup cab_roles.csv approver OUTPUT is_authorised_cab\n| eval approval_met=if(type=\"emergency\",1,if(approval_status=\"approved\" AND is_authorised_cab=1 AND cab_approved_at<=implemented_at,1,0))\n| where approval_met=0\n| table change_id type implemented_at cab_approved_at approver approval_met",
+  "description": "Flags implemented changes that were not approved by an authorised CAB member prior to implementation. Clause 8.1 requires the organisation to plan, implement and control processes to meet information-security requirements — CAB approval is the direct control.",
+  "value": "Turns the 'post-implementation review' into a pre-emptive signal. The Head of IT Operations sees the breach list within the hour.",
+  "implementation": "(1) Export ServiceNow change events; (2) maintain cab_roles.csv listing authorised approvers; (3) schedule UC hourly; (4) approval_met=0 opens a deficiency record with 7d remediation; (5) monthly Audit Committee report.",
+  "visualization": "Table of unapproved changes, bar chart of breach count by team, single value 'unapproved changes in last 7d'.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "SOX-ITGC PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Emergency changes legitimately bypass CAB; their follow-up retrospective approval must exist separately — this UC excludes type=emergency by design.",
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "change_id",
+    "approver",
+    "approval_status",
+    "state",
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

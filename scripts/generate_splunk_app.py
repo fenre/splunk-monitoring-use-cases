@@ -109,6 +109,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 USE_CASES_DIR = REPO_ROOT / "use-cases"
+CONTENT_DIR = REPO_ROOT / "content"
 DATA_DIR = REPO_ROOT / "data"
 REGULATIONS_FILE = DATA_DIR / "regulations.json"
 DEFAULT_OUTPUT = REPO_ROOT / "splunk-apps"
@@ -252,18 +253,28 @@ def _uc_sort_key(uc: Mapping[str, Any]) -> Tuple[int, ...]:
 
 
 def _load_ucs() -> List[Dict[str, Any]]:
+    seen_ids: set[str] = set()
     items: List[Dict[str, Any]] = []
-    if not USE_CASES_DIR.exists():
-        return items
-    for path in sorted(USE_CASES_DIR.rglob("uc-*.json")):
-        try:
-            data = _load_json(path)
-        except json.JSONDecodeError as exc:  # pragma: no cover - surfaced by audit
-            raise SystemExit(f"Invalid JSON in {path}: {exc}") from exc
-        if not isinstance(data, dict) or not data.get("id"):
-            continue
-        data["_sourcePath"] = str(path.relative_to(REPO_ROOT))
-        items.append(data)
+
+    def _ingest(root: pathlib.Path, glob: str) -> None:
+        if not root.exists():
+            return
+        for path in sorted(root.rglob(glob)):
+            try:
+                data = _load_json(path)
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"Invalid JSON in {path}: {exc}") from exc
+            if not isinstance(data, dict) or not data.get("id"):
+                continue
+            uid = data["id"]
+            if uid in seen_ids:
+                continue
+            seen_ids.add(uid)
+            data["_sourcePath"] = str(path.relative_to(REPO_ROOT))
+            items.append(data)
+
+    _ingest(CONTENT_DIR, "UC-*.json")
+    _ingest(USE_CASES_DIR, "uc-*.json")
     items.sort(key=_uc_sort_key)
     return items
 

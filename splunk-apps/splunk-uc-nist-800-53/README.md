@@ -1,17 +1,17 @@
 # Splunk Use Cases — NIST 800-53 compliance
 
 App ID: `splunk-uc-nist-800-53`  
-App version: **6.1.0**  
-Generated: `2026-04-18T17:28:10Z`  
+App version: **7.1.0**  
+Generated: `2026-04-22T11:55:17Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
-This app packages **138 use cases** from the upstream catalogue that cite NIST SP 800-53 Rev. 5 (`nist-800-53`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
+This app packages **139 use cases** from the upstream catalogue that cite NIST SP 800-53 Rev. 5 (`nist-800-53`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
 
 * Regulation tier: **1**
 * Jurisdictions: US
 * Versions covered: Rev. 5
-* UCs by criticality: critical = 43, high = 76, medium = 18, unspecified = 1
+* UCs by criticality: critical = 44, high = 77, medium = 18
 
 
 ## Most-referenced clauses
@@ -19,11 +19,11 @@ This app packages **138 use cases** from the upstream catalogue that cite NIST S
 | Clause | UCs tagging this clause |
 |--------|-------------------------|
 | `RA-5` | 6 |
+| `CA-2` | 4 |
 | `CM-3` | 4 |
 | `CM-6` | 4 |
 | `CP-9` | 4 |
 | `AC-6` | 3 |
-| `CA-2` | 3 |
 | `CA-7` | 3 |
 | `IA-2` | 3 |
 
@@ -69,7 +69,8 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 
 | UC | Title | Criticality | Clauses |
 |----|-------|-------------|---------|
-| UC-9.1.3 | Privileged Group Membership Changes |  | AC-2(7) |
+| UC-9.1.3 | Privileged Group Membership Changes | critical | AC-2(7) |
+| UC-10.12.41 | NIST 800-53 Control Validation | high | CA-2 |
 | UC-22.1.48 | GDPR Purpose Limitation Enforcement Across Systems | high | PT-3 |
 | UC-22.3.41 | DORA Art.6 — ICT risk-management framework evidence: control catalogue drift detection | high | PM-9 |
 | UC-22.3.43 | DORA Art.8 — ICT risk identification: newly discovered high-severity exposure on critical financial services | critical | RA-5 |

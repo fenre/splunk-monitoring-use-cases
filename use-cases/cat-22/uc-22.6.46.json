@@ -1,0 +1,93 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.6.46",
+  "title": "ISO/IEC 27001:2022 Clause 6.1 — Risk-assessment evidence: live risk register decay",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "board-exec-reporting",
+  "exclusions": "Does NOT evaluate the qualitative content of the risk assessment; surfaces risks whose last_reviewed timestamp exceeds the ISMS-defined review cadence.",
+  "evidence": "Saved search 'iso_27001_6_1_risk_decay' (daily) outputs per risk: risk_id, category, owner, last_reviewed, days_overdue, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "6.1",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 6.1 requires planning to address risks and opportunities; measurable cadence adherence is the direct evidence."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "PM-9",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "NIST 800-53 PM-9 Risk Management Strategy — register review cadence is one component of the strategy's operation."
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.6",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "DORA Art.6 — the same register is commonly reused by financial entities; review cadence is one maintenance dimension."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Setting a test risk's last_reviewed to now()-cadence_days-7d causes the UC to surface it with days_overdue=7.",
+    "negativeScenario": "A risk reviewed within its cadence window is absent from the output.",
+    "fixtureRef": "sample-data/uc-22.6.46-fixture.json"
+  },
+  "dataSources": "`index=grc` sourcetype=archer:risk OR sourcetype=servicenow:grc_risk; ISMS cadence lookup `iso_27001_risk_cadence.csv` (per category, review frequency in days).",
+  "app": "Splunk Enterprise Security, Splunk Add-on for ServiceNow",
+  "spl": "index=grc sourcetype IN (archer:risk,servicenow:grc_risk) earliest=-1d\n| stats latest(last_reviewed) AS last_reviewed latest(category) AS category latest(owner) AS owner BY risk_id\n| lookup iso_27001_risk_cadence.csv category OUTPUT cadence_days\n| eval days_overdue=round((now()-last_reviewed)/86400,0)-cadence_days\n| where days_overdue>0\n| table risk_id category owner last_reviewed cadence_days days_overdue",
+  "description": "Continuously measures how many risks in the register are past their per-category review cadence. Clause 6.1 requires planning that 'addresses risks and opportunities'; a register that has decayed is not planning.",
+  "value": "Produces the evidence the external auditor expects at stage-2: proof that each risk line in the ISMS register was reviewed within its cadence, identifying exact owners of overdue entries.",
+  "implementation": "(1) Export GRC risk register daily to Splunk; (2) maintain iso_27001_risk_cadence.csv by risk category; (3) schedule UC daily; (4) overdue > 0 opens a task to the risk owner; (5) Board quarterly report uses the rolling 90-day mean of overdue risks.",
+  "visualization": "Histogram of days_overdue by category, table of top-overdue risks, single value 'total risks overdue today'.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "title": "NIST 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "DORA Regulation (EU) 2022/2554",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Category cadence changes introduced via ISMS committee need a 24h propagation grace — suppress new overdue hits for 24h after the lookup change.",
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "risk_id",
+    "last_reviewed",
+    "category",
+    "owner",
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

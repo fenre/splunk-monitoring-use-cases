@@ -1,17 +1,17 @@
 # Splunk Use Cases — NIS2 compliance
 
 App ID: `splunk-uc-nis2`  
-App version: **6.1.0**  
-Generated: `2026-04-18T17:28:10Z`  
+App version: **7.1.0**  
+Generated: `2026-04-22T11:55:17Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
-This app packages **63 use cases** from the upstream catalogue that cite EU NIS2 Directive (`nis2`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
+This app packages **64 use cases** from the upstream catalogue that cite EU NIS2 Directive (`nis2`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
 
 * Regulation tier: **1**
 * Jurisdictions: EU
 * Versions covered: Directive (EU) 2022/2555
-* UCs by criticality: critical = 23, high = 34, medium = 6
+* UCs by criticality: critical = 23, high = 35, medium = 6
 
 
 ## Most-referenced clauses
@@ -114,6 +114,7 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.2.43 | NIS2 Annual Security Assessment Completion Tracking | high | Art.21(2)(f) |
 | UC-22.2.44 | NIS2 Cooperation Group and Sector Information Sharing Participation | high | Art.14 |
 | UC-22.2.45 | NIS2 CSIRT Notification Compliance and Channel Health | critical | Art.23 |
+| UC-22.2.46 | NIS2 Art.21(2)(j) — Secure emergency communication channel verification | high | Art.21(2)(j) |
 | UC-22.3.42 | DORA Art.7 — ICT systems inventory completeness: unmanaged endpoints attached to financial services | high | Art.21(2)(d) |
 | UC-22.3.44 | DORA Art.17 — ICT incident classification timeliness: major-incident clock evidence | critical | Art.23 |
 | UC-22.9.4 | Regulatory Incident Response Time Trending | medium | Art.23 |

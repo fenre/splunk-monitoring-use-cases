@@ -1,8 +1,8 @@
 # Splunk Use Cases — ISO 27001 compliance
 
 App ID: `splunk-uc-iso-27001`  
-App version: **6.1.0**  
-Generated: `2026-04-18T17:28:10Z`  
+App version: **7.1.0**  
+Generated: `2026-04-22T11:55:17Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 

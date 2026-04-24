@@ -1,0 +1,116 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.97",
+  "title": "PCI-DSS 8.4 — MFA coverage: administrative access to CDE without MFA",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "privileged-session-recording",
+  "exclusions": "Does NOT govern who can be an admin; detects admin access attempts into the CDE that did not use MFA.",
+  "evidence": "Saved search 'pci_8_4_mfa_coverage' (every 10m) emits per session: admin, dest, session_type, mfa_used, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "8.4",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI-DSS 8.4 MFA for administrative access to the CDE — directly evidenced."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.8.5",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.5 Secure authentication — directly evidenced."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "IA-2(1)",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "NIST 800-53 IA-2(1) MFA to privileged accounts — directly evidenced."
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.9",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "DORA Art.9 Protection — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A test admin session from bastion to a CDE host with mfa_used=0 fires within 10m.",
+    "negativeScenario": "A bastion session showing mfa_used=1 is absent.",
+    "fixtureRef": "sample-data/uc-22.11.97-fixture.json",
+    "attackTechnique": "T1078"
+  },
+  "dataSources": "`index=windows` EventCode 4624/4672; `index=linux` auditd; bastion/PAM `index=pam` sourcetype=cyberark:pam; CDE-dest lookup `cde_hosts.csv`.",
+  "app": "Splunk Add-on for CyberArk",
+  "spl": "search (index=windows sourcetype=WinEventLog:Security EventCode IN (4624,4672)) OR (index=pam sourcetype=cyberark:pam event_type=session_start) earliest=-10m\n| rename target_host AS dest\n| lookup cde_hosts.csv hostname=dest OUTPUT in_cde\n| lookup privileged_accounts.csv user AS admin OUTPUT is_privileged\n| where in_cde=\"yes\" AND is_privileged=\"yes\"\n| eval mfa_used=if(match(_raw,\"(?i)mfa|2fa|push|webauthn|smartcard\"),1,0)\n| where mfa_used=0\n| table admin dest session_type mfa_used",
+  "description": "Administrative access to the CDE must use MFA. PCI-DSS 8.4 (formerly 8.3) explicitly requires MFA for administrative access. This UC detects misses.",
+  "value": "The #1 QSA finding in failed assessments. Converting this to a 10-minute detection reduces remediation cost 100×.",
+  "implementation": "(1) Integrate PAM/bastion; (2) maintain cde_hosts.csv + privileged_accounts.csv; (3) schedule UC every 10m; (4) hit revokes session; (5) monthly CISO review.",
+  "visualization": "Heatmap of admins × destinations, table of non-MFA sessions, single value 'non-MFA admin in CDE'.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "title": "NIST 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "DORA Regulation (EU) 2022/2554",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1078/",
+      "title": "MITRE ATT&CK — T1078",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Break-glass emergency access with compensating controls (hardware-token-only) must log mfa_used=1 via its own sourcetype — route to the field correctly.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "admin",
+    "dest",
+    "session_type",
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

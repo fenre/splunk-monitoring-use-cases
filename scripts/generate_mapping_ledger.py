@@ -54,6 +54,7 @@ from typing import Any, Iterable
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 USE_CASES_DIR = ROOT / "use-cases"
+CONTENT_DIR = ROOT / "content"
 REGULATIONS_JSON = ROOT / "data" / "regulations.json"
 LEDGER_PATH = ROOT / "data" / "provenance" / "mapping-ledger.json"
 SIGNOFFS_DIR = ROOT / "data" / "provenance"
@@ -158,6 +159,11 @@ NAME_TABLE: dict[str, str] = {
     "UK GDPR": "uk-gdpr",
     "UK NIS": "uk-nis",
     "UK-GDPR": "uk-gdpr",
+    "Basel III": "basel-iii",
+    "FERC CIP": "ferc-cip",
+    "SOX": "sox-itgc",
+    "UN R155": "unece-r155",
+    "UN R156": "unece-r156",
     "eIDAS": "eidas",
 }
 
@@ -229,16 +235,23 @@ def normalise_version(regulation_id: str, raw_version: str) -> str:
 
 
 def iter_uc_sidecars() -> Iterable[pathlib.Path]:
-    """All UC sidecars under use-cases/ (excluding templates)."""
-    for path in sorted(USE_CASES_DIR.rglob("*.json")):
-        # Skip templates or schema-only files by convention (must have 'id').
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
+    """All UC sidecars under content/ and use-cases/."""
+    seen: set[str] = set()
+    for root_dir, glob in ((CONTENT_DIR, "UC-*.json"), (USE_CASES_DIR, "uc-*.json")):
+        if not root_dir.exists():
             continue
-        if not isinstance(data, dict) or "id" not in data:
-            continue
-        yield path
+        for path in sorted(root_dir.rglob(glob)):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(data, dict) or "id" not in data:
+                continue
+            uid = data["id"]
+            if uid in seen:
+                continue
+            seen.add(uid)
+            yield path
 
 
 # ----------------------------------------------------------------------

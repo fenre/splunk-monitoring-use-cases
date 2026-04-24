@@ -1,17 +1,17 @@
 # Splunk Use Cases — SOX ITGC compliance
 
 App ID: `splunk-uc-sox-itgc`  
-App version: **6.1.0**  
-Generated: `2026-04-18T17:28:10Z`  
+App version: **7.1.0**  
+Generated: `2026-04-22T11:55:17Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
-This app packages **72 use cases** from the upstream catalogue that cite SOX — PCAOB AS 2201 ITGCs (`sox-itgc`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
+This app packages **73 use cases** from the upstream catalogue that cite SOX — PCAOB AS 2201 ITGCs (`sox-itgc`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
 
 * Regulation tier: **1**
 * Jurisdictions: US
 * Versions covered: PCAOB AS 2201
-* UCs by criticality: critical = 23, high = 21, low = 9, medium = 13, unspecified = 6
+* UCs by criticality: critical = 26, high = 25, low = 9, medium = 13
 
 
 ## Most-referenced clauses
@@ -69,12 +69,13 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 
 | UC | Title | Criticality | Clauses |
 |----|-------|-------------|---------|
-| UC-7.1.13 | Schema Change Detection |  | ITGC.ChangeMgmt.Authorization |
-| UC-7.1.21 | Database User and Privilege Change Audit |  | ITGC.AccessMgmt.Privileged |
-| UC-7.1.40 | Database Audit Log Tampering Detection |  | ITGC.Logging.Continuity |
-| UC-9.5.15 | Okta User Lifecycle Events (Provisioning / Deprovisioning) |  | ITGC.AccessMgmt.Provisioning |
-| UC-12.2.17 | Deploy Approval Bypass Detection |  | ITGC.ChangeMgmt.Approval |
-| UC-16.4.1 | Unauthorized Change Detection |  | ITGC.ChangeMgmt.Authorization |
+| UC-7.1.13 | Schema Change Detection | high | ITGC.ChangeMgmt.Authorization |
+| UC-7.1.21 | Database User and Privilege Change Audit | high | ITGC.AccessMgmt.Privileged |
+| UC-7.1.40 | Database Audit Log Tampering Detection | critical | ITGC.Logging.Continuity |
+| UC-9.5.15 | Okta User Lifecycle Events (Provisioning / Deprovisioning) | high | ITGC.AccessMgmt.Provisioning |
+| UC-10.12.8 | SOX Access Control Audit | high | ITGC.Access.Review |
+| UC-12.2.17 | Deploy Approval Bypass Detection | critical | ITGC.ChangeMgmt.Approval |
+| UC-16.4.1 | Unauthorized Change Detection | critical | ITGC.ChangeMgmt.Authorization |
 | UC-22.6.55 | ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence | medium | ITGC.ChangeMgmt.Approval |
 | UC-22.9.8 | Compliance Trending — Auditor Evidence Pack Generation Volume and Deficiency Rate | medium | ITGC.Logging.Continuity |
 | UC-22.11.95 | PCI-DSS 6.2 — Bespoke-software SDLC: code-review + SAST completion before CDE deploy | high | ITGC.ChangeMgmt.Testing |

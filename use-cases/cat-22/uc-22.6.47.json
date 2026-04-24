@@ -1,0 +1,86 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.6.47",
+  "title": "ISO/IEC 27001:2022 Clause 6.2 — Information-security objectives: measurable-target attainment",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "board-exec-reporting",
+  "exclusions": "Does NOT synthesise objectives; consumes the objectives the ISMS committee has set and reports current attainment against the numeric target for each.",
+  "evidence": "Saved search 'iso_27001_6_2_objective_attainment' (daily) emits per objective: objective_id, target, current, attainment_pct, trend_7d, status, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "6.2",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 6.2 requires information-security objectives to be measurable; live attainment against the documented target is the direct evidence."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "9.1",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Clause 9.1 (monitoring, measurement, analysis, evaluation) — same measurements feed it."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "PM-6",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "NIST 800-53 PM-6 Measures of Performance — contributes evidence."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "An objective whose current value is below its target returns status=below_target in the next daily run.",
+    "negativeScenario": "An objective meeting its target returns status=met.",
+    "fixtureRef": "sample-data/uc-22.6.47-fixture.json"
+  },
+  "dataSources": "`index=compliance` sourcetype=isms:objective_result (push from ISMS KPIs); objective targets lookup `iso_27001_objectives.csv`.",
+  "app": "Splunk Enterprise Security",
+  "spl": "| inputlookup iso_27001_objectives.csv\n| join type=outer objective_id\n  [search index=compliance sourcetype=isms:objective_result earliest=-30d\n   | stats latest(value) AS current latest(_time) AS measured_at BY objective_id\n   | eval measured_at=strftime(measured_at,\"%Y-%m-%d\")]\n| eval attainment_pct=round(100*current/target,1)\n| eval status=if(attainment_pct>=100,\"met\",\"below_target\")\n| table objective_id target current attainment_pct measured_at status",
+  "description": "Aligns every Clause 6.2 numeric objective (e.g., 'mean-time-to-patch <30d', 'phishing click rate <3%', 'privileged-session-recording coverage >95%') against its live value. The table is the quarterly Board report.",
+  "value": "Replaces the manual spreadsheet most ISMS programmes use to report objective attainment. Auditors see the live measurement, the target, and the last update in a single reproducible query.",
+  "implementation": "(1) Push each KPI to index=compliance nightly with objective_id tag; (2) maintain iso_27001_objectives.csv as the ISMS-committee-approved target list; (3) schedule UC daily; (4) status=below_target opens an ISMS action; (5) quarterly Board pack exports the table.",
+  "visualization": "Bullet chart of attainment % vs target, line chart of 30-day trend per objective, single value 'objectives below target'.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "title": "NIST 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Objective targets revised by the ISMS committee within the look-back window create an apparent regression — use the effective-from column in the lookup to compute status.",
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "objective_id",
+    "value",
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

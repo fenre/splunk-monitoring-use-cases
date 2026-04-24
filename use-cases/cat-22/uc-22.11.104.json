@@ -1,0 +1,92 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.104",
+  "title": "PCI-DSS 11.4 — Intrusion detection: IDS signature/health attestation + untuned alert monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IR",
+  "controlFamily": "log-source-completeness",
+  "exclusions": "Does NOT review alerts; attests the IDS/IPS sensors are healthy, up-to-date on signatures, and producing events.",
+  "evidence": "Saved search 'pci_11_4_ids_attest' (every 30m) emits per sensor: sensor, last_seen, sig_version, age_d, state, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "11.4",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI-DSS 11.4 Intrusion detection / prevention — directly evidenced."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.8.16",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.16 Monitoring activities — directly evidenced."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC7.1",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SOC 2 CC7.1 — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Disabling a sensor for 40m returns it with state=offline.",
+    "negativeScenario": "A healthy sensor with signatures ≤7d old is absent.",
+    "fixtureRef": "sample-data/uc-22.11.104-fixture.json"
+  },
+  "dataSources": "`index=ids` sourcetype IN (suricata:eve,snort:ids,palo:threat); sensor inventory `pci_ids_sensors.csv`.",
+  "app": "Splunk Add-on for Suricata, Splunk Add-on for Palo Alto Networks (2757)",
+  "spl": "| inputlookup pci_ids_sensors.csv\n| join type=outer sensor\n  [search index=ids earliest=-30m\n   | stats latest(_time) AS last_seen latest(sig_version) AS sig_version BY sensor]\n| eval age_d=round((now()-strptime(sig_version,\"%Y-%m-%d\"))/86400,0)\n| eval state=case(isnull(last_seen),\"offline\",last_seen<now()-1800,\"stale\",age_d>7,\"signatures-stale\",true(),\"healthy\")\n| where state!=\"healthy\"\n| table sensor last_seen sig_version age_d state",
+  "description": "PCI-DSS 11.4 requires IDS/IPS use. This UC attests the sensors are alive and their signatures are fresh. Sensor gaps are a top-3 audit finding.",
+  "value": "Transforms annual sign-off into 30-minute ground-truth. IR team sees stale signatures before they become an audit issue.",
+  "implementation": "(1) Maintain pci_ids_sensors.csv; (2) onboard sensor telemetry; (3) schedule UC every 30m; (4) non-healthy state opens a P1/P2; (5) monthly CISO review.",
+  "visualization": "Donut of state, table of non-healthy sensors, single value 'stale sensors'.",
+  "cimModels": [
+    "Intrusion_Detection"
+  ],
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Sensor maintenance windows legitimately show 'offline' — allowlist with maintenance_calendar.csv.",
+  "detectionType": "Baseline",
+  "securityDomain": "network",
+  "requiredFields": [
+    "sensor",
+    "sig_version",
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

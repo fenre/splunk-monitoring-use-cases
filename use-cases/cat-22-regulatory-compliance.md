@@ -36981,7 +36981,7 @@ index=grc sourcetype IN (archer:control,servicenow:grc_control) earliest=-1d
 ```
 - **Implementation:** (1) Onboard auth data to CIM Authentication DM; (2) maintain financial_services_servers.csv from the ICT asset register nightly; (3) schedule UC hourly; (4) hit opens a ServiceNow CMDB task to register the host; (5) SLA: resolve within 72h or isolate; (6) exclude build/imaging windows with an effective-from allowlist.
 - **Visualization:** Bar chart of inventory gaps by financial service, table of hosts with count, single value 'hosts in gap'.
-- **CIM Models:** Authentication, Compute_Inventory
+- **CIM Models:** Authentication, Inventory
 - **Known false positives:** Short-lived CI/CD build runners used for payments tests may legitimately appear off-inventory — allow-list by hostname-pattern in financial_services_servers.csv with a 24h TTL.
 - **References:** [DORA Regulation (EU) 2022/2554](https://eur-lex.europa.eu/eli/reg/2022/2554/oj), [ISO/IEC 27001 2022](https://www.iso.org/standard/27001), [NIS2 Directive (EU) 2022/2555](https://eur-lex.europa.eu/eli/dir/2022/2555/oj), [MITRE ATT&CK — T1078](https://attack.mitre.org/techniques/T1078/)
 
@@ -37568,7 +37568,7 @@ index=dlp sourcetype IN (symantec:dlp,microsoft:purview:dlp) severity IN ("high"
 ```
 - **Implementation:** (1) Onboard DLP; (2) maintain approved_egress.csv; (3) schedule UC every 30m; (4) hit opens a P1 to DPO + user's manager; (5) weekly DPO report.
 - **Visualization:** Table of unapproved egress detections, bar chart by policy, single value 'new unapproved egress (1h)'.
-- **CIM Models:** DLP
+- **CIM Models:** Data Loss Prevention
 - **Known false positives:** Legitimate cross-tenant file shares with approved partners can produce detections — allowlist by partner in approved_egress.csv.
 - **References:** [SOC-2 2017 TSC](https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services), [ISO/IEC 27001 2022](https://www.iso.org/standard/27001), [HIPAA Security Rule 2013-final](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164), [PCI-DSS v4.0](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf), [MITRE ATT&CK — T1048](https://attack.mitre.org/techniques/T1048/)
 
