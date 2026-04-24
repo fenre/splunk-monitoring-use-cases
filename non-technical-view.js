@@ -241,6 +241,11 @@ window.NON_TECHNICAL = {
         { id: "5.12.1", why: "Track call failure statistics — rising failure rates mean network or routing problems." },
         { id: "5.12.5", why: "Monitor voice quality scores — low scores mean poor call quality for users." },
         { id: "5.12.10", why: "Detect toll fraud — unauthorised calls running up huge charges." }
+      ]},
+      { name: "Cisco Catalyst Center", description: "Your network management brain — we watch every device, every user connection, every wireless signal, and every security advisory that Catalyst Center tracks, so your team knows about problems before users do.", ucs: [
+        { id: "5.13.1", why: "See the health of every network device at a glance — spot struggling equipment before it causes outages." },
+        { id: "5.13.9", why: "Know how many users are having good, fair, or poor connectivity — wired and wireless." },
+        { id: "5.13.35", why: "Get alerted when a critical Cisco security vulnerability affects your network devices." }
       ]}
     ]
   },

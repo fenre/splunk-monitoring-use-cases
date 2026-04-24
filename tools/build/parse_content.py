@@ -259,6 +259,8 @@ def _load_categories_from_content(
                 "n": sub.get("name", ""),
                 "u": [],
             }
+            if sub.get("guide"):
+                sub_record["g"] = sub["guide"]
             sub_buckets[bucket_key] = sub_record
             record["s"].append(sub_record)
 

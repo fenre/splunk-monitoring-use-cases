@@ -490,6 +490,7 @@ function renderSubcategoryView() {
     html += '<span class="sc-view-card-id">' + esc(String(sc.i)) + '</span>';
     html += '<h3 class="sc-view-card-name">' + esc(sc.n) + '</h3>';
     html += '<span class="sc-view-card-count">' + displayCount + ' use cases</span>';
+    if (sc.g) html += '<a class="sc-guide-link" href="' + esc(sc.g) + '" onclick="event.stopPropagation()" target="_blank" title="Integration Guide">' + si('external') + ' Guide</a>';
     html += '</div>';
 
     html += '<div class="sc-view-card-crit">';
@@ -568,7 +569,8 @@ function renderCategory() {
       var scUCs = filtered.filter(function(e) { return e.sc.i === sc.i; });
       if (!scUCs.length) return;
       var sid = 'sc-' + String(sc.i).replace(/\./g, '_');
-      html += '<div class="c-subcat-group" id="' + sid + '"><div class="c-subcat-title">' + esc(sc.n) + ' (' + scUCs.length + ')</div>';
+      var guideBtn = sc.g ? ' <a class="sc-guide-link" href="' + esc(sc.g) + '" target="_blank" title="Integration Guide">' + si('external') + ' Integration Guide</a>' : '';
+      html += '<div class="c-subcat-group" id="' + sid + '"><div class="c-subcat-title">' + esc(sc.n) + ' (' + scUCs.length + ')' + guideBtn + '</div>';
       html += '<div class="uc-grid">';
       scUCs.forEach(function(e) { html += renderUCCard(e.uc); });
       html += '</div></div>';
