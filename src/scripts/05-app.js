@@ -673,6 +673,10 @@ function ntResolveLink(relativePath) {
   if (primerMatch) {
     return 'regulatory-primer.html' + (primerMatch[1] || '');
   }
+  var guideMatch = s.match(/^docs\/guides\/([\w-]+\.md)(#.*)?$/);
+  if (guideMatch) {
+    return 'guide-reader.html?src=' + encodeURIComponent(s) + (guideMatch[2] || '');
+  }
   return NTV_REPO_BASE + s;
 }
 function renderNonTechnicalCategory(catId) {

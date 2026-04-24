@@ -162,7 +162,7 @@ function fillPanelBody(e) {
   if (uc.m) html += '<div class="c-panel-section"><div class="c-panel-section-title">Implementation</div><div class="c-panel-section-body">' + esc(stripMd(uc.m)) + '</div></div>';
   if (uc.md) html += '<details class="c-panel-details"><summary>Detailed implementation</summary><div class="c-panel-section-body">' + renderDetailBody(uc.md) + '</div></details>';
   if (uc.kfp) html += '<div class="c-panel-section"><div class="c-panel-section-title">Known false positives</div><div class="c-panel-section-body">' + esc(stripMd(uc.kfp)) + '</div></div>';
-  if (uc.refs) html += '<div class="c-panel-section"><div class="c-panel-section-title">References</div><div class="c-panel-section-body">' + esc(stripMd(uc.refs)) + '</div></div>';
+  if (uc.refs) html += '<div class="c-panel-section"><div class="c-panel-section-title">References</div><div class="c-panel-section-body">' + linkifyRefs(uc.refs) + '</div></div>';
   if (uc.dma) html += '<div class="c-panel-section"><div class="c-panel-section-title">Data model acceleration</div><div class="c-panel-section-body">' + esc(stripMd(uc.dma)) + '</div></div>';
   if (uc.z) {
     html += '<div class="c-panel-section"><div class="c-panel-section-title">Visualization</div><div class="c-panel-section-body">' + esc(stripMd(uc.z)) + '</div>';

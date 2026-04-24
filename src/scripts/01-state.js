@@ -68,6 +68,29 @@ function linkify(s) {
   t = t.replace(/(^|[\s(])(https?:\/\/[^\s)<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
   return t;
 }
+function linkifyRefs(s) {
+  if (!s) return '';
+  var t = String(s);
+  t = t.replace(/`([^`]+)`/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1');
+  var parts = t.split(/,\s*/);
+  var out = [];
+  parts.forEach(function (p) {
+    var m = p.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (m) {
+      var label = esc(m[1]), url = m[2];
+      if (/^docs\/guides\/[\w-]+\.md/i.test(url)) {
+        out.push('<a href="guide-reader.html?src=' + encodeURIComponent(url) + '">' + label + '</a>');
+      } else if (/^https?:\/\//i.test(url)) {
+        out.push('<a href="' + esc(url) + '" target="_blank" rel="noopener">' + label + '</a>');
+      } else {
+        out.push('<a href="' + esc(url) + '">' + label + '</a>');
+      }
+    } else {
+      out.push(esc(p));
+    }
+  });
+  return out.join(', ');
+}
 
 var CRIT_ORDER = {critical:0, high:1, medium:2, low:3};
 var DIFF_ORDER = {beginner:0, intermediate:1, advanced:2, expert:3};
