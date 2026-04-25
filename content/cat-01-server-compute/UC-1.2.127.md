@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.127.json — DO NOT EDIT -->
+
 ---
 id: "1.2.127"
 title: "Automatic Windows Update Compliance"
@@ -13,7 +15,7 @@ Unpatched systems are the primary attack surface. Tracking Windows Update status
 
 ## Value
 
-Unpatched systems are the primary attack surface. Tracking Windows Update status across all systems ensures timely patching and compliance reporting.
+Stale patch state is how most large incidents start. Making update success, failure, and age visible per host supports both vulnerability risk and audit questions on build standards.
 
 ## Implementation
 
@@ -53,7 +55,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **Status** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **DaysSinceUpdate** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where DaysSinceUpdate>30 OR FailCount>0` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
@@ -95,6 +97,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-WindowsUpdateClient/Oper
 | eval DaysSinceUpdate=round((now()-LastUpdate)/86400, 0)
 | where DaysSinceUpdate>30 OR FailCount>0
 | sort -DaysSinceUpdate
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.dest span=1d
+| where count > 0
 ```
 
 ## Visualization

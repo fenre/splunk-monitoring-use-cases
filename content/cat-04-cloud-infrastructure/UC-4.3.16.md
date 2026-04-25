@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.3.16.json — DO NOT EDIT -->
+
 ---
 id: "4.3.16"
 title: "Artifact Registry Push/Pull and Vulnerability Scan"
@@ -51,7 +53,7 @@ The first pipeline stage scopes events using **index**: gcp; **sourcetype**: goo
 
 • Scopes the data: index=gcp, sourcetype="google:gcp:pubsub:message". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Extracts structured paths (JSON/XML) with `spath`.
-• `stats` rolls up events into metrics; results are split **by method resource.labels.repository** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by method resource.labels.repository** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 

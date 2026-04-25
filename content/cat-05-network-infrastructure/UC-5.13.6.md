@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.6.json — DO NOT EDIT -->
+
 ---
 id: "5.13.6"
 title: "Device Reachability Loss Detection"
@@ -22,40 +24,45 @@ Requires UC-5.13.3 alerting in place. Filter specifically on `reachabilityHealth
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).
-• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:devicehealth (Catalyst Center /dna/intent/api/v1/device-health).
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• **UC-5.13.3** baselines in place; this UC **narrows** to **`reachabilityHealth="Unreachable"`** only (management-plane loss from Catalyst Center’s view).
+• Cisco Catalyst Add-on (7538), **devicehealth** → `cisco:dnac:devicehealth` on `index=catalyst`.
+• **Time alignment:** use **same timezone** in Splunk and Catalyst Center operators’ consoles; **`duration_min`** is based on event **`_time`** in the search window.
+• See `docs/implementation-guide.md`.
 
 Step 1 — Configure data collection
-Requires UC-5.13.3 alerting in place. Filter specifically on `reachabilityHealth="Unreachable"` and schedule frequently (for example every 5–15 minutes) with P1-style routing. Confirm Catalyst Center and Splunk time zones align so `duration_min` matches operator expectations.
+• **Intent API:** `GET /dna/intent/api/v1/device-health`; **`reachabilityHealth`** is typically **`Reachable`** or **`Unreachable`** (exact strings—**verify in raw** JSON).
+• **TA input:** **devicehealth**; poll **every 5–15 minutes** for this use case if you can sustain API load—unreachability is **P1**-class for many teams.
+• **Prerequisite:** if **`reachabilityHealth`** is often blank for some platforms, document product-specific behavior and do not **page** on those until fields are reliable.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
 ```spl
 index=catalyst sourcetype="cisco:dnac:devicehealth" reachabilityHealth="Unreachable" | stats count as unreachable_count earliest(_time) as first_unreachable latest(_time) as last_seen by deviceName, managementIpAddress, deviceType, siteId | eval duration_min=round((last_seen-first_unreachable)/60,0) | sort -duration_min
 ```
 
 Understanding this SPL
-
-**Device Reachability Loss Detection** — Unreachable devices represent the most severe health state — they may be completely down. Rapid detection reduces outage duration and blast radius.
-
-Documented **Data sources**: index=catalyst, sourcetype cisco:dnac:devicehealth (Catalyst Center /dna/intent/api/v1/device-health). **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: catalyst; **sourcetype**: cisco:dnac:devicehealth. That sourcetype matches what this use case lists under Data sources.
+• **Implicit filter** on **`reachabilityHealth="Unreachable"`**—if your build uses a different token, **adjust** the literal.
+• **`earliest`/`latest`** in the `stats` bracket **unreachable** samples in the chosen window; **`duration_min`** is a **rough** session length, not a full ICMP history.
+• **Sort** by **`-duration_min`** emphasizes **sustained** unreachability; pair with a **“first seen”** window filter to suppress **one-poll** blips if needed.
 
 **Pipeline walkthrough**
-
-• The search filter at index time or SPL filter keeps only rows where `reachabilityHealth` is Unreachable, focusing the runbook on full loss of management.
-• `stats` per device records how many such samples occurred plus `earliest` and `latest` timestamps to bracket the incident window.
-• `eval` converts the span to minutes for handoff; `sort -duration_min` highlights persistently dark devices versus brief blips (with appropriate time window choice).
-
+• **Search-time** filter (or `where`) for **unreachable** rows.
+• **Per-device** `stats` for **count** and time span; **`eval`** for minutes.
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+• Put a test device in **isolated** management failure (lab) and confirm **Unreachable** in **Catalyst** **Assurance** and the same in Splunk within **two** polls.
+• Compare **duration** to **tickets**—if **duration_min** is always **0**, your window may be too **narrow** or only one event exists per device.
+• **Join** to **UC-5.13.1** **overallHealth** in a **subsearch** to see if **unreachable** correlates with **null** or **0** health.
 
-Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of unreachable devices with duration, timeline panel of first to last event, link-out to IP management or CMDB.
+Step 4 — Operationalize (alerting)
+• **Schedule:** **5–15 min**; **time range** **Last 15–30 min** with overlap to **miss** no polls.
+• **Route:** **P1**-style for **production** `siteId`; **throttle** per **device**; **suppression** during **change** **windows** (lookup of **expected** work).
+• **Ticket body:** `deviceName`, `managementIpAddress`, `siteId`, **`duration_min`**, **link** to **Device 360** in **Catalyst Center**.
+
+Step 5 — Troubleshooting
+• **False unreachability:** **routing** to the **management** **VLAN**; **co-boxed** **firewall** rule; path asymmetry to the controller.
+• **Flapping between Reachable/Unreachable:** check **Catalyst** **issues** and **infrastructure** changes before assuming hardware—may be **vPC/HSRP** work or **transient** path loss.
+• **User impact unclear:** this UC is **management** **reachability** from **Catalyst Center**—validate **data** plane with **separate** tests if users report outages while the device still “works” in **Assurance** for **data** only.
+
 
 ## SPL
 
@@ -71,3 +78,4 @@ Table of unreachable devices with duration, timeline panel of first to last even
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

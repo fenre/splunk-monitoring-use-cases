@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.78.json — DO NOT EDIT -->
+
 ---
 id: "1.2.78"
 title: "DSRM Account Usage"
@@ -13,7 +15,7 @@ The Directory Services Restore Mode (DSRM) account is a local admin on every DC 
 
 ## Value
 
-The Directory Services Restore Mode (DSRM) account is a local admin on every DC with a rarely-changed password. Its use outside restores indicates compromise.
+The DSRM account can fully control a domain controller outside normal directory rules. Surfacing password changes and suspicious local admin logons buys time before an attacker misuses recovery access across the forest.
 
 ## Implementation
 
@@ -55,6 +57,17 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Pipeline stage (see **DSRM Account Usage**): table _time, host, alert_type, SubjectUserName, IpAddress
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant:
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.src Authentication.dest span=1h
+| where count >= 1
+```
+
+Enable **data model acceleration** on `Authentication`. Refine `where` with your CIM aliases for 4794 vs 4624; the primary search in Step 2 stays the source of truth.
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -72,6 +85,15 @@ index=wineventlog sourcetype="WinEventLog:Security"
 | sort -_time
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.src Authentication.dest span=1h
+| where count >= 1
+```
+
 ## Visualization
 
 Table (DSRM events), Single value (count — target: 0 outside restore operations), Alert.
@@ -79,3 +101,4 @@ Table (DSRM events), Single value (count — target: 0 outside restore operation
 ## References
 
 - [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+- [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)

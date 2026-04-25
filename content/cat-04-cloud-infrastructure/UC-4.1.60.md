@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.60.json — DO NOT EDIT -->
+
 ---
 id: "4.1.60"
 title: "Security Hub Alert Aggregation"
@@ -57,13 +59,17 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 • Expands multivalue fields with `mvexpand` — use `limit=` to cap row explosion.
 • Extracts structured paths (JSON/XML) with `spath`.
 • Extracts structured paths (JSON/XML) with `spath`.
-• `stats` rolls up events into metrics; results are split **by sev, title, account** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by sev, title, account** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.action, IDS_Attacks.signature, IDS_Attacks.src, IDS_Attacks.dest | sort - count
+| tstats `summariesonly` count
+  from datamodel=Alerts.Alerts
+  where match(Alerts.app, "(?i)security|hub|firehose|findings")
+  by Alerts.severity Alerts.signature span=1h
+| sort -count
 ```
 
 Understanding this CIM / accelerated SPL
@@ -103,7 +109,11 @@ index=aws sourcetype="aws:cloudwatch:events" detail-type="Security Hub Findings 
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.action, IDS_Attacks.signature, IDS_Attacks.src, IDS_Attacks.dest | sort - count
+| tstats `summariesonly` count
+  from datamodel=Alerts.Alerts
+  where match(Alerts.app, "(?i)security|hub|firehose|findings")
+  by Alerts.severity Alerts.signature span=1h
+| sort -count
 ```
 
 ## Visualization

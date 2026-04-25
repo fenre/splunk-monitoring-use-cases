@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.3.17.json — DO NOT EDIT -->
+
 ---
 id: "8.3.17"
 title: "Kafka Topic Partition Skew"
@@ -51,7 +53,7 @@ The first pipeline stage scopes events using **index**: kafka; **sourcetype**: k
 **Pipeline walkthrough**
 
 • Scopes the data: index=kafka, sourcetype="kafka:partition_skew". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `eventstats` rolls up events into metrics; results are split **by topic** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `eventstats` rolls up events into metrics; results are split **by topic** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **skew_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where skew_pct > 25` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Kafka Topic Partition Skew**): table topic partition partition_size_bytes skew_pct
@@ -60,7 +62,8 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the broker or gateway’s own UI or CLI (`kafka-consumer-groups`, RabbitMQ management, ActiveMQ console, or Traefik/Envoy access log on the node) for the same period.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (skew % by partition), Table (top skewed topics), Heatmap (broker × partition size).

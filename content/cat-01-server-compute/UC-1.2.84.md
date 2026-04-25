@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.84.json — DO NOT EDIT -->
+
 ---
 id: "1.2.84"
 title: "Sysmon Named Pipe Monitoring"
@@ -13,7 +15,7 @@ Named pipes are used for inter-process communication and by tools like Cobalt St
 
 ## Value
 
-Named pipes are used for inter-process communication and by tools like Cobalt Strike, Mimikatz, and PsExec. Detecting unusual named pipes reveals C2 and lateral movement.
+Named pipes are normal for Windows IPC but also a lane for tool-style activity. The search highlights unusual server-side pipe traffic worth triage before lateral spread.
 
 ## Implementation
 
@@ -70,6 +72,15 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational"
 | where match(PipeName, "(?i)(MSSE-|msagent_|postex_|status_|mojo\.|cobaltstrike|beacon)")
 | table _time, host, EventCode, PipeName, Image, User
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Endpoint.Processes
+  by Processes.process_name Processes.parent_process_name Processes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.2.10.json — DO NOT EDIT -->
+
 ---
 id: "9.2.10"
 title: "LDAPS Certificate Validation"
@@ -49,12 +51,12 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 **Pipeline walkthrough**
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:System". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by ComputerName, EventCode, Message** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by ComputerName, EventCode, Message** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the directory server’s admin or audit view (bind DNs, result codes) for the same time range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (hosts with TLS errors), Timeline, Single value (LDAPS errors 24h).
@@ -70,10 +72,6 @@ index=wineventlog sourcetype="WinEventLog:System" SourceName="Schannel" EventCod
 ## Visualization
 
 Table (hosts with TLS errors), Timeline, Single value (LDAPS errors 24h).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

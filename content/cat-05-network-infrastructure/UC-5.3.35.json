@@ -17,7 +17,7 @@
   "implementation": "Enable audit logging, command logging, and API access logging on the ADC; ensure administrators cannot disable logging without a separate control. Forward to `index=netscaler` with role-based read restrictions in Splunk. Retention per policy. Consider streaming critical commands to a write-once store. Alert on new admin accounts, off-hours `save ns config` bursts, or API keys used from new subnets.",
   "visualization": "Table: recent high-risk commands, user timeline, count of `save` events per day, map of source IP (if approved).",
   "cimModels": [
-    "Change"
+    "Authentication"
   ],
   "references": [
     {
@@ -25,11 +25,15 @@
       "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
     },
     {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    },
+    {
       "title": "Citrix ADC — Auditing and logging",
       "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/system/audit-logging.html"
     }
   ],
-  "knownFalsePositives": "NetScaler MAS, ADM, Ansible, and Terraform can log thousands of CLI-style actions that resemble privilege abuse. Allowlist automation source IPs and runbook SIDs; require interactive shell or a change outside the automation role for escalation.",
+  "knownFalsePositives": "Break-glass, automation, and many admins on-call can add audit lines that look high but are expected.",
   "mitreAttack": [
     "T1078",
     "T1098"
@@ -42,6 +46,8 @@
     "citrix_netscaler"
   ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• NetScaler 12+ audit features enabled per security standard.\n• Splunk access controls: admin logs readable only to security and few network owners.\n\nStep 1 — Configure data collection\nPoint syslog to HEC with TLS. Verify timestamp and NTP. Mask sensitive strings if required. Use SNI-capable log forwarders if in cloud.\n\nStep 2 — Create the search and alert\nBuild saved searches for: after-hours `save`, bulk deletions, user adds, and API mass operations. Throttle to avoid noise; route to a ticket with session context link.\n\nStep 3 — Validate\nIn lab, run benign commands, save config, and call a read-only NITRO endpoint. Confirm all appear with correct `admin` and source address.\n\nStep 4 — Operationalize\nQuarterly review: unused accounts, API keys, and certificate trust for automation callers.",
-  "grandmaExplanation": "We keep a clear diary of who changed the important boxes at the network edge, including remote control sessions — so no one tampers without leaving fingerprints we can show auditors and managers."
+  "detailedImplementation": "Prerequisites\n• NetScaler 12+ audit features enabled per security standard.\n• Splunk access controls: admin logs readable only to security and few network owners.\n\nStep 1 — Configure data collection\nPoint syslog to HEC with TLS. Verify timestamp and NTP. Mask sensitive strings if required. Use SNI-capable log forwarders if in cloud.\n\nStep 2 — Create the search and alert\nBuild saved searches for: after-hours `save`, bulk deletions, user adds, and API mass operations. Throttle to avoid noise; route to a ticket with session context link.\n\n\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  by Authentication.user Authentication.action Authentication.src Authentication.app span=1h\n| sort -count\n```\n\nUnderstanding this CIM / accelerated SPL\n\nThis block uses `tstats` on the Authentication data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for the Authentication model — enable acceleration and confirm CIM tags on your source data.\n• Order and filter as needed for your environment (index-time filters, allowlists, and buckets).\n\nEnable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.\n\n\n\nStep 3 — Validate\nCompare vservers, services, and load-balancing state in the Citrix ADC management view or command line for the same time window and objects.\nStep 4 — Operationalize\nQuarterly review: unused accounts, API keys, and certificate trust for automation callers.",
+  "grandmaExplanation": "We keep an audit line for shell and high-privilege work on the same box so who touched what, and when, is plain in one trail.",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  by Authentication.user Authentication.action Authentication.src Authentication.app span=1h\n| sort -count",
+  "dataModelAcceleration": "Enable acceleration on the Authentication data model, dataset Authentication, before using this tstats search."
 }

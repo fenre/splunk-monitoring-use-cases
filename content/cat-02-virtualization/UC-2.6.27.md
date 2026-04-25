@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.6.27.json — DO NOT EDIT -->
+
 ---
 id: "2.6.27"
 title: "Endpoint Security Analytics (ESA) Threat Detection"
@@ -51,32 +53,10 @@ The first pipeline stage scopes events using **index**: uberagent; **sourcetype*
 **Pipeline walkthrough**
 
 • Scopes the data: index=uberagent, sourcetype="uberAgentESA:ActivityMonitoring:ProcessTagging", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by RuleName, RuleSeverity, User, Host, ProcessName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by RuleName, RuleSeverity, User, Host, ProcessName** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where RuleSeverity IN ("critical","high")` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **Endpoint Security Analytics (ESA) Threat Detection**): table Host, User, ProcessName, RuleName, RuleSeverity, count
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.dest | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Endpoint Security Analytics (ESA) Threat Detection** — uberAgent ESA provides endpoint-level threat detection within Citrix sessions using Sigma rules, LOLBAS detection, process tampering monitoring, and file system activity analysis. In multi-user CVAD environments, a compromised session can laterally move to shared resources. ESA detects threats inside the session that network-based security tools cannot see.
-
-Documented **Data sources**: `sourcetype="uberAgentESA:ActivityMonitoring:ProcessTagging"`, `sourcetype="uberAgent:Process:ProcessStartup"`. **App/TA** (typical add-on context): uberAgent ESA (included with uberAgent UXM, Splunkbase 1448). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Intrusion_Detection.IDS_Attacks` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -92,12 +72,6 @@ index=uberagent sourcetype="uberAgentESA:ActivityMonitoring:ProcessTagging" earl
 | where RuleSeverity IN ("critical","high")
 | sort -RuleSeverity, -count
 | table Host, User, ProcessName, RuleName, RuleSeverity, count
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.dest | sort - count
 ```
 
 ## Visualization

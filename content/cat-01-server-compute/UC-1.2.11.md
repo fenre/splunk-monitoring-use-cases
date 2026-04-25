@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.11.json — DO NOT EDIT -->
+
 ---
 id: "1.2.11"
 title: "Blue Screen of Death (BSOD)"
@@ -13,7 +15,7 @@ BSODs indicate severe system instability — driver bugs, hardware failure, or m
 
 ## Value
 
-BSODs indicate severe system instability — driver bugs, hardware failure, or memory corruption. Repeated BSODs on the same host demand immediate attention.
+Repeat BSODs on production hosts are a stability emergency—early visibility shortens the path to a driver, firmware, or hardware fix.
 
 ## Implementation
 
@@ -54,6 +56,20 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Pipeline stage (see **Blue Screen of Death (BSOD)**): table _time host bugcheck_code Message
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1d
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -68,6 +84,15 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode=1001 SourceName="Bug
 | rex "(?<bugcheck_code>0x[0-9a-fA-F]+)"
 | table _time host bugcheck_code Message
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1d
+| where count>0
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.1.26.json — DO NOT EDIT -->
+
 ---
 id: "6.1.26"
 title: "Deduplication Savings Ratio"
@@ -56,10 +58,10 @@ The first pipeline stage scopes events using **index**: storage; **sourcetype**:
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (savings ratio over time), Table (aggregate, logical, physical, ratio), Single value (fleet average ratio).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production—not generic platform steps only. Consider visualizations: Line chart (savings ratio over time), Table (aggregate, logical, physical, ratio), Single value (fleet average ratio).
 
 ## SPL
 
@@ -70,6 +72,16 @@ index=storage sourcetype="storage:dedupe"
 | where ratio < 30
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.storage_used_percent) as used_pct
+  from datamodel=Performance where nodename=Performance.Storage
+  by Performance.host Performance.object span=1h
+| where used_pct > 80
+| sort - used_pct
+```
+
 ## Visualization
 
 Line chart (savings ratio over time), Table (aggregate, logical, physical, ratio), Single value (fleet average ratio).
@@ -77,3 +89,4 @@ Line chart (savings ratio over time), Table (aggregate, logical, physical, ratio
 ## References
 
 - [Cisco DC Networking Application for Splunk](https://splunkbase.splunk.com/app/7777)
+- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

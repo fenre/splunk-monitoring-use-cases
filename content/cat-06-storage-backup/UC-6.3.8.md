@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.3.8.json — DO NOT EDIT -->
+
 ---
 id: "6.3.8"
 title: "Tape Library Health"
@@ -51,15 +53,15 @@ The first pipeline stage scopes events using **index**: backup; **sourcetype**: 
 
 • Scopes the data: index=backup, sourcetype="tape_library". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Applies an explicit `search` filter to narrow the current result set.
-• `stats` rolls up events into metrics; results are split **by library, drive_id, error_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by library, drive_id, error_type** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (drive/media errors), Single value (drives needing attention), Timeline (error events).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Table (drive/media errors), Single value (drives needing attention), Timeline (error events).
 
 ## SPL
 

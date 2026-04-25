@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.28.json — DO NOT EDIT -->
+
 ---
 id: "4.1.28"
 title: "EBS Volume Status and Burst Balance"
@@ -65,6 +67,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/EBS" (metric_name="VolumeStatusCheckFailed" OR metric_name="BurstBalancePercentage")
 | where VolumeStatusCheckFailed > 0 OR BurstBalancePercentage < 20
 | table _time VolumeId metric_name Average
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

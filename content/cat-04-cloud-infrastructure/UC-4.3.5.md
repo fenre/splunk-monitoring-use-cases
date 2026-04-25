@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.3.5.json — DO NOT EDIT -->
+
 ---
 id: "4.3.5"
 title: "Security Command Center"

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.11.5.json — DO NOT EDIT -->
+
 ---
 id: "5.11.5"
 title: "Optical Transceiver Health Monitoring"
@@ -56,11 +58,11 @@ The first pipeline stage scopes events using **index**: gnmi_metrics.
 • Pipeline stage (see **Optical Transceiver Health Monitoring**): table _time, host, name, tx_dbm, rx_dbm, bias_ma, temp_c, concern
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+CIM and metrics: optic telemetry uses **mstats**; environmental optics are not standard CIM Performance fields in most deployments (keep as N/A unless you extend the model).
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare transceiver health metrics to `show transceiver` / optical DOM output for the same interface; reseat optics once before treating thresholds as a fabric crisis.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (optics near threshold), Line chart (Rx/Tx power trend over weeks), Heatmap (temperature across all ports), Gauge (worst-case margin).

@@ -12,13 +12,15 @@
   "dataSources": "`index=messaging` `sourcetype=rabbitmq:metrics` (RabbitMQ Prometheus plugin; federation link gauges/counters with labels `vhost`, `upstream`), optional `sourcetype=rabbitmq:log` for federation plugin errors",
   "app": "RabbitMQ Prometheus (`rabbitmq_prometheus` plugin) scraped to Splunk HTTP Event Collector, or Observability Cloud agent; Universal Forwarder for `rabbit@*.log`",
   "spl": "index=messaging sourcetype=\"rabbitmq:metrics\" earliest=-24h\n| search metric_name=\"rabbitmq_federation_link_up\" OR metric_name=\"rabbitmq_federation_unacked_messages\"\n| eval link_up=if(metric_name=\"rabbitmq_federation_link_up\", coalesce(metric_value, value, gauge), null())\n| eval unacked_upstream=if(metric_name=\"rabbitmq_federation_unacked_messages\", coalesce(metric_value, value, gauge), null())\n| eval vhost_dim=coalesce(vhost, federation_vhost, dimension_vhost)\n| eval upstream_dim=coalesce(upstream, federation_upstream, dimension_upstream)\n| where (isnotnull(link_up) AND link_up==0) OR (isnotnull(unacked_upstream) AND unacked_upstream > 10000)\n| stats latest(link_up) as up latest(unacked_upstream) as unacked by host, vhost_dim, upstream_dim\n| where up==0 OR unacked > 10000\n| table host, vhost_dim, upstream_dim, up, unacked",
-  "description": "Federation links carry traffic across clusters and regions; a link in the down state or a large `rabbitmq_federation_unacked_messages` value means upstream backlog is building and regional DR or hub-spoke routing is at risk. Correlating Prometheus federation metrics with broker logs speeds isolation of TLS, policy, or network faults.",
-  "value": "Protects multi-site messaging topologies from partial outages that otherwise show up only as mysterious queue growth on downstream vhosts.",
-  "implementation": "Enable `rabbitmq_prometheus` and scrape `/metrics` into Splunk; ensure label dimensions map to indexed fields (`vhost`, `upstream`). Alert on `rabbitmq_federation_link_up==0` for tier-1 links and tune unacked threshold by message size.",
-  "visualization": "Table (vhost, upstream, link_up, unacked messages), geomap or topology panel by site, line chart of unacked federation backlog.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "Federation links carry traffic across clusters and regions; a link in the down state or a large `rabbitmq_federation_unacked_messages` value means upstream backlog is building and regional DR or hub-spoke routing is at risk. Correlating Prometheus federation metrics with broker logs speeds isolation of TLS, policy, or network faults.",
+  "value": "Protects multi-site messaging topologies from partial outages that otherwise show up only as mysterious queue growth on downstream vhosts.",
+  "grandmaExplanation": "We use this to protect multi-site messaging topologies from partial outages that otherwise show up only as mysterious queue growth on downstream vhosts.",
+  "implementation": "Enable `rabbitmq_prometheus` and scrape `/metrics` into Splunk; ensure label dimensions map to indexed fields (`vhost`, `upstream`). Alert on `rabbitmq_federation_link_up==0` for tier-1 links and tune unacked threshold by message size.",
+  "visualization": "Table (vhost, upstream, link_up, unacked messages), geomap or topology panel by site, line chart of unacked federation backlog.",
   "references": [
     {
       "title": "RabbitMQ — Federation",
@@ -29,6 +31,7 @@
       "url": "https://www.rabbitmq.com/docs/prometheus"
     }
   ],
+  "knownFalsePositives": "5xx errors spike during deployment rollouts, restart sequences, or backend service maintenance. Health-check noise and synthetic traffic can add false volume if not filtered.",
   "equipment": [
     "prometheus",
     "rabbitmq"
@@ -40,5 +43,5 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We check the bridges that copy messages between RabbitMQ clusters so we know when a link is broken or falling behind before messages stack up out of sight."
+  "detailedImplementation": ""
 }

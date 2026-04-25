@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.3.12.json — DO NOT EDIT -->
+
 ---
 id: "8.3.12"
 title: "ZooKeeper Ensemble Health"
@@ -54,7 +56,8 @@ The first pipeline stage scopes events using **index**: zookeeper; **sourcetype*
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the broker or gateway’s own UI or CLI (`kafka-consumer-groups`, RabbitMQ management, ActiveMQ console, or Traefik/Envoy access log on the node) for the same period.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (node × mode), Line chart (outstanding requests over time), Single value (leader node), Table (ensemble health summary).

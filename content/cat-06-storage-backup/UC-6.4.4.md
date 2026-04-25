@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.4.4.json — DO NOT EDIT -->
+
 ---
 id: "6.4.4"
 title: "Share Permission Changes"
@@ -54,10 +56,10 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (permission changes with details), Timeline (change events), Bar chart (changes by user).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Pair alerts with the file-server or security team runbook and change calendar. Consider visualizations: Table (permission changes with details), Timeline (change events), Bar chart (changes by user).
 
 ## SPL
 

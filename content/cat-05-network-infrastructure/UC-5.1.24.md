@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.1.24.json — DO NOT EDIT -->
+
 ---
 id: "5.1.24"
 title: "Network Device Configuration Backup Freshness"
@@ -51,14 +53,14 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 **Pipeline walkthrough**
 
 • Scopes the data: index=network, sourcetype=config_backup. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, device_hostname** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, device_hostname** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **age_hours** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where age_hours > 24 OR isnull(last_backup)` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Network Device Configuration Backup Freshness**): table device_hostname host last_backup age_hours
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+In your backup product or Git repo UI, find the last successful job for a device in the table and check its timestamp and size against the fields you ingest. Spot-check that devices in maintenance or RMA are in an expected exclude list if they always miss runs.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (device, last backup, age), Single value (devices with stale backup), Gauge (hours since last backup).

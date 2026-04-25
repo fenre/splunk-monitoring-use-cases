@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.35.json — DO NOT EDIT -->
+
 ---
 id: "1.2.35"
 title: "Windows Defender Threat Detections"
@@ -13,7 +15,7 @@ Real-time visibility into endpoint AV detections across the fleet. Delayed respo
 
 ## Value
 
-Real-time visibility into endpoint AV detections across the fleet. Delayed response to malware detections increases blast radius.
+Server-side detections are high stakes—faster handoff to IR or isolation limits spread.
 
 ## Implementation
 
@@ -55,6 +57,20 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • Pipeline stage (see **Windows Defender Threat Detections**): table _time, host, action, "Threat Name", "Severity ID", Path, "Detection User"
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest All_Changes.object span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -70,6 +86,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Defender/Operati
 | eval action=case(EventCode=1006,"Detected",EventCode=1007,"Action taken",EventCode=1116,"Detected",EventCode=1117,"Action taken")
 | table _time, host, action, "Threat Name", "Severity ID", Path, "Detection User"
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest All_Changes.object span=1h
+| where count>0
 ```
 
 ## Visualization

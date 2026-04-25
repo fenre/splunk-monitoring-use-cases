@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.7.json — DO NOT EDIT -->
+
 ---
 id: "4.4.7"
 title: "Cross-Cloud Log Ingestion Pipeline Health"

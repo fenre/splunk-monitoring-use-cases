@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.56.json — DO NOT EDIT -->
+
 ---
 id: "4.1.56"
 title: "AWS Lambda Cold Start Monitoring"
@@ -60,7 +62,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 • Extracts fields with `rex` (regular expression).
 • Extracts fields with `rex` (regular expression).
 • `eval` defines or adjusts **cold_start** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by function_name, bin(_time, 1h)** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by function_name, bin(_time, 1h)** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **cold_start_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where cold_start_pct > 10 OR avg_init_ms > 1000` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **AWS Lambda Cold Start Monitoring**): table _time function_name invocations cold_starts cold_start_pct avg_init_ms avg_duration_ms
@@ -86,6 +88,16 @@ index=aws sourcetype="aws:cloudwatchlogs" ("REPORT RequestId" OR "INIT_START")
 | where cold_start_pct > 10 OR avg_init_ms > 1000
 | table _time function_name invocations cold_starts cold_start_pct avg_init_ms avg_duration_ms
 | sort -cold_start_pct
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  where match(All_Changes.app, "(?i)glue|lambda|logs")
+  by All_Changes.user All_Changes.status span=1h
+| sort -count
 ```
 
 ## Visualization

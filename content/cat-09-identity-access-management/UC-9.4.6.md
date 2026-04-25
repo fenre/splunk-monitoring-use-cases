@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.4.6.json — DO NOT EDIT -->
+
 ---
 id: "9.4.6"
 title: "Vault Health Monitoring"
@@ -49,12 +51,12 @@ The first pipeline stage scopes events using **index**: pam; **sourcetype**: cyb
 **Pipeline walkthrough**
 
 • Scopes the data: index=pam, sourcetype="cyberark:vault_health". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by vault_server, component** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by vault_server, component** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where status!="Running" OR lag > 300` — typically the threshold or rule expression for this monitoring goal.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with CyberArk PrivateArk/Password Vault Web Access (or BeyondTrust / vendor console) for the same sessions, vault activity, and alerts.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (component × health), Single value (vault uptime %), Table (unhealthy components), Line chart (replication lag).
@@ -70,10 +72,6 @@ index=pam sourcetype="cyberark:vault_health"
 ## Visualization
 
 Status grid (component × health), Single value (vault uptime %), Table (unhealthy components), Line chart (replication lag).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.6.4.json — DO NOT EDIT -->
+
 ---
 id: "7.6.4"
 title: "Database Backup Size Trending"
@@ -22,6 +24,7 @@ Deduplicate overlapping full/diff/incremental jobs with `backup_type`. Include c
 ## Detailed Implementation
 
 Prerequisites
+• In operations we cross-check backup reality in the right console for each engine: `msdb` and SSMS for SQL Server, RMAN and Enterprise Manager (or DBA views) for Oracle, and the postgres or managed-service view for PostgreSQL, alongside Splunk.
 • Install and configure the required add-on or app: RMAN, SQL Server backup history, mysqldump / Percona log parsers, cloud backup APIs.
 • Ensure the following data sources are available: `index=db` `sourcetype=mssql:backup`, `sourcetype=mysql:backup`, `sourcetype=oracle:rman`.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -55,12 +58,12 @@ The first pipeline stage scopes events using **index**: db.
 • `eval` defines or adjusts **size_gb** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where backup_status IN ("success","Success","completed") OR isnull(backup_status)` — typically the threshold or rule expression for this monitoring goal.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time, database_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, database_name** so each row reflects one combination of those dimensions.
 • `timechart` plots the metric over time using **span=1mon** buckets with a separate series **by database_name limit=10** — ideal for trending and alerting on this use case.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (backup size GB over months), column chart (month-over-month growth %), table (largest databases).

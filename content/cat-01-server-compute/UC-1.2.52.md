@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.52.json — DO NOT EDIT -->
+
 ---
 id: "1.2.52"
 title: "NIC Teaming / LBFO Failover (Windows)"
@@ -13,7 +15,7 @@ NIC team member failures reduce redundancy silently. A second failure causes ful
 
 ## Value
 
-NIC team member failures reduce redundancy silently. A second failure causes full network loss. Detecting the first failure enables proactive repair.
+App HA depends on the network under it—if the team is down and you do not know, your cluster quorum story is shaky on paper only.
 
 ## Implementation
 
@@ -55,6 +57,20 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • Pipeline stage (see **NIC Teaming / LBFO Failover (Windows)**): table _time, host, event, TeamName, MemberName
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.action span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -70,6 +86,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-NlbFo/Operational"
 | eval event=case(EventCode=101,"Team degraded",EventCode=105,"Member disconnected",EventCode=106,"Member reconnected",EventCode=115,"Standby activated")
 | table _time, host, event, TeamName, MemberName
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.action span=1h
+| where count>0
 ```
 
 ## Visualization

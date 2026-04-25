@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.11.6.json — DO NOT EDIT -->
+
 ---
 id: "5.11.6"
 title: "QoS Queue Depth and Drop Streaming"
@@ -56,11 +58,11 @@ The first pipeline stage scopes events using **index**: gnmi_metrics.
 • Pipeline stage (see **QoS Queue Depth and Drop Streaming**): table _time, host, interface_id, queue_name, drops_per_sec, tx_per_sec, drop_pct
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+CIM and metrics: QoS drops use **mstats**; there is no default CIM QoS queue data model in most estates.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare drop counters in Splunk to queue-depth CLI or platform QoS show commands on a busy port; mark known congestion links before tuning thresholds.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (drops by queue class), Line chart (drop rate over time per queue), Table (queues with active drops), Heatmap (drop severity across fabric).

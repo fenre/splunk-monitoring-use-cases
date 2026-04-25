@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.1.json — DO NOT EDIT -->
+
 ---
 id: "4.4.1"
 title: "Terraform Drift Detection"
@@ -51,7 +53,7 @@ The first pipeline stage scopes events using **index**: devops; **sourcetype**: 
 
 • Scopes the data: index=devops, sourcetype="terraform:plan". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where changes_detected="true"` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by workspace, resource_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by workspace, resource_type** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 

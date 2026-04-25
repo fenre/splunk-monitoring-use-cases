@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-3.3.5.json — DO NOT EDIT -->
+
 ---
 id: "3.3.5"
 title: "Helm Release Drift Detection"
@@ -53,14 +55,14 @@ The first pipeline stage scopes events using **index**: k8s; **sourcetype**: hel
 
 • Scopes the data: index=k8s, sourcetype="helm:list". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **chart_version** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by namespace, name, source** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by namespace, name, source** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **version_count** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where version_count > 1` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Helm Release Drift Detection**): table namespace name versions source
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Confirm that events are present in the index and that the search returns expected results. For Kubernetes and OpenShift data, sample rows should line up with what you see from the cluster command-line tool, the Kubernetes Dashboard (or OpenShift console), and your Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`) or OpenTelemetry collector view of the same objects. Compare with known good and bad scenarios where you have them. Verify field extractions and index permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (namespace, release, chart, version, status), Drift indicator (deployed vs desired), Timeline of updates.

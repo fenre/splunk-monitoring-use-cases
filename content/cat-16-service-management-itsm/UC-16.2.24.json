@@ -19,6 +19,7 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "PagerDuty App for Splunk",
@@ -29,6 +30,7 @@
       "url": "https://splunkbase.splunk.com/app/3759"
     }
   ],
+  "knownFalsePositives": "Short webhook hiccups during deploys, certificate work, or network blips; confirm endpoint and subscription health in the on-call product.",
   "equipment": [
     "cloudflare",
     "pagerduty"
@@ -39,5 +41,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We look for a burst of bad answers from the place we post events, so the pipe that feeds the on-call system is not quietly broken.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: Custom log forwarder from PagerDuty Event Orchestration debug logs or proxy logs.\n• Data: PagerDuty webhook delivery diagnostics normalized to `pagerduty:webhook_delivery`.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nCorrelate with Cloudflare/AWS WAF logs if available.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"pagerduty:webhook_delivery\" OR sourcetype=\"pagerduty:audit\"\n| where http_status>=400 OR delivery_status=\"failed\"\n| stats count by subscription_id, endpoint_host\n| sort -count\n```\n\nUnderstanding this search\nFailed webhooks break bidirectional ITSM sync and runbook triggers.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Table (endpoint × status), Timeline."
 }

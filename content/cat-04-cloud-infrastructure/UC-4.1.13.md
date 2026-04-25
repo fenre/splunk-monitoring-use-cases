@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.13.json — DO NOT EDIT -->
+
 ---
 id: "4.1.13"
 title: "EKS/ECS Cluster Health"
@@ -62,6 +64,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ```spl
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/ECS" metric_name="CPUUtilization"
 | timechart span=5m avg(Average) by ClusterName, ServiceName
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

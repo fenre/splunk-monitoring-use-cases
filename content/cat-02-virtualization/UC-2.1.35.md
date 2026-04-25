@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.35.json — DO NOT EDIT -->
+
 ---
 id: "2.1.35"
 title: "VM Guest OS Disk Space via VMware Tools"
@@ -55,7 +57,6 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 • Filters the current rows with `where used_pct > 85` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **VM Guest OS Disk Space via VMware Tools**): table vm_name, host, guest_disk_path, used_pct, guest_disk_capacity, guest_disk_freeSpace
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

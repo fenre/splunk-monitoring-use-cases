@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.81.json — DO NOT EDIT -->
+
 ---
 id: "1.2.81"
 title: "SMBv1 Usage Detection"
@@ -13,7 +15,7 @@ SMBv1 is vulnerable to EternalBlue and WannaCry. Detecting remaining SMBv1 traff
 
 ## Value
 
-SMBv1 is vulnerable to EternalBlue and WannaCry. Detecting remaining SMBv1 traffic identifies systems that need upgrading or have SMBv1 re-enabled.
+Finding every place that still negotiates SMBv1 shows what to fix before you disable a risky protocol and before the next wide-area worm class issue.
 
 ## Implementation
 
@@ -49,7 +51,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 **Pipeline walkthrough**
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
@@ -65,6 +67,15 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=wineventlog source="WinEventLog:Microsoft-Windows-SMBServer/Audit" EventCode=3000
 | stats count values(ClientName) as clients dc(ClientName) as client_count by host
 | sort -client_count
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.dest All_Changes.src span=1h
+| where count > 0
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.63.json — DO NOT EDIT -->
+
 ---
 id: "4.1.63"
 title: "ECS Service Health"
@@ -49,7 +51,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 **Pipeline walkthrough**
 
 • Scopes the data: index=aws, sourcetype="aws:cloudwatch". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by ClusterName, ServiceName, metric_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by ClusterName, ServiceName, metric_name** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where util > 85` — typically the threshold or rule expression for this monitoring goal.
 
 
@@ -86,6 +88,16 @@ For full details (paths, scheduling, permissions), see the Implementation guide:
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/ECS" (metric_name="CPUUtilization" OR metric_name="MemoryUtilization")
 | stats latest(Average) as util by ClusterName, ServiceName, metric_name
 | where util > 85
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

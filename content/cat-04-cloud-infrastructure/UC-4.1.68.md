@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.68.json — DO NOT EDIT -->
+
 ---
 id: "4.1.68"
 title: "SQS Dead Letter Queue Growth"
@@ -53,7 +55,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 
 • Scopes the data: index=aws, sourcetype="aws:cloudwatch". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-• `streamstats` rolls up events into metrics; results are split **by QueueName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `streamstats` rolls up events into metrics; results are split **by QueueName** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **growth** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where growth > 10` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **SQS Dead Letter Queue Growth**): table _time QueueName Average growth
@@ -76,6 +78,16 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/SQS" metric_name="Approxima
 | eval growth=Average-prev
 | where growth > 10
 | table _time QueueName Average growth
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

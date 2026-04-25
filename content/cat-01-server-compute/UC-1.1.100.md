@@ -1,23 +1,25 @@
+<!-- AUTO-GENERATED from UC-1.1.100.json — DO NOT EDIT -->
+
 ---
 id: "1.1.100"
-title: "Softirq Rate Monitoring"
+title: "Vmstat swap-in (si) rate"
 criticality: "medium"
 splunkPillar: "Observability"
 ---
 
-# UC-1.1.100 · Softirq Rate Monitoring
+# UC-1.1.100 · Vmstat swap-in (si) rate
 
 ## Description
 
-High softirq rates indicate kernel workload distribution issues or network stack pressure.
+In standard vmstat(8) output, `si` is kilobytes swapped in from disk per interval (memory pressure), not softirq. A sustained high `si` rate usually means the system is actively paging or thrashing swap.
 
 ## Value
 
-High softirq rates indicate kernel workload distribution issues or network stack pressure.
+Spotting heavy swap-in activity early helps us add memory, tune workloads, or fix leaks before latency and timeouts spread to users and services.
 
 ## Implementation
 
-Monitor softirq field from vmstat. Create alerts when softirq rate exceeds 1000 per second. Correlate with network packet rate to identify if networking-driven or other kernel subsystem.
+Enable vmstat collection in Splunk_TA_nix. Track the `si` field (swap-in) per host. Alert when the average swap-in rate exceeds your threshold; correlate with `so` (swap-out) and `vmstat` free/buff/cache fields.
 
 ## Detailed Implementation
 
@@ -27,20 +29,20 @@ Prerequisites
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-Monitor softirq field from vmstat. Create alerts when softirq rate exceeds 1000 per second. Correlate with network packet rate to identify if networking-driven or other kernel subsystem.
+Enable the `vmstat` scripted input on Linux. Confirm field names in Search: `si` is swap-in pages/kB per sample (per `vmstat` man page for your distro). If you need softirq rates, ingest `/proc/softirqs` or `mpstat` with a separate scripted input—do not map `si` to softirq.
 
 Step 2 — Create the search and alert
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
 ```spl
 index=os sourcetype=vmstat host=*
-| stats avg(si) as avg_softirq by host
-| where avg_softirq > 1000
+| stats avg(si) as avg_swap_in by host
+| where avg_swap_in > 1000
 ```
 
 Understanding this SPL
 
-**Softirq Rate Monitoring** — High softirq rates indicate kernel workload distribution issues or network stack pressure.
+**Vmstat swap-in (si) rate** — In standard vmstat(8) output, `si` is kilobytes swapped in from disk per interval (memory pressure), not softirq.
 
 Documented **Data sources**: `sourcetype=vmstat`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
@@ -49,33 +51,23 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: vmst
 **Pipeline walkthrough**
 
 • Scopes the data: index=os, sourcetype=vmstat. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where avg_softirq > 1000` — typically the threshold or rule expression for this monitoring goal.
+• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
+• Filters the current rows with `where avg_swap_in > 1000` — tune the threshold to your environment and vmstat interval.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+Optional CIM / accelerated variant (related memory-pressure view via Common Information Model):
 
 ```spl
-| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct
-                        avg(Performance.swap_used_percent) as swap_pct
+| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct avg(Performance.swap_used_percent) as swap_pct
   from datamodel=Performance where nodename=Performance.Memory
   by Performance.host span=5m
-| where mem_pct > 95 OR swap_pct > 20
+| where mem_pct > 90 OR swap_pct > 15
 ```
 
 Understanding this CIM / accelerated SPL
 
-**Softirq Rate Monitoring** — High softirq rates indicate kernel workload distribution issues or network stack pressure.
+This **CIM** block approximates memory pressure using **Performance.Memory** (`mem_used_percent`, `swap_used_percent`). It does not reproduce `vmstat` `si` exactly—use it when the data model is accelerated and normalized to the same hosts.
 
-Documented **Data sources**: `sourcetype=vmstat`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.
-• Filters the current rows with `where mem_pct > 95 OR swap_pct > 20` — typically the threshold or rule expression for this monitoring goal.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable **acceleration** on **Performance.Memory** (and correct CIM knowledge objects) or the search may return nothing from summaries.
 
 
 Step 3 — Validate
@@ -88,18 +80,17 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=os sourcetype=vmstat host=*
-| stats avg(si) as avg_softirq by host
-| where avg_softirq > 1000
+| stats avg(si) as avg_swap_in by host
+| where avg_swap_in > 1000
 ```
 
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct
-                        avg(Performance.swap_used_percent) as swap_pct
+| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct avg(Performance.swap_used_percent) as swap_pct
   from datamodel=Performance where nodename=Performance.Memory
   by Performance.host span=5m
-| where mem_pct > 95 OR swap_pct > 20
+| where mem_pct > 90 OR swap_pct > 15
 ```
 
 ## Visualization

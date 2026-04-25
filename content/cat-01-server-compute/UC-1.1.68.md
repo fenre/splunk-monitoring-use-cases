@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.68.json — DO NOT EDIT -->
+
 ---
 id: "1.1.68"
 title: "Rootkit Detection via File Integrity"
@@ -9,62 +11,39 @@ splunkPillar: "Security"
 
 ## Description
 
-File integrity changes indicate potential rootkit installation or unauthorized system modification.
+Surfaces AIDE file-integrity **added/changed/removed** rows for review. **count>0** is a guard so empty buckets drop out once you add windowing; most teams alert on the first new **file_path** not in a lookup.
 
 ## Value
 
-File integrity changes indicate potential rootkit installation or unauthorized system modification.
+Unexpected changes in **/bin**, **/sbin**, or other protected trees are a fast path to find dropped binaries or config drift before you rely on slower AV-only signals on servers.
 
 ## Implementation
 
-Deploy AIDE (Advanced Intrusion Detection Environment) with daily scans. Create alerts for unexpected file changes in /bin, /sbin, /lib directories. Include baseline scans on system initialization.
+Have AIDE print stable **change_type** and **file_path** fields. In production, add `| lookup aide_expected_changes file_path OUTPUT reason | where isnull(reason)` to suppress packager noise.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=custom:aide, AIDE database changes`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Nightly AIDE and a non-interactive way to **scp** or **HEC** results to Splunk. Large outputs should be one **event** per file change, not a giant **multiline** event without **LINE_BREAKER** help.
 
-Step 1 — Configure data collection
-Deploy AIDE (Advanced Intrusion Detection Environment) with daily scans. Create alerts for unexpected file changes in /bin, /sbin, /lib directories. Include baseline scans on system initialization.
-
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=custom:aide host=*
-| stats count by host, file_path, change_type
-| where change_type IN ("added", "changed", "removed") AND count > 0
-```
-
-Understanding this SPL
-
-**Rootkit Detection via File Integrity** — File integrity changes indicate potential rootkit installation or unauthorized system modification.
-
-Documented **Data sources**: `sourcetype=custom:aide, AIDE database changes`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: custom:aide. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=custom:aide. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, file_path, change_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where change_type IN ("added", "changed", "removed") AND count > 0` — typically the threshold or rule expression for this monitoring goal.
+**CIM** — File integrity to **Change** is possible after CIM add-on + tags; until then, **N/A**.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`aide --check` exit status and the local AIDE log should match the rows Splunk shows for the run id / timestamp. Use `rpm -V` / `dpkg` verify selectively for a second opinion on a hot path.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table
+For each hit, first ask **change management**; only then run deeper host forensics.
+
+
 
 ## SPL
 
 ```spl
 index=os sourcetype=custom:aide host=*
+| where change_type IN ("added", "changed", "removed")
 | stats count by host, file_path, change_type
-| where change_type IN ("added", "changed", "removed") AND count > 0
+| where count>0
 ```
 
 ## Visualization
@@ -73,4 +52,5 @@ Alert, Table
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

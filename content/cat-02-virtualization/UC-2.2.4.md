@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.2.4.json — DO NOT EDIT -->
+
 ---
 id: "2.2.4"
 title: "Live Migration Tracking"
@@ -53,7 +55,6 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Extracts fields with `rex` (regular expression).
 • Pipeline stage (see **Live Migration Tracking**): table _time host vm_name Message
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

@@ -41,7 +41,7 @@
   "implementation": "Enable the `securityadvisory` input. The `where first_seen` window compares the earliest event per advisory to `now()`. Adjust the `-7d` lookback to match your patch SLAs.",
   "visualization": "Table of new advisories (first_seen_date, affected_devices), timechart of first_seen counts.",
   "cimModels": [
-    "Vulnerabilities"
+    "N/A"
   ],
   "references": [
     {
@@ -51,6 +51,10 @@
     {
       "title": "Catalyst Center API docs",
       "url": "https://developer.cisco.com/docs/catalyst-center/"
+    },
+    {
+      "title": "Catalyst Center Integration Guide",
+      "url": "docs/guides/catalyst-center.md"
     }
   ],
   "equipment": [
@@ -59,7 +63,8 @@
   "equipmentModels": [
     "cisco_sdwan"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:securityadvisory (advisoryId, advisoryTitle, severity, deviceId, _time).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the `securityadvisory` input. The `where first_seen` window compares the earliest event per advisory to `now()`. Adjust the `-7d` lookback to match your patch SLAs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:securityadvisory\" | stats earliest(_time) as first_seen latest(_time) as last_seen dc(deviceId) as affected_devices by advisoryId, advisoryTitle, severity | eval first_seen_date=strftime(first_seen, \"%Y-%m-%d\") | where first_seen > relative_time(now(), \"-7d\") | sort severity -affected_devices\n```\n\nUnderstanding this SPL\n\n**Advisory Trending and New Advisory Detection** — New advisories require immediate triage. Detecting them as soon as Catalyst Center reports them ensures the vulnerability management process starts promptly.\n\n**Pipeline walkthrough**\n\n• `stats` summarises one row per `advisoryId` / `advisoryTitle` / `severity`, capturing the first/last time that advisory was seen in the data and how many `deviceId` values are touched.\n• `first_seen_date` is a human-friendly display field for reports.\n• `where first_seen` keeps advisories that first arrived within the last seven days so the search highlights fresh risk.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Consider visualizations: Table of new advisories (first_seen_date, affected_devices), timechart of first_seen counts.",
+  "knownFalsePositives": "`earliest(_time)` in the current index is **first time Splunk ever saw the event**, not necessarily the **first** day Cisco published the PSIRT. Re-ingesting history, a TA upgrade, or index rotation can make a **vintage** advisory look “**new in 7d**” even though the bulletin is old. Quiet weekends with **zero** admin work can also produce **no** new rows while risk is flat.",
+  "detailedImplementation": "Prerequisites\n• Cisco Catalyst Add-on (7538); **securityadvisory** → `cisco:dnac:securityadvisory` in `index=catalyst`.\n• **Retention** must cover the lookback you care about: if the index is **7d** max, *every* run looks “all-new.” Size **catalyst** for long PSIRT lookbacks (often year+ for audit).\n• `first_seen` here is data-arrival in Splunk—rename the panel to **“new to our Splunk in 7d”** if you present to **exec** to avoid over-claiming.\n• `docs/implementation-guide.md`.\n\nStep 1 — Configure data collection\n• Default **TA** poll ~**3600s**; the `-7d` window is a **query** window, not the poll **interval**.\n\nStep 2 — New-advisory **report** (triage list)\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:securityadvisory\" | stats earliest(_time) as first_seen latest(_time) as last_seen dc(deviceId) as affected_devices by advisoryId, advisoryTitle, severity | eval first_seen_date=strftime(first_seen, \"%Y-%m-%d\") | where first_seen > relative_time(now(), \"-7d\") | sort severity -affected_devices\n```\n\nUnderstanding this SPL\n**New to Splunk** — Pair with a **Cisco** published date field if the TA ever extracts it, or with **Cisco.com** for true **“zero-day to us”**.\n\n**Pipeline walkthrough**\n• `earliest`/`latest` on `_time` for each `advisoryId` → `where first_seen>…-7d` → sort by **severity** and **affected** count.\n\nStep 3 — Validate\n• When a *real* new bulletin ships, confirm **`first_seen_date`** in Splunk is within **1–2** **polls** of the first **Catalyst** UI appearance.\n• Re-run after **`| delete`** test in non-prod to see how **re-ingest** shifts `first_seen` (education for analysts).\n\nStep 4 — Operationalize\n• **Vuln bridge:** feed this to **JIRA** **PSIRT** queue with `advisoryId` as **epic** key; **throttle** duplicate tickets by **`advisoryId`**.\n• **KPI** slide: new advisories / week, not just **count** of raw events (dedup in a **summary** index if the TA re-emits each hour).\n\nStep 5 — Troubleshooting\n• **Over-count new:** **backfill** or **S2S** migration copied old events to a new index with fresh `_time`—compare to **Cisco** **published** date on the **web** side.\n• **Under-count new:** `where` is too strict; widen to **-14d** or remove **if** you only want **Catalyst-announced** net-new **in product** (requires **Cisco** field).\n• **No rows:** no advisories in range or **sourcetype** quiet—`| tstats count` and **Catalyst** **API** health.\n",
   "grandmaExplanation": "We catch new security warnings as soon as they appear and show you which ones are new this week so nothing gets missed.",
   "prerequisiteUseCases": [
     "UC-5.13.34"

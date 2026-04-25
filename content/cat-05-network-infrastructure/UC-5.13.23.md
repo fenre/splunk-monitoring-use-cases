@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.23.json — DO NOT EDIT -->
+
 ---
 id: "5.13.23"
 title: "P1/P2 Critical Issue Alerting"
@@ -70,6 +72,7 @@ Step 5 — Troubleshooting
 • **Thousands of P2 results:** the input may re-pull the entire backlog every poll; enable an “active only” or equivalent filter in the add-on, or pre-dedup on `issueId` in a summary saved search the alert calls.
 • **Upgrades** that rename `name` or duplicate `issueId`: deduplicate in a sibling search and document the change in the runbook; re-test after every TA or Catalyst major release.
 
+
 ## SPL
 
 ```spl
@@ -84,3 +87,4 @@ Single value or table (open_issues by priority), list of issue names and categor
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.3.14.json — DO NOT EDIT -->
+
 ---
 id: "5.3.14"
 title: "Citrix ADC Service Group Member Health (NetScaler)"
@@ -55,15 +57,14 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 • Scopes the data: index=network, sourcetype="citrix:netscaler:syslog". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Extracts fields with `rex` (regular expression).
 • Filters the current rows with `where state="DOWN"` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by sg_name, member_ip, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by sg_name, member_ip, host** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **last_seen_fmt** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **Citrix ADC Service Group Member Health (NetScaler)**): table sg_name, member_ip, current_state, transitions, last_seen_fmt, host
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
+Compare vservers, services, and load-balancing state in the Citrix ADC management view or command line for the same time window and objects.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (service groups with DOWN members), Bar chart (DOWN members by service group), Timeline (member state changes).
 

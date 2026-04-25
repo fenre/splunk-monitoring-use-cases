@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.18.json — DO NOT EDIT -->
+
 ---
 id: "4.4.18"
 title: "Cloud Endpoint and DNS Resolution Health"
@@ -50,7 +52,7 @@ The first pipeline stage scopes events using **index**: cloud; **sourcetype**: e
 **Pipeline walkthrough**
 
 • Scopes the data: index=cloud, sourcetype="endpoint:health". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by endpoint_id, vpc_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by endpoint_id, vpc_id** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where ok != 1 OR rtt > 500` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Cloud Endpoint and DNS Resolution Health**): table endpoint_id vpc_id ok rtt _time
 

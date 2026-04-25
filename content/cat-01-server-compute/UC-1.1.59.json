@@ -8,27 +8,31 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog, teamd logs`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "dataSources": "`sourcetype=syslog` (teamd / libteam state messages)",
+  "app": "`Splunk_TA_nix`",
   "spl": "index=os sourcetype=syslog \"teamd\" (\"port\" OR \"link\") (\"down\" OR \"up\" OR \"enabled\" OR \"disabled\")\n| stats count by host, team_interface\n| where count > 0",
-  "description": "Teamed interface failovers indicate critical network path failures affecting server connectivity.",
-  "value": "Teamed interface failovers indicate critical network path failures affecting server connectivity.",
-  "implementation": "Monitor teamd daemon logs for port state changes. Create alerts on any port disable/enable events. Correlate with physical switch logs to validate network-side issues.",
+  "description": "Surfaces any teamd log lines about ports or links moving between down, up, enabled, and disabled, grouped by host and team device name, for teams using libteam instead of traditional bonding drivers.",
+  "value": "Team interfaces aggregate links much like bonds; you want the same early warning when a leg drops so you are not a single port failure away from an outage.",
+  "implementation": "Point syslog collection at the facility teamd already uses. If your distro logs teamd into **journald** only, add a `journald` to **syslog** forwarder. Consider raising `>0` to a five-minute `stats` + threshold when the daemon is very chatty at info level.",
   "visualization": "Alert, Table",
   "cimModels": [
-    "Performance"
+    "N/A"
   ],
-  "cimSpl": "| tstats `summariesonly` sum(Performance.bytes_in) as bytes_in\n                        sum(Performance.bytes_out) as bytes_out\n  from datamodel=Performance where nodename=Performance.Network\n  by Performance.host Performance.interface span=5m",
+  "knownFalsePositives": "Brief log storms during daemon restarts; duplicate lines if you capture both **journald** and **rsyslog**; environments without libteam that match the teamd string in unrelated app logs—tighten with `sourcetype` host allowlists for critical segments.",
   "references": [
     {
-      "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
     }
   ],
   "equipment": [
     "linux",
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=syslog, teamd logs`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor teamd daemon logs for port state changes. Create alerts on any port disable/enable events. Correlate with physical switch logs to validate network-side issues.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog \"teamd\" (\"port\" OR \"link\") (\"down\" OR \"up\" OR \"enabled\" OR \"disabled\")\n| stats count by host, team_interface\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**Network Team Failover Detection (Linux)** — Teamed interface failovers indicate critical network path failures affecting server connectivity.\n\nDocumented **Data sources**: `sourcetype=syslog, teamd logs`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, team_interface** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` sum(Performance.bytes_in) as bytes_in\n                        sum(Performance.bytes_out) as bytes_out\n  from datamodel=Performance where nodename=Performance.Network\n  by Performance.host Performance.interface span=5m\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Network Team Failover Detection (Linux)** — Teamed interface failovers indicate critical network path failures affecting server connectivity.\n\nDocumented **Data sources**: `sourcetype=syslog, teamd logs`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table",
-  "grandmaExplanation": "Teamed interface failovers indicate critical network path failures affecting server connectivity — so you find out before users do when something is slowing down or breaking."
+  "detailedImplementation": "Prerequisites\n• **teamd** must log to a facility Splunk already ingests; if not, enable **syslog** forwarding from **journald** for `teamd.service` only.\n\nStep 1 — Configure data collection\nAdd **SEDCMD** to extract `team_interface` if the raw text embeds the device name; otherwise alert at host level first and refine later.\n\nStep 2 — Create the search and alert\n`where count>0` is minimal; in production, change to `| where count>5` in a five-minute `bucket` to ignore single stray lines.\n\n**Understanding this SPL** — Boolean match on the verb list; you can split into two saved searches: one for **down/disabled** (page) and one for **up/enabled** (info).\n\n\nStep 3 — Validate\n`teamdctl` state on the host, `ip link show team0`, and switch interface counters should align with the Splunk time window. Use `ping` and `mtr` only as traffic checks, not as proof of LACP/team state.\n\nStep 4 — Operationalize\nCoordinate with the network on physical ports whenever **down** lines appear, even if user traffic still works on the surviving link.\n\n",
+  "grandmaExplanation": "We catch log lines when a “team” of network ports changes who is up or down, so you can fix a flaky port before the backup port is the only one left."
 }

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.2.30.json — DO NOT EDIT -->
+
 ---
 id: "4.2.30"
 title: "NSG Flow Log Threat Hunting"
@@ -50,30 +52,9 @@ The first pipeline stage scopes events using **index**: azure; **sourcetype**: m
 **Pipeline walkthrough**
 
 • Scopes the data: index=azure, sourcetype="mscs:azure:nsgflow". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by dest, dest_port_s, rule** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by dest, dest_port_s, rule** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where unique_sources > 50 OR total_bytes > 1000000000` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t dc(All_Traffic.src) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - agg_value
-```
-
-Understanding this CIM / accelerated SPL
-
-**NSG Flow Log Threat Hunting** — NSG flow logs reveal lateral movement, denied probes, and unexpected east-west volume; baselining flows speeds incident triage beyond simple allow/deny counts.
-
-Documented **Data sources**: `sourcetype=mscs:azure:nsgflow` or Event Hub JSON (flow records). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
@@ -89,12 +70,6 @@ index=azure sourcetype="mscs:azure:nsgflow" flowDirection="In" macAddress=*
 | stats sum(bytes) as total_bytes, dc(src) as unique_sources by dest, dest_port_s, rule
 | where unique_sources > 50 OR total_bytes > 1000000000
 | sort -total_bytes
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t dc(All_Traffic.src) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - agg_value
 ```
 
 ## Visualization

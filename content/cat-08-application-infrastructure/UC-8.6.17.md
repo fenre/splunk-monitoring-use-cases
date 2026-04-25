@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.6.17.json — DO NOT EDIT -->
+
 ---
 id: "8.6.17"
 title: "DNS Recursive Query Volume"
@@ -54,15 +56,16 @@ The first pipeline stage scopes events using **index**: dns; **sourcetype**: bin
 • Scopes the data: index=dns, sourcetype="bind:query". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where recursive=1` — typically the threshold or rule expression for this monitoring goal.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by client_ip, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by client_ip** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by client_ip, _time** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by client_ip** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where qps > avg_q*10 AND qps > 1000` — typically the threshold or rule expression for this monitoring goal.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (recursive QPS), Table (top clients), Bar chart (query types).

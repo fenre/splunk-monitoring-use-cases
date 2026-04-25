@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.2.3.json — DO NOT EDIT -->
+
 ---
 id: "2.2.3"
 title: "Cluster Shared Volume Health"
@@ -51,7 +53,6 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:Microsoft-Windows-FailoverClustering/Operational". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Pipeline stage (see **Cluster Shared Volume Health**): table _time host Message
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

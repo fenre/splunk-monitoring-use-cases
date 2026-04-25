@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.125.json — DO NOT EDIT -->
+
 ---
 id: "1.1.125"
 title: "Linux Journal / Journald Health"

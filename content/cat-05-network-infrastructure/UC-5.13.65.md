@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.65.json — DO NOT EDIT -->
+
 ---
 id: "5.13.65"
 title: "Critical Event Notification Alerting (Severity 1-2)"

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.56.json — DO NOT EDIT -->
+
 ---
 id: "1.2.56"
 title: "Sysmon Network Connection Monitoring"
@@ -13,7 +15,7 @@ Sysmon EventCode 3 logs every outbound TCP/UDP connection with the originating p
 
 ## Value
 
-Sysmon EventCode 3 logs every outbound TCP/UDP connection with the originating process. Reveals C2 callbacks, data exfiltration, and unauthorized network access.
+Network is half of endpoint TTP—if all you have is a process tree with no *where* it talked, you are missing the easy lateral map.
 
 ## Implementation
 
@@ -53,9 +55,23 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where NOT cidrmatch("10.0.0.0/8", DestinationIp) AND NOT cidrmatch("172.16.0.0/12", DestinationIp) AND NOT cidrmatch("192.1…` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by Image, host, User** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by Image, host, User** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where unique_ips > 50 OR count > 500` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` sum(All_Traffic.bytes_in) as bi sum(All_Traffic.bytes_out) as bo
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src All_Traffic.dest span=5m
+| where (bi+bo)>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
 
 
 Step 3 — Validate
@@ -73,6 +89,15 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 | stats count dc(DestinationIp) as unique_ips by Image, host, User
 | where unique_ips > 50 OR count > 500
 | sort -unique_ips
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` sum(All_Traffic.bytes_in) as bi sum(All_Traffic.bytes_out) as bo
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src All_Traffic.dest span=5m
+| where (bi+bo)>0
 ```
 
 ## Visualization

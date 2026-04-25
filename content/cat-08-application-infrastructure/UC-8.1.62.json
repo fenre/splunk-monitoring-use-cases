@@ -12,19 +12,22 @@
   "dataSources": "GC log lines in `zookeeper:log` (G1/Parallel) joined in time with `zookeeper:mntr` latency",
   "app": "Enable GC logging to the same log file or a dedicated file monitored by UF; ensure `-Xlog:gc*` (JDK11+) or legacy GC flags",
   "spl": "index=infrastructure sourcetype=\"zookeeper:log\"\n| search \"Pause\" OR \"GC\" OR \"GarbageCollection\"\n| rex field=_raw \"(?<pause_ms>\\d+(\\.\\d+)?)\\s*ms\"\n| where pause_ms > 200\n| bin _time span=1m\n| stats max(pause_ms) as gc_pause_ms by host, _time\n| join type=inner host _time [\n    search index=infrastructure sourcetype=\"zookeeper:mntr\"\n    | eval mx=tonumber(zk_max_latency)\n    | bin _time span=1m\n    | stats max(mx) as zk_max_latency_ms by host, _time\n  ]\n| where zk_max_latency_ms > 100",
-  "description": "Correlating long GC pauses with elevated `zk_max_latency` differentiates JVM tuning problems from disk or network faults—critical when sessions drop without obvious external cause.",
-  "value": "Speeds root-cause analysis and prevents repeated session storms while teams guess at network issues.",
-  "implementation": "Align clock NTP across hosts. Tune join window (`| join max=0 ... [ | localize]`) if needed; alternatively use `transaction` or `stats` with `strptime`. Increase heap or switch GC algorithm per JVM vendor guidance when pattern repeats.",
-  "visualization": "Timeline (gc_pause_ms vs zk_max_latency_ms), Table (host).",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "Correlating long GC pauses with elevated `zk_max_latency` differentiates JVM tuning problems from disk or network faults—critical when sessions drop without obvious external cause.",
+  "value": "Speeds root-cause analysis and prevents repeated session storms while teams guess at network issues.",
+  "grandmaExplanation": "We use this to speed root-cause analysis and prevents repeated session storms while teams guess at network issues.",
+  "implementation": "Align clock NTP across hosts. Tune join window (`| join max=0 ... [ | localize]`) if needed; alternatively use `transaction` or `stats` with `strptime`. Increase heap or switch GC algorithm per JVM vendor guidance when pattern repeats.",
+  "visualization": "Timeline (gc_pause_ms vs zk_max_latency_ms), Table (host).",
   "references": [
     {
       "title": "Java GC logging (JDK 11+)",
       "url": "https://docs.oracle.com/en/java/javase/17/docs/specs/man/java.html#extra-options-for-java"
     }
   ],
+  "knownFalsePositives": "OOM during memory leak hunts (with -XX:+HeapDumpOnOutOfMemoryError), large batch jobs, or after misconfigured heap sizes. We check deploy and job windows before calling a new defect.",
   "equipment": [
     "zookeeper"
   ],
@@ -34,5 +37,6 @@
     "9.x",
     "8.x"
   ],
-  "reviewer": "catalog-team"
+  "reviewer": "catalog-team",
+  "detailedImplementation": ""
 }

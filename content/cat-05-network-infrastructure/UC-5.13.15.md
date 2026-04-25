@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.15.json — DO NOT EDIT -->
+
 ---
 id: "5.13.15"
 title: "Client Health Category Breakdown (Good/Fair/Poor/Idle/New)"
@@ -22,43 +24,40 @@ Build after UC-5.13.9 when `scoreDetail` is reliable. Use `eventstats sum(count)
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).
-• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:clienthealth (Catalyst Center client health feed).
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• **UC-5.13.9** in place: reliable `cisco:dnac:clienthealth` and visible `scoreDetail` arrays in raw data.
+• Cisco Catalyst Add-on (7538); `clienthealth` input; `GET /dna/intent/api/v1/client-health` behind the scenes.
+• Use full `scoreDetail{}` objects with `spath` and `mvexpand` so Good/Fair/Poor/Idle/New/nodata rows extract consistently across TA versions.
+• See `docs/implementation-guide.md`.
 
 Step 1 — Configure data collection
-• Complete **UC-5.13.9** first so **clienthealth** and **`scoreDetail`** are validated.
-• **Intent API:** `GET /dna/intent/api/v1/client-health`; **TA input:** **clienthealth**; **interval:** **900s** default.
-• **Flattening:** full **`scoreDetail{}`** objects via **`spath`/`mvexpand`** (not `scoreDetail{}.scoreCategory` alone) is the supported pattern for stable field extraction here.
-• **Percent math:** `eventstats` provides a **single total** for all rows; if you merge multiple time buckets, `stats latest` per **scoreCategory** before `eventstats` to avoid double-counting.
+• Default 900s poll; ensure Assurance client analytics is on for the sites you report.
+• Category enum strings (GOOD, POOR, IDLE, etc.) may vary—run `| stats values(scoreCategory)` after flattening before publishing executive labels.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
 ```spl
 index=catalyst sourcetype="cisco:dnac:clienthealth" | spath output=categories path=scoreDetail{} | mvexpand categories | spath input=categories | stats latest(clientCount) as count by scoreCategory | eventstats sum(count) as total | eval pct=round(count*100/total,1) | table scoreCategory count pct | sort -count
 ```
 
 Understanding this SPL
-
-**Client Health Category Breakdown (Good/Fair/Poor/Idle/New)** — The full category breakdown goes beyond simple healthy/unhealthy to show idle clients (potential AP capacity waste), new clients (onboarding quality), and nodata clients (monitoring gaps).
-
-Documented **Data sources**: index=catalyst, sourcetype cisco:dnac:clienthealth (Catalyst Center client health feed). **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: catalyst; **sourcetype**: cisco:dnac:clienthealth. That sourcetype matches what this use case lists under Data sources.
+• `latest(clientCount) by scoreCategory` takes the most recent population per health bucket in the time window; if multiple polls are present, narrow the time picker to “last poll” or pre-dedupe with `| stats latest(_time) as t by scoreCategory` pattern if you need a single snapshot.
+• `eventstats sum(count) as total` gives one denominator for percentage so all buckets on the same table sum to 100% for that snapshot.
+• `sort -count` lists the largest segments first; compare next to UC-5.13.9 headline “wired vs wireless” when storytelling.
 
 **Pipeline walkthrough**
-
-• **`spath path=scoreDetail{}`** (full objects) and **`mvexpand`** normalize nested **client health** rows more reliably than targeting **`scoreDetail{}.scoreCategory`** alone.
-• `stats latest` per `scoreCategory` stabilizes a per-category population for the search window, assuming steady **clienthealth** polling.
-• **`eventstats sum(count) as total`** then **`eval pct=round(count*100/total,1)`** computes percentages with a **consistent denominator**; `table` and `sort` format the **Good/Fair/Poor/Idle** story next to UC-5.13.9.
-
+• Flatten nested JSON → per-category `clientCount` → percent of whole.
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+• Compare category totals to Catalyst Center Client health pie or table for the same scope and time; allow one poll skew.
+• If percentages do not add to ~100%, duplicate polls or double `mvexpand` may be present—`dedup` on `_raw`+`_time` in a test.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: 100% stacked bar or pie of pct by scoreCategory, table with count and pct, trellis of category mix over sites if you later join `siteId`.
+• 100% stacked bar or table beside UC-5.13.9; use for NOC and exec “experience mix” reviews. When nodata is high, open inventory and client telemetry coverage, not just RF tuning.
+• Optional: clone panel with `by siteId` in a pre-search if the feed is site-scoped per event.
+
+Step 5 — Troubleshooting
+• Category missing after upgrade: Cisco renamed enums—rebuild `values(scoreCategory)` and update the dashboard labels.
+• All nodata: client health not enabled for site or `scoreDetail` empty in JSON—revisit clienthealth input and API permissions.
+
 
 ## SPL
 
@@ -74,3 +73,4 @@ index=catalyst sourcetype="cisco:dnac:clienthealth" | spath output=categories pa
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

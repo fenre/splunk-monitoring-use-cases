@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.55.json — DO NOT EDIT -->
+
 ---
 id: "1.2.55"
 title: "Suspicious Token Manipulation"
@@ -13,7 +15,7 @@ Token impersonation and privilege escalation via token manipulation (SeImpersona
 
 ## Value
 
-Token impersonation and privilege escalation via token manipulation (SeImpersonatePrivilege abuse) is a common post-exploitation technique.
+Token abuse is abstract to explain but concrete to an IR lead—if you are not looking, you will only see the malware binary later, not the setup moves.
 
 ## Implementation
 
@@ -52,17 +54,16 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:Security". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where NOT match(ProcessName, "(?i)(lsass|svchost|services|mssql|w3wp)")` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by SubjectUserName, ProcessName, Privileges, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by SubjectUserName, ProcessName, Privileges, host** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -101,10 +102,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4673, 4674)
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1h
+| where count>0
 ```
 
 ## Visualization

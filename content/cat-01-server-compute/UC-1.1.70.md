@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.70.json — DO NOT EDIT -->
+
 ---
 id: "1.1.70"
 title: "/etc/passwd Modifications"
@@ -9,62 +11,44 @@ splunkPillar: "Security"
 
 ## Description
 
-/etc/passwd changes indicate user account creation/modification requiring immediate investigation for unauthorized access.
+Lists audit events that reference **/etc/passwd** with a modification-style action so you can prove who changed local account metadata and from which binary.
 
 ## Value
 
-/etc/passwd changes indicate user account creation/modification requiring immediate investigation for unauthorized access.
+Account creation and lock/unlock events should flow through **change** management; unexpected **passwd** writers are a first-class signal for insider and external abuse on shared servers.
 
 ## Implementation
 
-Configure auditctl rules to monitor /etc/passwd for all modifications. Create immediate alerts with escalation to security team. Include user context showing who made the change.
+Requires an **auditd** rule such as `-w /etc/passwd -p wa -k passwd_changes` (exact key is your choice). Map `auid`, `exe`, and `path` for the TA; drop `nametype=normal` if your distro only logs `PATH` parts.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=linux_audit`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• **auditd** on every production host, with logs shipped and **FIM**-style retention in your org’s secure index as required by policy.
 
-Step 1 — Configure data collection
-Configure auditctl rules to monitor /etc/passwd for all modifications. Create immediate alerts with escalation to security team. Include user context showing who made the change.
-
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=linux_audit path="/etc/passwd" action=modified
-| stats count by host, auid, exe
-| where count > 0
-```
-
-Understanding this SPL
-
-**/etc/passwd Modifications** — /etc/passwd changes indicate user account creation/modification requiring immediate investigation for unauthorized access.
-
-Documented **Data sources**: `sourcetype=linux_audit`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, auid, exe** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
+**CIM** — The `object` string match mirrors file-path monitoring once your **props**+**eventtypes** map these events to **All_Changes**.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`ausearch -f /etc/passwd` on the host for the same epoch; `lastlog` / `getent` for the users you expect. Keep **PAM** logs (`linux_secure`) in a correlated search for the same **auid** when triaging.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table
+Auto-ticket the owning application when **exe** is not **useradd**-class; send straight to **IR** for **exe** in world-writable paths.
+
+
 
 ## SPL
 
 ```spl
-index=os sourcetype=linux_audit path="/etc/passwd" action=modified
+index=os sourcetype=linux_audit path="/etc/passwd" (action=modified OR nametype=normal)
 | stats count by host, auid, exe
-| where count > 0
+| where count>0
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count from datamodel=Change.All_Changes where All_Changes.action=modified AND All_Changes.object="*passwd*" by All_Changes.user All_Changes.dest span=1h | where count>0
 ```
 
 ## Visualization
@@ -73,4 +57,5 @@ Alert, Table
 
 ## References
 
-- [Splunk Lantern — use case library](https://lantern.splunk.com/)
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
+- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.27.json — DO NOT EDIT -->
+
 ---
 id: "4.1.27"
 title: "API Gateway 4xx/5xx and Throttling"
@@ -68,6 +70,15 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/ApiGateway" (metric_name="5
 | timechart span=5m sum(Sum) by metric_name, ApiName, Stage
 | eval error_rate = 5XXError / Count * 100
 | where error_rate > 1
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Performance.Performance
+  by Performance.object Performance.app span=1h
+| sort -count
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.1.14.json — DO NOT EDIT -->
+
 ---
 id: "9.1.14"
 title: "Service Account Password Age"
@@ -60,7 +62,7 @@ The first pipeline stage scopes events using **index**: ad; **sourcetype**: ad:a
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the directory server’s admin or audit view (bind DNs, result codes) for the same time range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (overdue service accounts), Bar chart (password age by OU), Single value (accounts over policy limit), Gauge (compliance %).
@@ -100,10 +102,6 @@ index=ad sourcetype="ad:accounts"
 ## Visualization
 
 Table (overdue service accounts), Bar chart (password age by OU), Single value (accounts over policy limit), Gauge (compliance %).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.4.13.json — DO NOT EDIT -->
+
 ---
 id: "5.4.13"
 title: "RSSI/Signal Strength Degradation Detection (Meraki MR)"
@@ -51,12 +53,12 @@ The first pipeline stage scopes events using **index**: cisco_network; **sourcet
 
 • Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **rssi_level** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by ap_name, ssid, rssi_level** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by ap_name, ssid, rssi_level** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where min_rssi < -70 or avg_rssi < -65` — typically the threshold or rule expression for this monitoring goal.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Open the Cisco Meraki Dashboard (organization or network scope, under Monitor as appropriate) and compare AP, client, security, or flow totals to the search for the same window. Spot-check a few device names, SSIDs, or MAC addresses against what you see live.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap of RSSI by AP location; histogram of signal strength distribution; gauge charts for coverage quality by SSID.

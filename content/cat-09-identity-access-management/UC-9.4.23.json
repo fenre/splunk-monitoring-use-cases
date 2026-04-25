@@ -34,5 +34,12 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw directory, IdP, PAM, or device feeds.",
+  "knownFalsePositives": "Mistyped vault credentials, lockouts from scanners, expired checkout approvals, and integration retries with stale credentials — correlate IP with known tests and app owners before escalating.",
+  "grandmaExplanation": "We count failed or blocked vault sign-ins and requests so you can see brute-force style probing or policy blocks before an attacker or broken script does real damage.",
+  "cimModels": [
+    "N/A"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure: BeyondTrust Password Safe / Cloud Dashboard for Splunk (Splunkbase 5574).\n• Data sources: Password Safe security events forwarded to Splunk (`sourcetype=beyondtrust` or `source=password_safe`).\n\nStep 1 — Configure data collection\nMap `src_ip` when the connector includes it; some deployments require `rex` from `_raw`. Normalize result strings per BeyondTrust documentation. Tune out expected lockouts from scanners. Correlate repeated failures with MFA and SOAR playbooks.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=pam (sourcetype=beyondtrust OR source=password_safe) earliest=-24h\n| eval user=coalesce(UserName, user, User, \"\")\n| eval result=coalesce(Result, Status, Outcome, \"\")\n| where match(lower(result), \"(?i)deny|fail|block|invalid|unauthor\")\n OR match(lower(_raw), \"(?i)denied|failed|authentication failure\")\n| stats count values(result) as outcomes by user, src_ip\n| sort -count\n```\n\nStep 3 — Validate\nCompare with BeyondTrust Password Safe security and audit views for the same users, source IPs, and time window.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document the owner. Table (user × source IP), bar chart (outcomes), timeline."
 }

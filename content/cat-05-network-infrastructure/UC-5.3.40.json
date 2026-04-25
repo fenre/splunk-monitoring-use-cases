@@ -15,16 +15,14 @@
   "value": "SD-WAN sites often bond multiple WAN links with a defined active and standby plan. Health checks, utilization, and failover events show when the primary is saturated, when a standby unexpectedly carries traffic, and when a metered link risks billing overages. Early visibility shortens repair time and controls cost.",
   "implementation": "Tag each link with `metered` in a lookup for finance alerts. Alert on failover, sustained high utilization, or standby link carrying production traffic (possible mis-balance). Roll up to site level for a single on-call view. For meter overages, daily sums against monthly caps from procurement.",
   "visualization": "Gauge: active link utilization; timeline: failovers; table: top sites for metered bytes; state timeline per link.",
-  "cimModels": [
-    "Network_Traffic"
-  ],
+  "cimModels": [],
   "references": [
     {
       "title": "Citrix — SD-WAN high availability and links",
       "url": "https://docs.citrix.com/en-us/citrix-sd-wan/11-4/high-availability.html"
     }
   ],
-  "knownFalsePositives": "Primary WAN maintenance and fiber cuts that force use of a healthy standby for hours are often correct behavior. The false positive is treating standby use as 'down'; page when standby is unhealthy, asymmetric routing fails, or primary does not return after the maintenance close.",
+  "knownFalsePositives": "Planned work, long repair windows, and standby links can make link-state logs busy without missing service class.",
   "equipment": [
     "citrix",
     "snmp",
@@ -35,5 +33,5 @@
   ],
   "lastReviewed": "2026-04-24",
   "detailedImplementation": "Prerequisites: citrix:sdwan:wan_link with link_id, role, state, utilization; optional lookup metered_wan_links.csv for caps. Step 1: Configure data collection — Join metered/billing data via lookup if not in the feed; props for failover_event, util_in_pct, util_out_pct, metered_bytes. Step 2: Create the search and alert — Severe: any failover; warning: 90% utilization for three consecutive 5m on active; finance alert at 80% of monthly cap with two weeks left; if alerts fire on standby links, treat as path imbalance. Step 3: Validate — After controlled lab failover, run `index=sdwan sourcetype=\"citrix:sdwan:wan_link\" | stats latest(state) max(failover) by site_id, link_id` and match appliance UI. Step 4: Operationalize — Map to carrier SLAs, archive monthly meters; if unexpected standby load or failovers continue, escalate to SD-WAN operations and providers; on-call: loop carrier first for last-mile, platform second.",
-  "grandmaExplanation": "We keep tabs on the main and backup internet pipes at each site, when the live line hands off, and when a pay-by-usage line is about to go over budget — so you are not left blind during an outage or a bill shock."
+  "grandmaExplanation": "We follow physical link and standby use on the same edge so a quiet line on purpose and a real cable fault are not the same in hindsight."
 }

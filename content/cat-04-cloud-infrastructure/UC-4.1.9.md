@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.9.json — DO NOT EDIT -->
+
 ---
 id: "4.1.9"
 title: "VPC Flow Log Analysis"
@@ -49,7 +51,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 **Pipeline walkthrough**
 
 • Scopes the data: index=aws, sourcetype="aws:cloudwatchlogs:vpcflow". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by src, dest, dest_port, protocol** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by src, dest, dest_port, protocol** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
@@ -65,6 +67,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:cloudwatchlogs:vpcflow" action="REJECT"
 | stats count by src, dest, dest_port, protocol
 | sort 20 -count
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.All_Traffic
+  where like(All_Traffic.action, "%eject%") OR like(lower(All_Traffic.action), "%deny%") OR like(lower(All_Traffic.action), "%block%")
+  by All_Traffic.src All_Traffic.dest All_Traffic.dest_port All_Traffic.action span=1h
+| sort -count
 ```
 
 ## Visualization

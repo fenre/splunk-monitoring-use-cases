@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.59.json — DO NOT EDIT -->
+
 ---
 id: "4.1.59"
 title: "S3 Suspicious Access Patterns"
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 
 • Scopes the data: index=aws, sourcetype="aws:cloudtrail". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **geo** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by userIdentity.arn, requestParameters.bucketName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by userIdentity.arn, requestParameters.bucketName** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where regions > 3 OR count > 10000` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 

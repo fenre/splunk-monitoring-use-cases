@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.2.6.json — DO NOT EDIT -->
+
 ---
 id: "6.2.6"
 title: "S3 and Azure Blob Lifecycle Policy Compliance"
@@ -50,16 +52,16 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 **Pipeline walkthrough**
 
 • Scopes the data: index=aws, sourcetype="aws:s3:lifecycle_inventory". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by bucket_name, region** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by bucket_name, region** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where mvcount(rules)=0 OR exp=0` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **S3 and Azure Blob Lifecycle Policy Compliance**): table bucket_name region rules exp
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (buckets without compliant lifecycle), Pie chart (compliant vs non-compliant), Single value (non-compliant count).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Include who owns the cloud account and the bucket lifecycle policy, because object alerts often need a finance or app owner, not only the storage team. Consider visualizations: Table (buckets without compliant lifecycle), Pie chart (compliant vs non-compliant), Single value (non-compliant count).
 
 ## SPL
 

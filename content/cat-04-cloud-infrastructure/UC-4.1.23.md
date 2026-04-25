@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.23.json — DO NOT EDIT -->
+
 ---
 id: "4.1.23"
 title: "CloudFront Cache Hit Ratio and Origin Errors"
@@ -62,6 +64,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ```spl
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/CloudFront" (metric_name="4xxErrorRate" OR metric_name="5xxErrorRate" OR metric_name="BytesDownloaded")
 | timechart span=1h avg(Average) by metric_name, DistributionId
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

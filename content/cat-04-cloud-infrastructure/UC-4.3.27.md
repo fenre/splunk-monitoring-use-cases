@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.3.27.json — DO NOT EDIT -->
+
 ---
 id: "4.3.27"
 title: "Cloud Armor WAF Events"
@@ -51,29 +53,31 @@ The first pipeline stage scopes events using **index**: gcp; **sourcetype**: goo
 
 • Scopes the data: index=gcp, sourcetype="google:gcp:pubsub:message". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Applies an explicit `search` filter to narrow the current result set.
-• `stats` rolls up events into metrics; results are split **by jsonPayload.enforcedSecurityPolicy.name, httpRequest.remoteIp, httpRequest.requestUrl** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by jsonPayload.enforcedSecurityPolicy.name, httpRequest.remoteIp, httpRequest.requestUrl** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.action, IDS_Attacks.signature, IDS_Attacks.src, IDS_Attacks.dest | sort - count
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
 ```
 
 Understanding this CIM / accelerated SPL
 
 **Cloud Armor WAF Events** — WAF blocks indicate attack traffic or misrules; separating noise from targeted campaigns protects edge apps behind HTTPS load balancers.
 
-Documented **Data sources**: HTTP(S) LB request logs with Cloud Armor, `sourcetype=google:gcp:pubsub:message` (loadbalancing.googleapis.com/requests). **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Intrusion_Detection.IDS_Attacks` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
 
 
 Step 3 — Validate
@@ -94,7 +98,10 @@ index=gcp sourcetype="google:gcp:pubsub:message" logName="*requests" httpRequest
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.action, IDS_Attacks.signature, IDS_Attacks.src, IDS_Attacks.dest | sort - count
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
 ```
 
 ## Visualization
@@ -105,3 +112,4 @@ Bar chart (rule hits), Map (client IP geo), Timeline (block rate).
 
 - [Splunk_TA_google-cloudplatform](https://splunkbase.splunk.com/app/3088)
 - [CIM: Intrusion_Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
+- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)

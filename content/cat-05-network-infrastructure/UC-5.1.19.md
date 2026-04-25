@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.1.19.json — DO NOT EDIT -->
+
 ---
 id: "5.1.19"
 title: "PoE Power Budget Monitoring"
@@ -50,14 +52,14 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 **Pipeline walkthrough**
 
 • Scopes the data: index=network, sourcetype="snmp:poe". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **utilization_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where utilization_pct > 80` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (per switch), Line chart (utilization trending), Table (switch, budget, used, remaining).

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.102.json — DO NOT EDIT -->
+
 ---
 id: "1.2.102"
 title: "Software Restriction / AppLocker Bypass Detection"
@@ -13,7 +15,7 @@ Application whitelisting is a primary defense against malware. Detecting bypass 
 
 ## Value
 
-Application whitelisting is a primary defense against malware. Detecting bypass attempts reveals both sophisticated attackers and policy gaps.
+Application control bypasses mean policy is on paper only. Catching bypass techniques early keeps allow-listing and block rules honest under real attacker behavior.
 
 ## Implementation
 
@@ -51,7 +53,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **BlockType** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, UserName, BlockType, RuleName, FilePath** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, UserName, BlockType, RuleName, FilePath** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
@@ -68,6 +70,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-AppLocker*" EventCode IN
 | eval BlockType=case(EventCode=8004,"EXE_Blocked", EventCode=8007,"Script_Blocked", EventCode=8022,"MSI_Blocked", EventCode=8025,"DLL_Blocked", 1=1,"Other")
 | stats count by host, UserName, BlockType, RuleName, FilePath
 | sort -count
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Endpoint.Processes
+  by Processes.user Processes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

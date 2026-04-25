@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.39.json — DO NOT EDIT -->
+
 ---
 id: "1.2.39"
 title: "Domain Trust Changes"
@@ -13,7 +15,7 @@ Unauthorized trust relationships can grant external domains access to internal r
 
 ## Value
 
-Unauthorized trust relationships can grant external domains access to internal resources. Trust modifications are rare and high-impact.
+Trust changes are rare and high impact—tight change correlation is the difference between a drill and a real incident review.
 
 ## Implementation
 
@@ -58,9 +60,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -98,9 +100,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4706, 4707, 47
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
+| where count>0
 ```
 
 ## Visualization

@@ -35,5 +35,12 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw directory, IdP, PAM, or device feeds.",
+  "knownFalsePositives": "Planned long maintenance, database restores, and vendor-led sessions that exceed the default minutes but are on the change calendar — join alerts with ITSM and PAM change records.",
+  "grandmaExplanation": "We call out when a remote admin session drags on far longer than policy allows so you can end risky marathon access before it becomes a bigger incident.",
+  "cimModels": [
+    "N/A"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure: BeyondTrust integrations feeding Splunk PAM index.\n• Data sources: `sourcetype=beyondtrust:session` with duration or start/end timestamps.\n\nStep 1 — Configure data collection\nConfirm which duration field your BeyondTrust parser provides; some feeds require computing `strptime` deltas between session start and end events. Set thresholds per asset class (120 minutes default). Join with change tickets for expected long maintenance.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=pam sourcetype=\"beyondtrust:session\" earliest=-24h\n| eval dur_min=coalesce(duration_min, round(duration_sec/60,1), round((SessionDurationSeconds)/60,1))\n| eval user=coalesce(user, UserName, admin_user, \"\")\n| eval target=coalesce(target_host, TargetHost, dest, \"\")\n| where isnotnull(dur_min) AND dur_min>120\n| stats max(dur_min) as max_min avg(dur_min) as avg_min by user, target\n| sort -max_min\n```\n\nStep 3 — Validate\nCompare with BeyondTrust session start/end and duration fields in the vendor console for the same session IDs and time range.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document the owner. Table (user × target × max duration), histogram of session lengths, timeline."
 }

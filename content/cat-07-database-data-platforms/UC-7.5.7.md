@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.5.7.json — DO NOT EDIT -->
+
 ---
 id: "7.5.7"
 title: "Solr Replication Lag"
@@ -53,12 +55,12 @@ The first pipeline stage scopes events using **index**: database; **sourcetype**
 • Scopes the data: index=database, sourcetype="solr:replication". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **lag_bytes** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where lag_bytes > 1048576 OR index_version_lag > 100` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by collection, shard, replica** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by collection, shard, replica** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (replication lag over time), Table (replicas over SLA), Single value (max lag per collection).

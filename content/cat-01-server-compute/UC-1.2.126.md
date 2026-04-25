@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.126.json — DO NOT EDIT -->
+
 ---
 id: "1.2.126"
 title: "DCOM Activation Failures"
@@ -13,7 +15,7 @@ DCOM failures break distributed applications, WMI remote management, and SCCM cl
 
 ## Value
 
-DCOM failures break distributed applications, WMI remote management, and SCCM client operations. Monitoring identifies misconfigured permissions and network issues.
+DCOM activation failures can break management, monitoring, and integrated apps. Clustering errors by AppID and CLSID speeds up both misconfiguration and malicious COM abuse triage.
 
 ## Implementation
 
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Extracts fields with `rex` (regular expression).
-• `stats` rolls up events into metrics; results are split **by host, CLSID, APPID** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, CLSID, APPID** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count>10` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -101,9 +103,9 @@ index=wineventlog source="WinEventLog:System" EventCode=10016
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

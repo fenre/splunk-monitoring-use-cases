@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.2.13.json — DO NOT EDIT -->
+
 ---
 id: "4.2.13"
 title: "App Service (Web App) HTTP 5xx and Slot Swap"
@@ -53,6 +55,121 @@ The first pipeline stage scopes events using **index**: azure; **sourcetype**: m
 • `timechart` plots the metric over time using **span=5m** buckets with a separate series **by resourceId** — ideal for trending and alerting on this use case.
 
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**App Service (Web App) HTTP 5xx and Slot Swap** — App Service 5xx and failed slot swaps impact user experience and deployment safety.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on accelerated data model the CPU-related Performance model — enable that model in Data Models and CIM add-ons, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**App Service (Web App) HTTP 5xx and Slot Swap** — App Service 5xx and failed slot swaps impact user experience and deployment safety.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**App Service (Web App) HTTP 5xx and Slot Swap** — App Service 5xx and failed slot swaps impact user experience and deployment safety.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**App Service (Web App) HTTP 5xx and Slot Swap** — App Service 5xx and failed slot swaps impact user experience and deployment safety.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**App Service (Web App) HTTP 5xx and Slot Swap** — App Service 5xx and failed slot swaps impact user experience and deployment safety.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
@@ -67,6 +184,15 @@ index=azure sourcetype="mscs:azure:metrics" metricName="Http5xx" namespace="Micr
 | timechart span=5m sum(total) by resourceId
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
 ## Visualization
 
 Line chart (5xx, response time by app), Table (app, 5xx count), Timeline (slot swaps).
@@ -74,3 +200,4 @@ Line chart (5xx, response time by app), Table (app, 5xx count), Timeline (slot s
 ## References
 
 - [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
+- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.6.5.json — DO NOT EDIT -->
+
 ---
 id: "4.6.5"
 title: "Cloud Network Traffic Volume Trending"
@@ -56,27 +58,6 @@ The first pipeline stage scopes events using **index**: cloud; **sourcetype**: a
 • `eval` defines or adjusts **total_gb** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Pipeline stage (see **Cloud Network Traffic Volume Trending**): trendline sma4(total_gb) as traffic_trend
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=1w | sort - agg_value
-```
-
-Understanding this CIM / accelerated SPL
-
-**Cloud Network Traffic Volume Trending** — Weekly VPC flow log volume indicates shifting traffic patterns, DDoS aftermath, or misconfigured mirroring. Complements per-flow analysis with a coarse health signal and correlates with network-related cost changes.
-
-Documented **Data sources**: `index=cloud sourcetype=aws:cloudwatch:vpcflow` OR `sourcetype=azure:nsg:flow`. **App/TA** (typical add-on context): Splunk Add-on for AWS (VPC Flow Logs), Azure NSG flow logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -92,12 +73,6 @@ index=cloud sourcetype="aws:cloudwatch:vpcflow"
 | timechart span=1w sum(bytes) as total_bytes
 | eval total_gb=round(total_bytes/1073741824, 2)
 | trendline sma4(total_gb) as traffic_trend
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=1w | sort - agg_value
 ```
 
 ## Visualization

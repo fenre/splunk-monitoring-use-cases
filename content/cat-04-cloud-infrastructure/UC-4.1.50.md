@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.50.json — DO NOT EDIT -->
+
 ---
 id: "4.1.50"
 title: "Trusted Advisor Check Results and Cost Optimization"
@@ -49,7 +51,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 **Pipeline walkthrough**
 
 • Scopes the data: index=aws, sourcetype="aws:trustedadvisor". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by category name status** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by category name status** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 

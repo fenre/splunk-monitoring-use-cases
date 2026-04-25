@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.91.json — DO NOT EDIT -->
+
 ---
 id: "1.2.91"
 title: "USB / Removable Device Auditing"
@@ -13,7 +15,7 @@ Removable storage devices are a data exfiltration vector. Auditing device connec
 
 ## Value
 
-Removable storage devices are a data exfiltration vector. Auditing device connections enables DLP and compliance enforcement.
+USB and removable events prove policy enforcement and give evidence after data moves. They matter most on jump boxes and regulated workstations touched by this UC.
 
 ## Implementation
 
@@ -53,7 +55,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **DeviceClass** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where DeviceClass="DiskDrive" OR DeviceClass="WPD" OR DeviceClass="USB"` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by host, DeviceId, DeviceDescription, DeviceClass, SubjectUserName, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, DeviceId, DeviceDescription, DeviceClass, SubjectUserName, _time** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
@@ -71,6 +73,15 @@ index=wineventlog EventCode=6416
 | where DeviceClass="DiskDrive" OR DeviceClass="WPD" OR DeviceClass="USB"
 | stats count by host, DeviceId, DeviceDescription, DeviceClass, SubjectUserName, _time
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

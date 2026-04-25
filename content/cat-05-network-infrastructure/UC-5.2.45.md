@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.2.45.json — DO NOT EDIT -->
+
 ---
 id: "5.2.45"
 title: "FortiGate SD-WAN Health Check and SLA Monitoring (Fortinet)"
@@ -60,36 +62,8 @@ The first pipeline stage scopes events using **index**: firewall.
 • Filters the current rows with `where loss_pct > 0 OR lat_ms > 200 OR match(lower(_raw), "violated|fail|unreachable|timeout")` — typically the threshold or rule expression for this monitoring goal.
 • `timechart` plots the metric over time using **span=15m** buckets with a separate series **by iface** — ideal for trending and alerting on this use case.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.app span=1h
-| eval bytes=bytes_in+bytes_out
-| sort -bytes
-```
-
-Understanding this CIM / accelerated SPL
-
-**FortiGate SD-WAN Health Check and SLA Monitoring (Fortinet)** — SD-WAN health checks (ICMP, HTTP, DNS, TCP/UDP echo) continuously score each member link against SLA targets for latency, jitter, and loss. When an SLA fails, FortiOS steers traffic to better paths—so log and metric visibility is how you catch ISP brownouts before users open tickets. Trending per-interface loss and delay also validates whether performance problems are underlay-related or application-side.
-
-Documented **Data sources**: `sourcetype=fgt_event` (FortiOS system events, SD-WAN subtype varies by release, e.g. `subtype=sdwan`), `sourcetype=fortinet_fortios_event`. **App/TA** (typical add-on context): `TA-fortinet_fortigate` (Splunkbase 2846). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.
-• `eval` defines or adjusts **bytes** — often to normalize units, derive a ratio, or prepare for thresholds.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
-
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
+Reconcile a sample of results with the FortiGate GUI or FortiManager for the same policies, objects, and time range.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart (loss/latency per member), Table (SLA violations by interface), Single value (active violated SLAs).
 
@@ -105,16 +79,6 @@ index=firewall sourcetype IN ("fgt_event","fortinet_fortios_event") type="system
 | timechart span=15m avg(loss_pct) as avg_loss avg(lat_ms) as avg_latency by iface
 ```
 
-## CIM SPL
-
-```spl
-| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.app span=1h
-| eval bytes=bytes_in+bytes_out
-| sort -bytes
-```
-
 ## Visualization
 
 Timechart (loss/latency per member), Table (SLA violations by interface), Single value (active violated SLAs).
@@ -122,4 +86,3 @@ Timechart (loss/latency per member), Table (SLA violations by interface), Single
 ## References
 
 - [Splunkbase app 2846](https://splunkbase.splunk.com/app/2846)
-- [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)

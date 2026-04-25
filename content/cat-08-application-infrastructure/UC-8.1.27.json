@@ -11,19 +11,28 @@
   "dataSources": "`index=web` `sourcetype=ms:iis:auto` with `time-taken` field (milliseconds)",
   "app": "Splunk Add-on for Microsoft IIS (Splunkbase app 3185)",
   "spl": "index=web sourcetype=\"ms:iis:auto\"\n| eval tt=coalesce('time-taken', time_taken)\n| where isnotnull(tt) AND tt>=0\n| timechart span=5m perc95(tt) as p95_ms by s_sitename\n| where p95_ms > 3000",
+  "cimSpl": "| tstats `summariesonly` perc95(Web.duration) as p95_ms avg(Web.duration) as avg_ms\n  from datamodel=Web.Web\n  by Web.dest Web.uri_path span=5m\n| where p95_ms > 3000",
+  "cimModels": [
+    "Web"
+  ],
+  "dataModelAcceleration": "Web: enable Data Model Acceleration for the CIM `Web` dataset once your HTTP access or proxy access logs are tagged and mapped to the model; otherwise `cimSpl` tstats may return no rows. Most teams start with the raw-log search in Step 2 and add acceleration after CIM field aliases validate.",
   "description": "The W3C `time-taken` field is the authoritative IIS request duration. P95 by site highlights slow apps, ARR backends, or cold .NET startup.",
   "value": "Surfaces latency regressions that status-code-only dashboards miss.",
+  "grandmaExplanation": "We use this to surfaces latency regressions that status-code-only dashboards miss.",
   "implementation": "Enable `time-taken` in IIS logging; use `ms:iis:auto`. Exclude static content if needed via `cs-uri-stem` filters.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft IIS (Splunkbase app 3185).\n• Ensure the following data sources are available: `index=web` `sourcetype=ms:iis:auto` with `time-taken` field (milliseconds).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm `time-taken` is enabled in the IIS logging field list.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"ms:iis:auto\"\n| eval tt=coalesce('time-taken', time_taken)\n| where isnotnull(tt) AND tt>=0\n| timechart span=5m perc95(tt) as p95_ms by s_sitename\n| where p95_ms > 3000\n```\n\nUnderstanding this SPL\n\n**IIS W3C Time-Taken Latency Percentiles** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=ms:iis:auto` with `time-taken` field (milliseconds). **App/TA**: Splunk Add-on for Microsoft IIS (Splunkbase app 3185). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare a sample of alert results to IIS W3C extended logs on the server (or a one-off export of the same file) and, when applicable, the IIS Manager site. Confirm `sc-status`, time-taken, and URI fields match what you expect.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (P95 per site), table (top URIs using separate drilldown search), compare to app pool recycle windows..",
   "visualization": "Line chart (P95 per site), table (top URIs using separate drilldown search), compare to app pool recycle windows.",
-  "cimModels": [
-    "N/A"
-  ],
   "references": [
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    },
     {
       "title": "Splunk Add-on for Microsoft IIS (Splunkbase)",
       "url": "https://splunkbase.splunk.com/app/3185"
     }
   ],
+  "knownFalsePositives": "Response time spikes during JVM garbage collection, connection pool exhaustion, or backend dependency degradation. Load tests, campaigns, and cold caches also move percentiles.",
   "equipment": [
     "iis"
   ],
@@ -33,7 +42,5 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft IIS (Splunkbase app 3185).\n• Ensure the following data sources are available: `index=web` `sourcetype=ms:iis:auto` with `time-taken` field (milliseconds).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm `time-taken` is enabled in the IIS logging field list.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"ms:iis:auto\"\n| eval tt=coalesce('time-taken', time_taken)\n| where isnotnull(tt) AND tt>=0\n| timechart span=5m perc95(tt) as p95_ms by s_sitename\n| where p95_ms > 3000\n```\n\nUnderstanding this SPL\n\n**IIS W3C Time-Taken Latency Percentiles** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=ms:iis:auto` with `time-taken` field (milliseconds). **App/TA**: Splunk Add-on for Microsoft IIS (Splunkbase app 3185). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (P95 per site), table (top URIs using separate drilldown search), compare to app pool recycle windows..",
-  "grandmaExplanation": "We track how long Windows web servers take to answer so slow releases are obvious."
+  "reviewer": "@splunk-monitoring-use-cases"
 }

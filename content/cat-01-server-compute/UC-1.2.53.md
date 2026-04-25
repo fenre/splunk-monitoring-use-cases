@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.53.json — DO NOT EDIT -->
+
 ---
 id: "1.2.53"
 title: "BitLocker Recovery Events"
@@ -13,7 +15,7 @@ BitLocker recovery mode triggers indicate TPM issues, boot configuration changes
 
 ## Value
 
-BitLocker recovery mode triggers indicate TPM issues, boot configuration changes, or potential tampering with the boot chain. Each event requires investigation.
+Encryption health is a physical-loss and compliance story, not a CPU chart—treat it as such.
 
 ## Implementation
 
@@ -55,6 +57,20 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • Pipeline stage (see **BitLocker Recovery Events**): table _time, host, issue, VolumeName, RecoveryReason
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -70,6 +86,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-BitLocker*"
 | eval issue=case(EventCode=768,"Recovery mode entered",EventCode=770,"Protection suspended",EventCode=775,"Recovery key used",EventCode=846,"Encryption failed")
 | table _time, host, issue, VolumeName, RecoveryReason
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1h
+| where count>0
 ```
 
 ## Visualization

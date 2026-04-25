@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.11.json — DO NOT EDIT -->
+
 ---
 id: "4.4.11"
 title: "Cloud Encryption and Key Rotation Compliance"

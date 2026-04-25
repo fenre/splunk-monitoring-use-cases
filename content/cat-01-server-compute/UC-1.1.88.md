@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.88.json — DO NOT EDIT -->
+
 ---
 id: "1.1.88"
 title: "Container Escape Attempt Detection"
@@ -9,62 +11,38 @@ splunkPillar: "Security"
 
 ## Description
 
-Container escape attempts are critical security events indicating sophisticated attack against containerized infrastructure.
+Counts combined **AppArmor**/**SELinux** style denials whose text also references a **container** id or the word **container**, and pages when a **host**+**container** pair crosses a small floor.
 
 ## Value
 
-Container escape attempts are critical security events indicating sophisticated attack against containerized infrastructure.
+These log lines are rare in healthy microservice estates; even a handful can be the first hint of a breakout tool hitting **policy** before it succeeds.
 
 ## Implementation
 
-Monitor container runtime logs and SELinux/AppArmor denials for escape signatures. Create immediate critical alerts. Correlate with process syscalls and capability usage anomalies.
+If `container_id` is not extracted, start with `by host` only and add **REX** for **k8s** **namespace**/**pod** once you standardize logging. Raise `>5` in **dev** clusters that are always noisy.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=syslog, AppArmor/SELinux denials`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• **Runtime** logs ( **containerd** / **cri-o** ) may be a better primary in some orgs—pair this UC with those sourcetypes in a **join** during triage.
 
-Step 1 — Configure data collection
-Monitor container runtime logs and SELinux/AppArmor denials for escape signatures. Create immediate critical alerts. Correlate with process syscalls and capability usage anomalies.
-
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=syslog (AppArmor OR SELinux) "container" "denied"
-| stats count by host, container_id
-| where count > threshold
-```
-
-Understanding this SPL
-
-**Container Escape Attempt Detection** — Container escape attempts are critical security events indicating sophisticated attack against containerized infrastructure.
-
-Documented **Data sources**: `sourcetype=syslog, AppArmor/SELinux denials`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, container_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where count > threshold` — typically the threshold or rule expression for this monitoring goal.
+**CIM** — **N/A** for the **syslog** keyword pass; use **Authentication**/**Change** only after you model **container** policy into CIM.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`crictl inspect` / **docker** **inspect** for the **id**; **dmesg** **seccomp** lines on the node the same minute.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table
+Page both **platform** and **product** security when a **container** image name in the log matches a customer **tenant**.
+
+
 
 ## SPL
 
 ```spl
-index=os sourcetype=syslog (AppArmor OR SELinux) "container" "denied"
+index=os sourcetype=syslog ("AppArmor" OR "SELinux") "container" ("denied" OR "DENIED")
 | stats count by host, container_id
-| where count > threshold
+| where count>5
 ```
 
 ## Visualization
@@ -73,4 +51,5 @@ Alert, Table
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

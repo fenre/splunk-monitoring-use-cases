@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.2.json — DO NOT EDIT -->
+
 ---
 id: "4.1.2"
 title: "Root Account Usage"
@@ -57,7 +59,7 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.user="root" OR Authentication.user="Root"
+  where match(Authentication.user, "(?i)arn:aws:iam::[0-9]+:root|\\bRoot\\b")
   by Authentication.src Authentication.action Authentication.app span=1h
 | sort -count
 ```
@@ -97,7 +99,7 @@ index=aws sourcetype="aws:cloudtrail" userIdentity.type="Root"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.user="root" OR Authentication.user="Root"
+  where match(Authentication.user, "(?i)arn:aws:iam::[0-9]+:root|\\bRoot\\b")
   by Authentication.src Authentication.action Authentication.app span=1h
 | sort -count
 ```

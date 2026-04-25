@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.83.json — DO NOT EDIT -->
+
 ---
 id: "1.2.83"
 title: "Boot Configuration Changes (BCDEdit)"
@@ -13,7 +15,7 @@ Boot configuration changes can disable Secure Boot, enable test signing (rootkit
 
 ## Value
 
-Boot configuration changes can disable Secure Boot, enable test signing (rootkit loading), or modify boot chain integrity. Used by advanced threats.
+BCD and boot policy edits decide how the system starts and recovers. Spotting unapproved edits early limits persist bootkits and dual-boot abuse on sensitive servers.
 
 ## Implementation
 

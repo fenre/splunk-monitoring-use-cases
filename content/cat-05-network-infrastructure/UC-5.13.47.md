@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.47.json — DO NOT EDIT -->
+
 ---
 id: "5.13.47"
 title: "Privileged User Activity Monitoring"
@@ -22,36 +24,33 @@ Enable the `audit_logs` input in the Cisco Catalyst TA pointing to `index=cataly
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).
-• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:audit:logs (Catalyst Center audit; user, role, permission, and admin-sounding auditRequestType values).
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Cisco Catalyst Add-on (7538) with **audit_logs** writing `cisco:dnac:audit:logs` to `index=catalyst` (Intent `GET` audit log API; typical 300s poll).
+• Tuning is mandatory: wildcards such as `*USER*` can over-match; add a lookup of allowed `auditRequestType` values in production, or list explicit request types for SOX/PCI evidence.
+• `docs/implementation-guide.md` and `docs/guides/catalyst-center.md`.
 
 Step 1 — Configure data collection
-Enable the `audit_logs` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls audit log data from the Catalyst Center Intent API `/dna/intent/api/v1/audit/logs` every 5 minutes. Key fields: `auditRequestType`, `auditDescription`, `auditUserName`, `auditTimestamp`, `auditIpAddress`.
+• Baseline your jump-box and VPN `auditIpAddress` values before any spike alert; a hot IP can be “normal” for 24/7 NOC work.
 
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Step 2 — Privileged-activity view
 ```spl
 index=catalyst sourcetype="cisco:dnac:audit:logs" (auditUserName="admin" OR auditRequestType="*USER*" OR auditRequestType="*ROLE*" OR auditRequestType="*PERMISSION*") | stats count as action_count dc(auditRequestType) as unique_actions values(auditRequestType) as action_types by auditUserName, auditIpAddress | sort -action_count
 ```
 
-Understanding this SPL
-
-**Privileged User Activity Monitoring** — Privileged accounts can cause maximum damage. Monitoring their activity detects unauthorized use, credential compromise, and insider threats.
+Understanding this SPL (identity and RBAC on Catalyst)
+**Privileged user monitoring** — Ranks the loudest `auditUserName`+`auditIpAddress` pairs for identity-related `auditRequestType` strings, with a separate branch for a literal `admin` username. Replace the literal and wildcards to match your tenant and naming standard.
 
 **Pipeline walkthrough**
-
-• Filters to likely privileged traffic: literal `admin` usernames and USER/ROLE/PERM-related request types (tune to your account naming standard).
-• `stats` measures volume, unique action types, and lists raw `auditRequestType` values per `auditUserName` and `auditIpAddress` source pair.
-• `sort -action_count` orders the noisiest or most active sources for follow-up or correlation with PAM and IdP tools.
-
+• Filter to likely high-privilege work → `stats` for volume, `dc` of type, and `values` of type strings → `sort` by `action_count`.
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results.
+• Cross-check the top 10 with your IdP: confirm whether each `auditUserName` is expected in that window (break-glass, TAC, or service principal). HR-driven bulk user sync can legitimately run up counts.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions as required. Consider visualizations: Table (auditUserName, auditIpAddress, action_count, unique_actions, action_types), alert on spikes or new admin sources.
+• Optional alert: a **new** `auditIpAddress` for a **known** admin account, implemented with a `lookup` of historical pairs; throttle and route to the identity team, not a generic on-call.
+
+Step 5 — Troubleshooting
+• After a Catalyst or TA upgrade, re-run `| stats count by auditRequestType` to refresh the wildcard list. No rows: filter too tight or the audit user never uses those strings. Time skew: align `auditTimestamp` with Splunk `_time` for PAM cross-checks—fix NTP on Catalyst, not in SPL alone, for evidential use.
+
 
 ## SPL
 
@@ -67,3 +66,4 @@ Table (auditUserName, auditIpAddress, action_count, unique_actions, action_types
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

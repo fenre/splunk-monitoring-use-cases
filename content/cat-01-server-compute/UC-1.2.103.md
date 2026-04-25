@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.103.json — DO NOT EDIT -->
+
 ---
 id: "1.2.103"
 title: "Terminal Services / RDP Session Tracking"
@@ -13,7 +15,7 @@ RDP is a primary lateral movement vector. Complete session tracking from logon t
 
 ## Value
 
-RDP is a primary lateral movement vector. Complete session tracking from logon to logoff enables detection of compromised credentials and unauthorized access.
+RDP session history supports both security (shared admin accounts, odd hours) and operations (capacity, license, and FSLogix health) on session hosts.
 
 ## Implementation
 
@@ -53,7 +55,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **Action** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **src** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, User, SessionID, src** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, User, SessionID, src** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **Duration** — often to normalize units, derive a ratio, or prepare for thresholds.
 
 
@@ -71,6 +73,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TerminalServices-LocalSe
 | eval src=if(isnotnull(Address), Address, "local")
 | stats earliest(_time) as SessionStart latest(_time) as SessionEnd values(Action) as Actions by host, User, SessionID, src
 | eval Duration=round((SessionEnd-SessionStart)/60,1)
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.src Authentication.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

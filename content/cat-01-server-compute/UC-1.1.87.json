@@ -8,17 +8,22 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=linux_audit`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
-  "spl": "index=os sourcetype=linux_audit type=CONTAINER_ESCAPE OR syscall=setns\n| stats count by host, pid, comm\n| where count > 0",
-  "description": "Process namespace breakout indicates container escape or privilege escalation enabling access to host.",
-  "value": "Process namespace breakout indicates container escape or privilege escalation enabling access to host.",
-  "implementation": "Monitor setns syscalls via auditctl. Create alerts on namespace escape attempts. Correlate with process name and user to identify unauthorized actors.",
+  "dataSources": "`sourcetype=linux_audit` (setns / container escape class rules)",
+  "app": "`Splunk_TA_nix`",
+  "spl": "index=os sourcetype=linux_audit (\"setns\" OR syscall=setns OR type=CONTAINER)\n| stats count by host, pid, comm\n| where count>0",
+  "description": "Pulls **auditd** rows that mention **setns** or container escape–class types for a quick table of **host**, **pid**, and **comm** when your rules actually emit those strings.",
+  "value": "Namespace games are core to **container** breakouts; even a noisy first-pass search gives IR a lead on which binary to **strace** next.",
+  "implementation": "`type=CONTAINER_ESCAPE` may not exist on stock kernels—replace with your **key=** from `auditd` after you add the rules from your container hardening standard.",
   "visualization": "Alert, Table",
   "cimModels": [
     "N/A"
   ],
+  "knownFalsePositives": "**CNI** / **kubelet** **setns** during normal **pod** starts; **debug** sidecars—add **exe** allow lists; duplicate **SYSCALL**+**PATH** lines.",
   "references": [
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
     {
       "title": "Splunk Lantern — use case library",
       "url": "https://lantern.splunk.com/"
@@ -27,6 +32,6 @@
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=linux_audit`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor setns syscalls via auditctl. Create alerts on namespace escape attempts. Correlate with process name and user to identify unauthorized actors.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=linux_audit type=CONTAINER_ESCAPE OR syscall=setns\n| stats count by host, pid, comm\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**Process Namespace Breakout Detection** — Process namespace breakout indicates container escape or privilege escalation enabling access to host.\n\nDocumented **Data sources**: `sourcetype=linux_audit`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, pid, comm** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table",
-  "grandmaExplanation": "Process namespace breakout indicates container escape or privilege escalation enabling access to host — so you find out before users do when something is slowing down or breaking."
+  "detailedImplementation": "Prerequisites\n• Tuned **auditd** on **container** hosts; consider **eBPF** complements for depth, not as a Splunk replacement.\n\n\nStep 3 — Validate\n`ausearch` for your **key**; `lsns` on the host to see namespaces live; **crictl** / **docker** for the **container** context when available.\n\nStep 4 — Operationalize\nMerge with the **AppArmor/SELinux** deny use cases when the process is both namespaced and blocked by policy.\n\n",
+  "grandmaExplanation": "We help you know when programs try to slip out of the little fenced area they were put in, which is one of the scarier signs on machines that run many small apps in boxes."
 }

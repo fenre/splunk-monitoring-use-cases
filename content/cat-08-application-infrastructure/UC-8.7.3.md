@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.7.3.json — DO NOT EDIT -->
+
 ---
 id: "8.7.3"
 title: "Application Error Budget Burn Rate Trending"
@@ -55,12 +57,13 @@ The first pipeline stage scopes events using **index**: app, middleware; **sourc
 • `eval` defines or adjusts **remaining_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **sprint** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time, service** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, service** so each row reflects one combination of those dimensions.
 • `timechart` plots the metric over time using **span=1d** buckets with a separate series **by service limit=10** — ideal for trending and alerting on this use case.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Area chart (budget remaining %), line chart with release annotations, single value (days of budget left at current burn).

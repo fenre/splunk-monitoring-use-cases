@@ -19,6 +19,7 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "BMC Control-M Automation API overview",
@@ -29,6 +30,7 @@
       "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
     }
   ],
+  "knownFalsePositives": "Busy or odd job states during code moves, new folder cutovers, one-off re-runs, or test folders still mixed into production; compare with the scheduler before you change how jobs are defined.",
   "equipment": [
     "controlm"
   ],
@@ -38,5 +40,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We compare planned end times to when work really finished, so forecasts get better and we stop promising files we will miss.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: Control-M Forecast SLA attributes mapped into Splunk.\n• Data: `controlm:job` with `forecast_end` and actual `end_time` epoch fields.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nBackfill baselines monthly; exclude one-off manual reruns via `run_as` filter.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=cicd sourcetype=\"controlm:job\"\n| where isnotnull(forecast_end) AND isnotnull(end_time)\n| eval variance_min=round((end_time-forecast_end)/60,1)\n| where abs(variance_min) > 30\n| stats avg(variance_min) as avg_var, p95(variance_min) as p95_var by job_name\n| sort -p95_var\n```\n\nUnderstanding this search\nSystematic variance between forecast and actual drives SLA gaming or bad baselines.\n\nStep 3 — Validate\nCompare with the Control-M job plan and run history in the job scheduler. Reconcile job and folder names, start and end times, and queue or pool use for a few highlighted jobs.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Box plot (variance), Table (top drifting jobs)."
 }

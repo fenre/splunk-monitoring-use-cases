@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.7.4.json — DO NOT EDIT -->
+
 ---
 id: "5.7.4"
 title: "East-West Traffic Monitoring"
@@ -51,18 +53,20 @@ The first pipeline stage scopes events using **index**: netflow.
 
 • Scopes the data: index=netflow. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where cidrmatch("10.0.0.0/8",src) AND cidrmatch("10.0.0.0/8",dest)` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by src, dest, dest_port** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by src, dest, dest_port** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Limits the number of rows with `head`.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+| tstats `summariesonly` sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out count as flows
   from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
+  by All_Traffic.src All_Traffic.dest All_Traffic.dest_port span=1h
 | eval bytes=bytes_in+bytes_out
+| where cidrmatch("10.0.0.0/8", All_Traffic.src) AND cidrmatch("10.0.0.0/8", All_Traffic.dest)
 | sort -bytes
+| head 50
 ```
 
 Understanding this CIM / accelerated SPL
@@ -83,7 +87,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Validate a sample path against a packet capture or the exporting switch’s interface counters for the same subnet; confirm CIDRs match your internal addressing (replace `10.0.0.0/8` in both searches if you use other RFC1918 space).
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Chord diagram, Table, Sankey diagram.
@@ -100,11 +104,13 @@ index=netflow
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+| tstats `summariesonly` sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out count as flows
   from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
+  by All_Traffic.src All_Traffic.dest All_Traffic.dest_port span=1h
 | eval bytes=bytes_in+bytes_out
+| where cidrmatch("10.0.0.0/8", All_Traffic.src) AND cidrmatch("10.0.0.0/8", All_Traffic.dest)
 | sort -bytes
+| head 50
 ```
 
 ## Visualization

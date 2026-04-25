@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.3.14.json — DO NOT EDIT -->
+
 ---
 id: "4.3.14"
 title: "GKE Node Pool Autoscaling and Upgrade Events"

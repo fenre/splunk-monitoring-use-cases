@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.2.18.json — DO NOT EDIT -->
+
 ---
 id: "4.2.18"
 title: "Cosmos DB RU Consumption and Throttling"
@@ -53,6 +55,121 @@ The first pipeline stage scopes events using **index**: azure; **sourcetype**: m
 • `eval` defines or adjusts **ru_utilization_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cosmos DB RU Consumption and Throttling** — Throttling (429) occurs when RU consumption exceeds provisioned throughput.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on accelerated data model the CPU-related Performance model — enable that model in Data Models and CIM add-ons, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cosmos DB RU Consumption and Throttling** — Throttling (429) occurs when RU consumption exceeds provisioned throughput.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cosmos DB RU Consumption and Throttling** — Throttling (429) occurs when RU consumption exceeds provisioned throughput.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cosmos DB RU Consumption and Throttling** — Throttling (429) occurs when RU consumption exceeds provisioned throughput.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cosmos DB RU Consumption and Throttling** — Throttling (429) occurs when RU consumption exceeds provisioned throughput.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
@@ -67,6 +184,15 @@ index=azure sourcetype="mscs:azure:metrics" namespace="Microsoft.DocumentDB/data
 | eval ru_utilization_pct = TotalRequestUnits / provisioned_ru * 100
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
 ## Visualization
 
 Line chart (RU, 429 by collection), Table (collection, RU, 429), Gauge (RU utilization %).
@@ -74,3 +200,4 @@ Line chart (RU, 429 by collection), Table (collection, RU, 429), Gauge (RU utili
 ## References
 
 - [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
+- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

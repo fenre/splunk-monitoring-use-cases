@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.2.43.json — DO NOT EDIT -->
+
 ---
 id: "5.2.43"
 title: "Juniper SRX Cluster Failover Events (Juniper SRX)"
@@ -61,8 +63,7 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
+Compare a sample of events in J-Web or the SRX command line for the same time and rule context so on-box messages and Splunk stay aligned.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (failover markers), Table (RG, reason, node), Status panel (current primary per cluster).
 

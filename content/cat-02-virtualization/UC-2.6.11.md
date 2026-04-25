@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.6.11.json — DO NOT EDIT -->
+
 ---
 id: "2.6.11"
 title: "Citrix License Server Utilization and Compliance"
@@ -52,12 +54,11 @@ The first pipeline stage scopes events using **index**: xd; **sourcetype**: citr
 **Pipeline walkthrough**
 
 • Scopes the data: index=xd, sourcetype="citrix:licensing". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by license_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by license_type** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **utilization_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **days_to_expiry** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where utilization_pct > 80 OR grace="true" OR days_to_expiry < 90` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Citrix License Server Utilization and Compliance**): table license_type, used, total, available, utilization_pct, grace, days_to_expiry
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

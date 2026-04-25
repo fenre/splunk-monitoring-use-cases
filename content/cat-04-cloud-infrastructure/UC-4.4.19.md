@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.19.json — DO NOT EDIT -->
+
 ---
 id: "4.4.19"
 title: "Multi-Cloud Cost Anomaly and Spike Detection"
@@ -53,13 +55,10 @@ The first pipeline stage scopes events using **index**: cloud; **sourcetype**: b
 
 • Scopes the data: index=cloud, sourcetype="billing:daily". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `timechart` plots the metric over time using **span=1d** buckets with a separate series **by provider** — ideal for trending and alerting on this use case.
-• `eventstats` rolls up events into metrics; results are split **by provider** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `eventstats` rolls up events into metrics; results are split **by provider** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **z_score** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where z_score > 2` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Multi-Cloud Cost Anomaly and Spike Detection**): table _time provider cost avg_cost z_score
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

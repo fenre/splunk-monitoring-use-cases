@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.6.10.json — DO NOT EDIT -->
+
 ---
 id: "8.6.10"
 title: "Envoy Proxy Upstream Health"
@@ -53,12 +55,13 @@ The first pipeline stage scopes events using **index**: mesh; **sourcetype**: en
 • Scopes the data: index=mesh, sourcetype="envoy:stats". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Applies an explicit `search` filter to narrow the current result set.
 • Extracts fields with `rex` (regular expression).
-• `stats` rolls up events into metrics; results are split **by cluster, metric** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by cluster, metric** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where metric=="rq_retry" AND val > 0 OR metric=="circuit_breakers_default_rq_open" AND val > 0` — typically the threshold or rule expression for this monitoring goal.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (cluster × health), Line chart (retry rate over time), Table (clusters with circuit breaker trips), Single value (active circuit breakers).

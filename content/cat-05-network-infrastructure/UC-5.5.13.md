@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.5.13.json — DO NOT EDIT -->
+
 ---
 id: "5.5.13"
 title: "Edge Device Resource Utilization"
@@ -52,39 +54,15 @@ The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: c
 **Pipeline walkthrough**
 
 • Scopes the data: index=sdwan, sourcetype="cisco:sdwan:device". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by hostname, system_ip, site_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by hostname, system_ip, site_id** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **cpu_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where cpu_pct > 80 OR mem_pct > 85` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Edge Device Resource Utilization**): table hostname system_ip site_id cpu_pct mem_pct
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats `summariesonly` avg(Performance.cpu_load_percent) as cpu_pct
-  from datamodel=Performance where nodename=Performance.CPU
-  by Performance.host span=1h
-| where cpu_pct > 80
-```
-
-Understanding this CIM / accelerated SPL
-
-**Edge Device Resource Utilization** — SD-WAN edge routers running high CPU or memory can drop packets, fail to establish tunnels, or crash. Monitoring device resources prevents silent performance degradation at remote sites where physical access is limited.
-
-Documented **Data sources**: vManage device statistics, `sourcetype=cisco:sdwan:device`. **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.
-• Filters the current rows with `where cpu_pct > 80` — typically the threshold or rule expression for this monitoring goal.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (CPU/memory trending per device), Table (devices above threshold), Gauge (fleet-wide average).
@@ -98,15 +76,6 @@ index=sdwan sourcetype="cisco:sdwan:device"
 | where cpu_pct > 80 OR mem_pct > 85
 | table hostname system_ip site_id cpu_pct mem_pct
 | sort -cpu_pct
-```
-
-## CIM SPL
-
-```spl
-| tstats `summariesonly` avg(Performance.cpu_load_percent) as cpu_pct
-  from datamodel=Performance where nodename=Performance.CPU
-  by Performance.host span=1h
-| where cpu_pct > 80
 ```
 
 ## Visualization

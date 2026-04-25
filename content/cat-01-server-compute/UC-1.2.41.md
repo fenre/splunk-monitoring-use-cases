@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.41.json — DO NOT EDIT -->
+
 ---
 id: "1.2.41"
 title: "Volume Shadow Copy Failures"
@@ -13,7 +15,7 @@ VSS failures break backup chains, System Restore, and SQL/Exchange application-c
 
 ## Value
 
-VSS failures break backup chains, System Restore, and SQL/Exchange application-consistent snapshots. Often silent until a restore is attempted.
+If VSS is sick, *restore* and app consistency are at risk, not just a single log line—triage to backup owners fast.
 
 ## Implementation
 
@@ -51,16 +53,16 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:Application". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **issue** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, issue, EventCode** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, issue, EventCode** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest All_Changes.object span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -98,9 +100,9 @@ index=wineventlog sourcetype="WinEventLog:Application" Source="VSS" EventCode IN
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest All_Changes.object span=1h
+| where count>0
 ```
 
 ## Visualization

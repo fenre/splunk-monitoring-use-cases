@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.10.json — DO NOT EDIT -->
+
 ---
 id: "4.4.10"
 title: "Cloud API Rate Limit and Throttling (429) Trends"
@@ -49,9 +51,124 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 **Pipeline walkthrough**
 
 • Scopes the data: index=aws, sourcetype="aws:cloudtrail". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by eventName userIdentity.principalId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by eventName userIdentity.principalId** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud API Rate Limit and Throttling (429) Trends** — 429 (Too Many Requests) from cloud APIs indicate client or provider throttling.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on accelerated data model `Change.All_Changes` — enable that model in Data Models and CIM add-ons, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud API Rate Limit and Throttling (429) Trends** — 429 (Too Many Requests) from cloud APIs indicate client or provider throttling.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud API Rate Limit and Throttling (429) Trends** — 429 (Too Many Requests) from cloud APIs indicate client or provider throttling.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud API Rate Limit and Throttling (429) Trends** — 429 (Too Many Requests) from cloud APIs indicate client or provider throttling.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud API Rate Limit and Throttling (429) Trends** — 429 (Too Many Requests) from cloud APIs indicate client or provider throttling.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -67,6 +184,15 @@ index=aws sourcetype="aws:cloudtrail" errorCode="ThrottlingException"
 | sort -count
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
+```
+
 ## Visualization
 
 Table (API, principal, 429 count), Line chart (429 over time), Bar chart (top throttled APIs).
@@ -74,3 +200,4 @@ Table (API, principal, 429 count), Line chart (429 over time), Bar chart (top th
 ## References
 
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)
+- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)

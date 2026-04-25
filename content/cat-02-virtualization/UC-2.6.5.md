@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.6.5.json — DO NOT EDIT -->
+
 ---
 id: "2.6.5"
 title: "Citrix Delivery Controller Service Health"
@@ -56,11 +58,10 @@ The first pipeline stage scopes events using **index**: xd_winevents; **sourcety
 
 • Scopes the data: index=xd_winevents, sourcetype="WinEventLog:System". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **status** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, service_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, service_name** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where current_state="Stopped"` — typically the threshold or rule expression for this monitoring goal.
 • `eval` defines or adjusts **last_change_fmt** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Pipeline stage (see **Citrix Delivery Controller Service Health**): table host, service_name, current_state, last_change_fmt
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

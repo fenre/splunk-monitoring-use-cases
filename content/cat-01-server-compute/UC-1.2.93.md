@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.93.json — DO NOT EDIT -->
+
 ---
 id: "1.2.93"
 title: "Group Policy Object (GPO) Modification Auditing"
@@ -13,7 +15,7 @@ GPO changes affect all domain-joined systems. Unauthorized GPO modifications can
 
 ## Value
 
-GPO changes affect all domain-joined systems. Unauthorized GPO modifications can deploy malware, weaken security, or exfiltrate credentials at scale.
+A surprise GPO change can push malware paths, open firewall holes, or weaken password rules fleet-wide. Auditing the directory objects behind policy blocks silent drift and insider edits.
 
 ## Implementation
 
@@ -99,8 +101,8 @@ index=wineventlog EventCode IN (5136, 5137) ObjectClass="groupPolicyContainer"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

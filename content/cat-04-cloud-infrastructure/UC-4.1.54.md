@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.54.json — DO NOT EDIT -->
+
 ---
 id: "4.1.54"
 title: "Kinesis Data Stream Iterator Age and Throttling"
@@ -65,6 +67,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/Kinesis" metric_name="GetRecords.IteratorAgeMilliseconds"
 | where Average > 60000
 | timechart span=1m avg(Average) by StreamName
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

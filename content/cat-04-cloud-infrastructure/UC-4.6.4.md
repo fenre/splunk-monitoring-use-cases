@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.6.4.json — DO NOT EDIT -->
+
 ---
 id: "4.6.4"
 title: "S3/Blob Storage Growth Trending"
@@ -53,11 +55,126 @@ The first pipeline stage scopes events using **index**: cloud; **sourcetype**: a
 
 • Scopes the data: index=cloud, sourcetype="aws:cloudwatch". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time, BucketName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, BucketName** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **tb** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `timechart` plots the metric over time using **span=1mon** buckets — ideal for trending and alerting on this use case.
 • Pipeline stage (see **S3/Blob Storage Growth Trending**): predict total_tb as predicted algorithm=LLP future_timespan=3
 
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.storage_free_percent) as free_pct
+  from datamodel=Performance where nodename=Performance.Storage
+  by Performance.host span=1h
+| sort 10 free_pct
+```
+
+Understanding this CIM / accelerated SPL
+
+**S3/Blob Storage Growth Trending** — Total object storage bytes month over month highlights data hoarding, log retention growth, or unexpected replication.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on accelerated data model `Performance.Storage` — enable that model in Data Models and CIM add-ons, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.storage_free_percent) as free_pct
+  from datamodel=Performance where nodename=Performance.Storage
+  by Performance.host span=1h
+| sort 10 free_pct
+```
+
+Understanding this CIM / accelerated SPL
+
+**S3/Blob Storage Growth Trending** — Total object storage bytes month over month highlights data hoarding, log retention growth, or unexpected replication.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (Storage node)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.storage_free_percent) as free_pct
+  from datamodel=Performance where nodename=Performance.Storage
+  by Performance.host span=1h
+| sort 10 free_pct
+```
+
+Understanding this CIM / accelerated SPL
+
+**S3/Blob Storage Growth Trending** — Total object storage bytes month over month highlights data hoarding, log retention growth, or unexpected replication.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (Storage node)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.storage_free_percent) as free_pct
+  from datamodel=Performance where nodename=Performance.Storage
+  by Performance.host span=1h
+| sort 10 free_pct
+```
+
+Understanding this CIM / accelerated SPL
+
+**S3/Blob Storage Growth Trending** — Total object storage bytes month over month highlights data hoarding, log retention growth, or unexpected replication.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (Storage node)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.storage_free_percent) as free_pct
+  from datamodel=Performance where nodename=Performance.Storage
+  by Performance.host span=1h
+| sort 10 free_pct
+```
+
+Understanding this CIM / accelerated SPL
+
+**S3/Blob Storage Growth Trending** — Total object storage bytes month over month highlights data hoarding, log retention growth, or unexpected replication.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (Storage node)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -76,6 +193,15 @@ index=cloud sourcetype="aws:cloudwatch" Namespace="AWS/S3" MetricName="BucketSiz
 | predict total_tb as predicted algorithm=LLP future_timespan=3
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` avg(Performance.storage_free_percent) as free_pct
+  from datamodel=Performance where nodename=Performance.Storage
+  by Performance.host span=1h
+| sort 10 free_pct
+```
+
 ## Visualization
 
 Line chart (total TB monthly with 3-month forecast), bar chart (top buckets by size), table (month-over-month growth %).
@@ -83,3 +209,4 @@ Line chart (total TB monthly with 3-month forecast), bar chart (top buckets by s
 ## References
 
 - [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
+- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

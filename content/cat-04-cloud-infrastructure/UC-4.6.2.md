@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.6.2.json — DO NOT EDIT -->
+
 ---
 id: "4.6.2"
 title: "Lambda/Function Invocation Volume Trending"
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: cloud; **sourcetype**: a
 
 • Scopes the data: index=cloud, sourcetype="aws:cloudwatch". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time, FunctionName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, FunctionName** so each row reflects one combination of those dimensions.
 • `timechart` plots the metric over time using **span=1d** buckets — ideal for trending and alerting on this use case.
 • Pipeline stage (see **Lambda/Function Invocation Volume Trending**): trendline sma7(total_invocations) as invocation_trend
 

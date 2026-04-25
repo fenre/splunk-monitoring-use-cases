@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.2.12.json — DO NOT EDIT -->
+
 ---
 id: "4.2.12"
 title: "Cost Management Alerts"
@@ -51,11 +53,8 @@ The first pipeline stage scopes events using **index**: azure; **sourcetype**: a
 
 • Scopes the data: index=azure, sourcetype="azure:costmanagement". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `timechart` plots the metric over time using **span=1d** buckets with a separate series **by ResourceGroup** — ideal for trending and alerting on this use case.
-• `eventstats` rolls up events into metrics; results are split **by ResourceGroup** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `eventstats` rolls up events into metrics; results are split **by ResourceGroup** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where daily_cost > avg_cost * 1.5` — typically the threshold or rule expression for this monitoring goal.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

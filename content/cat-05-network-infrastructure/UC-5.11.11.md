@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.11.11.json — DO NOT EDIT -->
+
 ---
 id: "5.11.11"
 title: "ACL Hit Counter Analysis via Streaming Telemetry"
@@ -56,30 +58,9 @@ The first pipeline stage scopes events using **index**: gnmi_metrics.
 • Pipeline stage (see **ACL Hit Counter Analysis via Streaming Telemetry**): table host, acl_name, sequence_id, description, hits_per_sec, daily_hits
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**ACL Hit Counter Analysis via Streaming Telemetry** — ACL rules that never match traffic are dead weight that slows TCAM lookups and obscures security intent. Conversely, deny rules with climbing hit counts reveal active attack patterns. Streaming ACL counters via gNMI at 30-second intervals provides the data needed for security policy effectiveness analysis and ACL cleanup — tasks that are nearly impossible with periodic SNMP polling.
-
-Documented **Data sources**: gNMI path: `/acl/acl-sets/acl-set/acl-entries/acl-entry/state` (matched-packets, matched-octets); Telegraf metric: `openconfig_acl`. **App/TA** (typical add-on context): Telegraf (`inputs.gnmi` plugin) → Splunk HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare `openconfig_acl` hit rates in Splunk to the device’s `show access-list` (or platform equivalent) for the same rule at the end of a quiet hour.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (ACL rules sorted by hit rate), Bar chart (top 10 deny rules by hits), Stacked chart (permit vs deny hits over time), List (zero-hit rules for cleanup).
@@ -97,7 +78,10 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src All_Traffic.dest All_Traffic.app span=1h
+| sort -count
 ```
 
 ## Visualization

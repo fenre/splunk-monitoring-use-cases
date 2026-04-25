@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.4.10.json — DO NOT EDIT -->
+
 ---
 id: "1.4.10"
 title: "Disk Controller and HBA Health"
@@ -13,7 +15,7 @@ RAID/HBA controller errors and degraded state often precede array failure. Early
 
 ## Value
 
-RAID/HBA controller errors and degraded state often precede array failure. Early visibility enables planned maintenance and avoids data loss.
+The controller is the traffic cop for the disks; if it reports a bad state or degraded virtual drives, you want a ticket while data is still recoverable, not when volumes go offline together.
 
 ## Implementation
 
@@ -23,14 +25,14 @@ Run vendor CLI (MegaCli, perccli, hpssacli) via scripted input every 15 minutes.
 
 Prerequisites
 • Install and configure the required add-on or app: Custom scripted input (MegaRAID, perccli, hpssacli).
-• Ensure the following data sources are available: Vendor CLI output (e.g. `MegaCli64 -AdpAllInfo -aAll`), `/proc/scsi/`.
+• Ensure the following data sources are available: Vendor CLI output (e.g. `MegaCli64 -AdpAllInfo -aAll`), `/proc/scsi/` on Linux for context if needed.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-Run vendor CLI (MegaCli, perccli, hpssacli) via scripted input every 15 minutes. Parse controller and virtual drive state. Alert when status is not Optimal or any array is degraded.
+On Linux, install the vendor’s CLI in the same image as the forwarder or call it over SSH. Run every 15 minutes and emit `controller_status` and `degraded_virtual_drives` (or your naming) per `controller_id` and `host`.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+Run the following SPL in Search (then save as report or alert; adjust healthy strings to your vendor):
 
 ```spl
 index=hardware sourcetype=raid_controller host=*
@@ -43,44 +45,15 @@ Understanding this SPL
 
 **Disk Controller and HBA Health** — RAID/HBA controller errors and degraded state often precede array failure. Early visibility enables planned maintenance and avoids data loss.
 
-Documented **Data sources**: Vendor CLI output (e.g. `MegaCli64 -AdpAllInfo -aAll`), `/proc/scsi/`. **App/TA** (typical add-on context): Custom scripted input (MegaRAID, perccli, hpssacli). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: hardware; **sourcetype**: raid_controller. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
-
 **Pipeline walkthrough**
 
-• Scopes the data: index=hardware, sourcetype=raid_controller. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, controller_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where status != "Optimal" OR degraded > 0` — typically the threshold or rule expression for this monitoring goal.
-• Pipeline stage (see **Disk Controller and HBA Health**): table host controller_id status degraded
+• Scopes the data: `index=hardware`, `sourcetype=raid_controller`.
+• `stats` takes latest controller and degraded counts per `host` and `controller_id`.
+• `where` flags not-`Optimal` or any `degraded` &gt; 0 in the sample.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
-Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status panel (Optimal/Degraded/Failed), Table of degraded arrays.
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
+On a test host, run the vendor CLI and compare to indexed `status` and `degraded`. For full details, see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
@@ -89,6 +62,12 @@ index=hardware sourcetype=raid_controller host=*
 | stats latest(controller_status) as status, latest(degraded_virtual_drives) as degraded by host, controller_id
 | where status != "Optimal" OR degraded > 0
 | table host controller_id status degraded
+```
+
+## CIM SPL
+
+```spl
+N/A — RAID or HBA controller state is not a CIM data model; use a custom `raid_controller` sourcetype from vendor CLIs (Linux typical).
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.41.json — DO NOT EDIT -->
+
 ---
 id: "5.13.41"
 title: "Client Distribution by Type (Wired/Wireless/Guest)"
@@ -22,36 +24,36 @@ Enable the `client` input in the Cisco Catalyst TA pointing to `index=catalyst`.
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).
-• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:client (Catalyst Center client data; fields macAddress, connectionType, ssid).
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Cisco Catalyst Add-on (7538) with the **client** input writing sourcetype `cisco:dnac:client` to `index=catalyst`.
+• The TA typically calls the Catalyst **client-detail** style Intent API; confirm interval (often 3600s) in the add-on’s Inputs page.
+• Client visibility may require the appropriate Assurance or Wireless capabilities on Catalyst; otherwise fields can be empty.
+• `docs/implementation-guide.md` and `docs/guides/catalyst-center.md`.
 
 Step 1 — Configure data collection
-Enable the `client` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls client detail data from the Catalyst Center Intent API every 60 minutes. Key fields: `macAddress`, `hostType`, `connectionType`, `ssid`, `vlanId`, `location`, `healthScore`.
+• Validate `macAddress`, `hostType`, `connectionType`, `ssid`, and `vlanId` in raw events. Treat MAC and host data as PII: restrict index and dashboard access.
 
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Step 2 — Top SSID and connection-type mix
 ```spl
 index=catalyst sourcetype="cisco:dnac:client" | stats dc(macAddress) as client_count by connectionType, ssid | sort -client_count | head 20
 ```
 
 Understanding this SPL
-
-**Client Distribution by Type (Wired/Wireless/Guest)** — Knowing how clients distribute across SSIDs and connection types helps identify overloaded access points and plan wireless capacity.
+**Client Distribution (Wired/Wireless/Guest)** — Surfaces the busiest `connectionType` and `ssid` pairs for capacity work (RF design, DHCP scopes, and guest portal sizing). The `head 20` cap focuses the chart; remove or increase for “full estate” views.
 
 **Pipeline walkthrough**
-
-• Filters to Catalyst client events in the `catalyst` index for `cisco:dnac:client`.
-• `stats dc(macAddress) as client_count by connectionType, ssid` counts unique clients per connection method and SSID.
-• `sort -client_count` and `head 20` surface the busiest SSID and connection-type combinations.
-
+• Distinct MACs per `connectionType` and `ssid`, sorted by volume, then trim to the top 20.
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results.
+• Compare order-of-magnitude to Catalyst’s client views for the same site scope; exact counts may differ from Splunk de-duplication and poll timing.
+• Spot-check a single high-volume SSID in both UIs in the same hour.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions as required. Consider visualizations: Bar or column chart (client_count by connectionType and ssid), table of top SSIDs, single value for total wireless clients if post-processed.
+• Use as a capacity panel: pair with per-AP or RF health from Assurance as a second row. For site-specific views, add `where` on site or building fields if the TA or a join provides them.
+
+Step 5 — Troubleshooting
+• Blank `ssid` for wired is expected—add `where isnotnull(ssid) OR connectionType="WIRED"` as needed. If `client_count` is inflated, dedup `macAddress` per poll per TA documentation before `stats`.
+• No events: client input disabled, API 403, or index mismatch—check `splunkd.log` and the Catalyst service account’s wireless/client read permissions.
+
 
 ## SPL
 
@@ -67,3 +69,4 @@ Bar or column chart (client_count by connectionType and ssid), table of top SSID
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

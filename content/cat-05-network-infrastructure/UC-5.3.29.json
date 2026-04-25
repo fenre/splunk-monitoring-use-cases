@@ -16,7 +16,7 @@
   "implementation": "Enable AppFlow with timing fields; ensure the Splunk TA extracts numeric RTT. Index to `index=netscaler`. If field names differ, create aliases in props. Use segment classification to tag tickets (network vs app). Add geo or ASN for client leg only if policy allows. Trend weekly for capacity reports.",
   "visualization": "Stacked time chart: median client vs server RTT, heatmap of vservers by segment, box plot for tail latency by region.",
   "cimModels": [
-    "Performance"
+    "Network_Traffic"
   ],
   "references": [
     {
@@ -24,11 +24,15 @@
       "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
     },
     {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    },
+    {
       "title": "Citrix ADC — AppFlow and analytics",
       "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/application-analytics.html"
     }
   ],
-  "knownFalsePositives": "Carrier maintenance, path diversity tests, and SD-WAN 'what-if' exercises widen frontend-versus-backend RTT for many users at once. Carrier notification feeds and per-site overlays reduce global RTT blips to false positives when the core path is under test only.",
+  "knownFalsePositives": "Wi-Fi, internet paths, and user geography spread client times; a gap between front and back is not always the appliance.",
   "equipment": [
     "citrix"
   ],
@@ -37,5 +41,7 @@
   ],
   "lastReviewed": "2026-04-24",
   "detailedImplementation": "Prerequisites: AppFlow to Splunk with client/server RTT and vserver; a short field-knowledge document with exact field names. Step 1: Configure data collection — Match AppFlow sampling to visibility; props.conf [citrix:netscaler:appflow] with FIELDALIAS for client_rtt_ms and server_rtt_ms; use transforms.conf to redact high-cardinality URL paths if required. Step 2: Create the search and alert — Tweak 1.2x ratio to your app mix; page when backend p95 RTT regresses 50% from a 7d baseline, or when segment flips to client_network during known backbone work; start with p95>200ms and tune. Step 3: Validate — Correlate with synthetics: `index=netscaler sourcetype=\"citrix:netscaler:appflow\" earliest=-4h | stats p95(client_rtt) p95(server_rtt) by vserver` during a known backend slowdown; server leg should rise while client stable. Step 4: Operationalize — One shared Network and App team dashboard and escalation runbook; if skew persists, escalate to Citrix ADC and application teams jointly.",
-  "grandmaExplanation": "We split where the wait happens — between the user and the front door, or between the front door and the work servers — so the right team fixes the right problem instead of everyone blaming the network at once."
+  "grandmaExplanation": "We compare front and back delay from flow data so a slow data center, a far user, and a hot middle are not one vague \"slowness\" in chat.",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Network_Traffic.All_Traffic\n  by All_Traffic.src All_Traffic.dest All_Traffic.action All_Traffic.dvc span=1h\n| where count>0\n| sort -count",
+  "dataModelAcceleration": "Enable acceleration on the Network_Traffic data model, dataset All_Traffic, before using this tstats search."
 }

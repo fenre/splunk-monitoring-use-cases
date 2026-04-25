@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.100.json — DO NOT EDIT -->
+
 ---
 id: "1.2.100"
 title: "PKI / Certificate Authority Health"
@@ -13,7 +15,7 @@ An enterprise CA issues certificates for authentication, encryption, and code si
 
 ## Value
 
-An enterprise CA issues certificates for authentication, encryption, and code signing. CA failures break SSO, VPN, Wi-Fi, and TLS across the organization.
+When the issuing CA struggles, certificates for VPN, Wi-Fi, apps, and domain trust can all fail together. Watching request, deny, and config events keeps PKI issues a small incident, not a company-wide outage.
 
 ## Implementation
 
@@ -51,33 +53,19 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **Action** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by Action, host, SubjectUserName, RequesterName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by Action, host, SubjectUserName, RequesterName** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+Optional CIM / accelerated variant (CA lifecycle as `Authentication` when tagged to 4886–4888/4890–4893):
 
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  by Authentication.user Authentication.dest span=1h
+| where count > 0
 ```
 
-Understanding this CIM / accelerated SPL
-
-**PKI / Certificate Authority Health** — An enterprise CA issues certificates for authentication, encryption, and code signing. CA failures break SSO, VPN, Wi-Fi, and TLS across the organization.
-
-Documented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4886, 4887, 4888), `sourcetype=WinEventLog:Application`. **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.
-• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable **data model acceleration** on `Authentication`. Map EventCode to `action` (request/deny/config); the primary `index=wineventlog` stats in Step 2 remain clearest for CA health dashboards.
 
 
 Step 3 — Validate
@@ -100,9 +88,8 @@ index=wineventlog EventCode IN (4886, 4887, 4888, 4890, 4891, 4893)
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  by Authentication.user Authentication.dest span=1h
+| where count > 0
 ```
 
 ## Visualization
@@ -111,7 +98,5 @@ Timechart (cert requests), Table (CA changes), Alert on config changes and templ
 
 ## References
 
-- [received](https://splunkbase.splunk.com/app/4886)
-- [approved](https://splunkbase.splunk.com/app/4887)
-- [denied](https://splunkbase.splunk.com/app/4888)
+- [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 - [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)

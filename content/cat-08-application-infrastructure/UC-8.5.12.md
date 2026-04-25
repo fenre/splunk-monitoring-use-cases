@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.5.12.json — DO NOT EDIT -->
+
 ---
 id: "8.5.12"
 title: "Website Page Load Time Breakdown"
@@ -54,30 +56,10 @@ The first pipeline stage scopes events using **index**: rum; **sourcetype**: rum
 • `timechart` plots the metric over time using **span=5m** buckets with a separate series **by page_url** — ideal for trending and alerting on this use case.
 • Filters the current rows with `where p95_ttfb > 1000` — typically the threshold or rule expression for this monitoring goal.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest span=5m | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Website Page Load Time Breakdown** — DNS, connect, TLS, TTFB, and download timing per page element enable root cause analysis of slow page loads. Breakdown identifies whether slowness is network, backend, or resource-related.
-
-Documented **Data sources**: Navigation Timing API, curl -w format, RUM beacon data. **App/TA** (typical add-on context): Splunk RUM or custom scripted input (curl timing). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Web.Web` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the cache or proxy product’s own stats (CLI or UI) and a small sample of indexed events.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Waterfall (timing breakdown by resource), Line chart (p95 TTFB/DNS/connect over time), Table (slowest pages), Single value (p95 page load).
@@ -89,12 +71,6 @@ index=rum sourcetype="rum:timing"
 | eval dns_ms=domain_dns_end-domain_dns_start, connect_ms=connect_end-connect_start, ttfb_ms=response_start-request_start
 | timechart span=5m perc95(ttfb_ms) as p95_ttfb, perc95(dns_ms) as p95_dns by page_url
 | where p95_ttfb > 1000
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest span=5m | sort - count
 ```
 
 ## Visualization

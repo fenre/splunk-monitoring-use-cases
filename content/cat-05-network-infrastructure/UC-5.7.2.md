@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.7.2.json — DO NOT EDIT -->
+
 ---
 id: "5.7.2"
 title: "Anomalous Traffic Patterns"
@@ -50,18 +52,18 @@ The first pipeline stage scopes events using **index**: netflow.
 **Pipeline walkthrough**
 
 • Scopes the data: index=netflow. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by src** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by src** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where unique_ports > 100 OR unique_dests > 500` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+| tstats `summariesonly` dc(All_Traffic.dest_port) as unique_ports dc(All_Traffic.dest) as unique_dests
   from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
-| eval bytes=bytes_in+bytes_out
-| sort -bytes
+  by All_Traffic.src span=1h
+| where unique_ports > 100 OR unique_dests > 500
+| sort -unique_ports
 ```
 
 Understanding this CIM / accelerated SPL
@@ -82,7 +84,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare port and destination diversity in Splunk to a known scan window or a labeled "noisy" host from your NetFlow/Stream or router flow export. Walk one alert through your firewall and DNS logs; exclude scheduled scanners and change windows you already know about.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Scatter plot (ports vs. destinations), Timechart.
@@ -99,11 +101,11 @@ index=netflow
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+| tstats `summariesonly` dc(All_Traffic.dest_port) as unique_ports dc(All_Traffic.dest) as unique_dests
   from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
-| eval bytes=bytes_in+bytes_out
-| sort -bytes
+  by All_Traffic.src span=1h
+| where unique_ports > 100 OR unique_dests > 500
+| sort -unique_ports
 ```
 
 ## Visualization

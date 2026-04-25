@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.3.10.json — DO NOT EDIT -->
+
 ---
 id: "5.3.10"
 title: "Backend Server Error Code Distribution (F5 BIG-IP)"
@@ -51,13 +53,36 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 
 • Scopes the data: index=network, sourcetype="f5:bigip:ltm:http". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where response_code >= 500` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by pool_member, response_code, virtual_server** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by pool_member, response_code, virtual_server** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
-Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Web.Web
+  by Web.status Web.url Web.http_method Web.dest span=1h
+| sort -count
+```
+
+Understanding this CIM / accelerated SPL
+
+This block uses `tstats` on the Web data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` against accelerated summaries for the Web model — enable acceleration and confirm CIM tags on your source data.
+• Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+
+Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+
+
+
+Step 3 — Validate
+On the F5 and on the back-end application, confirm the same time window, URL, and five-hundred class responses in Splunk match a known repro.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (errors by backend), Table (member, error code, count), Timechart.
 
@@ -70,6 +95,15 @@ index=network sourcetype="f5:bigip:ltm:http"
 | sort -count
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Web.Web
+  by Web.status Web.url Web.http_method Web.dest span=1h
+| sort -count
+```
+
 ## Visualization
 
 Bar chart (errors by backend), Table (member, error code, count), Timechart.
@@ -77,3 +111,4 @@ Bar chart (errors by backend), Table (member, error code, count), Timechart.
 ## References
 
 - [Splunk_TA_f5-bigip](https://splunkbase.splunk.com/app/2680)
+- [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)

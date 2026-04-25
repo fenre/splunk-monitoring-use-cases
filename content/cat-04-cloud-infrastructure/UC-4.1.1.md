@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.1.json — DO NOT EDIT -->
+
 ---
 id: "4.1.1"
 title: "Unauthorized API Calls"
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 **Pipeline walkthrough**
 
 • Scopes the data: index=aws, sourcetype="aws:cloudtrail". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by userIdentity.arn, eventName, sourceIPAddress, errorCode** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by userIdentity.arn, eventName, sourceIPAddress, errorCode** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -60,9 +62,11 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action="failure"
-  by Authentication.user Authentication.src Authentication.app span=1h
+  from datamodel=Change.All_Changes
+  where (match(All_Changes.status, "(?i)AccessDenied|UnauthorizedAccess|Client\\.UnauthorizedAccess")
+     OR All_Changes.action="failure" OR match(All_Changes.command, "(?i)accessdenied|unauthorized"))
+  by All_Changes.user All_Changes.src All_Changes.command span=10m
+| where count > 5
 | sort -count
 ```
 
@@ -78,7 +82,7 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.
+• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
@@ -103,19 +107,17 @@ index=aws sourcetype="aws:cloudtrail" errorCode="AccessDenied" OR errorCode="Una
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action="failure"
-  by Authentication.user Authentication.src Authentication.app span=1h
+  from datamodel=Change.All_Changes
+  where (match(All_Changes.status, "(?i)AccessDenied|UnauthorizedAccess|Client\\.UnauthorizedAccess")
+     OR All_Changes.action="failure" OR match(All_Changes.command, "(?i)accessdenied|unauthorized"))
+  by All_Changes.user All_Changes.src All_Changes.command span=10m
+| where count > 5
 | sort -count
 ```
 
 ## Visualization
 
 Table (principal, API call, source IP, count), Bar chart by principal, Map (source IP GeoIP).
-
-## Known False Positives
-
-Legitimate access denied for least-privilege testing or new IAM policies; verify with change management.
 
 ## References
 

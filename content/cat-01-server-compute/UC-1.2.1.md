@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.1.json — DO NOT EDIT -->
+
 ---
 id: "1.2.1"
 title: "CPU Utilization Trending (Windows)"
@@ -13,7 +15,7 @@ Sustained high CPU causes application timeouts and service degradation. Trending
 
 ## Value
 
-Sustained high CPU causes application timeouts and service degradation. Trending enables capacity planning and helps identify runaway processes.
+Capacity owners use this to plan scale, find hot processes, and fix overload before response times and SLAs take a hit.
 
 ## Implementation
 

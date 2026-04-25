@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.130.json — DO NOT EDIT -->
+
 ---
 id: "1.1.130"
 title: "TCP Connection State Distribution (Linux)"
@@ -34,7 +36,8 @@ Run the following SPL in Search (then save as report or alert; adjust time range
 
 ```spl
 index=os sourcetype=tcp_states host=*
-| timechart span=15m avg(CLOSE-WAIT) as close_wait by host
+| bin _time span=15m
+| stats avg(close_wait) as close_wait by host, _time
 | where close_wait > 500
 ```
 
@@ -49,7 +52,7 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: tcp_
 **Pipeline walkthrough**
 
 • Scopes the data: index=os, sourcetype=tcp_states. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `timechart` plots the metric over time using **span=15m** buckets with a separate series **by host** — ideal for trending and alerting on this use case.
+• Buckets and averages parsed **close_wait** counts for leak-style detection; confirm field extraction from your `ss`/`netstat` script.
 • Filters the current rows with `where close_wait > 500` — typically the threshold or rule expression for this monitoring goal.
 
 
@@ -84,7 +87,8 @@ For full details (paths, scheduling, permissions), see the Implementation guide:
 
 ```spl
 index=os sourcetype=tcp_states host=*
-| timechart span=15m avg(CLOSE-WAIT) as close_wait by host
+| bin _time span=15m
+| stats avg(close_wait) as close_wait by host, _time
 | where close_wait > 500
 ```
 

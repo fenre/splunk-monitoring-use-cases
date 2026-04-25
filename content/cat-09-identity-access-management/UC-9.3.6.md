@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.3.6.json — DO NOT EDIT -->
+
 ---
 id: "9.3.6"
 title: "Phishing-Resistant MFA Adoption"
@@ -50,13 +52,13 @@ The first pipeline stage scopes events using **index**: okta; **sourcetype**: Ok
 **Pipeline walkthrough**
 
 • Scopes the data: index=okta, sourcetype="OktaIM2:log". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by debugContext.debugData.factor** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by debugContext.debugData.factor** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **factor_type** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by factor_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by factor_type** so each row reflects one combination of those dimensions.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare Splunk results with the Okta admin console and System Log for the same users, outcomes, and time window, then adjust thresholds to normal org traffic.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart (factor type distribution), Line chart (phishing-resistant adoption trend), Table (users still on SMS).
@@ -73,10 +75,6 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.auth_via_mfa"
 ## Visualization
 
 Pie chart (factor type distribution), Line chart (phishing-resistant adoption trend), Table (users still on SMS).
-
-## Known False Positives
-
-Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
 
 ## References
 

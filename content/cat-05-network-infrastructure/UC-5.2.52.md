@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.2.52.json — DO NOT EDIT -->
+
 ---
 id: "5.2.52"
 title: "Check Point Anti-Spoofing Violations (Check Point)"
@@ -51,36 +53,36 @@ The first pipeline stage scopes events using **index**: firewall; **sourcetype**
 
 • Scopes the data: index=firewall, sourcetype="cp_log", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where match(lower(action),"(?i)drop") AND match(lower(logdesc),"(?i)anti.?spoof|spoofing")` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by src, inzone, outzone, rule_name, orig** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by src, inzone, outzone, rule_name, orig** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
 | tstats `summariesonly` count
   from datamodel=Network_Traffic.All_Traffic
-  where All_Traffic.action="blocked"
-  by All_Traffic.src All_Traffic.dest span=1h
+  by All_Traffic.src All_Traffic.dest All_Traffic.action All_Traffic.dvc span=1h
+| where count>0
+| sort -count
 ```
 
 Understanding this CIM / accelerated SPL
 
-**Check Point Anti-Spoofing Violations (Check Point)** — Anti-spoofing validates that packets arriving on an interface have source IPs consistent with the interface's defined topology. Violations indicate either network misconfiguration (asymmetric routing, missing routes) or actual IP spoofing attacks. High violation rates from specific sources warrant immediate investigation as they may mask data exfiltration or DDoS reflection.
-
-Documented **Data sources**: `sourcetype=cp_log` (firewall logs with anti-spoofing drops). **App/TA** (typical add-on context): `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+This block uses `tstats` on the Network_Traffic data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.
+• Uses `tstats` against accelerated summaries for the Network_Traffic model — enable acceleration and confirm CIM tags on your source data.
+• Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
+Compare key fields and timestamps in SmartConsole, SmartView, or the gateway’s local view so Splunk and Check Point match for the same events.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (spoofing violations by source), Bar chart (violations by interface/zone), Line chart (violation trend), Map (source geo if available).
 
@@ -98,8 +100,9 @@ index=firewall sourcetype="cp_log" earliest=-24h
 ```spl
 | tstats `summariesonly` count
   from datamodel=Network_Traffic.All_Traffic
-  where All_Traffic.action="blocked"
-  by All_Traffic.src All_Traffic.dest span=1h
+  by All_Traffic.src All_Traffic.dest All_Traffic.action All_Traffic.dvc span=1h
+| where count>0
+| sort -count
 ```
 
 ## Visualization
@@ -109,6 +112,6 @@ Table (spoofing violations by source), Bar chart (violations by interface/zone),
 ## References
 
 - [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293)
+- [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 - [CCX Add-on for Checkpoint Smart-1 Cloud](https://splunkbase.splunk.com/app/7259)
 - [Splunkbase app 5402](https://splunkbase.splunk.com/app/5402)
-- [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)

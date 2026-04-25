@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.110.json — DO NOT EDIT -->
+
 ---
 id: "1.2.110"
 title: "PowerShell Constrained Language Mode Bypass"
@@ -13,7 +15,7 @@ Constrained Language Mode limits PowerShell attack surface. Detecting bypasses r
 
 ## Value
 
-Constrained Language Mode limits PowerShell attack surface. Detecting bypasses reveals attackers escalating from restricted to full-language mode for malware execution.
+Constrained language mode is a control; bypasses put full PowerShell back on the table. Detecting bypass patterns supports defense-in-depth next to execution policy alone.
 
 ## Implementation
 
@@ -68,6 +70,15 @@ index=wineventlog EventCode=4104
 | where match(ScriptBlockText, "(?i)(FullLanguage|LanguageMode|Add-Type.*DllImport|System\.Management\.Automation\.LanguageMode)")
 | table _time, host, UserName, ScriptBlockText, Path
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Endpoint.Processes
+  by Processes.user Processes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

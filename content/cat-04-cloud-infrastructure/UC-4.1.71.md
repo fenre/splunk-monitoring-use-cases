@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.71.json — DO NOT EDIT -->
+
 ---
 id: "4.1.71"
 title: "Systems Manager Patch Compliance"
@@ -51,15 +53,19 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 **Pipeline walkthrough**
 
 • Scopes the data: index=aws, sourcetype="aws:ssm:compliance". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by resourceId, PatchSeverity** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by resourceId, PatchSeverity** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where patch_status!="Compliant"` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by resourceId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by resourceId** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats summariesonly=t count from datamodel=Updates.Updates by Updates.status, Updates.dest | sort - count
+| tstats `summariesonly` count
+  from datamodel=Updates.Updates
+  where match(Updates.status, "(?i)non-?compliant|missing|failed|not.?installed")
+  by Updates.dest Updates.app span=1d
+| sort -count
 ```
 
 Understanding this CIM / accelerated SPL
@@ -97,7 +103,11 @@ index=aws sourcetype="aws:ssm:compliance" ComplianceType="Patch"
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t count from datamodel=Updates.Updates by Updates.status, Updates.dest | sort - count
+| tstats `summariesonly` count
+  from datamodel=Updates.Updates
+  where match(Updates.status, "(?i)non-?compliant|missing|failed|not.?installed")
+  by Updates.dest Updates.app span=1d
+| sort -count
 ```
 
 ## Visualization

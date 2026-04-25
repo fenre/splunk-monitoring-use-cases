@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.42.json — DO NOT EDIT -->
+
 ---
 id: "2.1.42"
 title: "VM CPU Ready Time Percentage"
@@ -17,7 +19,7 @@ Measures time VMs wait for physical CPU — distinct from host utilization. High
 
 ## Implementation
 
-TA-vmware collects cpu.ready.summation (milliseconds VM waited per 20s interval). Formula: ready_pct = Value / 20000 * 100 (20s = 20000ms). Alert when avg_ready_pct >5% over 10 minutes. Use rolling 15-min average to smooth spikes. Correlate with cluster CPU utilization and DRS migrations.
+Splunk_TA_vmware collects cpu.ready.summation (milliseconds VM waited per 20s interval). Formula: ready_pct = Value / 20000 * 100 (20s = 20000ms). Alert when avg_ready_pct >5% over 10 minutes. Use rolling 15-min average to smooth spikes. Correlate with cluster CPU utilization and DRS migrations.
 
 ## Detailed Implementation
 
@@ -27,7 +29,7 @@ Prerequisites
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-TA-vmware collects cpu.ready.summation (milliseconds VM waited per 20s interval). Formula: ready_pct = Value / 20000 * 100 (20s = 20000ms). Alert when avg_ready_pct >5% over 10 minutes. Use rolling 15-min average to smooth spikes. Correlate with cluster CPU utilization and DRS migrations.
+Splunk_TA_vmware collects cpu.ready.summation (milliseconds VM waited per 20s interval). Formula: ready_pct = Value / 20000 * 100 (20s = 20000ms). Alert when avg_ready_pct >5% over 10 minutes. Use rolling 15-min average to smooth spikes. Correlate with cluster CPU utilization and DRS migrations.
 
 Step 2 — Create the search and alert
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
@@ -53,11 +55,10 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 
 • Scopes the data: index=vmware, sourcetype="vmware:perf:cpu". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **ready_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, vm_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, vm_name** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where avg_ready_pct > 5` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **VM CPU Ready Time Percentage**): table vm_name, host, avg_ready_pct, peak_ready_pct
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

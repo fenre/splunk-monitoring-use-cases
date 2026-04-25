@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.3.12.json — DO NOT EDIT -->
+
 ---
 id: "6.3.12"
 title: "Commvault Job Completion"
@@ -51,15 +53,15 @@ The first pipeline stage scopes events using **index**: backup; **sourcetype**: 
 
 • Scopes the data: index=backup, sourcetype="commvault:job". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where status!="Completed" OR job_status="Failed"` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by job_name, subclient_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by job_name, subclient_name** so each row reflects one combination of those dimensions.
 • Pipeline stage (see **Commvault Job Completion**): table job_name subclient_name last_run err
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare counts, job status, and capacity with the Commvault CommCell console or Command Center for the same client, storage policy, and interval.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed jobs), Single value (failed jobs 24h), Bar chart (failures by error code).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Table (failed jobs), Single value (failed jobs 24h), Bar chart (failures by error code).
 
 ## SPL
 

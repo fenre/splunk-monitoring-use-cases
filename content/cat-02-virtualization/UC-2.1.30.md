@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.30.json — DO NOT EDIT -->
+
 ---
 id: "2.1.30"
 title: "Storage DRS Recommendations and Actions"
@@ -52,10 +54,9 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 
 • Scopes the data: index=vmware, sourcetype="vmware:events". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **action** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by action, datastore_cluster** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by action, datastore_cluster** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **Storage DRS Recommendations and Actions**): table datastore_cluster, action, count
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

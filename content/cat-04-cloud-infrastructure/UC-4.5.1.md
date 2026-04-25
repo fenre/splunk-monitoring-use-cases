@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.5.1.json — DO NOT EDIT -->
+
 ---
 id: "4.5.1"
 title: "Lambda Invocation Errors and Failed Invocations"

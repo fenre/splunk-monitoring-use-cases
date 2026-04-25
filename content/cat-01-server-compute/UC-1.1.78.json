@@ -8,25 +8,30 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=openPorts`",
+  "dataSources": "`sourcetype=openPorts` (Splunk_TA_nix listener inventory)",
   "app": "`Splunk_TA_nix`",
-  "spl": "index=os sourcetype=openPorts host=*\n| stats latest(port_list) as current_ports by host\n| eval new_ports=port_list - previous_ports\n| where isnotnull(new_ports)",
-  "description": "New listening ports indicate service configuration changes or malware opening backdoors.",
-  "value": "New listening ports indicate service configuration changes or malware opening backdoors.",
-  "implementation": "Use Splunk_TA_nix openPorts input to track listening ports per host. Baseline expected ports. Create alerts on new listening ports with escalation to change management. Include process information showing which service opened port.",
+  "spl": "index=os sourcetype=openPorts host=*\n| streamstats window=2 global=f last(port_list) as prev_ports by host\n| where isnotnull(prev_ports) AND port_list!=prev_ports",
+  "description": "Compares the latest **port_list** string from each `openPorts` sample to the immediately previous sample for the same **host**, surfacing new listening-port shapes when the list changes (requires two polls per host).",
+  "value": "A port that was not in yesterday’s `openPorts` window is a fast second opinion before you reach for a live **packet** capture—especially for unexpected **LISTEN** on high-numbered or database ports.",
+  "implementation": "If your TA uses multi-value **port** fields instead of a single `port_list` string, replace the `!=` with `mvdiff` / `setdiff` logic on **mv** fields. Seed a **lookup** of `approved_ports` for noise control.",
   "visualization": "Alert, Table",
   "cimModels": [
     "N/A"
   ],
+  "knownFalsePositives": "Apps that only bind on schedule; `openPorts` interval longer than the short-lived service; **Docker** or **K8s** that churn ports often—separate UCs for those estates.",
   "references": [
     {
-      "title": "Splunk_TA_nix",
+      "title": "Splunk Add-on for Unix and Linux",
       "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
     }
   ],
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`.\n• Ensure the following data sources are available: `sourcetype=openPorts`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse Splunk_TA_nix openPorts input to track listening ports per host. Baseline expected ports. Create alerts on new listening ports with escalation to change management. Include process information showing which service opened port.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=openPorts host=*\n| stats latest(port_list) as current_ports by host\n| eval new_ports=port_list - previous_ports\n| where isnotnull(new_ports)\n```\n\nUnderstanding this SPL\n\n**Open Port Changes** — New listening ports indicate service configuration changes or malware opening backdoors.\n\nDocumented **Data sources**: `sourcetype=openPorts`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: openPorts. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=openPorts. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **new_ports** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnotnull(new_ports)` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table",
-  "grandmaExplanation": "New listening ports indicate service configuration changes or malware opening backdoors — so you find out before users do when something is slowing down or breaking."
+  "detailedImplementation": "Prerequisites\n• `openPorts` script enabled on a cadence that is faster than the longest service restart you care about; otherwise you will miss a five-second listener.\n\n**SPL** — The **streamstats** form replaces the old template that referenced **previous_ports** without defining it. If you prefer state in a **KV** store, you can re-write with **lookup**+**outputlookup** per host instead.\n\n\nStep 3 — Validate\n`ss -lntup` on the same host after the alert; for proof of **PID**, use `lsof -i` or your EDR, not the raw **openPorts** line alone in regulated cases.\n\nStep 4 — Operationalize\nAny **openPorts**+**docker-proxy** on unexpected ports should be paired with the container ID from your orchestration log.\n\n",
+  "grandmaExplanation": "We help you know when the list of “who is listening on the network” on a box changes, which can show a new service or a new hole an attacker could use."
 }

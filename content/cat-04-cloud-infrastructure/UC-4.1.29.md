@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.29.json — DO NOT EDIT -->
+
 ---
 id: "4.1.29"
 title: "EC2 Spot Instance Interruption Notices"
@@ -65,6 +67,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:cloudwatch:events" detail-type="EC2 Spot Instance Interruption Warning"
 | table _time detail.instance-id detail.instance-action detail.spot-instance-request-id
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  where match(All_Changes.object, "(?i)spot|instance") OR match(All_Changes.app, "(?i)ec2")
+  by All_Changes.user All_Changes.action span=1h
+| sort -count
 ```
 
 ## Visualization

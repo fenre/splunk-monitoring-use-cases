@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.4.6.json — DO NOT EDIT -->
+
 ---
 id: "1.4.6"
 title: "Memory ECC Error Trending"
@@ -13,7 +15,7 @@ Correctable ECC errors that increase over time strongly predict impending DIMM f
 
 ## Value
 
-Correctable ECC errors that increase over time strongly predict impending DIMM failure. Proactive replacement avoids unrecoverable memory errors and system crashes.
+A rising weekly total of single-bit correctable events points to a bad stick or slot before a machine starts throwing uncorrectable errors and taking applications down with it.
 
 ## Implementation
 
@@ -27,10 +29,10 @@ Prerequisites
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-Create scripted input: `edac-util -s` or parse `/sys/devices/system/edac/mc/mc*/ce_count`. Run hourly. Alert when correctable errors increase by >10/week. Track per-DIMM slot for targeted replacement.
+On Linux with EDAC, run `edac-util` or read `/sys/devices/system/edac/mc/.../ce_count` on a schedule and emit `correctable_errors` (optionally by DIMM). You can also supplement with IPMI memory-related SELs in a second sourcetype. Run hourly and align the field name with the search.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+Run the following SPL in Search (then save as report or alert; adjust weekly threshold as needed):
 
 ```spl
 index=hardware sourcetype=ecc_errors
@@ -40,51 +42,21 @@ index=hardware sourcetype=ecc_errors
 | where weekly_errors > 10
 ```
 
+Note: the sample chains `timechart` with `streamstats`—tune or split into a base `stats` if your Splunk version or data shape needs a flatter pre-chart dataset.
+
 Understanding this SPL
 
 **Memory ECC Error Trending** — Correctable ECC errors that increase over time strongly predict impending DIMM failure. Proactive replacement avoids unrecoverable memory errors and system crashes.
 
-Documented **Data sources**: `edac-util`, `/sys/devices/system/edac/mc/`, IPMI SEL. **App/TA** (typical add-on context): Custom scripted input (`edac-util`, IPMI SEL). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: hardware; **sourcetype**: ecc_errors. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
-
 **Pipeline walkthrough**
 
-• Scopes the data: index=hardware, sourcetype=ecc_errors. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by host** — ideal for trending and alerting on this use case.
-• Filters the current rows with `where ecc_errors > 0` — typically the threshold or rule expression for this monitoring goal.
-• `streamstats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where weekly_errors > 10` — typically the threshold or rule expression for this monitoring goal.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+• Scopes the data: `index=hardware`, `sourcetype=ecc_errors`.
+• `timechart` daily sums of correctable events per **host**.
+• `streamstats` over a seven-bucket window approximates a rolling week for the sample threshold.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
-Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (errors over time by host), Table (host, DIMM, error count), Trend chart.
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
+Compare counts to `edac-util` and `dmesg` on a test host. For full details, see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
@@ -94,6 +66,12 @@ index=hardware sourcetype=ecc_errors
 | where ecc_errors > 0
 | streamstats window=7 sum(ecc_errors) as weekly_errors by host
 | where weekly_errors > 10
+```
+
+## CIM SPL
+
+```spl
+N/A — correctable ECC counts from the Linux EDAC driver or related SELs are not a CIM data model; use a custom `ecc_errors` sourcetype (and optionally per-DIMM fields).
 ```
 
 ## Visualization

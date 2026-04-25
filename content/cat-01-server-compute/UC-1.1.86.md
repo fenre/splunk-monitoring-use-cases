@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.86.json — DO NOT EDIT -->
+
 ---
 id: "1.1.86"
 title: "Fork Bomb Detection"
@@ -9,62 +11,38 @@ splunkPillar: "Observability"
 
 ## Description
 
-Fork bombs exhaust PID space and system resources, making systems unusable.
+Compares the latest **process_count** sample on a host to that host’s within-window **mean** and **standard deviation**, alerting when the live count clears **mean+4σ** (and **σ>0** to skip flat baselines).
 
 ## Value
 
-Fork bombs exhaust PID space and system resources, making systems unusable.
+Runaway **fork** patterns blow up **PID** tables and **scheduler** queues; this is a coarse but fast statistical tripwire on the **process** count signal alone.
 
 ## Implementation
 
-Track /proc process count or 'ps aux | wc -l'. Create alerts when process count spikes suddenly. Include threshold based on baseline plus 4x standard deviation to detect sudden fork activity.
+Emit `process_count` from `ps -e | wc -l` or `/proc` stat readers. Widen the **stats** window or use `streamstats` over **7d** if your sample rate is sparse.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=custom:process_count`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• A script that can read **process** count as a non-root user in your security model (often yes on **proc**).
 
-Step 1 — Configure data collection
-Track /proc process count or 'ps aux | wc -l'. Create alerts when process count spikes suddenly. Include threshold based on baseline plus 4x standard deviation to detect sudden fork activity.
-
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=custom:process_count host=*
-| stats avg(process_count) as avg_procs, stdev(process_count) as stddev by host
-| where process_count > (avg_procs + 4*stddev)
-```
-
-Understanding this SPL
-
-**Fork Bomb Detection** — Fork bombs exhaust PID space and system resources, making systems unusable.
-
-Documented **Data sources**: `sourcetype=custom:process_count`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: custom:process_count. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=custom:process_count. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where process_count > (avg_procs + 4*stddev)` — typically the threshold or rule expression for this monitoring goal.
+**Fix note** — Earlier templates referenced `process_count` after `stats` without carrying the field forward; this revision **latest(process_count)** keeps the field for the threshold line.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`ps -e | wc -l` and `uptime` on the host in the same minute; use `pstree` only for **visual** proof, not as the primary metric.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Anomaly Chart
+If this fires, also check **nproc** **ulimit** and **systemd** **TasksMax** for the service **unit**.
+
+
 
 ## SPL
 
 ```spl
 index=os sourcetype=custom:process_count host=*
-| stats avg(process_count) as avg_procs, stdev(process_count) as stddev by host
-| where process_count > (avg_procs + 4*stddev)
+| stats latest(process_count) as process_count, avg(process_count) as avg_procs, stdev(process_count) as stddev by host
+| where process_count>(avg_procs+4*stddev) AND stddev>0
 ```
 
 ## Visualization
@@ -73,4 +51,5 @@ Alert, Anomaly Chart
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

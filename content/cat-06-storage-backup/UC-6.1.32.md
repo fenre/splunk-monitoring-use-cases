@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.1.32.json — DO NOT EDIT -->
+
 ---
 id: "6.1.32"
 title: "MDS SAN Fabric Oversubscription Ratio"
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 **Pipeline walkthrough**
 
 • Scopes the data: index=network, sourcetype="snmp:if". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by switch** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by switch** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **oversubscription** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where oversubscription > 7` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **MDS SAN Fabric Oversubscription Ratio**): table switch, edge_bw, isl_bw, oversubscription
@@ -60,10 +62,10 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (switch oversubscription), Gauge (ratio per switch), Trend chart (ratio over quarters).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production—not generic platform steps only. Consider visualizations: Table (switch oversubscription), Gauge (ratio per switch), Trend chart (ratio over quarters).
 
 ## SPL
 

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.58.json — DO NOT EDIT -->
+
 ---
 id: "1.2.58"
 title: "Storage Spaces Health Monitoring"
@@ -13,7 +15,7 @@ Storage Spaces pools degrade silently when physical disks fail. Detection before
 
 ## Value
 
-Storage Spaces pools degrade silently when physical disks fail. Detection before a second disk fails prevents data loss in mirrored/parity configurations.
+For software-only RAID, *your* observability is the only early warning the SAN team used to have with their own lights—do not under-alert here.
 
 ## Implementation
 
@@ -54,6 +56,20 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • Pipeline stage (see **Storage Spaces Health Monitoring**): table _time, host, status, PhysicalDiskId, PoolName
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.action span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -89,6 +105,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-StorageSpaces*" EventCod
 | eval status=case(EventCode=1,"Pool degraded",EventCode=2,"Disk failed",EventCode=3,"IO error",EventCode=207,"Repair started")
 | table _time, host, status, PhysicalDiskId, PoolName
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.action span=1h
+| where count>0
 ```
 
 ## Visualization

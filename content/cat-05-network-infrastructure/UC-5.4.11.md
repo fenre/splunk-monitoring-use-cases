@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.4.11.json — DO NOT EDIT -->
+
 ---
 id: "5.4.11"
 title: "Band Steering Effectiveness"
@@ -52,15 +54,15 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 
 • Scopes the data: index=network, sourcetype="cisco:wlc". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **band** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by band, ssid** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by ssid** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by band, ssid** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by ssid** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+In the Cisco WLC or Catalyst 9800 wireless GUI (Monitor > Clients or Access Points), compare counts and statuses with the Splunk rows for the same period. Confirm a few client MACs or AP names.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart (band distribution), Bar chart (by SSID), Timechart (trending).

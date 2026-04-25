@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.1.62.json — DO NOT EDIT -->
+
 ---
 id: "5.1.62"
 title: "Arista CloudVision Telemetry Alerts (Arista)"
@@ -57,33 +59,12 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 • `eval` defines or adjusts **sev** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **cat** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **dev** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by sev, cat, dev** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by sev, cat, dev** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity, Alerts.signature, Alerts.app | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Arista CloudVision Telemetry Alerts (Arista)** — CloudVision aggregates streaming telemetry and policy state across the fabric; forwarding those alerts to Splunk gives the NOC the same fabric-wide lens as the network team without logging into CVP for every spike. You can align telemetry-driven anomalies with application incidents and compliance audits. Historical alert volume also shows whether automation or drift is increasing operational noise.
-
-Documented **Data sources**: CloudVision webhook JSON (HEC) or forwarded syslog from CVP. **App/TA** (typical add-on context): CloudVision webhook or syslog to Splunk HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Alerts.Alerts` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On the switch, run `show mlag` or `show version` and CloudVision (if used) to compare health with the same sample window. Check that the syslog or API feed Splunk uses still lists the device after any CV upgrade.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert volume by severity and category; top devices by alert count; timeline for compliance or config-drift categories.
@@ -98,12 +79,6 @@ index=network (source=*cvp* OR sourcetype="http:event_collector" OR sourcetype="
 | eval dev=coalesce(deviceId, device_id, dvc, host)
 | stats count as alert_count, latest(_time) as last_alert by sev, cat, dev
 | sort -alert_count
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity, Alerts.signature, Alerts.app | sort - count
 ```
 
 ## Visualization

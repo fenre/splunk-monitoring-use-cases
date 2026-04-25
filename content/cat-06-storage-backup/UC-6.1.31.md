@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.1.31.json — DO NOT EDIT -->
+
 ---
 id: "6.1.31"
 title: "MDS VSAN Health and Isolation Events"
@@ -51,17 +53,17 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 **Pipeline walkthrough**
 
 • Scopes the data: index=network, sourcetype="cisco:mds". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by switch, vsan_id, event_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by switch, vsan_id, event_type** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where event_type IN ("isolated","segmented","merge_failure")` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **MDS VSAN Health and Isolation Events**): table switch, vsan_id, event_type, count, last_event
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare port and error counters with the switch CLI (`show interface`, `porterrshow`) or DCNM for the same switch, port, and interval.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (VSAN health), Table (isolation events), Topology map (VSAN segmentation).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production—not generic platform steps only. Consider visualizations: Status grid (VSAN health), Table (isolation events), Topology map (VSAN segmentation).
 
 ## SPL
 

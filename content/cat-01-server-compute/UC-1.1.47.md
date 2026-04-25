@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.47.json — DO NOT EDIT -->
+
 ---
 id: "1.1.47"
 title: "Page Cache Pressure and Reclaim Activity"
@@ -9,86 +11,53 @@ splunkPillar: "Observability"
 
 ## Description
 
-High page cache reclaim activity indicates memory pressure affecting application performance.
+Flags hosts where the kernel is spending a high share of direct reclaim scans on successful steals, a sign the system is under real memory pressure and stealing pages from the page cache aggressively.
 
 ## Value
 
-High page cache reclaim activity indicates memory pressure affecting application performance.
+Spotting reclaim-heavy periods early helps you add RAM, tune workloads, or fix leaks before latency spreads to databases, batch jobs, and user-facing services on the same box.
 
 ## Implementation
 
-Create a scripted input that parses /proc/vmstat delta between samples. Track pgscan_direct and pgsteal_direct rates. Alert when steal ratio exceeds 0.7, indicating aggressive memory reclaim.
+Ship time-delta’d `/proc/vmstat` metrics as `pgscan_direct` and `pgsteal_direct`. Alert when the ratio of steals to scans stays above 0.7 for the analysis window, indicating the host is doing heavy direct reclaim.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=custom:meminfo_delta, /proc/vmstat`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Install `Splunk_TA_nix` and add a scripted input (or an extension) that records `/proc/vmstat` on an interval and emits **delta** values for `pgscan_direct` and `pgsteal_direct` or absolute counters your SPL differences correctly.
+• Ensure the fields used in the search exist in the chosen sourcetype.
+• See docs/implementation-guide.md for inputs.conf layout.
 
 Step 1 — Configure data collection
-Create a scripted input that parses /proc/vmstat delta between samples. Track pgscan_direct and pgsteal_direct rates. Alert when steal ratio exceeds 0.7, indicating aggressive memory reclaim.
+Parse `/proc/vmstat` on a fixed schedule; compute per-interval deltas in the script or in SPL before this alert. Point events at `index=os` and your agreed sourcetype (here `custom:meminfo_delta`).
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
 ```spl
 index=os sourcetype=custom:meminfo_delta host=*
 | stats avg(pgscan_direct) as scan_avg, avg(pgsteal_direct) as steal_avg by host
-| eval steal_ratio=steal_avg/scan_avg
+| eval steal_ratio=if(scan_avg>0, steal_avg/scan_avg, null())
 | where steal_ratio > 0.7
 ```
 
-Understanding this SPL
-
-**Page Cache Pressure and Reclaim Activity** — High page cache reclaim activity indicates memory pressure affecting application performance.
-
-Documented **Data sources**: `sourcetype=custom:meminfo_delta, /proc/vmstat`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: custom:meminfo_delta. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=custom:meminfo_delta. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eval` defines or adjusts **steal_ratio** — often to normalize units, derive a ratio, or prepare for thresholds.
-• Filters the current rows with `where steal_ratio > 0.7` — typically the threshold or rule expression for this monitoring goal.
+**Understanding this SPL** — Averages the delta rates per host, forms `steal_ratio`, and flags hosts where a large share of direct scans result in a steal, which is typical of memory pressure. Add `scan_avg>0` in the `where` if you want to drop idle hosts.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On the host, run `vmstat 1` and watch `si`/`so` and overall memory behavior; use `cat /proc/vmstat | egrep 'pgsteal|pgscan'` to sanity-check the same counters your script ships.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart, Single Value
+Chart steal ratio on a host dashboard, tie alerts to the owning app team, and document when to add RAM versus tune application cache settings.
 
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
 
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
 ```spl
 index=os sourcetype=custom:meminfo_delta host=*
 | stats avg(pgscan_direct) as scan_avg, avg(pgsteal_direct) as steal_avg by host
-| eval steal_ratio=steal_avg/scan_avg
-| where steal_ratio > 0.7
+| eval steal_ratio=if(scan_avg>0, steal_avg/scan_avg, null())
+| where scan_avg>0 AND steal_ratio > 0.7
 ```
 
 ## Visualization
@@ -97,4 +66,5 @@ Timechart, Single Value
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

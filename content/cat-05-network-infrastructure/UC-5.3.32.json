@@ -15,9 +15,7 @@
   "value": "Authoritative and DNS proxy workloads on the Application Delivery Controller (ADNS) must resolve fast and with valid responses. Spikes in failure codes, DNSSEC validation errors, or response-time percentiles show overload, bad zones, or upstream issues before applications fail name resolution. Query-rate anomalies also reveal floods or cache misses.",
   "implementation": "Forward high-severity and DNS service syslog to `index=netscaler`. Parse Rcode, query type, and latency if available. For SNMP, poll process CPU and request counters. Alert on any sustained SERVFAIL, DNSSEC `Bogus` or `Insecure` transition when policy says secure, and on p95 latency above SLO. Rate-limit log volume with filters if needed.",
   "visualization": "Time chart: queries per second and failures, single value: p95 response time, table: top failure strings.",
-  "cimModels": [
-    "Network_Resolution_DNS"
-  ],
+  "cimModels": [],
   "references": [
     {
       "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
@@ -28,7 +26,7 @@
       "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/dns/dns-citrix.html"
     }
   ],
-  "knownFalsePositives": "Zone transfers, GSLB health-test flaps during data center failovers, and auth DNS provider cutovers are expected noisy periods for ADNS. DNS change records and a minimum-down duration stop single-probe wobble from looking like a hard outage.",
+  "knownFalsePositives": "Long TTLs, slow resolvers, and noisy clients can make DNS vserver health look worse than the real user path.",
   "equipment": [
     "citrix",
     "snmp",
@@ -40,5 +38,5 @@
   ],
   "lastReviewed": "2026-04-24",
   "detailedImplementation": "Prerequisites: DNS/ADNS logging enabled with reviewed rate and privacy; index=netscaler receiving citrix:netscaler:syslog and optional citrix:netscaler:snmp. Step 1: Configure data collection — Set syslog verbosity to capture Rcode, query type, and latency; props.conf [citrix:netscaler:syslog] with EXTRACT-DNS for SERVFAIL/timeout and FIELDALIAS dns_rtt_ms; NTP on all ADCs. Step 2: Create the search and alert — Tune events/300 to your TPS; page on sustained Rcode surges, DNSSEC chain breaks, p95_rtt>150ms (start near this value and adjust to baseline). Step 3: Validate — In lab, induce validation failure; confirm; run synthetic queries and compare `| timechart p95(dns_rtt_ms)` to ADC CLI stats. Step 4: Operationalize — Align with the enterprise DNS team; if ADNS is proxying, add upstream resolver checks; chronic failures go to the Citrix ADC and DNS service owners; validation search: `index=netscaler sourcetype=\"citrix:netscaler:syslog\" earliest=-30m DNS | stats count by host, Rcode`.",
-  "grandmaExplanation": "We keep an ear on the phone book service inside the load balancer — so we notice bad answers, long waits, or attacks flooding lookups before the whole business forgets how to find anything online."
+  "grandmaExplanation": "We follow DNS and address service health in the same view so a dead listener or a loop in answers is a clear lead when apps fail in odd ways."
 }

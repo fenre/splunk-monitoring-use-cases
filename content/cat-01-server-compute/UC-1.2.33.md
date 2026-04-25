@@ -1,7 +1,8 @@
+<!-- AUTO-GENERATED from UC-1.2.33.json — DO NOT EDIT -->
+
 ---
 id: "1.2.33"
 title: "Audit Policy Changes"
-status: "verified"
 criticality: "critical"
 splunkPillar: "Security"
 ---
@@ -14,7 +15,7 @@ Attackers modify audit policies to disable logging and hide their activities. An
 
 ## Value
 
-Attackers modify audit policies to disable logging and hide their activities. Any unauthorized audit policy change must be investigated immediately.
+Weaker auditing means blind spots in IR—seeing who changed it is a governance must.
 
 ## Implementation
 
@@ -57,9 +58,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -96,9 +97,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4719
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
+| where count>0
 ```
 
 ## Visualization

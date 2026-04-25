@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.57.json — DO NOT EDIT -->
+
 ---
 id: "1.1.57"
 title: "ARP Table Overflow Detection"
@@ -9,85 +11,44 @@ splunkPillar: "Security"
 
 ## Description
 
-ARP table overflow causes network connectivity issues and may indicate ARP spoofing attacks or network misconfiguration.
+Compares the live ARP cache size to a configured or sampled maximum, alerting when the table is most of the way to exhaustion—whether from scans, virtual churn, or mis-set limits.
 
 ## Value
 
-ARP table overflow causes network connectivity issues and may indicate ARP spoofing attacks or network misconfiguration.
+A full ARP table stops new on-net conversations cold; this control buys time to raise `gc_thresh*`, find spoofing, or break L2 storms before a host goes dark.
 
 ## Implementation
 
-Create a scripted input that counts /proc/net/arp entries and monitors /proc/sys/net/ipv4/neigh/*/gc_thresh* limits. Alert when ARP table approaches limits. Correlate with network scans or spoofing indicators.
+Count non-header lines in `/proc/net/arp` (or your script’s equivalent) into `arp_entry_count`. Set `max_entries` from a maintained lookup or from `/proc/sys/net/ipv4/neigh/default/gc_thresh3` on hosts where that maps to your policy; the sample SPL used a static `max_entries=1024` before—prefer dynamic `max_entries` to avoid one-size-fits-all false work.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=custom:arp, /proc/net/arp`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Provide both **arp_entry_count** and a realistic **max_entries** per host class (lookup CSV or field from the same script that reads `gc_thresh` values).
 
 Step 1 — Configure data collection
-Create a scripted input that counts /proc/net/arp entries and monitors /proc/sys/net/ipv4/neigh/*/gc_thresh* limits. Alert when ARP table approaches limits. Correlate with network scans or spoofing indicators.
+Run every minute on hypervisors and routers where ARP pressure first appears. Document IPv4 vs IPv6 if you split families.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+The SPL in the JSON body expects both fields. If you still use a static max, set `| eval max_entries=coalesce(max_entries,1024)` after **stats**.
 
-```spl
-index=os sourcetype=custom:arp host=*
-| stats count as arp_entry_count by host
-| eval max_entries=1024
-| where arp_entry_count > (max_entries * 0.8)
-```
-
-Understanding this SPL
-
-**ARP Table Overflow Detection** — ARP table overflow causes network connectivity issues and may indicate ARP spoofing attacks or network misconfiguration.
-
-Documented **Data sources**: `sourcetype=custom:arp, /proc/net/arp`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: custom:arp. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=custom:arp. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eval` defines or adjusts **max_entries** — often to normalize units, derive a ratio, or prepare for thresholds.
-• Filters the current rows with `where arp_entry_count > (max_entries * 0.8)` — typically the threshold or rule expression for this monitoring goal.
+**Understanding this SPL** — Simple utilization check with guard `max_entries>0` to avoid divide-by-zero artifacts.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare `arp_entry_count` to `wc -l /proc/net/arp` minus the header, and to `ip neigh show | wc` for humans on the same second.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge, Alert
+When paging, also capture `dmesg` for **neighbour table overflow** lines and work with the network team on VLAN design or storm control.
 
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
 
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
 ```spl
 index=os sourcetype=custom:arp host=*
-| stats count as arp_entry_count by host
-| eval max_entries=1024
+| stats latest(arp_entry_count) as arp_entry_count, latest(max_entries) as max_entries by host
+| eval max_entries=coalesce(max_entries, 1024)
 | where arp_entry_count > (max_entries * 0.8)
 ```
 
@@ -97,4 +58,5 @@ Gauge, Alert
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

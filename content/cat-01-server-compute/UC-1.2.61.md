@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.61.json — DO NOT EDIT -->
+
 ---
 id: "1.2.61"
 title: "Data Deduplication Health"
@@ -13,7 +15,7 @@ Windows Data Deduplication saves significant storage on file servers. Job failur
 
 ## Value
 
-Windows Data Deduplication saves significant storage on file servers. Job failures or savings degradation indicate volume corruption or configuration issues.
+Deduplication and backup are the same RPO story in many shops—if dedupe is sick, *effective* free space and restore paths are at risk, not a math row in a spreadsheet only.
 
 ## Implementation
 
@@ -55,6 +57,20 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • Pipeline stage (see **Data Deduplication Health**): table _time, host, status, VolumeName, SavingsRate, CorruptionCount
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.dest span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -70,6 +86,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Deduplication*"
 | eval status=case(EventCode=6153,"Optimization completed",EventCode=6155,"Optimization failed",EventCode=12800,"Scrubbing completed",EventCode=12802,"Corruption detected")
 | table _time, host, status, VolumeName, SavingsRate, CorruptionCount
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

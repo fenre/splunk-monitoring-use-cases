@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.6.3.json — DO NOT EDIT -->
+
 ---
 id: "9.6.3"
 title: "Geofencing Alerts and Location-Based Policy Triggers"
@@ -49,12 +51,12 @@ The first pipeline stage scopes events using **index**: cisco_network; **sourcet
 **Pipeline walkthrough**
 
 • Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by device_id, zone_name, event_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by device_id, zone_name, event_type** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where event_type="left_zone"` — typically the threshold or rule expression for this monitoring goal.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the Meraki Systems Manager or device inventory UI for the same devices and policy state.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Geofence event timeline; zone heat map; affected device list.
@@ -70,10 +72,6 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*geofence
 ## Visualization
 
 Geofence event timeline; zone heat map; affected device list.
-
-## Known False Positives
-
-Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
 
 ## References
 

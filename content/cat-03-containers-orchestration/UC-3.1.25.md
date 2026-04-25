@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-3.1.25.json — DO NOT EDIT -->
+
 ---
 id: "3.1.25"
 title: "Docker Socket Exposure Detection"
@@ -60,7 +62,7 @@ The first pipeline stage scopes events using **index**: containers; **sourcetype
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Confirm that events are present in the index and that the search returns expected results. For Docker data, spot-check a few events against the Docker engine on the host and the container list you expect. Compare with known good and bad scenarios if applicable. Verify field extractions and index permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (containers with socket mount), Single value (exposed container count), Alert (immediate page).

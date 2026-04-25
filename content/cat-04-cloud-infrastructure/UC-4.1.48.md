@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.48.json — DO NOT EDIT -->
+
 ---
 id: "4.1.48"
 title: "Athena Query Execution Failures and Bytes Scanned"
@@ -65,6 +67,17 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:cloudtrail" eventName="StartQueryExecution" errorCode!=""
 | table _time userIdentity.arn requestParameters.queryExecutionId errorCode
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  where (All_Changes.action="failure" OR match(All_Changes.status, "(?i)error|AccessDenied|Invalid"))
+     AND (match(All_Changes.app, "(?i)athena") OR match(All_Changes.object, "(?i)query|athena"))
+  by All_Changes.user All_Changes.object span=1h
+| sort -count
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.1.5.json — DO NOT EDIT -->
+
 ---
 id: "8.1.5"
 title: "SSL Certificate Monitoring"
@@ -58,7 +60,8 @@ The first pipeline stage scopes events using **index**: certificates; **sourcety
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (certificates with expiry dates), Single value (certs expiring within 30d), Status grid (endpoint × cert status).

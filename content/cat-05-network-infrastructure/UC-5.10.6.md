@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.10.6.json — DO NOT EDIT -->
+
 ---
 id: "5.10.6"
 title: "SIP Post-Dial Delay Monitoring"
@@ -53,14 +55,14 @@ The first pipeline stage scopes events using **sourcetype**: stream:sip. That so
 
 • Scopes the data: sourcetype="stream:sip". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where isnotnull(setup_delay)` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by dest** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by dest** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **avg_pdd_ms** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where p95_pdd_ms>3000` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare Splunk counts in the same time window to your packet capture or Stream job scope (VLAN, SPAN, or tap). On the core element (PCRF, SBC, or PGW) console or EMS, open the matching subscriber or trunk counters and confirm codes such as Diameter `result_code` or SIP `reply_code` line up. After any network or mirror change, re-check that the Stream capture still includes the trunks you care about.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (p95 post-dial delay with thresholds: green <2s, yellow 2-3s, red >3s), Line chart (average PDD trend by dest over 24h), Table (dest, calls, avg_pdd_ms, p95_pdd_ms, max_pdd_ms — sortable), Histogram (PDD distribution across all calls).

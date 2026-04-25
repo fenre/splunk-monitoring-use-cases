@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.2.15.json — DO NOT EDIT -->
+
 ---
 id: "2.2.15"
 title: "Hyper-V VM State Changes"
@@ -78,7 +80,6 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

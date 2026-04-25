@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.67.json — DO NOT EDIT -->
+
 ---
 id: "5.13.67"
 title: "Event Notification Correlation with TA Poll Data"
@@ -57,7 +59,7 @@ index=catalyst sourcetype="cisco:dnac:event:notification" eventType="NETWORK" | 
 
 ## Visualization
 
-Table of `data_source` distribution, pie of Full coverage vs Webhook-only, optional Sankey (webhook stream vs issues stream) if you export to a data model.
+Table of `data_source` distribution, pie of Full coverage vs Webhook-only, optional Sankey in a third-party or Splunk visualization app to compare webhook and polled streams.
 
 ## References
 

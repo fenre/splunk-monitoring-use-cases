@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.53.json — DO NOT EDIT -->
+
 ---
 id: "4.1.53"
 title: "CloudWatch Logs Subscription Filter Errors"
@@ -65,6 +67,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/Logs" metric_name="DeliveryErrors"
 | where Sum > 0
 | timechart span=5m sum(Sum) by LogGroupName, FilterName
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

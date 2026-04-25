@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.20.json — DO NOT EDIT -->
+
 ---
 id: "1.2.20"
 title: "Print Spooler Issues"
@@ -13,7 +15,7 @@ Print spooler crashes affect print services and have historically been attack ve
 
 ## Value
 
-Print spooler crashes affect print services and have historically been attack vectors (PrintNightmare). Monitoring catches both operational and security issues.
+Print outages hit real work; the same component has been abused in the past, so this is both an ops and a security view.
 
 ## Implementation
 
@@ -49,8 +51,22 @@ The first pipeline stage scopes events using **index**: wineventlog.
 **Pipeline walkthrough**
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, EventCode** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, EventCode** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest All_Changes.object span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
 
 
 Step 3 — Validate
@@ -65,6 +81,15 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=wineventlog source="WinEventLog:Microsoft-Windows-PrintService/Operational" (EventCode=372 OR EventCode=805 OR EventCode=842)
 | stats count by host, EventCode
 | sort -count
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest All_Changes.object span=1h
+| where count>0
 ```
 
 ## Visualization

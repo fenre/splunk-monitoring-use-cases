@@ -243,9 +243,9 @@ window.NON_TECHNICAL = {
         { id: "5.12.10", why: "Detect toll fraud — unauthorised calls running up huge charges." }
       ]},
       { name: "Cisco Catalyst Center", description: "Your network management brain — we watch every device, every user connection, every wireless signal, and every security advisory that Catalyst Center tracks, so your team knows about problems before users do.", ucs: [
-        { id: "5.13.1", why: "See the health of every network device at a glance — spot struggling equipment before it causes outages." },
-        { id: "5.13.9", why: "Know how many users are having good, fair, or poor connectivity — wired and wireless." },
-        { id: "5.13.35", why: "Get alerted when a critical Cisco security vulnerability affects your network devices." }
+        { id: "5.8.1", why: "Get assurance and issue alerts from Cisco DNA Center (Catalyst Center) alongside the rest of your network telemetry — catch degrading health before it becomes an outage." },
+        { id: "5.1.8", why: "See CPU and memory load on your switches and routers — capacity pressure often shows up before links fail or routing flaps." },
+        { id: "5.1.26", why: "Track firmware and software versions across the fleet — outdated builds are a common path to unpatched security issues." }
       ]}
     ]
   },

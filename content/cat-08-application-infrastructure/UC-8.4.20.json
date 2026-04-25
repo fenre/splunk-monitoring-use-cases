@@ -11,19 +11,23 @@
   "dataSources": "`index=cache` `sourcetype=memcached:stats` (`curr_connections`, `max_connections`)",
   "app": "Custom scripted input",
   "spl": "index=cache sourcetype=\"memcached:stats\"\n| eval conn_pct=if(max_connections>0, round(100*curr_connections/max_connections,1), null())\n| where conn_pct > 80\n| timechart span=5m max(conn_pct) as used_pct by host",
-  "description": "Approaching `max_connections` risks refused sockets even when memory is healthy.",
-  "value": "Prevents connection storms from taking down shared caches.",
-  "implementation": "Some builds omit `max_connections`—derive from config via lookup if needed.",
-  "visualization": "Gauge, line chart, alert when >80% for 15m.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "Approaching `max_connections` risks refused sockets even when memory is healthy.",
+  "value": "Prevents connection storms from taking down shared caches.",
+  "grandmaExplanation": "We help you prevent connection storms from taking down shared caches.",
+  "implementation": "Some builds omit `max_connections`—derive from config via lookup if needed.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input.\n• Ensure the following data sources are available: `index=cache` `sourcetype=memcached:stats` (`curr_connections`, `max_connections`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm `STAT curr_connections` maps to numeric fields.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cache sourcetype=\"memcached:stats\"\n| eval conn_pct=if(max_connections>0, round(100*curr_connections/max_connections,1), null())\n| where conn_pct > 80\n| timechart span=5m max(conn_pct) as used_pct by host\n```\n\nUnderstanding this SPL\n\n**Memcached Connection Count Versus maxconn** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=cache` `sourcetype=memcached:stats` (`curr_connections`, `max_connections`). **App/TA**: Custom scripted input. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Gauge, line chart, alert when >80% for 15m..",
+  "visualization": "Gauge, line chart, alert when >80% for 15m.",
   "references": [
     {
       "title": "Memcached protocol — Statistics",
       "url": "https://github.com/memcached/memcached/blob/master/doc/protocol.txt"
     }
   ],
+  "knownFalsePositives": "Cache misses spike after cache flush, deploys with new cache keys, or during warm-up after restart. Compare with those events before treating as a fault.",
   "equipment": [
     "memcached"
   ],
@@ -33,7 +37,5 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input.\n• Ensure the following data sources are available: `index=cache` `sourcetype=memcached:stats` (`curr_connections`, `max_connections`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm `STAT curr_connections` maps to numeric fields.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cache sourcetype=\"memcached:stats\"\n| eval conn_pct=if(max_connections>0, round(100*curr_connections/max_connections,1), null())\n| where conn_pct > 80\n| timechart span=5m max(conn_pct) as used_pct by host\n```\n\nUnderstanding this SPL\n\n**Memcached Connection Count Versus maxconn** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=cache` `sourcetype=memcached:stats` (`curr_connections`, `max_connections`). **App/TA**: Custom scripted input. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Gauge, line chart, alert when >80% for 15m..",
-  "grandmaExplanation": "We watch how many clients talk to your cache at once so you do not hit the connection ceiling."
+  "reviewer": "@splunk-monitoring-use-cases"
 }

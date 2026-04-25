@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.4.9.json — DO NOT EDIT -->
+
 ---
 id: "8.4.9"
 title: "HAProxy Backend and Frontend Health"
@@ -52,13 +54,14 @@ The first pipeline stage scopes events using **index**: haproxy; **sourcetype**:
 
 • Scopes the data: index=haproxy, sourcetype="haproxy:stats". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **backend_status** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by pxname, svname, type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by pxname, svname, type** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where type=="backend" AND (up==0 OR queue_depth>10)` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **HAProxy Backend and Frontend Health**): table pxname, svname, up, queue_depth, sessions
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (backend × health), Table (backends with queue depth), Line chart (queue depth over time), Single value (DOWN backends count).

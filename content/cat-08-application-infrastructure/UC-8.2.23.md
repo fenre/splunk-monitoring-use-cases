@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.2.23.json — DO NOT EDIT -->
+
 ---
 id: "8.2.23"
 title: "Jira Data Center Performance"
@@ -56,13 +58,14 @@ The first pipeline stage scopes events using **index**: jira; **sourcetype**: ji
 • `eval` defines or adjusts **heap_used_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where heap_used_pct > 85 OR ThreadCount > 500 OR RequestDurationP95 > 3000` — typically the threshold or rule expression for this monitoring goal.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, host** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where heap_pct > 85 OR threads > 500 OR p95_ms > 3000` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Jira Data Center Performance**): table _time, host, heap_used, heap_max, heap_pct, threads, p95_ms
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with JBoss, WebLogic, or Tomcat admin consoles, or `catalina` / server logs on the host, for the same window. Confirm hostnames and fields match the vendor UI.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (heap usage, thread count, P95 latency), Gauge (heap %), Table (performance metrics by node), Bar chart (request duration by endpoint).

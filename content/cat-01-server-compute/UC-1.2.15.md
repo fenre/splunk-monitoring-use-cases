@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.15.json — DO NOT EDIT -->
+
 ---
 id: "1.2.15"
 title: "DNS Server Health"
@@ -13,7 +15,7 @@ DNS is foundational infrastructure — when DNS is slow or failing, everything f
 
 ## Value
 
-DNS is foundational infrastructure — when DNS is slow or failing, everything fails. Monitoring query rates and failures ensures resolution reliability.
+When name resolution wobbles, “everything is broken” follows—this is an early look at DNS health before apps fail in hard-to-trace ways.
 
 ## Implementation
 
@@ -50,6 +52,20 @@ The first pipeline stage scopes events using **index**: dns; **sourcetype**: MSA
 • Scopes the data: index=dns, sourcetype="MSAD:NT6:DNS". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `timechart` plots the metric over time using **span=5m** buckets with a separate series **by QTYPE** — ideal for trending and alerting on this use case.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Resolution
+  by host span=5m
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -62,6 +78,15 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ```spl
 index=dns sourcetype="MSAD:NT6:DNS"
 | timechart span=5m count as query_count by QTYPE
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Resolution
+  by host span=5m
+| where count>0
 ```
 
 ## Visualization

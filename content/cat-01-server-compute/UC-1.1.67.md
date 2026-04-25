@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.67.json — DO NOT EDIT -->
+
 ---
 id: "1.1.67"
 title: "AppArmor Profile Violation Detection"
@@ -9,62 +11,41 @@ splunkPillar: "Security"
 
 ## Description
 
-AppArmor violations indicate policy breaches that may reflect policy misconfigurations or attack attempts.
+Counts AppArmor log lines for **DENIED** actions (and optional **ALLOW** lines that still show an enforcing profile) per **host**, **profile**, and **operation** to highlight noisy policies or abuse.
 
 ## Value
 
-AppArmor violations indicate policy breaches that may reflect policy misconfigurations or attack attempts.
+A sudden climb on a **profile**+**operation** pair is often the first place teams look when a new build reaches production under AppArmor **enforce** mode.
 
 ## Implementation
 
-Enable AppArmor audit mode logging to syslog. Monitor for DENIED operations in enforce mode. Create alerts for violation spikes by profile. Include operation context to guide policy tuning.
+The exact `mode=enforce` string varies—adjust to your `dmesg` or **journal** phrasing. Prefer extractions of **profile** and **operation**; if your logs only have `_raw`, add two `REX` lines in **props** before you alert.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=syslog, AppArmor audit logs`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• **AppArmor** with logging to `kern` **syslog** or **journald** that Splunk can read. Enable forwarding for **audit**-style **AppArmor** events.
 
 Step 1 — Configure data collection
-Enable AppArmor audit mode logging to syslog. Monitor for DENIED operations in enforce mode. Create alerts for violation spikes by profile. Include operation context to guide policy tuning.
+Harden the **search** string for your version of AppArmor: some builds say “audit” in every line, others are terse.
 
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=syslog "apparmor" ("DENIED" OR "ALLOWED" AND "mode=enforce")
-| stats count by host, profile, operation
-| where count > baseline
-```
-
-Understanding this SPL
-
-**AppArmor Profile Violation Detection** — AppArmor violations indicate policy breaches that may reflect policy misconfigurations or attack attempts.
-
-Documented **Data sources**: `sourcetype=syslog, AppArmor audit logs`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, profile, operation** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where count > baseline` — typically the threshold or rule expression for this monitoring goal.
+**CIM** — Not modelled; keep **N/A** unless you add an internal **security**-style CIM extension.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`aa-status` and `dmesg | grep -i apparmor` (or `journalctl -k` as appropriate) on the host, then the same line in **Search** in Splunk.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Alert
+Tie the **profile** field to a CMDB owner for apps; route generic **unknown** profile buckets to a platform queue.
+
+
 
 ## SPL
 
 ```spl
-index=os sourcetype=syslog "apparmor" ("DENIED" OR "ALLOWED" AND "mode=enforce")
+index=os sourcetype=syslog "apparmor" ("DENIED" OR "DENY" OR ("ALLOWED" AND "enforce"))
 | stats count by host, profile, operation
-| where count > baseline
+| where count>5
 ```
 
 ## Visualization
@@ -73,4 +54,5 @@ Table, Alert
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

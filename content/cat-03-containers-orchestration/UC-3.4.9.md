@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-3.4.9.json — DO NOT EDIT -->
+
 ---
 id: "3.4.9"
 title: "Container Image Vulnerability Age"
@@ -55,7 +57,7 @@ The first pipeline stage scopes events using **index**: containers; **sourcetype
 • `eval` defines or adjusts **vuln_date** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **vuln_age_days** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where (Severity="Critical" OR Severity="High") AND vuln_age_days > 7` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by image, tag, Severity** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by image, tag, Severity** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 

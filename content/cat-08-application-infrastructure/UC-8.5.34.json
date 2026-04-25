@@ -12,13 +12,15 @@
   "dataSources": "`index=messaging` `sourcetype=activemq:web` Jetty/HTTP access logs for the broker’s web console or REST, or `sourcetype=activemq:log` when advisory consumers are enabled and logged",
   "app": "Universal Forwarder on Jetty request log; optional custom logging of advisory consumers",
   "spl": "index=messaging sourcetype=\"activemq:web\" earliest=-4h\n| search uri_path=\"*Advisory*\" OR uri_path=\"*advisory*\" OR request_uri=\"*ActiveMQ.Advisory*\"\n| bucket _time span=5m\n| stats count as advisory_http_hits by _time, host, client_ip\n| eventstats median(advisory_http_hits) as med by host\n| where advisory_http_hits > med*5 AND advisory_http_hits > 500\n| table _time, host, client_ip, advisory_http_hits, med",
-  "description": "Advisory topics carry connection and destination lifecycle events; a buggy client or misconfigured bridge that churns subscriptions can generate huge advisory traffic and CPU load. Spikes in HTTP access to `ActiveMQ.Advisory` paths or console polling often precede broker saturation.",
-  "value": "Protects shared brokers from self-inflicted advisory storms that look like organic traffic growth until thread dumps show advisory fan-out.",
-  "implementation": "Ensure Tomcat/Jetty access logs include `uri_path` or `request_uri`. Baseline per environment; tune multiplier and floor. For log-only sites, mirror with `activemq:log` searches on `Advisory`.",
-  "visualization": "Line chart (advisory HTTP hits), table (client_ip, count), anomaly overlay vs median.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "Advisory topics carry connection and destination lifecycle events; a buggy client or misconfigured bridge that churns subscriptions can generate huge advisory traffic and CPU load. Spikes in HTTP access to `ActiveMQ.Advisory` paths or console polling often precede broker saturation.",
+  "value": "Protects shared brokers from self-inflicted advisory storms that look like organic traffic growth until thread dumps show advisory fan-out.",
+  "grandmaExplanation": "We use this to protect shared brokers from self-inflicted advisory storms that look like organic traffic growth until thread dumps show advisory fan-out.",
+  "implementation": "Ensure Tomcat/Jetty access logs include `uri_path` or `request_uri`. Baseline per environment; tune multiplier and floor. For log-only sites, mirror with `activemq:log` searches on `Advisory`.",
+  "visualization": "Line chart (advisory HTTP hits), table (client_ip, count), anomaly overlay vs median.",
   "references": [
     {
       "title": "Apache ActiveMQ — Advisory Message",
@@ -29,6 +31,7 @@
       "url": "https://activemq.apache.org/web-console"
     }
   ],
+  "knownFalsePositives": "Queues and broker metrics swing during rebalancing, replay, or maintenance. We align with change windows.",
   "equipment": [
     "activemq",
     "tomcat"
@@ -40,5 +43,5 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch for unusual bursts of internal notification traffic that can overwhelm the messaging server when something is reconnecting or subscribing in a tight loop."
+  "detailedImplementation": ""
 }

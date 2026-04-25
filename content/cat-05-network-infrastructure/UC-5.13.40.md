@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.40.json — DO NOT EDIT -->
+
 ---
 id: "5.13.40"
 title: "Client Inventory and Connection Summary"
@@ -73,3 +75,4 @@ Table (host type, count, connection type), Pie chart (client types), Single valu
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

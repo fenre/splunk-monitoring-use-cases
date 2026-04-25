@@ -1,7 +1,8 @@
+<!-- AUTO-GENERATED from UC-9.1.3.json — DO NOT EDIT -->
+
 ---
 id: "9.1.3"
 title: "Privileged Group Membership Changes"
-status: "verified"
 criticality: "critical"
 splunkPillar: "Security"
 ---
@@ -57,9 +58,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  where match(All_Changes.object_category, "(?i)group") OR match(All_Changes.result, "(?i)4728|4732|4756")
-  by All_Changes.user All_Changes.object span=1h
+  from datamodel=Change.Auditing_Changes
+  where Auditing_Changes.action="modified"
+  by Auditing_Changes.user,Auditing_Changes.object,Auditing_Changes.dest span=1h
 | sort -count
 ```
 
@@ -73,14 +74,14 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.
+• Uses `tstats` against accelerated summaries for data model `Change.Auditing_Changes` — enable acceleration for that model.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with Event Viewer on domain controllers (or exported Security logs) and with Active Directory Users and Computers for the same objects and time window.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (membership changes), Timeline (change events), Single value (changes this week).
@@ -97,19 +98,15 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4728,4732,4756
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  where match(All_Changes.object_category, "(?i)group") OR match(All_Changes.result, "(?i)4728|4732|4756")
-  by All_Changes.user All_Changes.object span=1h
+  from datamodel=Change.Auditing_Changes
+  where Auditing_Changes.action="modified"
+  by Auditing_Changes.user,Auditing_Changes.object,Auditing_Changes.dest span=1h
 | sort -count
 ```
 
 ## Visualization
 
 Table (membership changes), Timeline (change events), Single value (changes this week).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.22.json — DO NOT EDIT -->
+
 ---
 id: "4.4.22"
 title: "Cross-Cloud Identity Federation Monitoring"
@@ -55,29 +57,31 @@ The first pipeline stage scopes events using **index**: aws, azure, gcp; **sourc
 • Scopes the data: index=aws, index=azure, index=gcp, sourcetype="aws:cloudtrail". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **cloud** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by cloud, user, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by cloud, user, _time** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user | sort - count
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
 ```
 
 Understanding this CIM / accelerated SPL
 
 **Cross-Cloud Identity Federation Monitoring** — Federation misconfiguration or token abuse spans IdPs and cloud consoles; unified visibility reduces blind spots for lateral movement across AWS, Azure, and GCP.
 
-Documented **Data sources**: `sourcetype=aws:cloudtrail` (AssumeRoleWithSAML, federation), `sourcetype=mscs:azure:audit` (federated sign-ins), `sourcetype=google:gcp:pubsub:message` (SAML/OIDC audit). **App/TA** (typical add-on context): `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
 
 
 Step 3 — Validate
@@ -101,7 +105,10 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user | sort - count
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
 ```
 
 ## Visualization
@@ -114,3 +121,4 @@ Table (cloud, user, count), Timeline (federation events), Sankey or chord (IdP t
 - [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
 - [Splunk_TA_google-cloudplatform](https://splunkbase.splunk.com/app/3088)
 - [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)

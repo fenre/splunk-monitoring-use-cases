@@ -19,6 +19,7 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "Splunk Add-on for Jira Cloud",
@@ -29,6 +30,7 @@
       "url": "https://docs.splunk.com/Documentation/AddOns/released/JiraCloud/Sourcetypes"
     }
   ],
+  "knownFalsePositives": "Epics that sit idle during roadmap pauses, holiday freezes, or batches of work saved for a later release; not every quiet epic is wrong.",
   "equipment": [
     "jira"
   ],
@@ -38,5 +40,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We notice an epic with no child work for a long stretch, so big promises are not left empty in the plan.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: Nightly Jira REST export augmented with child counts in HEC.\n• Data: Jira issues denormalized with `child_open_count` from ETL or lookup.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nPopulate `child_open_count` via scheduled search into KV store lookup.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=itsm sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"\n| where issue_type=\"Epic\" AND epic_status IN (\"To Do\",\"In Progress\")\n| eval stale_d=(now()-updated_epoch)/86400\n| where stale_d > 14 AND child_open_count=0\n| table key, epic_name, project, stale_d\n| sort -stale_d\n```\n\nUnderstanding this search\nOrphan epics mask portfolio reporting and waste capacity forecasts.\n\nStep 3 — Validate\nCompare with the Jira issue page, board, or service project view for the same dates. Confirm issue keys, status, and assignment fields; reconcile timestamp fields you use in the report.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Table (epic list), Pie chart (by portfolio)."
 }

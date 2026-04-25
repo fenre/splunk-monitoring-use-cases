@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.46.json — DO NOT EDIT -->
+
 ---
 id: "1.2.46"
 title: "DFS-R Replication Backlog"
@@ -13,7 +15,7 @@ DFS-R replication backlogs mean file servers are out of sync. Users may access s
 
 ## Value
 
-DFS-R replication backlogs mean file servers are out of sync. Users may access stale data, and a prolonged backlog can trigger an initial sync (full re-replication).
+Replication backlog is a data-loss and recovery-time problem—if you only notice during an outage, you are late.
 
 ## Implementation
 
@@ -54,6 +56,20 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • Pipeline stage (see **DFS-R Replication Backlog**): table _time, host, issue, ReplicationGroupName, PartnerName
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest All_Changes.object span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -89,6 +105,15 @@ index=wineventlog source="WinEventLog:DFS Replication" EventCode IN (4012, 4302,
 | eval issue=case(EventCode=4012,"Auto-recovery started",EventCode=4302,"Staging quota exceeded",EventCode=4304,"Backlog exceeded limit",EventCode=5002,"Initial sync unexpected",EventCode=5008,"Connection failed")
 | table _time, host, issue, ReplicationGroupName, PartnerName
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest All_Changes.object span=1h
+| where count>0
 ```
 
 ## Visualization

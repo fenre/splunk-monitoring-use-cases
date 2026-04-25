@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.64.json — DO NOT EDIT -->
+
 ---
 id: "1.1.64"
 title: "Network Latency Monitoring (Ping RTT)"
@@ -9,101 +11,37 @@ splunkPillar: "Observability"
 
 ## Description
 
-Elevated latency to critical services impacts application performance and user experience.
+Summarises round-trip time per host and ping target, then compares the maximum RTT in the window to a host+target local upper bound of mean + two standard deviations, catching unstable long tails.
 
 ## Value
 
-Elevated latency to critical services impacts application performance and user experience.
+Average ping can look fine while a few very late replies spoil voice, replication, or leader election—this test surfaces tail behaviour without needing external synthetics in many shops.
 
 ## Implementation
 
-Create a scripted input that pings critical infrastructure hosts and captures RTT. Baseline normal latencies per target. Alert when average exceeds baseline or max exceeds 2x standard deviation.
+Run `ping` or `fping` on a short cadence, parse **rtt_ms** and **target**, and keep **target** lists under version control. Add `| where stdev>0` if you need to avoid degenerate `upper_bound=avg` when there is a single sample.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=custom:ping_rtt`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Cron or **systemd** timer that calls your script; Splunk user must be allowed to open raw ICMP sockets (often **root** or **cap_net_raw**).
 
 Step 1 — Configure data collection
-Create a scripted input that pings critical infrastructure hosts and captures RTT. Baseline normal latencies per target. Alert when average exceeds baseline or max exceeds 2x standard deviation.
+One event per (host, target) per interval is easier to reason about than a single string with all targets—pick one pattern and stay consistent.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+The `spl` no longer references an undefined **baseline** field; the bound is per-row from the **stats** of the window. Increase lookback to smooth Wi‑Fi noise if needed.
 
-```spl
-index=os sourcetype=custom:ping_rtt host=*
-| stats avg(rtt_ms) as avg_latency, max(rtt_ms) as max_latency, stdev(rtt_ms) as stddev by host, target
-| eval upper_bound=avg_latency+(2*stddev)
-| where avg_latency > baseline OR max_latency > upper_bound
-```
-
-Understanding this SPL
-
-**Network Latency Monitoring (Ping RTT)** — Elevated latency to critical services impacts application performance and user experience.
-
-Documented **Data sources**: `sourcetype=custom:ping_rtt`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: custom:ping_rtt. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=custom:ping_rtt. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, target** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eval` defines or adjusts **upper_bound** — often to normalize units, derive a ratio, or prepare for thresholds.
-• Filters the current rows with `where avg_latency > baseline OR max_latency > upper_bound` — typically the threshold or rule expression for this monitoring goal.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats `summariesonly` sum(Performance.bytes_in) as bytes_in
-                        sum(Performance.bytes_out) as bytes_out
-  from datamodel=Performance where nodename=Performance.Network
-  by Performance.host Performance.interface span=5m
-```
-
-Understanding this CIM / accelerated SPL
-
-**Network Latency Monitoring (Ping RTT)** — Elevated latency to critical services impacts application performance and user experience.
-
-Documented **Data sources**: `sourcetype=custom:ping_rtt`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+**CIM note** — There is no standard CIM dataset for ad-hoc ICMP; keep this UC on the **custom** sourcetype unless you import RTT into a metrics workspace.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+From the same host, run `ping` / `mtr` manually for the same **target** and second; compare the Splunk `avg_latency` to what you see. Use path MTU work only for application-layer follow-up, not as the first ICMP proof.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart, Gauge
+Page network when multiple hosts shift together (fabric issue); page apps when a single `target` drifts (dependency issue).
 
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
 
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
@@ -111,16 +49,7 @@ For full details (paths, scheduling, permissions), see the Implementation guide:
 index=os sourcetype=custom:ping_rtt host=*
 | stats avg(rtt_ms) as avg_latency, max(rtt_ms) as max_latency, stdev(rtt_ms) as stddev by host, target
 | eval upper_bound=avg_latency+(2*stddev)
-| where avg_latency > baseline OR max_latency > upper_bound
-```
-
-## CIM SPL
-
-```spl
-| tstats `summariesonly` sum(Performance.bytes_in) as bytes_in
-                        sum(Performance.bytes_out) as bytes_out
-  from datamodel=Performance where nodename=Performance.Network
-  by Performance.host Performance.interface span=5m
+| where max_latency > upper_bound
 ```
 
 ## Visualization
@@ -129,4 +58,5 @@ Timechart, Gauge
 
 ## References
 
-- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

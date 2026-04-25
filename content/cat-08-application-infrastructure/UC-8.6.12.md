@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.6.12.json — DO NOT EDIT -->
+
 ---
 id: "8.6.12"
 title: "HashiCorp Consul Service Health"
@@ -51,12 +53,13 @@ The first pipeline stage scopes events using **index**: consul; **sourcetype**: 
 
 • Scopes the data: index=consul, sourcetype="consul:health". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where status=="critical"` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by Node, ServiceID, CheckID** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by Node, ServiceID, CheckID** so each row reflects one combination of those dimensions.
 • Pipeline stage (see **HashiCorp Consul Service Health**): table Node, ServiceID, CheckID, count, Output
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (service × health), Table (critical services), Single value (critical check count), Timeline (health transitions).

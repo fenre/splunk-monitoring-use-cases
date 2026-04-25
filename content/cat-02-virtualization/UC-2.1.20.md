@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.20.json — DO NOT EDIT -->
+
 ---
 id: "2.1.20"
 title: "Resource Pool Utilization and Limits"
@@ -55,7 +57,6 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 • `eval` defines or adjusts **mem_limit_gb** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Pipeline stage (see **Resource Pool Utilization and Limits**): table name, cluster, cpuAllocation_reservation, cpu_limit_ghz, cpuAllocation_shares, memoryAllocation_reservation, mem_limit_gb, memoryAl…
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

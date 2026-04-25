@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.16.json — DO NOT EDIT -->
+
 ---
 id: "1.2.16"
 title: "DHCP Scope Exhaustion"
@@ -13,7 +15,7 @@ When DHCP scopes run out of addresses, new devices can't get network access. Oft
 
 ## Value
 
-When DHCP scopes run out of addresses, new devices can't get network access. Often manifests as "network down" complaints.
+Scope exhaustion is a silent brownout for new clients—fixing it fast avoids an invisible outage that support hears as “wifi is weird.”
 
 ## Implementation
 
@@ -50,7 +52,21 @@ The first pipeline stage scopes events using **index**: dhcp; **sourcetype**: Dh
 
 • Scopes the data: index=dhcp, sourcetype="DhcpSrvLog". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where EventID=13 OR EventID=14` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by Description** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by Description** so each row reflects one combination of those dimensions.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
 
 
 Step 3 — Validate
@@ -86,6 +102,15 @@ For full details (paths, scheduling, permissions), see the Implementation guide:
 index=dhcp sourcetype="DhcpSrvLog"
 | where EventID=13 OR EventID=14
 | stats count by Description
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

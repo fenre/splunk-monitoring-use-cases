@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.11.4.json — DO NOT EDIT -->
+
 ---
 id: "5.11.4"
 title: "System CPU and Memory Utilization Streaming"
@@ -54,30 +56,9 @@ The first pipeline stage scopes events using **index**: gnmi_metrics.
 • Pipeline stage (see **System CPU and Memory Utilization Streaming**): table _time, host, cpu_pct
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**System CPU and Memory Utilization Streaming** — Network device control planes running hot indicate routing churn, excessive logging, or a control-plane DoS. gNMI streaming at 30-second intervals catches transient CPU spikes that 5-minute SNMP polls miss entirely. A Nexus spine hitting 90% CPU during a BGP convergence event could start dropping BFD keepalives, cascading into a fabric-wide outage.
-
-Documented **Data sources**: gNMI path: `/system/cpus/cpu/state` (OpenConfig), Cisco native: `Cisco-IOS-XR-wdsysmon-fd-oper:system-monitoring/cpu-utilization`; Telegraf metric: `openconfig_system`. **App/TA** (typical add-on context): Telegraf (`inputs.gnmi` plugin) → Splunk HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance.CPU` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare CPU% from `mstats` to the device CLI (process or overall CPU) in the same minute; confirm Telegraf and HEC are not sampling a different VRF or context.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (current CPU per device), Line chart (CPU trend), Table (devices above threshold).
@@ -94,7 +75,11 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host | sort - count
+| tstats `summariesonly` max(Performance.cpu_load_percent) as cpu_load
+  from datamodel=Performance.Performance
+  by Performance.host span=5m
+| where cpu_load > 80
+| sort -cpu_load
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.3.35.json — DO NOT EDIT -->
+
 ---
 id: "4.3.35"
 title: "Cloud SQL Connection Limits"
@@ -50,10 +52,125 @@ The first pipeline stage scopes events using **index**: gcp; **sourcetype**: goo
 **Pipeline walkthrough**
 
 • Scopes the data: index=gcp, sourcetype="google:gcp:monitoring". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by resource.labels.database_id, bin(_time, 5m)** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by resource.labels.database_id, bin(_time, 5m)** so each row reflects one combination of those dimensions.
 • Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
 • Filters the current rows with `where conns > max_connections * 0.85` — typically the threshold or rule expression for this monitoring goal.
 
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud SQL Connection Limits** — Hitting max connections causes application errors; trending connections versus tier limits guides pool sizing and read replicas.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on accelerated data model the CPU-related Performance model — enable that model in Data Models and CIM add-ons, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud SQL Connection Limits** — Hitting max connections causes application errors; trending connections versus tier limits guides pool sizing and read replicas.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud SQL Connection Limits** — Hitting max connections causes application errors; trending connections versus tier limits guides pool sizing and read replicas.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud SQL Connection Limits** — Hitting max connections causes application errors; trending connections versus tier limits guides pool sizing and read replicas.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud SQL Connection Limits** — Hitting max connections causes application errors; trending connections versus tier limits guides pool sizing and read replicas.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -70,6 +187,15 @@ index=gcp sourcetype="google:gcp:monitoring" metric.type="cloudsql.googleapis.co
 | where conns > max_connections * 0.85
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
 ## Visualization
 
 Line chart (connections vs limit), Gauge (utilization %), Table (instance, conns).
@@ -77,3 +203,4 @@ Line chart (connections vs limit), Gauge (utilization %), Table (instance, conns
 ## References
 
 - [Splunk_TA_google-cloudplatform](https://splunkbase.splunk.com/app/3088)
+- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

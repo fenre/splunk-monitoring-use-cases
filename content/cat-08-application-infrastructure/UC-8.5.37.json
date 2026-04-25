@@ -12,13 +12,15 @@
   "dataSources": "`index=messaging` `sourcetype=activemq:broker` topic and durable subscription statistics (`QueueSize` on the internal queue backing an offline durable, `SubscriberCount`, `InactiveDurableSubscribers`, destination names for `clientId` patterns)",
   "app": "Splunk Add-on for JMX (Splunkbase 2647) polling subscription-related MBeans",
   "spl": "index=messaging sourcetype=\"activemq:broker\" earliest=-24h\n| eval dest=coalesce(DestinationName, destination_name)\n| eval qsize=coalesce(QueueSize, queue_size)\n| eval inactive=coalesce(InactiveDurableSubscribers, inactive_durable_subscribers, 0)\n| eval durable_name=coalesce(subscription_name, client_id, durable_name)\n| where match(dest, \"(?i)dur|sub|consumer\") OR inactive>0 OR isnotnull(durable_name)\n| where qsize > 1000 OR inactive>0\n| timechart span=1h max(qsize) as durable_backlog max(inactive) as inactive_durables by dest, broker_name limit=15",
-  "description": "When a durable subscriber is offline, the broker retains messages in a dedicated backlog; rapid `QueueSize` growth on those internal destinations risks exhausting store limits and slowing all clients on the broker. Tracking inactive durable counts highlights forgotten test clients and zombie subscriptions.",
-  "value": "Prevents silent store exhaustion from abandoned durable subscriptions and quantifies catch-up work before reconnect storms after maintenance.",
-  "implementation": "Tune name filters to your `clientId`/`subscriptionName` conventions. Exclude known batch consumers via lookup. Alert on week-over-week growth, not just absolute depth, for seasonal workloads.",
-  "visualization": "Line chart (durable backlog), table (broker, destination, inactive count), single value (worst backlog).",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "When a durable subscriber is offline, the broker retains messages in a dedicated backlog; rapid `QueueSize` growth on those internal destinations risks exhausting store limits and slowing all clients on the broker. Tracking inactive durable counts highlights forgotten test clients and zombie subscriptions.",
+  "value": "Prevents silent store exhaustion from abandoned durable subscriptions and quantifies catch-up work before reconnect storms after maintenance.",
+  "grandmaExplanation": "We help you prevent silent store exhaustion from abandoned durable subscriptions and quantifies catch-up work before reconnect storms after maintenance.",
+  "implementation": "Tune name filters to your `clientId`/`subscriptionName` conventions. Exclude known batch consumers via lookup. Alert on week-over-week growth, not just absolute depth, for seasonal workloads.",
+  "visualization": "Line chart (durable backlog), table (broker, destination, inactive count), single value (worst backlog).",
   "references": [
     {
       "title": "Apache ActiveMQ — Durable Subscribers",
@@ -29,6 +31,7 @@
       "url": "https://activemq.apache.org/jmx.html"
     }
   ],
+  "knownFalsePositives": "Queues grow during consumer maintenance, slow consumers, or burst producer activity. Seasonal traffic can also create sustained backlog without a hard fault.",
   "equipment": [
     "activemq"
   ],
@@ -39,5 +42,5 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We measure how many messages are waiting for subscribers that are turned off so storage does not fill up because someone left a test client subscribed."
+  "detailedImplementation": ""
 }

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.69.json — DO NOT EDIT -->
+
 ---
 id: "1.1.69"
 title: "SUID/SGID Binary Changes"
@@ -9,62 +11,46 @@ splunkPillar: "Security"
 
 ## Description
 
-Unauthorized SUID/SGID binary modifications enable privilege escalation attacks.
+Collects `linux_audit` events that look like setuid/setgid or privilege-changing syscalls, grouped by path and command, as a first pass before you refine to `chmod` rule keys for your build.
 
 ## Value
 
-Unauthorized SUID/SGID binary modifications enable privilege escalation attacks.
+Unplanned **setuid** roots on a server are a classic persistence move; a narrow audit feed cuts mean-time-to-detect for mis-builds and attackers alike when paired with a weekly `find` inventory.
 
 ## Implementation
 
-Monitor /proc/fs/pstore or auditctl for SUID/SGID attribute changes. Create alerts on any changes to SUID/SGID binaries. Maintain a whitelist of expected SUID/SGID files for comparison.
+**auditd** rules must log **chmod**/**fchmod** on executables and watch critical directories. Your fields may be `nametype`, `name`, or `file`—retarget the `search` to your parser. Drop in your standard `suid` hunting search from the OS baseline doc when ready to replace the starter string.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=linux_audit`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Hardened **auditd** with writable rules in `/etc/audit/rules.d` for permission bits on binaries, not only **exec**.
 
-Step 1 — Configure data collection
-Monitor /proc/fs/pstore or auditctl for SUID/SGID attribute changes. Create alerts on any changes to SUID/SGID binaries. Maintain a whitelist of expected SUID/SGID files for comparison.
+**SPL** — The starter `spl` is intentionally broad. Replace with the exact `key=` filters your org standardizes on, for example `key=priv_esc` on **execve**+**chmod** pairs from your reference architecture.
 
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=linux_audit type=EXECVE "suid" OR "sgid"
-| stats count by host, name, comm
-| where count > 0
-```
-
-Understanding this SPL
-
-**SUID/SGID Binary Changes** — Unauthorized SUID/SGID binary modifications enable privilege escalation attacks.
-
-Documented **Data sources**: `sourcetype=linux_audit`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, name, comm** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
+**CIM** — `cimSpl` is a generic **object**+**user**+**dest** count for anything mapped to **All_Changes**; tune `object` to your field name (often `file_name`).
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`ausearch -k priv_esc` (or your key) on the node and `ls -l` the binary. Use `find / -xdev -perm /6000` during maintenance windows to rebuild an inventory baseline, not for minute-by-minute Splunk match.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table
+Any truly new SUID in `/tmp` or `/var/tmp` is usually **sev-1** until proven otherwise.
+
+
 
 ## SPL
 
 ```spl
-index=os sourcetype=linux_audit type=EXECVE "suid" OR "sgid"
+index=os sourcetype=linux_audit (suid=1 OR sgid=1 OR auid=0) (type=PATH OR type=SYSCALL name=chmod*)
 | stats count by host, name, comm
-| where count > 0
+| where count>0
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count from datamodel=Change.All_Changes where All_Changes.action=modified by All_Changes.user All_Changes.object All_Changes.dest span=1d | where count>0
 ```
 
 ## Visualization
@@ -73,4 +59,5 @@ Alert, Table
 
 ## References
 
-- [Splunk Lantern — use case library](https://lantern.splunk.com/)
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
+- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)

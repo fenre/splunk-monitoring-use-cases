@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.92.json — DO NOT EDIT -->
+
 ---
 id: "1.2.92"
 title: "Remote Desktop Gateway Session Monitoring"
@@ -13,7 +15,7 @@ RD Gateway is the entry point for remote workers. Monitoring session lifecycle d
 
 ## Value
 
-RD Gateway is the entry point for remote workers. Monitoring session lifecycle detects unauthorized access, session hijacking, and resource abuse.
+The RD Gateway is where remote desktop meets the public edge. Unusual session or failure patterns here often show brute force, cert issues, or capacity pain before the help desk fills up.
 
 ## Implementation
 
@@ -51,7 +53,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **EventAction** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, UserName, ClientIP, ResourceName, EventAction** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, UserName, ClientIP, ResourceName, EventAction** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where EventAction="AuthFailed" OR EventAction="AuthZ_Failed"` — typically the threshold or rule expression for this monitoring goal.
 
 
@@ -68,6 +70,16 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TerminalServices-Gateway
 | eval EventAction=case(EventCode=300,"Connected", EventCode=302,"Disconnected", EventCode=303,"AuthFailed", EventCode=304,"AuthZ_Failed", 1=1,"Other")
 | stats count by host, UserName, ClientIP, ResourceName, EventAction
 | where EventAction="AuthFailed" OR EventAction="AuthZ_Failed"
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action="failure"
+  by Authentication.user Authentication.src span=1h
+| where count > 3
 ```
 
 ## Visualization

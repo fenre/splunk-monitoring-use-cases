@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.49.json — DO NOT EDIT -->
+
 ---
 id: "4.1.49"
 title: "FSx for Lustre/Windows Capacity and Throughput"
@@ -68,6 +70,16 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/FSx" metric_name="FreeDataS
 | timechart span=1d avg(Average) by FileSystemId
 | eval free_gb = FreeDataStorageCapacity / 1024 / 1024 / 1024
 | where free_gb < 100
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

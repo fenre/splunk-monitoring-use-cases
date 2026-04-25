@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.1.20.json — DO NOT EDIT -->
+
 ---
 id: "5.1.20"
 title: "EIGRP Neighbor Flapping"
@@ -52,12 +54,12 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 • Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Extracts fields with `rex` (regular expression).
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time, host, neighbor_ip, interface** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, host, neighbor_ip, interface** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where downs > 2` — typically the threshold or rule expression for this monitoring goal.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On the device, run `show eigrp neighbors` and check that the neighbor and interface in the CLI match the host and text you saw in Splunk.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (up/down events), Table (neighbor, interface, flap count), Status grid.

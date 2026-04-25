@@ -11,19 +11,27 @@
   "dataSources": "`index=proxy` `sourcetype=squid:access`",
   "app": "Custom (Squid access.log)",
   "spl": "index=proxy sourcetype=\"squid:access\"\n| rex \"TCP_(?<cache_result>DENIED)\"\n| where isnotnull(cache_result)\n| bin _time span=15m\n| stats count as denied by _time\n| where denied > 100",
-  "description": "Bursts of `TCP_DENIED` indicate ACL changes, authentication failures, or blocked malware callbacks through the proxy.",
-  "value": "Supports DLP and acceptable-use monitoring for forward proxies.",
-  "implementation": "Ensure usernames or groups appear in logs if available. Join with identity feeds for context.",
-  "visualization": "Timechart (denied/min), table (top URLs), map of source subnets.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "Bursts of `TCP_DENIED` indicate ACL changes, authentication failures, or blocked malware callbacks through the proxy.",
+  "value": "Supports DLP and acceptable-use monitoring for forward proxies.",
+  "grandmaExplanation": "We use this to support DLP and acceptable-use rules on our forward proxy without reading every line of the log by hand.",
+  "implementation": "Ensure usernames or groups appear in logs if available. Join with identity feeds for context.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Squid access.log).\n• Ensure the following data sources are available: `index=proxy` `sourcetype=squid:access`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTune threshold to enterprise size; add URI filters to ignore health checks.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"squid:access\"\n| rex \"TCP_(?<cache_result>DENIED)\"\n| where isnotnull(cache_result)\n| bin _time span=15m\n| stats count as denied by _time\n| where denied > 100\n```\n\nUnderstanding this SPL\n\n**Squid TCP_DENIED Policy Denial Spike** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` `sourcetype=squid:access`. **App/TA**: Custom (Squid access.log). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare a sample of `TCP_DENIED` lines with Squid’s `access.log` on the proxy (or a direct `grep` of the same file for that time window) to confirm counts and that parsing matches your format.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Timechart (denied/min), table (top URLs), map of source subnets..",
+  "visualization": "Timechart (denied/min), table (top URLs), map of source subnets.",
   "references": [
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    },
     {
       "title": "Squid Configuration Manual — Access Log",
       "url": "http://www.squid-cache.org/Doc/config/access_log/"
     }
   ],
+  "knownFalsePositives": "4xx spikes from web crawlers, scanners, or after URL routing and auth policy changes. We correlate with change records and intent.",
   "equipment": [
     "squid"
   ],
@@ -33,7 +41,5 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Squid access.log).\n• Ensure the following data sources are available: `index=proxy` `sourcetype=squid:access`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTune threshold to enterprise size; add URI filters to ignore health checks.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"squid:access\"\n| rex \"TCP_(?<cache_result>DENIED)\"\n| where isnotnull(cache_result)\n| bin _time span=15m\n| stats count as denied by _time\n| where denied > 100\n```\n\nUnderstanding this SPL\n\n**Squid TCP_DENIED Policy Denial Spike** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` `sourcetype=squid:access`. **App/TA**: Custom (Squid access.log). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Timechart (denied/min), table (top URLs), map of source subnets..",
-  "grandmaExplanation": "We spot sudden waves of blocked web use so policy or abuse issues do not hide in log noise."
+  "reviewer": "@splunk-monitoring-use-cases"
 }

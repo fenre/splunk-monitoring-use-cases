@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.72.json — DO NOT EDIT -->
+
 ---
 id: "1.2.72"
 title: "WinRM / Remote PowerShell Connections"
@@ -13,7 +15,7 @@ WinRM enables remote command execution via PowerShell Remoting. Monitoring inbou
 
 ## Value
 
-WinRM enables remote command execution via PowerShell Remoting. Monitoring inbound WinRM sessions detects lateral movement and unauthorized remote management.
+If someone can run PowerShell on your servers from unexpected places, they can move through the network fast. We surface unusual WinRM sessions so access and server teams can verify intent before damage spreads.
 
 ## Implementation
 
@@ -52,8 +54,19 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **action** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, action, User, IpAddress** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, action, User, IpAddress** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Optional CIM / accelerated variant:
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.src Authentication.dest span=1h
+| where count > 0
+```
+
+Enable **data model acceleration** on `Authentication`. Confirm field aliases from `Microsoft-Windows-WinRM/Operational` (EventCode 6, 91, 161) into CIM; keep the primary index search for ad hoc parsing.
 
 
 Step 3 — Validate
@@ -72,6 +85,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-WinRM/Operational"
 | sort -count
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.src Authentication.dest span=1h
+| where count > 0
+```
+
 ## Visualization
 
 Table (WinRM sessions by source), Network graph (source→dest), Timeline, Bar chart (sessions per host).
@@ -79,3 +101,4 @@ Table (WinRM sessions by source), Network graph (source→dest), Timeline, Bar c
 ## References
 
 - [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+- [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)

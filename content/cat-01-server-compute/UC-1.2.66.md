@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.66.json — DO NOT EDIT -->
+
 ---
 id: "1.2.66"
 title: "Sysmon File Creation in Suspicious Paths"
@@ -13,7 +15,7 @@ Files created in temp directories, startup folders, and system paths by unexpect
 
 ## Value
 
-Files created in temp directories, startup folders, and system paths by unexpected processes indicate malware dropping payloads or establishing persistence.
+Catching odd file drops early helps security teams stop malware staging and persistence before it spreads to other systems or causes outages.
 
 ## Implementation
 
@@ -54,6 +56,18 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Pipeline stage (see **Sysmon File Creation in Suspicious Paths**): table _time, host, Image, TargetFilename, User
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (Sysmon EventCode 11 mapped to Endpoint.Filesystem — requires CIM tagging from the same host feed):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Endpoint.Filesystem
+  where (like(Filesystem.file_path,"%\\Temp\\%") OR like(Filesystem.file_path,"%\\Startup\\%") OR like(Filesystem.file_path,"%\\Tasks\\%") OR like(Filesystem.file_path,"%\\ProgramData\\%") OR like(Filesystem.file_path,"%\\AppData\\%.bat") OR like(Filesystem.file_path,"%\\AppData\\%.ps1") OR like(Filesystem.file_path,"%\\Temp\\%.exe") OR like(Filesystem.file_path,"%\\ProgramData\\%.exe"))
+  by Filesystem.dest Filesystem.file_path Filesystem.user span=1h
+| where count >= 1
+```
+
+Enable **data model acceleration** on `Endpoint` (Filesystem). If `tstats` returns nothing, confirm CIM tags and field aliases for Sysmon file-create events.
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -70,6 +84,16 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 | sort -_time
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Endpoint.Filesystem
+  where (like(Filesystem.file_path,"%\\Temp\\%") OR like(Filesystem.file_path,"%\\Startup\\%") OR like(Filesystem.file_path,"%\\Tasks\\%") OR like(Filesystem.file_path,"%\\ProgramData\\%") OR like(Filesystem.file_path,"%\\AppData\\%.bat") OR like(Filesystem.file_path,"%\\AppData\\%.ps1") OR like(Filesystem.file_path,"%\\Temp\\%.exe") OR like(Filesystem.file_path,"%\\ProgramData\\%.exe"))
+  by Filesystem.dest Filesystem.file_path Filesystem.user span=1h
+| where count >= 1
+```
+
 ## Visualization
 
 Table (suspicious file creations), Bar chart (top dropping processes), Timeline.
@@ -77,3 +101,4 @@ Table (suspicious file creations), Bar chart (top dropping processes), Timeline.
 ## References
 
 - [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+- [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)

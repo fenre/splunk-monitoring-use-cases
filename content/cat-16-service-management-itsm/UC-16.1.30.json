@@ -19,6 +19,7 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "BMC Control-M Automation API overview",
@@ -29,6 +30,7 @@
       "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
     }
   ],
+  "knownFalsePositives": "Busy or odd job states during code moves, new folder cutovers, one-off re-runs, or test folders still mixed into production; compare with the scheduler before you change how jobs are defined.",
   "equipment": [
     "controlm"
   ],
@@ -38,5 +40,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We watch pools and queues piling up, so we add capacity or spread work before one busy pipe blocks a whole class of jobs.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: Control-M/EM export with pool binding fields.\n• Data: Control-M job status events including `resource_pool` and wait states.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nEnsure `resource_pool` extracted from XML/JSON order definitions.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=cicd sourcetype=\"controlm:job\"\n| where status=\"Wait Resource\" OR status=\"Wait Host\"\n| stats dc(job_id) as waiting_jobs, values(resource_pool) as pools by controlm_server\n| where waiting_jobs>=10\n| sort -waiting_jobs\n```\n\nUnderstanding this search\nResource pools backing up indicate host shortage or mis-sized concurrency limits.\n\nStep 3 — Validate\nCompare with the Control-M job plan and run history in the job scheduler. Reconcile job and folder names, start and end times, and queue or pool use for a few highlighted jobs.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Single value (waiting_jobs), Bar chart (by pool)."
 }

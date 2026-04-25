@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.4.15.json — DO NOT EDIT -->
+
 ---
 id: "7.4.15"
 title: "Azure Synapse Analytics SQL Pool Performance"
@@ -22,6 +24,7 @@ Collect Azure Monitor metrics for Synapse SQL pools. Alert when `DWUUsedPercent`
 ## Detailed Implementation
 
 Prerequisites
+• In operations we cross-check backup reality in the right console for each engine: `msdb` and SSMS for SQL Server, RMAN and Enterprise Manager (or DBA views) for Oracle, and the postgres or managed-service view for PostgreSQL, alongside Splunk.
 • Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics).
 • Ensure the following data sources are available: `sourcetype=azure:monitor:metric` (Microsoft.Synapse/workspaces/sqlPools), `sourcetype=azure:diagnostics` (SqlRequests).
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -52,30 +55,9 @@ The first pipeline stage scopes events using **index**: cloud; **sourcetype**: a
 • Filters the current rows with `where metric_name IN ("DWUUsedPercent","ActiveQueries","QueuedQueries","AdaptiveCacheHitPercent")` — typically the threshold or rule expression for this monitoring goal.
 • `timechart` plots the metric over time using **span=5m** buckets with a separate series **by metric_name, resource_name** — ideal for trending and alerting on this use case.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.CPU by Performance.host span=5m | sort - agg_value
-```
-
-Understanding this CIM / accelerated SPL
-
-**Azure Synapse Analytics SQL Pool Performance** — Synapse dedicated SQL pools have DWU-based resource limits. Queries competing for resources cause queueing, and tempdb contention degrades batch processing. Monitoring ensures analytics workloads meet SLAs.
-
-Documented **Data sources**: `sourcetype=azure:monitor:metric` (Microsoft.Synapse/workspaces/sqlPools), `sourcetype=azure:diagnostics` (SqlRequests). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance.CPU` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (DWU % and queued queries), Table (long-running queries), Gauge (cache hit ratio).
@@ -88,12 +70,6 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.synapse/w
 | timechart span=5m avg(average) as value by metric_name, resource_name
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.CPU by Performance.host span=5m | sort - agg_value
-```
-
 ## Visualization
 
 Line chart (DWU % and queued queries), Table (long-running queries), Gauge (cache hit ratio).
@@ -101,4 +77,3 @@ Line chart (DWU % and queued queries), Table (long-running queries), Gauge (cach
 ## References
 
 - [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
-- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

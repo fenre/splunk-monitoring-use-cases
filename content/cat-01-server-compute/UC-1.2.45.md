@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.45.json — DO NOT EDIT -->
+
 ---
 id: "1.2.45"
 title: "Windows Time Service (W32Time) Issues"
@@ -13,7 +15,7 @@ Time synchronization failures break Kerberos authentication (5-minute tolerance)
 
 ## Value
 
-Time synchronization failures break Kerberos authentication (5-minute tolerance), cause log correlation issues, and invalidate audit trails.
+Time drift is a silent multiplier for auth, PKI, and correlation—treat it as infrastructure health, not a footnote.
 
 ## Implementation
 
@@ -59,9 +61,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -100,9 +102,9 @@ index=wineventlog sourcetype="WinEventLog:System" Source="Microsoft-Windows-Time
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

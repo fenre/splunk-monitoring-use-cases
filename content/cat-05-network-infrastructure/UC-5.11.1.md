@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.11.1.json — DO NOT EDIT -->
+
 ---
 id: "5.11.1"
 title: "Interface Utilization via gNMI Streaming Counters"
@@ -56,11 +58,11 @@ The first pipeline stage scopes events using **index**: gnmi_metrics.
 • Pipeline stage (see **Interface Utilization via gNMI Streaming Counters**): table _time, host, name, in_mbps, out_mbps
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+CIM and metrics: the gNMI search above uses a **metrics** index with `mstats`. The `cimSpl` field is an optional `tstats` over `Network_Traffic.All_Traffic` if that CIM data model is mapped and accelerated.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On the device CLI or element manager, read interface bit rates for the same second interface name and check they track with the `mstats` `openconfig_*` series after unit conversion. Confirm the metrics index, Telegraf host, and `name` (interface) dimension line up with inventory.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (Mbps in/out per interface), Heatmap (utilization % across fabric), Single value (peak utilization).
@@ -73,6 +75,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 | where in_mbps > 800 OR out_mbps > 800
 | table _time, host, name, in_mbps, out_mbps
 | sort -in_mbps
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src All_Traffic.dest span=1h
+| eval total_bytes=bytes_in+bytes_out
+| sort -total_bytes
 ```
 
 ## Visualization

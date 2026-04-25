@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.10.3.json — DO NOT EDIT -->
+
 ---
 id: "5.10.3"
 title: "Mobile Subscriber RADIUS Session Tracking"
@@ -53,12 +55,12 @@ The first pipeline stage scopes events using **sourcetype**: stream:radius. That
 • Scopes the data: sourcetype="stream:radius". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **session_secs** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **session_min** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by sgsn_address, sgsn_mcc_mnc** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by sgsn_address, sgsn_mcc_mnc** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare Splunk counts in the same time window to your packet capture or Stream job scope (VLAN, SPAN, or tap). On the core element (PCRF, SBC, or PGW) console or EMS, open the matching subscriber or trunk counters and confirm codes such as Diameter `result_code` or SIP `reply_code` line up. After any network or mirror change, re-check that the Stream capture still includes the trunks you care about.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Column chart (active sessions by SGSN address), Table (sgsn_address, sgsn_mcc_mnc, sessions, unique_subscribers, avg_duration_min — sortable), Timechart (session count over 24h), Pie chart (session distribution by MCC-MNC for roaming analysis).

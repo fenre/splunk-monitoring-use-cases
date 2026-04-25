@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.50.json — DO NOT EDIT -->
+
 ---
 id: "1.1.50"
 title: "Transparent Hugepage Defragmentation Stalls"
@@ -9,28 +11,25 @@ splunkPillar: "Observability"
 
 ## Description
 
-THP defrag stalls cause application latency spikes affecting real-time and interactive workloads.
+Counts kernel log lines tied to transparent huge page defragmentation, which often shows up as latency blips for latency-sensitive services on the same host.
 
 ## Value
 
-THP defrag stalls cause application latency spikes affecting real-time and interactive workloads.
+Knowing when a host is spending extra time in THP maintenance helps you decide whether to switch profiles (for example toward `madvise`) or to move jitter-sensitive apps.
 
 ## Implementation
 
-Enable THP statistics logging via /sys/kernel/debug/thp*. Create alerts when defrag stalls occur during peak application hours. Recommend adjusting THP settings to madvise mode for latency-sensitive workloads.
+Ingest the kernel or daemon logs that mention THP and khugepaged. Alert when more than a small number of lines appear in the window, then confirm on the host with THP settings and application guidance.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=syslog, THP metrics`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Forward security-relevant **syslog** from Linux hosts, including **kern**-priority lines where THP messages appear on your distribution.
 
 Step 1 — Configure data collection
-Enable THP statistics logging via /sys/kernel/debug/thp*. Create alerts when defrag stalls occur during peak application hours. Recommend adjusting THP settings to madvise mode for latency-sensitive workloads.
+No extra TA feature is required beyond reliable syslog forwarding. If messages never arrive, check rsyslog/journald forwarding rules and that Splunk is not dropping **kern** facilities.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
 ```spl
 index=os sourcetype=syslog ("thp_defrags" OR "khugepaged" OR "thp_collapse")
@@ -38,26 +37,18 @@ index=os sourcetype=syslog ("thp_defrags" OR "khugepaged" OR "thp_collapse")
 | where count > 5
 ```
 
-Understanding this SPL
+Tune `>5` to your log volume. Consider adding `host=prod-*` style filters for scoped rollouts.
 
-**Transparent Hugepage Defragmentation Stalls** — THP defrag stalls cause application latency spikes affecting real-time and interactive workloads.
-
-Documented **Data sources**: `sourcetype=syslog, THP metrics`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.
+**Understanding this SPL** — Simple frequency count of THP-related substrings by host, alerting when the pattern appears more than a few times in the chosen lookback.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On a lab host, read current policy with your distribution’s ** sysfs** or ** sysctl** view of transparent hugepage settings, reproduce a low-rate pattern if safe, and confirm matching lines in Splunk. Use `top` or `htop` while testing to see user-visible latency, not to parse THP (THP is kernel-side).
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table
+Document policy choices (`always` vs `madvise` vs `never`) in the runbook and pair each alert with owners of databases or real-time apps on the node.
+
+
 
 ## SPL
 
@@ -73,4 +64,5 @@ Alert, Table
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

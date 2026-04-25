@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.5.15.json — DO NOT EDIT -->
+
 ---
 id: "5.5.15"
 title: "DPI Application Visibility"
@@ -52,40 +54,15 @@ The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: c
 **Pipeline walkthrough**
 
 • Scopes the data: index=sdwan, sourcetype="cisco:sdwan:dpi". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by app_name, family, site_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by app_name, family, site_id** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **GB** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Limits the number of rows with `head`.
 • Pipeline stage (see **DPI Application Visibility**): table app_name family site_id GB total_pkts
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats `summariesonly` sum(All_Traffic.bytes) as bytes
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.app span=1d
-| sort -bytes | head 20
-```
-
-Understanding this CIM / accelerated SPL
-
-**DPI Application Visibility** — Deep Packet Inspection on SD-WAN edges classifies traffic by application. Visibility into top applications per site drives policy tuning, bandwidth planning, and identification of shadow IT or unauthorized SaaS usage.
-
-Documented **Data sources**: vManage DPI statistics, `sourcetype=cisco:sdwan:dpi`. **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-• Limits the number of rows with `head`.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (top 20 apps by volume), Treemap (app families), Table (app, site, volume).
@@ -106,8 +83,9 @@ index=sdwan sourcetype="cisco:sdwan:dpi"
 ```spl
 | tstats `summariesonly` sum(All_Traffic.bytes) as bytes
   from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.app span=1d
-| sort -bytes | head 20
+  by All_Traffic.src All_Traffic.dest All_Traffic.app span=1h
+| where bytes>0
+| sort -bytes
 ```
 
 ## Visualization

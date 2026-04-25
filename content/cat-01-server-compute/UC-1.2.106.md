@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.106.json — DO NOT EDIT -->
+
 ---
 id: "1.2.106"
 title: "Local Administrator Group Membership Changes"
@@ -13,7 +15,7 @@ Local admin privileges enable credential theft, persistence, and lateral movemen
 
 ## Value
 
-Local admin privileges enable credential theft, persistence, and lateral movement. Monitoring local admin group changes detects privilege escalation attacks.
+Local Administrators group changes on servers break least-privilege expectations and are a common persistence path. Quick alert to the right team limits time at full admin on the box.
 
 ## Implementation
 
@@ -99,10 +101,9 @@ index=wineventlog EventCode IN (4732, 4733) TargetUserName="Administrators"
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=success
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| search Authentication.user=*admin* OR Authentication.user=root
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

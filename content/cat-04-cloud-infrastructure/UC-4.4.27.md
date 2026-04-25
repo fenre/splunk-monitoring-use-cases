@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.27.json — DO NOT EDIT -->
+
 ---
 id: "4.4.27"
 title: "Multi-Cloud Egress Cost Comparison"
@@ -59,7 +61,7 @@ The first pipeline stage scopes events using **index**: cloud; **sourcetype**: a
 • Filters the current rows with `where is_egress=1` — typically the threshold or rule expression for this monitoring goal.
 • `eval` defines or adjusts **provider** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **region** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by provider, region, bin(_time, 1d)** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by provider, region, bin(_time, 1d)** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 

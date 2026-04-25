@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.3.5.json — DO NOT EDIT -->
+
 ---
 id: "2.3.5"
 title: "Libvirt Network Filter and Firewall Rule Audit"
@@ -52,12 +54,11 @@ The first pipeline stage scopes events using **index**: virtualization; **source
 **Pipeline walkthrough**
 
 • Scopes the data: index=virtualization, sourcetype=libvirt_nwfilter. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, vm_name, filter_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, vm_name, filter_name** so each row reflects one combination of those dimensions.
 • Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.
 • `eval` defines or adjusts **drift** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where drift="Yes"` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Libvirt Network Filter and Firewall Rule Audit**): table host vm_name filter_name
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

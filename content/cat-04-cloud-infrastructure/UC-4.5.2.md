@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.5.2.json — DO NOT EDIT -->
+
 ---
 id: "4.5.2"
 title: "Lambda Cold Start and Init Duration Latency"

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.3.json — DO NOT EDIT -->
+
 ---
 id: "1.2.3"
 title: "Disk Space Monitoring (Windows)"
@@ -13,7 +15,7 @@ Full disks crash applications, stop logging, and corrupt databases. Windows can 
 
 ## Value
 
-Full disks crash applications, stop logging, and corrupt databases. Windows can become unbootable if the system drive fills.
+Full disks break apps, logging, and backups—early warning keeps restores and last-minute fire drills off your plate.
 
 ## Implementation
 
@@ -51,7 +53,7 @@ The first pipeline stage scopes events using **index**: perfmon; **sourcetype**:
 **Pipeline walkthrough**
 
 • Scopes the data: index=perfmon, sourcetype="Perfmon:LogicalDisk". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, instance** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, instance** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **used_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where used_pct > 85` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
@@ -59,10 +61,10 @@ The first pipeline stage scopes events using **index**: perfmon; **sourcetype**:
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct
+| tstats `summariesonly` max(Performance.storage_used_percent) as used_pct
   from datamodel=Performance where nodename=Performance.Storage
   by Performance.host Performance.mount span=1h
-| where disk_pct > 85
+| where used_pct > 85
 ```
 
 Understanding this CIM / accelerated SPL
@@ -100,10 +102,10 @@ index=perfmon sourcetype="Perfmon:LogicalDisk" counter="% Free Space" instance!=
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct
+| tstats `summariesonly` max(Performance.storage_used_percent) as used_pct
   from datamodel=Performance where nodename=Performance.Storage
   by Performance.host Performance.mount span=1h
-| where disk_pct > 85
+| where used_pct > 85
 ```
 
 ## Visualization

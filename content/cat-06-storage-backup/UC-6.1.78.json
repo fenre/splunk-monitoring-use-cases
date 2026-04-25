@@ -12,13 +12,15 @@
   "dataSources": "Object store metrics on FlashBlade indexed as `purestorage:array` or dedicated object sourcetype from Unified Add-on",
   "app": "Pure Storage Unified Add-on for Splunk (5513)",
   "spl": "index=storage sourcetype=\"purestorage:array\"\n| search s3 OR object OR bucket\n| eval bucket=coalesce(bucket_name, s3_bucket)\n| eval bytes=coalesce(bucket_bytes_used, object_bytes, logical_bytes)\n| eval ops=coalesce(s3_ops_per_sec, object_ops, ops_ps)\n| timechart span=1h sum(bytes) as bytes latest(ops) as ops by bucket",
+  "cimSpl": "| tstats `summariesonly` max(Performance.storage_used_percent) as used_pct\n  from datamodel=Performance where nodename=Performance.Storage\n  by Performance.host Performance.object span=1h\n| where used_pct > 80\n| sort - used_pct",
+  "cimModels": [
+    "Performance"
+  ],
+  "dataModelAcceleration": "Enable Data Model Acceleration for the CIM Performance data model (Performance.Storage node / storage_used_percent) after vendor fields are aliased to CIM; otherwise the cimSpl tstats variant may return no rows.",
   "description": "Bucket-level growth and request spikes indicate data leaks, misconfigured sync jobs, or abusive clients before capacity or CPU limits trip.",
   "value": "Protects object storage SLAs for modern apps and data lakes on FlashBlade.",
   "implementation": "Map Purity//FB REST object counters; if bucket metrics are coarse, aggregate by account with `stats` and alert on week-over-week growth >30%.",
   "visualization": "Line chart (bytes and ops), table (bucket, growth%).",
-  "cimModels": [
-    "N/A"
-  ],
   "references": [
     {
       "title": "Pure Storage Unified Add-on for Splunk (Splunkbase)",
@@ -27,12 +29,18 @@
     {
       "title": "Pure Storage Splunk reference",
       "url": "https://support.purestorage.com/Solutions/Splunk/Splunk_Reference/Array_Monitoring_on_Splunk_with_PureStorage_Unified_App_and_TA"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
     }
   ],
+  "knownFalsePositives": "Legitimate bulk operations, month-end reporting, or new application releases can change access patterns; compare to change windows and owner notifications.",
   "equipment": [
     "pure_storage"
   ],
   "status": "draft",
+  "grandmaExplanation": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working.",
   "lastReviewed": "2026-04-24",
   "splunkVersions": [
     "9.2+",

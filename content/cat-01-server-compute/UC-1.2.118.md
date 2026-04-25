@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.118.json — DO NOT EDIT -->
+
 ---
 id: "1.2.118"
 title: "ASR (Attack Surface Reduction) Rule Monitoring"
@@ -13,7 +15,7 @@ ASR rules block common attack techniques (Office macro code, credential theft, r
 
 ## Value
 
-ASR rules block common attack techniques (Office macro code, credential theft, ransomware). Monitoring ASR ensures rules are enforced and detects blocked attacks.
+Attack surface reduction rules stop common abuse of Office, scripting, and mail. Missing blocks or sudden policy changes after upgrades can reopen what you thought was closed.
 
 ## Implementation
 
@@ -53,7 +55,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **Mode** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
-• `stats` rolls up events into metrics; results are split **by host, RuleName, Mode, Path, ProcessName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, RuleName, Mode, Path, ProcessName** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
@@ -71,6 +73,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Defender/Operati
 | lookup asr_rule_names ID as RuleId OUTPUT RuleName
 | stats count by host, RuleName, Mode, Path, ProcessName
 | sort -count
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.34.json — DO NOT EDIT -->
+
 ---
 id: "2.1.34"
 title: "Orphaned VMDK Files on Datastores"
@@ -50,10 +52,9 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 **Pipeline walkthrough**
 
 • Scopes the data: index=vmware, sourcetype="datastore_orphans". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by datastore** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by datastore** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **Orphaned VMDK Files on Datastores**): table datastore, orphan_count, total_waste_gb
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

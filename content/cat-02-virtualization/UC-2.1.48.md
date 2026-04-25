@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.48.json — DO NOT EDIT -->
+
 ---
 id: "2.1.48"
 title: "VMware DRS Effectiveness"
@@ -17,7 +19,7 @@ DRS migrations per hour, cluster imbalance score, and recommendations vs. applie
 
 ## Implementation
 
-Collect DRS events via TA-vmware. Baseline migrations per hour per cluster. Alert when migrations exceed 2 stdev above mean (possible oscillation). For recommendations: query DrsRecommendationAppliedEvent vs. total recommendations. Manual DRS mode will show recommendations without corresponding applied events.
+Collect DRS events via Splunk_TA_vmware. Baseline migrations per hour per cluster. Alert when migrations exceed 2 stdev above mean (possible oscillation). For recommendations: query DrsRecommendationAppliedEvent vs. total recommendations. Manual DRS mode will show recommendations without corresponding applied events.
 
 ## Detailed Implementation
 
@@ -27,7 +29,7 @@ Prerequisites
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-Collect DRS events via TA-vmware. Baseline migrations per hour per cluster. Alert when migrations exceed 2 stdev above mean (possible oscillation). For recommendations: query DrsRecommendationAppliedEvent vs. total recommendations. Manual DRS mode will show recommendations without corresponding applied events.
+Collect DRS events via Splunk_TA_vmware. Baseline migrations per hour per cluster. Alert when migrations exceed 2 stdev above mean (possible oscillation). For recommendations: query DrsRecommendationAppliedEvent vs. total recommendations. Manual DRS mode will show recommendations without corresponding applied events.
 
 Step 2 — Create the search and alert
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
@@ -56,14 +58,13 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 • Scopes the data: index=vmware, sourcetype="vmware:events". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **migration_type** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time, cluster** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by cluster** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, cluster** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by cluster** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **is_high** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where is_high = 1` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **VMware DRS Effectiveness**): table _time, cluster, migrations, avg_migrations, stdev_migrations
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

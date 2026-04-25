@@ -12,19 +12,28 @@
   "dataSources": "`index=proxy` HAProxy HTTP log mode via syslog (`sourcetype=haproxy:http` recommended at ingest)",
   "app": "HAProxy syslog + props/transforms for HTTP log format",
   "spl": "index=proxy sourcetype=\"haproxy:http\"\n| rex field=_raw \"\\s(?<http_status>5\\d{2})\\s+(?<resp_bytes>\\d+|-)\\s*$\"\n| where isnotnull(http_status)\n| bin _time span=5m\n| stats count as err5 by http_status\n| eventstats sum(err5) as tot\n| eval pct=round(100*err5/tot,2)\n| where pct > 2",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Web.Web\n  where Web.status>=500\n  by Web.dest Web.uri_path Web.status span=5m\n| sort -count",
+  "cimModels": [
+    "Web"
+  ],
+  "dataModelAcceleration": "Web: enable Data Model Acceleration for the CIM `Web` dataset once your HTTP access or proxy access logs are tagged and mapped to the model; otherwise `cimSpl` tstats may return no rows. Most teams start with the raw-log search in Step 2 and add acceleration after CIM field aliases validate.",
   "description": "HAProxy HTTP logs include terminal status codes after timing fields. Monitoring 5xx rates complements CSV stats for user-visible errors.",
   "value": "Catches application failures that do not yet mark backends DOWN in stats.",
+  "grandmaExplanation": "We watch for signs that catches application failures that do not yet mark backends DOWN in stats.",
   "implementation": "Enable `option httplog`, forward syslog to Splunk, and extract status at EOL. Validate `rex` against your exact `log-format`.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HAProxy syslog + props/transforms for HTTP log format.\n• Ensure the following data sources are available: `index=proxy` HAProxy HTTP log mode via syslog (`sourcetype=haproxy:http` recommended at ingest).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAdjust the `rex` if you customized `log-format`; test against sample events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"haproxy:http\"\n| rex field=_raw \"\\s(?<http_status>5\\d{2})\\s+(?<resp_bytes>\\d+|-)\\s*$\"\n| where isnotnull(http_status)\n| bin _time span=5m\n| stats count as err5 by http_status\n| eventstats sum(err5) as tot\n| eval pct=round(100*err5/tot,2)\n| where pct > 2\n```\n\nUnderstanding this SPL\n\n**HAProxy HTTP Frontend 5xx Rate from Syslog** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` HAProxy HTTP log mode via syslog (`sourcetype=haproxy:http` recommended at ingest). **App/TA**: HAProxy syslog + props/transforms for HTTP log format. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Stacked bar (5xx codes), timechart of 5xx/min, top frontends if parsed..",
   "visualization": "Stacked bar (5xx codes), timechart of 5xx/min, top frontends if parsed.",
-  "cimModels": [
-    "N/A"
-  ],
   "references": [
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    },
     {
       "title": "HAProxy Management Guide — Logging",
       "url": "https://www.haproxy.com/documentation/haproxy-management-guide/latest/observability/logging/"
     }
   ],
+  "knownFalsePositives": "5xx errors spike during deployment rollouts, restart sequences, or backend service maintenance. Health-check noise and synthetic traffic can add false volume if not filtered.",
   "equipment": [
     "haproxy",
     "syslog"
@@ -35,7 +44,5 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HAProxy syslog + props/transforms for HTTP log format.\n• Ensure the following data sources are available: `index=proxy` HAProxy HTTP log mode via syslog (`sourcetype=haproxy:http` recommended at ingest).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAdjust the `rex` if you customized `log-format`; test against sample events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"haproxy:http\"\n| rex field=_raw \"\\s(?<http_status>5\\d{2})\\s+(?<resp_bytes>\\d+|-)\\s*$\"\n| where isnotnull(http_status)\n| bin _time span=5m\n| stats count as err5 by http_status\n| eventstats sum(err5) as tot\n| eval pct=round(100*err5/tot,2)\n| where pct > 2\n```\n\nUnderstanding this SPL\n\n**HAProxy HTTP Frontend 5xx Rate from Syslog** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` HAProxy HTTP log mode via syslog (`sourcetype=haproxy:http` recommended at ingest). **App/TA**: HAProxy syslog + props/transforms for HTTP log format. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Stacked bar (5xx codes), timechart of 5xx/min, top frontends if parsed..",
-  "grandmaExplanation": "We count error responses your load balancer sees so apps cannot fail quietly."
+  "reviewer": "@splunk-monitoring-use-cases"
 }

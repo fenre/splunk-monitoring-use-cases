@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.5.12.json — DO NOT EDIT -->
+
 ---
 id: "9.5.12"
 title: "Okta API Rate Limit Monitoring"
@@ -52,13 +54,13 @@ The first pipeline stage scopes events using **index**: okta; **sourcetype**: ok
 
 • Scopes the data: index=okta, sourcetype="okta:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Applies an explicit `search` filter to narrow the current result set.
-• `stats` rolls up events into metrics; results are split **by client_id, endpoint, http_status** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by client_id, endpoint, http_status** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare Splunk results with the Okta admin console and System Log for the same users, outcomes, and time window, then adjust thresholds to normal org traffic.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (429s over time), Table (client, endpoint), Gauge (rate limit remaining %).
@@ -97,10 +99,6 @@ index=okta (sourcetype="okta:api" OR sourcetype="OktaIM2:log")
 ## Visualization
 
 Line chart (429s over time), Table (client, endpoint), Gauge (rate limit remaining %).
-
-## Known False Positives
-
-Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
 
 ## References
 

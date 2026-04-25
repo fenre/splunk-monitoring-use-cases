@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.7.json — DO NOT EDIT -->
+
 ---
 id: "5.13.7"
 title: "Device Health Score Degradation (Anomaly Detection)"
@@ -22,40 +24,45 @@ Build on UC-5.13.1 and UC-5.13.2 with at least several weeks of retained hourly 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).
-• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:devicehealth (Catalyst Center /dna/intent/api/v1/device-health).
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• UC-5.13.1 and UC-5.13.2 in production; retain at least 30 days of `cisco:dnac:devicehealth` (60–90+ days is better for stable stdev on hourly buckets).
+• Cisco Catalyst Add-on (7538); `devicehealth` input at the default 15-minute poll; this search bins to one hour.
+• Exclusion or flag lab and frequently reloaded devices in a lookup, or their baselines and sigma will be meaningless.
+• See `docs/implementation-guide.md`.
 
 Step 1 — Configure data collection
-Build on UC-5.13.1 and UC-5.13.2 with at least several weeks of retained hourly buckets. This search needs stable history per `deviceName`; deprioritize lab or frequently reloaded devices in a `lookup` if they skew baselines. Start with 2-sigma, then tune; consider seasonality in a later iteration.
+• Intent API: `GET /dna/intent/api/v1/device-health`.
+• `eventstats` needs enough hourly points per `deviceName` in the chosen time range; a 7-day window is often too short for nonzero stdev on very stable platforms.
+• Confirm `overallHealth` is numeric in events where Assurance reports health; all-null devices should be fixed in ingest or excluded from this search.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
 ```spl
 index=catalyst sourcetype="cisco:dnac:devicehealth" | bin _time span=1h | stats avg(overallHealth) as avg_health by deviceName, _time | eventstats avg(avg_health) as baseline stdev(avg_health) as stdev_health by deviceName | where avg_health < (baseline - 2*stdev_health) AND stdev_health > 0 | eval deviation=round((baseline-avg_health)/stdev_health,1) | sort -deviation
 ```
 
 Understanding this SPL
-
-**Device Health Score Degradation (Anomaly Detection)** — Fixed thresholds cannot account for devices that normally run at different health levels. Anomaly detection catches relative degradation specific to each device's baseline.
-
-Documented **Data sources**: index=catalyst, sourcetype cisco:dnac:devicehealth (Catalyst Center /dna/intent/api/v1/device-health). **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: catalyst; **sourcetype**: cisco:dnac:devicehealth. That sourcetype matches what this use case lists under Data sources.
+• `span=1h` smooths 15-minute polls. Two-sigma below each device’s mean of hourly averages is a simple self-baseline, not a full ML model.
+• `stdev_health > 0` filters out devices with flat health history (no variation), which would never meaningfully fire.
+• Tune to 2.5–3 sigma, or add `where baseline > 50` to avoid noisy rows for devices that already sit chronically low.
 
 **Pipeline walkthrough**
-
-• `bin` and first `stats` build one hourly average of `overallHealth` per `deviceName` to smooth poll jitter.
-• `eventstats` over the result set (wide time range) creates per-device mean and standard deviation of those hourly means as a rolling self-baseline in the same window as the search.
-• `where` flags hours more than two standard deviations under the per-device mean; `eval` quantifies the gap in sigma units, then `sort` prioritizes the largest deteriorations for triage with UC-5.13.1 context.
-
+• `bin` and first `stats` produce one row per device per hour.
+• `eventstats` by `deviceName` yields mean and stdev of those hourly means across the current search window (wider time range = different baseline).
+• `where` and `eval` produce sigma deviation; `sort` shows worst hours first, then use UC-5.13.1 for same-device context.
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+• During a known change window, confirm devices show large `deviation` and decide whether to exclude change hours via lookup or increase sigma to reduce change-driven noise.
+• If the network is unhealthy but the search returns nothing, stdev may be zero on many devices—widen the time range or re-check field extraction.
+• Spot-check one anomalous hour in Catalyst Center Assurance for that device the same day.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of anomalous hours with deviation score, timechart of avg_health for drilldown, combined with a baseline reference line from eventstats in a subsearch (optional).
+• Dashboard table: deviceName, hour, avg_health, deviation. Do not use as a P1 page alone: pair with UC-5.13.3; seasonal or backup windows can look anomalous without triage rules.
+• Optional alert: daily or 4-hour digest, throttle per device, require two consecutive bad hours (summary index or `streamstats`) before paging.
+
+Step 5 — Troubleshooting
+• Too many rows: longer window, higher sigma, or `where baseline >= 60` to ignore chronic low-health devices already tracked elsewhere.
+• Baseline shift around holidays: maintain a lookup of excluded dates or a separate off-hours search.
+• Missing or null `overallHealth`: fix data collection before trusting anomaly output.
+
 
 ## SPL
 
@@ -71,3 +78,4 @@ Table of anomalous hours with deviation score, timechart of avg_health for drill
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

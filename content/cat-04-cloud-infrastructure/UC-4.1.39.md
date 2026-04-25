@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.39.json — DO NOT EDIT -->
+
 ---
 id: "4.1.39"
 title: "AWS Backup Restore Job Failures"
@@ -65,6 +67,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:cloudwatch:events" detail-type="Backup Job State Change" (detail.state="FAILED" OR detail.state="ABORTED")
 | table _time detail.backupJobId detail.resourceType detail.state detail.message
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  where (match(All_Changes.app, "(?i)backup|aws.?backup") OR match(All_Changes.object, "(?i)backup.*job"))
+  by All_Changes.user All_Changes.status span=1d
+| sort -count
 ```
 
 ## Visualization

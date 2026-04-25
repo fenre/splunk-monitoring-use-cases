@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.69.json — DO NOT EDIT -->
+
 ---
 id: "5.13.69"
 title: "Catalyst Center + SD-WAN WAN Path Health"

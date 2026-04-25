@@ -8,17 +8,22 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=custom:aide, AIDE database changes`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
-  "spl": "index=os sourcetype=custom:aide host=*\n| stats count by host, file_path, change_type\n| where change_type IN (\"added\", \"changed\", \"removed\") AND count > 0",
-  "description": "File integrity changes indicate potential rootkit installation or unauthorized system modification.",
-  "value": "File integrity changes indicate potential rootkit installation or unauthorized system modification.",
-  "implementation": "Deploy AIDE (Advanced Intrusion Detection Environment) with daily scans. Create alerts for unexpected file changes in /bin, /sbin, /lib directories. Include baseline scans on system initialization.",
+  "dataSources": "`sourcetype=custom:aide` (AIDE scan output ingested to Splunk)",
+  "app": "`Splunk_TA_nix` with a custom scripted post-scan ingest",
+  "spl": "index=os sourcetype=custom:aide host=*\n| where change_type IN (\"added\", \"changed\", \"removed\")\n| stats count by host, file_path, change_type\n| where count>0",
+  "description": "Surfaces AIDE file-integrity **added/changed/removed** rows for review. **count>0** is a guard so empty buckets drop out once you add windowing; most teams alert on the first new **file_path** not in a lookup.",
+  "value": "Unexpected changes in **/bin**, **/sbin**, or other protected trees are a fast path to find dropped binaries or config drift before you rely on slower AV-only signals on servers.",
+  "implementation": "Have AIDE print stable **change_type** and **file_path** fields. In production, add `| lookup aide_expected_changes file_path OUTPUT reason | where isnull(reason)` to suppress packager noise.",
   "visualization": "Alert, Table",
   "cimModels": [
     "N/A"
   ],
+  "knownFalsePositives": "Monthly patch Tuesday churn; containers bind-mounting over paths AIDE also scans; a scanner that rewrites the same library twice in one run—use **first**-seen dedupe if needed.",
   "references": [
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
     {
       "title": "Splunk Lantern — use case library",
       "url": "https://lantern.splunk.com/"
@@ -27,6 +32,6 @@
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=custom:aide, AIDE database changes`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy AIDE (Advanced Intrusion Detection Environment) with daily scans. Create alerts for unexpected file changes in /bin, /sbin, /lib directories. Include baseline scans on system initialization.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=custom:aide host=*\n| stats count by host, file_path, change_type\n| where change_type IN (\"added\", \"changed\", \"removed\") AND count > 0\n```\n\nUnderstanding this SPL\n\n**Rootkit Detection via File Integrity** — File integrity changes indicate potential rootkit installation or unauthorized system modification.\n\nDocumented **Data sources**: `sourcetype=custom:aide, AIDE database changes`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: custom:aide. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=custom:aide. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, file_path, change_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where change_type IN (\"added\", \"changed\", \"removed\") AND count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table",
-  "grandmaExplanation": "File integrity changes indicate potential rootkit installation or unauthorized system modification — so you find out before users do when something is slowing down or breaking."
+  "detailedImplementation": "Prerequisites\n• Nightly AIDE and a non-interactive way to **scp** or **HEC** results to Splunk. Large outputs should be one **event** per file change, not a giant **multiline** event without **LINE_BREAKER** help.\n\n**CIM** — File integrity to **Change** is possible after CIM add-on + tags; until then, **N/A**.\n\n\nStep 3 — Validate\n`aide --check` exit status and the local AIDE log should match the rows Splunk shows for the run id / timestamp. Use `rpm -V` / `dpkg` verify selectively for a second opinion on a hot path.\n\nStep 4 — Operationalize\nFor each hit, first ask **change management**; only then run deeper host forensics.\n\n",
+  "grandmaExplanation": "We help you get a list when a strict file checker notices new, changed, or missing important files, so the right people can see if a patch, a person, or a problem caused it."
 }

@@ -23,6 +23,10 @@
     {
       "title": "OpenShift certificate management",
       "url": "https://docs.openshift.com/container-platform/latest/security/certificates/api-server.html"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
     }
   ],
   "equipment": [
@@ -33,5 +37,7 @@
     "kubernetes_k8s",
     "kubernetes_openshift"
   ],
-  "grandmaExplanation": "We track the expiration dates of all the internal security certificates so the cluster does not suddenly stop working."
+  "grandmaExplanation": "We keep an eye on cluster certificate expiry by tracking the same story your metrics tell: OpenShift uses dozens of internal certificates for API server, kubelet, etcd, and service-serving.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: `oc get secret -A -o json` scripted input (TLS secrets), OpenShift Monitoring Prometheus metrics\n• Have these sources flowing into Splunk: `sourcetype=openshift:certificates`\n• For app layout, inputs, and HEC, see docs/implementation-guide.md\n\nStep 1 — Configure data collection\nScripted input parsing TLS secrets or extracting from `openssl x509 -noout -enddate`. Also scrape `apiserver_client_certificate_expiration_seconds` Prometheus metric. Alert at 30/14/7 days before expiry. Page at 3 days for cluster-critical certificates.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust the time range and threshold as needed):\n\n```spl\nindex=openshift sourcetype=\"openshift:certificates\"\n| eval days_left=round((expiry_epoch-now())/86400,0)\n| where days_left<30\n| table namespace secret_name cn days_left issuer\n| sort days_left\n```\n\nUnderstanding this SPL\n\n**Cluster Certificate Expiry** — OpenShift uses dozens of internal certificates for API server, kubelet, etcd, and service-serving.\n\nDocumented **Data sources**: `sourcetype=openshift:certificates`. **App/TA** context: `oc get secret -A -o json` scripted input (TLS secrets), OpenShift Monitoring Prometheus metrics. Use the same index and sourcetype names you configured in production.\n\n**Pipeline walkthrough** — follow the search from top to bottom: narrow to the right index and sourcetype, extract or compute the fields the alert needs, then aggregate or filter to your threshold. Adjust macros or field names to match your field extractions.\n\nStep 3 — Validate\nConfirm that events land in the index and that a manual spot-check (small time window) matches the cluster or host reality. For Kubernetes and OpenShift data, sample rows should line up with what you see from the cluster command-line tool, the Kubernetes Dashboard (or OpenShift console), and your Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`) or OpenTelemetry collector view of the same objects. Compare with a known test case if you have one. Check permissions and field spelling.\n\nStep 4 — Operationalize\nAdd the saved search to a team dashboard, wire alert actions, and document who owns the runbook. Suggested views: Table (certificate, namespace, days left, issuer), Single value (soonest expiry), Gauge.",
+  "knownFalsePositives": "Staged rollouts, catalog sync, and long-running platform upgrades can pause or retry for hours; treat short stalls differently from true stuck upgrades."
 }

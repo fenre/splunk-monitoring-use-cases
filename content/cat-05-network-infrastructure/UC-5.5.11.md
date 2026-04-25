@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.5.11.json — DO NOT EDIT -->
+
 ---
 id: "5.5.11"
 title: "OMP Route Table Monitoring"
@@ -51,14 +53,14 @@ The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: c
 **Pipeline walkthrough**
 
 • Scopes the data: index=sdwan, sourcetype="cisco:sdwan:omp". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by system_ip, site_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by system_ip, site_id** so each row reflects one combination of those dimensions.
 • Appends rows from a subsearch with `append`.
 • Filters the current rows with `where route_count < baseline_routes * 0.8` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **OMP Route Table Monitoring**): table system_ip site_id route_count peer_count
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (route count over time per site), Table (devices below baseline), Single value (total OMP peers).
@@ -76,10 +78,6 @@ index=sdwan sourcetype="cisco:sdwan:omp"
 ## Visualization
 
 Line chart (route count over time per site), Table (devices below baseline), Single value (total OMP peers).
-
-## Known False Positives
-
-Planned network changes that withdraw routes intentionally; correlate with change management windows.
 
 ## References
 

@@ -34,5 +34,12 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw directory, IdP, PAM, or device feeds.",
+  "knownFalsePositives": "Admins running legitimate `diskpart` or recovery commands during incidents, false regex matches in transcripts, and lab environments; validate against session owner and change ticket before automated session cut-off.",
+  "grandmaExplanation": "We search typed commands in privileged remote sessions for dangerous patterns so analysts see risky behavior without watching hours of video.",
+  "cimModels": [
+    "N/A"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure: BeyondTrust PAM telemetry with Splunk parsing (org TA).\n• Data sources: `sourcetype=beyondtrust:command` keystroke or command transcripts.\n\nStep 1 — Configure data collection\nMaintain a lookup of regex patterns approved by your IR team instead of hard-coding in SPL long term. Ensure command logging complies with privacy and works council agreements. Integrate with SOAR to terminate sessions automatically only after legal review.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=pam sourcetype=\"beyondtrust:command\" earliest=-4h\n| eval cmd=coalesce(command, Command, CommandLine, _raw)\n| where match(lower(cmd), \"(?i)net user|invoke-mimikatz|sekurlsa|vssadmin.*delete shadows|bcdedit.*recoveryenabled no|format\\s|diskpart\")\n| eval user=coalesce(user, UserName, \"\")\n| eval target=coalesce(target_host, TargetHost, dest, \"\")\n| stats count values(cmd) as commands by user, target\n| sort -count\n```\n\nStep 3 — Validate\nCompare with BeyondTrust session replay or command detail in the PAM console for the same user, target, and session time range.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document the owner. Table (user × target × commands), timeline, single value (distinct sessions)."
 }

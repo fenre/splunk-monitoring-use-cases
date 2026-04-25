@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.89.json — DO NOT EDIT -->
+
 ---
 id: "1.2.89"
 title: "System Uptime & Unexpected Restarts (Windows)"
@@ -13,7 +15,7 @@ Unexpected restarts indicate BSOD, power loss, forced reboots, or patch installa
 
 ## Value
 
-Unexpected restarts indicate BSOD, power loss, forced reboots, or patch installations. Tracking uptime reveals instability patterns and unauthorized maintenance.
+Frequent or surprise reboots on servers that should stay up point to bad patches, power, or cluster fail-over. A timeline of clean vs dirty shutdowns shortens both ops and forensics work.
 
 ## Implementation
 
@@ -68,6 +70,15 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode IN (6005, 6006, 6008
 | eval event=case(EventCode=6005,"Event log started (boot)",EventCode=6006,"Event log stopped (clean shutdown)",EventCode=6008,"Unexpected shutdown",EventCode=1074,"User-initiated shutdown/restart")
 | table _time, host, event, User, Reason, Comment
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.dest All_Changes.action span=1h
+| where count > 0
 ```
 
 ## Visualization

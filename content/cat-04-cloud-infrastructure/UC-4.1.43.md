@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.43.json — DO NOT EDIT -->
+
 ---
 id: "4.1.43"
 title: "EFS Burst Credit Balance and Throughput"
@@ -65,6 +67,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/EFS" metric_name="BurstCreditBalance"
 | where Average < 500000000
 | timechart span=1h avg(Average) by FileSystemId
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

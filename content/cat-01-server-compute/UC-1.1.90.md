@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.90.json — DO NOT EDIT -->
+
 ---
 id: "1.1.90"
 title: "Journal Disk Usage Monitoring"
@@ -9,83 +11,44 @@ splunkPillar: "Observability"
 
 ## Description
 
-Journal disk usage growth can consume valuable storage space, potentially filling disks.
+Tracks the latest **journal_size** in **MB** per **host** from a structured feed and alerts when persistent **journald** data on disk grows past about **one** **gigabyte** (tune to root **volume** size).
 
 ## Value
 
-Journal disk usage growth can consume valuable storage space, potentially filling disks.
+**Journal** growth on small **root** disks is a classic way to accidentally fill **/** and take down services that still need a few free **inodes** and blocks.
 
 ## Implementation
 
-Create a scripted input running 'journalctl --disk-usage' monthly. Alert when journal size exceeds 1GB. Include recommendations to prune old journal entries using journalctl --vacuum-time or --vacuum-size.
+Run the script daily or weekly—**journal** size does not need per-minute precision. Consider `| where journal_size>0.15*root_fs_mb` once you ingest **df** for the same **host**.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=custom:journalctl_usage`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• **systemd** **journal** persistent storage enabled; know whether you are on **volatile** **/run/log/journal** only (this UC needs **/var/log/journal** or an explicit size path).
 
-Step 1 — Configure data collection
-Create a scripted input running 'journalctl --disk-usage' monthly. Alert when journal size exceeds 1GB. Include recommendations to prune old journal entries using journalctl --vacuum-time or --vacuum-size.
-
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=custom:journalctl_usage host=*
-| stats latest(disk_usage_mb) as journal_size by host
-| where journal_size > 1000
-```
-
-Understanding this SPL
-
-**Journal Disk Usage Monitoring** — Journal disk usage growth can consume valuable storage space, potentially filling disks.
-
-Documented **Data sources**: `sourcetype=custom:journalctl_usage`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: custom:journalctl_usage. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=custom:journalctl_usage. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where journal_size > 1000` — typically the threshold or rule expression for this monitoring goal.
+**CIM** — The `cimSpl` is a **disk** **fullness** proxy on **/** or **/var**, not the literal **journal** byte counter—use it when you already ingest **df** into **Performance.Storage**.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`journalctl --disk-usage` on the host; **systemd-tmpfiles** / **journald.conf** for **SystemMaxUse**; **df** **-h** on the **mount** that holds **journal**.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge, Single Value
+After a page, run `journalctl --vacuum-time=` or **--vacuum-size=** per your retention policy, not “delete everything” without **legal** review.
 
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
 
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
 ```spl
 index=os sourcetype=custom:journalctl_usage host=*
 | stats latest(disk_usage_mb) as journal_size by host
-| where journal_size > 1000
+| where journal_size>1000
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` avg(Performance.storage_used_percent) as used_pct from datamodel=Performance where nodename=Performance.Storage AND (Performance.mount="/" OR Performance.mount="/var") by Performance.host span=1d | where used_pct>85
 ```
 
 ## Visualization
@@ -94,4 +57,5 @@ Gauge, Single Value
 
 ## References
 
-- [Splunk Lantern — use case library](https://lantern.splunk.com/)
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
+- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

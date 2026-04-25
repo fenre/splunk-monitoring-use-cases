@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.83.json — DO NOT EDIT -->
+
 ---
 id: "1.1.83"
 title: "Process CPU Affinity Changes"
@@ -9,62 +11,38 @@ splunkPillar: "Observability"
 
 ## Description
 
-CPU affinity changes can indicate attempted performance optimization or malicious CPU isolation attempts.
+Aggregates **auditd** events for **sched_setaffinity**-class syscalls so you can review who pins threads to CPUs—common for **HFT** tuning, rare for random shells.
 
 ## Value
 
-CPU affinity changes can indicate attempted performance optimization or malicious CPU isolation attempts.
+Unexpected affinity changes after a compromise can hide **crypto** miners on a subset of cores; for **HPC** estates, this is also how you prove apps respect your **NUMA** policy.
 
 ## Implementation
 
-Monitor sched_setaffinity syscalls via auditctl. Create alerts on unexpected CPU affinity changes. Correlate with application deployment or configuration management changes.
+Syscall numbers vary by arch—replace `204` with your **ausyscall** output for **x86_64** vs **aarch64**. Prefer a stable `key=cpu_affinity` in **auditd** and search on `key` once you add it.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=linux_audit`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• **auditd** syscall rules; be mindful of **performance** load on syscall=all systems—use **filters**.
 
-Step 1 — Configure data collection
-Monitor sched_setaffinity syscalls via auditctl. Create alerts on unexpected CPU affinity changes. Correlate with application deployment or configuration management changes.
-
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=linux_audit type=SCHED_SETAFFINITY
-| stats count by host, pid, comm
-| where count > 0
-```
-
-Understanding this SPL
-
-**Process CPU Affinity Changes** — CPU affinity changes can indicate attempted performance optimization or malicious CPU isolation attempts.
-
-Documented **Data sources**: `sourcetype=linux_audit`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, pid, comm** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
+**CIM** — **N/A**; map to a custom **Change** or **Endpoint** story only if your team standardizes it.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`ausearch -sc sched_setaffinity` (or your key) on the host; **taskset -p** on the **pid** when it is still alive.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Alert
+Pair with the **NUMA imbalance** use case when both fire for the same host.
+
+
 
 ## SPL
 
 ```spl
-index=os sourcetype=linux_audit type=SCHED_SETAFFINITY
+index=os sourcetype=linux_audit (syscall=204 OR syscall=sched_setaffinity OR "SCHED_SETAFFINITY")
 | stats count by host, pid, comm
-| where count > 0
+| where count>0
 ```
 
 ## Visualization
@@ -73,4 +51,5 @@ Table, Alert
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

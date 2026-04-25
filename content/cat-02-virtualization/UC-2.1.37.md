@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.37.json — DO NOT EDIT -->
+
 ---
 id: "2.1.37"
 title: "VM Template Inventory and Staleness"
@@ -53,7 +55,6 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 • `eval` defines or adjusts **age_days** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **VM Template Inventory and Staleness**): table vm_name, guest_os, hw_version, age_days, modifiedTime
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

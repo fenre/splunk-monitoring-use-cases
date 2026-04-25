@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.2.33.json — DO NOT EDIT -->
+
 ---
 id: "4.2.33"
 title: "App Service Health Metrics"
@@ -49,29 +51,31 @@ The first pipeline stage scopes events using **index**: azure; **sourcetype**: m
 **Pipeline walkthrough**
 
 • Scopes the data: index=azure, sourcetype="mscs:azure:metrics". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by resourceId, metric_name, bin(_time, 5m)** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by resourceId, metric_name, bin(_time, 5m)** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where (metric_name="HttpQueueLength" AND v>100) OR (metric_name="AverageResponseTime" AND v>2000) OR (metric_name="HealthCh…` — typically the threshold or rule expression for this monitoring goal.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.CPU by Performance.host | sort - agg_value
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
 ```
 
 Understanding this CIM / accelerated SPL
 
 **App Service Health Metrics** — HTTP queue length, response time, and instance health explain user-visible slowness before 5xx rates spike.
 
-Documented **Data sources**: `sourcetype=mscs:azure:metrics` (Microsoft.Web/sites — HttpQueueLength, AverageResponseTime, HealthCheckStatus). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Performance.CPU` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
 
 
 Step 3 — Validate
@@ -91,7 +95,10 @@ index=azure sourcetype="mscs:azure:metrics" resourceType="Microsoft.Web/sites" (
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.CPU by Performance.host | sort - agg_value
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
 ```
 
 ## Visualization

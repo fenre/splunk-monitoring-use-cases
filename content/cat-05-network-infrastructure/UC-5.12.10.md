@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.12.10.json — DO NOT EDIT -->
+
 ---
 id: "5.12.10"
 title: "Toll Fraud Detection"
@@ -54,13 +56,13 @@ The first pipeline stage scopes events using **index**: voip; **sourcetype**: cd
 • Scopes the data: index=voip, sourcetype="cdr:voip". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
 • Filters the current rows with `where risk_tier IN ("premium","satellite","high_cost_geo")` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by src, hour** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by src, hour** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where cost>500 OR count>100` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Tie a suspicious destination burst to the carrier CDR and call-detail from the SBC; confirm the account was not in a test mode or a known premium campaign.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (top fraud legs), Map (destination countries), Timeline (attack window).

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.38.json — DO NOT EDIT -->
+
 ---
 id: "1.2.38"
 title: "AD Object Deletion Monitoring"
@@ -13,7 +15,7 @@ Accidental or malicious deletion of AD objects (OUs, users, groups, computer acc
 
 ## Value
 
-Accidental or malicious deletion of AD objects (OUs, users, groups, computer accounts) can cause widespread service disruption. AD Recycle Bin has a limited window.
+Surprise deletions are both operational risk (outage) and security risk (sabotage); one stream covers both with context.
 
 ## Implementation
 
@@ -55,6 +57,20 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Pipeline stage (see **AD Object Deletion Monitoring**): table _time, host, object_type, SubjectUserName, TargetUserName, ObjectDN
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -70,6 +86,15 @@ index=wineventlog sourcetype="WinEventLog:Security"
 | eval object_type=case(EventCode=4726,"User deleted",EventCode=4730,"Group deleted",EventCode=4743,"Computer deleted",EventCode=5141,"AD object deleted")
 | table _time, host, object_type, SubjectUserName, TargetUserName, ObjectDN
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1h
+| where count>0
 ```
 
 ## Visualization

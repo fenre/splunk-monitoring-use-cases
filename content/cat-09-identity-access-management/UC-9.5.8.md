@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.5.8.json — DO NOT EDIT -->
+
 ---
 id: "9.5.8"
 title: "Duo Device Trust Posture"
@@ -52,14 +54,15 @@ The first pipeline stage scopes events using **index**: duo; **sourcetype**: duo
 
 • Scopes the data: index=duo, sourcetype="duo:authentication". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where device_trust_level!="trusted" OR like(lower(_raw),"%unmanaged%")` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by user, device, device_trust_level, application** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by user, device, device_trust_level, application** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.user | sort - count
+| tstats `summariesonly` count from datamodel=Authentication.Authentication by Authentication.user,Authentication.src,Authentication.app span=1h
+| sort - count
 ```
 
 Understanding this CIM / accelerated SPL
@@ -72,14 +75,14 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Endpoint.Processes` — enable acceleration for that model.
+• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with Duo Admin (Authentication Log, admin actions, enrollment, and device trust) for the same time range and identities.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (user, device, trust level), Pie chart (trusted vs untrusted attempts), Line chart (untrusted attempts over time).
@@ -97,17 +100,15 @@ index=duo sourcetype="duo:authentication"
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.user | sort - count
+| tstats `summariesonly` count from datamodel=Authentication.Authentication by Authentication.user,Authentication.src,Authentication.app span=1h
+| sort - count
 ```
 
 ## Visualization
 
 Table (user, device, trust level), Pie chart (trusted vs untrusted attempts), Line chart (untrusted attempts over time).
 
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
-
 ## References
 
-- [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+- [Cisco Duo Splunk integration](https://duo.com/docs)
+- [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)

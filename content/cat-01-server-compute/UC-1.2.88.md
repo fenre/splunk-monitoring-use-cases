@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.88.json — DO NOT EDIT -->
+
 ---
 id: "1.2.88"
 title: "Windows Search Indexer Issues"
@@ -13,7 +15,7 @@ Search Indexer crashes and high resource usage affect file server performance an
 
 ## Value
 
-Search Indexer crashes and high resource usage affect file server performance and SharePoint crawling. Index corruption requires full rebuild.
+A broken or rebuilding Windows Search service on a file or mail-heavy server can hide results and burn CPU. Catching it early keeps shared-folder and in-box experiences predictable.
 
 ## Implementation
 
@@ -70,6 +72,15 @@ index=wineventlog sourcetype="WinEventLog:Application" Source="Windows Search Se
 | eval issue=case(EventCode=3028,"Index corrupted",EventCode=3036,"Indexer failed",EventCode=7040,"Catalog corrupted",EventCode=7042,"Index rebuild started")
 | table _time, host, issue, CatalogName
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

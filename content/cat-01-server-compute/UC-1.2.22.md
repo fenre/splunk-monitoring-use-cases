@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.22.json — DO NOT EDIT -->
+
 ---
 id: "1.2.22"
 title: "Process Handle Leak Detection"
@@ -13,7 +15,7 @@ Handle leaks cause resource exhaustion and eventual application crashes or syste
 
 ## Value
 
-Handle leaks cause resource exhaustion and eventual application crashes or system instability. Detecting the leak early prevents unplanned outages.
+Handle leaks are slow failures—spotting a rising trend saves an outage you only notice after the app dies.
 
 ## Implementation
 
@@ -52,17 +54,17 @@ The first pipeline stage scopes events using **index**: perfmon; **sourcetype**:
 
 • Scopes the data: index=perfmon, sourcetype="Perfmon:Process". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `timechart` plots the metric over time using **span=1h** buckets with a separate series **by host, instance** — ideal for trending and alerting on this use case.
-• `streamstats` rolls up events into metrics; results are split **by host, instance** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `streamstats` rolls up events into metrics; results are split **by host, instance** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **pct_increase** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where pct_increase > 50 AND handles > 5000` — typically the threshold or rule expression for this monitoring goal.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu
-  from datamodel=Performance where nodename=Performance.CPU
-  by Performance.host span=1h
-| where avg_cpu > 90
+| tstats `summariesonly` count
+  from datamodel=Endpoint where nodename=Endpoint.Processes
+  by Processes.process_name Processes.user Processes.dest span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -75,8 +77,8 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.
-• Filters the current rows with `where avg_cpu > 90` — typically the threshold or rule expression for this monitoring goal.
+• Uses `tstats` on the CIM data model in `cimModels` (see the accelerated SPL block). Enable that model in Data Model Acceleration.
+• The `where` and `by` clauses mirror the intent of the primary SPL; if tstats is empty, confirm field aliases in Splunk CIM and the Windows TA.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
@@ -100,10 +102,10 @@ index=perfmon sourcetype="Perfmon:Process" counter="Handle Count" instance!="_To
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu
-  from datamodel=Performance where nodename=Performance.CPU
-  by Performance.host span=1h
-| where avg_cpu > 90
+| tstats `summariesonly` count
+  from datamodel=Endpoint where nodename=Endpoint.Processes
+  by Processes.process_name Processes.user Processes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

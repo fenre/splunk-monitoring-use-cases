@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.3.6.json — DO NOT EDIT -->
+
 ---
 id: "1.3.6"
 title: "macOS Gatekeeper and XProtect Status"
@@ -13,7 +15,7 @@ Verify Gatekeeper and XProtect are enabled and definitions are current. Disabled
 
 ## Value
 
-Verify Gatekeeper and XProtect are enabled and definitions are current. Disabled or outdated security controls increase malware risk.
+Old malware definitions and turned-off download checks leave users exposed to the same class of file-based threats your policy assumes are blocked; this use case makes that gap visible in one place.
 
 ## Implementation
 
@@ -22,15 +24,15 @@ Create a scripted input that runs `spctl --status` (expect "assessments enabled"
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix` (scripted input).
-• Ensure the following data sources are available: `spctl --status`, `system_profiler SPInstallHistoryDataType`.
+• Install the Universal Forwarder on the Mac; place scripts in an app or `deployment-apps` as you do for other custom inputs.
+• Data sources: `spctl --status`, and XProtect version/date from `system_profiler` or the XProtect `version.plist` (your parser must set `xprotect_date` in the format the search expects).
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-Create a scripted input that runs `spctl --status` (expect "assessments enabled" for Gatekeeper on). For XProtect, run `system_profiler SPInstallHistoryDataType` and parse XProtect/XProtect Remediator entries, or check `/Library/Apple/System/Library/CoreServices/XProtect.bundle/Contents/version.plist`. Run daily. Alert when Gatekeeper is disabled; alert when XProtect definitions are older than 30 days.
+Create a scripted input that runs `spctl --status` and collects XProtect metadata. The sample search expects fields `xprotect_date`, and optionally `xprotect_ver` for the table. Run daily. Do not rely on Windows or Linux performance counters (no Perfmon, no `/proc` load) — this is macOS-only.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+Run the following SPL in Search (then save as report or alert; adjust the 30-day window as needed):
 
 ```spl
 index=os sourcetype=macos_gatekeeper host=*
@@ -39,48 +41,24 @@ index=os sourcetype=macos_gatekeeper host=*
 | table host xprotect_ver xprotect_date xprotect_age_days
 ```
 
+Add a second alert for Gatekeeper if you parse `spctl` into the same or a companion sourcetype.
+
 Understanding this SPL
 
 **macOS Gatekeeper and XProtect Status** — Verify Gatekeeper and XProtect are enabled and definitions are current. Disabled or outdated security controls increase malware risk.
 
-Documented **Data sources**: `spctl --status`, `system_profiler SPInstallHistoryDataType`. **App/TA** (typical add-on context): `Splunk_TA_nix` (scripted input). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: macos_gatekeeper. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
-
 **Pipeline walkthrough**
 
-• Scopes the data: index=os, sourcetype=macos_gatekeeper. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `eval` defines or adjusts **xprotect_age_days** — often to normalize units, derive a ratio, or prepare for thresholds.
-• Filters the current rows with `where xprotect_age_days > 30` — typically the threshold or rule expression for this monitoring goal.
-• Pipeline stage (see **macOS Gatekeeper and XProtect Status**): table host xprotect_ver xprotect_date xprotect_age_days
+• Scopes the data: `index=os`, `sourcetype=macos_gatekeeper`.
+• `eval` turns `xprotect_date` into `xprotect_age_days`.
+• `where` flags definitions older than 30 days; `table` shows detail for remediation.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare `xprotect_date` in Search to `system_profiler` and Apple’s current release notes for your build. For full details, see the Implementation guide: docs/implementation-guide.md
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, Gatekeeper status, XProtect version), Single value (non-compliant count), Pie chart (enabled vs. disabled).
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
+Document how often Apple ships definition updates in your environment and tune the 30-day threshold. Consider visualizations: Table (host, status, XProtect version), count of non-compliant hosts.
 
 ## SPL
 
@@ -89,6 +67,12 @@ index=os sourcetype=macos_gatekeeper host=*
 | eval xprotect_age_days = now() - strptime(xprotect_date, "%Y-%m-%d")
 | where xprotect_age_days > 30
 | table host xprotect_ver xprotect_date xprotect_age_days
+```
+
+## CIM SPL
+
+```spl
+N/A — XProtect and Gatekeeper state are not CIM data model fields; the add-on for Unix and Linux is commonly used for Linux host metrics, but this Apple-specific inventory remains a custom sourcetype unless you build your own mapping.
 ```
 
 ## Visualization

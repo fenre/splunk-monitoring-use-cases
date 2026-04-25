@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.30.json — DO NOT EDIT -->
+
 ---
 id: "4.1.30"
 title: "CloudTrail Log File Delivery Failures"

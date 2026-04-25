@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.6.17.json — DO NOT EDIT -->
+
 ---
 id: "5.6.17"
 title: "DNS Query Latency and Resolution Failure by Resolver"
@@ -53,14 +55,14 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 
 • Scopes the data: index=network, sourcetype=dns_query. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by resolver_ip, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by resolver_ip, _time** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **fail_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where avg_ms > 200 OR fail_rate > 5` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **DNS Query Latency and Resolution Failure by Resolver**): table resolver_ip avg_ms fail_rate total
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare query volume, response codes, or latency in Infoblox reporting, Microsoft DNS views, BIND logs, or Meraki Network > Monitor to the Splunk results for the same resolvers and time range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (latency by resolver), Table (resolver, avg ms, fail rate), Single value (p95 latency).
@@ -74,6 +76,16 @@ index=network sourcetype=dns_query
 | eval fail_rate=round(failures/total*100, 2)
 | where avg_ms > 200 OR fail_rate > 5
 | table resolver_ip avg_ms fail_rate total
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Resolution.DNS
+  by DNS.query DNS.reply_code span=5m
+| where count>0
+| sort -count
 ```
 
 ## Visualization

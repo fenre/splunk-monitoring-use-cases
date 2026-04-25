@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.24.json — DO NOT EDIT -->
+
 ---
 id: "4.1.24"
 title: "SQS Queue Depth and Age of Oldest Message"
@@ -54,7 +56,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 • Scopes the data: index=aws, sourcetype="aws:cloudwatch". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
 • `eval` defines or adjusts **depth** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by _time, QueueName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, QueueName** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where depth > 1000 OR age_s > 300` — typically the threshold or rule expression for this monitoring goal.
 
 
@@ -73,6 +75,16 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/SQS" (metric_name="Approxim
        age_s=if(metric_name="ApproximateAgeOfOldestMessage", Average, null())
 | stats avg(depth) as depth, avg(age_s) as age_s by _time, QueueName
 | where depth > 1000 OR age_s > 300
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

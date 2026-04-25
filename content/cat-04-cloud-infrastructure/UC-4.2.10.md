@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.2.10.json — DO NOT EDIT -->
+
 ---
 id: "4.2.10"
 title: "Storage Account Access Anomalies"
@@ -50,12 +52,9 @@ The first pipeline stage scopes events using **index**: azure; **sourcetype**: m
 **Pipeline walkthrough**
 
 • Scopes the data: index=azure, sourcetype="mscs:azure:diagnostics". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by callerIpAddress, accountName, operationName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by callerIpAddress, accountName, operationName** so each row reflects one combination of those dimensions.
 • `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.
 • Filters the current rows with `where count > avg_ops + (2 * stdev_ops)` — typically the threshold or rule expression for this monitoring goal.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

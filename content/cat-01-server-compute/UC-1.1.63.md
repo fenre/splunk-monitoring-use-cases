@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.63.json — DO NOT EDIT -->
+
 ---
 id: "1.1.63"
 title: "Dropped Packets by Network Interface"
@@ -9,100 +11,47 @@ splunkPillar: "Observability"
 
 ## Description
 
-Dropped packets indicate network issues, buffer overflow, or driver problems affecting reliability.
+Surfaces interfaces where the cumulative **dropped** counters are non-zero in the lookback, then trends the maximum of the combined in+out drop count in each bucket so you can see whether the condition persists.
 
 ## Value
 
-Dropped packets indicate network issues, buffer overflow, or driver problems affecting reliability.
+Packet drops on the host precede many application time-outs; this view nudges you toward buffer, ring, and coalesce tuning with NIC vendor guidance before the problem scales up.
 
 ## Implementation
 
-Monitor interface drop counters from /proc/net/dev or ethtool. Alert on any dropped packets, which should be zero in healthy networks. Correlate with driver errors and ring buffer exhaustion.
+Not every `interfaces` build exposes per-interface drop fields—confirm with **Fieldsummary** in Search. If fields are missing, add a `custom:ethtool` or `nstat` script for the counters you need instead of this exact SPL.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix`.
-• Ensure the following data sources are available: `sourcetype=interfaces`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Fields **dropped_in** and **dropped_out** (or renames) must exist. If the TA’s **interfaces** sample omits them, extend the scripted input to parse `rx_dropped` / `tx_dropped` from `ip -s link` or `/proc/net/dev`.
 
 Step 1 — Configure data collection
-Monitor interface drop counters from /proc/net/dev or ethtool. Alert on any dropped packets, which should be zero in healthy networks. Correlate with driver errors and ring buffer exhaustion.
+Prefer a steady poll so **latest** per host+interface in the **stats** is meaningful. For alerts, you often want **delta** drops per interval instead of a never-decreasing counter; use `delta` + `where increase>0` in a follow-on iteration.
 
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+Step 2 — Create the search and report
+`timechart` is ideal for a dashboard; add `| where max>0` in an alert with `bucket`ed five-minute **stats** for paging.
 
-```spl
-index=os sourcetype=interfaces host=*
-| stats latest(dropped_in) as dropped_in, latest(dropped_out) as dropped_out by host, interface
-| eval total_dropped=dropped_in+dropped_out
-| where total_dropped > 0
-| timechart sum(total_dropped) by host, interface
-```
-
-Understanding this SPL
-
-**Dropped Packets by Network Interface** — Dropped packets indicate network issues, buffer overflow, or driver problems affecting reliability.
-
-Documented **Data sources**: `sourcetype=interfaces`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: interfaces. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=interfaces. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, interface** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eval` defines or adjusts **total_dropped** — often to normalize units, derive a ratio, or prepare for thresholds.
-• Filters the current rows with `where total_dropped > 0` — typically the threshold or rule expression for this monitoring goal.
-• `timechart` plots the metric over time with a separate series **by host, interface** — ideal for trending and alerting on this use case.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats `summariesonly` sum(Performance.bytes_in) as bytes_in
-                        sum(Performance.bytes_out) as bytes_out
-  from datamodel=Performance where nodename=Performance.Network
-  by Performance.host Performance.interface span=5m
-```
-
-Understanding this CIM / accelerated SPL
-
-**Dropped Packets by Network Interface** — Dropped packets indicate network issues, buffer overflow, or driver problems affecting reliability.
-
-Documented **Data sources**: `sourcetype=interfaces`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+**CIM note** — Standard **All_Traffic** does not carry Linux **drop** counters; this UC stays on raw **interfaces** until you model drops into a custom data model or metric store.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`ethtool -S iface` and `nstat` / `ss -i` (tooling varies) on the host; for drivers with **ring** size controls, also capture `ethtool -g` before/after tuning.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart, Alert
+Route NIC drops with the same timeline as switch **CRC** and **error** counters for fabric-side proof.
+
+
 
 ## SPL
 
 ```spl
 index=os sourcetype=interfaces host=*
-| stats latest(dropped_in) as dropped_in, latest(dropped_out) as dropped_out by host, interface
-| eval total_dropped=dropped_in+dropped_out
-| where total_dropped > 0
-| timechart sum(total_dropped) by host, interface
-```
-
-## CIM SPL
-
-```spl
-| tstats `summariesonly` sum(Performance.bytes_in) as bytes_in
-                        sum(Performance.bytes_out) as bytes_out
-  from datamodel=Performance where nodename=Performance.Network
-  by Performance.host Performance.interface span=5m
+| bin _time span=5m
+| stats max(dropped_in) as di max(dropped_out) as do by host, interface, _time
+| eval total_dropped=di+do
+| where total_dropped>0
+| timechart max(total_dropped) by host, interface
 ```
 
 ## Visualization
@@ -111,5 +60,5 @@ Timechart, Alert
 
 ## References
 
-- [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
-- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

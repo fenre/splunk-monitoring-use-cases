@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.4.3.json — DO NOT EDIT -->
+
 ---
 id: "7.4.3"
 title: "Data Pipeline Health"
@@ -22,6 +24,7 @@ Ingest pipeline orchestrator logs (Airflow, dbt, custom). Track job outcomes, du
 ## Detailed Implementation
 
 Prerequisites
+• In operations we confirm in pgAdmin, psql, and `pg_stat*` views, or the managed PostgreSQL console.
 • Install and configure the required add-on or app: Custom API input, orchestrator integration (Airflow, dbt).
 • Ensure the following data sources are available: Airflow task logs, dbt run results, Snowflake TASK_HISTORY, pipeline orchestrator APIs.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -51,14 +54,14 @@ The first pipeline stage scopes events using **index**: datawarehouse; **sourcet
 **Pipeline walkthrough**
 
 • Scopes the data: index=datawarehouse, sourcetype="airflow:task_instance". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by dag_id, task_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by dag_id, task_id** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **fail_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where fail_rate > 0` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (pipeline × status), Table (failed pipelines), Line chart (pipeline duration trend), Single value (overall success rate).

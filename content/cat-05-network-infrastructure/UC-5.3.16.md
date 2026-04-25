@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.3.16.json — DO NOT EDIT -->
+
 ---
 id: "5.3.16"
 title: "Citrix ADC High Availability Failover Monitoring (NetScaler)"
@@ -60,8 +62,7 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
+Compare vservers, services, and load-balancing state in the Citrix ADC management view or command line for the same time window and objects.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (failover events), Status grid (node x state), Table (sync status per HA pair).
 

@@ -12,19 +12,22 @@
   "dataSources": "`stats items` per-slab `number` field on `memcached:stats_items`, cross-checked with `curr_items` from `memcached:stats`",
   "app": "Scripted `stats items` parser to HEC (slab_id, number, age); optional join with Telegraf `memcached` global stats",
   "spl": "index=infrastructure sourcetype=\"memcached:stats_items\"\n| eval n=tonumber(number)\n| bin _time span=1h\n| stats sum(n) as items_per_slab by host, slab_id, _time\n| eventstats sum(items_per_slab) as total_items by host, _time\n| streamstats window=168 global=f median(total_items) as med_total by host\n| where total_items > med_total*2 OR total_items > 5000000",
-  "description": "Anomalously high `curr_items` can mean TTLs were removed, cache poisoning, or unbounded key cardinality—each increases CPU for hash walks and risks eviction storms.",
-  "value": "Catches buggy releases that stamp unbounded distinct keys before they exhaust memory metadata structures.",
-  "implementation": "Parse `stats items` lines into `slab_id`, `number`, `age`, `evicted`, `evicted_nonzero` as your memcached version exposes. Sum `number` across slabs for total item estimate. Correlate spikes with `memcached:stats` `curr_items` on the same poll timestamp.",
-  "visualization": "Line chart (total_items vs median), Table (host, top slab_id).",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "Anomalously high `curr_items` can mean TTLs were removed, cache poisoning, or unbounded key cardinality—each increases CPU for hash walks and risks eviction storms.",
+  "value": "Catches buggy releases that stamp unbounded distinct keys before they exhaust memory metadata structures.",
+  "grandmaExplanation": "We watch for signs that catches buggy releases that stamp unbounded distinct keys before they exhaust memory metadata structures.",
+  "implementation": "Parse `stats items` lines into `slab_id`, `number`, `age`, `evicted`, `evicted_nonzero` as your memcached version exposes. Sum `number` across slabs for total item estimate. Correlate spikes with `memcached:stats` `curr_items` on the same poll timestamp.",
+  "visualization": "Line chart (total_items vs median), Table (host, top slab_id).",
   "references": [
     {
       "title": "Memcached statistics",
       "url": "https://github.com/memcached/memcached/wiki/Stats"
     }
   ],
+  "knownFalsePositives": "Cache misses spike after cache flush, deploys with new cache keys, or during warm-up after restart. Compare with those events before treating as a fault.",
   "equipment": [
     "memcached"
   ],
@@ -34,5 +37,6 @@
     "9.x",
     "8.x"
   ],
-  "reviewer": "catalog-team"
+  "reviewer": "catalog-team",
+  "detailedImplementation": ""
 }

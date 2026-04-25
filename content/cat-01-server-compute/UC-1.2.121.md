@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.121.json — DO NOT EDIT -->
+
 ---
 id: "1.2.121"
 title: "DNS Client Query Anomalies"
@@ -13,7 +15,7 @@ Monitoring DNS queries from Windows clients reveals C2 beacons, DNS tunneling, a
 
 ## Value
 
-Monitoring DNS queries from Windows clients reveals C2 beacons, DNS tunneling, and DGA-based malware communicating with attacker infrastructure.
+Client-side DNS oddities—one host asking for many random names—can be C2, tunnels, or noisy software. Per-client baselines turn a firehose into actionable outliers.
 
 ## Implementation
 
@@ -58,7 +60,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • `eval` defines or adjusts **domain_len** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **label_count** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where domain_len>50 OR label_count>5` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by host, Image** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, Image** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where UniqueDomains>100 OR count>500` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -80,6 +82,15 @@ index=wineventlog EventCode=22
 | stats count dc(QueryName) as UniqueDomains by host, Image
 | where UniqueDomains>100 OR count>500
 | sort -UniqueDomains
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` dc(DNS.query) as n
+  from datamodel=Network_Resolution where nodename=Network_Resolution.DNS
+  by DNS.client_host span=1h
+| where n > 200
 ```
 
 ## Visualization

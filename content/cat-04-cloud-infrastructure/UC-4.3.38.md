@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.3.38.json — DO NOT EDIT -->
+
 ---
 id: "4.3.38"
 title: "GCS Bucket Policy Changes"
@@ -56,27 +58,6 @@ The first pipeline stage scopes events using **index**: gcp; **sourcetype**: goo
 • Applies an explicit `search` filter to narrow the current result set.
 • Pipeline stage (see **GCS Bucket Policy Changes**): table _time protoPayload.authenticationInfo.principalEmail resource.labels.bucket_name bindings.role
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**GCS Bucket Policy Changes** — Public buckets and IAM relaxations are common breach paths; real-time detection limits exposure window.
-
-Documented **Data sources**: Admin Activity `sourcetype=google:gcp:pubsub:message` (storage.setIamPermissions, bucket updates). **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -92,12 +73,6 @@ index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="stora
 | mvexpand protoPayload.serviceData.policy.bindings{} limit=500
 | search bindings.members="allUsers" OR bindings.members="allAuthenticatedUsers"
 | table _time protoPayload.authenticationInfo.principalEmail resource.labels.bucket_name bindings.role
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
 
 ## Visualization

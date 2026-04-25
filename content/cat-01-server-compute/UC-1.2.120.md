@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.120.json — DO NOT EDIT -->
+
 ---
 id: "1.2.120"
 title: "BitLocker Recovery & Compliance Monitoring"
@@ -13,7 +15,7 @@ BitLocker protects data at rest. Monitoring recovery events detects unauthorized
 
 ## Value
 
-BitLocker protects data at rest. Monitoring recovery events detects unauthorized hardware changes, and compliance tracking ensures all endpoints are encrypted.
+BitLocker events show when protection drops or recovery keys are used—often hardware change, policy drift, or someone trying to walk data off a disk. Either way, security should know quickly.
 
 ## Implementation
 
@@ -51,7 +53,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **Status** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, Status, VolumeName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, Status, VolumeName** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
@@ -91,11 +93,20 @@ index=wineventlog source="*BitLocker*" EventCode IN (770, 771, 773, 774, 775, 77
 | sort -count
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.dest All_Changes.status span=1h
+| where count > 0
+```
+
 ## Visualization
 
 Dashboard (encryption compliance %), Table (events), Alert on protection suspension.
 
 ## References
 
-- [Monitor BitLocker Management log for encryption status changes. Protection off](https://splunkbase.splunk.com/app/770)
-- [correlate with change tickets. Volume recovery](https://splunkbase.splunk.com/app/773)
+- [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+- [Microsoft: BitLocker recovery](https://learn.microsoft.com/en-us/windows/security/information-protection/bitlocker/bitlocker-overview)

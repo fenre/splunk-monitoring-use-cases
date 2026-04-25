@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.126.json — DO NOT EDIT -->
+
 ---
 id: "1.1.126"
 title: "Chrony / NTP Time Synchronization Drift"

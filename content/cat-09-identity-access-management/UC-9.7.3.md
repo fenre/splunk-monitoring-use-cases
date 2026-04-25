@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.7.3.json — DO NOT EDIT -->
+
 ---
 id: "9.7.3"
 title: "Privileged Account Activity Trending"
@@ -17,7 +19,7 @@ Privileged logon volume should be relatively stable; spikes can indicate credent
 
 ## Implementation
 
-Build `privileged_users.csv` from Active Directory privileged groups, cloud Global Administrator roles, and break-glass accounts; refresh on a schedule. Require `Authentication.action=success` to measure real sessions. Investigate sustained upward trends with parallel searches on source IP and workstation. Pair with change tickets to expected elevation work.
+Build `privileged_users.csv` from Active Directory privileged groups, cloud Global Administrator roles, and break-glass accounts; refresh on a schedule. Require `Authentication.action='success'` to measure real sessions. Investigate sustained upward trends with parallel searches on source IP and workstation. Pair with change tickets to expected elevation work.
 
 ## Detailed Implementation
 
@@ -27,7 +29,7 @@ Prerequisites
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-Build `privileged_users.csv` from Active Directory privileged groups, cloud Global Administrator roles, and break-glass accounts; refresh on a schedule. Require `Authentication.action=success` to measure real sessions. Investigate sustained upward trends with parallel searches on source IP and workstation. Pair with change tickets to expected elevation work.
+Build `privileged_users.csv` from Active Directory privileged groups, cloud Global Administrator roles, and break-glass accounts; refresh on a schedule. Require `Authentication.action='success'` to measure real sessions. Investigate sustained upward trends with parallel searches on source IP and workstation. Pair with change tickets to expected elevation work.
 
 Step 2 — Create the search and alert
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
@@ -35,7 +37,7 @@ Run the following SPL in Search (then save as report or alert; adjust time range
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where earliest=-30d@d latest=@d Authentication.action=success
+  where earliest=-30d@d latest=@d Authentication.action='success'
   by _time span=1d Authentication.user
 | lookup privileged_users user AS "Authentication.user" OUTPUT is_privileged
 | where is_privileged="true"
@@ -82,7 +84,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare results with the authoritative identity source (directory, IdP, or PAM) for the same time range and with known change or maintenance tickets.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart of privileged_logons with SMA; anomaly overlay if using MLTK or `anomalydetection`.
@@ -92,7 +94,7 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where earliest=-30d@d latest=@d Authentication.action=success
+  where earliest=-30d@d latest=@d Authentication.action='success'
   by _time span=1d Authentication.user
 | lookup privileged_users user AS "Authentication.user" OUTPUT is_privileged
 | where is_privileged="true"
@@ -110,10 +112,6 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ## Visualization
 
 Line chart of privileged_logons with SMA; anomaly overlay if using MLTK or `anomalydetection`.
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

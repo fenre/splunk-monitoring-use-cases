@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.46.json — DO NOT EDIT -->
+
 ---
 id: "2.1.46"
 title: "vCenter Alarm Acknowledgment Tracking"
@@ -17,7 +19,7 @@ Track alarms that remain unacknowledged for extended periods. Unacknowledged ala
 
 ## Implementation
 
-TA-vmware collects AlarmStatusChangedEvent. Parse acknowledged field if present; otherwise infer from event sequence. Alert when red/yellow alarms remain unacknowledged >4 hours. Maintain lookup of alarm ownership for escalation. Correlate with incident tickets.
+Splunk_TA_vmware collects AlarmStatusChangedEvent. Parse acknowledged field if present; otherwise infer from event sequence. Alert when red/yellow alarms remain unacknowledged >4 hours. Maintain lookup of alarm ownership for escalation. Correlate with incident tickets.
 
 ## Detailed Implementation
 
@@ -27,7 +29,7 @@ Prerequisites
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-TA-vmware collects AlarmStatusChangedEvent. Parse acknowledged field if present; otherwise infer from event sequence. Alert when red/yellow alarms remain unacknowledged >4 hours. Maintain lookup of alarm ownership for escalation. Correlate with incident tickets.
+Splunk_TA_vmware collects AlarmStatusChangedEvent. Parse acknowledged field if present; otherwise infer from event sequence. Alert when red/yellow alarms remain unacknowledged >4 hours. Maintain lookup of alarm ownership for escalation. Correlate with incident tickets.
 
 Step 2 — Create the search and alert
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
@@ -55,13 +57,12 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 
 • Scopes the data: index=vmware, sourcetype="vmware:events". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **alarm_id** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by alarm_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by alarm_id** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where status="red" OR status="yellow"` — typically the threshold or rule expression for this monitoring goal.
 • `eval` defines or adjusts **hours_unack** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where ack!="true" AND hours_unack > 4` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **vCenter Alarm Acknowledgment Tracking**): table alarm_name, entity, status, last_change, hours_unack, ack
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

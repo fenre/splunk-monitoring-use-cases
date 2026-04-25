@@ -24,7 +24,7 @@
       "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/221/hdx/session-reliability.html"
     }
   ],
-  "knownFalsePositives": "Home users on WiFi, travel VPNs, and unstable cellular paths trigger Session Reliability and auto-reconnect in bulk during benign conditions. Split by site or network profile and raise on sustained reconnection failure for landline and office cohorts, not a single flapping home office.",
+  "knownFalsePositives": "Session and launch time spikes may track image updates, profile migrations, or broker outages; compare to the same app on other sites before blaming the network only.",
   "equipment": [
     "citrix",
     "syslog"
@@ -36,5 +36,5 @@
   ],
   "lastReviewed": "2026-04-24",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Template for Citrix XenDesktop 7 (TA-XD7-Broker), optional NetScaler syslog TA, uberAgent UXM (Splunkbase 1448).\n• Ensure the following data sources are available: `sourcetype=\"citrix:vda:events\"`, `sourcetype=\"citrix:broker:events\"`, optional `sourcetype=\"citrix:netscaler:syslog\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIndex VDA and broker together or use event breaking that preserves each line. If Message text varies by VDA build, add a `macros.conf` for flexible regex. Forward gateway logs into the same search head with `site` or `location` context.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; test regex against sample _raw data):\n\n```spl\nindex=xd (sourcetype=\"citrix:vda:events\" OR sourcetype=\"citrix:broker:events\") match(_raw, \"(?i)session reliability|reconnect|WCF|keep.?alive|auto.?client|ACR|ICA.*reset|edt|tcp.*(drop|reset)|udp\")\n| eval evt=if(match(_raw, \"(?i)reconnect|re.?establish|re.?connected|back online\"), \"reconnect\", if(match(_raw, \"(?i)disconnect|drop|reset|fail|unreachable\"), \"disrupt\", \"other\"))\n| where evt!=\"other\"\n| eval user=coalesce(user, UserName, ClientName)\n| bin _time span=5m\n| stats count, dc(user) as users by _time, evt, host, delivery_group\n| sort -_time, count\n```\n\nStep 3 — Validate\nInduce a short network flap on a test client and assert disrupt/reconnect events appear. Compare with Help Desk ticket volume.\n\nStep 4 — Operationalize\nRoute alerts to the network and EUC teams with delivery group context. Add weekly trends to executive readouts for remote-work quality.",
-  "grandmaExplanation": "We watch the invisible safety net that keeps a dropped connection from kicking people out, and we notice when that net trips too often — so you catch flaky networks before they hurt real work."
+  "grandmaExplanation": "We keep an eye on session Reliability and Auto Client Reconnect and raise the alarm before it drags down real work or real outages start."
 }

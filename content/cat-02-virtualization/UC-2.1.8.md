@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.8.json — DO NOT EDIT -->
+
 ---
 id: "2.1.8"
 title: "DRS Imbalance Detection"
@@ -22,7 +24,7 @@ Monitor DRS migration frequency. High migration counts suggest oscillation. Also
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `TA-vmware`.
+• Install and configure the required add-on or app: `Splunk_TA_vmware`.
 • Ensure the following data sources are available: `sourcetype=vmware:events`.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -43,7 +45,7 @@ Understanding this SPL
 
 **DRS Imbalance Detection** — DRS should keep clusters balanced. Frequent or failed DRS recommendations indicate resource constraints, affinity rule conflicts, or misconfiguration.
 
-Documented **Data sources**: `sourcetype=vmware:events`. **App/TA** (typical add-on context): `TA-vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: `sourcetype=vmware:events`. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:events. That sourcetype matches what this use case lists under Data sources.
 
@@ -51,9 +53,8 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 
 • Scopes the data: index=vmware, sourcetype="vmware:events". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time, cluster** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, cluster** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 20` — typically the threshold or rule expression for this monitoring goal.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

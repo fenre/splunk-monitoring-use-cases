@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.4.json — DO NOT EDIT -->
+
 ---
 id: "1.2.4"
 title: "Windows Service Failures"
@@ -13,7 +15,7 @@ Stopped critical services directly impact application availability. Auto-restart
 
 ## Value
 
-Stopped critical services directly impact application availability. Auto-restart doesn't always work, and some services can't auto-restart.
+Many apps quietly depend on a few services; surfacing the failure fast shortens impact when auto-restart or clustering does not cover it.
 
 ## Implementation
 
@@ -51,16 +53,16 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:System". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **status** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, EventCode, status, Message** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, EventCode, status, Message** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.action All_Changes.dest
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -98,9 +100,9 @@ index=wineventlog sourcetype="WinEventLog:System" (EventCode=7034 OR EventCode=7
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.action All_Changes.dest
+| where count>0
 ```
 
 ## Visualization

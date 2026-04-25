@@ -1,7 +1,8 @@
+<!-- AUTO-GENERATED from UC-6.3.1.json — DO NOT EDIT -->
+
 ---
 id: "6.3.1"
 title: "Backup Job Success Rate"
-status: "verified"
 criticality: "critical"
 splunkPillar: "Observability"
 ---
@@ -52,17 +53,17 @@ The first pipeline stage scopes events using **index**: backup; **sourcetype**: 
 **Pipeline walkthrough**
 
 • Scopes the data: index=backup, sourcetype="veeam:job". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by job_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by job_name** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **success_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where success_rate < 100` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare job session state, duration, and transferred bytes with Veeam Backup & Replication or Veeam Enterprise Manager for the same job and time window.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (overall success rate %), Table (failed jobs with details), Bar chart (success/fail by job), Trend line (daily success rate).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Single value (overall success rate %), Table (failed jobs with details), Bar chart (success/fail by job), Trend line (daily success rate).
 
 ## SPL
 

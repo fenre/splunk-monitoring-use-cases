@@ -8,25 +8,32 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=linux_audit`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
-  "spl": "index=os sourcetype=linux_audit path=\"/etc/passwd\" action=modified\n| stats count by host, auid, exe\n| where count > 0",
-  "description": "/etc/passwd changes indicate user account creation/modification requiring immediate investigation for unauthorized access.",
-  "value": "/etc/passwd changes indicate user account creation/modification requiring immediate investigation for unauthorized access.",
-  "implementation": "Configure auditctl rules to monitor /etc/passwd for all modifications. Create immediate alerts with escalation to security team. Include user context showing who made the change.",
+  "dataSources": "`sourcetype=linux_audit` (path-based watch on `/etc/passwd`)",
+  "app": "`Splunk_TA_nix`",
+  "spl": "index=os sourcetype=linux_audit path=\"/etc/passwd\" (action=modified OR nametype=normal)\n| stats count by host, auid, exe\n| where count>0",
+  "description": "Lists audit events that reference **/etc/passwd** with a modification-style action so you can prove who changed local account metadata and from which binary.",
+  "value": "Account creation and lock/unlock events should flow through **change** management; unexpected **passwd** writers are a first-class signal for insider and external abuse on shared servers.",
+  "implementation": "Requires an **auditd** rule such as `-w /etc/passwd -p wa -k passwd_changes` (exact key is your choice). Map `auid`, `exe`, and `path` for the TA; drop `nametype=normal` if your distro only logs `PATH` parts.",
   "visualization": "Alert, Table",
   "cimModels": [
-    "N/A"
+    "Change"
   ],
+  "cimSpl": "| tstats `summariesonly` count from datamodel=Change.All_Changes where All_Changes.action=modified AND All_Changes.object=\"*passwd*\" by All_Changes.user All_Changes.dest span=1h | where count>0",
+  "dataModelAcceleration": "Enable Change model acceleration after `linux_audit` / `passwd` edits are tagged into **All_Changes** with **object** normalized to the file path.",
+  "knownFalsePositives": "Configuration management tools that legitimately rewrite **passwd** every hour; duplicate **PATH** + **SYSCALL** pairs—`dedup` or key on **key=** only; container hosts where only the image builder should touch **passwd**—alert there with higher severity.",
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
     }
   ],
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=linux_audit`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure auditctl rules to monitor /etc/passwd for all modifications. Create immediate alerts with escalation to security team. Include user context showing who made the change.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=linux_audit path=\"/etc/passwd\" action=modified\n| stats count by host, auid, exe\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**/etc/passwd Modifications** — /etc/passwd changes indicate user account creation/modification requiring immediate investigation for unauthorized access.\n\nDocumented **Data sources**: `sourcetype=linux_audit`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, auid, exe** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table",
-  "grandmaExplanation": "/etc/passwd changes indicate user account creation/modification requiring immediate investigation for unauthorized access — so you find out before users do when something is slowing down or breaking."
+  "detailedImplementation": "Prerequisites\n• **auditd** on every production host, with logs shipped and **FIM**-style retention in your org’s secure index as required by policy.\n\n**CIM** — The `object` string match mirrors file-path monitoring once your **props**+**eventtypes** map these events to **All_Changes**.\n\n\nStep 3 — Validate\n`ausearch -f /etc/passwd` on the host for the same epoch; `lastlog` / `getent` for the users you expect. Keep **PAM** logs (`linux_secure`) in a correlated search for the same **auid** when triaging.\n\nStep 4 — Operationalize\nAuto-ticket the owning application when **exe** is not **useradd**-class; send straight to **IR** for **exe** in world-writable paths.\n\n",
+  "grandmaExplanation": "We help you know when the master list of user names on a machine is edited, so only the right people and tools are the ones doing it."
 }

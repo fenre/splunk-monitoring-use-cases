@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.112.json — DO NOT EDIT -->
+
 ---
 id: "1.2.112"
 title: "BITS Transfer Abuse Detection"
@@ -13,7 +15,7 @@ Background Intelligent Transfer Service (BITS) is abused by malware for stealthy
 
 ## Value
 
-Background Intelligent Transfer Service (BITS) is abused by malware for stealthy downloads and persistence. Monitoring BITS jobs detects LOLBin-based attacks.
+BITS is a quiet downloader. Jobs that do not match patch or software deployment patterns can be data theft or second stages—worth a look before bytes leave the segment.
 
 ## Implementation
 
@@ -71,6 +73,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Bits-Client/Operational"
 | table _time, host, User, jobTitle, url, fileList, Status, bytesTransferred
 | where NOT match(url, "(?i)(windowsupdate|microsoft\.com|msedge)")
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

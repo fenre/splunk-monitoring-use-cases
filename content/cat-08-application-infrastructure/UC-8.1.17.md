@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.1.17.json — DO NOT EDIT -->
+
 ---
 id: "8.1.17"
 title: "IIS Web Server Monitoring"
@@ -53,8 +55,10 @@ The first pipeline stage scopes events using **index**: web; **sourcetype**: ms:
 • `eval` defines or adjusts **error_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
 
 
+
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare a sample of alert results to IIS W3C extended logs on the server (or a one-off export of the same file) and, when applicable, the IIS Manager site. Confirm `sc-status`, time-taken, and URI fields match what you expect.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (requests by status code), Single value (error rate %), Table of top error URIs.
@@ -67,10 +71,20 @@ index=web sourcetype="ms:iis:auto"
 | eval error_rate = round((sc_status_500 + sc_status_502 + sc_status_503) / (sc_status_200 + sc_status_500 + sc_status_502 + sc_status_503) * 100, 2)
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count as events
+  from datamodel=Web.Web
+  by Web.http_method Web.dest span=5m
+| sort -events
+```
+
 ## Visualization
 
 Line chart (requests by status code), Single value (error rate %), Table of top error URIs.
 
 ## References
 
+- [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 - [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)

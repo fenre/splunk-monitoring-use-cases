@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.52.json — DO NOT EDIT -->
+
 ---
 id: "1.1.52"
 title: "Connection Tracking Table Exhaustion"
@@ -9,78 +11,35 @@ splunkPillar: "Observability"
 
 ## Description
 
-Conntrack table full prevents new network connections, causing application failures.
+Detects when the netfilter connection tracking table on a host is most of the way to its hard maximum, a condition that will soon block or drop new flow setups.
 
 ## Value
 
-Conntrack table full prevents new network connections, causing application failures.
+Avoiding a full conntrack table protects stateful firewalls, NAT, and any service that cannot accept “cannot allocate new connection” style failures during busy periods.
 
 ## Implementation
 
-Create a scripted input that parses /proc/net/nf_conntrack_count and /proc/sys/net/netfilter/nf_conntrack_max. Alert when usage exceeds 80%, with escalation at 95%. Include recommendations to increase nf_conntrack_max.
+Sample `current_count` and `max_size` (from `/proc/sys/net/netfilter/nf_conntrack_max` or equivalent) into Splunk, compute utilization, and page before you reach the drop regime above roughly ninety percent in most shops.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=custom:conntrack, /proc/net/nf_conntrack`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Deploy a small script (often paired with the TA) that reads `nf_conntrack_count` and the configured max, then posts **key=value** lines to Splunk on a 60 second cadence.
 
 Step 1 — Configure data collection
-Create a scripted input that parses /proc/net/nf_conntrack_count and /proc/sys/net/netfilter/nf_conntrack_max. Alert when usage exceeds 80%, with escalation at 95%. Include recommendations to increase nf_conntrack_max.
+Keep units consistent: both counts must be in the same integer space. Re-read max after sysctls or boot.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=custom:conntrack host=*
-| stats latest(current_count) as current, latest(max_size) as maximum by host
-| eval usage_pct=(current/maximum)*100
-| where usage_pct > 80
-```
-
-Understanding this SPL
-
-**Connection Tracking Table Exhaustion** — Conntrack table full prevents new network connections, causing application failures.
-
-Documented **Data sources**: `sourcetype=custom:conntrack, /proc/net/nf_conntrack`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: custom:conntrack. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=custom:conntrack. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eval` defines or adjusts **usage_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-• Filters the current rows with `where usage_pct > 80` — typically the threshold or rule expression for this monitoring goal.
+The SPL in the `spl` field is self-contained; set separate alerts at 80% (warn) and 95% (page) if you prefer two saved searches.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On host, compare `cat /proc/sys/net/netfilter/nf_conntrack_count` to the latest event; ensure `ss -s` or `conntrack -S` (where available) does not show divergent health.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge, Alert
+Runbook: raise `nf_conntrack_max` with capacity review, reduce wasteful long-lived connections, or shard workloads.
 
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
 
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
@@ -97,4 +56,5 @@ Gauge, Alert
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

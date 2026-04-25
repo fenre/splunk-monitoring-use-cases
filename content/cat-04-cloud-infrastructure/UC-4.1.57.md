@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.57.json — DO NOT EDIT -->
+
 ---
 id: "4.1.57"
 title: "AWS ECS Task Placement Failures"
@@ -59,7 +61,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 • Extracts structured paths (JSON/XML) with `spath`.
 • Extracts structured paths (JSON/XML) with `spath`.
 • Applies an explicit `search` filter to narrow the current result set.
-• `stats` rolls up events into metrics; results are split **by reason, requestParameters.cluster** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by reason, requestParameters.cluster** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
@@ -80,6 +82,16 @@ index=aws sourcetype="aws:cloudtrail" eventSource="ecs.amazonaws.com" (eventName
 | search reason=*
 | stats count by reason, requestParameters.cluster
 | sort -count
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

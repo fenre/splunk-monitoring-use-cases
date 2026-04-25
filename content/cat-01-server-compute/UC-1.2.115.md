@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.115.json — DO NOT EDIT -->
+
 ---
 id: "1.2.115"
 title: "Logon Session Anomalies (Type 3 / Network Logon)"
@@ -13,7 +15,7 @@ Network logons (Type 3) from unexpected sources indicate lateral movement with s
 
 ## Value
 
-Network logons (Type 3) from unexpected sources indicate lateral movement with stolen credentials. Baselining normal patterns reveals compromised accounts.
+Type 3 network logons from odd sources to many hosts can show password spray or automated reuse. Clustering by user and source helps separate noise from real lateral auth.
 
 ## Implementation
 
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **src** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by TargetUserName, src** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by TargetUserName, src** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where TargetCount>5` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -103,7 +105,7 @@ index=wineventlog EventCode=4624 Logon_Type=3
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
+  where Authentication.action="failure"
   by Authentication.user Authentication.src Authentication.dest span=1h
 | where count > 5
 ```

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.4.json — DO NOT EDIT -->
+
 ---
 id: "4.4.4"
 title: "Cloud Resource Tagging Compliance"

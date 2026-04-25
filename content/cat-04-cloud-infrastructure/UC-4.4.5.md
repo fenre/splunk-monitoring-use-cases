@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.5.json — DO NOT EDIT -->
+
 ---
 id: "4.4.5"
 title: "Cloud Resource Inventory and Drift Summary"
@@ -53,7 +55,7 @@ The first pipeline stage scopes events using **index**: aws, azure, gcp.
 • Scopes the data: index=aws, index=azure, index=gcp. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **cloud** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **resource_type** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by resource_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by resource_type** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 

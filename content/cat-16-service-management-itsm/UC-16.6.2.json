@@ -19,6 +19,7 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "Opsgenie — Heartbeats",
@@ -29,6 +30,7 @@
       "url": "https://splunkbase.splunk.com/app/3759"
     }
   ],
+  "knownFalsePositives": "Heartbeats that stop during host rebuilds, agent upgrades, or quiet testing that was not meant to page anyone.",
   "equipment": [
     "pagerduty"
   ],
@@ -40,5 +42,6 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We look for emergency signals that nobody was scheduled to receive, and for heartbeat checks that died quietly. Either situation means an alarm might never reach a person."
+  "grandmaExplanation": "We look for emergency signals that nobody was scheduled to receive, and for heartbeat checks that died quietly. Either situation means an alarm might never reach a person.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: Opsgenie Splunk integration, Outgoing Webhook/OEC forwarder.\n• Data: `index=alerts` `sourcetype=opsgenie:alert` notify events, `sourcetype=opsgenie:heartbeat` expired pings.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nNormalize `recipients` multivalue field from JSON arrays. Join to `team` roster CSV for expected coverage. Differentiate from UC-16.2.22 (PagerDuty schedule gaps) by focusing on Opsgenie sourcetypes only.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts (sourcetype=\"opsgenie:alert\" OR sourcetype=\"opsgenie:heartbeat\")\n| eval alert_gap=if(sourcetype=\"opsgenie:alert\" AND (match(lower(message),\"(?i)no recipients|empty rotation|no one on-call\") OR recipients_count=0 OR mvcount(recipients)=0),1,0)\n| eval hb_gap=if(sourcetype=\"opsgenie:heartbeat\" AND status IN (\"expired\",\"inactive\"),1,0)\n| where alert_gap=1 OR hb_gap=1\n| stats count, latest(_time) as t, values(team) as teams by integration_name, source\n| sort -count\n```\n\nUnderstanding this search\nOpsgenie alerts that fire with zero recipients or heartbeats that expire without follow-up indicate broken rotations, deleted schedules, or integration misrouting—distinct from PagerDuty schedule exports. Catching these patterns prevents silent failures in hybrid paging estates.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Timeline of zero-recipient alerts, table (integration × team), map of expired heartbeats by region."
 }

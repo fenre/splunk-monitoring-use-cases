@@ -11,19 +11,27 @@
   "dataSources": "`index=proxy` TLS termination logs (`sourcetype=haproxy:tcp` or `haproxy:http` with SSL fields)",
   "app": "HAProxy syslog with `%sslc` / `%sslfc` log variables or custom format",
   "spl": "index=proxy (sourcetype=\"haproxy:http\" OR sourcetype=\"haproxy:tcp\")\n| search \"SSL\" (\"handshake failure\" OR \"verify error\" OR \"alert unknown ca\")\n| stats count by host\n| sort -count",
-  "description": "TLS failures may indicate expired client certs, weak ciphers, or MITM attempts on public listeners.",
-  "value": "Preserves cryptographic hygiene for zero-trust and mutual TLS designs.",
-  "implementation": "Extend `log-format` with SSL variables; sample baseline noise before alerting.",
-  "visualization": "Timechart (SSL errors), table (frontend), link to PKI calendar.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "TLS failures may indicate expired client certs, weak ciphers, or MITM attempts on public listeners.",
+  "value": "Preserves cryptographic hygiene for zero-trust and mutual TLS designs.",
+  "grandmaExplanation": "We watch for signs that preserves cryptographic hygiene for zero-trust and mutual secure connections designs.",
+  "implementation": "Extend `log-format` with SSL variables; sample baseline noise before alerting.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HAProxy syslog with `%sslc` / `%sslfc` log variables or custom format.\n• Ensure the following data sources are available: `index=proxy` TLS termination logs (`sourcetype=haproxy:tcp` or `haproxy:http` with SSL fields).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMatch phrases to your HAProxy TLS log output; many shops ship TLS termination logs only at info level.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy (sourcetype=\"haproxy:http\" OR sourcetype=\"haproxy:tcp\")\n| search \"SSL\" (\"handshake failure\" OR \"verify error\" OR \"alert unknown ca\")\n| stats count by host\n| sort -count\n```\n\nUnderstanding this SPL\n\n**HAProxy SSL Handshake and Client Certificate Failures** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` TLS termination logs (`sourcetype=haproxy:tcp` or `haproxy:http` with SSL fields). **App/TA**: HAProxy syslog with `%sslc` / `%sslfc` log variables or custom format. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with the broker or gateway’s own UI or CLI (`kafka-consumer-groups`, RabbitMQ management, ActiveMQ console, or Traefik/Envoy access log on the node) for the same period.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Timechart (SSL errors), table (frontend), link to PKI calendar..",
+  "visualization": "Timechart (SSL errors), table (frontend), link to PKI calendar.",
   "references": [
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    },
     {
       "title": "HAProxy Management Guide — Logging",
       "url": "https://www.haproxy.com/documentation/haproxy-management-guide/latest/observability/logging/"
     }
   ],
+  "knownFalsePositives": "Short-lived or staging certificates, planned rotations, and CA delays can look like an imminent outage. Certificates approaching expiry should trigger renewal; alerts before the renewal date are expected.",
   "equipment": [
     "haproxy",
     "syslog"
@@ -34,7 +42,5 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HAProxy syslog with `%sslc` / `%sslfc` log variables or custom format.\n• Ensure the following data sources are available: `index=proxy` TLS termination logs (`sourcetype=haproxy:tcp` or `haproxy:http` with SSL fields).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMatch phrases to your HAProxy TLS log output; many shops ship TLS termination logs only at info level.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy (sourcetype=\"haproxy:http\" OR sourcetype=\"haproxy:tcp\")\n| search \"SSL\" (\"handshake failure\" OR \"verify error\" OR \"alert unknown ca\")\n| stats count by host\n| sort -count\n```\n\nUnderstanding this SPL\n\n**HAProxy SSL Handshake and Client Certificate Failures** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` TLS termination logs (`sourcetype=haproxy:tcp` or `haproxy:http` with SSL fields). **App/TA**: HAProxy syslog with `%sslc` / `%sslfc` log variables or custom format. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Timechart (SSL errors), table (frontend), link to PKI calendar..",
-  "grandmaExplanation": "We track bad handshakes on your load balancer so certificate and cipher issues do not linger."
+  "reviewer": "@splunk-monitoring-use-cases"
 }

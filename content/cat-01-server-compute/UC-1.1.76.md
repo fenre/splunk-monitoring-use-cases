@@ -1,7 +1,8 @@
+<!-- AUTO-GENERATED from UC-1.1.76.json — DO NOT EDIT -->
+
 ---
 id: "1.1.76"
 title: "Privilege Escalation Detection"
-status: "verified"
 criticality: "critical"
 splunkPillar: "Security"
 ---
@@ -10,85 +11,41 @@ splunkPillar: "Security"
 
 ## Description
 
-Privilege escalation indicates successful security breach enabling attacker to gain administrative access.
+Lists **sudo** command lines (with a `command=` fragment) grouped by **host**, **user**, and **command**, so break-glass and automation owners can review anything outside their known patterns.
 
 ## Value
 
-Privilege escalation indicates successful security breach enabling attacker to gain administrative access.
+Unexpected **sudo** usage is a practical early sign of a stolen password or a job running under the wrong service account, especially on servers where only a few commands should ever be elevated.
 
 ## Implementation
 
-Monitor sudo logs for privilege escalation attempts. Create alerts for unexpected sudo usage by specific users. Correlate with auditctl syscall logs showing actual command execution after privilege gain.
+Ingest the OS authentication log the TA maps to `linux_secure`. Tighten the search with a `lookup` of approved `(user, command)` pairs when you are ready, or with `| search NOT user=buildsvc` allowlists. Pair with `linux_audit` for the executed binary when you add syscall rules later.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=linux_secure`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• `Splunk_TA_nix` with **linux_secure**-style input pointed at the OS authentication log (path depends on the distribution).
 
 Step 1 — Configure data collection
-Monitor sudo logs for privilege escalation attempts. Create alerts for unexpected sudo usage by specific users. Correlate with auditctl syscall logs showing actual command execution after privilege gain.
+Map Red Hat **secure** and Debian **auth.log** to the same sourcetype your TA documents; avoid duplicate ingestion of the same file via rsyslog and a second UF.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+`sudo` with `command=` is common on modern distros; if your file omits the fragment, search only `"sudo:"` and extract **command** with `rex`.
 
-```spl
-index=os sourcetype=linux_secure "sudo:" AND "command="
-| stats count by host, user, command
-| where user!="root"
-```
-
-Understanding this SPL
-
-**Privilege Escalation Detection** — Privilege escalation indicates successful security breach enabling attacker to gain administrative access.
-
-Documented **Data sources**: `sourcetype=linux_secure`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: linux_secure. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=linux_secure. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, user, command** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where user!="root"` — typically the threshold or rule expression for this monitoring goal.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=success
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| search Authentication.user=*admin* OR Authentication.user=root
-```
-
-Understanding this CIM / accelerated SPL
-
-**Privilege Escalation Detection** — Privilege escalation indicates successful security breach enabling attacker to gain administrative access.
-
-Documented **Data sources**: `sourcetype=linux_secure`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.
-• Applies an explicit `search` filter to narrow the current result set.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+**CIM** — The `cimSpl` counts successful, CIM-tagged `sudo` events per `Authentication.user` and `Authentication.src`—only after the TA+CIM add-on mark those fields.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Trigger `sudo` on a lab system and read the line with `tail -f` on the host, then the same line in Search. Keep **auditd** syscall trails if you need binary-level proof in regulated environments.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table
+Tie alerts to a lookup of expected automation users before paging humans.
+
 
 ## SPL
 
 ```spl
-index=os sourcetype=linux_secure "sudo:" AND "command="
+index=os sourcetype=linux_secure "sudo:" "command="
 | stats count by host, user, command
 | where user!="root"
 ```
@@ -96,11 +53,7 @@ index=os sourcetype=linux_secure "sudo:" AND "command="
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=success
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| search Authentication.user=*admin* OR Authentication.user=root
+| tstats `summariesonly` count from datamodel=Authentication.Authentication where Authentication.app=sudo AND Authentication.action=success by Authentication.user Authentication.src span=1h | where count>0
 ```
 
 ## Visualization
@@ -109,4 +62,5 @@ Alert, Table
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)

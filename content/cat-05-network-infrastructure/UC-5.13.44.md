@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.44.json — DO NOT EDIT -->
+
 ---
 id: "5.13.44"
 title: "Client Roaming Event Analysis"
@@ -17,42 +19,39 @@ Excessive or slow roaming disrupts voice and video calls. Identifying problemati
 
 ## Implementation
 
-Enable the `client` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls client detail data from the Catalyst Center Intent API every 60 minutes. Key fields: `macAddress`, `connectionType`, `ssid`, `roamDuration`, and any per-event roam count fields your TA maps into the data model.
+Enable the `client` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls client detail from the Catalyst Center Intent API on a typical 60-minute interval. Key fields: `macAddress`, `connectionType`, `ssid`, and `roamDuration` (and any dedicated roam or mobility fields your TA version extracts in the `cisco:dnac:client` payload).
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).
-• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:client (Catalyst Center client data; wireless fields roam_count or roaming metrics, ssid, macAddress, roamDuration).
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Cisco Catalyst Add-on (7538) with `cisco:dnac:client` and a usable `roamDuration` (or your TA’s equivalent) on wireless client records.
+• When Catalyst exposes a dedicated roam or mobility event stream, switch this UC to that filter; this version treats row volume as a proxy for mobility pain.
+• `docs/implementation-guide.md`.
 
 Step 1 — Configure data collection
-Enable the `client` input in the Cisco Catalyst TA pointing to `index=catalyst`. The TA polls client detail data from the Catalyst Center Intent API every 60 minutes. Key fields: `macAddress`, `connectionType`, `ssid`, `roamDuration`, and any per-event roam count fields your TA maps into the data model.
+• Confirm the `connectionType` value for Wi-Fi in your data matches the SPL (`WIRELESS` vs other spellings).
 
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Step 2 — Heuristic for noisy and slow mobile clients
 ```spl
 index=catalyst sourcetype="cisco:dnac:client" connectionType="WIRELESS" | stats count as roam_count avg(roamDuration) as avg_roam_ms by macAddress, ssid | where roam_count > 3 | eval avg_roam_ms=round(avg_roam_ms,0) | sort -avg_roam_ms | head 20
 ```
 
-Understanding this SPL
-
-**Client Roaming Event Analysis** — Excessive or slow roaming disrupts voice and video calls. Identifying problematic clients and areas enables AP placement and configuration optimization.
+Understanding this SPL (proxy, not 802.11 sniffer data)
+**Client Roaming** — Averages `roamDuration` per MAC+SSID, filters out very quiet clients, and lists the 20 **largest** average roam times. Tighten with explicit roam flags or BSSID change fields in Assurance when you have them in the event payload.
 
 **Pipeline walkthrough**
-
-• Limits results to wireless clients to study mobility behavior on Wi-Fi only.
-• `stats` treats each event row as a roaming-related sample, counting events per `macAddress` and `ssid` and averaging `roamDuration` where the field is populated (adjust the search if the TA provides explicit roam event types).
-• `where roam_count > 3` keeps endpoints with noisy roaming for investigation.
-• `eval` rounds average roam time for display; `sort` and `head` return the 20 slowest average roamers.
-
+• Wireless only → per-MAC+SSID `stats` → `where` on minimum row count → `sort` and `head` to keep the top slow averages.
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results.
+• Pick a top MAC and compare mobility behaviour in **Client 360** in Catalyst; expect order-of-magnitude agreement, not pixel-perfect times.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions as required. Consider visualizations: Table (macAddress, ssid, roam_count, avg_roam_ms), time series of roam events if timechart added in a follow-on panel, top-N list of slowest roamers.
+• Feed RF engineering. Pair with `cisco:dnac:wireless:rf` or AP health if available. For alerts, add a **time** bucketing (for example 15m bins) so one heavy poll is not a false spike.
+
+Step 5 — Troubleshooting
+• All null `roamDuration`: the Intent payload may not carry it; adjust field names in `props` for your Catalyst version.
+• Re-verify field names after controller or TA upgrade; duplicate MACs may need a `dedup` if the add-on double-emits in one poll.
+
 
 ## SPL
 
@@ -68,3 +67,4 @@ Table (macAddress, ssid, roam_count, avg_roam_ms), time series of roam events if
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

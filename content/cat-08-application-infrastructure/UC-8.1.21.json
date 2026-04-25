@@ -12,19 +12,28 @@
   "dataSources": "`index=proxy` `sourcetype=squid:access` native or extended log format",
   "app": "Custom (Squid access.log forwarding)",
   "spl": "index=proxy sourcetype=\"squid:access\"\n| rex field=_raw \"(?i)(?:TCP_[A-Z_]+)/(?<http_status>5\\d\\d)\"\n| where isnotnull(http_status)\n| bin _time span=5m\n| stats count by http_status, _time\n| where count >= 20",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Web.Web\n  where Web.status>=500\n  by Web.dest Web.uri_path Web.status span=5m\n| sort -count",
+  "cimModels": [
+    "Web"
+  ],
+  "dataModelAcceleration": "Web: enable Data Model Acceleration for the CIM `Web` dataset once your HTTP access or proxy access logs are tagged and mapped to the model; otherwise `cimSpl` tstats may return no rows. Most teams start with the raw-log search in Step 2 and add acceleration after CIM field aliases validate.",
   "description": "Squid logs cache result codes with embedded HTTP status (for example `TCP_MISS/503`). Elevated 5xx rates indicate origin or peer failures seen through the proxy.",
   "value": "Reduces blind spots when the proxy masks origin outages—5xx in Squid logs often match user-visible failures.",
+  "grandmaExplanation": "We use this to reduce blind spots when the proxy masks origin outages — 5xx in Squid logs often match user-visible failures.",
   "implementation": "Use `access_log` with Squid-native format so status codes are present. Forward via Universal Forwarder. Tune threshold to request volume.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Squid access.log forwarding).\n• Ensure the following data sources are available: `index=proxy` `sourcetype=squid:access` native or extended log format.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm access logs include `/status` style result codes; validate `rex` against a sample line from your deployment.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"squid:access\"\n| rex field=_raw \"(?i)(?:TCP_[A-Z_]+)/(?<http_status>5\\d\\d)\"\n| where isnotnull(http_status)\n| bin _time span=5m\n| stats count by http_status, _time\n| where count >= 20\n```\n\nUnderstanding this SPL\n\n**Squid Access Log HTTP 5xx and Error Result Codes** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` `sourcetype=squid:access` native or extended log format. **App/TA**: Custom (Squid access.log forwarding). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Stacked bar (5xx by code), timechart of 5xx/min, top clients if fields are extracted..",
   "visualization": "Stacked bar (5xx by code), timechart of 5xx/min, top clients if fields are extracted.",
-  "cimModels": [
-    "N/A"
-  ],
   "references": [
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    },
     {
       "title": "Squid Configuration Manual — Access Log",
       "url": "http://www.squid-cache.org/Doc/config/access_log/"
     }
   ],
+  "knownFalsePositives": "5xx errors spike during deployment rollouts, restart sequences, or backend service maintenance. Health-check noise and synthetic traffic can add false volume if not filtered.",
   "equipment": [
     "squid"
   ],
@@ -34,7 +43,5 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Squid access.log forwarding).\n• Ensure the following data sources are available: `index=proxy` `sourcetype=squid:access` native or extended log format.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm access logs include `/status` style result codes; validate `rex` against a sample line from your deployment.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"squid:access\"\n| rex field=_raw \"(?i)(?:TCP_[A-Z_]+)/(?<http_status>5\\d\\d)\"\n| where isnotnull(http_status)\n| bin _time span=5m\n| stats count by http_status, _time\n| where count >= 20\n```\n\nUnderstanding this SPL\n\n**Squid Access Log HTTP 5xx and Error Result Codes** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` `sourcetype=squid:access` native or extended log format. **App/TA**: Custom (Squid access.log forwarding). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Stacked bar (5xx by code), timechart of 5xx/min, top clients if fields are extracted..",
-  "grandmaExplanation": "We track bad upstream responses seen through your proxy so you are not surprised when sites fail behind the cache."
+  "reviewer": "@splunk-monitoring-use-cases"
 }

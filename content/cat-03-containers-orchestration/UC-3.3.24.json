@@ -22,6 +22,10 @@
     {
       "title": "OpenShift MachineHealthCheck documentation",
       "url": "https://docs.openshift.com/container-platform/latest/machine_management/deploying-machine-health-checks.html"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
     }
   ],
   "equipment": [
@@ -30,5 +34,7 @@
   "equipmentModels": [
     "kubernetes_openshift"
   ],
-  "grandmaExplanation": "We track when the cluster automatically replaces broken servers and alert when it happens too often, signalling a deeper problem."
+  "grandmaExplanation": "We keep an eye on machinehealthcheck remediations by tracking the same story your metrics tell: MachineHealthChecks automatically remediate unhealthy nodes by deleting and replacing them.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: `oc get machinehealthcheck -n openshift-machine-api -o json` scripted input, event forwarding\n• Have these sources flowing into Splunk: `sourcetype=openshift:machinehealthcheck`, `sourcetype=kube:events`\n• For app layout, inputs, and HEC, see docs/implementation-guide.md\n\nStep 1 — Configure data collection\nScripted input: `oc get machinehealthcheck -n openshift-machine-api -o json`. Parse `status.currentHealthy` vs `status.expectedMachines`. Also capture remediation events. Run every 300 seconds. Alert when remediations exceed 2 per hour or currentHealthy < expectedMachines.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust the time range and threshold as needed):\n\n```spl\nindex=openshift (sourcetype=\"kube:events\" involvedObject.kind=\"Machine\" reason=\"Remediated\") OR (sourcetype=\"openshift:machinehealthcheck\" currentHealthy<expectedMachines)\n| stats count as remediations, values(involvedObject.name) as machines by namespace, cluster\n| where remediations>0\n| sort -remediations\n```\n\nUnderstanding this SPL\n\n**MachineHealthCheck Remediations** — MachineHealthChecks automatically remediate unhealthy nodes by deleting and replacing them.\n\nDocumented **Data sources**: `sourcetype=openshift:machinehealthcheck`, `sourcetype=kube:events`. **App/TA** context: `oc get machinehealthcheck -n openshift-machine-api -o json` scripted input, event forwarding. Use the same index and sourcetype names you configured in production.\n\n**Pipeline walkthrough** — follow the search from top to bottom: narrow to the right index and sourcetype, extract or compute the fields the alert needs, then aggregate or filter to your threshold. Adjust macros or field names to match your field extractions.\n\nStep 3 — Validate\nConfirm that events land in the index and that a manual spot-check (small time window) matches the cluster or host reality. For Kubernetes and OpenShift data, sample rows should line up with what you see from the cluster command-line tool, the Kubernetes Dashboard (or OpenShift console), and your Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`) or OpenTelemetry collector view of the same objects. Compare with a known test case if you have one. Check permissions and field spelling.\n\nStep 4 — Operationalize\nAdd the saved search to a team dashboard, wire alert actions, and document who owns the runbook. Suggested views: Table (MHC, healthy, expected, remediations), Timeline of remediation events, Single value (total remediations/24h).",
+  "knownFalsePositives": "Test clusters, change windows, and blue-green or canary rollouts can trigger the same signals as incidents; tune namespaces, schedules, and thresholds to match how production is expected to behave."
 }

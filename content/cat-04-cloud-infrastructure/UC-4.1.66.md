@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.66.json — DO NOT EDIT -->
+
 ---
 id: "4.1.66"
 title: "AWS Config Rule Compliance Drift"
@@ -56,7 +58,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 • Expands multivalue fields with `mvexpand` — use `limit=` to cap row explosion.
 • Extracts structured paths (JSON/XML) with `spath`.
 • Extracts structured paths (JSON/XML) with `spath`.
-• `stats` rolls up events into metrics; results are split **by resourceId, configRuleName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by resourceId, configRuleName** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where state_changes > 1` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -77,6 +79,16 @@ index=aws sourcetype="aws:config:notification" configRuleList{}.complianceType=*
 | stats dc(complianceType) as state_changes by resourceId, configRuleName
 | where state_changes > 1
 | sort -state_changes
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

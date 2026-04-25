@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.108.json — DO NOT EDIT -->
+
 ---
 id: "1.2.108"
 title: "Kerberos Constrained Delegation Abuse"
@@ -13,7 +15,7 @@ Kerberos delegation allows services to impersonate users. Misconfigured or compr
 
 ## Value
 
-Kerberos delegation allows services to impersonate users. Misconfigured or compromised delegation targets enable privilege escalation to domain admin.
+Mis-set constrained or unconstrained delegation lets one service act as another user. Watching related AD changes closes a common path to lateral movement from web and line-of-business tiers.
 
 ## Implementation
 
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **is_suspicious** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by ServiceName, TargetUserName, IpAddress, TransitionedServices, is_suspicious** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by ServiceName, TargetUserName, IpAddress, TransitionedServices, is_suspicious** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where is_suspicious="High_Risk" OR count>50` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -103,9 +105,8 @@ index=wineventlog EventCode=4769 TransitionedServices!=""
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
   by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+| where count > 0
 ```
 
 ## Visualization

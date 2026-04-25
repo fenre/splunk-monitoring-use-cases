@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.3.22.json — DO NOT EDIT -->
+
 ---
 id: "4.3.22"
 title: "Dataproc Cluster and Job Failures"

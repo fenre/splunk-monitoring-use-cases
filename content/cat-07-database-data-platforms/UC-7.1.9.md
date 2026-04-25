@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.1.9.json — DO NOT EDIT -->
+
 ---
 id: "7.1.9"
 title: "Index Fragmentation"
@@ -22,6 +24,7 @@ Poll index fragmentation stats via DB Connect weekly (resource-intensive query �
 ## Detailed Implementation
 
 Prerequisites
+• In operations we confirm in pgAdmin, psql, and `pg_stat*` views, or the managed PostgreSQL console.
 • Install and configure the required add-on or app: DB Connect.
 • Ensure the following data sources are available: `sys.dm_db_index_physical_stats` (SQL Server), `pg_stat_user_indexes` (PostgreSQL).
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -54,30 +57,9 @@ The first pipeline stage scopes events using **index**: database; **sourcetype**
 • Pipeline stage (see **Index Fragmentation**): table server, database_name, table_name, index_name, avg_fragmentation_pct, page_count
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Index Fragmentation** — Highly fragmented indexes cause excessive I/O and slow query performance. Monitoring guides maintenance scheduling.
-
-Documented **Data sources**: `sys.dm_db_index_physical_stats` (SQL Server), `pg_stat_user_indexes` (PostgreSQL). **App/TA** (typical add-on context): DB Connect. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Databases.Instance_Stats` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (fragmented indexes), Bar chart (fragmentation by database), Heatmap (table × index fragmentation).
@@ -91,16 +73,10 @@ index=database sourcetype="dbconnect:index_stats"
 | sort -avg_fragmentation_pct
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
-```
-
 ## Visualization
 
 Table (fragmented indexes), Bar chart (fragmentation by database), Heatmap (table × index fragmentation).
 
 ## References
 
-- [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
+- [Splunk — DB Connect](https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX)

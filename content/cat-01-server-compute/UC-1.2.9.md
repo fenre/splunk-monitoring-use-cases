@@ -1,7 +1,8 @@
+<!-- AUTO-GENERATED from UC-1.2.9.json — DO NOT EDIT -->
+
 ---
 id: "1.2.9"
 title: "Windows Update Compliance"
-status: "verified"
 criticality: "medium"
 splunkPillar: "Security"
 ---
@@ -14,7 +15,7 @@ Unpatched systems are primary attack vectors. Tracking patch compliance across t
 
 ## Value
 
-Unpatched systems are primary attack vectors. Tracking patch compliance across the fleet supports vulnerability management and regulatory requirements.
+Patch evidence supports security and audit conversations with a defensible per-host view, not a dashboard guess.
 
 ## Implementation
 
@@ -54,10 +55,24 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:System". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Extracts fields with `rex` (regular expression).
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **days_since_update** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where days_since_update > 30` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1d
+| where count>=0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
 
 
 Step 3 — Validate
@@ -96,6 +111,15 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode=19
 | eval days_since_update = round((now() - last_update) / 86400, 0)
 | where days_since_update > 30
 | sort -days_since_update
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1d
+| where count>=0
 ```
 
 ## Visualization

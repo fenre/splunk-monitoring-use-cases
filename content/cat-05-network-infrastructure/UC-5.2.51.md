@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.2.51.json — DO NOT EDIT -->
+
 ---
 id: "5.2.51"
 title: "Check Point Log Rate and Capacity (Check Point)"
@@ -54,8 +56,8 @@ The first pipeline stage scopes events using **index**: checkpoint; **sourcetype
 
 • Scopes the data: index=checkpoint, sourcetype="cp_log", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time, orig** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by orig** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, orig** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by orig** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where events_5m > baseline*3 OR events_5m < baseline*0.2` — typically the threshold or rule expression for this monitoring goal.
 • `eval` defines or adjusts **anomaly** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Pipeline stage (see **Check Point Log Rate and Capacity (Check Point)**): table _time, orig, events_5m, baseline, anomaly
@@ -64,8 +66,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
+Compare key fields and timestamps in SmartConsole, SmartView, or the gateway’s local view so Splunk and Check Point match for the same events.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (log rate per gateway), Single value (current aggregate rate), Table (anomalies), Bar chart (rate by gateway).
 

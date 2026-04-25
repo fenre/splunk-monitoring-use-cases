@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.3.4.json — DO NOT EDIT -->
+
 ---
 id: "5.3.4"
 title: "SSL Certificate Expiry (F5 BIG-IP)"
@@ -56,8 +58,7 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
+In the F5 UI or in your certificate store process, compare certificate names, expiry, and hostnames to the same rows Splunk returns.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table sorted by days to expiry, Single value (expiring <30d), Status indicator.
 

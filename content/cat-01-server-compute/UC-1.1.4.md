@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.4.json — DO NOT EDIT -->
+
 ---
 id: "1.1.4"
 title: "Disk I/O Saturation (Linux)"
@@ -13,7 +15,7 @@ High I/O wait degrades application performance even when CPU and memory look hea
 
 ## Value
 
-High I/O wait degrades application performance even when CPU and memory look healthy. Catches storage bottlenecks before users complain.
+Slow disks show up as long waits even when CPU and memory charts look fine; we flag that pattern so storage or array issues get attention before apps time out.
 
 ## Implementation
 
@@ -57,7 +59,7 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 ```spl
 | tstats `summariesonly` avg(Performance.read_latency) as read_ms avg(Performance.write_latency) as write_ms
   from datamodel=Performance where nodename=Performance.Storage
-  by Performance.host Performance.mount span=5m
+  by Performance.host span=5m
 | eval worst_ms=max(read_ms, write_ms)
 | where worst_ms > 20
 ```
@@ -80,7 +82,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (latency over time by host), Heatmap of I/O wait across hosts.
@@ -119,7 +121,7 @@ index=os sourcetype=iostat host=*
 ```spl
 | tstats `summariesonly` avg(Performance.read_latency) as read_ms avg(Performance.write_latency) as write_ms
   from datamodel=Performance where nodename=Performance.Storage
-  by Performance.host Performance.mount span=5m
+  by Performance.host span=5m
 | eval worst_ms=max(read_ms, write_ms)
 | where worst_ms > 20
 ```

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.3.17.json — DO NOT EDIT -->
+
 ---
 id: "4.3.17"
 title: "Cloud Logging Export Sink and Exclusion Filter"
@@ -63,18 +65,17 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 Understanding this CIM / accelerated SPL
 
-**Cloud Logging Export Sink and Exclusion Filter** — Log sink and exclusion changes affect what is exported to Splunk or other destinations. Unauthorized changes create visibility gaps.
+**Cloud Logging Export Sink and Exclusion Filter** — Log sink and exclusion changes affect what is exported to Splunk or other destinations.
 
-Documented **Data sources**: Audit logs (logging.googleapis.com). **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
 
 
 Step 3 — Validate

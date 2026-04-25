@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.8.8.json — DO NOT EDIT -->
+
 ---
 id: "5.8.8"
 title: "SNMP Polling Gap Detection"
@@ -51,17 +53,17 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 **Pipeline walkthrough**
 
 • Uses `tstats` against precomputed summaries; ensure the referenced data model is accelerated.
-• `stats` rolls up events into metrics; results are split **by host, sourcetype** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, sourcetype** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **expected_polls** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **gap_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where gap_pct > 20` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Confirm `tstats` access to the needed indexes; this search uses `tstats` on raw data summaries, not the CIM Performance model.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Align `tstats`’s 300s expected interval with your real SNMP poll job in the IP poller; compare a quiet lab device’s `snmp:system` volume to the NMS and confirm forwarder latency is not the gap.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (device, expected, actual, gap %), Single value (devices with gaps), Heatmap.

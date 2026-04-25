@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.2.40.json — DO NOT EDIT -->
+
 ---
 id: "5.2.40"
 title: "Meraki VPN Tunnel and Failover Health"
@@ -50,14 +52,37 @@ The first pipeline stage scopes events using **index**: cisco_network; **sourcet
 **Pipeline walkthrough**
 
 • Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by device_serial, tunnel_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by device_serial, tunnel_id** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where state != "up"` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Meraki VPN Tunnel and Failover Health**): table device_serial tunnel_id peer state _time
 
 
-Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Sessions.All_Sessions
+  by All_Sessions.user All_Sessions.src All_Sessions.dest All_Sessions.action span=1h
+| sort -count
+```
+
+Understanding this CIM / accelerated SPL
+
+This block uses `tstats` on the Network_Sessions data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` against accelerated summaries for the Network_Sessions model — enable acceleration and confirm CIM tags on your source data.
+• Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+
+Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+
+
+
+Step 3 — Validate
+In the Meraki cloud dashboard, use the same organization, network, and time range as the search. Confirm VPN paths, tunnel states, uplinks, and device names you expect there match the Splunk view.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (tunnel, state), Table (down tunnels), Timeline (failover events).
 
@@ -70,6 +95,15 @@ index=cisco_network sourcetype="meraki:api" vpn_tunnel=*
 | table device_serial tunnel_id peer state _time
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Sessions.All_Sessions
+  by All_Sessions.user All_Sessions.src All_Sessions.dest All_Sessions.action span=1h
+| sort -count
+```
+
 ## Visualization
 
 Status grid (tunnel, state), Table (down tunnels), Timeline (failover events).
@@ -77,3 +111,4 @@ Status grid (tunnel, state), Table (down tunnels), Timeline (failover events).
 ## References
 
 - [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+- [CIM: Network_Sessions](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Sessions)

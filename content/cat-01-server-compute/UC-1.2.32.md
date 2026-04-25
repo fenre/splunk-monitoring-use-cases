@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.32.json — DO NOT EDIT -->
+
 ---
 id: "1.2.32"
 title: "WMI Event Subscription Persistence"
@@ -13,7 +15,7 @@ WMI event subscriptions are a stealthy persistence mechanism that survives reboo
 
 ## Value
 
-WMI event subscriptions are a stealthy persistence mechanism that survives reboots. Used by APT groups and fileless malware.
+WMI persistence is silent and durable—this view supports proactive hunts, not just cleanup after a scanner finds something.
 
 ## Implementation
 
@@ -55,6 +57,20 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Pipeline stage (see **WMI Event Subscription Persistence**): table _time, host, wmi_type, User, Name, Destination, Query
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -70,6 +86,15 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational"
 | eval wmi_type=case(EventCode=19,"Filter Created",EventCode=20,"Consumer Created",EventCode=21,"Binding Created")
 | table _time, host, wmi_type, User, Name, Destination, Query
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1h
+| where count>0
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.21.json — DO NOT EDIT -->
+
 ---
 id: "4.1.21"
 title: "ALB/NLB Access Logs and 5xx Errors"
@@ -49,7 +51,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 **Pipeline walkthrough**
 
 • Scopes the data: index=aws, sourcetype="aws:elb:accesslogs". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by target_port, elb_status_code, request_url** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by target_port, elb_status_code, request_url** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
@@ -64,6 +66,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ```spl
 index=aws sourcetype="aws:elb:accesslogs" elb_status_code>=500
 | stats count by target_port, elb_status_code, request_url
+| sort -count
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Web.proxy
+  where (Web.status >= 400 OR like(Web.status, "5%") OR like(Web.status, "403"))
+  by Web.src Web.url Web.status span=1h
 | sort -count
 ```
 

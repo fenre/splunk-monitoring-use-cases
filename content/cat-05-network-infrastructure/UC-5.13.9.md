@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.9.json — DO NOT EDIT -->
+
 ---
 id: "5.13.9"
 title: "Client Health Score Overview (Wired vs Wireless)"
@@ -69,6 +71,7 @@ Step 5 — Troubleshooting
 • **Nonsense rows after `mvexpand`:** dump one **`categories`** value with `| head 1` and **`spath` manually**; if the TA double-wraps JSON, add **`| rex`** or adjust **`spath`** path per `docs/implementation-guide.md`—do not over-trust the first install day.
 • **GUI mismatch:** align **time zone** and “last 3 hours” in Catalyst vs **Last 4 hours** in Splunk before opening a TAC case.
 
+
 ## SPL
 
 ```spl
@@ -83,3 +86,4 @@ Stacked bar or pie (total_clients by health_category), trellis by client_type, s
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

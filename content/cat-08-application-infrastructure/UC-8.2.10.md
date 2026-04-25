@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.2.10.json — DO NOT EDIT -->
+
 ---
 id: "8.2.10"
 title: "Class Loading Issues"
@@ -52,11 +54,12 @@ The first pipeline stage scopes events using **index**: application; **sourcetyp
 • Scopes the data: index=application, sourcetype="log4j". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Applies an explicit `search` filter to narrow the current result set.
 • Extracts fields with `rex` (regular expression).
-• `stats` rolls up events into metrics; results are split **by host, exception_class, missing_class** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, exception_class, missing_class** so each row reflects one combination of those dimensions.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with JBoss, WebLogic, or Tomcat admin consoles, or `catalina` / server logs on the host, for the same window. Confirm hostnames and fields match the vendor UI.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (class loading errors with details), Bar chart (errors by type), Timeline (error occurrences).

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.3.6.json — DO NOT EDIT -->
+
 ---
 id: "2.3.6"
 title: "Virtual Disk Backing Chain and Snapshot Age"
@@ -51,11 +53,10 @@ The first pipeline stage scopes events using **index**: virtualization; **source
 **Pipeline walkthrough**
 
 • Scopes the data: index=virtualization, sourcetype=kvm_disk_chain. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, vm_name, disk** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, vm_name, disk** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where depth > 3 OR snapshot_days > 30` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Virtual Disk Backing Chain and Snapshot Age**): table host vm_name disk depth snapshot_days
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

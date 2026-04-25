@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.62.json — DO NOT EDIT -->
+
 ---
 id: "1.1.62"
 title: "Network Bandwidth Utilization by Interface (Linux)"
@@ -9,100 +11,59 @@ splunkPillar: "Observability"
 
 ## Description
 
-High bandwidth utilization indicates potential capacity constraints or unexpected traffic patterns.
+Builds five-minute byte deltas on each interface from cumulative counters, converts the combined send+receive volume into megabits per second, and flags intervals above a high baseline (500 Mbps here—tune to your link speeds).
 
 ## Value
 
-High bandwidth utilization indicates potential capacity constraints or unexpected traffic patterns.
+Knowing which NICs are saturated for long stretches drives upgrades, rebalancing, and QoS before queuing and drops spread across apps that share the same link.
 
 ## Implementation
 
-Use Splunk_TA_nix interfaces input to track bytes in/out. Calculate bandwidth percentage based on interface speed. Create alerts for sustained utilization above 70% or unexpected spikes.
+Keep the `interfaces` input on a short interval (≤60s) so first/last inside each five-minute bin reflects real use. Set `>500` from your p95 capacity (for example, alert when sustained above 70% of a 1 Gbps link by using `>700`).
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix`.
-• Ensure the following data sources are available: `sourcetype=interfaces`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• `Splunk_TA_nix` with the **interfaces** scripted input pointed at the **os** index.
+• Optional: CIM add-on to tag the sourcetype so the **tstats** block works.
 
 Step 1 — Configure data collection
-Use Splunk_TA_nix interfaces input to track bytes in/out. Calculate bandwidth percentage based on interface speed. Create alerts for sustained utilization above 70% or unexpected spikes.
+If samples are sparser than the five-minute **bin**, narrow the bin or switch to a `timechart` of **per_second* functions on summarized metrics.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+Tuning recipe: set **mbps** threshold to `0.7 * link_gbps * 1000` for 70% util alerts once you add a `lookup` for link speed per `host`+`interface`.
 
-```spl
-index=os sourcetype=interfaces host=*
-| stats latest(bytes_in) as latest_in, earliest(bytes_in) as earliest_in by host, interface
-| eval bytes_transferred=(latest_in-earliest_in)
-| stats sum(bytes_transferred) as total_bytes by host
-| eval bandwidth_util_pct=(total_bytes/interface_capacity_bits)*100
-```
-
-Understanding this SPL
-
-**Network Bandwidth Utilization by Interface (Linux)** — High bandwidth utilization indicates potential capacity constraints or unexpected traffic patterns.
-
-Documented **Data sources**: `sourcetype=interfaces`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: interfaces. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=interfaces. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, interface** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eval` defines or adjusts **bytes_transferred** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eval` defines or adjusts **bandwidth_util_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats `summariesonly` sum(Performance.bytes_in) as bytes_in
-                        sum(Performance.bytes_out) as bytes_out
-  from datamodel=Performance where nodename=Performance.Network
-  by Performance.host Performance.interface span=5m
-```
-
-Understanding this CIM / accelerated SPL
-
-**Network Bandwidth Utilization by Interface (Linux)** — High bandwidth utilization indicates potential capacity constraints or unexpected traffic patterns.
-
-Documented **Data sources**: `sourcetype=interfaces`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+**Optional CIM / accelerated form** — The `cimSpl` mirrors the same **mbps** idea over **All_Traffic**; rename **All_Traffic.dvc** / **src_interface** in your build if your CIM mapping uses different interface field names (many shops alias **src_interface** to **interface**).
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`ip -s link` for errors, `sar -n DEV` (if `sar` exists) for sanity on throughput, and compare peak **mbps** in Splunk to what you expect from application charts.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart, Heatmap
+Pair panels with the **Dropped Packets** use case in this library for the same **interface** field.
+
+
 
 ## SPL
 
 ```spl
 index=os sourcetype=interfaces host=*
-| stats latest(bytes_in) as latest_in, earliest(bytes_in) as earliest_in by host, interface
-| eval bytes_transferred=(latest_in-earliest_in)
-| stats sum(bytes_transferred) as total_bytes by host
-| eval bandwidth_util_pct=(total_bytes/interface_capacity_bits)*100
+| bin _time span=5m
+| stats first(bytes_in) as s_in last(bytes_in) as e_in first(bytes_out) as s_out last(bytes_out) as e_out by host, interface, _time
+| eval dbytes_in=e_in-s_in
+| eval dbytes_out=e_out-s_out
+| eval mbps=((dbytes_in+dbytes_out)*8)/300/1000000
+| where mbps>500
 ```
 
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` sum(Performance.bytes_in) as bytes_in
-                        sum(Performance.bytes_out) as bytes_out
-  from datamodel=Performance where nodename=Performance.Network
-  by Performance.host Performance.interface span=5m
+| tstats `summariesonly` sum(All_Traffic.bytes_in) as bi sum(All_Traffic.bytes_out) as bo
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.dvc All_Traffic.src_interface span=5m
+| eval mbps=((bi+bo)*8)/300/1000000
+| where mbps>500
 ```
 
 ## Visualization
@@ -111,5 +72,5 @@ Timechart, Heatmap
 
 ## References
 
-- [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
-- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
+- [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)

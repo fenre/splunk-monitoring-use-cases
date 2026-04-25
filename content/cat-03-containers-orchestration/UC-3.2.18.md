@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-3.2.18.json — DO NOT EDIT -->
+
 ---
 id: "3.2.18"
 title: "Kubernetes Ingress Backend Health"
@@ -56,7 +58,7 @@ The first pipeline stage scopes events using **index**: k8s; **sourcetype**: kub
 • Scopes the data: index=k8s, sourcetype="kube:ingress:nginx". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **is_backend_error** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by host, path, upstream, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, path, upstream, _time** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **error_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where error_rate > 5 OR backend_errors > 10` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Kubernetes Ingress Backend Health**): table _time host path upstream backend_errors total error_rate
@@ -64,7 +66,7 @@ The first pipeline stage scopes events using **index**: k8s; **sourcetype**: kub
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Confirm that events are present in the index and that the search returns expected results. For Kubernetes and OpenShift data, sample rows should line up with what you see from the cluster command-line tool, the Kubernetes Dashboard (or OpenShift console), and your Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`) or OpenTelemetry collector view of the same objects. Compare with known good and bad scenarios where you have them. Verify field extractions and index permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, path, upstream, errors, rate), Line chart (error rate over time), Single value (current 5xx rate).

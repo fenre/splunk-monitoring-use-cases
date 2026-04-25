@@ -1,7 +1,8 @@
+<!-- AUTO-GENERATED from UC-1.2.51.json — DO NOT EDIT -->
+
 ---
 id: "1.2.51"
 title: "Process Creation with Command Line Auditing"
-status: "verified"
 criticality: "high"
 splunkPillar: "Security"
 ---
@@ -14,7 +15,7 @@ Full command-line visibility on process creation is the foundation of threat det
 
 ## Value
 
-Full command-line visibility on process creation is the foundation of threat detection. Reveals encoded PowerShell, LOLBin abuse, and suspicious child processes.
+Living-off-the-land binary chains are a staple of post-ex—pattern plus lineage beats raw volume.
 
 ## Implementation
 
@@ -59,9 +60,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Processes
-  by Processes.dest Processes.process_name Processes.user span=1h
-| sort -count
+  from datamodel=Endpoint where nodename=Endpoint.Processes
+  by Processes.parent_process_name Processes.process_name Processes.user span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -99,9 +100,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4688
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Processes
-  by Processes.dest Processes.process_name Processes.user span=1h
-| sort -count
+  from datamodel=Endpoint where nodename=Endpoint.Processes
+  by Processes.parent_process_name Processes.process_name Processes.user span=1h
+| where count>0
 ```
 
 ## Visualization

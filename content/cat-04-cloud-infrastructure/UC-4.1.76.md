@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.76.json — DO NOT EDIT -->
+
 ---
 id: "4.1.76"
 title: "Lambda Layer Version Compliance"
@@ -58,7 +60,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 • `eval` defines or adjusts **layer_arn** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
 • Filters the current rows with `where isnull(approved)` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by userIdentity.arn, requestParameters.functionName, layer_arn** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by userIdentity.arn, requestParameters.functionName, layer_arn** so each row reflects one combination of those dimensions.
 
 
 Step 3 — Validate
@@ -77,6 +79,16 @@ index=aws sourcetype="aws:cloudtrail" eventSource="lambda.amazonaws.com" eventNa
 | lookup approved_lambda_layers layer_arn OUTPUT approved
 | where isnull(approved)
 | stats count by userIdentity.arn, requestParameters.functionName, layer_arn
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  where match(All_Changes.action, "(?i).+")
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
+| sort -count
 ```
 
 ## Visualization

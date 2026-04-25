@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.82.json — DO NOT EDIT -->
+
 ---
 id: "1.1.82"
 title: "D-State (Uninterruptible Sleep) Process Detection"
@@ -9,62 +11,44 @@ splunkPillar: "Observability"
 
 ## Description
 
-D-state processes indicate hanging I/O operations or kernel deadlocks requiring immediate investigation.
+Counts processes in **D** (uninterruptible sleep) per **host** from each `ps` poll, so you can spot stuck I/O waiters that will not answer **SIGKILL** until the kernel finishes the op.
 
 ## Value
 
-D-state processes indicate hanging I/O operations or kernel deadlocks requiring immediate investigation.
+Long **D** states line up with bad storage, **NFS** hangs, and driver bugs; they are a top call for storage and OS SRE before app teams burn days in app logs only.
 
 ## Implementation
 
-Monitor ps output for D-state (uninterruptible sleep) processes. Create alerts when any D-state processes exist for >5 minutes. Include wchan (wait channel) showing what I/O operation is blocking.
+Use the `S` or `state` field your **ps** sourcetype actually ships; add `| where dstate_count>5` if a single **D** from a **df** snapshot is normal on your **NFS** clients.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix`.
-• Ensure the following data sources are available: `sourcetype=ps`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• **ps** script on a **5**-**15** minute cadence; faster if you need near-real-time **D** detection for trading stacks.
 
-Step 1 — Configure data collection
-Monitor ps output for D-state (uninterruptible sleep) processes. Create alerts when any D-state processes exist for >5 minutes. Include wchan (wait channel) showing what I/O operation is blocking.
-
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=ps host=* state="D"
-| stats count as dstate_count by host
-| where dstate_count > 0
-```
-
-Understanding this SPL
-
-**D-State (Uninterruptible Sleep) Process Detection** — D-state processes indicate hanging I/O operations or kernel deadlocks requiring immediate investigation.
-
-Documented **Data sources**: `sourcetype=ps`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: ps. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=ps. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where dstate_count > 0` — typically the threshold or rule expression for this monitoring goal.
+**CIM** — **process_state** naming may differ (`D` vs `uninterruptible`); align `cimSpl` after you see **Fieldsummary** on `Processes`.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`ps -o pid,stat,wchan,cmd` (or `top` then **H** for threads) on the host; use `echo w > /proc/sysrq-trigger` only with an operator and a runbook, not casually.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table
+Open a **storage** bridge with **dmesg** **I/O** errors the same minute.
+
+
 
 ## SPL
 
 ```spl
-index=os sourcetype=ps host=* state="D"
+index=os sourcetype=ps host=* (S="D" OR state="D")
 | stats count as dstate_count by host
-| where dstate_count > 0
+| where dstate_count>0
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count from datamodel=Endpoint.Processes where Processes.process_state="D" by Processes.dest Processes.process_name span=5m | where count>0
 ```
 
 ## Visualization
@@ -73,4 +57,5 @@ Alert, Table
 
 ## References
 
-- [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
+- [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.5.9.json — DO NOT EDIT -->
+
 ---
 id: "4.5.9"
 title: "Serverless Cost Tracking by Function"
@@ -57,7 +59,7 @@ The first pipeline stage scopes events using **index**: aws, azure, gcp; **sourc
 • `eval` defines or adjusts **line_cost** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **fn** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where match(lower(ProductName).lower(service).lower(resource_type), "(lambda|function|cloudfunctions|functions)")` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by cloud, fn** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by cloud, fn** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 

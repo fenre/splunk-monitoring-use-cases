@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.3.17.json — DO NOT EDIT -->
+
 ---
 id: "6.3.17"
 title: "Incremental Backup Chain Integrity"
@@ -51,15 +53,15 @@ The first pipeline stage scopes events using **index**: backup; **sourcetype**: 
 
 • Scopes the data: index=backup, sourcetype="backup:chain_verify". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where chain_ok=0 OR missing_restore_point=1 OR verify_status="Failed"` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by job_name, vm_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by job_name, vm_name** so each row reflects one combination of those dimensions.
 • Pipeline stage (see **Incremental Backup Chain Integrity**): table job_name vm_name chain_ok missing_restore_point verify_status last_check
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (broken chains), Single value (VMs with integrity issues), Timeline (verify jobs).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Table (broken chains), Single value (VMs with integrity issues), Timeline (verify jobs).
 
 ## SPL
 

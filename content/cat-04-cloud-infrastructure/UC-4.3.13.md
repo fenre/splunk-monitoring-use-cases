@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.3.13.json — DO NOT EDIT -->
+
 ---
 id: "4.3.13"
 title: "Cloud Build Build Failures and Duration"

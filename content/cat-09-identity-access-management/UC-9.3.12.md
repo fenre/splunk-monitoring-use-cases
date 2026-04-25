@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.3.12.json — DO NOT EDIT -->
+
 ---
 id: "9.3.12"
 title: "Consent Grant Abuse"
@@ -83,7 +85,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with Entra ID sign-in and audit logs in the Microsoft Entra or Azure portal for the same users, resources, and time window.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (consent events), Bar chart (apps by consent count), Pie chart (user vs admin consent).
@@ -109,10 +111,6 @@ index=azure sourcetype="azure:aad:audit"
 ## Visualization
 
 Table (consent events), Bar chart (apps by consent count), Pie chart (user vs admin consent).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

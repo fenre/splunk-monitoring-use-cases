@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.2.37.json — DO NOT EDIT -->
+
 ---
 id: "4.2.37"
 title: "Front Door WAF Blocks"
@@ -49,29 +51,8 @@ The first pipeline stage scopes events using **index**: azure; **sourcetype**: m
 **Pipeline walkthrough**
 
 • Scopes the data: index=azure, sourcetype="mscs:azure:diagnostics". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by ruleName_s, clientIP_s, hostName_s** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by ruleName_s, clientIP_s, hostName_s** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.action, IDS_Attacks.signature, IDS_Attacks.src, IDS_Attacks.dest | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Front Door WAF Blocks** — Managed rule blocks protect origins; tracking rule IDs separates scanning noise from targeted application abuse.
-
-Documented **Data sources**: Front Door diagnostic logs (WebApplicationFirewallLog). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Intrusion_Detection.IDS_Attacks` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
@@ -86,12 +67,6 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=azure sourcetype="mscs:azure:diagnostics" log_s="WebApplicationFirewallLog" action_s="Block"
 | stats count by ruleName_s, clientIP_s, hostName_s
 | sort -count
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.action, IDS_Attacks.signature, IDS_Attacks.src, IDS_Attacks.dest | sort - count
 ```
 
 ## Visualization

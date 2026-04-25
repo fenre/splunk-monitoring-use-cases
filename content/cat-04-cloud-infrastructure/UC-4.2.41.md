@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.2.41.json — DO NOT EDIT -->
+
 ---
 id: "4.2.41"
 title: "Private Link DNS Resolution"
@@ -50,30 +52,9 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 **Pipeline walkthrough**
 
 • Scopes the data: index=network, sourcetype="dns:query". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by fqdn, src** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by fqdn, src** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **fail_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where fail_pct > 5 AND total > 20` — typically the threshold or rule expression for this monitoring goal.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Network_Resolution.DNS by DNS.src | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Private Link DNS Resolution** — Private Endpoint FQDNs resolve via private DNS zones; NXDOMAIN or public resolution leaks traffic or breaks apps.
-
-Documented **Data sources**: Azure DNS private zone query logs (if enabled), VM DNS client logs, `sourcetype=dns:query`. **App/TA** (typical add-on context): Custom (DNS query logs), `Splunk_TA_microsoft-cloudservices`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Network_Resolution.DNS` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
@@ -89,12 +70,6 @@ index=network sourcetype="dns:query" zone_type="private"
 | stats count(eval(rcode!="NOERROR")) as failures, count as total by fqdn, src
 | eval fail_pct=round(100*failures/total,2)
 | where fail_pct > 5 AND total > 20
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Network_Resolution.DNS by DNS.src | sort - count
 ```
 
 ## Visualization

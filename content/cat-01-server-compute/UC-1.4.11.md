@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.4.11.json — DO NOT EDIT -->
+
 ---
 id: "1.4.11"
 title: "Boot Order and UEFI/BIOS Configuration Drift"
@@ -13,7 +15,7 @@ Unauthorized or accidental boot order changes can prevent systems from booting f
 
 ## Value
 
-Unauthorized or accidental boot order changes can prevent systems from booting from the correct disk or PXE. Tracking supports change audit and recovery.
+If someone or something changes which disk or network path the server boots from, you can catch it before the next reboot leaves a system stuck at a wrong image or a surprise installer.
 
 ## Implementation
 
@@ -22,15 +24,15 @@ Use vendor APIs or scripts to export boot order and Secure Boot state. Compare t
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: Custom scripted input (vendor tools, dmidecode).
-• Ensure the following data sources are available: `dmidecode -t bios`, vendor REST/CLI (iDRAC, iLO) for boot order.
+• Install and configure the required add-on or app: Custom scripted input (Redfish, iDRAC, iLO, or `dmidecode` where that is sufficient).
+• Ensure the following data sources are available: `dmidecode -t bios` (Linux) and out-of-band boot-order exports from the BMC.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-Use vendor APIs or scripts to export boot order and Secure Boot state. Compare to a lookup of expected configuration. Alert on drift. Run after changes or daily.
+On Linux, `dmidecode` can backfill basic firmware info, but out-of-band boot order and Secure Boot are usually from Redfish, racadm, or the vendor’s REST API. Ingest a single `boot_order` string per `host` and a `lookup` of `expected_order` and optional `expected_secure_boot`.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+Run the following SPL in Search (then save as report or alert; fix `inputlookup` pattern to your lookup shape):
 
 ```spl
 index=hardware sourcetype=boot_config host=*
@@ -41,29 +43,21 @@ index=hardware sourcetype=boot_config host=*
 | table host current_order expected_order secure_boot
 ```
 
+Production use usually joins on `host` to the lookup with `| lookup` instead of a broad `append`—adjust to your data.
+
 Understanding this SPL
 
 **Boot Order and UEFI/BIOS Configuration Drift** — Unauthorized or accidental boot order changes can prevent systems from booting from the correct disk or PXE. Tracking supports change audit and recovery.
 
-Documented **Data sources**: `dmidecode -t bios`, vendor REST/CLI (iDRAC, iLO) for boot order. **App/TA** (typical add-on context): Custom scripted input (vendor tools, dmidecode). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: hardware; **sourcetype**: boot_config. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
-
 **Pipeline walkthrough**
 
-• Scopes the data: index=hardware, sourcetype=boot_config. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.
-• `eval` defines or adjusts **match** — often to normalize units, derive a ratio, or prepare for thresholds.
-• Filters the current rows with `where match="Drift"` — typically the threshold or rule expression for this monitoring goal.
-• Pipeline stage (see **Boot Order and UEFI/BIOS Configuration Drift**): table host current_order expected_order secure_boot
+• Scopes the data: `index=hardware`, `sourcetype=boot_config`.
+• `stats` keeps the latest `boot_order` and `secure_boot` per **host**.
+• The lookup and `match` test detect drift; `table` lists offenders.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
-Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, current vs. expected boot order), Compliance percentage.
+After a change window, read boot order in the out-of-band UI and align the lookup. For full details, see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
@@ -74,6 +68,12 @@ index=hardware sourcetype=boot_config host=*
 | eval match=if('current_order'='expected_order', "Match", "Drift")
 | where match="Drift"
 | table host current_order expected_order secure_boot
+```
+
+## CIM SPL
+
+```spl
+N/A — boot order and secure-boot state are not a CIM data model; use a custom `boot_config` sourcetype and a lookup of approved settings.
 ```
 
 ## Visualization

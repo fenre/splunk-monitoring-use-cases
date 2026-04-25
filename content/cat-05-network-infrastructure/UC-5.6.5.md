@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.6.5.json — DO NOT EDIT -->
+
 ---
 id: "5.6.5"
 title: "DHCP Scope Exhaustion"
@@ -50,38 +52,17 @@ The first pipeline stage scopes events using **index**: dhcp; **sourcetype**: Dh
 **Pipeline walkthrough**
 
 • Scopes the data: index=dhcp, sourcetype="DhcpSrvLog". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by scope_name, scope_range** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by scope_name, scope_range** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **total** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **used_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where used_pct > 90` — typically the threshold or rule expression for this monitoring goal.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare lease and scope utilization in Infoblox Grid Manager, Windows Server DHCP, or your ISC/BIND tooling to the Splunk rows for the same scopes and servers.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge per scope, Table, Bar chart.
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
@@ -90,6 +71,16 @@ index=dhcp sourcetype="DhcpSrvLog" OR sourcetype="infoblox:dhcp"
 | stats dc(assigned_ip) as used by scope_name, scope_range
 | eval total = scope_end - scope_start
 | eval used_pct=round(used/total*100,1) | where used_pct > 90
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Sessions.DHCP
+  by DHCP.mac DHCP.ip DHCP.action span=1h
+| where count>0
+| sort -count
 ```
 
 ## Visualization

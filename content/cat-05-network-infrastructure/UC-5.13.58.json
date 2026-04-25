@@ -13,12 +13,12 @@
     {
       "regulation": "NIST-800-53",
       "version": "Rev. 5",
-      "clause": "CM-2",
+      "clause": "IR-4",
       "mode": "detects-violation-of",
       "assurance": "partial",
-      "assurance_rationale": "Detects devices running software versions that deviate from the Catalyst Center golden image baseline.",
-      "controlObjective": "Identifies firmware non-compliance against the approved software baseline.",
-      "evidenceArtifact": "Saved search UC-5.13.56 scheduled daily; non-compliant device list exported to change management dashboard."
+      "assurance_rationale": "Failed software image or firmware operations can leave network devices in an unknown or half-upgraded state; rapid detection and response reduces incident impact.",
+      "controlObjective": "Generates near-real-time notice when Catalyst Center reports SWIM or image update failures for managed devices so response can follow the IR playbook.",
+      "evidenceArtifact": "Alert history from UC-5.13.58 with `failureReason` and `deviceName`, linked to incident tickets and rollback or retry records in change tools."
     },
     {
       "regulation": "NIST-800-53",
@@ -26,9 +26,9 @@
       "clause": "SI-2",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "Supports flaw remediation by tracking firmware version compliance and upgrade progress.",
-      "controlObjective": "Demonstrates that devices are being maintained on approved software versions.",
-      "evidenceArtifact": "Firmware compliance percentage trending report; upgrade success/failure dashboard."
+      "assurance_rationale": "Identifying and remediating failed image upgrades is part of an effective software flaw and patch management process for the managed network stack.",
+      "controlObjective": "Surfaces which devices failed to take the target image so teams can re-run, schedule maintenance, or fall back in line with the organization’s update policy.",
+      "evidenceArtifact": "List of failed upgrades by `deviceFamily` and `targetVersion` from Splunk, with follow-up work tracked to closure in the change system."
     }
   ],
   "dataSources": "Catalyst Center SWIM status via custom scripted input or event notifications → `sourcetype=cisco:dnac:swim`",
@@ -39,8 +39,9 @@
   "implementation": "Extend the SWIM collector so each failed upgrade produces at least: `deviceName`, `deviceFamily`, `runningVersion`, `targetVersion`, `upgradeStatus=FAILED`, and `failureReason` (from API fields such as `failureReason`, `message`, or nested error objects in `GET /dna/intent/api/v1/network-device-image-updates` responses). Authenticate with `POST /dna/system/api/v1/auth/token`.\n\n**Scripted input** (short interval during change windows, for example 300 s):\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/TA_catalyst_swim/bin/collect_swim.py]\ninterval = 300\nsourcetype = cisco:dnac:swim\nindex = catalyst\ndisabled = 0\n```\n\n**Event notifications (optional):** If your Catalyst Center can push SWIM failure events, configure a Platform webhook to Splunk HEC with `sourcetype=cisco:dnac:swim` and merge failure payloads into the same index for correlation. Ensure deduplication if both poll and webhook are active (use a stable `event_id` in the script/HEC payload).",
   "visualization": "Table (deviceName, failureReason, runningVersion, targetVersion), top failure reasons, trend of failure_count over time during upgrade windows.",
   "cimModels": [
-    "Change"
+    "N/A"
   ],
+  "knownFalsePositives": "Transient image push failures that succeed on a second run during the same change window are common in brownfield sites with flaky power or management paths. A single failure row can also be an API lag while the device is still on the last known-good image, so we always check Catalyst Center SWIM and device reachability before treating it as a production outage.",
   "references": [
     {
       "title": "Splunkbase app 7538",
@@ -57,7 +58,7 @@
   "equipmentModels": [
     "cisco_sdwan"
   ],
-  "detailedImplementation": "Prerequisites\n• UC-5.13.55 and SWIM data with `upgradeStatus` and `failureReason` (or mappable error fields) populated.\n\nStep 1 — Field extraction\nFrom `GET /dna/intent/api/v1/network-device-image-updates` (or device-specific update detail endpoints in your API version), map API error or status text into a single `failureReason` string for Splunk. If the body is JSON with nested `failure` objects, use `| spath` or index-time `KV_MODE=json` in props if you emit raw JSON.\n\nToken lifecycle: `POST /dna/system/api/v1/auth/token` before each run or on 401; never embed secrets in the script file.\n\nStep 2 — Alert SPL\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:swim\" upgradeStatus=\"FAILED\" | stats count as failure_count values(failureReason) as reasons by deviceName, deviceFamily, runningVersion, targetVersion | sort -failure_count\n```\n\nStep 3 — HEC (optional real-time)\nIn Catalyst Center, add a webhook destination to `https://<splunk-hec>:8088/services/collector/event` with `Authorization: Splunk <token>`; subscribe to SWIM/firmware failure categories if available; assign `sourcetype=cisco:dnac:swim` in HEC or override via HEC `metadata` in the event wrapper.\n\nStep 4 — Validate\nInduce a controlled failure in lab or use historical failure events; confirm alert rows match Catalyst Center.\n\nStep 5 — Operationalize\nSet alert throttling to avoid flapping, attach runbook (retry, check reachability, rollback).",
+  "detailedImplementation": "Prerequisites\n• UC-5.13.55 and SWIM data with `upgradeStatus` and `failureReason` (or mappable error fields) populated in `cisco:dnac:swim`.\n\nStep 1 — Field extraction (Catalyst Center)\nFrom `GET /dna/intent/api/v1/network-device-image-updates` (or the device image update detail in your API version), map API error or status text to a single `failureReason` in Splunk. If the body is JSON with nested `failure` objects, use `spath` in Search or set `KV_MODE=json` in **props** for the sourcetype. Authenticate with `POST /dna/system/api/v1/auth/token` and refresh the token on 401; keep secrets in Splunk’s credential store, not in the script file.\n\nStep 2 — Alert SPL\n\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:swim\" upgradeStatus=\"FAILED\" | stats count as failure_count values(failureReason) as reasons by deviceName, deviceFamily, runningVersion, targetVersion | sort -failure_count\n```\n\nStep 3 — HEC (optional, faster than poll alone)\nPoint Catalyst **Platform** webhooks to Splunk HEC when your release supports SWIM or deployment failure events; set default **sourcetype** to `cisco:dnac:swim` (or merge into the same index with a dedup key if both poll and webhook run).\n\nStep 4 — Validate\nReproduce a known failure in lab or compare samples to **Catalyst Center > SWIM** for the same device and time.\n\nStep 5 — Operationalize and troubleshooting\n• **Throttling:** dedupe on `deviceName` + `targetVersion` in a 15–30 minute window to avoid duplicate pages during API retries from the poller.\n• **No failures in Splunk but UI shows one:** the script may map only a subset of error codes; expand the `failureReason` map and confirm `upgradeStatus=FAILED` is not normalized to a different string.\n• **Noise from canary or lab devices:** add a `lookup` of excluded hostnames or site IDs. **Stuck FAILED after user recovery:** clear state in the controller or wait for the next full poll; some failures are marked FAILED until a successful retry completes.\n",
   "grandmaExplanation": "We immediately flag any device that failed to update its software, along with the reason why, so your team can fix it before it causes problems.",
   "prerequisiteUseCases": [
     "UC-5.13.55"

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.4.20.json — DO NOT EDIT -->
+
 ---
 id: "9.4.20"
 title: "PAM Agent Health Monitoring"
@@ -51,14 +53,14 @@ The first pipeline stage scopes events using **index**: pam; **sourcetype**: cyb
 **Pipeline walkthrough**
 
 • Scopes the data: index=pam, sourcetype="cyberark:agent_heartbeat". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by agent_type, hostname** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by agent_type, hostname** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **secs_since** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where secs_since > 300` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **PAM Agent Health Monitoring**): table agent_type, hostname, secs_since
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with CyberArk PrivateArk/Password Vault Web Access (or BeyondTrust / vendor console) for the same sessions, vault activity, and alerts.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (agent × host), Single value (unhealthy agents), Line chart (heartbeat age).
@@ -97,10 +99,6 @@ index=pam sourcetype="cyberark:agent_heartbeat"
 ## Visualization
 
 Status grid (agent × host), Single value (unhealthy agents), Line chart (heartbeat age).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

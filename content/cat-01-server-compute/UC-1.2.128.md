@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.128.json — DO NOT EDIT -->
+
 ---
 id: "1.2.128"
 title: "Service Account Logon Anomalies"
@@ -56,7 +58,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
 • Filters the current rows with `where is_service_account="yes"` — typically the threshold or rule expression for this monitoring goal.
 • `eval` defines or adjusts **src** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by TargetUserName, src** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by TargetUserName, src** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where LogonTypes!=5 AND LogonTypes!=3` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 

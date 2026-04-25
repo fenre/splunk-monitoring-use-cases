@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.104.json — DO NOT EDIT -->
+
 ---
 id: "1.2.104"
 title: "Disk Latency and I/O Performance (Windows)"
@@ -13,7 +15,7 @@ High disk latency directly impacts application performance and user experience. 
 
 ## Value
 
-High disk latency directly impacts application performance and user experience. Proactive monitoring prevents performance degradation and identifies failing storage.
+Disk latency drives every app on the box. Surfacing sustained high seconds-per-read/write on Windows volumes flags array, driver, or partner path issues before timeouts cascade.
 
 ## Implementation
 
@@ -52,33 +54,20 @@ The first pipeline stage scopes events using **index**: perfmon.
 
 • Scopes the data: index=perfmon. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **latency_ms** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, instance, counter** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, instance, counter** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where AvgLatency>20 OR MaxLatency>100` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+Optional CIM / accelerated variant (`Perfmon:LogicalDisk` as `Performance.Storage`—alias `read_latency` from `Avg. Disk sec/Read` in ms):
 
 ```spl
-| tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct
+| tstats `summariesonly` avg(Performance.read_latency) as rl
   from datamodel=Performance where nodename=Performance.Storage
-  by Performance.host Performance.mount span=1h
-| where disk_pct > 85
+  by Performance.host Performance.mount span=5m
+| where rl > 20
 ```
 
-Understanding this CIM / accelerated SPL
-
-**Disk Latency and I/O Performance (Windows)** — High disk latency directly impacts application performance and user experience. Proactive monitoring prevents performance degradation and identifies failing storage.
-
-Documented **Data sources**: `sourcetype=Perfmon:LogicalDisk`. **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.
-• Filters the current rows with `where disk_pct > 85` — typically the threshold or rule expression for this monitoring goal.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable **data model acceleration** on `Performance` (Storage). If `read_latency` is not populated, keep the `Perfmon:LogicalDisk` search in Step 2; do **not** use `storage_used_percent` for latency.
 
 
 Step 3 — Validate
@@ -100,10 +89,10 @@ index=perfmon source="Perfmon:LogicalDisk" counter IN ("Avg. Disk sec/Read", "Av
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct
+| tstats `summariesonly` avg(Performance.read_latency) as rl
   from datamodel=Performance where nodename=Performance.Storage
-  by Performance.host Performance.mount span=1h
-| where disk_pct > 85
+  by Performance.host span=5m
+| where rl > 20
 ```
 
 ## Visualization

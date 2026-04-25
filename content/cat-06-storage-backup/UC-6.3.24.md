@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.3.24.json — DO NOT EDIT -->
+
 ---
 id: "6.3.24"
 title: "Tape Library Slot Utilization"
@@ -54,16 +56,16 @@ The first pipeline stage scopes events using **index**: backup; **sourcetype**: 
 • Scopes the data: index=backup, sourcetype="tape_library:capacity". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **slot_util_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **media_expiring_30d** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by library_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by library_name** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where pct_used > 85 OR expiring_soon > 0` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Tape Library Slot Utilization**): table library_name, used, total, pct_used, expiring_soon
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (slot utilization % per library), Table (libraries with slot counts and expiring media), Line chart (slot usage trend), Single value (libraries near capacity).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Gauge (slot utilization % per library), Table (libraries with slot counts and expiring media), Line chart (slot usage trend), Single value (libraries near capacity).
 
 Scripted input (generic example)
 This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
@@ -97,6 +99,16 @@ index=backup sourcetype="tape_library:capacity"
 | table library_name, used, total, pct_used, expiring_soon
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.storage_used_percent) as used_pct
+  from datamodel=Performance where nodename=Performance.Storage
+  by Performance.host Performance.object span=1h
+| where used_pct > 80
+| sort - used_pct
+```
+
 ## Visualization
 
 Gauge (slot utilization % per library), Table (libraries with slot counts and expiring media), Line chart (slot usage trend), Single value (libraries near capacity).
@@ -104,3 +116,4 @@ Gauge (slot utilization % per library), Table (libraries with slot counts and ex
 ## References
 
 - [Splunk Add-on for Microsoft Windows](https://splunkbase.splunk.com/app/742)
+- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

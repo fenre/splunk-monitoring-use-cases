@@ -1,7 +1,8 @@
+<!-- AUTO-GENERATED from UC-1.1.65.json — DO NOT EDIT -->
+
 ---
 id: "1.1.65"
 title: "Auditd Rule Violation Detection"
-status: "verified"
 criticality: "critical"
 splunkPillar: "Security"
 ---
@@ -10,62 +11,57 @@ splunkPillar: "Security"
 
 ## Description
 
-Auditd violations provide forensic evidence of security incidents and unauthorized system access.
+Ranks SELinux or AppArmor-style **denied** access decisions seen in `linux_audit`, grouped by host, access vector class, and process name, when the count in the window is higher than a small floor.
 
 ## Value
 
-Auditd violations provide forensic evidence of security incidents and unauthorized system access.
+A burst of access-vector denials often lines up with a mis-deployed build, a real probe, or policy drift; central counts let IR and platform teams start from a concrete `(host, avc_type, comm)` row instead of raw logs only.
 
 ## Implementation
 
-Configure comprehensive auditd rules covering file access, syscalls, and privilege escalation. Monitor AVC (Access Vector Cache) denials. Create alerts on violation patterns indicating potential compromise.
+Map `type`, `avc_type`, and `comm` in **props** for the sourcetype your TA actually emits (strings vary). Tighten the leading search to the rule keys you care about, and add **allow** lists for known noisy workloads once you have history.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix`.
-• Ensure the following data sources are available: `sourcetype=linux_audit`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• `Splunk_TA_nix` with **augment**-style parsing of **linux_audit** into multi-line JSON or **key=value** (your props determine whether `type=AVC` is literally present in `_raw` or normalized differently).
+• **CIM** note: a straight **tstats** on **Authentication** or **Change** only mirrors this UC after you have **eventtypes**+**tags** that project **AVC** denials into those models. Until then, keep the primary SPL on the raw sourcetype.
 
 Step 1 — Configure data collection
-Configure comprehensive auditd rules covering file access, syscalls, and privilege escalation. Monitor AVC (Access Vector Cache) denials. Create alerts on violation patterns indicating potential compromise.
+Harden `auditd` rules, forward **/var/log/audit/audit.log** (or the journal path your distro uses) into the **os** index, and add **SME**-owned allow lists for build pipelines.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+The saved SPL uses a numeric **>5**; convert to a token `$threshold$` in the saved search if you need per-environment values.
 
 ```spl
 index=os sourcetype=linux_audit type=AVC
 | stats count by host, avc_type, comm
-| where count > threshold
+| where count>5
 ```
 
-Understanding this SPL
+**Understanding this SPL** — Counts **denied** decisions per tuple; you can add `| search avc_type=file` style clauses on day one to drop noise you already understand.
 
-**Auditd Rule Violation Detection** — Auditd violations provide forensic evidence of security incidents and unauthorized system access.
-
-Documented **Data sources**: `sourcetype=linux_audit`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, avc_type, comm** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where count > threshold` — typically the threshold or rule expression for this monitoring goal.
+**CIM** — The `cimSpl` on this use case is the same failure-count form; it only populates after you project audit denials into **Authentication** (tags + fields).
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On the host, `ausearch -m avc` or your distro’s `auditctl` status should show the same seconds and subjects as Splunk for a reproduced event. On non-prod, trigger a **known** policy denial in a test directory and search it back in Splunk.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Alert
+Feed **host+avc_type+comm** to IR if counts spike across many machines at once; for single-host spikes, start with a recent **package** change and SELinux **boolean** diffs before assuming breach.
 
 ## SPL
 
 ```spl
 index=os sourcetype=linux_audit type=AVC
 | stats count by host, avc_type, comm
-| where count > threshold
+| where count>5
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count from datamodel=Authentication.Authentication where Authentication.action=failure by Authentication.user Authentication.dest span=1h | where count>5
 ```
 
 ## Visualization
@@ -74,4 +70,5 @@ Table, Alert
 
 ## References
 
-- [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
+- [Splunk CIM (Authentication, Change) for mapped variants](https://docs.splunk.com/Documentation/CIM/latest/User/Overview)

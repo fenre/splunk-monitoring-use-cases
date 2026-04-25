@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.25.json — DO NOT EDIT -->
+
 ---
 id: "4.1.25"
 title: "SQS Dead-Letter Queue Message Count"
@@ -68,6 +70,16 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/SQS" metric_name="Approxima
 | search QueueName="*dlq*" OR QueueName="*dead*"
 | where Average > 0
 | table _time QueueName Average
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

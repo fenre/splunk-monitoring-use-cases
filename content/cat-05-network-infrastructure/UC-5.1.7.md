@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.1.7.json — DO NOT EDIT -->
+
 ---
 id: "5.1.7"
 title: "Configuration Change Detection"
@@ -54,7 +56,7 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (device, user, time), Timeline, Single value (changes last 24h).
@@ -65,6 +67,15 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=network sourcetype="cisco:ios" "%SYS-5-CONFIG_I"
 | rex "Configured from (?<config_source>\S+) by (?<user>\S+)"
 | table _time host user config_source
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.command All_Changes.action span=1h
+| sort -count
 ```
 
 ## Visualization

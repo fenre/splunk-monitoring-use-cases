@@ -8,17 +8,22 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog, THP metrics`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "dataSources": "`sourcetype=syslog` (khugepaged / THP messages) and optional debug or metrics feeds if you enable them",
+  "app": "`Splunk_TA_nix`",
   "spl": "index=os sourcetype=syslog (\"thp_defrags\" OR \"khugepaged\" OR \"thp_collapse\")\n| stats count by host\n| where count > 5",
-  "description": "THP defrag stalls cause application latency spikes affecting real-time and interactive workloads.",
-  "value": "THP defrag stalls cause application latency spikes affecting real-time and interactive workloads.",
-  "implementation": "Enable THP statistics logging via /sys/kernel/debug/thp*. Create alerts when defrag stalls occur during peak application hours. Recommend adjusting THP settings to madvise mode for latency-sensitive workloads.",
+  "description": "Counts kernel log lines tied to transparent huge page defragmentation, which often shows up as latency blips for latency-sensitive services on the same host.",
+  "value": "Knowing when a host is spending extra time in THP maintenance helps you decide whether to switch profiles (for example toward `madvise`) or to move jitter-sensitive apps.",
+  "implementation": "Ingest the kernel or daemon logs that mention THP and khugepaged. Alert when more than a small number of lines appear in the window, then confirm on the host with THP settings and application guidance.",
   "visualization": "Alert, Table",
   "cimModels": [
     "N/A"
   ],
+  "knownFalsePositives": "Noise from unrelated subsystems that share substrings; hosts where logging verbosity was turned up; legitimate one-off maintenance that still crosses a low count—tighten keywords or time bounds per environment.",
   "references": [
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
     {
       "title": "Splunk Lantern — use case library",
       "url": "https://lantern.splunk.com/"
@@ -28,6 +33,6 @@
     "linux",
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=syslog, THP metrics`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable THP statistics logging via /sys/kernel/debug/thp*. Create alerts when defrag stalls occur during peak application hours. Recommend adjusting THP settings to madvise mode for latency-sensitive workloads.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog (\"thp_defrags\" OR \"khugepaged\" OR \"thp_collapse\")\n| stats count by host\n| where count > 5\n```\n\nUnderstanding this SPL\n\n**Transparent Hugepage Defragmentation Stalls** — THP defrag stalls cause application latency spikes affecting real-time and interactive workloads.\n\nDocumented **Data sources**: `sourcetype=syslog, THP metrics`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table",
-  "grandmaExplanation": "THP defrag stalls cause application latency spikes affecting real-time and interactive workloads — so you find out before users do when something is slowing down or breaking."
+  "detailedImplementation": "Prerequisites\n• Forward security-relevant **syslog** from Linux hosts, including **kern**-priority lines where THP messages appear on your distribution.\n\nStep 1 — Configure data collection\nNo extra TA feature is required beyond reliable syslog forwarding. If messages never arrive, check rsyslog/journald forwarding rules and that Splunk is not dropping **kern** facilities.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=os sourcetype=syslog (\"thp_defrags\" OR \"khugepaged\" OR \"thp_collapse\")\n| stats count by host\n| where count > 5\n```\n\nTune `>5` to your log volume. Consider adding `host=prod-*` style filters for scoped rollouts.\n\n**Understanding this SPL** — Simple frequency count of THP-related substrings by host, alerting when the pattern appears more than a few times in the chosen lookback.\n\n\nStep 3 — Validate\nOn a lab host, read current policy with your distribution’s ** sysfs** or ** sysctl** view of transparent hugepage settings, reproduce a low-rate pattern if safe, and confirm matching lines in Splunk. Use `top` or `htop` while testing to see user-visible latency, not to parse THP (THP is kernel-side).\n\nStep 4 — Operationalize\nDocument policy choices (`always` vs `madvise` vs `never`) in the runbook and pair each alert with owners of databases or real-time apps on the node.\n\n",
+  "grandmaExplanation": "We help you know when the operating system is busy reshuffling its large memory pages, which can make some programs stutter, so you can change settings or move fussy work elsewhere."
 }

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.101.json — DO NOT EDIT -->
+
 ---
 id: "1.2.101"
 title: "File Share Access Auditing (SMB)"
@@ -13,7 +15,7 @@ File share access auditing detects unauthorized data access, lateral movement vi
 
 ## Value
 
-File share access auditing detects unauthorized data access, lateral movement via mapped drives, and ransomware encrypting network shares.
+Knowing who touched which UNC path supports both insider cases and proving who had access to regulated files when something walks out the door.
 
 ## Implementation
 
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **AccessType** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by SubjectUserName, IpAddress, ShareName, AccessType** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by SubjectUserName, IpAddress, ShareName, AccessType** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count>100 OR UniqueFiles>50` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -71,6 +73,16 @@ index=wineventlog EventCode IN (5140, 5145)
 | stats count dc(RelativeTargetName) as UniqueFiles by SubjectUserName, IpAddress, ShareName, AccessType
 | where count>100 OR UniqueFiles>50
 | sort -count
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action="success"
+  by Authentication.user Authentication.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

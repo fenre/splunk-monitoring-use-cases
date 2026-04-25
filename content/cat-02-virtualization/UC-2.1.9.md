@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.9.json — DO NOT EDIT -->
+
 ---
 id: "2.1.9"
 title: "VM Sprawl Detection"
@@ -22,7 +24,7 @@ Run weekly report on powered-off VMs >30 days. Also identify idle VMs: powered o
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `TA-vmware`.
+• Install and configure the required add-on or app: `Splunk_TA_vmware`.
 • Ensure the following data sources are available: `sourcetype=vmware:inv:vm`.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -45,7 +47,7 @@ Understanding this SPL
 
 **VM Sprawl Detection** — Orphaned, powered-off, or idle VMs waste storage, IP addresses, backup capacity, and licenses. Regular cleanup frees significant resources.
 
-Documented **Data sources**: `sourcetype=vmware:inv:vm`. **App/TA** (typical add-on context): `TA-vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: `sourcetype=vmware:inv:vm`. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:inv:vm. That sourcetype matches what this use case lists under Data sources.
 
@@ -57,7 +59,6 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 • Filters the current rows with `where days_off > 30` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **VM Sprawl Detection**): table vm_name, host, days_off, numCpu, memoryMB, storage_committed
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

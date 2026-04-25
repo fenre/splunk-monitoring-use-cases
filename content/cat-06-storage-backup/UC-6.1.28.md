@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.1.28.json — DO NOT EDIT -->
+
 ---
 id: "6.1.28"
 title: "MDS Slow Drain Detection"
@@ -52,16 +54,16 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 
 • Scopes the data: index=network, sourcetype="cisco:mds". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Extracts fields with `rex` (regular expression).
-• `stats` rolls up events into metrics; results are split **by switch, port, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by switch, port, _time** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where max_txwait > 100` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare port and error counters with the switch CLI (`show interface`, `porterrshow`) or DCNM for the same switch, port, and interval.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (ports with slow drain), Line chart (TxWait over time), Topology (affected path highlighting).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production—not generic platform steps only. Consider visualizations: Table (ports with slow drain), Line chart (TxWait over time), Topology (affected path highlighting).
 
 ## SPL
 

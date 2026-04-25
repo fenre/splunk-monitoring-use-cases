@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.6.json — DO NOT EDIT -->
+
 ---
 id: "4.4.6"
 title: "Multi-Cloud Security Posture (CSPM) Findings"
@@ -55,7 +57,7 @@ The first pipeline stage scopes events using **index**: security; **sourcetype**
 • `eval` defines or adjusts **cloud** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **severity** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where severity="CRITICAL" OR severity="HIGH"` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by cloud, severity, finding_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by cloud, severity, finding_type** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 

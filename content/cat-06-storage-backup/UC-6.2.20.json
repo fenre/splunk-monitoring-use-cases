@@ -12,13 +12,15 @@
   "dataSources": "`ceph osd df` / status JSON indexed as `ceph:osd` with `utilization`, `apply_class_*` fields",
   "app": "Custom scripted input or community Ceph TA; Universal Forwarder + HEC",
   "spl": "index=storage sourcetype=\"ceph:osd\" earliest=-30m\n| eval util=coalesce(utilization, pcent, space_used_percent)\n| where util > 85 OR state=\"nearfull\" OR state=\"backfillfull\" OR match(_raw, \"nearfull|backfillfull\")\n| stats max(util) as max_util values(state) as states by osd_id, cluster_name\n| sort - max_util",
+  "cimSpl": "| tstats `summariesonly` max(Performance.storage_used_percent) as used_pct\n  from datamodel=Performance where nodename=Performance.Storage\n  by Performance.host Performance.object span=1h\n| where used_pct > 80\n| sort - used_pct",
+  "cimModels": [
+    "Performance"
+  ],
+  "dataModelAcceleration": "Enable Data Model Acceleration for the CIM Performance data model (Performance.Storage node / storage_used_percent) after vendor fields are aliased to CIM; otherwise the cimSpl tstats variant may return no rows.",
   "description": "OSDs approaching nearfull or backfillfull slow rebalancing and risk write failures during recovery. Per-OSD utilization highlights imbalanced CRUSH weights or failed additions.",
   "value": "Prevents cluster-wide ingest stalls and gives operators time to expand before PGs cannot backfill.",
   "implementation": "Run `ceph osd df -f json` every 5 minutes via scripted input; flatten `nodes` array into one event per OSD. Set `props.conf` for `ceph:osd`. Page when util > 85% for any OSD class serving production pools.",
   "visualization": "Bar chart (util by OSD), table (osd_id, util, host).",
-  "cimModels": [
-    "N/A"
-  ],
   "references": [
     {
       "title": "Ceph Documentation — monitoring",
@@ -27,13 +29,19 @@
     {
       "title": "Red Hat Ceph Storage — troubleshooting",
       "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
     }
   ],
+  "knownFalsePositives": "Backfill and rebalancing after node changes can move the cluster toward full before new capacity is absorbed; check recovery and CRUSH activity in the cluster manager.",
   "equipment": [
     "ceph",
     "dell_emc"
   ],
   "status": "draft",
+  "grandmaExplanation": "We warn when Ceph disks are getting too full so the cluster can rebalance in time and you avoid write stops or emergency expansion.",
   "lastReviewed": "2026-04-24",
   "splunkVersions": [
     "9.2+",

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.45.json — DO NOT EDIT -->
+
 ---
 id: "4.1.45"
 title: "Systems Manager (SSM) Patch Compliance"
@@ -49,7 +51,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 **Pipeline walkthrough**
 
 • Scopes the data: index=aws, sourcetype="aws:ssm:compliance". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by status, InstanceId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by status, InstanceId** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
@@ -64,6 +66,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ```spl
 index=aws sourcetype="aws:ssm:compliance" ComplianceType="Patch" status!="Compliant"
 | stats count by status, InstanceId
+| sort -count
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Updates.Updates
+  where match(Updates.status, "(?i)non-?compliant|missing|failed|not.?installed")
+  by Updates.dest Updates.app span=1d
 | sort -count
 ```
 

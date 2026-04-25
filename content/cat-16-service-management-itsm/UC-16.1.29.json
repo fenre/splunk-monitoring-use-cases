@@ -19,6 +19,7 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "BMC Control-M Automation API overview",
@@ -29,6 +30,7 @@
       "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
     }
   ],
+  "knownFalsePositives": "Busy or odd job states during code moves, new folder cutovers, one-off re-runs, or test folders still mixed into production; compare with the scheduler before you change how jobs are defined.",
   "equipment": [
     "controlm"
   ],
@@ -38,5 +40,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We call out jobs that start much later than we expected, so upstream delays do not make every downstream file land late.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: Control-M workload definitions + run metadata via Automation API.\n• Data: `controlm:job` events with `scheduled_time`, `start_time`, `forecast_window_sec` (normalized from order/forecast API).\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nPopulate `forecast_window_sec` from job attributes; default 300s if null.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=cicd sourcetype=\"controlm:job\"\n| eval late_start=if(isnotnull(scheduled_time) AND isnotnull(start_time) AND start_time>scheduled_time+forecast_window_sec,1,0)\n| where late_start=1 AND status IN (\"Running\",\"Wait Host\",\"Wait Resource\")\n| eval delay_min=round((start_time-scheduled_time)/60,1)\n| table job_name, folder, scheduled_time, start_time, delay_min, controlm_server\n| sort -delay_min\n```\n\nUnderstanding this search\nLate starts compress downstream runtimes and breach business deadlines.\n\nStep 3 — Validate\nCompare with the Control-M job plan and run history in the job scheduler. Reconcile job and folder names, start and end times, and queue or pool use for a few highlighted jobs.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Column chart (delay distribution), Table (worst jobs)."
 }

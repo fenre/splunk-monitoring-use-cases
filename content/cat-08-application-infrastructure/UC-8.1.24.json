@@ -12,19 +12,23 @@
   "dataSources": "`index=cache` `sourcetype=memcached:stats` (`bytes`, `limit_maxbytes`)",
   "app": "Custom scripted input (`stats` command) or metrics pipeline",
   "spl": "index=cache sourcetype=\"memcached:stats\"\n| eval mem_pct=if(limit_maxbytes>0, round(bytes/limit_maxbytes*100,2), null())\n| timechart span=5m max(mem_pct) as used_pct by host\n| where used_pct > 90",
-  "description": "`bytes` approaching `limit_maxbytes` drives evictions and elevated miss latency. Tracking utilization avoids surprise memory pressure.",
-  "value": "Prevents cache thrash and latency cliffs as datasets grow.",
-  "implementation": "Poll `stats` every minute; map counters to fields. Correlate with `evictions` and `curr_items`.",
-  "visualization": "Gauge (used %), line chart (bytes vs limit), overlay eviction rate.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "`bytes` approaching `limit_maxbytes` drives evictions and elevated miss latency. Tracking utilization avoids surprise memory pressure.",
+  "value": "Prevents cache thrash and latency cliffs as datasets grow.",
+  "grandmaExplanation": "We help you prevent cache thrash and latency cliffs as datasets grow.",
+  "implementation": "Poll `stats` every minute; map counters to fields. Correlate with `evictions` and `curr_items`.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`stats` command) or metrics pipeline.\n• Ensure the following data sources are available: `index=cache` `sourcetype=memcached:stats` (`bytes`, `limit_maxbytes`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm `limit_maxbytes` is non-zero for your instance; some builds report 0 when unset—handle with `eval`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cache sourcetype=\"memcached:stats\"\n| eval mem_pct=if(limit_maxbytes>0, round(bytes/limit_maxbytes*100,2), null())\n| timechart span=5m max(mem_pct) as used_pct by host\n| where used_pct > 90\n```\n\nUnderstanding this SPL\n\n**Memcached Memory Utilization Against limit_maxbytes** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=cache` `sourcetype=memcached:stats` (`bytes`, `limit_maxbytes`). **App/TA**: Custom scripted input (`stats` command) or metrics pipeline. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Gauge (used %), line chart (bytes vs limit), overlay eviction rate..",
+  "visualization": "Gauge (used %), line chart (bytes vs limit), overlay eviction rate.",
   "references": [
     {
       "title": "Memcached protocol — Statistics",
       "url": "https://github.com/memcached/memcached/blob/master/doc/protocol.txt"
     }
   ],
+  "knownFalsePositives": "Cache misses spike after cache flush, deploys with new cache keys, or during warm-up after restart. Compare with those events before treating as a fault.",
   "equipment": [
     "memcached"
   ],
@@ -34,7 +38,5 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`stats` command) or metrics pipeline.\n• Ensure the following data sources are available: `index=cache` `sourcetype=memcached:stats` (`bytes`, `limit_maxbytes`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm `limit_maxbytes` is non-zero for your instance; some builds report 0 when unset—handle with `eval`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cache sourcetype=\"memcached:stats\"\n| eval mem_pct=if(limit_maxbytes>0, round(bytes/limit_maxbytes*100,2), null())\n| timechart span=5m max(mem_pct) as used_pct by host\n| where used_pct > 90\n```\n\nUnderstanding this SPL\n\n**Memcached Memory Utilization Against limit_maxbytes** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=cache` `sourcetype=memcached:stats` (`bytes`, `limit_maxbytes`). **App/TA**: Custom scripted input (`stats` command) or metrics pipeline. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Gauge (used %), line chart (bytes vs limit), overlay eviction rate..",
-  "grandmaExplanation": "We watch how full your memory cache is so you can grow it before everything starts getting thrown out."
+  "reviewer": "@splunk-monitoring-use-cases"
 }

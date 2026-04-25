@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.17.json — DO NOT EDIT -->
+
 ---
 id: "5.13.17"
 title: "Network Health Score Trending"
@@ -67,6 +69,7 @@ Step 5 — Troubleshooting
 • **Out-of-range** values: rare **TAC** bugs; **clamp** in presentation and open a case with **Catalyst** logs.
 • **Step jump after TA upgrade:** **field** extraction or **parsing** change—`fieldsummary` the week of upgrade.
 
+
 ## SPL
 
 ```spl
@@ -81,3 +84,4 @@ Line or area timechart of avg_health, reference lines for SLO, annotations for c
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.2.10.json — DO NOT EDIT -->
+
 ---
 id: "2.2.10"
 title: "Failover Cluster Node Health and Quorum"
@@ -53,7 +55,6 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • `eval` defines or adjusts **severity** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Pipeline stage (see **Failover Cluster Node Health and Quorum**): table _time, host, EventCode, severity, Message
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

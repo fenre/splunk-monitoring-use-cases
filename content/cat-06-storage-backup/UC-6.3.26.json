@@ -12,13 +12,15 @@
   "dataSources": "`ceph -s -f json` or `ceph df` summary indexed as `sourcetype=ceph:status` (same feed as UC-6.1.14) with `health_detail`/`summary` fields",
   "app": "Custom scripted input / ceph-mgr prometheus exporter translated to events",
   "spl": "index=storage sourcetype=\"ceph:status\" earliest=-30m\n| search \"nearfull\" OR \"full\" OR \"backfillfull\"\n| eval flag=coalesce(health_detail, summary, health_summary)\n| stats latest(_time) as last_seen latest(health) as health latest(flag) as detail latest(osd_up) as osd_up latest(osd_in) as osd_in by cluster_name\n| sort - last_seen",
+  "cimSpl": "| tstats `summariesonly` max(Performance.storage_used_percent) as used_pct\n  from datamodel=Performance where nodename=Performance.Storage\n  by Performance.host Performance.object span=1h\n| where used_pct > 80\n| sort - used_pct",
+  "cimModels": [
+    "Performance"
+  ],
+  "dataModelAcceleration": "Enable Data Model Acceleration for the CIM Performance data model (Performance.Storage node / storage_used_percent) after vendor fields are aliased to CIM; otherwise the cimSpl tstats variant may return no rows.",
   "description": "When too many OSDs cross `nearfull` or `full` thresholds, Ceph stops accepting client writes to affected pools—an operational outage distinct from generic `HEALTH_WARN` text.",
   "value": "Gives storage SREs a dedicated alert for capacity-induced write suppression so they can expand the cluster or reweight OSDs before applications freeze.",
   "implementation": "Ensure your JSON parser preserves `health.checks` messages or the stringified `health_detail` blob containing `nearfull`. If using Prometheus instead, map `ceph_osd_nearfull` gauges into Splunk metrics and mirror this logic with `mstats`. Pair with UC-6.1.14 for overall health.",
   "visualization": "Single value (clusters in nearfull), table (cluster, detail), link to OSD utilization dashboard.",
-  "cimModels": [
-    "N/A"
-  ],
   "references": [
     {
       "title": "Ceph Documentation — Monitoring OSDs",
@@ -27,13 +29,19 @@
     {
       "title": "Ceph Documentation — Full OSDs",
       "url": "https://docs.ceph.com/en/latest/rados/operations/add-or-rm-osds/"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
     }
   ],
+  "knownFalsePositives": "Backfill and rebalancing after node changes can move the cluster toward full before new capacity is absorbed; check recovery and CRUSH activity in the cluster manager.",
   "equipment": [
     "ceph",
     "prometheus"
   ],
   "status": "draft",
+  "grandmaExplanation": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working.",
   "lastReviewed": "2026-04-24",
   "splunkVersions": [
     "9.2+",

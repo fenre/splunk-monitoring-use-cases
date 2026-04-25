@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.74.json — DO NOT EDIT -->
+
 ---
 id: "5.13.74"
 title: "Catalyst Center Data Collection Health (Meta)"

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.76.json — DO NOT EDIT -->
+
 ---
 id: "1.2.76"
 title: "AdminSDHolder Modification"
@@ -13,7 +15,7 @@ The AdminSDHolder container controls ACLs on all privileged AD groups. Modifying
 
 ## Value
 
-The AdminSDHolder container controls ACLs on all privileged AD groups. Modifying it grants persistent hidden admin access that survives permission resets.
+Changes to this special folder can re-grant admin rights to the wrong people in hard-to-notice ways. Catching edits quickly limits how long a stealthy attacker can keep domain-wide control.
 
 ## Implementation
 
@@ -53,30 +55,17 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Pipeline stage (see **AdminSDHolder Modification**): table _time, host, SubjectUserName, AttributeLDAPDisplayName, AttributeValue, OperationType
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+Optional CIM / accelerated variant (Directory Service Change 5136 in `Change`):
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=success
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| search Authentication.user=*admin* OR Authentication.user=root
+  from datamodel=Change.All_Changes
+  where (like(All_Changes.object,"%AdminSDHolder%") OR like(All_Changes.object,"*CN=AdminSDHolder*"))
+  by All_Changes.user All_Changes.dest span=1h
+| where count >= 1
 ```
 
-Understanding this CIM / accelerated SPL
-
-**AdminSDHolder Modification** — The AdminSDHolder container controls ACLs on all privileged AD groups. Modifying it grants persistent hidden admin access that survives permission resets.
-
-Documented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 5136). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.
-• Applies an explicit `search` filter to narrow the current result set.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable **data model acceleration** on `Change` (All_Changes). The `ObjectDN` filter in the primary search is the clearest; align CIM `object` to that DN.
 
 
 Step 3 — Validate
@@ -98,10 +87,10 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=success
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| search Authentication.user=*admin* OR Authentication.user=root
+  from datamodel=Change.All_Changes
+  where (like(All_Changes.object,"%AdminSDHolder%") OR like(All_Changes.object,"*CN=AdminSDHolder*"))
+  by All_Changes.user All_Changes.dest span=1h
+| where count >= 1
 ```
 
 ## Visualization
@@ -111,4 +100,4 @@ Table (modifications), Single value (count — target: 0), Alert with SOC escala
 ## References
 
 - [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
-- [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)

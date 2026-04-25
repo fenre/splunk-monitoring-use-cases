@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.2.39.json — DO NOT EDIT -->
+
 ---
 id: "4.2.39"
 title: "Event Hub Capture Lag"
@@ -50,10 +52,125 @@ The first pipeline stage scopes events using **index**: azure; **sourcetype**: m
 **Pipeline walkthrough**
 
 • Scopes the data: index=azure, sourcetype="mscs:azure:metrics". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by resourceId, bin(_time, 5m)** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by resourceId, bin(_time, 5m)** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where lag_ms > 600000` — typically the threshold or rule expression for this monitoring goal.
 • `eval` defines or adjusts **lag_min** — often to normalize units, derive a ratio, or prepare for thresholds.
 
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Event Hub Capture Lag** — Capture to ADLS/Blob enables batch analytics; lag between enqueue and file availability delays downstream pipelines.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on accelerated data model the CPU-related Performance model — enable that model in Data Models and CIM add-ons, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Event Hub Capture Lag** — Capture to ADLS/Blob enables batch analytics; lag between enqueue and file availability delays downstream pipelines.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Event Hub Capture Lag** — Capture to ADLS/Blob enables batch analytics; lag between enqueue and file availability delays downstream pipelines.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Event Hub Capture Lag** — Capture to ADLS/Blob enables batch analytics; lag between enqueue and file availability delays downstream pipelines.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Event Hub Capture Lag** — Capture to ADLS/Blob enables batch analytics; lag between enqueue and file availability delays downstream pipelines.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -70,6 +187,15 @@ index=azure sourcetype="mscs:azure:metrics" resourceType="Microsoft.EventHub/nam
 | eval lag_min=round(lag_ms/60000,1)
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
 ## Visualization
 
 Line chart (capture lag), Table (namespace, lag minutes), Single value (worst lag).
@@ -77,3 +203,4 @@ Line chart (capture lag), Table (namespace, lag minutes), Single value (worst la
 ## References
 
 - [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
+- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

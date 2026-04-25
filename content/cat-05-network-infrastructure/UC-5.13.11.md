@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.11.json — DO NOT EDIT -->
+
 ---
 id: "5.13.11"
 title: "Poor Client Health Detection and Alerting"
@@ -60,7 +62,7 @@ Step 4 — Operationalize
 
 Step 5 — Troubleshooting
 • **Empty `categories` after `mvexpand`:** confirm **clienthealth** is enabled and **Assurance** is licensed; inspect one raw JSON for `scoreDetail`.
-• **False positives:** a transient **ALL** drop-inflate **poor_pct**—widen the window or require **two consecutive** breaches.
+• **Threshold noise:** if **poor_pct** flickers when **ALL** or **POOR** counts jump one poll, widen the alert window or require **two consecutive** scheduled runs over threshold (see **knownFalsePositives**).
 • **`max(count)` wrong when more than two categories slip through:** tighten the pre-`stats` `where` to only **POOR** and **ALL** (as written) and retest.
 • **GUI mismatch:** align **time zone** and **site** scope in the TA with the operator’s Catalyst view before opening a TAC case.
 
@@ -78,3 +80,4 @@ Table of breach rows, single value breach count, optional timechart of poor_pct 
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

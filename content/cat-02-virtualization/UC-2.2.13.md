@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.2.13.json — DO NOT EDIT -->
+
 ---
 id: "2.2.13"
 title: "Hyper-V Event Log Error Trending"
@@ -54,14 +56,13 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:Microsoft-Windows-Hyper-V-*". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time, host, sourcetype** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by host, sourcetype** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, host, sourcetype** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by host, sourcetype** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **upper** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where count > upper AND count > 5` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Hyper-V Event Log Error Trending**): table _time, host, sourcetype, count, avg_errors, upper
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

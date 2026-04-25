@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.47.json — DO NOT EDIT -->
+
 ---
 id: "1.2.47"
 title: "Application Crash (WER) Trending"
@@ -13,7 +15,7 @@ Windows Error Reporting captures crash details for all applications. Trending re
 
 ## Value
 
-Windows Error Reporting captures crash details for all applications. Trending reveals systemic instability, bad patches, or problematic application versions.
+Repeat crashes are a leading indicator of bad patches, bad code, and dependency drift—trend, not a single 1000 event.
 
 ## Implementation
 
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:Application". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **crash_app** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, crash_app, EventCode** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, crash_app, EventCode** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 3` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -60,9 +62,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Application_State
+  by host span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -101,9 +103,9 @@ index=wineventlog sourcetype="WinEventLog:Application" EventCode IN (1000, 1002)
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Application_State
+  by host span=1h
+| where count>0
 ```
 
 ## Visualization

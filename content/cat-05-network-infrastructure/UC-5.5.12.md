@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.5.12.json — DO NOT EDIT -->
+
 ---
 id: "5.5.12"
 title: "BFD Session Monitoring"
@@ -53,14 +55,14 @@ The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: c
 
 • Scopes the data: index=sdwan, sourcetype="cisco:sdwan:bfd". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where state!="up"` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by local_system_ip, remote_system_ip, local_color, remote_color** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by local_system_ip, remote_system_ip, local_color, remote_color** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where flap_count > 3` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • `eval` defines or adjusts **last_flap** — often to normalize units, derive a ratio, or prepare for thresholds.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (BFD sessions by color/site), Timeline (session state changes), Table (flapping tunnels).
@@ -79,10 +81,6 @@ index=sdwan sourcetype="cisco:sdwan:bfd"
 ## Visualization
 
 Status grid (BFD sessions by color/site), Timeline (session state changes), Table (flapping tunnels).
-
-## Known False Positives
-
-Planned ISP maintenance windows; carrier circuit cutovers.
 
 ## References
 

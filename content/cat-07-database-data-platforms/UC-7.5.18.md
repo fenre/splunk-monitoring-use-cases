@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.5.18.json — DO NOT EDIT -->
+
 ---
 id: "7.5.18"
 title: "Elasticsearch Fielddata and Cache Evictions"
@@ -22,6 +24,7 @@ Poll `GET _nodes/stats/indices/fielddata,query_cache,request_cache` and compute 
 ## Detailed Implementation
 
 Prerequisites
+• In operations we confirm in Kibana or OpenSearch Dashboards and the `_cat` / cluster APIs for that stack.
 • Install and configure the required add-on or app: Custom REST scripted input (`_nodes/stats/indices/fielddata,query_cache,request_cache`).
 • Ensure the following data sources are available: `sourcetype=elasticsearch:cache_stats`.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -54,30 +57,9 @@ The first pipeline stage scopes events using **index**: database; **sourcetype**
 • Filters the current rows with `where fd_evict_delta > 0 OR qc_evict_delta > 100` — typically the threshold or rule expression for this monitoring goal.
 • `timechart` plots the metric over time using **span=5m** buckets with a separate series **by node_name** — ideal for trending and alerting on this use case.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t sum(Performance.cpu_load_percent) as agg_value from datamodel=Performance.CPU by Performance.host span=5m | sort - agg_value
-```
-
-Understanding this CIM / accelerated SPL
-
-**Elasticsearch Fielddata and Cache Evictions** — Fielddata evictions force expensive re-computation of in-memory data structures, causing search latency spikes. Query cache evictions reduce the benefit of repeated queries. Tracking eviction rates guides memory tuning.
-
-Documented **Data sources**: `sourcetype=elasticsearch:cache_stats`. **App/TA** (typical add-on context): Custom REST scripted input (`_nodes/stats/indices/fielddata,query_cache,request_cache`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance.CPU` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (eviction rate by cache type), Bar chart (evictions by node), Single value (fielddata memory size).
@@ -91,16 +73,10 @@ index=database sourcetype="elasticsearch:cache_stats"
 | timechart span=5m sum(fd_evict_delta) as fielddata_evictions, sum(qc_evict_delta) as query_cache_evictions by node_name
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t sum(Performance.cpu_load_percent) as agg_value from datamodel=Performance.CPU by Performance.host span=5m | sort - agg_value
-```
-
 ## Visualization
 
 Line chart (eviction rate by cache type), Bar chart (evictions by node), Single value (fielddata memory size).
 
 ## References
 
-- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+- [Splunk — DB Connect](https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX)

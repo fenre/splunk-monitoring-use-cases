@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.82.json — DO NOT EDIT -->
+
 ---
 id: "1.2.82"
 title: "Credential Guard Status Monitoring"
@@ -13,7 +15,7 @@ Credential Guard protects NTLM hashes and Kerberos tickets in an isolated contai
 
 ## Value
 
-Credential Guard protects NTLM hashes and Kerberos tickets in an isolated container. Monitoring ensures it remains enabled and isn't bypassed.
+When Credential Guard is off, credential theft tools get a much easier path. Tracking status across servers shows drift after upgrades, image mistakes, or policy gaps before an attacker benefits.
 
 ## Implementation
 
@@ -51,35 +53,22 @@ The first pipeline stage scopes events using **index**: wineventlog.
 **Pipeline walkthrough**
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **cg_status** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Pipeline stage (see **Credential Guard Status Monitoring**): table host, cg_status
 • Filters the current rows with `where cg_status!="Running"` — typically the threshold or rule expression for this monitoring goal.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+Optional CIM / accelerated variant (VBS / Credential Guard status in `Change`):
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  from datamodel=Change.All_Changes
+  where (like(All_Changes.status,"14") OR like(All_Changes.status,"15"))
+  by All_Changes.dest span=1d
+| where count >= 1
 ```
 
-Understanding this CIM / accelerated SPL
-
-**Credential Guard Status Monitoring** — Credential Guard protects NTLM hashes and Kerberos tickets in an isolated container. Monitoring ensures it remains enabled and isn't bypassed.
-
-Documented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-DeviceGuard/Operational` (EventCode 13, 14, 15). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.
-• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable **data model acceleration** on `Change` (All_Changes). The `latest(EventCode)` search in Step 2 is the practical source of truth; tag 13/14/15 to `status` consistently.
 
 
 Step 3 — Validate
@@ -102,10 +91,10 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-DeviceGuard*"
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  from datamodel=Change.All_Changes
+  where (like(All_Changes.status,"14") OR like(All_Changes.status,"15") OR like(All_Changes.object,"%DeviceGuard%"))
+  by All_Changes.dest span=1d
+| where count >= 1
 ```
 
 ## Visualization
@@ -115,4 +104,4 @@ Pie chart (fleet CG status), Table (non-compliant hosts), Single value (% compli
 ## References
 
 - [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
-- [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.6.1.json — DO NOT EDIT -->
+
 ---
 id: "4.6.1"
 title: "Cloud Resource Count Trending"
@@ -53,7 +55,7 @@ The first pipeline stage scopes events using **index**: cloud; **sourcetype**: a
 
 • Scopes the data: index=cloud, sourcetype="aws:config:notification". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time, awsAccountId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, awsAccountId** so each row reflects one combination of those dimensions.
 • `timechart` plots the metric over time using **span=1d** buckets — ideal for trending and alerting on this use case.
 • Pipeline stage (see **Cloud Resource Count Trending**): trendline sma7(total_instances) as instance_trend
 • Pipeline stage (see **Cloud Resource Count Trending**): predict total_instances as predicted algorithm=LLP future_timespan=30

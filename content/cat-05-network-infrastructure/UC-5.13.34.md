@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.34.json — DO NOT EDIT -->
+
 ---
 id: "5.13.34"
 title: "Security Advisory (PSIRT) Overview"
@@ -75,3 +77,4 @@ Bar chart (advisory_count by severity), table of unique advisories, drilldowns t
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

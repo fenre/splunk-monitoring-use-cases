@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.3.9.json — DO NOT EDIT -->
+
 ---
 id: "2.3.9"
 title: "QEMU Process Crash and Zombie Detection"
@@ -53,7 +55,6 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: sysl
 • Extracts fields with `rex` (regular expression).
 • Pipeline stage (see **QEMU Process Crash and Zombie Detection**): table _time, host, pid, _raw
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

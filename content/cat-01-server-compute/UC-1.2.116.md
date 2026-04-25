@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.116.json — DO NOT EDIT -->
+
 ---
 id: "1.2.116"
 title: "WMI Persistence Detection"
@@ -13,7 +15,7 @@ WMI event subscriptions provide fileless persistence that survives reboots. Dete
 
 ## Value
 
-WMI event subscriptions provide fileless persistence that survives reboots. Detecting WMI persistence reveals advanced persistent threats.
+WMI subscriptions and namespace changes are classic hands-off persistence. Surfacing new filters and consumers gives the team a shot at removal before long dwell time.
 
 ## Implementation
 
@@ -71,6 +73,15 @@ index=wineventlog EventCode IN (19, 20, 21)
 | table _time, host, User, WMIType, EventNamespace, Name, Query, Destination, Consumer
 | where NOT match(Name, "(?i)(BVTFilter|TSLogonFilter|SCM Event)")
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

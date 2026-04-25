@@ -12,19 +12,22 @@
   "dataSources": "`mntr` field `zk_watch_count` as `zookeeper:mntr`",
   "app": "Scheduled `mntr` scraper to HEC",
   "spl": "index=infrastructure sourcetype=\"zookeeper:mntr\"\n| eval watches=tonumber(zk_watch_count)\n| bin _time span=15m\n| stats latest(watches) as watch_count by host, _time\n| streamstats window=96 global=f first(watch_count) as baseline by host\n| eval growth_pct=if(baseline>0, round(100*(watch_count-baseline)/baseline,1), null())\n| where growth_pct > 50 AND watch_count > 100000",
-  "description": "Each watch consumes server memory; runaway watch growth from buggy clients can pressure the JVM heap and slow all clients. Trending `zk_watch_count` exposes leaks before OutOfMemoryErrors appear.",
-  "value": "Protects shared ZK ensembles that back many microservices from memory exhaustion due to one bad consumer.",
-  "implementation": "Ensure `mntr` exposes `zk_watch_count` on your version. Baseline per business day; alert on sharp percentage growth. Pair with client inventory (Kafka brokers vs apps).",
-  "visualization": "Line chart (watch_count), Table (host, growth_pct).",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "Each watch consumes server memory; runaway watch growth from buggy clients can pressure the JVM heap and slow all clients. Trending `zk_watch_count` exposes leaks before OutOfMemoryErrors appear.",
+  "value": "Protects shared ZK ensembles that back many microservices from memory exhaustion due to one bad consumer.",
+  "grandmaExplanation": "We use this to protect shared ZK ensembles that back many microservices from memory exhaustion due to one bad consumer.",
+  "implementation": "Ensure `mntr` exposes `zk_watch_count` on your version. Baseline per business day; alert on sharp percentage growth. Pair with client inventory (Kafka brokers vs apps).",
+  "visualization": "Line chart (watch_count), Table (host, growth_pct).",
   "references": [
     {
       "title": "ZooKeeper Jira — watch memory",
       "url": "https://issues.apache.org/jira/browse/ZOOKEEPER"
     }
   ],
+  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
   "equipment": [
     "kafka",
     "zookeeper"
@@ -35,5 +38,6 @@
     "9.x",
     "8.x"
   ],
-  "reviewer": "catalog-team"
+  "reviewer": "catalog-team",
+  "detailedImplementation": ""
 }

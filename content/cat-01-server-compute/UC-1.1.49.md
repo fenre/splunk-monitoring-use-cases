@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.49.json — DO NOT EDIT -->
+
 ---
 id: "1.1.49"
 title: "Memory Cgroup Limit Enforcement"
@@ -9,81 +11,49 @@ splunkPillar: "Observability"
 
 ## Description
 
-Cgroup limits prevent runaway processes but enforcement indicates containers at memory limits need scaling.
+Surfaces kernel and runtime messages that show cgroup memory pressure, including OOM-style messages tied to cgroups, so you can act before services are throttled or killed at the limit.
 
 ## Value
 
-Cgroup limits prevent runaway processes but enforcement indicates containers at memory limits need scaling.
+Right-sizing container memory, adjusting limits, or moving workloads is easier when you see which cgroup names hit the wall, instead of only seeing generic out-of-memory noise.
 
 ## Implementation
 
-Create a scripted input that tracks /sys/fs/cgroup/memory/* metrics. Monitor max_usage_in_bytes vs. limit_in_bytes ratio. Alert when usage exceeds 90% of limit, indicating need for more memory allocation or right-sizing.
+Forward `kern`/`containerd`/`kubelet`-class syslog that includes cgroup paths or IDs. Prefer structured `custom:cgroup_memory` events with `current`, `max`, and `cgroup_id` for ratio alerts; this search starts from raw syslog keywords and counts hits per host and cgroup id.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=syslog, custom:cgroup_memory`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Ingest the OS log stream that records cgroup memory events (often forwarded as syslog) or deploy a `custom:cgroup_memory` input that samples `/sys/fs/cgroup`.
 
 Step 1 — Configure data collection
-Create a scripted input that tracks /sys/fs/cgroup/memory/* metrics. Monitor max_usage_in_bytes vs. limit_in_bytes ratio. Alert when usage exceeds 90% of limit, indicating need for more memory allocation or right-sizing.
+For syslog, ensure the forwarder is allowed to read `/var/log/kern.log` or `journal` streams with kernel priority. For structured metrics, sample usage and limit in MiB and tag `cgroup_id` from the path.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
 ```spl
-index=os sourcetype=syslog "memory.max_usage_in_bytes" OR "Out of memory" AND cgroup
+index=os sourcetype=syslog ("memory.max_usage_in_bytes" OR (("Out of memory" OR "oom") AND "cgroup"))
 | stats count by host, cgroup_id
 | where count > 0
 ```
 
-Understanding this SPL
+Adjust keywords to match your distribution’s wording. Add `rex` to extract `cgroup_id` if the field is only in `_raw`.
 
-**Memory Cgroup Limit Enforcement** — Cgroup limits prevent runaway processes but enforcement indicates containers at memory limits need scaling.
-
-Documented **Data sources**: `sourcetype=syslog, custom:cgroup_memory`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, cgroup_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
+**Understanding this SPL** — Counts qualifying messages per host and cgroup; raise when any appear in the window (tighten to `>5` in busy environments).
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Reproduce a benign limit in a test cgroup and compare host-side `systemd-cgtop` or `cat` of the cgroup’s `memory.current` to the log lines Splunk received.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Gauge
+Route to the platform or container SRE queue with links to the namespace or workload, and add a follow-up search on usage/limit ratio if you add structured metrics.
 
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
 
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
 ```spl
-index=os sourcetype=syslog "memory.max_usage_in_bytes" OR "Out of memory" AND cgroup
+index=os sourcetype=syslog ("memory.max_usage_in_bytes" OR "Out of memory") "cgroup"
 | stats count by host, cgroup_id
 | where count > 0
 ```
@@ -94,4 +64,5 @@ Table, Gauge
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

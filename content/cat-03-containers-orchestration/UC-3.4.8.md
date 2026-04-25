@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-3.4.8.json — DO NOT EDIT -->
+
 ---
 id: "3.4.8"
 title: "Registry TLS and Certificate Expiration"

@@ -8,25 +8,32 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=linux_audit`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
-  "spl": "index=os sourcetype=linux_audit path~=\"/var/spool/cron/crontabs/*\" action=modified\n| stats count by host, auid, file_name\n| where count > 0",
-  "description": "Unauthorized cron jobs enable persistent malware execution and data exfiltration.",
-  "value": "Unauthorized cron jobs enable persistent malware execution and data exfiltration.",
-  "implementation": "Monitor /var/spool/cron/crontabs/ and /etc/cron.d/ for modifications via auditctl. Create alerts on any new cron job additions. Compare against known application cron jobs from baseline.",
+  "dataSources": "`sourcetype=linux_audit` (watch `/var/spool/cron/*` and `/etc/cron.*`)",
+  "app": "`Splunk_TA_nix`",
+  "spl": "index=os sourcetype=linux_audit path~=\"/var/spool/cron\" OR path~=\"/etc/cron\"\n| where match(action, \"(modified|created)\") OR nametype=create\n| stats count by host, auid, file_name\n| where count>0",
+  "description": "Flags **auditd** file events that touch user or system crontab paths, grouped by who (`auid`) and which `file_name`, as a first line of defense against persistence in scheduled jobs.",
+  "value": "**cron** and **systemd** timers are a favorite persistence vector after initial access; catching unexpected writers closes a gap between pure shell history review and EDR in many Linux-only shops.",
+  "implementation": "Paths differ per distro (`/var/spool/cron/crontabs` vs `cron/tabs`). Broaden the `path~` until your coverage matches your **CMDB**; add `| lookup` for package-managed cron files in `/etc/cron.d` once you have an inventory.",
   "visualization": "Alert, Table",
   "cimModels": [
-    "N/A"
+    "Change"
   ],
+  "cimSpl": "| tstats `summariesonly` count from datamodel=Change.All_Changes where All_Changes.action IN (\"created\", \"modified\") AND match(All_Changes.object, \".*cron.*\") by All_Changes.user All_Changes.dest span=1d | where count>0",
+  "dataModelAcceleration": "Enable the **Change** data model for mapped FIM+audit file events under cron paths.",
+  "knownFalsePositives": "Patching that drops files into /etc/cron.d every month; configuration tools that rewrite the same line; login UID showing as 4294967295 on some kernels—SMEs must decide whether to keep or filter.",
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
     }
   ],
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=linux_audit`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor /var/spool/cron/crontabs/ and /etc/cron.d/ for modifications via auditctl. Create alerts on any new cron job additions. Compare against known application cron jobs from baseline.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=linux_audit path~=\"/var/spool/cron/crontabs/*\" action=modified\n| stats count by host, auid, file_name\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**Unauthorized Cron Job Additions** — Unauthorized cron jobs enable persistent malware execution and data exfiltration.\n\nDocumented **Data sources**: `sourcetype=linux_audit`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, auid, file_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table",
-  "grandmaExplanation": "Unauthorized cron jobs enable persistent malware execution and data exfiltration — so you find out before users do when something is slowing down or breaking."
+  "detailedImplementation": "Prerequisites\n• `auditd` with watches that cover all **cron** drop directories you use, including per-user `crontab -e` locations.\n\n**SPL** — `match` on `action` assumes your **KEY** sets **action=**; if you only have **type=PATH**, rephrase the filter.\n\n\nStep 3 — Validate\n`ls -l` the path on host and `crontab -l -u` for the user. Compare the **auid** to **sudoreplay** or **btmp** for interactive proof when needed (never on production without a change).\n\nStep 4 — Operationalize\nAny **.sh** in **cron** that lives under `/tmp` is almost always a red flag in regulated environments.\n\n",
+  "grandmaExplanation": "We help you know when the hidden clock-driven task list is edited, which is a classic place for a bad actor to leave something running in the background."
 }

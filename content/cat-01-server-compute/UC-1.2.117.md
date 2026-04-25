@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.117.json — DO NOT EDIT -->
+
 ---
 id: "1.2.117"
 title: "NIC Teaming & Network Adapter Failures (Windows)"
@@ -13,7 +15,7 @@ NIC teaming provides network redundancy for servers. Adapter failures reduce red
 
 ## Value
 
-NIC teaming provides network redundancy for servers. Adapter failures reduce redundancy and can cause outages if the remaining NIC also fails.
+NIC team or stand-alone adapter failures take network-reliant apps with them. Host-side link and team state is the first place to look when only some paths drop.
 
 ## Implementation
 
@@ -51,7 +53,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **Issue** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, SourceName, Issue** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, SourceName, Issue** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
@@ -98,9 +100,9 @@ index=wineventlog source="WinEventLog:System" SourceName IN ("Microsoft-Windows-
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

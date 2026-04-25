@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.6.14.json — DO NOT EDIT -->
+
 ---
 id: "2.6.14"
 title: "Citrix Workspace Environment Management (WEM) Optimization Effectiveness"
@@ -52,10 +54,9 @@ The first pipeline stage scopes events using **index**: xd; **sourcetype**: citr
 
 • Scopes the data: index=xd, sourcetype="citrix:wem:agent". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by action_type, vda_host, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by action_type, vda_host, _time** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where interventions > 10` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Citrix Workspace Environment Management (WEM) Optimization Effectiveness**): table _time, vda_host, action_type, interventions, unique_processes, affected_users, throttled_processes
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

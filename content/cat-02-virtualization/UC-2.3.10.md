@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.3.10.json — DO NOT EDIT -->
+
 ---
 id: "2.3.10"
 title: "Storage Pool Capacity Monitoring"
@@ -55,7 +57,6 @@ The first pipeline stage scopes events using **index**: virtualization; **source
 • Filters the current rows with `where used_pct > 80` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **Storage Pool Capacity Monitoring**): table host, pool_name, pool_type, capacity_gb, used_gb, used_pct
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

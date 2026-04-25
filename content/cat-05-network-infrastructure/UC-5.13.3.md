@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.3.json — DO NOT EDIT -->
+
 ---
 id: "5.13.3"
 title: "Unhealthy Device Detection and Alerting"
@@ -70,6 +72,7 @@ Step 5 — Troubleshooting
 • **Duplicates across `deviceName`:** add **serial** or **instance** to the `by` clause when the field exists in your feed.
 • **Reachability empty on some platforms:** document product-specific behavior in the runbook; do not assume APs and switches behave identically.
 
+
 ## SPL
 
 ```spl
@@ -84,3 +87,4 @@ Table of unhealthy devices, single value alert count, optional sparkline of aler
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

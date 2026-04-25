@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.69.json — DO NOT EDIT -->
+
 ---
 id: "1.2.69"
 title: "Page File Usage & Exhaustion"
@@ -13,7 +15,7 @@ Page file exhaustion prevents new process creation and causes "out of virtual me
 
 ## Value
 
-Page file exhaustion prevents new process creation and causes "out of virtual memory" errors. System-managed page files can grow to fill the disk.
+When the page file is full, applications can fail to start and services can become unstable. Watching usage helps the team add RAM, fix leaks, or resize the page file before users see widespread errors.
 
 ## Implementation
 
@@ -27,7 +29,7 @@ Prerequisites
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-Configure Perfmon inputs for Paging File object: `% Usage`, `% Usage Peak` (interval=300). Alert when usage exceeds 70% sustained (indicates memory pressure requiring page file). Track peak usage — if it regularly exceeds 80%, the system needs more RAM or has a memory leak. Also monitor EventCode 2004 in System log (page file too small) as a reactive indicator.
+In `inputs.conf` on the forwarder, add a `perfmon` stanza for the **Paging File** object, counters `% Usage` and `% Usage Peak`, instance `_Total` (or per-drive instances if you split alerts), `interval=300` or `60` per volume needs. The TA typically maps this to `sourcetype=Perfmon:Paging_File`. Alert when `% Usage` stays above 70% across multiple intervals; track **% Usage Peak** for capacity. Also watch System EventCode 2004 (page file too small) as a secondary signal.
 
 Step 2 — Create the search and alert
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
@@ -52,30 +54,16 @@ The first pipeline stage scopes events using **index**: perfmon; **sourcetype**:
 • `timechart` plots the metric over time using **span=15m** buckets with a separate series **by host** — ideal for trending and alerting on this use case.
 • Filters the current rows with `where pf_pct > 70` — typically the threshold or rule expression for this monitoring goal.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+Optional CIM / accelerated variant (Memory node: map paging activity to `swap_used_percent` when CIM is built from the same `Perfmon:Paging_File` feed — validate alias in your environment):
 
 ```spl
-| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct
-                        avg(Performance.swap_used_percent) as swap_pct
+| tstats `summariesonly` avg(Performance.swap_used_percent) as page_pct
   from datamodel=Performance where nodename=Performance.Memory
-  by Performance.host span=5m
-| where mem_pct > 95 OR swap_pct > 20
+  by Performance.host span=15m
+| where page_pct > 70
 ```
 
-Understanding this CIM / accelerated SPL
-
-**Page File Usage & Exhaustion** — Page file exhaustion prevents new process creation and causes "out of virtual memory" errors. System-managed page files can grow to fill the disk.
-
-Documented **Data sources**: `sourcetype=Perfmon:Paging_File` (counter: % Usage, % Usage Peak). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.
-• Filters the current rows with `where mem_pct > 95 OR swap_pct > 20` — typically the threshold or rule expression for this monitoring goal.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable **data model acceleration** on `Performance` (Memory). If summaries are empty, use the `Perfmon:Paging_File` search above; confirm props/transforms and CIM field aliases for the TA.
 
 
 Step 3 — Validate
@@ -95,11 +83,10 @@ index=perfmon sourcetype="Perfmon:Paging_File" counter="% Usage" instance="_Tota
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct
-                        avg(Performance.swap_used_percent) as swap_pct
+| tstats `summariesonly` avg(Performance.swap_used_percent) as page_pct
   from datamodel=Performance where nodename=Performance.Memory
-  by Performance.host span=5m
-| where mem_pct > 95 OR swap_pct > 20
+  by Performance.host span=15m
+| where page_pct > 70
 ```
 
 ## Visualization

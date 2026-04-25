@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.77.json — DO NOT EDIT -->
+
 ---
 id: "1.1.77"
 title: "Unauthorized Cron Job Additions"
@@ -9,62 +11,45 @@ splunkPillar: "Security"
 
 ## Description
 
-Unauthorized cron jobs enable persistent malware execution and data exfiltration.
+Flags **auditd** file events that touch user or system crontab paths, grouped by who (`auid`) and which `file_name`, as a first line of defense against persistence in scheduled jobs.
 
 ## Value
 
-Unauthorized cron jobs enable persistent malware execution and data exfiltration.
+**cron** and **systemd** timers are a favorite persistence vector after initial access; catching unexpected writers closes a gap between pure shell history review and EDR in many Linux-only shops.
 
 ## Implementation
 
-Monitor /var/spool/cron/crontabs/ and /etc/cron.d/ for modifications via auditctl. Create alerts on any new cron job additions. Compare against known application cron jobs from baseline.
+Paths differ per distro (`/var/spool/cron/crontabs` vs `cron/tabs`). Broaden the `path~` until your coverage matches your **CMDB**; add `| lookup` for package-managed cron files in `/etc/cron.d` once you have an inventory.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=linux_audit`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• `auditd` with watches that cover all **cron** drop directories you use, including per-user `crontab -e` locations.
 
-Step 1 — Configure data collection
-Monitor /var/spool/cron/crontabs/ and /etc/cron.d/ for modifications via auditctl. Create alerts on any new cron job additions. Compare against known application cron jobs from baseline.
-
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=linux_audit path~="/var/spool/cron/crontabs/*" action=modified
-| stats count by host, auid, file_name
-| where count > 0
-```
-
-Understanding this SPL
-
-**Unauthorized Cron Job Additions** — Unauthorized cron jobs enable persistent malware execution and data exfiltration.
-
-Documented **Data sources**: `sourcetype=linux_audit`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, auid, file_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
+**SPL** — `match` on `action` assumes your **KEY** sets **action=**; if you only have **type=PATH**, rephrase the filter.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`ls -l` the path on host and `crontab -l -u` for the user. Compare the **auid** to **sudoreplay** or **btmp** for interactive proof when needed (never on production without a change).
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table
+Any **.sh** in **cron** that lives under `/tmp` is almost always a red flag in regulated environments.
+
+
 
 ## SPL
 
 ```spl
-index=os sourcetype=linux_audit path~="/var/spool/cron/crontabs/*" action=modified
+index=os sourcetype=linux_audit path~="/var/spool/cron" OR path~="/etc/cron"
+| where match(action, "(modified|created)") OR nametype=create
 | stats count by host, auid, file_name
-| where count > 0
+| where count>0
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count from datamodel=Change.All_Changes where All_Changes.action IN ("created", "modified") AND match(All_Changes.object, ".*cron.*") by All_Changes.user All_Changes.dest span=1d | where count>0
 ```
 
 ## Visualization
@@ -73,4 +58,5 @@ Alert, Table
 
 ## References
 
-- [Splunk Lantern — use case library](https://lantern.splunk.com/)
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
+- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)

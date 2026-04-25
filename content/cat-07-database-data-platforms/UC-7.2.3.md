@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.2.3.json — DO NOT EDIT -->
+
 ---
 id: "7.2.3"
 title: "Read/Write Latency Trending"
@@ -22,6 +24,7 @@ Poll database metrics every 5 minutes via scripted input or API. Track read/writ
 ## Detailed Implementation
 
 Prerequisites
+• In operations we confirm in mongosh, MongoDB Compass, or the Atlas metrics UI so replication, elections, and cluster operations match what Splunk shows.
 • Install and configure the required add-on or app: Custom metrics input, database stats API.
 • Ensure the following data sources are available: MongoDB `serverStatus()`, Cassandra JMX, Elasticsearch `_nodes/stats`.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -52,7 +55,7 @@ The first pipeline stage scopes events using **index**: database; **sourcetype**
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (latency percentiles over time), Dual-axis chart (latency + throughput), Table (current latency by operation).

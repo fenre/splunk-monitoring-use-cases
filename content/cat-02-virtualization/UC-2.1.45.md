@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.45.json — DO NOT EDIT -->
+
 ---
 id: "2.1.45"
 title: "VM Snapshot Age Alerting"
@@ -17,7 +19,7 @@ Snapshots older than N days degrade VM I/O performance and complicate backups �
 
 ## Implementation
 
-TA-vmware collects VM inventory including snapshot metadata. Define policy: alert on snapshots >7 days (high), >3 days (warning). Run daily report. Escalate to VM owners. Include snapshot size to prioritize cleanup. Correlate with datastore capacity for storage impact.
+Splunk_TA_vmware collects VM inventory including snapshot metadata. Define policy: alert on snapshots >7 days (high), >3 days (warning). Run daily report. Escalate to VM owners. Include snapshot size to prioritize cleanup. Correlate with datastore capacity for storage impact.
 
 ## Detailed Implementation
 
@@ -27,7 +29,7 @@ Prerequisites
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-TA-vmware collects VM inventory including snapshot metadata. Define policy: alert on snapshots >7 days (high), >3 days (warning). Run daily report. Escalate to VM owners. Include snapshot size to prioritize cleanup. Correlate with datastore capacity for storage impact.
+Splunk_TA_vmware collects VM inventory including snapshot metadata. Define policy: alert on snapshots >7 days (high), >3 days (warning). Run daily report. Escalate to VM owners. Include snapshot size to prioritize cleanup. Correlate with datastore capacity for storage impact.
 
 Step 2 — Create the search and alert
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
@@ -57,7 +59,6 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 • `eval` defines or adjusts **snapshot_size_gb** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **VM Snapshot Age Alerting**): table vm_name, host, snapshot_name, snapshot_age_days, snapshot_size_gb, snapshot_createTime
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.77.json — DO NOT EDIT -->
+
 ---
 id: "4.1.77"
 title: "AWS Fargate Task Health"
@@ -50,7 +52,7 @@ The first pipeline stage scopes events using **index**: cloud; **sourcetype**: a
 **Pipeline walkthrough**
 
 • Scopes the data: index=cloud, sourcetype="aws:cloudwatch:metric". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by ServiceName, ClusterName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by ServiceName, ClusterName** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where cpu_max>90` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -68,6 +70,16 @@ index=cloud sourcetype="aws:cloudwatch:metric" Namespace="AWS/ECS" MetricName="C
 | stats avg(Average) as cpu_avg, max(Maximum) as cpu_max by ServiceName, ClusterName
 | where cpu_max>90
 | sort -cpu_max
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

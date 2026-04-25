@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.6.6.json — DO NOT EDIT -->
+
 ---
 id: "5.6.6"
 title: "DHCP Rogue Server Detection"
@@ -53,7 +55,7 @@ The first pipeline stage scopes events using **index**: network.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On the switches that run DHCP snooping, compare the syslog times and client MACs to the interface or violation counters in the switch CLI or NMS. In Infoblox or Windows DHCP, confirm there is only one authorized server per VLAN where you expect it.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Events list (critical), Table, Map.

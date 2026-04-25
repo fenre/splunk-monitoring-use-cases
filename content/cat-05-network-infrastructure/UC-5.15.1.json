@@ -17,7 +17,7 @@
   "implementation": "Enable RPZ logging on Grid members and forward syslog to Splunk with TA field extractions. Normalize blocked FQDN and client IP. Schedule a daily top-blocked report and an alert on sudden spikes versus a 14-day baseline.",
   "visualization": "Bar chart (top blocked domains), timechart (block rate), table (client, domain, policy name, Grid member).",
   "cimModels": [
-    "N/A"
+    "Network_Resolution"
   ],
   "references": [
     {
@@ -41,5 +41,9 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch when your Infoblox DNS firewall blocks bad domain names so you can see what was stopped and which devices asked for it."
+  "grandmaExplanation": "We list which bad domains your Infoblox DNS policy blocked and from which clients, so security can see what was stopped and tune what is noisy.",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Network_Resolution\n  where nodename=Network_Resolution.DNS\n  by DNS.query DNS.src span=1h\n| where count>0\n| sort -count",
+  "dataModelAcceleration": "Enable acceleration for the Network_Resolution data model (DNS node) when Infoblox DNS is CIM-tagged; otherwise rely on the primary `index=dns` search in this UC.",
+  "knownFalsePositives": "DNS query spikes from authorized monitoring tools, IoT devices with chatty firmware, or backup resolvers can dominate top-blocked lists. Review policy scope before re-tuning.",
+  "detailedImplementation": "Prerequisites\n• Install `Splunk_TA_infoblox` and forward `infoblox:rpz` (and optional threat-intel) into `index=dns` as you have modeled.\n• Ensure response policy and logging are enabled for the view you need on the Grid, and that blocked actions produce clear `action` or `_raw` markers.\n• `docs/implementation-guide.md` for receiver placement and PII on client IPs.\n\nStep 1 — Configure data collection\nEnable RPZ hit logging to syslog or file as Infoblox documents; use the add-on to parse `qname`, `src_ip`, and `policy_name`. Keep a lookup of internal scanners if you have noisy security tools.\n\nStep 2 — Create the search and alert\n```spl\nindex=dns sourcetype=\"infoblox:rpz\" earliest=-24h\n| where match(lower(action),\"(?i)block|nxdomain|drop|rpz\") OR match(_raw,\"(?i)rpz\")\n| stats count by qname, src_ip, policy_name, host\n| sort -count\n| head 100\n```\n\nUnderstanding this SPL\nWe only keep events that look like a block, then rank by how often each domain and client mix appears so you can tune RPZ and spot patient-zero clients.\n\nStep 3 — Validate\nIn Grid Manager, open Reporting or a member with RPZ logging and pick the same time range as your Splunk search. Confirm one blocked FQDN and client IP in both places; for spikes, line up total block volume with a threat feed or policy change window.\n\nStep 4 — Operationalize\nPut the top domains and a timechart of block rate on a security dashboard. Send spikes to the SOC channel with the policy name.\n\nStep 5 — Troubleshooting\nIf counts are zero, confirm members still send to Splunk, RPZ is bound to the right views, and you are in the right index. If noise is high, filter known-good client subnets."
 }

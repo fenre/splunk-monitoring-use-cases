@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.39.json — DO NOT EDIT -->
+
 ---
 id: "2.1.39"
 title: "ESXi Host Firewall Rule Audit"
@@ -53,7 +55,6 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 • Filters the current rows with `where enabled="true" AND allowedAll="true"` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **ESXi Host Firewall Rule Audit**): table host, rule_name, protocol, port, direction, allowedAll
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

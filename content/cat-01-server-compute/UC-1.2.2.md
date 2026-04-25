@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.2.json — DO NOT EDIT -->
+
 ---
 id: "1.2.2"
 title: "Memory Utilization & Paging (Windows)"
@@ -13,7 +15,7 @@ High memory and excessive paging degrade performance. Page file usage indicates 
 
 ## Value
 
-High memory and excessive paging degrade performance. Page file usage indicates the system is under memory pressure.
+Pressure here shows up as slow apps and stability risk—catching it early avoids paging storms and OOM pain.
 
 ## Implementation
 
@@ -53,11 +55,9 @@ The first pipeline stage scopes events using **index**: perfmon; **sourcetype**:
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct
-                        avg(Performance.swap_used_percent) as swap_pct
+| tstats `summariesonly` avg(Performance.mem_used) as mem_used
   from datamodel=Performance where nodename=Performance.Memory
   by Performance.host span=5m
-| where mem_pct > 95 OR swap_pct > 20
 ```
 
 Understanding this CIM / accelerated SPL
@@ -92,11 +92,9 @@ index=perfmon sourcetype="Perfmon:Memory" (counter="% Committed Bytes In Use" OR
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct
-                        avg(Performance.swap_used_percent) as swap_pct
+| tstats `summariesonly` avg(Performance.mem_used) as mem_used
   from datamodel=Performance where nodename=Performance.Memory
   by Performance.host span=5m
-| where mem_pct > 95 OR swap_pct > 20
 ```
 
 ## Visualization

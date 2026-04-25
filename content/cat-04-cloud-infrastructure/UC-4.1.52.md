@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.52.json — DO NOT EDIT -->
+
 ---
 id: "4.1.52"
 title: "ECR Image Scan Findings"
@@ -65,6 +67,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:ecr:scan" severity="CRITICAL" OR severity="HIGH"
 | table _time repositoryName imageTag severity findingName
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Intrusion_Detection.IDS_Attacks
+  where match(lower(IDS_Attacks.severity), "high|critical")
+  by IDS_Attacks.signature IDS_Attacks.src span=1d
+| sort -count
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.123.json — DO NOT EDIT -->
+
 ---
 id: "1.2.123"
 title: "Token Manipulation / Privilege Escalation"
@@ -13,7 +15,7 @@ Token manipulation (impersonation, token duplication) allows attackers to escala
 
 ## Value
 
-Token manipulation (impersonation, token duplication) allows attackers to escalate privileges. Detecting abuse of SeImpersonatePrivilege catches potato-style attacks.
+Token privilege abuse is a direct path to admin on the box. Correlating 4672/4703 style activity with process data shortens time to stop elevation chains.
 
 ## Implementation
 
@@ -51,7 +53,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where NOT match(ProcessName, "(?i)(lsass|services|svchost|csrss|wininit|smss)")` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by host, SubjectUserName, ProcessName, PrivilegeList** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, SubjectUserName, ProcessName, PrivilegeList** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
@@ -100,9 +102,8 @@ index=wineventlog EventCode IN (4673, 4674) PrivilegeList IN ("SeImpersonatePriv
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=success
   by Authentication.user Authentication.src Authentication.dest span=1h
-| search Authentication.user=*admin* OR Authentication.user=root
+| where count > 0
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.71.json — DO NOT EDIT -->
+
 ---
 id: "1.2.71"
 title: "Scheduled Task Creation (Persistence)"
@@ -13,7 +15,7 @@ Scheduled tasks are a common persistence mechanism for malware. New tasks create
 
 ## Value
 
-Scheduled tasks are a common persistence mechanism for malware. New tasks created outside change management warrant investigation.
+Unexpected scheduled tasks on servers are a favorite way to stay hidden. Flagging new tasks that do not look like your deployment tools gives identity and server teams a head start on cleanup.
 
 ## Implementation
 
@@ -58,29 +60,17 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Filters the current rows with `where NOT match(SubjectUserName, "(?i)(SYSTEM|sccm|intune)")` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+Optional CIM / accelerated variant (4698 as directory/task change in `Change`):
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Processes
-  by Processes.dest Processes.process_name Processes.user span=1h
-| sort -count
+  from datamodel=Change.All_Changes
+  where (like(All_Changes.object,"%Scheduled Task%") OR like(All_Changes.object,"%.xml%") OR like(All_Changes.object,"%\\Microsoft\\Windows\\Task%"))
+  by All_Changes.user All_Changes.dest span=1h
+| where count >= 1
 ```
 
-Understanding this CIM / accelerated SPL
-
-**Scheduled Task Creation (Persistence)** — Scheduled tasks are a common persistence mechanism for malware. New tasks created outside change management warrant investigation.
-
-Documented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4698), `sourcetype=WinEventLog:Microsoft-Windows-TaskScheduler/Operational` (EventCode 106). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Endpoint.Processes` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable **data model acceleration** on `Change` (All_Changes). The primary `WinEventLog:Security` search remains authoritative if CIM tagging for task XML is not complete.
 
 
 Step 3 — Validate
@@ -104,9 +94,10 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4698
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Processes
-  by Processes.dest Processes.process_name Processes.user span=1h
-| sort -count
+  from datamodel=Change.All_Changes
+  where (like(All_Changes.object,"%Scheduled Task%") OR like(All_Changes.object,"%.xml%") OR like(All_Changes.object,"%\\Microsoft\\Windows\\Task%"))
+  by All_Changes.user All_Changes.dest span=1h
+| where count >= 1
 ```
 
 ## Visualization
@@ -116,4 +107,4 @@ Table (new tasks with commands), Timeline, Bar chart (tasks created by user).
 ## References
 
 - [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
-- [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)

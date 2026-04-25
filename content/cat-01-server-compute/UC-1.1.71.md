@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.71.json — DO NOT EDIT -->
+
 ---
 id: "1.1.71"
 title: "/etc/shadow Modifications"
@@ -9,62 +11,44 @@ splunkPillar: "Security"
 
 ## Description
 
-/etc/shadow changes indicate password hash tampering or unauthorized privilege escalation attempts.
+Detects any audit trail row that points at a write to **/etc/shadow**, the local password-hash store, with actor fields for accountability.
 
 ## Value
 
-/etc/shadow changes indicate password hash tampering or unauthorized privilege escalation attempts.
+Legitimate **shadow** changes are rare and usually tied to `passwd`, `chpasswd`, or **IAM** automation; anything else deserves an immediate, high-severity look.
 
 ## Implementation
 
-Configure auditctl rules to monitor /etc/shadow modifications. Create immediate critical alerts. Include process context showing which application attempted the change.
+Add **auditd** `-w /etc/shadow -p wa -k shadow` (key name to taste). Tighten to `| where auid>0` if you only care about non-root original logins, but keep break-glass root stories in a parallel search for regulated shops.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=linux_audit`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Same FIM+audit story as the **passwd** use case; do **not** put raw hash contents in Splunk—only the audit metadata.
 
-Step 1 — Configure data collection
-Configure auditctl rules to monitor /etc/shadow modifications. Create immediate critical alerts. Include process context showing which application attempted the change.
-
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=linux_audit path="/etc/shadow" action=modified
-| stats count by host, auid, exe
-| where count > 0
-```
-
-Understanding this SPL
-
-**/etc/shadow Modifications** — /etc/shadow changes indicate password hash tampering or unauthorized privilege escalation attempts.
-
-Documented **Data sources**: `sourcetype=linux_audit`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, auid, exe** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
+**CIM** — `object` in **All_Changes** should be the file path, not a hash field.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`ausearch -f /etc/shadow` and compare to Search; for binary proof, add **KEY** to include syscall class when needed.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table
+Page the **CISO** queue per your playbooks when **exe** is a shell in `/tmp`.
+
+
 
 ## SPL
 
 ```spl
-index=os sourcetype=linux_audit path="/etc/shadow" action=modified
+index=os sourcetype=linux_audit path="/etc/shadow" (action=modified OR nametype=normal)
 | stats count by host, auid, exe
-| where count > 0
+| where count>0
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count from datamodel=Change.All_Changes where All_Changes.action=modified AND match(All_Changes.object, ".*shadow.*") by All_Changes.user All_Changes.dest span=1h | where count>0
 ```
 
 ## Visualization
@@ -73,4 +57,5 @@ Alert, Table
 
 ## References
 
-- [Splunk Lantern — use case library](https://lantern.splunk.com/)
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
+- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)

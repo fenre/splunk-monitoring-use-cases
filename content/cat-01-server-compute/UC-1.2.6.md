@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.6.json — DO NOT EDIT -->
+
 ---
 id: "1.2.6"
 title: "Failed Login Monitoring"
@@ -13,7 +15,7 @@ Detects credential stuffing, brute-force attacks, and compromised account usage.
 
 ## Value
 
-Detects credential stuffing, brute-force attacks, and compromised account usage. Key for security monitoring and compliance.
+You get an early sign of brute force or broken automation before a valid login succeeds or the account locks out everywhere.
 
 ## Implementation
 
@@ -53,7 +55,7 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:Security". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **src** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by src, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by src, host** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where failures > 10` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **Failed Login Monitoring**): iplocation src
@@ -62,9 +64,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
+  from datamodel=Authentication where nodename=Authentication
   where Authentication.action=failure
-  by Authentication.user Authentication.src span=1h
+  by Authentication.user Authentication.src Authentication.dest
 | where count > 10
 ```
 
@@ -105,9 +107,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4625
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
+  from datamodel=Authentication where nodename=Authentication
   where Authentication.action=failure
-  by Authentication.user Authentication.src span=1h
+  by Authentication.user Authentication.src Authentication.dest
 | where count > 10
 ```
 

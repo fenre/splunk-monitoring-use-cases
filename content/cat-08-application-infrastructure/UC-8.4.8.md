@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.4.8.json — DO NOT EDIT -->
+
 ---
 id: "8.4.8"
 title: "mTLS Certificate Expiration"
@@ -57,8 +59,10 @@ The first pipeline stage scopes events using **index**: mesh; **sourcetype**: is
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
+
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (certs with expiry), Single value (certs expiring within 7d), Timeline (cert rotation events).
@@ -79,4 +83,5 @@ Table (certs with expiry), Single value (certs expiring within 7d), Timeline (ce
 
 ## References
 
+- [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

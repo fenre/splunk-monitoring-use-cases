@@ -24,7 +24,7 @@
       "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/221/install-configure/connections-hypervisor.html"
     }
   ],
-  "knownFalsePositives": "vCenter or Hyper-V host rolling reboots, storage path failover tests, and hypervisor agent upgrades can briefly sever host connections. Layer hypervisor and storage change records on top; treat Citrix-only warnings as false positives when hosts were in a known cluster upgrade.",
+  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
   "equipment": [
     "citrix",
     "hyperv",
@@ -37,5 +37,5 @@
   ],
   "lastReviewed": "2026-04-24",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Template for Citrix XenDesktop 7 (TA-XD7-Broker), Splunk Add-on for VMware, Splunk Add-on for Microsoft Windows for Hyper-V.\n• Ensure the following data sources are available: `index=xd` `sourcetype=\"citrix:broker:events\"`; optional `index=vmware` / `index=hyperv` health feeds.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm that hosting connection and error fields are present; add CIM-agnostic extractions as needed. Onboard vCenter/SCVMM summary health if the Citrix log alone is insufficient for root cause. Nutanix can be added via a parallel sourcetype if you run AHV connections.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; match field names in your data):\n\n```spl\nindex=xd sourcetype=\"citrix:broker:events\" match(_raw, \"(?i)host(ing)?\\s*connection|hypervisor|vCenter|Nutanix|XenServer|scvmm|cert|ssl|storage|connectivity\")\n| eval conn_state=coalesce(connection_state, ConnectionState, hypervisor_state, State)\n| eval hc_name=coalesce(hosting_connection_name, HostingUnitName, HostConnection, catalog_hosting_unit)\n| where match(coalesce(conn_state, \"\"), \"(?i)unknown|unavail|error|down|loss|denied|auth|fail|cert|ssl\") OR match(coalesce(ErrorMessage, Message, _raw), \"(?i)ssl|cert|permission|unauthorized|down|unreachable|storage\")\n| stats earliest(_time) as first_evt, latest(_time) as last_evt, count, values(ErrorMessage) as last_errors by hc_name, host, conn_state\n| sort - count\n```\n\nStep 3 — Validate\nInduce a controlled disconnect in test (firewall to vCenter) and verify broker error patterns. Trivial noise from one-off blips: require two consecutive intervals before paging.\n\nStep 4 — Operationalize\nIntegrate with hypervisor and certificate renewal calendars. Document rollback for broken trust or expired API accounts.",
-  "grandmaExplanation": "We watch the link from your app farm to the servers that run the virtual machines, including trust and storage errors — so you catch missing capacity before it hurts real work."
+  "grandmaExplanation": "We keep an eye on hypervisor Connection Health and raise the alarm before it drags down real work or real outages start."
 }

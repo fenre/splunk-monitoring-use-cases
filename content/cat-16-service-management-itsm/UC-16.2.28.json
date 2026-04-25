@@ -19,6 +19,7 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "PagerDuty App for Splunk",
@@ -29,6 +30,7 @@
       "url": "https://splunkbase.splunk.com/app/3759"
     }
   ],
+  "knownFalsePositives": "Noisy updates during major customer incidents, executive bridges, or after notification settings change; that can be expected during a sev-1.",
   "equipment": [
     "pagerduty"
   ],
@@ -38,5 +40,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We see how many extra people get the big incident mail compared with who must act, so sev-1 comms are clear and not a reply-all storm.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: PagerDuty REST include[]=subscribers or custom workflow enrichment.\n• Data: PagerDuty incidents with stakeholder subscriber lists (`subscriber_emails` MV field).\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nTruncate emails at ingest for privacy; use hashed IDs in shared indexes.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"pagerduty:incident\"\n| where urgency=\"high\" OR severity=\"critical\"\n| eval sub_count=mvcount(subscriber_emails)\n| where sub_count>25\n| stats avg(sub_count) as avg_sub by service_name\n| sort -avg_sub\n```\n\nUnderstanding this search\nOver-subscribed SEV-1 incidents flood executives and slow consensus.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Bar chart (avg subscribers), Table (service)."
 }

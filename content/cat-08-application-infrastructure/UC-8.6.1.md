@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.6.1.json — DO NOT EDIT -->
+
 ---
 id: "8.6.1"
 title: "SSH Service Availability Monitoring"
@@ -58,7 +60,8 @@ Documented **Data sources**: `sourcetype=syslog` (sshd messages), scripted input
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (hosts with SSH down), Table (host, last seen, duration down), Timeline (SSH availability per host), Heatmap (host × time availability).

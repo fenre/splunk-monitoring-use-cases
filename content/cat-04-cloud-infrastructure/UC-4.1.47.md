@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.47.json — DO NOT EDIT -->
+
 ---
 id: "4.1.47"
 title: "Glue Job Run Failures and Duration"
@@ -65,6 +67,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/Glue" metric_name="JobRunFailureCount"
 | where Sum > 0
 | timechart span=1h sum(Sum) by JobName
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  where match(All_Changes.app, "(?i)glue|lambda|logs")
+  by All_Changes.user All_Changes.status span=1h
+| sort -count
 ```
 
 ## Visualization

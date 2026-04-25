@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.7.9.json — DO NOT EDIT -->
+
 ---
 id: "5.7.9"
 title: "Unauthorized VLAN Traffic Detection"
@@ -53,15 +55,15 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 • Scopes the data: index=network, sourcetype="netflow". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
 • Filters the current rows with `where authorized!="yes" OR isnull(authorized)` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by src_vlan, input_interface** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by src_vlan, input_interface** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+| tstats `summariesonly` sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out dc(All_Traffic.src) as unique_hosts
   from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
+  by All_Traffic.src All_Traffic.dest span=1h
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
@@ -84,7 +86,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Reconcile a few `src_vlan` and interface values with the switch port table (DNA Center, Meraki, or campus CLI) and the `vlan_authorization_lookup`; confirm 802.1X posture if you use it in your access layer.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (VLAN, interface, hosts, volume), Alert panel, Status grid.
@@ -102,9 +104,9 @@ index=network sourcetype="netflow"
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+| tstats `summariesonly` sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out dc(All_Traffic.src) as unique_hosts
   from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
+  by All_Traffic.src All_Traffic.dest span=1h
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```

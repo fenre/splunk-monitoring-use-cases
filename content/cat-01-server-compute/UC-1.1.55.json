@@ -8,17 +8,22 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog, systemd-resolved logs`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
-  "spl": "index=os sourcetype=syslog \"systemd-resolved\" (\"SERVFAIL\" OR \"NXDOMAIN\" OR \"TIMEOUT\")\n| stats count as failures by host, query_name\n| eval failure_rate=count\n| where failure_rate > 10",
-  "description": "DNS failures impact application availability and user experience, requiring immediate investigation.",
-  "value": "DNS failures impact application availability and user experience, requiring immediate investigation.",
-  "implementation": "Monitor systemd-resolved or BIND logs for DNS query failures. Track NXDOMAIN, SERVFAIL, and TIMEOUT responses. Alert on failure rate spikes with correlation to specific nameservers or query types.",
+  "dataSources": "`sourcetype=syslog` (systemd-resolved, unbound, BIND, or CoreDNS logs forwarded as OS logs)",
+  "app": "`Splunk_TA_nix`",
+  "spl": "index=os sourcetype=syslog \"systemd-resolved\" (\"SERVFAIL\" OR \"NXDOMAIN\" OR \"TIMEOUT\")\n| stats count as failures by host, query_name\n| where failures > 10",
+  "description": "Aggregates resolver log lines that show hard failures (SERVFAIL, TIMEOUT) or explicit NXDOMAIN responses for monitored strings, grouped by host and query name so you can see who is failing and for what name.",
+  "value": "Rising DNS failure counts are an early signal for broken upstreams, wedged local resolvers, or application misconfiguration before large user-visible outages stack up.",
+  "implementation": "Forward resolver logs into the OS index. Tune the keyword set to your resolver (not every stack logs `systemd-resolved`). Treat `NXDOMAIN` carefully: include it only when it is unexpected for your app, or split it to a separate alert with a lookup of known-pruned names.",
   "visualization": "Table, Timechart",
   "cimModels": [
     "N/A"
   ],
+  "knownFalsePositives": "Intentional NXDOMAIN from security or sinkhole tools; build jobs that resolve thousands of not-yet-registered names; false `eval` of `count` in older copies of this use case—this version uses the `failures` field directly from `stats`.",
   "references": [
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
     {
       "title": "Splunk Lantern — use case library",
       "url": "https://lantern.splunk.com/"
@@ -28,6 +33,6 @@
     "linux",
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=syslog, systemd-resolved logs`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor systemd-resolved or BIND logs for DNS query failures. Track NXDOMAIN, SERVFAIL, and TIMEOUT responses. Alert on failure rate spikes with correlation to specific nameservers or query types.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog \"systemd-resolved\" (\"SERVFAIL\" OR \"NXDOMAIN\" OR \"TIMEOUT\")\n| stats count as failures by host, query_name\n| eval failure_rate=count\n| where failure_rate > 10\n```\n\nUnderstanding this SPL\n\n**DNS Resolution Failure Rate** — DNS failures impact application availability and user experience, requiring immediate investigation.\n\nDocumented **Data sources**: `sourcetype=syslog, systemd-resolved logs`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, query_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **failure_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where failure_rate > 10` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Timechart",
-  "grandmaExplanation": "Failures impact application availability and user experience, requiring immediate investigation — so you find out before users do when something is slowing down or breaking."
+  "detailedImplementation": "Prerequisites\n• Enable forwarding of resolver logs. **systemd-resolved** often lives under the journal: export via **journald** or **rsyslog** to the same `syslog` sourcetype the TA already parses.\n\nStep 1 — Configure data collection\nAdd **host**-level filters in inputs.conf to avoid double-ingesting unrelated facilities; tag `query_name` with **SEDCMD** or transforms if the resolver only prints inside `_raw`.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=os sourcetype=syslog (\"systemd-resolved\" OR \"unbound\" OR \"named\")\n| search \"SERVFAIL\" OR \"TIMEOUT\" OR (query_level=\"error\" AND \"NXDOMAIN\")\n| stats count as failures by host, query_name\n| where failures > 10\n```\n\nSimplify the middle line to the sample in the `spl` field if you only have **systemd-resolved** today.\n\n**Understanding this SPL** — Counts problem strings per **host** and **query_name**; raise threshold on busy resolvers or require `>10` per hour with `earliest` bounds.\n\n\nStep 3 — Validate\nFrom the host, run `resolvectl status` or your resolver’s test CLI; compare to `_raw` lines in Splunk at the same time. For cross-checks, use `dig` or `getent` from an admin shell during a controlled test, not in place of long-term collection.\n\nStep 4 — Operationalize\nSend to both platform DNS and the application team when `query_name` shows an app-specific suffix pattern.\n\n",
+  "grandmaExplanation": "We watch the machine’s name-lookup diary for a jump in “couldn’t look that up” lines, so teams can fix the phone book before apps start failing in big numbers."
 }

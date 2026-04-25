@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.5.16.json — DO NOT EDIT -->
+
 ---
 id: "5.5.16"
 title: "Cloud OnRamp Performance"
@@ -51,14 +53,14 @@ The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: c
 **Pipeline walkthrough**
 
 • Scopes the data: index=sdwan, sourcetype="cisco:sdwan:cloudx". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by app_name, site_id, exit_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by app_name, site_id, exit_type** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where avg_score < 8 OR avg_latency > 150` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **Cloud OnRamp Performance**): table app_name site_id exit_type avg_score avg_latency avg_loss
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (vQoE score trending per app), Table (underperforming apps), Bar chart (DIA vs gateway comparison).
@@ -76,10 +78,6 @@ index=sdwan sourcetype="cisco:sdwan:cloudx"
 ## Visualization
 
 Line chart (vQoE score trending per app), Table (underperforming apps), Bar chart (DIA vs gateway comparison).
-
-## Known False Positives
-
-SaaS provider outages will degrade scores regardless of WAN path; cross-reference with provider status pages.
 
 ## References
 

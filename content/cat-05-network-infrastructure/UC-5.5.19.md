@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.5.19.json — DO NOT EDIT -->
+
 ---
 id: "5.5.19"
 title: "Transport Circuit SLA Tracking"
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: c
 **Pipeline walkthrough**
 
 • Scopes the data: index=sdwan, sourcetype="cisco:sdwan:bfd". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by local_color, site_id, remote_system_ip** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by local_color, site_id, remote_system_ip** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **sla_latency** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **latency_breach** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where latency_breach="YES" OR loss_breach="YES"` — typically the threshold or rule expression for this monitoring goal.
@@ -60,7 +62,7 @@ The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: c
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (circuit SLA compliance), Line chart (latency trending per carrier), Single value (overall SLA compliance %).

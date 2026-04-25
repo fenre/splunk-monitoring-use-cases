@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.6.3.json — DO NOT EDIT -->
+
 ---
 id: "2.6.3"
 title: "Citrix Connection Failure Analysis"
@@ -53,11 +55,10 @@ The first pipeline stage scopes events using **index**: xd; **sourcetype**: citr
 
 • Scopes the data: index=xd, sourcetype="citrix:broker:events". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by failure_type, delivery_group, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by failure_type, delivery_group, _time** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where failures > 3` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **Citrix Connection Failure Analysis**): table _time, delivery_group, failure_type, failures, affected_users, reasons
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

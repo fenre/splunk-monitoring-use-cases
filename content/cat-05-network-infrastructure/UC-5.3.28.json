@@ -15,9 +15,7 @@
   "value": "Citrix ADC multiplexes many client connections onto fewer server-side connections through reuse and keep-alive, improving efficiency on backends. A falling reuse rate with rising front-end TPS, paired with high tail latency, can signal pool saturation, keep-alive misconfiguration, or backend slowness. The goal is to connect traffic shape to latency before servers exhaust ephemeral ports or file descriptors.",
   "implementation": "Populate `citrix:netscaler:perf` from NITRO with TCP and HTTP vserver service metrics where available, and align AppFlow-derived TPS and response-time percentiles. Normalize field names in props if your TA uses custom aliases. Create baselines for reuse and p95 by application; alert when reuse drops and p95 increases together during steady load.",
   "visualization": "Dual-axis line chart: TPS and reuse percent; scatter of reuse versus p95 latency; table of offending vservers.",
-  "cimModels": [
-    "Network_Traffic"
-  ],
+  "cimModels": [],
   "references": [
     {
       "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
@@ -28,7 +26,7 @@
       "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/load-balancing.html"
     }
   ],
-  "knownFalsePositives": "Backups, large file transfers, and diagnostic pcap or throughput tests can change multiplexing patterns compared to a typical web session. A four-week same-hour and per-vserver baseline separates traffic shape tests from a real service degradation pattern.",
+  "knownFalsePositives": "Long-lived and multiplexed flows can be healthy for databases and file transfers; check the app, not just the counter.",
   "equipment": [
     "citrix"
   ],
@@ -36,6 +34,6 @@
     "citrix_netscaler"
   ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• Metrics fields in `index=netscaler` from NITRO poll or HEC: connection reuse, keep-alive, TPS, response-time histograms.\n• Documented mapping from vserver to microservice SLOs.\n\nStep 1 — Configure data collection\nSet poll interval 1–5 minutes; align system clock. Store raw counters and precompute deltas in scheduled search if needed (delta of new connections, etc.).\n\nStep 2 — Create the search and alert\nAdjust `coalesce` field list to your deployment. Use anomaly detection (predict or ML Toolkit) for optional adaptive thresholds on p95. Alert when reuse drops below baseline and p95 exceeds SLO for two consecutive windows.\n\nStep 3 — Validate\nIn lab, disable keep-alive to backend briefly and confirm reuse and latency move as expected. Revert.\n\nStep 4 — Operationalize\nHand off to platform owners with a recommendation tree: check pool size, check backend time, review TCP parameters on vserver and service group.",
-  "grandmaExplanation": "We look at how well the system reuses the pipes to the back-end computers versus opening new ones — so we spot waste and slowness before the whole checkout flow crawls to a stop."
+  "detailedImplementation": "Prerequisites\n• Metrics fields in `index=netscaler` from NITRO poll or HEC: connection reuse, keep-alive, TPS, response-time histograms.\n• Documented mapping from vserver to microservice SLOs.\n\nStep 1 — Configure data collection\nSet poll interval 1–5 minutes; align system clock. Store raw counters and precompute deltas in scheduled search if needed (delta of new connections, etc.).\n\nStep 2 — Create the search and alert\nAdjust `coalesce` field list to your deployment. Use anomaly detection (predict or ML Toolkit) for optional adaptive thresholds on p95. Alert when reuse drops below baseline and p95 exceeds SLO for two consecutive windows.\n\nStep 3 — Validate\nCompare vservers, services, and load-balancing state in the Citrix ADC management view or command line for the same time window and objects.\nStep 4 — Operationalize\nHand off to platform owners with a recommendation tree: check pool size, check backend time, review TCP parameters on vserver and service group.",
+  "grandmaExplanation": "We study connection reuse on the same box so a jump in multiplexing is something you can compare to a known database or long-lived flow."
 }

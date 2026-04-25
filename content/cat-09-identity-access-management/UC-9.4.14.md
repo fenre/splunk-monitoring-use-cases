@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.4.14.json — DO NOT EDIT -->
+
 ---
 id: "9.4.14"
 title: "CyberArk Session Recording Alerts"
@@ -54,30 +56,8 @@ The first pipeline stage scopes events using **index**: pam; **sourcetype**: cyb
 • Pipeline stage (see **CyberArk Session Recording Alerts**): table _time, user, target_account, session_id, alert_reason
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**CyberArk Session Recording Alerts** — Real-time alerts on PSM recordings—policy violations, blocked commands, or session anomalies—enable SOC response before logout.
-
-Documented **Data sources**: PSM recording events, policy violation syslog from PSM. **App/TA** (typical add-on context): Splunk TA for CyberArk. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
-
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with CyberArk PVWA and PSM session views for the same sessions, alerts, and policy hits in the same time window.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (alerts), Table (session detail), Single value (critical alerts 24h).
@@ -91,20 +71,11 @@ index=pam sourcetype="cyberark:psm" OR sourcetype="cyberark:psm_alert"
 | sort -_time
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
-```
-
 ## Visualization
 
 Timeline (alerts), Table (session detail), Single value (critical alerts 24h).
 
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
-
 ## References
 
-- [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+- [Splunk Add-on for CyberArk](https://splunkbase.splunk.com/app/3084)
+- [CyberArk Privileged Session Manager](https://docs.cyberark.com/)

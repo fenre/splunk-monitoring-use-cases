@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.94.json — DO NOT EDIT -->
+
 ---
 id: "1.2.94"
 title: "Windows Subsystem for Linux (WSL) Activity"
@@ -13,7 +15,7 @@ WSL can be abused to run Linux-based attack tools while evading Windows-focused 
 
 ## Value
 
-WSL can be abused to run Linux-based attack tools while evading Windows-focused security tooling. Monitoring WSL activity closes this visibility gap.
+WSL and Linux userlands on server images expand the attack surface. New distros, shells, or root actions where Linux is not expected often mean policy drift or early foothold activity.
 
 ## Implementation
 
@@ -68,6 +70,16 @@ index=wineventlog (EventCode=1 OR EventCode=4688)
 | where match(Image, "(?i)(wsl\.exe|wslhost\.exe|bash\.exe.*windows)") OR match(ParentImage, "(?i)wsl")
 | table _time, host, User, Image, CommandLine, ParentImage, ParentCommandLine
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Endpoint.Processes
+  where (like(Processes.process_name,"wsl%") OR like(Processes.process_name,"bash%"))
+  by Processes.user Processes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

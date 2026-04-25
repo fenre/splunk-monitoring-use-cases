@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.8.json — DO NOT EDIT -->
+
 ---
 id: "1.2.8"
 title: "Privileged Group Changes"
@@ -13,7 +15,7 @@ Additions to Domain Admins, Enterprise Admins, or Schema Admins grant extreme pr
 
 ## Value
 
-Additions to Domain Admins, Enterprise Admins, or Schema Admins grant extreme privilege. Unauthorized changes could mean full domain compromise.
+Mistakes or theft in these groups are a fast path to a full environment takeover—tight, timely review is the point.
 
 ## Implementation
 
@@ -58,10 +60,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=success
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| search Authentication.user=*admin* OR Authentication.user=root
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.user All_Changes.action span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -99,10 +100,9 @@ index=wineventlog sourcetype="WinEventLog:Security" (EventCode=4728 OR EventCode
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=success
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| search Authentication.user=*admin* OR Authentication.user=root
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.user All_Changes.action span=1h
+| where count>0
 ```
 
 ## Visualization

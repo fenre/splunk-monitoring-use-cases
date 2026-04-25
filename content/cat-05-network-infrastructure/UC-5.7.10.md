@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.7.10.json — DO NOT EDIT -->
+
 ---
 id: "5.7.10"
 title: "Long-Duration Flow Detection"
@@ -54,7 +56,7 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 • Scopes the data: index=network, sourcetype="netflow". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **duration_min** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where duration_min > 60` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by src, dest, dest_port** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by src, dest, dest_port** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **GB** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Limits the number of rows with `head`.
@@ -62,11 +64,12 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+| tstats `summariesonly` max(All_Traffic.duration) as max_dur sum(All_Traffic.bytes_in) as bi sum(All_Traffic.bytes_out) as bo
   from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
-| eval bytes=bytes_in+bytes_out
-| sort -bytes
+  by All_Traffic.src All_Traffic.dest All_Traffic.dest_port span=1h
+| eval total_bytes=bi+bo, duration_min=max_dur/60
+| where duration_min > 60
+| sort -max_dur
 ```
 
 Understanding this CIM / accelerated SPL
@@ -87,7 +90,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Pick a long flow and compare `duration` and byte totals in Splunk to the same tuple on the flow exporter or a PCAP summary; confirm whether your field is seconds, milliseconds, or per-export slice.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (source, destination, port, duration, bytes), Scatter plot (duration vs. bytes).
@@ -106,11 +109,12 @@ index=network sourcetype="netflow"
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+| tstats `summariesonly` max(All_Traffic.duration) as max_dur sum(All_Traffic.bytes_in) as bi sum(All_Traffic.bytes_out) as bo
   from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
-| eval bytes=bytes_in+bytes_out
-| sort -bytes
+  by All_Traffic.src All_Traffic.dest All_Traffic.dest_port span=1h
+| eval total_bytes=bi+bo, duration_min=max_dur/60
+| where duration_min > 60
+| sort -max_dur
 ```
 
 ## Visualization

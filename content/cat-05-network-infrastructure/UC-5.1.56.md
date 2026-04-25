@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.1.56.json — DO NOT EDIT -->
+
 ---
 id: "5.1.56"
 title: "Junos Chassis Alarm Monitoring (Juniper)"
@@ -56,34 +58,13 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 • Applies an explicit `search` filter to narrow the current result set.
 • Applies an explicit `search` filter to narrow the current result set.
 • Extracts fields with `rex` (regular expression).
-• `stats` rolls up events into metrics; results are split **by host, fru_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, fru_type** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where alarm_events > 0` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.dest | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Junos Chassis Alarm Monitoring (Juniper)** — Junos raises chassis alarms for power supply loss, fan failure, FPC or PIC offline, and temperature exceedances—conditions that often need on-site hardware work before service is fully restored. Ignoring these events lets a single failed component escalate into switch-wide thermal shutdown or loss of redundancy. A clear Splunk view of major and minor chassis alarms speeds dispatch to facilities and vendor support and shortens mean time to repair for edge and campus fabrics.
-
-Documented **Data sources**: `sourcetype=juniper:junos:structured`. **App/TA** (typical add-on context): `Splunk_TA_juniper`, syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Alerts.Alerts` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+SSH to the device and run `show chassis alarms`, `show chassis routing-engine`, or `show virtual-chassis` as appropriate, and check that the same FRU, member, or RE state appears in syslog timestamps around your Splunk hit.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Chassis alarm table by host and FRU; timeline of major vs minor; single-value panel for open major alarms.
@@ -98,12 +79,6 @@ index=network sourcetype="juniper:junos:structured"
 | stats count as alarm_events, values(_raw) as sample_messages by host, fru_type
 | where alarm_events > 0
 | sort -alarm_events
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.dest | sort - count
 ```
 
 ## Visualization

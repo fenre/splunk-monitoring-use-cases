@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.3.5.json — DO NOT EDIT -->
+
 ---
 id: "5.3.5"
 title: "HTTP Error Rate by VIP (F5 BIG-IP)"
@@ -55,35 +57,32 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 • `eval` defines or adjusts **error_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where error_rate>5` — typically the threshold or rule expression for this monitoring goal.
 
+
+
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
 | tstats `summariesonly` count
   from datamodel=Web.Web
-  where Web.status>=400
-  by Web.src Web.uri_path Web.status span=5m
+  by Web.status Web.url Web.http_method Web.dest span=1h
 | sort -count
 ```
 
 Understanding this CIM / accelerated SPL
 
-**HTTP Error Rate by VIP (F5 BIG-IP)** — Backend 5xx errors indicate application issues. Per-VIP tracking isolates degraded services.
-
-Documented **Data sources**: F5 request logging profile. **App/TA** (typical add-on context): `Splunk_TA_f5-bigip`, request logging. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+This block uses `tstats` on the Web data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Web.Web` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+• Uses `tstats` against accelerated summaries for the Web model — enable acceleration and confirm CIM tags on your source data.
+• Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
+In the F5 or pool member context, open the same time range in access or stream logs on the back end and confirm response codes and URLs track with Splunk.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (error rate), Table (VIP, error rate), Single value.
 
@@ -101,8 +100,7 @@ index=network sourcetype="f5:bigip:ltm:http"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Web.Web
-  where Web.status>=400
-  by Web.src Web.uri_path Web.status span=5m
+  by Web.status Web.url Web.http_method Web.dest span=1h
 | sort -count
 ```
 

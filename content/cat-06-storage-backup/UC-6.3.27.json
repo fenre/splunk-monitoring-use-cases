@@ -11,13 +11,15 @@
   "dataSources": "TrueNAS REST `/api/v2.0/pool/dataset` snapshots indexed as `sourcetype=truenas:dataset`",
   "app": "Custom REST poller (API key) — pattern compatible with legacy FreeNAS/TrueNAS Splunk community apps",
   "spl": "index=storage sourcetype=\"truenas:dataset\" earliest=-1h\n| eval used=coalesce(used_bytes, used.bytes, used)\n| eval quota=coalesce(quota_bytes, quota, refquota_bytes, refquota)\n| eval pct_used=if(quota>0, round(used/quota*100,2), null())\n| where isnotnull(pct_used) AND pct_used > 90\n| stats latest(pct_used) as pct_used latest(used) as used_b latest(quota) as quota_b by hostname dataset_name\n| sort - pct_used",
+  "cimSpl": "| tstats `summariesonly` max(Performance.storage_used_percent) as used_pct\n  from datamodel=Performance where nodename=Performance.Storage\n  by Performance.host Performance.object span=1h\n| where used_pct > 80\n| sort - used_pct",
+  "cimModels": [
+    "Performance"
+  ],
+  "dataModelAcceleration": "Enable Data Model Acceleration for the CIM Performance data model (Performance.Storage node / storage_used_percent) after vendor fields are aliased to CIM; otherwise the cimSpl tstats variant may return no rows.",
   "description": "ZFS datasets with quotas or refquotas enforce hard stops for SMB/NFS shares and application logs; crossing 90% typically means user-visible errors within hours.",
   "value": "Prevents surprise write outages on multi-tenant filers and keeps VMware NFS datastores from freezing when quotas are tighter than pool free space suggests.",
   "implementation": "Poll dataset inventory every 15 minutes. Flatten nested `used` objects from TrueNAS SCALE JSON. Treat `refquota` separately if you enforce it without a parent `quota`. Feed results to ITSM with owner mapping from a lookup keyed by `dataset_name`.",
   "visualization": "Bar chart (dataset vs %), table (dataset, used, quota), forecast line using `predict` on used bytes.",
-  "cimModels": [
-    "N/A"
-  ],
   "references": [
     {
       "title": "TrueNAS SCALE — Dataset documentation",
@@ -26,13 +28,19 @@
     {
       "title": "OpenZFS manual — native properties (quota, refquota)",
       "url": "https://openzfs.github.io/openzfs-docs/man/master/7/zfsprops.7.html"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
     }
   ],
+  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
   "equipment": [
     "dell_emc",
     "truenas"
   ],
   "status": "draft",
+  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early.",
   "lastReviewed": "2026-04-24",
   "splunkVersions": [
     "9.2+",

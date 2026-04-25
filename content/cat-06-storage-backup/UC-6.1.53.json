@@ -12,13 +12,15 @@
   "dataSources": "Aggregate utilization from `netapp:ontap:aggr` (logical vs physical used)",
   "app": "Splunk Add-on for NetApp Data ONTAP (`TA-netapp_ontap`)",
   "spl": "index=storage sourcetype=\"netapp:ontap:aggr\"\n| eval phys=coalesce(physical_used, block_storage_physical_used)\n| eval logi=coalesce(logical_used, block_storage_logical_used)\n| eval overcommit=if(phys>0, round(logi/phys,3), null())\n| timechart span=4h max(overcommit) as overcommit_ratio by aggregate_name",
+  "cimSpl": "| tstats `summariesonly` max(Performance.storage_used_percent) as used_pct\n  from datamodel=Performance where nodename=Performance.Storage\n  by Performance.host Performance.object span=1h\n| where used_pct > 80\n| sort - used_pct",
+  "cimModels": [
+    "Performance"
+  ],
+  "dataModelAcceleration": "Enable Data Model Acceleration for the CIM Performance data model (Performance.Storage node / storage_used_percent) after vendor fields are aliased to CIM; otherwise the cimSpl tstats variant may return no rows.",
   "description": "Thin provisioning allows logical commitments to exceed free physical space. A climbing overcommit ratio signals snapshot growth or volume sprawl that can cause sudden aggregate full events.",
   "value": "Provides runway analysis before writes fail across all volumes on the aggregate, informing procurement and volume moves.",
   "implementation": "Enable aggregate polling in the TA. If only percentages exist, derive bytes from `size` and `*_percent` fields. Accelerate a nightly summary of max overcommit per aggregate for long-term trending.",
   "visualization": "Line chart (overcommit by aggregate), reference band, table (latest ratio).",
-  "cimModels": [
-    "N/A"
-  ],
   "references": [
     {
       "title": "Splunk Add-on for NetApp Data ONTAP (Splunkbase)",
@@ -27,12 +29,18 @@
     {
       "title": "Disks and aggregates",
       "url": "https://docs.netapp.com/us-en/ontap/disks-aggregates/index.html"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
     }
   ],
+  "knownFalsePositives": "Thin-provisioned ratios move with new writes, snapshots, and deleted data reclamation; spikes can follow large builds or storage efficiency jobs.",
   "equipment": [
     "netapp"
   ],
   "status": "draft",
+  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises.",
   "lastReviewed": "2026-04-24",
   "splunkVersions": [
     "9.2+",

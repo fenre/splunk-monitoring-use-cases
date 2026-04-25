@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.63.json — DO NOT EDIT -->
+
 ---
 id: "1.2.63"
 title: "Windows Installer Failures"
@@ -13,7 +15,7 @@ MSI installation failures affect patching, software deployment, and SCCM/Intune 
 
 ## Value
 
-MSI installation failures affect patching, software deployment, and SCCM/Intune compliance. Repeated failures indicate corrupted Windows Installer service or disk issues.
+Silent MSI failures are a classic ‘we thought the agent fixed it’ gap—trending by product and host closes that gap.
 
 ## Implementation
 
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:Application". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Pipeline stage (see **Windows Installer Failures**): table _time, host, EventCode, ProductName, ProductVersion, Message
-• `stats` rolls up events into metrics; results are split **by host, ProductName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, ProductName** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 2` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -60,9 +62,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -101,9 +103,9 @@ index=wineventlog sourcetype="WinEventLog:Application" Source="MsiInstaller" Eve
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1h
+| where count>0
 ```
 
 ## Visualization

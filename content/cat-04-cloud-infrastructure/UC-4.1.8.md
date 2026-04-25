@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.8.json — DO NOT EDIT -->
+
 ---
 id: "4.1.8"
 title: "GuardDuty Finding Ingestion"
@@ -74,6 +76,17 @@ index=aws sourcetype="aws:cloudwatch:guardduty"
 | where severity >= 7
 | table _time finding_type severity detail.title detail.description
 | sort -severity
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Intrusion_Detection.IDS_Attacks
+  where (match(lower(IDS_Attacks.severity), "high|critical|severe")
+         OR (isnum(IDS_Attacks.severity) AND IDS_Attacks.severity >= 7))
+  by IDS_Attacks.signature IDS_Attacks.severity IDS_Attacks.src span=1h
+| sort -count
 ```
 
 ## Visualization

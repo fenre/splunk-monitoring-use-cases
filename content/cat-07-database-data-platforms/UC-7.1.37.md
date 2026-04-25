@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.1.37.json — DO NOT EDIT -->
+
 ---
 id: "7.1.37"
 title: "Temp Tablespace Usage (Oracle TEMP)"
@@ -22,6 +24,7 @@ Poll `V$TEMPSEG_USAGE` every 5m. Alert at 85% of temp max. Identify top SQL by `
 ## Detailed Implementation
 
 Prerequisites
+• In operations we cross-check the same window in Oracle Enterprise Manager, SQLcl, or SQL Developer with `V$` views so live metrics match what Splunk shows.
 • Install and configure the required add-on or app: DB Connect.
 • Ensure the following data sources are available: `V$TEMPSEG_USAGE`, `DBA_TEMP_FREE_SPACE`.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -52,36 +55,15 @@ The first pipeline stage scopes events using **index**: database; **sourcetype**
 **Pipeline walkthrough**
 
 • Scopes the data: index=database, sourcetype="dbconnect:oracle_temp". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by tablespace_name, session_addr** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by tablespace_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by tablespace_name, session_addr** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by tablespace_name** so each row reflects one combination of those dimensions.
 • Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
 • Filters the current rows with `where total_used > max_blocks*0.85` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Temp Tablespace Usage (Oracle TEMP)**): table tablespace_name total_used max_blocks
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Databases.Lock_Stats by Lock_Stats.host, Lock_Stats.action | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Temp Tablespace Usage (Oracle TEMP)** — High `TEMP` usage for sorts and hashes causes ORA-1652. Tracks session temp consumption vs temp tablespace limits.
-
-Documented **Data sources**: `V$TEMPSEG_USAGE`, `DBA_TEMP_FREE_SPACE`. **App/TA** (typical add-on context): DB Connect. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Databases.Lock_Stats` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (temp usage %), Table (sessions using temp), Single value (peak temp GB).
@@ -97,16 +79,10 @@ index=database sourcetype="dbconnect:oracle_temp"
 | table tablespace_name total_used max_blocks
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Databases.Lock_Stats by Lock_Stats.host, Lock_Stats.action | sort - count
-```
-
 ## Visualization
 
 Line chart (temp usage %), Table (sessions using temp), Single value (peak temp GB).
 
 ## References
 
-- [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
+- [Splunk — DB Connect](https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX)

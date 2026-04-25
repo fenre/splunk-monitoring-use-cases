@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.111.json — DO NOT EDIT -->
+
 ---
 id: "1.2.111"
 title: "Windows Firewall Rule Tampering"
@@ -13,7 +15,7 @@ Attackers disable or modify firewall rules to enable lateral movement, C2 commun
 
 ## Value
 
-Attackers disable or modify firewall rules to enable lateral movement, C2 communication, and data exfiltration. Rule changes outside maintenance windows indicate compromise.
+Host firewall drift opens RDP, SMB, or random high ports while the network team still believes the old baseline. We want those edits visible for both misconfig and malicious change.
 
 ## Implementation
 
@@ -68,6 +70,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Firewall With Ad
 | eval Action=case(EventCode=2004,"Rule_Added", EventCode=2005,"Rule_Modified", EventCode=2006,"Rule_Deleted", EventCode=2033,"All_Rules_Deleted", 1=1,"Other")
 | table _time, host, Action, RuleName, ApplicationPath, Direction, Protocol, LocalPort, RemotePort, ModifyingUser
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.40.json — DO NOT EDIT -->
+
 ---
 id: "2.1.40"
 title: "VM NUMA Alignment"
@@ -55,7 +57,7 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 **Pipeline walkthrough**
 
 • Scopes the data: index=vmware, sourcetype="vmware:perf:mem". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by vm_name, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by vm_name, host** so each row reflects one combination of those dimensions.
 • Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.
 • Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.
 • `eval` defines or adjusts **vcpus_per_node** — often to normalize units, derive a ratio, or prepare for thresholds.
@@ -63,7 +65,6 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 • Filters the current rows with `where spans_numa="Yes"` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **VM NUMA Alignment**): table vm_name, host, numCpu, memoryMB, vcpus_per_node, numa_nodes, spans_numa, ll_swap_kb
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

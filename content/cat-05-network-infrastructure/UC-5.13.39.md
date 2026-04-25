@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.39.json — DO NOT EDIT -->
+
 ---
 id: "5.13.39"
 title: "Advisory Severity Distribution and Risk Scoring"
@@ -22,36 +24,35 @@ Enable the `securityadvisory` input. Adjust `risk_weight` numbers to match your 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).
-• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:securityadvisory (severity, advisoryId, deviceId).
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Cisco Catalyst Add-on (7538) with `cisco:dnac:securityadvisory` in `index=catalyst`.
+• Agree on numeric weights (the sample uses 10/7/4/1 for CRITICAL/HIGH/MEDIUM/LOW) with risk or security leadership before the chart is used in executive reporting. Adjust the `case()` table if Cisco adds new severity labels—include a final default and monitor for UNKNOWN.
+• `docs/implementation-guide.md`.
 
 Step 1 — Configure data collection
-Enable the `securityadvisory` input. Adjust `risk_weight` numbers to match your risk team’s model; optionally multiply by `affected_devices` for a population-aware score instead of `advisory_count` alone.
+• Same `securityadvisory` input and polling cadence as in `UC-5.13.34`. For very small sites, use a 7d window so `dc(advisoryId)` is not always 1 in every band.
 
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Step 2 — Weighted risk roll-up
 ```spl
 index=catalyst sourcetype="cisco:dnac:securityadvisory" | stats dc(advisoryId) as advisory_count dc(deviceId) as affected_devices by severity | eval risk_weight=case(severity="CRITICAL",10,severity="HIGH",7,severity="MEDIUM",4,severity="LOW",1,1==1,0) | eval weighted_risk=advisory_count*risk_weight | sort -weighted_risk
 ```
 
-Understanding this SPL
-
-**Advisory Severity Distribution and Risk Scoring** — Raw advisory counts do not reflect actual risk. Weighting by severity provides a more accurate picture of organizational exposure for executive reporting.
+Understanding this SPL (portfolio, not per-CVE CVSS)
+**Advisory Severity & Risk** — `weighted_risk` multiplies distinct advisory count by a severity weight. A v2 for leadership might incorporate `affected_devices` (for example `advisory_count * risk_weight * log(affected_devices+1)`) so population impact matters.
 
 **Pipeline walkthrough**
-
-• `stats` measures how many distinct advisories and devices appear for each `severity` band, summarising the exposure envelope.
-• `case` maps each severity label to a numeric `risk_weight` for simple scoring.
-• `weighted_risk` multiplies the breadth of unique advisories by that weight, and `sort` shows the most significant columns first (extend the formula to include `affected_devices` as needed).
-
+• `stats` of distinct `advisoryId` and `deviceId` per `severity` → `risk_weight` from `case` → product → `sort` descending.
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results.
+• Compare counts per `severity` to the Catalyst or Cisco PSIRT portfolio view; explain any mismatch where Splunk’s `dc(advisoryId)` counts distinct IDs that map to a smaller number of public bulletins.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions as required. Consider visualizations: Bar chart (weighted_risk by severity), table combining advisory_count, affected_devices, and weighted_risk.
+• Export the table to quarterly GRC; trend `weighted_risk` from a summary index if you need month-over-month KPI without rescanning raw events.
+
+Step 5 — Troubleshooting
+• Zero rows: no advisories in the window or index scope wrong—`tstats count` the sourcetype.
+• Weights that feel misleading: re-tune the `case` table, or add `affected_devices` into the `eval` as above.
+• After upgrades, confirm `severity` strings have not changed (new enum values need new `case` arms).
+
 
 ## SPL
 
@@ -67,3 +68,4 @@ Bar chart (weighted_risk by severity), table combining advisory_count, affected_
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

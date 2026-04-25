@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.62.json — DO NOT EDIT -->
+
 ---
 id: "5.13.62"
 title: "Wireless Channel Utilization and Interference"
@@ -38,14 +40,14 @@ The script should poll AP detail for each access point and extract: `apName`, `b
 ## Detailed Implementation
 
 Prerequisites
-• AP inventory from `cisco:dnac:devicehealth` (UC-5.13.60) to obtain AP names/MACs for iteration.
-• Custom app `TA_catalyst_wireless` (or similar) on the forwarder with credentials in the Splunk credential store.
+• AP inventory from `cisco:dnac:devicehealth` (UC-5.13.60) to obtain AP names or MACs for the poll loop.
+• Custom app (for example `TA_catalyst_wireless`) on the **Heavy Forwarder** with Catalyst credentials in the Splunk credential store.
 
-Step 1 — API workflow
-1. `POST /dna/system/api/v1/auth/token` — store token for 15–30 minute reuse if supported.
-2. For each managed AP, call `GET /dna/intent/api/v1/device-detail?searchBy=macAddress&identifier=<ap_mac>` (or bulk device-health v2) and map JSON fields to: `apName`, `band`, `channel`, `channelUtilization`, `interferencePercentage`, `txPower`, `clientCount`.
-3. If the API returns multiple radios, emit one event per (apName, band, channel) for granular SPL.
-4. Throttle: `interval=900` limits API load; increase carefully per Cisco rate limits.
+Step 1 — API workflow (Catalyst Center)
+1. `POST /dna/system/api/v1/auth/token` and reuse the token for 15–30 minutes when permitted.
+2. For each managed AP, call `GET /dna/intent/api/v1/device-detail?searchBy=macAddress&identifier=<ap_mac>` (or a bulk health endpoint your release supports) and map: `apName`, `band`, `channel`, `channelUtilization`, `interferencePercentage`, `txPower`, `clientCount` into `cisco:dnac:wireless:rf`.
+3. Emit one event per radio (apName, band, channel) when the response lists multiple interfaces.
+4. Default **interval=900** seconds to respect Cisco rate limits; add backoff on HTTP 429.
 
 ```ini
 [script://$SPLUNK_HOME/etc/apps/TA_catalyst_wireless/bin/collect_wireless_rf.py]
@@ -55,7 +57,7 @@ index = catalyst
 disabled = 0
 ```
 
-**props.conf (optional):** `KV_MODE=json` or `SHOULD_LINEMERGE = false` if you emit one JSON object per line.
+**props.conf (optional):** `KV_MODE=json` or `SHOULD_LINEMERGE = false` for one JSON line per event.
 
 Step 2 — Search
 
@@ -64,10 +66,15 @@ index=catalyst sourcetype="cisco:dnac:wireless:rf" | stats avg(channelUtilizatio
 ```
 
 Step 3 — Validate
-Spot-check against Catalyst Center wireless assurance / RF view for a single AP and band.
+Spot-check a few APs against **Catalyst Center > Wireless** RF or Assurance; align field percent scales (0–1 vs 0–100) in `eval` if your poller normalizes differently.
 
 Step 4 — Operationalize
-Capacity planning: alert when `util_status=Overloaded` for sustained windows; work with wireless engineers on channel/power changes or extra APs.
+Alert on **sustained** Overloaded (for example 3 consecutive polls) to avoid one spike during a site survey. Pair with BSSID capacity planning, not a silent ticket storm.
+
+Step 5 — Troubleshooting
+• **Empty sourcetype:** script not running, bad token, or no AP list from step 0 — test one MAC by hand in Postman. **Gaps in time:** the loop may skip APs on timeout; batch smaller or add pagination.
+• **All zeros:** wrong JSON path for utilization — re-open a raw event in Splunk and correct field names in the script.
+
 
 ## SPL
 

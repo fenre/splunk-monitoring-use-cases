@@ -19,6 +19,7 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "Splunk Add-on for Jira Cloud",
@@ -29,6 +30,7 @@
       "url": "https://docs.splunk.com/Documentation/AddOns/released/JiraCloud/Sourcetypes"
     }
   ],
+  "knownFalsePositives": "Overlapping change windows for coordinated deploys, blue-green work, or hotfixes the calendar still shows as two blocks.",
   "equipment": [
     "jira"
   ],
@@ -38,5 +40,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We look for two approved change windows on top of each other, so two teams are not doing risky work in the same minute.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: Splunk Add-on for Jira Cloud (6211) + CMDB lookup `service_ci`.\n• Data: Jira Service Management change tickets with planned start/end.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nRequire ISO timestamps in custom fields; normalize to epoch at ingest.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=itsm sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"\n| where issue_type=\"Change\" OR labels=\"change\"\n| eval start=start_epoch, end=end_epoch\n| where isnotnull(start) AND isnotnull(end)\n| sort 0 start\n| streamstats window=1 current=f latest(end) as prev_end latest(key) as prev_key by service_ci\n| where start < prev_end AND prev_key!=key\n| table key, prev_key, service_ci, start, end, prev_end\n```\n\nUnderstanding this search\nOverlapping production changes increase rollback complexity and blast radius.\n\nStep 3 — Validate\nCompare with the Jira issue page, board, or service project view for the same dates. Confirm issue keys, status, and assignment fields; reconcile timestamp fields you use in the report.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Gantt-style table, Alert email to CAB."
 }

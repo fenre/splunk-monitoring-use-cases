@@ -11,14 +11,22 @@
   "dataSources": "`index=web` `sourcetype=tomcat:access` (W3C or extended format with elapsed time)",
   "app": "Splunk Add-on for Tomcat (Splunkbase app 2911)",
   "spl": "index=web sourcetype=\"tomcat:access\"\n| eval elapsed_ms=coalesce('time-taken', time_taken, timetaken, duration_ms)\n| where isnotnull(elapsed_ms) AND elapsed_ms>0\n| timechart span=5m perc95(elapsed_ms) as p95_ms by host\n| where p95_ms > 2000",
+  "cimSpl": "| tstats `summariesonly` perc95(Web.duration) as p95_ms avg(Web.duration) as avg_ms\n  from datamodel=Web.Web\n  by Web.dest Web.uri_path span=5m\n| where p95_ms > 0",
+  "cimModels": [
+    "Web"
+  ],
+  "dataModelAcceleration": "Web: enable Data Model Acceleration for the CIM `Web` dataset once your HTTP access or proxy access logs are tagged and mapped to the model; otherwise `cimSpl` tstats may return no rows. Most teams start with the raw-log search in Step 2 and add acceleration after CIM field aliases validate.",
   "description": "Tomcat access logs with `%D` or `time-taken` show end-to-end request duration. Rising P95 latency often precedes thread pool exhaustion and timeouts.",
   "value": "Teams catch Tomcat slowdowns before pools saturate and users see widespread timeouts.",
+  "grandmaExplanation": "We watch for signs that teams catch Tomcat slowdowns before pools saturate and users see widespread timeouts.",
   "implementation": "Enable the AccessLogValve with elapsed time (`%D` microseconds or equivalent). Ingest with the Splunk Add-on for Tomcat. Normalize milliseconds at ingest or in SPL. Baseline P95 per application and seasonality.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Tomcat (Splunkbase app 2911).\n• Ensure the following data sources are available: `index=web` `sourcetype=tomcat:access` (W3C or extended format with elapsed time).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Tomcat access logging including request duration; forward logs into Splunk with the Tomcat add-on; confirm the elapsed-time field is extracted as `time-taken` or map it to `elapsed_ms` in SPL.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"tomcat:access\"\n| eval elapsed_ms=coalesce('time-taken', time_taken, timetaken, duration_ms)\n| where isnotnull(elapsed_ms) AND elapsed_ms>0\n| timechart span=5m perc95(elapsed_ms) as p95_ms by host\n| where p95_ms > 2000\n```\n\nUnderstanding this SPL\n\n**Tomcat Access Log Response Time Percentiles** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=tomcat:access` (W3C or extended format with elapsed time). **App/TA**: Splunk Add-on for Tomcat (Splunkbase app 2911). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (P95 elapsed ms), table (top slow hosts), single value (current P95 vs SLO)..",
   "visualization": "Line chart (P95 elapsed ms), table (top slow hosts), single value (current P95 vs SLO).",
-  "cimModels": [
-    "N/A"
-  ],
   "references": [
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    },
     {
       "title": "Splunk Add-on for Tomcat (Splunkbase)",
       "url": "https://splunkbase.splunk.com/app/2911"
@@ -28,6 +36,7 @@
       "url": "https://tomcat.apache.org/tomcat-10.0-doc/config/valve.html#Access_Log_Valve"
     }
   ],
+  "knownFalsePositives": "Response time spikes during JVM garbage collection, connection pool exhaustion, or backend dependency degradation. Load tests, campaigns, and cold caches also move percentiles.",
   "equipment": [
     "tomcat"
   ],
@@ -37,7 +46,5 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Tomcat (Splunkbase app 2911).\n• Ensure the following data sources are available: `index=web` `sourcetype=tomcat:access` (W3C or extended format with elapsed time).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Tomcat access logging including request duration; forward logs into Splunk with the Tomcat add-on; confirm the elapsed-time field is extracted as `time-taken` or map it to `elapsed_ms` in SPL.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"tomcat:access\"\n| eval elapsed_ms=coalesce('time-taken', time_taken, timetaken, duration_ms)\n| where isnotnull(elapsed_ms) AND elapsed_ms>0\n| timechart span=5m perc95(elapsed_ms) as p95_ms by host\n| where p95_ms > 2000\n```\n\nUnderstanding this SPL\n\n**Tomcat Access Log Response Time Percentiles** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=tomcat:access` (W3C or extended format with elapsed time). **App/TA**: Splunk Add-on for Tomcat (Splunkbase app 2911). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (P95 elapsed ms), table (top slow hosts), single value (current P95 vs SLO)..",
-  "grandmaExplanation": "We watch how long your Java site takes to answer requests so your team can fix slowdowns before the whole app feels stuck."
+  "reviewer": "@splunk-monitoring-use-cases"
 }

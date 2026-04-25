@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.12.json — DO NOT EDIT -->
+
 ---
 id: "1.2.12"
 title: "RDP Session Monitoring"
@@ -13,7 +15,7 @@ Tracks who connected via Remote Desktop, from where, and when. Essential for com
 
 ## Value
 
-Tracks who connected via Remote Desktop, from where, and when. Essential for compliance auditing and detecting lateral movement.
+Proving who was on a server when something changed is a staple of support, audit, and incident response for Windows estates.
 
 ## Implementation
 
@@ -50,6 +52,20 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Pipeline stage (see **RDP Session Monitoring**): table _time host User EventCode
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication where nodename=Authentication
+  by Authentication.user Authentication.src Authentication.dest span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -62,6 +78,15 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ```spl
 index=wineventlog source="WinEventLog:Microsoft-Windows-TerminalServices-LocalSessionManager/Operational" (EventCode=21 OR EventCode=23 OR EventCode=24 OR EventCode=25)
 | table _time host User EventCode
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication where nodename=Authentication
+  by Authentication.user Authentication.src Authentication.dest span=1h
+| where count>0
 ```
 
 ## Visualization

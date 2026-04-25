@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.29.json — DO NOT EDIT -->
+
 ---
 id: "2.1.29"
 title: "VM Affinity and Anti-Affinity Rule Violations"
@@ -51,7 +53,6 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 • Scopes the data: index=vmware, sourcetype="vmware:events". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Pipeline stage (see **VM Affinity and Anti-Affinity Rule Violations**): table _time, cluster, rule_name, vm_name, host, message
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

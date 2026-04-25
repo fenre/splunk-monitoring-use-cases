@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.3.2.json — DO NOT EDIT -->
+
 ---
 id: "6.3.2"
 title: "Backup Job Duration Trending"
@@ -54,10 +56,10 @@ The first pipeline stage scopes events using **index**: backup; **sourcetype**: 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare job session state, duration, and transferred bytes with Veeam Backup & Replication or Veeam Enterprise Manager for the same job and time window.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (duration trend per job), Table (longest running jobs), Bar chart (avg duration by job).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Line chart (duration trend per job), Table (longest running jobs), Bar chart (avg duration by job).
 
 ## SPL
 

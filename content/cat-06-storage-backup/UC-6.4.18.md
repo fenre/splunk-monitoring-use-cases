@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.4.18.json — DO NOT EDIT -->
+
 ---
 id: "6.4.18"
 title: "File Deletion Volume Anomaly"
@@ -52,18 +54,15 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:Security". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by Account_Name, ShareName, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by Account_Name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by Account_Name, ShareName, _time** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by Account_Name** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where deletes > avg_d + 4*stdev_d AND deletes > 50` — typically the threshold or rule expression for this monitoring goal.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
-
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (delete bursts), Table (user, share, delete count), Line chart (deletes per minute).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Pair alerts with the file-server or security team runbook and change calendar. Consider visualizations: Timeline (delete bursts), Table (user, share, delete count), Line chart (deletes per minute).
 
 ## SPL
 

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.7.1.json — DO NOT EDIT -->
+
 ---
 id: "8.7.1"
 title: "User Session Volume Trending"
@@ -53,33 +55,13 @@ The first pipeline stage scopes events using **index**: web, app; **sourcetype**
 • Scopes the data: index=web, index=app, sourcetype=access_combined. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **sid** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time** so each row reflects one combination of those dimensions.
 • `timechart` plots the metric over time using **span=1d** buckets — ideal for trending and alerting on this use case.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest span=1d | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**User Session Volume Trending** — Daily or weekly active session counts show adoption, campaign effects, and capacity needs before saturation. Seasonal patterns become visible for staffing and infrastructure scale plans.
-
-Documented **Data sources**: `index=web` `sourcetype=access_combined`, `index=app` session or access logs, optional `JSESSIONID` / `session_id` fields. **App/TA** (typical add-on context): Splunk OTel Collector / app instrumentation, Tomcat / IIS / NGINX TAs as applicable. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Web.Web` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (daily sessions), column chart (week-over-week), single value (rolling 7-day average).
@@ -92,12 +74,6 @@ index=web OR index=app (sourcetype=access_combined OR sourcetype="tomcat:access"
 | bin _time span=1d
 | stats dc(sid) as approx_active_sessions by _time
 | timechart span=1d sum(approx_active_sessions) as daily_sessions
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest span=1d | sort - count
 ```
 
 ## Visualization

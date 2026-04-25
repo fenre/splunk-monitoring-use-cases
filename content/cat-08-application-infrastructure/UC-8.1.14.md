@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.1.14.json — DO NOT EDIT -->
+
 ---
 id: "8.1.14"
 title: "SSL Certificate Expiry Countdown"
@@ -52,34 +54,14 @@ The first pipeline stage scopes events using **index**: certificates; **sourcety
 
 • Scopes the data: index=certificates, sourcetype="cert_check". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **days_left** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, port** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, port** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where soonest < 45` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Web.Web by Web.dest | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**SSL Certificate Expiry Countdown** — Days-to-expiry dashboard for all TLS endpoints monitored by cert checks. Complements UC-8.1.5 with trend and earliest-expiry focus.
-
-Documented **Data sources**: `cert_check` with `cert_expiry_epoch`, `cn`. **App/TA** (typical add-on context): Scripted cert check, `openssl` input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Web.Web` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, port, days_left), Single value (minimum days_left fleet-wide), Column chart (certs by expiry bucket).
@@ -92,12 +74,6 @@ index=certificates sourcetype="cert_check"
 | stats min(days_left) as soonest by host, port
 | where soonest < 45
 | sort soonest
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Web.Web by Web.dest | sort - count
 ```
 
 ## Visualization

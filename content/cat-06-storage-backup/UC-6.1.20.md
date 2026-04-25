@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.1.20.json — DO NOT EDIT -->
+
 ---
 id: "6.1.20"
 title: "iSCSI Session Monitoring"
@@ -52,18 +54,15 @@ The first pipeline stage scopes events using **index**: storage; **sourcetype**:
 
 • Scopes the data: index=storage, sourcetype="iscsi:session". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by host, target_iqn, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by host, target_iqn** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, target_iqn, _time** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by host, target_iqn** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where sessions < baseline OR sessions=0` — typically the threshold or rule expression for this monitoring goal.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
-
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (sessions per host/target), Table (hosts with zero sessions), Single value (total active sessions).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production—not generic platform steps only. Consider visualizations: Line chart (sessions per host/target), Table (hosts with zero sessions), Single value (total active sessions).
 
 Scripted input (generic example)
 This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:

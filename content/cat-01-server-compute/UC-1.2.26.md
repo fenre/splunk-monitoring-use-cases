@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.26.json — DO NOT EDIT -->
+
 ---
 id: "1.2.26"
 title: "Security Log Cleared"
@@ -13,7 +15,7 @@ Clearing the Security event log is a classic attacker technique to cover tracks.
 
 ## Value
 
-Clearing the Security event log is a classic attacker technique to cover tracks. Legitimate clears are rare and should always be investigated.
+Log clearing is a classic attacker or insider cover-up move—an operator needs to act fast and preserve evidence the right way.
 
 ## Implementation
 
@@ -52,6 +54,20 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Pipeline stage (see **Security Log Cleared**): table _time, host, sourcetype, EventCode, SubjectUserName, SubjectDomainName
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.action All_Changes.object span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -65,6 +81,15 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=wineventlog (sourcetype="WinEventLog:Security" EventCode=1102) OR (sourcetype="WinEventLog:System" EventCode=104)
 | table _time, host, sourcetype, EventCode, SubjectUserName, SubjectDomainName
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.action All_Changes.object span=1h
+| where count>0
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.8.json — DO NOT EDIT -->
+
 ---
 id: "4.4.8"
 title: "Cloud Spend by Tag or Project (Chargeback)"
@@ -56,7 +58,7 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 • Extracts structured paths (JSON/XML) with `spath`.
 • Expands multivalue fields with `mvexpand` — use `limit=` to cap row explosion.
 • Extracts fields with `rex` (regular expression).
-• `stats` rolls up events into metrics; results are split **by tag_key tag_value** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by tag_key tag_value** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where tag_key="Owner" OR tag_key="Team"` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 

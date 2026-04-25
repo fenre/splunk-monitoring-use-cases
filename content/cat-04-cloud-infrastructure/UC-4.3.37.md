@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.3.37.json — DO NOT EDIT -->
+
 ---
 id: "4.3.37"
 title: "Cloud CDN Cache Performance"
@@ -53,7 +55,7 @@ The first pipeline stage scopes events using **index**: gcp; **sourcetype**: goo
 
 • Scopes the data: index=gcp, sourcetype="google:gcp:pubsub:message". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **cache_hit** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by resource.labels.url_map_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by resource.labels.url_map_name** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **hit_ratio** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where hit_ratio < 60 AND total > 1000` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.43.json — DO NOT EDIT -->
+
 ---
 id: "1.2.43"
 title: "Failover Cluster Event Monitoring"
@@ -13,7 +15,7 @@ Cluster failovers indicate node failures or network partitions affecting high-av
 
 ## Value
 
-Cluster failovers indicate node failures or network partitions affecting high-availability services. Each failover risks brief downtime and potential data loss.
+Cluster events are a straight line to RTO/HA stories—if you do not see them, you are flying blind in DR exercises.
 
 ## Implementation
 
@@ -55,6 +57,20 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • Pipeline stage (see **Failover Cluster Event Monitoring**): table _time, host, event, EventCode, ResourceName, NodeName
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.action All_Changes.dest span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -70,6 +86,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-FailoverClustering/Opera
 | eval event=case(EventCode=1069,"Resource failed",EventCode=1177,"Quorum lost",EventCode=1205,"Cluster service stopped",EventCode=1254,"Node removed")
 | table _time, host, event, EventCode, ResourceName, NodeName
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.action All_Changes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

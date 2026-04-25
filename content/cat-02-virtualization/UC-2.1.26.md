@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.26.json — DO NOT EDIT -->
+
 ---
 id: "2.1.26"
 title: "VM Hardware Version Compliance"
@@ -53,13 +55,12 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 **Pipeline walkthrough**
 
 • Scopes the data: index=vmware, sourcetype="vmware:inv:vm". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by vm_name, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by vm_name, host** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **hw_num** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where hw_num < 19` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by hw_version** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by hw_version** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **VM Hardware Version Compliance**): table hw_version, count
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

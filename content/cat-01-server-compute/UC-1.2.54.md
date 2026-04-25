@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.54.json — DO NOT EDIT -->
+
 ---
 id: "1.2.54"
 title: "Windows Event Forwarding (WEF) Health"
@@ -13,7 +15,7 @@ WEF collects events from thousands of endpoints to central collectors. Forwardin
 
 ## Value
 
-WEF collects events from thousands of endpoints to central collectors. Forwarding failures create visibility gaps across the security monitoring pipeline.
+If WEF is down, a chunk of the estate is dark to SIEM and SOAR even if the hosts are ‘healthy’ in CMDB terms.
 
 ## Implementation
 
@@ -53,9 +55,23 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **issue** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, issue, SubscriptionName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, issue, SubscriptionName** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where issue!="Subscription connected"` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
 
 
 Step 3 — Validate
@@ -94,6 +110,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Forwarding/Operational"
 | stats count by host, issue, SubscriptionName
 | where issue!="Subscription connected"
 | sort -count
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

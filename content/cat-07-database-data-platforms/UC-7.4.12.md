@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.4.12.json — DO NOT EDIT -->
+
 ---
 id: "7.4.12"
 title: "BigQuery Cost Anomalies"
@@ -22,6 +24,7 @@ Ingest completed jobs daily. Alert on project-day cost outliers. Drill into `job
 ## Detailed Implementation
 
 Prerequisites
+• In operations we confirm in pgAdmin, psql, and `pg_stat*` views, or the managed PostgreSQL console.
 • Install and configure the required add-on or app: BigQuery `INFORMATION_SCHEMA.JOBS`, billing export to Splunk.
 • Ensure the following data sources are available: `total_bytes_billed`, `total_slot_ms`, `creation_time`.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -53,8 +56,8 @@ The first pipeline stage scopes events using **index**: datawarehouse; **sourcet
 
 • Scopes the data: index=datawarehouse, sourcetype="bigquery:jobs". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by project_id, user_email, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by project_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by project_id, user_email, _time** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by project_id** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where bytes > avg_b + 3*s` — typically the threshold or rule expression for this monitoring goal.
 • `eval` defines or adjusts **gb** — often to normalize units, derive a ratio, or prepare for thresholds.
 
@@ -62,7 +65,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (daily bytes billed), Table (anomalous days/projects), Bar chart (top users by cost).

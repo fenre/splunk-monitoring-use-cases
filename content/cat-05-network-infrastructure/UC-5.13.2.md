@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.2.json — DO NOT EDIT -->
+
 ---
 id: "5.13.2"
 title: "Device Health Score Trending"
@@ -69,6 +71,7 @@ Step 5 — Troubleshooting
 • **Y-axis stuck at null:** open **Settings > Fields** for the sourcetype and confirm **EXTRACT-** / **KV** for `overallHealth`.
 • **Low dynamic range:** a very stable fabric produces flat lines—combine with **client** and **network** health UCs for user-impacting signal.
 
+
 ## SPL
 
 ```spl
@@ -83,3 +86,4 @@ Line or area timechart (avg_health by deviceType), optional overlay for maintena
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

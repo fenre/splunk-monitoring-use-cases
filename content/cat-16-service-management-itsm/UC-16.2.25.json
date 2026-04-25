@@ -19,6 +19,7 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "PagerDuty App for Splunk",
@@ -29,6 +30,7 @@
       "url": "https://splunkbase.splunk.com/app/3759"
     }
   ],
+  "knownFalsePositives": "Cascades that are real, plus tests and reconfigured dependencies; line up the incident list in the on-call product.",
   "equipment": [
     "pagerduty"
   ],
@@ -38,5 +40,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We roll many related page storms into a score, so you see a dependency-wide wave instead of twenty separate yells in the list.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: PagerDuty service dependencies API + Events API merged at HEC.\n• Data: Incidents enriched with `impacted_service` dependency metadata.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nRequires nightly dependency snapshot join; optional graph reduction.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"pagerduty:incident\"\n| eval root=coalesce(impacted_service, service_name)\n| bin _time span=15m\n| stats dc(incident_number) as fanout by _time, root\n| where fanout>=5\n| sort -fanout\n```\n\nUnderstanding this search\nWide dependency graphs fan out pages during single-root outages.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Tree map (fanout), Single value (peak fanout)."
 }

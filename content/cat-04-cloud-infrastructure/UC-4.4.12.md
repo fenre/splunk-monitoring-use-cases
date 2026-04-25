@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.12.json — DO NOT EDIT -->
+
 ---
 id: "4.4.12"
 title: "Multi-Cloud Identity and Access Anomalies"
@@ -54,7 +56,7 @@ The first pipeline stage scopes events using **index**: aws, azure, gcp.
 • Scopes the data: index=aws, index=azure, index=gcp. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **user** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
-• `stats` rolls up events into metrics; results are split **by normalized_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by normalized_id** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where clouds >= 2` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.9.14.json — DO NOT EDIT -->
+
 ---
 id: "5.9.14"
 title: "DNS Resolution Time Trending"
@@ -52,7 +54,7 @@ Documented **Data sources**: `index=thousandeyes`, ThousandEyes OTel Tests Strea
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same tests and time window in the Cisco ThousandEyes App for Splunk dashboard or the test view at app.thousandeyes.com so Splunk’s metrics and states match the vendor. If they disagree, check streaming or HEC inputs, macros, and API or token health before retuning.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (resolution time over time by domain), Table with drilldown to ThousandEyes.

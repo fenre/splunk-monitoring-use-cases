@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.2.1.json — DO NOT EDIT -->
+
 ---
 id: "2.2.1"
 title: "VM Performance Monitoring"
@@ -49,7 +51,7 @@ The first pipeline stage scopes events using **index**: perfmon; **sourcetype**:
 **Pipeline walkthrough**
 
 • Scopes the data: index=perfmon, sourcetype="Perfmon:HyperV". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by instance, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by instance, host** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
@@ -75,7 +77,6 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 • Filters the current rows with `where avg_cpu > 90` — typically the threshold or rule expression for this monitoring goal.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

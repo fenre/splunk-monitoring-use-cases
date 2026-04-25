@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.1.json — DO NOT EDIT -->
+
 ---
 id: "5.13.1"
 title: "Device Health Score Overview"
@@ -72,6 +74,7 @@ Step 5 — Troubleshooting
 • **Fewer devices than the Catalyst Center UI:** re-sync **inventory**; confirm the Splunk user’s **virtual domain / multi-cluster** scope; look for RMA/rename issues duplicating or hiding `deviceName`.
 • **Stale or clustered `_time`:** check NTP on forwarders, proxy timeouts, and API throttling; consider **lowering** poll frequency or contact Cisco TAC if 429/5xx repeat.
 
+
 ## SPL
 
 ```spl
@@ -86,3 +89,4 @@ Table (device name, health score, status, type), Single value panels (healthy/un
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

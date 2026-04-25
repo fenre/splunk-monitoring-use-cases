@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.2.2.json — DO NOT EDIT -->
+
 ---
 id: "4.2.2"
 title: "Entra ID Sign-In Anomalies"
@@ -53,6 +55,121 @@ The first pipeline stage scopes events using **index**: azure; **sourcetype**: m
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.action Authentication.src span=1h
+| sort -count
+```
+
+Understanding this CIM / accelerated SPL
+
+**Entra ID Sign-In Anomalies** — Risky sign-ins include impossible travel, unfamiliar locations, and anonymous IP usage.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on accelerated data model `Authentication.Authentication` — enable that model in Data Models and CIM add-ons, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.action Authentication.src span=1h
+| sort -count
+```
+
+Understanding this CIM / accelerated SPL
+
+**Entra ID Sign-In Anomalies** — Risky sign-ins include impossible travel, unfamiliar locations, and anonymous IP usage.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Authentication` data model (`Authentication` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.action Authentication.src span=1h
+| sort -count
+```
+
+Understanding this CIM / accelerated SPL
+
+**Entra ID Sign-In Anomalies** — Risky sign-ins include impossible travel, unfamiliar locations, and anonymous IP usage.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Authentication` data model (`Authentication` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.action Authentication.src span=1h
+| sort -count
+```
+
+Understanding this CIM / accelerated SPL
+
+**Entra ID Sign-In Anomalies** — Risky sign-ins include impossible travel, unfamiliar locations, and anonymous IP usage.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Authentication` data model (`Authentication` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.action Authentication.src span=1h
+| sort -count
+```
+
+Understanding this CIM / accelerated SPL
+
+**Entra ID Sign-In Anomalies** — Risky sign-ins include impossible travel, unfamiliar locations, and anonymous IP usage.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Authentication` data model (`Authentication` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
@@ -67,6 +184,15 @@ index=azure sourcetype="mscs:azure:signinlog" riskLevelDuringSignIn!="none"
 | sort -_time
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.action Authentication.src span=1h
+| sort -count
+```
+
 ## Visualization
 
 Table (user, risk level, location, IP), Map (sign-in locations), Timeline, Bar chart by risk type.
@@ -74,3 +200,4 @@ Table (user, risk level, location, IP), Map (sign-in locations), Timeline, Bar c
 ## References
 
 - [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
+- [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.30.json — DO NOT EDIT -->
+
 ---
 id: "1.2.30"
 title: "LSASS Memory Access (Credential Dumping)"
@@ -13,7 +15,7 @@ Accessing LSASS process memory is the primary technique for credential theft (Mi
 
 ## Value
 
-Accessing LSASS process memory is the primary technique for credential theft (Mimikatz, ProcDump). Detection is critical to stopping lateral movement.
+Credential dumping is a key step in many breaches—an early, explainable view shortens the IR clock.
 
 ## Implementation
 
@@ -60,10 +62,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  from datamodel=Endpoint where nodename=Endpoint.Processes
+  by Processes.process_name Processes.user Processes.parent_process span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -103,10 +104,9 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  from datamodel=Endpoint where nodename=Endpoint.Processes
+  by Processes.process_name Processes.user Processes.parent_process span=1h
+| where count>0
 ```
 
 ## Visualization

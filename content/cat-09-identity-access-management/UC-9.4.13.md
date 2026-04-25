@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.4.13.json — DO NOT EDIT -->
+
 ---
 id: "9.4.13"
 title: "Active Directory Domain Controller Response Time"
@@ -52,13 +54,13 @@ The first pipeline stage scopes events using **index**: ad_perf; **sourcetype**:
 
 • Scopes the data: index=ad_perf, sourcetype="ad:dc_probe". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by dc_host, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by dc_host, _time** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where avg_ldap > 500 OR avg_dns > 200 OR slow_ldap > 0` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Active Directory Domain Controller Response Time**): table _time, dc_host, avg_ldap, avg_dns, slow_ldap
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the directory server’s admin or audit view (bind DNs, result codes) for the same time range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (LDAP/DNS latency by DC), Table (slow DCs), Status grid (DC × response time tier), Single value (worst DC latency).
@@ -97,10 +99,6 @@ index=ad_perf sourcetype="ad:dc_probe"
 ## Visualization
 
 Line chart (LDAP/DNS latency by DC), Table (slow DCs), Status grid (DC × response time tier), Single value (worst DC latency).
-
-## Known False Positives
-
-Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
 
 ## References
 

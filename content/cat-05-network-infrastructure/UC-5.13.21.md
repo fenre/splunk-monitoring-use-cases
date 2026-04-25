@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.21.json — DO NOT EDIT -->
+
 ---
 id: "5.13.21"
 title: "Assurance Issue Summary by Priority and Category"
@@ -69,6 +71,7 @@ Step 5 — Troubleshooting
 • **Spike on first** **poll**—**historical** **replay**; narrow the time **range** after **steady** state.
 • **Priority** **strings** **changed** in an upgrade—**normalize** in a **macro** and re-test **triage** **dashboards** before **executive** review.
 
+
 ## SPL
 
 ```spl
@@ -83,3 +86,4 @@ Table (count by priority, category, name), bar chart (count by priority), pie ch
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

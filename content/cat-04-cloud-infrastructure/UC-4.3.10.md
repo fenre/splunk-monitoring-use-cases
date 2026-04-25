@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.3.10.json — DO NOT EDIT -->
+
 ---
 id: "4.3.10"
 title: "Cloud Pub/Sub Subscription Backlog and Dead Letter"
@@ -53,6 +55,121 @@ The first pipeline stage scopes events using **index**: gcp; **sourcetype**: goo
 • `timechart` plots the metric over time using **span=5m** buckets with a separate series **by resource.labels.subscription_id** — ideal for trending and alerting on this use case.
 
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud Pub/Sub Subscription Backlog and Dead Letter** — Backlog (unacked messages) and dead-letter count indicate consumers falling behind or failing.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on accelerated data model the CPU-related Performance model — enable that model in Data Models and CIM add-ons, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud Pub/Sub Subscription Backlog and Dead Letter** — Backlog (unacked messages) and dead-letter count indicate consumers falling behind or failing.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud Pub/Sub Subscription Backlog and Dead Letter** — Backlog (unacked messages) and dead-letter count indicate consumers falling behind or failing.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud Pub/Sub Subscription Backlog and Dead Letter** — Backlog (unacked messages) and dead-letter count indicate consumers falling behind or failing.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Cloud Pub/Sub Subscription Backlog and Dead Letter** — Backlog (unacked messages) and dead-letter count indicate consumers falling behind or failing.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
@@ -67,6 +184,15 @@ index=gcp sourcetype="google:gcp:monitoring" metric.type="pubsub.googleapis.com/
 | timechart span=5m avg(value) by resource.labels.subscription_id
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| sort - agg_value
+```
+
 ## Visualization
 
 Line chart (backlog, dead letter by subscription), Table (subscription, backlog), Single value (max backlog).
@@ -74,3 +200,4 @@ Line chart (backlog, dead letter by subscription), Table (subscription, backlog)
 ## References
 
 - [Splunk_TA_google-cloudplatform](https://splunkbase.splunk.com/app/3088)
+- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

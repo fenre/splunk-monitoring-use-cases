@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.87.json — DO NOT EDIT -->
+
 ---
 id: "1.2.87"
 title: "DPAPI Credential Backup (DC)"
@@ -13,7 +15,7 @@ Data Protection API master key backup to domain controllers enables credential t
 
 ## Value
 
-Data Protection API master key backup to domain controllers enables credential theft. Abnormal DPAPI backup activity from unexpected accounts indicates compromise.
+Bulk or odd DPAPI master-key backup and recovery is how attackers siphon secrets tied to user data. Tight review of 4692/4693 on DCs shortens the window to reset keys and evict a foothold.
 
 ## Implementation
 
@@ -54,30 +56,16 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Pipeline stage (see **DPAPI Credential Backup (DC)**): table _time, host, action, SubjectUserName, SubjectDomainName, MasterKeyId
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+Optional CIM / accelerated variant (DPAPI backup/recovery in `Authentication` — confirm field mapping):
 
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
+  by Authentication.user Authentication.src span=1h
 | where count > 5
 ```
 
-Understanding this CIM / accelerated SPL
-
-**DPAPI Credential Backup (DC)** — Data Protection API master key backup to domain controllers enables credential theft. Abnormal DPAPI backup activity from unexpected accounts indicates compromise.
-
-Documented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4692, 4693). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.
-• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable **data model acceleration** on `Authentication`. If EventCode 4692/4693 is not in summaries, the Security log search in Step 2 is authoritative; tag `app=DPAPI` in props for tstats.
 
 
 Step 3 — Validate
@@ -100,8 +88,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4692, 4693)
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
+  where (like(Authentication.app,"%DPAPI%") OR like(Authentication.object,"%4692%") OR like(Authentication.object,"%4693%"))
+  by Authentication.user Authentication.src span=1h
 | where count > 5
 ```
 
@@ -111,6 +99,5 @@ Table (DPAPI events), Single value (recovery count), Timeline, Alert on mass ope
 
 ## References
 
-- [indicates SharpDPAPI/Mimikatz DPAPI module usage. Correlate with DCSync events](https://splunkbase.splunk.com/app/4662)
 - [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 - [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)

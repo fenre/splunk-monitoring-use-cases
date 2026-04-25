@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.32.json — DO NOT EDIT -->
+
 ---
 id: "4.4.32"
 title: "Cloud Control Plane API Call Volume Anomaly (MLTK)"
@@ -58,8 +60,8 @@ The first pipeline stage scopes events using **index**: cloud.
 
 • Scopes the data: index=cloud. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time, eventName, userIdentity.arn, sourceIPAddress** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by eventName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, eventName, userIdentity.arn, sourceIPAddress** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by eventName** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **z_score** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where z_score > 3 AND count > 50` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Cloud Control Plane API Call Volume Anomaly (MLTK)**): fit DensityFunction count by eventName into cloud_api_anomaly_model
@@ -71,23 +73,25 @@ The first pipeline stage scopes events using **index**: cloud.
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.user span=1h | sort - count
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
 ```
 
 Understanding this CIM / accelerated SPL
 
-**Cloud Control Plane API Call Volume Anomaly (MLTK)** — Cloud control plane API calls (EC2 RunInstances, IAM CreateUser, S3 PutBucketPolicy) follow predictable patterns tied to deployment schedules and automation cadence. Anomalous spikes in API call volume may indicate compromised credentials, runaway automation, or an attacker enumerating resources — all of which are invisible to static rate limits but detectable through ML-based baselining.
+**Cloud Control Plane API Call Volume Anomaly (MLTK)** — Cloud control plane API calls (EC2 RunInstances, IAM CreateUser, S3 PutBucketPolicy) follow predictable patterns tied to deployment schedules and automation cadence.
 
-Documented **Data sources**: `index=cloud sourcetype=aws:cloudtrail` or `sourcetype=azure:monitor:activity` or `sourcetype=google:gcp:pubsub:message`. **App/TA** (typical add-on context): Splunk Machine Learning Toolkit (MLTK), Splunk Add-on for AWS / Azure / GCP. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
 
 
 Step 3 — Validate
@@ -115,16 +119,15 @@ index=cloud sourcetype IN ("aws:cloudtrail","azure:monitor:activity","google:gcp
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.user span=1h | sort - count
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
 ```
 
 ## Visualization
 
 Line chart (API call volume vs baseline), Table (anomalous API calls with z-scores), Bar chart (top anomalous APIs by principal).
-
-## Known False Positives
-
-Infrastructure-as-code deployments (Terraform apply), DR drills, and cloud migration events. Maintain a deployment calendar lookup to suppress known automation windows.
 
 ## References
 

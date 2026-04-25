@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-3.1.23.json — DO NOT EDIT -->
+
 ---
 id: "3.1.23"
 title: "Container Network I/O Anomalies"
@@ -53,33 +55,12 @@ The first pipeline stage scopes events using **index**: containers; **sourcetype
 • Scopes the data: index=containers, sourcetype="docker:stats". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **rx_mb** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `timechart` plots the metric over time using **span=5m** buckets with a separate series **by container_name** — ideal for trending and alerting on this use case.
-• `eventstats` rolls up events into metrics; results are split **by container_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `eventstats` rolls up events into metrics; results are split **by container_name** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where tx_avg_mb > baseline_tx + 3*stdev_tx` — typically the threshold or rule expression for this monitoring goal.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t avg(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=5m | sort - agg_value
-```
-
-Understanding this CIM / accelerated SPL
-
-**Container Network I/O Anomalies** — Per-container network throughput monitoring detects noisy neighbors saturating shared networks, unusual outbound traffic indicating data exfiltration, and connectivity issues causing application timeouts.
-
-Documented **Data sources**: `sourcetype=docker:stats`, `sourcetype=cadvisor`. **App/TA** (typical add-on context): `docker stats` scripted input, cAdvisor metrics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Confirm that events are present in the index and that the search returns expected results. For Docker data, spot-check a few events against the Docker engine on the host and the container list you expect. Compare with known good and bad scenarios if applicable. Verify field extractions and index permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (TX/RX per container), Bar chart (top talkers), Table (anomalous containers).
@@ -94,16 +75,10 @@ index=containers sourcetype="docker:stats"
 | where tx_avg_mb > baseline_tx + 3*stdev_tx
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t avg(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=5m | sort - agg_value
-```
-
 ## Visualization
 
 Line chart (TX/RX per container), Bar chart (top talkers), Table (anomalous containers).
 
 ## References
 
-- [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.17.json — DO NOT EDIT -->
+
 ---
 id: "4.1.17"
 title: "Elastic IP Association"

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.2.52.json — DO NOT EDIT -->
+
 ---
 id: "4.2.52"
 title: "Azure Virtual Desktop Session Health"
@@ -56,7 +58,7 @@ The first pipeline stage scopes events using **index**: cloud; **sourcetype**: a
 
 • Scopes the data: index=cloud, sourcetype="azure:diagnostics". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **duration_min** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by HostPoolName, SessionHostName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by HostPoolName, SessionHostName** so each row reflects one combination of those dimensions.
 • Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.
 • Filters the current rows with `where errors > 0` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.

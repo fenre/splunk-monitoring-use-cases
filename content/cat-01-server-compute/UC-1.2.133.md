@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.133.json — DO NOT EDIT -->
+
 ---
 id: "1.2.133"
 title: "Windows WMI Repository Health"

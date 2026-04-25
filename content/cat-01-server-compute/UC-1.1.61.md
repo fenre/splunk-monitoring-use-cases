@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.61.json — DO NOT EDIT -->
+
 ---
 id: "1.1.61"
 title: "TCP TIME_WAIT Accumulation"
@@ -9,84 +11,44 @@ splunkPillar: "Observability"
 
 ## Description
 
-Excessive TIME_WAIT sockets can exhaust ephemeral port space, causing connection failures under load.
+Counts how many socket rows in each snapshot are in **TIME_WAIT**, then alerts when a host carries more than about thirty-two thousand of them—common when ephemeral ports or aggressive close patterns go wrong under load.
 
 ## Value
 
-Excessive TIME_WAIT sockets can exhaust ephemeral port space, causing connection failures under load.
+A giant TIME_WAIT pile often sits next to “cannot assign requested address” or connect failures; catching it in Splunk spares you from guessing in `ss` on dozens of nodes during an outage.
 
 ## Implementation
 
-Create a scripted input that runs 'netstat -tan | grep TIME_WAIT | wc -l'. Alert when TIME_WAIT count exceeds 32K. Include recommendations to tune tcp_tw_reuse or tcp_tw_recycle on load-generation hosts.
+Parse **netstat**-class output with one event per row or a pre-counted `time_wait_count` per host. The sample assumes many lines per host with `state`/`status`; if you pre-aggregate, adjust the `stats` to `sum(time_wait_count)` instead.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=custom:netstat, netstat output`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Script **ss -tan** or `netstat -tan` on a fixed schedule; `ss` is usually preferred for speed. Emit **key=value** including **host** and the socket **state**.
 
 Step 1 — Configure data collection
-Create a scripted input that runs 'netstat -tan | grep TIME_WAIT | wc -l'. Alert when TIME_WAIT count exceeds 32K. Include recommendations to tune tcp_tw_reuse or tcp_tw_recycle on load-generation hosts.
+Coalesce `state` and `status` in **props** if vendors differ, so the `search` line works without OR spam.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+SPL in the `spl` field; change **32000** to a number derived from your OS `ip_local_port_range` and workload.
 
-```spl
-index=os sourcetype=custom:netstat host=*
-| stats count(status) as time_wait_count by host where status="TIME_WAIT"
-| eval warning_level=32000
-| where time_wait_count > warning_level
-```
-
-Understanding this SPL
-
-**TCP TIME_WAIT Accumulation** — Excessive TIME_WAIT sockets can exhaust ephemeral port space, causing connection failures under load.
-
-Documented **Data sources**: `sourcetype=custom:netstat, netstat output`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: custom:netstat. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=custom:netstat. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host where status="TIME_WAIT"** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eval` defines or adjusts **warning_level** — often to normalize units, derive a ratio, or prepare for thresholds.
-• Filters the current rows with `where time_wait_count > warning_level` — typically the threshold or rule expression for this monitoring goal.
+**Understanding this SPL** — `search` first keeps only `TIME_WAIT` lines, `stats` counts per host, then applies a static ceiling. Add `| bucket _time span=1m` earlier if a single giant snapshot misleads you—some teams prefer a **timechart** of counts instead of static max.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On the host, `ss -s` and `ss -tan state time-wait | wc -l` should be in the same ballpark as Splunk in the last poll. For tuning, also check `sysctl` values for `tcp_fin_timeout` and `ip_local_port_range`.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge, Single Value
+Work with the app on connection pool sizing, `TIME_WAIT` reuse settings where safe, and whether the service should move to a connection-oriented proxy.
 
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
 
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
 ```spl
 index=os sourcetype=custom:netstat host=*
-| stats count(status) as time_wait_count by host where status="TIME_WAIT"
+| search state="TIME_WAIT" OR status="TIME_WAIT"
+| stats count as time_wait_count by host
 | eval warning_level=32000
 | where time_wait_count > warning_level
 ```
@@ -97,4 +59,5 @@ Gauge, Single Value
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

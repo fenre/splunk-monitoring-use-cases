@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.5.18.json — DO NOT EDIT -->
+
 ---
 id: "5.5.18"
 title: "vManage Cluster Health"
@@ -50,13 +52,13 @@ The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: c
 **Pipeline walkthrough**
 
 • Scopes the data: index=sdwan, sourcetype="cisco:sdwan:vmanage". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by vmanage_ip** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by vmanage_ip** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where cpu > 70 OR mem_pct > 80 OR disk_pct > 75 OR db_status!="healthy"` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **vManage Cluster Health**): table vmanage_ip cpu mem_pct disk_pct db_status services
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value panels (CPU, memory, disk per node), Status indicator (cluster health), Table (services status).

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.1.25.json — DO NOT EDIT -->
+
 ---
 id: "7.1.25"
 title: "MySQL / MariaDB InnoDB Buffer Pool Hit Ratio"
@@ -22,6 +24,7 @@ Poll `SHOW GLOBAL STATUS` via DB Connect every 15 minutes. Extract `Innodb_buffe
 ## Detailed Implementation
 
 Prerequisites
+• In operations we confirm in MySQL Workbench, Percona Monitoring and Management, or the managed-MySQL cloud console alongside Splunk.
 • Install and configure the required add-on or app: Splunk DB Connect or custom scripted input.
 • Ensure the following data sources are available: `SHOW GLOBAL STATUS` (Innodb_buffer_pool_read_requests, Innodb_buffer_pool_reads).
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -54,30 +57,9 @@ The first pipeline stage scopes events using **index**: database; **sourcetype**
 • Filters the current rows with `where hit_ratio < 99` — typically the threshold or rule expression for this monitoring goal.
 • `timechart` plots the metric over time using **span=15m** buckets with a separate series **by host** — ideal for trending and alerting on this use case.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Databases.Query by Query.dest span=15m | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**MySQL / MariaDB InnoDB Buffer Pool Hit Ratio** — Buffer pool effectiveness; low hit ratio means excessive disk I/O and degraded query performance.
-
-Documented **Data sources**: `SHOW GLOBAL STATUS` (Innodb_buffer_pool_read_requests, Innodb_buffer_pool_reads). **App/TA** (typical add-on context): Splunk DB Connect or custom scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Databases.Query` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (buffer pool hit ratio %), Line chart (hit ratio over time), Single value (current hit ratio).
@@ -91,12 +73,6 @@ index=database sourcetype="dbconnect:mysql_status"
 | timechart span=15m avg(hit_ratio) as buffer_pool_hit_ratio by host
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Databases.Query by Query.dest span=15m | sort - count
-```
-
 ## Visualization
 
 Gauge (buffer pool hit ratio %), Line chart (hit ratio over time), Single value (current hit ratio).
@@ -104,4 +80,3 @@ Gauge (buffer pool hit ratio %), Line chart (hit ratio over time), Single value 
 ## References
 
 - [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
-- [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)

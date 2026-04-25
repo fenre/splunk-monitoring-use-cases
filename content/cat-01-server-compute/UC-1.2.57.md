@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.57.json — DO NOT EDIT -->
+
 ---
 id: "1.2.57"
 title: "Thread Count Exhaustion"
@@ -13,7 +15,7 @@ Thread leaks or excessive thread creation cause pool exhaustion and application 
 
 ## Value
 
-Thread leaks or excessive thread creation cause pool exhaustion and application hangs. Windows has a system-wide limit of ~65K threads that affects all processes.
+Thread explosions often precede OOM, hung pools, and sad multi-second latency—the Perfmon part of the page still owns the sharp >500 limit.
 
 ## Implementation
 
@@ -50,17 +52,17 @@ The first pipeline stage scopes events using **index**: perfmon; **sourcetype**:
 **Pipeline walkthrough**
 
 • Scopes the data: index=perfmon, sourcetype="Perfmon:Process". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, instance** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, instance** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where threads > 500` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu
-  from datamodel=Performance where nodename=Performance.CPU
-  by Performance.host span=1h
-| where avg_cpu > 90
+| tstats `summariesonly` count
+  from datamodel=Endpoint where nodename=Endpoint.Processes
+  by Processes.process_name Processes.dest span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -73,8 +75,8 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.
-• Filters the current rows with `where avg_cpu > 90` — typically the threshold or rule expression for this monitoring goal.
+• Uses `tstats` on the CIM data model in `cimModels` (see the accelerated SPL block). Enable that model in Data Model Acceleration.
+• The `where` and `by` clauses mirror the intent of the primary SPL; if tstats is empty, confirm field aliases in Splunk CIM and the Windows TA.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
@@ -97,10 +99,10 @@ index=perfmon sourcetype="Perfmon:Process" counter="Thread Count" instance!="_To
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu
-  from datamodel=Performance where nodename=Performance.CPU
-  by Performance.host span=1h
-| where avg_cpu > 90
+| tstats `summariesonly` count
+  from datamodel=Endpoint where nodename=Endpoint.Processes
+  by Processes.process_name Processes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

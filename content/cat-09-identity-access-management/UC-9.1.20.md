@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.1.20.json — DO NOT EDIT -->
+
 ---
 id: "9.1.20"
 title: "AD Replication Topology Changes"
@@ -54,7 +56,7 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with Event Viewer on domain controllers (or exported Security logs) and with Active Directory Users and Computers for the same objects and time window.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (topology events), Table (connection changes), Diagram export (optional via lookup).
@@ -91,10 +93,6 @@ index=wineventlog (sourcetype="WinEventLog:Directory Service" EventCode IN (1308
 ## Visualization
 
 Timeline (topology events), Table (connection changes), Diagram export (optional via lookup).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

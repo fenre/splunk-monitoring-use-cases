@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.77.json — DO NOT EDIT -->
+
 ---
 id: "1.2.77"
 title: "SPN Modification (Targeted Kerberoasting)"
@@ -13,7 +15,7 @@ Attackers add SPNs to admin accounts to make them Kerberoastable. Monitoring SPN
 
 ## Value
 
-Attackers add SPNs to admin accounts to make them Kerberoastable. Monitoring SPN changes on sensitive accounts catches this setup before the actual attack.
+When an SPN is added to a high-privilege user, that account can be attacked offline for passwords. Catching the change in the directory log helps you stop the setup before tickets are cracked.
 
 ## Implementation
 
@@ -55,29 +57,17 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Filters the current rows with `where OperationType="%%14674"` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+Optional CIM / accelerated variant (5136 SPN add/remove in `Change`):
 
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  where like(All_Changes.object,"%servicePrincipalName%")
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
+| where count >= 1
 ```
 
-Understanding this CIM / accelerated SPL
-
-**SPN Modification (Targeted Kerberoasting)** — Attackers add SPNs to admin accounts to make them Kerberoastable. Monitoring SPN changes on sensitive accounts catches this setup before the actual attack.
-
-Documented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 5136, attribute servicePrincipalName). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable **data model acceleration** on `Change` (All_Changes). The primary `AttributeLDAPDisplayName` filter in Step 2 is the strictest; align CIM `object` to the object DN in 5136.
 
 
 Step 3 — Validate
@@ -101,8 +91,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  where like(All_Changes.object,"%servicePrincipalName%")
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
+| where count >= 1
 ```
 
 ## Visualization

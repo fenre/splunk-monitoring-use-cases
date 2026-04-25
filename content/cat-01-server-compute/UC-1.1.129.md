@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.129.json — DO NOT EDIT -->
+
 ---
 id: "1.1.129"
 title: "Linux Softirq / Hardirq Time"
@@ -49,29 +51,10 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: irq_
 **Pipeline walkthrough**
 
 • Scopes the data: index=os, sourcetype=irq_stats. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, cpu** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, cpu** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where softirq > 30 OR hardirq > 15` — typically the threshold or rule expression for this monitoring goal.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host span=5m | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Linux Softirq / Hardirq Time** — Detect interrupt storms (softirq/hardirq) that degrade system performance. High IRQ time indicates network, block I/O, or timer storms.
-
-Documented **Data sources**: `/proc/interrupts`, `/proc/softirqs`, `mpstat` output. **App/TA** (typical add-on context): `Splunk_TA_nix` (scripted input). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance.CPU` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+CIM **Performance.CPU** (`cpu_load_percent`) does not separate softirq/hardirq; keep this use case on `irq_stats` or extend the data model with custom knowledge objects if you need `tstats`.
 
 
 Step 3 — Validate
@@ -79,27 +62,6 @@ Confirm that events are present in the index and that the search returns expecte
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (softirq/hardirq % over time), Table of hosts with elevated IRQ, Stacked area chart by IRQ type.
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
@@ -109,12 +71,6 @@ index=os sourcetype=irq_stats host=* cpu=*
 | where softirq > 30 OR hardirq > 15
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host span=5m | sort - count
-```
-
 ## Visualization
 
 Line chart (softirq/hardirq % over time), Table of hosts with elevated IRQ, Stacked area chart by IRQ type.
@@ -122,4 +78,3 @@ Line chart (softirq/hardirq % over time), Table of hosts with elevated IRQ, Stac
 ## References
 
 - [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
-- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

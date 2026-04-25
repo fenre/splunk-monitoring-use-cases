@@ -39,5 +39,12 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw directory, IdP, PAM, or device feeds.",
+  "knownFalsePositives": "Legitimate bulk checkouts during patching or large changes, emergency break-glass, and scheduled automation that retrieves credentials from the vault nightly — align counts with change tickets and CMDB owners.",
+  "grandmaExplanation": "We add up who pulled which vault passwords to which systems so you can see overuse of shared accounts and odd access to sensitive hosts during reviews.",
+  "cimModels": [
+    "N/A"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure: BeyondTrust Password Safe / Cloud Dashboard for Splunk (Splunkbase 5574) with Splunk HTTP Event Collector.\n• Data sources: Password Safe Splunk Event Forwarder `sourcetype=beyondtrust` or `source=password_safe`.\n\nStep 1 — Configure data collection\nAlign `index`, `sourcetype`, and `source` with BeyondTrust’s Splunk connector configuration. Replace the `_raw` keyword match with explicit `EventType` or `MessageType` fields once validated in your environment. Enrich `asset` with CMDB ownership. Suppress service automation accounts via lookup.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=pam (sourcetype=beyondtrust OR source=password_safe) earliest=-24h\n| eval user=coalesce(UserName, user, User, \"\")\n| eval asset=coalesce(SystemName, TargetSystem, ManagedAccount, host, \"\")\n| search user!=\"\" asset!=\"\"\n| where match(lower(_raw), \"(?i)password|credential|checkout|retrieve|release\")\n| stats count by user, asset\n| sort -count\n```\n\nStep 3 — Validate\nCompare with BeyondTrust Password Safe reports and safe lists for the same users, assets, and time range.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document the owner. Table (user × asset), heatmap, timechart of daily checkouts."
 }

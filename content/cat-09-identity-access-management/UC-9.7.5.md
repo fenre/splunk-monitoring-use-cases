@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.7.5.json — DO NOT EDIT -->
+
 ---
 id: "9.7.5"
 title: "Conditional Access Policy Block Trending"
@@ -64,7 +66,7 @@ The first pipeline stage scopes events using **index**: azure; **sourcetype**: a
 • `eval` defines or adjusts **policy_name** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Fills null values with `fillnull`.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time, policy_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, policy_name** so each row reflects one combination of those dimensions.
 • `timechart` plots the metric over time using **span=1d** buckets with a separate series **by policy_name useother=f limit=10** — ideal for trending and alerting on this use case.
 • Adds columns from a subsearch with `appendcols`.
 
@@ -91,7 +93,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with Entra ID sign-in and audit logs in the Microsoft Entra or Azure portal for the same users, resources, and time window.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked area or line chart per policy; heatmap of policy vs week for executive summaries.
@@ -124,10 +126,6 @@ index=azure sourcetype="azure:aad:signin" earliest=-90d@d
 ## Visualization
 
 Stacked area or line chart per policy; heatmap of policy vs week for executive summaries.
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

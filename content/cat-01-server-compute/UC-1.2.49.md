@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.49.json — DO NOT EDIT -->
+
 ---
 id: "1.2.49"
 title: "Lateral Movement via Explicit Credentials"
@@ -13,7 +15,7 @@ Logon type 9 (NewCredentials / RunAs /netonly) and type 10 (RDP) from unexpected
 
 ## Value
 
-Logon type 9 (NewCredentials / RunAs /netonly) and type 10 (RDP) from unexpected sources reveal credential abuse and lateral movement between systems.
+This pattern is a Tier-0 hunting bread crumb—triage with your identity and admin-exposure program, not a raw count only.
 
 ## Implementation
 
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 **Pipeline walkthrough**
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:Security". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by TargetUserName, IpAddress, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by TargetUserName, IpAddress, host** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.
 • Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
 • Filters the current rows with `where is_admin="true"` — typically the threshold or rule expression for this monitoring goal.
@@ -62,10 +64,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=success
+  from datamodel=Authentication where nodename=Authentication
   by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -105,10 +106,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4624 LogonType IN 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=success
+  from datamodel=Authentication where nodename=Authentication
   by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+| where count>0
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.104.json — DO NOT EDIT -->
+
 ---
 id: "1.1.104"
 title: "Thermal Throttling Detection"
@@ -33,7 +35,7 @@ Step 2 — Create the search and alert
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
 ```spl
-index=os sourcetype=syslog "thermal" OR "CPU" AND "throttling"
+index=os sourcetype=syslog ("thermal throttling" OR "cpu clock throttled" OR "cpu thermal" OR "THERMAL_EVENT")
 | stats count by host
 | where count > 0
 ```
@@ -49,7 +51,7 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: sysl
 **Pipeline walkthrough**
 
 • Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
 
 
@@ -62,7 +64,7 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ## SPL
 
 ```spl
-index=os sourcetype=syslog "thermal" OR "CPU" AND "throttling"
+index=os sourcetype=syslog ("thermal throttling" OR "cpu clock throttled" OR "cpu thermal" OR "THERMAL_EVENT")
 | stats count by host
 | where count > 0
 ```

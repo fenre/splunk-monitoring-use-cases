@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.6.8.json — DO NOT EDIT -->
+
 ---
 id: "5.6.8"
 title: "DNS Latency Monitoring"
@@ -52,57 +54,12 @@ The first pipeline stage scopes events using **index**: dns; **sourcetype**: dns
 • `timechart` plots the metric over time using **span=5m** buckets with a separate series **by dns_server** — ideal for trending and alerting on this use case.
 • Filters the current rows with `where avg_latency > 50` — typically the threshold or rule expression for this monitoring goal.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Resolution.DNS
-  by DNS.src DNS.query DNS.record_type span=5m
-| sort -count
-```
-
-Understanding this CIM / accelerated SPL
-
-**DNS Latency Monitoring** — DNS latency directly adds to every network connection. Slow DNS = slow everything.
-
-Documented **Data sources**: DNS recursive query timing. **App/TA** (typical add-on context): Custom scripted input, DNS diagnostic logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Network_Resolution.DNS` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare query volume, response codes, or latency in Infoblox reporting, Microsoft DNS views, BIND logs, or Meraki Network > Monitor to the Splunk results for the same resolvers and time range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart per server, Gauge, Table.
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
@@ -117,7 +74,8 @@ index=dns sourcetype="dns:latency"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Network_Resolution.DNS
-  by DNS.src DNS.query DNS.record_type span=5m
+  by DNS.query DNS.reply_code span=5m
+| where count>0
 | sort -count
 ```
 

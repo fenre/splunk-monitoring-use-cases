@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.29.json — DO NOT EDIT -->
+
 ---
 id: "1.2.29"
 title: "Registry Run Key Modification (Persistence)"
@@ -13,7 +15,7 @@ Run/RunOnce registry keys are the most common malware persistence mechanism. Mon
 
 ## Value
 
-Run/RunOnce registry keys are the most common malware persistence mechanism. Monitoring these keys catches many threats early.
+Run-key persistence is old but still common—this gives you a straight path from change to triage in minutes.
 
 ## Implementation
 
@@ -57,9 +59,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.user All_Changes.dest span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -97,9 +99,9 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.user All_Changes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

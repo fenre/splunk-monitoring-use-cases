@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.118.json — DO NOT EDIT -->
+
 ---
 id: "1.1.118"
 title: "System Reboot Frequency Anomaly"
@@ -33,9 +35,10 @@ Step 2 — Create the search and alert
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
 ```spl
-index=os sourcetype=syslog "Kernel panic" OR "reboot" OR "system shutdown"
+index=os sourcetype=syslog earliest=-7d@d latest=now
+| search "Kernel panic" OR "reboot" OR "system shutdown" OR "Restarting system"
 | stats count as reboot_count by host
-| where reboot_count > 2 in 7 days
+| where reboot_count > 2
 ```
 
 Understanding this SPL
@@ -49,8 +52,8 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: sysl
 **Pipeline walkthrough**
 
 • Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where reboot_count > 2 in 7 days` — typically the threshold or rule expression for this monitoring goal.
+• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
+• Filters the current rows with `where reboot_count > 2` over the last seven days of indexed time (`earliest=-7d@d` on the base search) — tune count and window to your SLOs.
 
 
 Step 3 — Validate
@@ -62,9 +65,10 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ## SPL
 
 ```spl
-index=os sourcetype=syslog "Kernel panic" OR "reboot" OR "system shutdown"
+index=os sourcetype=syslog earliest=-7d@d latest=now
+| search "Kernel panic" OR "reboot" OR "system shutdown" OR "Restarting system"
 | stats count as reboot_count by host
-| where reboot_count > 2 in 7 days
+| where reboot_count > 2
 ```
 
 ## Visualization

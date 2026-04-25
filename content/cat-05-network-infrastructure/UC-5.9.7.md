@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.9.7.json — DO NOT EDIT -->
+
 ---
 id: "5.9.7"
 title: "WAN Link Quality Scoring"
@@ -51,7 +53,7 @@ Documented **Data sources**: `index=thousandeyes`, ThousandEyes OTel Tests Strea
 **Pipeline walkthrough**
 
 • Invokes macro `stream_index` — in Search, use the UI or expand to inspect the underlying SPL.
-• `stats` rolls up events into metrics; results are split **by thousandeyes.source.agent.name, server.address** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by thousandeyes.source.agent.name, server.address** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **latency_score** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **loss_score** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **jitter_score** — often to normalize units, derive a ratio, or prepare for thresholds.
@@ -60,7 +62,7 @@ Documented **Data sources**: `index=thousandeyes`, ThousandEyes OTel Tests Strea
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same tests and time window in the Cisco ThousandEyes App for Splunk dashboard or the test view at app.thousandeyes.com so Splunk’s metrics and states match the vendor. If they disagree, check streaming or HEC inputs, macros, and API or token health before retuning.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (quality score per link), Table (all links ranked), Trend line chart.

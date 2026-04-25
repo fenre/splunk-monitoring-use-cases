@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.1.57.json — DO NOT EDIT -->
+
 ---
 id: "5.1.57"
 title: "Junos Commit History and Configuration Rollback Audit (Juniper)"
@@ -59,33 +61,12 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 • Extracts fields with `rex` (regular expression).
 • Extracts fields with `rex` (regular expression).
 • `eval` defines or adjusts **operator** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, operator** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, operator** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t latest(All_Changes.status) as agg_value from datamodel=Change.All_Changes by All_Changes.dest | sort - agg_value
-```
-
-Understanding this CIM / accelerated SPL
-
-**Junos Commit History and Configuration Rollback Audit (Juniper)** — Junos treats configuration as a sequence of commits, so every change is tied to a user, time, and optional comment—ideal for audit and rollback to any of the last stored revisions. Without central logging, you lose the evidence needed to prove who changed routing, security zones, or interfaces during an incident. Correlating commits with change tickets catches unapproved changes and commits outside maintenance windows before they propagate through routing or firewall policy.
-
-Documented **Data sources**: `sourcetype=juniper:junos:structured`. **App/TA** (typical add-on context): `Splunk_TA_juniper`, syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On the Junos device, run `show system commit` and compare last commit time and user to a row in your search. Optionally use `show | compare rollback 0 rollback 1` in a window after a test commit in lab to see how diffs should look in logs.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Commit timeline by device; table of last commit per host with user and comment; compliance panel for commits without matching change record.
@@ -106,7 +87,10 @@ index=network sourcetype="juniper:junos:structured"
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t latest(All_Changes.status) as agg_value from datamodel=Change.All_Changes by All_Changes.dest | sort - agg_value
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.command All_Changes.action span=1h
+| sort -count
 ```
 
 ## Visualization

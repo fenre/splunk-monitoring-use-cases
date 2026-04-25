@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.6.json — DO NOT EDIT -->
+
 ---
 id: "4.1.6"
 title: "EC2 Instance State Changes"

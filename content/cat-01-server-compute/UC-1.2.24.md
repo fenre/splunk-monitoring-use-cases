@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.24.json — DO NOT EDIT -->
+
 ---
 id: "1.2.24"
 title: "Network Interface Utilization (Windows)"
@@ -13,7 +15,7 @@ Saturated network interfaces cause packet drops, retransmissions, and applicatio
 
 ## Value
 
-Saturated network interfaces cause packet drops, retransmissions, and application timeouts. Often missed when only CPU/memory are monitored.
+Saturated NICs are a common hidden bottleneck—visibility here stops “the server is fine on CPU but slow on the network” mystery tickets.
 
 ## Implementation
 
@@ -57,10 +59,11 @@ The first pipeline stage scopes events using **index**: perfmon; **sourcetype**:
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` sum(Performance.bytes_in) as bytes_in
-                        sum(Performance.bytes_out) as bytes_out
-  from datamodel=Performance where nodename=Performance.Network
-  by Performance.host Performance.interface span=5m
+| tstats `summariesonly` sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.dvc All_Traffic.src span=5m
+| eval mbps=((bytes_in+bytes_out)*8)/(300*1000000)
+| where mbps>800
 ```
 
 Understanding this CIM / accelerated SPL
@@ -96,10 +99,11 @@ index=perfmon sourcetype="Perfmon:Network_Interface" counter="Bytes Total/sec"
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` sum(Performance.bytes_in) as bytes_in
-                        sum(Performance.bytes_out) as bytes_out
-  from datamodel=Performance where nodename=Performance.Network
-  by Performance.host Performance.interface span=5m
+| tstats `summariesonly` sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.dvc All_Traffic.src span=5m
+| eval mbps=((bytes_in+bytes_out)*8)/(300*1000000)
+| where mbps>800
 ```
 
 ## Visualization

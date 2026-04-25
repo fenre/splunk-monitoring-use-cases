@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.6.6.json — DO NOT EDIT -->
+
 ---
 id: "4.6.6"
 title: "CloudTrail/Activity Log Event Volume Trending"
@@ -57,23 +59,25 @@ The first pipeline stage scopes events using **index**: cloud; **sourcetype**: a
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user span=1d | sort - count
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
 ```
 
 Understanding this CIM / accelerated SPL
 
-**CloudTrail/Activity Log Event Volume Trending** — Management event volume over 90 days highlights automation changes, new integrations, or possible abuse such as enumeration or bulk API use. Baselines help spot anomalies without reading every event.
+**CloudTrail/Activity Log Event Volume Trending** — Management event volume over 90 days highlights automation changes, new integrations, or possible abuse such as enumeration or bulk API use.
 
-Documented **Data sources**: `index=cloud sourcetype=aws:cloudtrail`; `sourcetype=azure:monitor:activity`. **App/TA** (typical add-on context): Splunk Add-on for AWS, Azure Activity Log add-on. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
 
 
 Step 3 — Validate
@@ -94,7 +98,10 @@ index=cloud sourcetype="aws:cloudtrail" readOnly=false
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user span=1d | sort - count
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
 ```
 
 ## Visualization

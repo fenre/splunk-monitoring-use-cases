@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.6.26.json — DO NOT EDIT -->
+
 ---
 id: "2.6.26"
 title: "Per-Application Network Performance"
@@ -52,33 +54,11 @@ The first pipeline stage scopes events using **index**: uberagent; **sourcetype*
 **Pipeline walkthrough**
 
 • Scopes the data: index=uberagent, sourcetype="uberAgent:Process:NetworkTargetPerformance", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by AppName, NetworkTargetName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by AppName, NetworkTargetName** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **total_mb** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where avg_latency_ms > 100 OR total_mb > 500` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **Per-Application Network Performance**): table AppName, NetworkTargetName, avg_latency_ms, total_mb, users
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Per-Application Network Performance** — uberAgent measures network latency, data volume, and connection quality per application and per target host. This reveals which applications are generating the most network traffic, connecting to slow endpoints, or experiencing high latency — critical for optimising CVAD network policies and WAN bandwidth allocation.
-
-Documented **Data sources**: `sourcetype="uberAgent:Process:NetworkTargetPerformance"`. **App/TA** (typical add-on context): uberAgent UXM (Splunkbase 1448) with Per-Application Network Monitoring. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -95,12 +75,6 @@ index=uberagent sourcetype="uberAgent:Process:NetworkTargetPerformance" earliest
 | where avg_latency_ms > 100 OR total_mb > 500
 | sort -total_mb
 | table AppName, NetworkTargetName, avg_latency_ms, total_mb, users
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
 
 ## Visualization

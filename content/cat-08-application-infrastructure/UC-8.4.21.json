@@ -11,19 +11,23 @@
   "dataSources": "`index=haproxy` `sourcetype=haproxy:stats` (`rate`, `scur`, `slim`)",
   "app": "HAProxy stats CSV scripted input",
   "spl": "index=haproxy sourcetype=\"haproxy:stats\" type=frontend\n| eval sess_pct=if(slim>0, round(100*scur/slim,1), null())\n| where sess_pct > 85\n| table _time, pxname, scur, slim, sess_pct",
-  "description": "`scur` approaching `slim` on a frontend signals connection limits or ulimit pressure during campaigns.",
-  "value": "Informs tuning of `maxconn`, kernel limits, and cloud LB pairing.",
-  "implementation": "Poll stats frequently; `slim` may be 0 if unlimited—handle with `eval`.",
-  "visualization": "Line chart (scur vs slim), single value alert.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "`scur` approaching `slim` on a frontend signals connection limits or ulimit pressure during campaigns.",
+  "value": "Informs tuning of `maxconn`, kernel limits, and cloud LB pairing.",
+  "grandmaExplanation": "We watch for signs that informs tuning of, kernel limits, and cloud LB pairing.",
+  "implementation": "Poll stats frequently; `slim` may be 0 if unlimited—handle with `eval`.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HAProxy stats CSV scripted input.\n• Ensure the following data sources are available: `index=haproxy` `sourcetype=haproxy:stats` (`rate`, `scur`, `slim`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCSV field names must match HAProxy version; confirm `slim` presence.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=haproxy sourcetype=\"haproxy:stats\" type=frontend\n| eval sess_pct=if(slim>0, round(100*scur/slim,1), null())\n| where sess_pct > 85\n| table _time, pxname, scur, slim, sess_pct\n```\n\nUnderstanding this SPL\n\n**HAProxy Frontend Session Rate Versus ulimit** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=haproxy` `sourcetype=haproxy:stats` (`rate`, `scur`, `slim`). **App/TA**: HAProxy stats CSV scripted input. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (scur vs slim), single value alert..",
+  "visualization": "Line chart (scur vs slim), single value alert.",
   "references": [
     {
       "title": "HAProxy Management Guide — Logging",
       "url": "https://www.haproxy.com/documentation/haproxy-management-guide/latest/observability/logging/"
     }
   ],
+  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
   "equipment": [
     "haproxy"
   ],
@@ -33,7 +37,5 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HAProxy stats CSV scripted input.\n• Ensure the following data sources are available: `index=haproxy` `sourcetype=haproxy:stats` (`rate`, `scur`, `slim`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCSV field names must match HAProxy version; confirm `slim` presence.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=haproxy sourcetype=\"haproxy:stats\" type=frontend\n| eval sess_pct=if(slim>0, round(100*scur/slim,1), null())\n| where sess_pct > 85\n| table _time, pxname, scur, slim, sess_pct\n```\n\nUnderstanding this SPL\n\n**HAProxy Frontend Session Rate Versus ulimit** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=haproxy` `sourcetype=haproxy:stats` (`rate`, `scur`, `slim`). **App/TA**: HAProxy stats CSV scripted input. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (scur vs slim), single value alert..",
-  "grandmaExplanation": "We track how many live sessions hit your load balancer front door so limits are raised before refusal."
+  "reviewer": "@splunk-monitoring-use-cases"
 }

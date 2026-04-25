@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.2.11.json — DO NOT EDIT -->
+
 ---
 id: "9.2.11"
 title: "LDAP Channel Binding Status"
@@ -50,7 +52,7 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 **Pipeline walkthrough**
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:Directory Service". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by ComputerName, Client_IP** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by ComputerName, Client_IP** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -77,7 +79,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with Event Viewer on domain controllers (or exported Security logs) and with Active Directory Users and Computers for the same objects and time window.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (clients failing channel binding), Bar chart (by application owner), Line chart (remediation trend).
@@ -100,10 +102,6 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode=3039
 ## Visualization
 
 Table (clients failing channel binding), Bar chart (by application owner), Line chart (remediation trend).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

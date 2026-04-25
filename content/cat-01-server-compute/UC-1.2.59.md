@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.59.json — DO NOT EDIT -->
+
 ---
 id: "1.2.59"
 title: "DCOM / COM+ Application Errors"
@@ -13,7 +15,7 @@ DCOM errors affect distributed applications, WMI remote management, and MMC snap
 
 ## Value
 
-DCOM errors affect distributed applications, WMI remote management, and MMC snap-ins. Persistent errors indicate permission issues or component registration corruption.
+When DCOM is really broken, random enterprise apps that depend on in-proc calls fail in odd ways—trend, don’t one-off every 10016.
 
 ## Implementation
 
@@ -50,9 +52,23 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 **Pipeline walkthrough**
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:System". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, EventCode, param1, param2** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, EventCode, param1, param2** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 10` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest All_Changes.object span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
 
 
 Step 3 — Validate
@@ -68,6 +84,15 @@ index=wineventlog sourcetype="WinEventLog:System" Source="DCOM" EventCode IN (10
 | stats count by host, EventCode, param1, param2
 | where count > 10
 | sort -count
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest All_Changes.object span=1h
+| where count>0
 ```
 
 ## Visualization

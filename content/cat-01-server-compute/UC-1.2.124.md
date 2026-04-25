@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.124.json — DO NOT EDIT -->
+
 ---
 id: "1.2.124"
 title: "Process Injection Detection (Sysmon)"
@@ -13,7 +15,7 @@ Process injection hides malicious code inside legitimate processes. Detecting in
 
 ## Value
 
-Process injection hides malicious code inside legitimate processes. Detecting injection techniques (CreateRemoteThread, APC, process hollowing) catches advanced malware.
+Process injection is a core defense-evasion technique. Sysmon-class telemetry on create remote thread and similar gives IR a process tree when EDR is not everywhere.
 
 ## Implementation
 
@@ -74,6 +76,15 @@ index=wineventlog EventCode=8
 | table _time, host, SourceImage, InjectionTarget, SourceUser, StartModule, StartFunction
 | append [search index=wineventlog EventCode=10 GrantedAccess IN ("0x1FFFFF","0x801","0x1FFB") | where NOT match(SourceImage, "(?i)(csrss|MsMpEng|lsass)") | table _time, host, SourceImage, TargetImage, SourceUser, GrantedAccess]
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Endpoint.Processes
+  by Processes.user Processes.parent_process_name Processes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

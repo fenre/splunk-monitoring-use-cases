@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.73.json — DO NOT EDIT -->
+
 ---
 id: "5.13.73"
 title: "Multi-Domain Network Health Executive Dashboard"
@@ -26,12 +28,12 @@ Executives need one view of network health, not four consoles. This dashboard co
 ## Detailed Implementation
 
 Prerequisites
-• UCs 5.13.16, 5.13.68, 5.13.69, 5.13.71 implemented and validated; all feeds healthy (see UC-5.13.74 for pipeline health).
-• Indexes: `catalyst`, `sdwan` (or your SD-WAN index), `cisco_network` for Meraki, Te index behind **`stream_index`**.
+• UCs 5.13.16 (campus health), 5.13.69 (SD-WAN), 5.13.70 (Meraki), and 5.13.71 (ThousandEyes) each feeding their respective indexes, plus UC-5.13.74 for `cisco:dnac:*` pipeline health.
+• Indexes: `catalyst`, `sdwan` (or your SD-WAN index), `cisco_network` (Meraki), and the ThousandEyes index behind the **`stream_index`** macro.
 
-Step 1 — Data contracts
-- Document canonical fields: `healthScore` (campus), `health_score` (SD-WAN), `health_score` (Meraki), `network.latency` (ThousandEyes OTel) — all four must be visible in a test time range before publishing the panel.
-- Align Meraki/SD-WAN field names via `eval` in the `stats` that feed `appendcols` if your build differs from the example.
+Step 1 — Data contracts (Catalyst Center + vManage + Meraki + Te)
+• Document canonical fields: `healthScore` (campus), `health_score` (SD-WAN and Meraki), and `network.latency` in seconds or ms from ThousandEyes — confirm a **test** search over the same 24h for each product before the executive board meets.
+• Align field names in `eval` on each `appendcols` branch if your TA version differs; never assume Meraki and SD-WAN use the same 0–100 scale without checking sample events.
 
 Step 2 — Baseline SPL
 
@@ -40,11 +42,12 @@ index=catalyst sourcetype="cisco:dnac:networkhealth" | stats latest(healthScore)
 ```
 
 Step 3 — Executive UX
-- Use consistent color bands (e.g. green >80, yellow 60–80, red <60) for health scores; show Te latency in ms with a red threshold line.
-- Add deep links: campus → Network Health UC; WAN → 5.13.69; ISE/cross-product → 5.13.68; Te path → 5.13.71.
+• Use a consistent green/yellow/red band for the three **health** numbers; show ThousandEyes latency in ms on its own scale so execs are not misled by a single blended score for internet quality.
+• **Deep links:** campus → network health (UC-5.13.16); WAN → UC-5.13.69; Meraki → UC-5.13.70; Te → UC-5.13.71. (ISE correlation is a separate use case; add UC-5.13.68 as an adjacent link only if you have ISE in scope.)
 
 Step 4 — Governance
-- Review weekly: missing inputs (`coalesce` hiding gaps), macro drift on **`stream_index`**, and SD-WAN/Meraki API credential expiry.
+• Weekly: confirm no domain is silently missing (watch `coalesce` masking null WAN or branch in the average). Rotate API credentials for SD-WAN, Meraki, and ThousandEyes per vendor policy; after Catalyst Center upgrades, re-validate the `stream_index` macro still points to the HEC/OTel index you expect.
+
 
 ## SPL
 

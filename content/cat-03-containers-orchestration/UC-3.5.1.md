@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-3.5.1.json — DO NOT EDIT -->
+
 ---
 id: "3.5.1"
 title: "Istio Mesh Traffic Monitoring"
@@ -57,16 +59,16 @@ The first pipeline stage scopes events using **index**: containers; **sourcetype
 • Scopes the data: index=containers, sourcetype="otel:metrics". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where like(metric_name, "istio_requests_total%") OR like(name, "istio_requests_total%")` — typically the threshold or rule expression for this monitoring goal.
 • `eval` defines or adjusts **rc** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by destination_service_name, reporter, rc** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by destination_service_name, reporter, rc** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **is_error** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by destination_service_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by destination_service_name** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **err_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where err_rate > 1` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Confirm that events are present in the index and that the search returns expected results. For Kubernetes and OpenShift data, sample rows should line up with what you see from the cluster command-line tool, the Kubernetes Dashboard (or OpenShift console), and your Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`) or OpenTelemetry collector view of the same objects. Compare with known good and bad scenarios where you have them. Verify field extractions and index permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Time chart (requests and 5xx by destination), Table (top error rates by service), Single value (mesh-wide error %).

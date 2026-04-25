@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.2.38.json — DO NOT EDIT -->
+
 ---
 id: "5.2.38"
 title: "Connection Rate Analysis and DOS Detection (Meraki MX)"
@@ -53,9 +55,33 @@ The first pipeline stage scopes events using **index**: cisco_network; **sourcet
 • Filters the current rows with `where new_connections > 1000` — typically the threshold or rule expression for this monitoring goal.
 
 
-Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src All_Traffic.dest All_Traffic.action All_Traffic.dvc span=1h
+| where count>0
+| sort -count
+```
+
+Understanding this CIM / accelerated SPL
+
+This block uses `tstats` on the Network_Traffic data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` against accelerated summaries for the Network_Traffic model — enable acceleration and confirm CIM tags on your source data.
+• Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+
+Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+
+
+
+Step 3 — Validate
+In the Meraki cloud dashboard, use the same organization, network, and time range as the search. Confirm the same events, site or appliance names, and policy context you see in the dashboard line up with Splunk.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Connection rate timeline; source IP detail table; DOS alert dashboard.
 
@@ -67,6 +93,16 @@ index=cisco_network sourcetype="meraki" type=flow protocol="tcp" tcp_flags="SYN"
 | where new_connections > 1000
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src All_Traffic.dest All_Traffic.action All_Traffic.dvc span=1h
+| where count>0
+| sort -count
+```
+
 ## Visualization
 
 Connection rate timeline; source IP detail table; DOS alert dashboard.
@@ -74,3 +110,4 @@ Connection rate timeline; source IP detail table; DOS alert dashboard.
 ## References
 
 - [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+- [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)

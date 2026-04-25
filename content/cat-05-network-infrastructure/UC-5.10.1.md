@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.10.1.json — DO NOT EDIT -->
+
 ---
 id: "5.10.1"
 title: "Diameter Signaling Health Monitoring"
@@ -52,15 +54,15 @@ The first pipeline stage scopes events using **sourcetype**: stream:diameter. Th
 **Pipeline walkthrough**
 
 • Scopes the data: sourcetype="stream:diameter". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by command_code, result_code, origin_host, application_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by command_code, result_code, origin_host, application_id** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **status** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by command_code, application_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by command_code, application_id** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **success_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where failed>0 OR success_rate<99` — typically the threshold or rule expression for this monitoring goal.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare Splunk counts in the same time window to your packet capture or Stream job scope (VLAN, SPAN, or tap). On the core element (PCRF, SBC, or PGW) console or EMS, open the matching subscriber or trunk counters and confirm codes such as Diameter `result_code` or SIP `reply_code` line up. After any network or mirror change, re-check that the Stream capture still includes the trunks you care about.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (overall Diameter success rate with color-coded threshold: green >99%, yellow 95-99%, red <95%), Pie chart (failure breakdown by command_code), Table (origin_host, command_code, result_code, count — sortable), Line chart (success rate trend over 24h with 15-min buckets).
@@ -82,4 +84,4 @@ Single value (overall Diameter success rate with color-coded threshold: green >9
 
 ## References
 
-- [REJECTED](https://splunkbase.splunk.com/app/5003)
+- [Splunkbase — Splunk App for Stream](https://splunkbase.splunk.com/app/1809)

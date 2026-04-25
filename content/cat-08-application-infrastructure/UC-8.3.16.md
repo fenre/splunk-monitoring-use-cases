@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.3.16.json — DO NOT EDIT -->
+
 ---
 id: "8.3.16"
 title: "Kafka Connect Task Failures"
@@ -51,12 +53,13 @@ The first pipeline stage scopes events using **index**: kafka; **sourcetype**: k
 
 • Scopes the data: index=kafka, sourcetype="kafka_connect:status". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where connector_state="FAILED" OR task_state="FAILED"` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by connector, task_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by connector, task_id** so each row reflects one combination of those dimensions.
 • Pipeline stage (see **Kafka Connect Task Failures**): table connector task_id connector_state task_state err
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the broker or gateway’s own UI or CLI (`kafka-consumer-groups`, RabbitMQ management, ActiveMQ console, or Traefik/Envoy access log on the node) for the same period.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed connectors/tasks), Timeline (state changes), Single value (open failures).

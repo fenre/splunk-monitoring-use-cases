@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.60.json — DO NOT EDIT -->
+
 ---
 id: "1.2.60"
 title: "Code Integrity / Driver Signing Violations"
@@ -13,7 +15,7 @@ Unsigned or tampered drivers loading into the kernel are a rootkit indicator. Co
 
 ## Value
 
-Unsigned or tampered drivers loading into the kernel are a rootkit indicator. Code Integrity violations detect bypass attempts and driver-level threats.
+CI failures are a supply-chain and boot integrity signal—treat with patch and software deployment teams, not as a one-line ignore.
 
 ## Implementation
 
@@ -55,6 +57,20 @@ The first pipeline stage scopes events using **index**: wineventlog.
 • Pipeline stage (see **Code Integrity / Driver Signing Violations**): table _time, host, issue, FileNameBuffer, ProcessNameBuffer
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -70,6 +86,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-CodeIntegrity/Operationa
 | eval issue=case(EventCode=3001,"Unsigned driver blocked",EventCode=3002,"Unable to verify",EventCode=3003,"Unsigned policy",EventCode=3004,"File hash not found",EventCode=3033,"Unsigned image loaded")
 | table _time, host, issue, FileNameBuffer, ProcessNameBuffer
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1h
+| where count>0
 ```
 
 ## Visualization

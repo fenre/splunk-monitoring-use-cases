@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.107.json — DO NOT EDIT -->
+
 ---
 id: "1.2.107"
 title: "DFS Replication Health Monitoring"
@@ -13,7 +15,7 @@ DFS-R synchronizes SYSVOL and shared folders across domain controllers and file 
 
 ## Value
 
-DFS-R synchronizes SYSVOL and shared folders across domain controllers and file servers. Replication failures cause inconsistent GPOs and stale data.
+DFS replication backlog or error state can desync SYSVOL and folder targets and break logon scripts or shared content. Early visibility stops silent divergent copies across sites.
 
 ## Implementation
 
@@ -51,7 +53,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **Severity** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, Severity, EventCode** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, Severity, EventCode** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
@@ -89,6 +91,15 @@ index=wineventlog source="WinEventLog:DFS Replication" EventCode IN (4012, 4302,
 | eval Severity=case(EventCode=4012,"DFSR_Stopped", EventCode=4302,"Staging_Quota_Exceeded", EventCode=4304,"Staging_Cleanup_Failed", EventCode=5002,"Unexpected_Shutdown", EventCode=5008,"Auto_Recovery_Failed", EventCode=5014,"USN_Journal_Wrap", 1=1,"Warning")
 | stats count by host, Severity, EventCode
 | sort -count
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

@@ -11,19 +11,27 @@
   "dataSources": "`index=mesh` `sourcetype=envoy:access` (`response_code`, `response_flags`)",
   "app": "Envoy access logging to HEC / forwarder",
   "spl": "index=mesh sourcetype=\"envoy:access\"\n| search response_flags=*UAEX* OR response_flags=*ext_authz*\n| where response_code >= 403\n| stats count by route_name, response_code\n| sort -count",
-  "description": "External authorization denials (`UAEX`) highlight policy changes, token outages, or attacks against protected routes.",
-  "value": "Validates zero-trust enforcement at the data plane.",
-  "implementation": "Enable detailed response flags in access logs; redact sensitive headers at ingest.",
-  "visualization": "Stacked bar (403/401), table (route), join with IdP health metrics.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "External authorization denials (`UAEX`) highlight policy changes, token outages, or attacks against protected routes.",
+  "value": "Validates zero-trust enforcement at the data plane.",
+  "grandmaExplanation": "We check zero-trust enforcement at the data plane.",
+  "implementation": "Enable detailed response flags in access logs; redact sensitive headers at ingest.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Envoy access logging to HEC / forwarder.\n• Ensure the following data sources are available: `index=mesh` `sourcetype=envoy:access` (`response_code`, `response_flags`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFlag semantics depend on Envoy version; consult response_codes docs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=mesh sourcetype=\"envoy:access\"\n| search response_flags=*UAEX* OR response_flags=*ext_authz*\n| where response_code >= 403\n| stats count by route_name, response_code\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Envoy External Authorization Denied Responses** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=mesh` `sourcetype=envoy:access` (`response_code`, `response_flags`). **App/TA**: Envoy access logging to HEC / forwarder. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with the broker or gateway’s own UI or CLI (`kafka-consumer-groups`, RabbitMQ management, ActiveMQ console, or Traefik/Envoy access log on the node) for the same period.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Stacked bar (403/401), table (route), join with IdP health metrics..",
+  "visualization": "Stacked bar (403/401), table (route), join with IdP health metrics.",
   "references": [
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    },
     {
       "title": "Envoy — Access logging",
       "url": "https://www.envoyproxy.io/docs/envoy/latest/configuration/observability/access_log/usage"
     }
   ],
+  "knownFalsePositives": "4xx spikes from web crawlers, scanners, or after URL routing and auth policy changes. We correlate with change records and intent.",
   "equipment": [
     "envoy",
     "hardware_bmc"
@@ -37,7 +45,5 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Envoy access logging to HEC / forwarder.\n• Ensure the following data sources are available: `index=mesh` `sourcetype=envoy:access` (`response_code`, `response_flags`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFlag semantics depend on Envoy version; consult response_codes docs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=mesh sourcetype=\"envoy:access\"\n| search response_flags=*UAEX* OR response_flags=*ext_authz*\n| where response_code >= 403\n| stats count by route_name, response_code\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Envoy External Authorization Denied Responses** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=mesh` `sourcetype=envoy:access` (`response_code`, `response_flags`). **App/TA**: Envoy access logging to HEC / forwarder. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Stacked bar (403/401), table (route), join with IdP health metrics..",
-  "grandmaExplanation": "We see when your proxy blocks traffic because an external permission check said no, so policy problems do not stay hidden."
+  "reviewer": "@splunk-monitoring-use-cases"
 }

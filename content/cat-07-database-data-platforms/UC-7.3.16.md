@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.3.16.json — DO NOT EDIT -->
+
 ---
 id: "7.3.16"
 title: "Azure SQL Managed Instance Resource Utilization"
@@ -22,6 +24,7 @@ Collect Azure Monitor metrics for SQL Managed Instance. Key metrics: `avg_cpu_pe
 ## Detailed Implementation
 
 Prerequisites
+• In operations we align Splunk with the cloud provider’s database console and metrics to rule out a platform maintenance window.
 • Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics).
 • Ensure the following data sources are available: `sourcetype=azure:monitor:metric` (Microsoft.Sql/managedInstances).
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -52,30 +55,9 @@ The first pipeline stage scopes events using **index**: cloud; **sourcetype**: a
 • Filters the current rows with `where metric_name IN ("avg_cpu_percent","io_bytes_read","io_bytes_written","storage_space_used_mb")` — typically the threshold or rule expression for this monitoring goal.
 • `timechart` plots the metric over time using **span=5m** buckets with a separate series **by metric_name, resource_name** — ideal for trending and alerting on this use case.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.Storage by Performance.host span=5m | sort - agg_value
-```
-
-Understanding this CIM / accelerated SPL
-
-**Azure SQL Managed Instance Resource Utilization** — SQL Managed Instance provides near-100% SQL Server compatibility in Azure. CPU, storage I/O, and memory pressure against provisioned limits directly impact query performance and can cause throttling.
-
-Documented **Data sources**: `sourcetype=azure:monitor:metric` (Microsoft.Sql/managedInstances). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance.Storage` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (CPU % over time), Gauge (storage used vs. limit), Table (instances near capacity).
@@ -88,12 +70,6 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.sql/manag
 | timechart span=5m avg(average) as value by metric_name, resource_name
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.Storage by Performance.host span=5m | sort - agg_value
-```
-
 ## Visualization
 
 Line chart (CPU % over time), Gauge (storage used vs. limit), Table (instances near capacity).
@@ -101,4 +77,3 @@ Line chart (CPU % over time), Gauge (storage used vs. limit), Table (instances n
 ## References
 
 - [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
-- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

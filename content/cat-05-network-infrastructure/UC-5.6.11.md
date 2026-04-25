@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.6.11.json — DO NOT EDIT -->
+
 ---
 id: "5.6.11"
 title: "DHCP Lease Duration Analysis"
@@ -51,13 +53,13 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 
 • Scopes the data: index=network, sourcetype="infoblox:dhcp". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Extracts fields with `rex` (regular expression).
-• `stats` rolls up events into metrics; results are split **by subnet** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by subnet** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **avg_hours** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare lease and scope utilization in Infoblox Grid Manager, Windows Server DHCP, or your ISC/BIND tooling to the Splunk rows for the same scopes and servers.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (scope, avg lease, renewal count), Bar chart (renewals by scope).
@@ -69,6 +71,16 @@ index=network sourcetype="infoblox:dhcp" "DHCPACK"
 | rex "lease (?<lease_ip>\d+\.\d+\.\d+\.\d+).*?(?<lease_duration>\d+)"
 | stats avg(lease_duration) as avg_lease, count as renewals by subnet
 | eval avg_hours=round(avg_lease/3600,1) | sort -renewals
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Sessions.DHCP
+  by DHCP.mac DHCP.ip DHCP.action span=1h
+| where count>0
+| sort -count
 ```
 
 ## Visualization

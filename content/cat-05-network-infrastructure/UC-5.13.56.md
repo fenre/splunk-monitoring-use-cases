@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.56.json — DO NOT EDIT -->
+
 ---
 id: "5.13.56"
 title: "Firmware Non-Compliance Detection (Running vs Golden Image)"
@@ -32,32 +34,38 @@ disabled = 0
 Prerequisites
 • Complete UC-5.13.55 so `cisco:dnac:swim` events exist with `imageCompliance`, `runningVersion`, and `targetVersion`.
 
-Step 1 — Data fields
-The TA does not populate golden-image compliance alone. The scripted input must call:
-- `GET /dna/intent/api/v1/compliance/detail?complianceType=IMAGE` (per-device or bulk response depending on API version — normalize in the script)
-- `GET /dna/intent/api/v1/network-device-image-updates` (running and target build)
-Token: `POST /dna/system/api/v1/auth/token`.
+Step 1 — Data fields (Catalyst Center SWIM / compliance)
+The base Cisco Catalyst TA may not cover every field; a scripted input must call:
+- `GET /dna/intent/api/v1/compliance/detail?complianceType=IMAGE` (normalize the API’s compliance strings to `imageCompliance` in Splunk)
+- `GET /dna/intent/api/v1/network-device-image-updates` (running and target or golden assignment)
+Authenticate with `POST /dna/system/api/v1/auth/token` and pass `X-Auth-Token` on subsequent calls.
 
 Store credentials in Splunk’s credential store; set `sourcetype=cisco:dnac:swim` and `index=catalyst` in `inputs.conf` for the poller.
 
 Step 2 — Search / alert
 
 ```spl
-index=catalyst sourcetype="cisco:dnac:swim" imageCompliance="NON_COMPLIANT" | stats count as non_compliant_count by deviceFamily, runningVersion, targetVersion | eval version_gap=runningVersion." → ".targetVersion | sort -non_compliant_count
+index=catalyst sourcetype="cisco:dnac:swim" imageCompliance="NON_COMPLIANT" | stats count as non_compliant_count by deviceFamily, runningVersion, targetVersion | eval version_gap=if(isnotnull(runningVersion) AND isnotnull(targetVersion), tostring(runningVersion)." → ".tostring(targetVersion), null()) | sort -non_compliant_count
 ```
 
-If your environment uses a different field name than `imageCompliance`, adjust the filter to match the normalized value for non-golden (for example `COMPLIANT` / `NON_COMPLIANT` strings from the API after mapping).
+If your environment uses a different field name than `imageCompliance`, adjust the filter to the strings your poller normalizes (for example `COMPLIANT` / `NON_COMPLIANT`).
 
 Step 3 — Validate
-Compare a sample of non-compliant results to Catalyst Center SWIM/Compliance views for the same site or device list.
+• Compare a sample to **Catalyst Center > SWIM** and **Compliance** for the same device set; a mismatch usually means a lagging poll or a different golden assignment scope (site vs global).
 
 Step 4 — Operationalize
-Schedule the search and route to SecOps/change management. Visualizations: table of gaps by family and versions, count of non-compliant devices, bar chart by `deviceFamily`.
+• Page **SecOps and change** on sustained non-compliance; attach **Device 360** from Catalyst for remediation.
+
+Step 5 — Troubleshooting
+• **Zero results when the UI shows drift:** the API user may not see all sites in your virtual domain, or the compliance endpoint returned empty — broaden scope in Catalyst first.
+• **Noise during upgrade waves:** add a **summary** of `upgradeStatus` or exclude maintenance **tags/lookups** for known canary groups.
+• **All devices non-compliant after golden change:** expect a **burst** until the next SWIM run completes — widen the alert time window, not the blast radius, before tuning thresholds.
+
 
 ## SPL
 
 ```spl
-index=catalyst sourcetype="cisco:dnac:swim" imageCompliance="NON_COMPLIANT" | stats count as non_compliant_count by deviceFamily, runningVersion, targetVersion | eval version_gap=runningVersion." → ".targetVersion | sort -non_compliant_count
+index=catalyst sourcetype="cisco:dnac:swim" imageCompliance="NON_COMPLIANT" | stats count as non_compliant_count by deviceFamily, runningVersion, targetVersion | eval version_gap=if(isnotnull(runningVersion) AND isnotnull(targetVersion), tostring(runningVersion)." → ".tostring(targetVersion), null()) | sort -non_compliant_count
 ```
 
 ## Visualization

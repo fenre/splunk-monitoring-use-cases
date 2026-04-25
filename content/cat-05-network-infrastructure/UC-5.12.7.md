@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.12.7.json — DO NOT EDIT -->
+
 ---
 id: "5.12.7"
 title: "IMS Registration Failure Rate"
@@ -58,7 +60,7 @@ The first pipeline stage scopes events using **index**: ims; **sourcetype**: ims
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For a spike, compare Splunk to the IMS/EPG/UCM node that serves those subscribers; align subscriber keys and time zone. Re-check DNS, Diameter link, and HSS/HSS replica lag on the same clock.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (fail rate), Bar chart (SIP reason by S-CSCF), Table (IMSI hash top failures).

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.7.2.json — DO NOT EDIT -->
+
 ---
 id: "8.7.2"
 title: "API Endpoint Latency Percentile Trending"
@@ -54,30 +56,10 @@ The first pipeline stage scopes events using **index**: web, app; **sourcetype**
 • Filters the current rows with `where isnotnull(ms) AND match(uri_path,"/api/")` — typically the threshold or rule expression for this monitoring goal.
 • `timechart` plots the metric over time using **span=1d** buckets — ideal for trending and alerting on this use case.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest span=1d | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**API Endpoint Latency Percentile Trending** — p50, p95, and p99 latency over 30 days highlights tail latency regressions that averages hide. Trends support SLO setting and regression detection after releases.
-
-Documented **Data sources**: `index=web` or `index=app`, `sourcetype=access_combined` with response time, `index=middleware` gateway logs. **App/TA** (typical add-on context): API gateway TAs (Kong, AWS API Gateway), reverse proxy logs, OpenTelemetry span export to Splunk. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Web.Web` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (p50/p95/p99 over time), heatmap (endpoint × day for p95), table (worst endpoints).
@@ -94,7 +76,10 @@ index=web OR index=app sourcetype=access_combined earliest=-30d
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest span=1d | sort - count
+| tstats `summariesonly` perc95(Web.duration) as p95_ms avg(Web.duration) as avg_ms
+  from datamodel=Web.Web
+  by Web.dest Web.uri_path span=5m
+| where p95_ms > 2000
 ```
 
 ## Visualization

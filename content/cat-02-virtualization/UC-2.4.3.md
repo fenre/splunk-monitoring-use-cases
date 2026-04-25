@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.4.3.json — DO NOT EDIT -->
+
 ---
 id: "2.4.3"
 title: "VM-to-Host Density Trending"
@@ -51,11 +53,10 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 **Pipeline walkthrough**
 
 • Scopes the data: index=vmware, sourcetype="vmware:inv:vm". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **total_mem_gb** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **VM-to-Host Density Trending**): table host, vm_count, total_vcpus, total_mem_gb
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

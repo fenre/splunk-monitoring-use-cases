@@ -12,13 +12,13 @@
   "dataSources": "`ceph pg dump --format json` or `ceph pg stat` emitted on a timer into Splunk as `sourcetype=ceph:pg`",
   "app": "Scripted input or cron + `curl`/`ceph` wrapper posting JSON to HEC",
   "spl": "index=storage sourcetype=\"ceph:pg\" earliest=-30m\n| where NOT match(pg_state, \"(?i)active\\+clean\")\n| stats dc(pg_id) as affected_pgs values(pg_state) as states latest(pool_name) as pool by cluster_name\n| where affected_pgs > 0\n| sort - affected_pgs",
+  "cimModels": [
+    "N/A"
+  ],
   "description": "PGs that stay in `peering`, `degraded`, `undersized`, or `stuck` states mean data is not fully redundant; prolonged states risk data loss if additional OSDs fail.",
   "value": "Narrows blast radius to specific pools and PG counts so on-call engineers can target OSD hosts, CRUSH rules, or network partitions before the cluster blocks I/O.",
   "implementation": "Run a privileged script every 5 minutes on a management host with keyring access: parse `ceph pg dump_stuck unclean` or full JSON, flatten `pgid`, `state`, `pool_name`, and `cluster_name`, and send via HEC. Complement UC-6.1.14 (`ceph:status`)—this UC focuses on PG-level persistence, not the summary health string.",
   "visualization": "Single value (count of bad PGs), treemap (by pool), table (pg_state, count).",
-  "cimModels": [
-    "N/A"
-  ],
   "references": [
     {
       "title": "Ceph Documentation — Placement groups",
@@ -29,10 +29,12 @@
       "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
     }
   ],
+  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
   "equipment": [
     "ceph"
   ],
   "status": "draft",
+  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises.",
   "lastReviewed": "2026-04-24",
   "splunkVersions": [
     "9.2+",

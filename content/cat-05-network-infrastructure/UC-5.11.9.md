@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.11.9.json — DO NOT EDIT -->
+
 ---
 id: "5.11.9"
 title: "Hardware Component Health (Fan, PSU, Temperature)"
@@ -56,30 +58,9 @@ The first pipeline stage scopes events using **index**: gnmi_metrics.
 • Pipeline stage (see **Hardware Component Health (Fan, PSU, Temperature)**): table _time, host, name, temp_c, severity
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Hardware Component Health (Fan, PSU, Temperature)** — Environmental monitoring via SNMP Entity-MIB polling is slow and often unreliable. gNMI streaming of `/components/component/state` provides real-time temperature, fan speed, and power supply status. A failing fan in a top-of-rack switch triggers thermal throttling within minutes — early detection prevents performance degradation and emergency hardware swaps during business hours.
-
-Documented **Data sources**: gNMI path: `/components/component/state` (temperature, type=FAN/POWER_SUPPLY/SENSOR); Telegraf metric: `openconfig_platform`. **App/TA** (typical add-on context): Telegraf (`inputs.gnmi` plugin) → Splunk HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance.CPU` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare temperature or fan/PSU states to the hardware environmental CLI or the vendor’s NMS; confirm thresholds match your data-center intake policy.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (temperature per component), Status grid (fan/PSU status across fabric), Line chart (temperature trend), Table (components above threshold).
@@ -92,12 +73,6 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 | eval severity=case(temp_c > 85, "CRITICAL", temp_c > 75, "HIGH", temp_c > 65, "WARNING")
 | table _time, host, name, temp_c, severity
 | sort -temp_c
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host | sort - count
 ```
 
 ## Visualization

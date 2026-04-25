@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.90.json — DO NOT EDIT -->
+
 ---
 id: "1.2.90"
 title: "Shadow Copy Deletion (Ransomware Indicator)"
@@ -13,7 +15,7 @@ Ransomware deletes volume shadow copies to prevent file recovery. Detecting vssa
 
 ## Value
 
-Ransomware deletes volume shadow copies to prevent file recovery. Detecting vssadmin/wmic shadow deletion commands is a high-confidence ransomware indicator.
+Ransomware often deletes volume snapshots right before file encryption. Commands that wipe shadows are one of the strongest early warnings to start isolation and recovery planning.
 
 ## Implementation
 
@@ -68,6 +70,16 @@ index=wineventlog EventCode IN (4688, 1)
 | where match(CommandLine, "(?i)(vssadmin.*delete.*shadows|wmic.*shadowcopy.*delete|bcdedit.*recoveryenabled.*no|wbadmin.*delete.*catalog)")
 | table _time, host, User, CommandLine, ParentProcessName, Image
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Endpoint.Processes
+  where (like(Processes.process,"%vssadmin%") OR like(Processes.process,"%wmic%"))
+  by Processes.user Processes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

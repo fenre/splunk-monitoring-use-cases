@@ -11,19 +11,23 @@
   "dataSources": "`index=cache` `sourcetype=varnish:stats` (`MAIN.n_wrk_queue` / `n_wrk_queue`)",
   "app": "Custom scripted input (`varnishstat -j`)",
   "spl": "index=cache sourcetype=\"varnish:stats\"\n| timechart span=1m max(n_wrk_queue) as worker_queue_depth by host\n| where worker_queue_depth > 50",
-  "description": "`n_wrk_queue` grows when worker threads cannot dequeue requests fast enough. Backlog leads to elevated latency and client timeouts.",
-  "value": "Detects thread starvation before Varnish stops keeping up with traffic spikes.",
-  "implementation": "Poll `varnishstat -j` every 30–60s; flatten `MAIN.n_wrk_queue` to `n_wrk_queue`. Correlate with `cache_hit` drops and backend latency.",
-  "visualization": "Line chart (queue depth), overlay with `n_wrk_busy`, table (peaks by POP).",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "`n_wrk_queue` grows when worker threads cannot dequeue requests fast enough. Backlog leads to elevated latency and client timeouts.",
+  "value": "Detects thread starvation before Varnish stops keeping up with traffic spikes.",
+  "grandmaExplanation": "We catch thread starvation before Varnish stops keeping up with traffic spikes.",
+  "implementation": "Poll `varnishstat -j` every 30–60s; flatten `MAIN.n_wrk_queue` to `n_wrk_queue`. Correlate with `cache_hit` drops and backend latency.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`varnishstat -j`).\n• Ensure the following data sources are available: `index=cache` `sourcetype=varnish:stats` (`MAIN.n_wrk_queue` / `n_wrk_queue`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure JSON stats include worker queue; confirm field name matches your extractor (`n_wrk_queue`).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cache sourcetype=\"varnish:stats\"\n| timechart span=1m max(n_wrk_queue) as worker_queue_depth by host\n| where worker_queue_depth > 50\n```\n\nUnderstanding this SPL\n\n**Varnish Worker Thread Queue Backlog** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=cache` `sourcetype=varnish:stats` (`MAIN.n_wrk_queue` / `n_wrk_queue`). **App/TA**: Custom scripted input (`varnishstat -j`). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (queue depth), overlay with `n_wrk_busy`, table (peaks by POP)..",
+  "visualization": "Line chart (queue depth), overlay with `n_wrk_busy`, table (peaks by POP).",
   "references": [
     {
       "title": "varnishstat — Varnish reference",
       "url": "https://varnish-cache.org/docs/trunk/reference/varnishstat.html"
     }
   ],
+  "knownFalsePositives": "Queues grow during consumer maintenance, slow consumers, or burst producer activity. Seasonal traffic can also create sustained backlog without a hard fault.",
   "equipment": [
     "varnish"
   ],
@@ -33,7 +37,5 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`varnishstat -j`).\n• Ensure the following data sources are available: `index=cache` `sourcetype=varnish:stats` (`MAIN.n_wrk_queue` / `n_wrk_queue`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure JSON stats include worker queue; confirm field name matches your extractor (`n_wrk_queue`).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cache sourcetype=\"varnish:stats\"\n| timechart span=1m max(n_wrk_queue) as worker_queue_depth by host\n| where worker_queue_depth > 50\n```\n\nUnderstanding this SPL\n\n**Varnish Worker Thread Queue Backlog** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=cache` `sourcetype=varnish:stats` (`MAIN.n_wrk_queue` / `n_wrk_queue`). **App/TA**: Custom scripted input (`varnishstat -j`). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (queue depth), overlay with `n_wrk_busy`, table (peaks by POP)..",
-  "grandmaExplanation": "We watch the line of work waiting inside your cache so you can add capacity before pages time out."
+  "reviewer": "@splunk-monitoring-use-cases"
 }

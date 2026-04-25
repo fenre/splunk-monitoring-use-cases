@@ -19,6 +19,7 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "PagerDuty App for Splunk",
@@ -29,6 +30,7 @@
       "url": "https://splunkbase.splunk.com/app/3759"
     }
   ],
+  "knownFalsePositives": "Reopens and repeats that share one flaky root cause, and tickets that only look the same in the short text field; problem review still helps sort them.",
   "equipment": [
     "hardware_bmc",
     "pagerduty"
@@ -42,5 +44,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We look for the same issue opening and closing in a loop, so we can fix a flaky monitor or a rule that will not let an issue rest.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: Opsgenie for Splunk (Splunkbase 3759) forwarding alert JSON.\n• Data: Opsgenie alert activity (`opsgenie:alert`) from OEC or integration logs.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nInclude `action` field (Create, Close, Ack). Redact customer PII from `message`.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"opsgenie:alert\"\n| eval alias=coalesce(alias, message)\n| stats count, dc(action) as action_dc by alias, tinyId\n| where count>15 AND action_dc>=2\n| sort -count\n```\n\nUnderstanding this search\nFlapping integrations waste responder focus and distort MTTR metrics.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Bar chart (top aliases), Line chart (flap rate)."
 }

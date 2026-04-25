@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.12.9.json — DO NOT EDIT -->
+
 ---
 id: "5.12.9"
 title: "Roaming Usage Anomaly"
@@ -53,16 +55,16 @@ The first pipeline stage scopes events using **index**: telco; **sourcetype**: r
 
 • Scopes the data: index=telco, sourcetype="roaming:usage". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by imsi_hash, visited_country, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by visited_country** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by imsi_hash, visited_country, _time** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by visited_country** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where units > 10*baseline` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Telephony CDRs and signaling are not in CIM; this search does not use CIM data model acceleration.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Match a roaming spike in CDRs to the billing or roaming broker file for a day; confirm rating metadata (MCC/MNC) maps correctly from your SBC/MSC export.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Map (visited countries), Table (suspicious subscribers), Line chart (roaming $ trend).

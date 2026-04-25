@@ -19,6 +19,7 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "PagerDuty App for Splunk",
@@ -29,6 +30,7 @@
       "url": "https://splunkbase.splunk.com/app/3759"
     }
   ],
+  "knownFalsePositives": "Real outages, wide dependency failure, and new or noisy monitor rules; check the same service in the on-call product before you blame a single team.",
   "equipment": [
     "pagerduty"
   ],
@@ -38,5 +40,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We tie a quiet or dead check to a lot of new alerts, so we know a monitoring gap may be the reason things look loud.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: Opsgenie for Splunk (3759) with heartbeat integration.\n• Data: Opsgenie heartbeat + alert feeds in one index.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nNormalize `host` from heartbeat name; join CMDB for owner.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts (sourcetype=\"opsgenie:heartbeat\" OR sourcetype=\"opsgenie:alert\")\n| eval hb_miss=if(sourcetype=\"opsgenie:heartbeat\" AND status=\"expired\",1,0)\n| stats sum(hb_miss) as misses, sum(eval(if(sourcetype=\"opsgenie:alert\",1,0))) as alerts by host\n| where misses>0 AND alerts>5\n| sort -alerts\n```\n\nUnderstanding this search\nHeartbeat loss plus alert storms indicate monitoring agent or network partitions.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Scatter (misses vs alerts), Table (host)."
 }

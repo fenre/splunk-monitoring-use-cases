@@ -8,17 +8,22 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=custom:mtu, ip link show output`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "dataSources": "`sourcetype=custom:mtu` (parsed `ip link show` or `ip -d link` with `mtu` per `interface`)",
+  "app": "`Splunk_TA_nix` with a custom scripted input for per-interface MTU",
   "spl": "index=os sourcetype=custom:mtu host=*\n| stats latest(mtu) as interface_mtu by host, interface\n| stats values(interface_mtu) as mtus by host\n| where mvcount(mtus) > 1",
-  "description": "MTU mismatches cause fragmentation and performance issues, especially with jumbo frame configurations.",
-  "value": "MTU mismatches cause fragmentation and performance issues, especially with jumbo frame configurations.",
-  "implementation": "Create a scripted input that runs 'ip link show' and parses MTU values per interface. Alert when mixed MTUs are detected on a host, indicating potential mismatch with switch/network.",
+  "description": "Flags a host on which at least two interfaces in the last snapshot use different MTU values, a situation that can cause hidden fragmentation or black-holed jumbo traffic across mixed networks.",
+  "value": "Mixed-MTU boxes often sit on edges between 1500- and 9000-byte networks; making the mismatch visible prevents long hunts when apps see retransmission storms only on certain paths.",
+  "implementation": "Snapshot `ip link` output into key=value lines with **host**, **interface**, **mtu**. The search dedupes to latest per interface, then looks for more than one distinct MTU on the same host, which is not automatically bad but always worth confirming against design documents.",
   "visualization": "Table, Alert",
   "cimModels": [
     "N/A"
   ],
+  "knownFalsePositives": "Intentional designs: jumbo on storage VLAN, 1500 on management; down interfaces still reporting an old MTU; containers or VRFs with deliberate differences—add a **lookup** of `expected_mismatch_ok` for those hosts.",
   "references": [
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
     {
       "title": "Splunk Lantern — use case library",
       "url": "https://lantern.splunk.com/"
@@ -27,6 +32,6 @@
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=custom:mtu, ip link show output`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate a scripted input that runs 'ip link show' and parses MTU values per interface. Alert when mixed MTUs are detected on a host, indicating potential mismatch with switch/network.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=custom:mtu host=*\n| stats latest(mtu) as interface_mtu by host, interface\n| stats values(interface_mtu) as mtus by host\n| where mvcount(mtus) > 1\n```\n\nUnderstanding this SPL\n\n**MTU Mismatch Detection** — MTU mismatches cause fragmentation and performance issues, especially with jumbo frame configurations.\n\nDocumented **Data sources**: `sourcetype=custom:mtu, ip link show output`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: custom:mtu. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=custom:mtu. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, interface** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where mvcount(mtus) > 1` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Alert\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "MTU mismatches cause fragmentation and performance issues, especially with jumbo frame configurations — so you find out before users do when something is slowing down or breaking."
+  "detailedImplementation": "Prerequisites\n• A script the forwarder can run (often with **sudo -n** to **ip** if needed) to dump MTU in a single pass across interfaces you care about.\n\nStep 1 — Configure data collection\nRun every 15–30 minutes; MTU does not need per-second resolution. Index as `custom:mtu` under the **os** index.\n\nStep 2 — Create the search and alert\nSPL as written finds **any** mixed MTU on a host; scope with `| search interface!=lo*` if loopback mis-sized values are normal in your build.\n\n**Understanding this SPL** — `values()` of MTU with `where mvcount(mtus) > 1` marks heterogeneity, not a specific “wrong” value.\n\n\nStep 3 — Validate\nOn host, `ip -4 link` / `ip -6 link` to compare, and your switch `show interface` for native MTU. Use `ping -M do` / `ping -s` path tests for path MTU; **traceroute** is optional in complex MPLS cases.\n\nStep 4 — Operationalize\nStore intended MTU in CMDB, auto-close alerts when a lookup says the host is an approved mixed-MTU border.\n\n",
+  "grandmaExplanation": "We help you know when the same computer’s network doors are not all the same size, which can make some big packets fit on one path but get chopped up or stuck on another."
 }

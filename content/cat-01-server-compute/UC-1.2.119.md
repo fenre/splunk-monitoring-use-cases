@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.119.json — DO NOT EDIT -->
+
 ---
 id: "1.2.119"
 title: "Registry Run Key Persistence Monitoring"
@@ -13,7 +15,7 @@ Registry Run keys are the most common persistence mechanism for malware. Monitor
 
 ## Value
 
-Registry Run keys are the most common persistence mechanism for malware. Monitoring autostart registry locations detects new malware installations.
+Run and RunOnce keys are old but still effective persistence. Pairing registry run changes with process data tells you if a new auto-start is boring IT software or something else.
 
 ## Implementation
 
@@ -102,8 +104,8 @@ index=wineventlog EventCode=13
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

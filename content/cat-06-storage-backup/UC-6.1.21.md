@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.1.21.json — DO NOT EDIT -->
+
 ---
 id: "6.1.21"
 title: "Multipath Failover Events"
@@ -53,15 +55,15 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: linu
 • Scopes the data: index=os, sourcetype=linux_syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Extracts fields with `rex` (regular expression).
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by host, path_id, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, path_id, _time** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (failover events), Table (host, path, count), Single value (failovers last 24h).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production—not generic platform steps only. Consider visualizations: Timeline (failover events), Table (host, path, count), Single value (failovers last 24h).
 
 ## SPL
 

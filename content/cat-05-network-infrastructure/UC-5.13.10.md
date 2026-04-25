@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.10.json — DO NOT EDIT -->
+
 ---
 id: "5.13.10"
 title: "Client Health Trending by Time"
@@ -68,6 +70,7 @@ Step 5 — Troubleshooting
 • **Sawtooth on poll alignment:** you may be **re-ingesting** duplicate buckets—`dedup` on known keys in an intermediate **summary** if needed.
 • **Region mismatch vs GUI:** the modular input may be **global** while an engineer looks at a **single site** in the UI—align **scope** in the TA where filters exist.
 
+
 ## SPL
 
 ```spl
@@ -82,3 +85,4 @@ Line timechart of healthy_pct by category, overlay markers for change windows, s
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

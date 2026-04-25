@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.125.json — DO NOT EDIT -->
+
 ---
 id: "1.2.125"
 title: "Cluster Shared Volume (CSV) Health"
@@ -13,7 +15,7 @@ Cluster Shared Volumes underpin Hyper-V and SQL Server failover clusters. CSV fa
 
 ## Value
 
-Cluster Shared Volumes underpin Hyper-V and SQL Server failover clusters. CSV failures cause VM/database unavailability across the cluster.
+CSV space and I/O health under Hyper-V clusters affects every VM on shared storage. Early signals on pause, redirect, or latency avoid multi-tenant brownouts.
 
 ## Implementation
 
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: wineventlog.
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **Status** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, VolumeName, Status** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, VolumeName, Status** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where Status IN ("CSV_Offline", "CSV_Redirected", "CSV_IO_Paused")` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -71,6 +73,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-FailoverClustering/Opera
 | stats count latest(_time) as LastEvent by host, VolumeName, Status
 | where Status IN ("CSV_Offline", "CSV_Redirected", "CSV_IO_Paused")
 | sort -LastEvent
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.2.14.json — DO NOT EDIT -->
+
 ---
 id: "2.2.14"
 title: "VM Resource Metering for Chargeback"
@@ -53,11 +55,10 @@ The first pipeline stage scopes events using **index**: hyperv; **sourcetype**: 
 
 • Scopes the data: index=hyperv, sourcetype="hyperv_metering". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by vm_name, host, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by vm_name, host, _time** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **disk_total_gb** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **net_total_gb** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Pipeline stage (see **VM Resource Metering for Chargeback**): table _time, vm_name, host, avg_cpu, avg_mem, disk_total_gb, net_total_gb
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

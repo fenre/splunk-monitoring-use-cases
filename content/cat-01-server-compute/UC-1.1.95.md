@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.95.json — DO NOT EDIT -->
+
 ---
 id: "1.1.95"
 title: "TCP Connection Establishment Rate"
@@ -50,11 +52,10 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: cust
 **Pipeline walkthrough**
 
 • Scopes the data: index=os, sourcetype=custom:netstat_stats. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
 • `streamstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.
 • Filters the current rows with `where avg_active > baseline + 3*stddev` — typically the threshold or rule expression for this monitoring goal.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.19.json — DO NOT EDIT -->
+
 ---
 id: "1.2.19"
 title: "Group Policy Processing Failures"
@@ -13,7 +15,7 @@ GPO failures mean security policies, drive mappings, software deployments, and c
 
 ## Value
 
-GPO failures mean security policies, drive mappings, software deployments, and configurations aren't being applied. Systems may be running with stale or missing policies.
+Unapplied GPOs mean missing controls and broken maps—this helps close the loop before user drift and audit findings do.
 
 ## Implementation
 
@@ -49,16 +51,16 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 **Pipeline walkthrough**
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:Microsoft-Windows-GroupPolicy/Operational". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, EventCode, ErrorDescription** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, EventCode, ErrorDescription** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest All_Changes.object All_Changes.action span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -95,9 +97,9 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-GroupPolicy/Operatio
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest All_Changes.object All_Changes.action span=1h
+| where count>0
 ```
 
 ## Visualization

@@ -11,19 +11,26 @@
   "dataSources": "`index=web` `sourcetype=phpfpm:status` (`active_processes`, `total_processes`) joined with `index=os` process or host memory metrics (`ps`, Perfmon, or `Splunk_TA_nix`)",
   "app": "Splunk Universal Forwarder; optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`); custom `props.conf`/`transforms.conf` for `phpfpm:*` sourcetypes",
   "spl": "index=web sourcetype=\"phpfpm:status\"\n| eval ap=tonumber(active_processes), tp=tonumber(total_processes)\n| join type=left host [\n    search index=os sourcetype=ps earliest=-2m\n    | stats latest(mem_used) as rss_kb by host\n]\n| eval approx_mb_per_worker=if(tp>0, round(rss_kb/1024/tp,2), null())\n| timechart span=15m avg(approx_mb_per_worker) by pool",
-  "description": "Rightsizing `pm.max_children` needs approximate RSS per PHP worker. Comparing FPM process counts with host or cgroup memory avoids OOM kills during traffic spikes while limiting over-provisioning.",
-  "value": "Reduces user-facing latency and 5xx rates by exposing pool saturation, slow scripts, and worker stability before front proxies fail.",
-  "implementation": "Ingest `ps` or `top` snapshot via TA-nix; alias mem field. For container hosts, use cAdvisor/kube stats joined on pod/host.",
-  "visualization": "Time series (pool utilization, queue, latency percentiles), single value alerts, top charts for scripts and methods.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "Rightsizing `pm.max_children` needs approximate RSS per PHP worker. Comparing FPM process counts with host or cgroup memory avoids OOM kills during traffic spikes while limiting over-provisioning.",
+  "value": "Reduces user-facing latency and 5xx rates by exposing pool saturation, slow scripts, and worker stability before front proxies fail.",
+  "grandmaExplanation": "We use this to reduce user-facing latency and 5xx rates by exposing pool saturation, slow scripts, and worker stability before front proxies fail.",
+  "implementation": "Ingest `ps` or `top` snapshot via TA-nix; alias mem field. For container hosts, use cAdvisor/kube stats joined on pod/host.",
+  "visualization": "Time series (pool utilization, queue, latency percentiles), single value alerts, top charts for scripts and methods.",
   "references": [
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    },
     {
       "title": "PHP-FPM configuration",
       "url": "https://www.php.net/manual/en/fpm.configuration.php#pm.max-children"
     }
   ],
+  "knownFalsePositives": "Thread or worker pools fill during traffic spikes, slow upstream services, or DoS-style load. A surge alone can be benign if backends recover.",
   "equipment": [
     "linux",
     "phpfpm"
@@ -35,5 +42,5 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch your PHP worker pools so busy sites do not run out of hands to answer requests."
+  "detailedImplementation": ""
 }

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.13.json — DO NOT EDIT -->
+
 ---
 id: "4.4.13"
 title: "Cloud Provider Status and Incident Correlation"

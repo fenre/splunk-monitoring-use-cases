@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.65.json — DO NOT EDIT -->
+
 ---
 id: "4.1.65"
 title: "GuardDuty Severity Analysis"
@@ -49,13 +51,18 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 **Pipeline walkthrough**
 
 • Scopes the data: index=aws, sourcetype="aws:cloudwatch:guardduty". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by severity, type, accountId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by severity, type, accountId** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.severity | sort - count
+| tstats `summariesonly` count
+  from datamodel=Intrusion_Detection.IDS_Attacks
+  where (match(lower(IDS_Attacks.severity), "high|critical|severe")
+         OR (isnum(IDS_Attacks.severity) AND IDS_Attacks.severity >= 7))
+  by IDS_Attacks.signature IDS_Attacks.severity IDS_Attacks.src span=1h
+| sort -count
 ```
 
 Understanding this CIM / accelerated SPL
@@ -91,7 +98,12 @@ index=aws sourcetype="aws:cloudwatch:guardduty"
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.severity | sort - count
+| tstats `summariesonly` count
+  from datamodel=Intrusion_Detection.IDS_Attacks
+  where (match(lower(IDS_Attacks.severity), "high|critical|severe")
+         OR (isnum(IDS_Attacks.severity) AND IDS_Attacks.severity >= 7))
+  by IDS_Attacks.signature IDS_Attacks.severity IDS_Attacks.src span=1h
+| sort -count
 ```
 
 ## Visualization

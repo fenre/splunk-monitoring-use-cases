@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.4.5.json — DO NOT EDIT -->
+
 ---
 id: "9.4.5"
 title: "Suspicious Session Commands"
@@ -54,7 +56,7 @@ The first pipeline stage scopes events using **index**: pam; **sourcetype**: cyb
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with CyberArk PrivateArk/Password Vault Web Access (or BeyondTrust / vendor console) for the same sessions, vault activity, and alerts.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (suspicious commands), Timeline (command events), Single value (high-risk commands today).
@@ -70,10 +72,6 @@ index=pam sourcetype="cyberark:psm_transcript"
 ## Visualization
 
 Table (suspicious commands), Timeline (command events), Single value (high-risk commands today).
-
-## Known False Positives
-
-Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
 
 ## References
 

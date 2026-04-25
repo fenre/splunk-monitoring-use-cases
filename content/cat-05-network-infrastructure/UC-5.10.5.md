@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.10.5.json — DO NOT EDIT -->
+
 ---
 id: "5.10.5"
 title: "SIP Registration Storm Detection"
@@ -54,17 +56,13 @@ The first pipeline stage scopes events using **sourcetype**: stream:sip. That so
 
 • Scopes the data: sourcetype="stream:sip". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time** so each row reflects one combination of those dimensions.
 • `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.
 • `eval` defines or adjusts **threshold** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where register_count>threshold` — typically the threshold or rule expression for this monitoring goal.
 • `eval` defines or adjusts **spike_factor** — often to normalize units, derive a ratio, or prepare for thresholds.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
-
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare Splunk counts in the same time window to your packet capture or Stream job scope (VLAN, SPAN, or tap). On the core element (PCRF, SBC, or PGW) console or EMS, open the matching subscriber or trunk counters and confirm codes such as Diameter `result_code` or SIP `reply_code` line up. After any network or mirror change, re-check that the Stream capture still includes the trunks you care about.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (REGISTER count over time with dynamic baseline threshold line), Single value (current spike factor vs. baseline), Table (time bucket, register_count, unique_sources, baseline, threshold — highlighting rows above threshold), Area chart (unique sources over time to correlate with storms).

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.72.json — DO NOT EDIT -->
+
 ---
 id: "1.1.72"
 title: "SSH Public Key Changes"
@@ -9,97 +11,44 @@ splunkPillar: "Security"
 
 ## Description
 
-SSH key modifications enable persistent unauthorized access, indicating potential account compromise.
+Rolls up **auditd** file events for any `authorized_keys` path, showing who ( **auid** / **user** ) and which **host** had a create or content change, for a classic persistence check.
 
 ## Value
 
-SSH key modifications enable persistent unauthorized access, indicating potential account compromise.
+A new key in **authorized_keys** is a silent, durable way back in; many breaches stop here for months if you only watch password auth.
 
 ## Implementation
 
-Monitor ~/.ssh/authorized_keys files for all users via auditctl. Create alerts on any modifications. Include user and source process information to determine if change was authorized.
+Add recursive watches on `/home` and `/root` `.ssh/authorized_keys` (pattern depends on `auditd` version). Use a **CIM**-ready **file**+**user** extraction in **props**; add a **lookup** of approved key fingerprints in v2 of this use case.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=linux_audit`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• `auditd` with recursive watches, or a **FIM** product that can send equivalent events. Confirm **path**~ matches your actual home layout (`/data/home/*` etc.).
 
-Step 1 — Configure data collection
-Monitor ~/.ssh/authorized_keys files for all users via auditctl. Create alerts on any modifications. Include user and source process information to determine if change was authorized.
-
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=linux_audit path~="\.ssh/authorized_keys" action=modified
-| stats count by host, auid, user
-| where count > 0
-```
-
-Understanding this SPL
-
-**SSH Public Key Changes** — SSH key modifications enable persistent unauthorized access, indicating potential account compromise.
-
-Documented **Data sources**: `sourcetype=linux_audit`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, auid, user** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
-
-Understanding this CIM / accelerated SPL
-
-**SSH Public Key Changes** — SSH key modifications enable persistent unauthorized access, indicating potential account compromise.
-
-Documented **Data sources**: `sourcetype=linux_audit`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.
-• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+**CIM** — The `action IN ("created", "modified")` matches common FIM mappings; adjust if your CIM `action` vocabulary differs (`create` vs `created`).
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`ausearch` filtered on the authorized_keys file path, or a single test key add on a **lab** host, then the row in Search.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table
+Pair with the **PAM** failure + **lastlog** use cases the same day for the same `user` to see a complete story.
+
+
 
 ## SPL
 
 ```spl
-index=os sourcetype=linux_audit path~="\.ssh/authorized_keys" action=modified
+index=os sourcetype=linux_audit path~=".ssh/authorized_keys" (action=modified OR nametype=create)
 | stats count by host, auid, user
-| where count > 0
+| where count>0
 ```
 
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+| tstats `summariesonly` count from datamodel=Change.All_Changes where All_Changes.action IN ("created", "modified") AND match(All_Changes.object, ".*authorized_keys.*") by All_Changes.user All_Changes.dest span=1d | where count>0
 ```
 
 ## Visualization
@@ -108,4 +57,5 @@ Alert, Table
 
 ## References
 
-- [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
+- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)

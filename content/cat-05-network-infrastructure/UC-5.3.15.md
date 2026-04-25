@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.3.15.json — DO NOT EDIT -->
+
 ---
 id: "5.3.15"
 title: "Citrix ADC SSL Certificate Expiration Monitoring (NetScaler)"
@@ -52,37 +54,15 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 **Pipeline walkthrough**
 
 • Scopes the data: index=network, sourcetype="citrix:netscaler:ssl". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by certkey_name, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by certkey_name, host** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where days_left < 90` — typically the threshold or rule expression for this monitoring goal.
 • `eval` defines or adjusts **urgency** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **Citrix ADC SSL Certificate Expiration Monitoring (NetScaler)**): table certkey_name, days_left, urgency, subject, issuer, bound_to, host
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Certificates.All_Certificates by All_Certificates.dest | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Citrix ADC SSL Certificate Expiration Monitoring (NetScaler)** — SSL certificates on Citrix ADC terminate HTTPS connections for all web applications behind the load balancer. An expired certificate causes browser warnings or complete connection failures for all users. The NITRO API exposes `daystoexpiration` for every bound SSL certificate, enabling automated alerting well before expiry. Certificate expiry outages are among the most preventable yet impactful failures in production environments.
-
-Documented **Data sources**: `index=network` `sourcetype="citrix:netscaler:ssl"` fields `certkey_name`, `days_to_expiry`, `subject`, `issuer`, `serial`, `bound_vserver`. **App/TA** (typical add-on context): Custom scripted input polling Citrix ADC NITRO API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Certificates.All_Certificates` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
+Compare vservers, services, and load-balancing state in the Citrix ADC management view or command line for the same time window and objects.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (certificates sorted by expiry), Single value (certificates expiring within 30 days), Gauge (soonest expiry).
 
@@ -116,12 +96,6 @@ index=network sourcetype="citrix:netscaler:ssl"
 | eval urgency=case(days_left<=7, "CRITICAL", days_left<=30, "HIGH", days_left<=90, "MEDIUM", 1=1, "LOW")
 | sort days_left
 | table certkey_name, days_left, urgency, subject, issuer, bound_to, host
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Certificates.All_Certificates by All_Certificates.dest | sort - count
 ```
 
 ## Visualization

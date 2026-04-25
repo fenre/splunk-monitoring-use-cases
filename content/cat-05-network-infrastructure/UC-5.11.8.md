@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.11.8.json — DO NOT EDIT -->
+
 ---
 id: "5.11.8"
 title: "BGP Prefix Count and Route Churn Monitoring"
@@ -52,17 +54,17 @@ The first pipeline stage scopes events using **index**: gnmi_metrics.
 **Pipeline walkthrough**
 
 • Uses `mstats` to query metrics indexes (pre-aggregated metric data).
-• `streamstats` rolls up events into metrics; results are split **by host, neighbor_address, afi_safi_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `streamstats` rolls up events into metrics; results are split **by host, neighbor_address, afi_safi_name** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **delta** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where abs(pct_change) > 10 OR abs(delta) > 1000` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **BGP Prefix Count and Route Churn Monitoring**): table _time, host, neighbor_address, afi_safi_name, prev_prefixes, prefixes, delta, pct_change
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+CIM and metrics: BGP prefix counts use **mstats**; do not use Network_Traffic CIM as a stand-in for prefix churn.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare prefix counts or update churn in Splunk to `show bgp` table size or the vendor’s monitoring tile for the same peer; long BGP refresh windows can look like false churn.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (prefix count per peer over time), Table (peers with recent churn), Single value (total fabric prefix count), Alert list (abnormal changes).

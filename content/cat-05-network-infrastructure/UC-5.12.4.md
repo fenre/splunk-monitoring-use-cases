@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.12.4.json — DO NOT EDIT -->
+
 ---
 id: "5.12.4"
 title: "SIP Trunk Utilization"
@@ -60,7 +62,7 @@ The first pipeline stage scopes events using **index**: voip; **sourcetype**: st
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same period, compare concurrent session counts from CDR/Stream to the SBC or carrier trunk-group utilization screen; align rounding (erlangs vs sessions) and one-way vs bidirectional trunks.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Area chart (concurrency), Gauge (utilization %), Table (trunk groups at risk).

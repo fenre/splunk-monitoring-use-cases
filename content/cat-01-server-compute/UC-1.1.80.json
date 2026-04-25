@@ -8,17 +8,22 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
-  "spl": "index=os sourcetype=syslog \"systemd\" AND (\"Failed\" OR \"ERROR\" OR \"not-found\")\n| stats count by host, unit\n| where count > 0",
-  "description": "Service unit failures indicate application issues or configuration problems requiring immediate remediation.",
-  "value": "Service unit failures indicate application issues or configuration problems requiring immediate remediation.",
-  "implementation": "Monitor systemd logs via journalctl. Create alerts for service failures. Include restart policy status and recent unit logs to help troubleshooting. Correlate with dependency failures.",
+  "dataSources": "`sourcetype=syslog` (systemd journal forwarded or rsyslog facility lines)",
+  "app": "`Splunk_TA_nix`",
+  "spl": "index=os sourcetype=syslog \"systemd\" (\"Failed\" OR \"ERROR\" OR \"not-found\")\n| stats count by host, unit\n| where count>0",
+  "description": "Counts **systemd** log lines that mention failure, error, or missing unit files, grouped by **host** and **unit** field (when extracted) or by **host** alone if **unit** is still in `_raw`.",
+  "value": "Service **active** state in **systemd** is the source of truth for many apps; log lines here are a quick backstop when you have not yet exported full **systemd** JSON to Splunk.",
+  "implementation": "Add `REX` for `unit=` or the **User=** / **Subject:** lines your OS prints. Remove `not-found` if **first boot** noise is too high in your cloud image factory.",
   "visualization": "Alert, Table",
   "cimModels": [
     "N/A"
   ],
+  "knownFalsePositives": "Short spikes during **package** upgrades; units that **restart** often and log `Failed` even when **systemd** eventually recovers—tighten with `| where count>5` in 15**m**; multi-line events split wrong in **props**.",
   "references": [
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
     {
       "title": "Splunk Lantern — use case library",
       "url": "https://lantern.splunk.com/"
@@ -28,6 +33,6 @@
     "linux",
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=syslog`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor systemd logs via journalctl. Create alerts for service failures. Include restart policy status and recent unit logs to help troubleshooting. Correlate with dependency failures.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog \"systemd\" AND (\"Failed\" OR \"ERROR\" OR \"not-found\")\n| stats count by host, unit\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**Systemd Unit Failures** — Service unit failures indicate application issues or configuration problems requiring immediate remediation.\n\nDocumented **Data sources**: `sourcetype=syslog`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, unit** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table",
-  "grandmaExplanation": "Service unit failures indicate application issues or configuration problems requiring immediate remediation — so you find out before users do when something is slowing down or breaking."
+  "detailedImplementation": "Prerequisites\n• Forward **journal** for **systemd** units of interest, or use the **UF** `journald` input where available on your OS version.\n\n**CIM** — Not applicable; these are **Availability** events, not **Authentication**.\n\n\nStep 3 — Validate\n`systemctl status unit` and `journalctl -u unit --since` on the host for the same minute you see in Splunk. Use `systemd-analyze blame` only for slow boot, not every **Failed** line.\n\nStep 4 — Operationalize\nPair with the **D-state** and **memory** use cases when a unit failure is just a symptom of resource exhaustion.\n\n",
+  "grandmaExplanation": "We help you know when the built-in service manager keeps saying it could not start or find an important service, so you can fix the app or the machine before users feel it."
 }

@@ -1,7 +1,8 @@
+<!-- AUTO-GENERATED from UC-1.1.1.json — DO NOT EDIT -->
+
 ---
 id: "1.1.1"
 title: "CPU Utilization Trending (Linux)"
-status: "verified"
 criticality: "high"
 splunkPillar: "Observability"
 ---
@@ -14,7 +15,7 @@ Detects overloaded hosts before they cause application degradation. Enables capa
 
 ## Value
 
-Detects overloaded hosts before they cause application degradation. Enables capacity planning and right-sizing.
+Sustained high CPU often means a busy application, a batch window, or a host that is undersized. We surface it early so you can add capacity, move work, or track down a runaway process before service suffers.
 
 ## Implementation
 
@@ -81,7 +82,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (timechart by host), Single value panels for current/peak CPU, Table of hosts exceeding threshold.
@@ -128,10 +129,6 @@ index=os sourcetype=cpu host=*
 ## Visualization
 
 Line chart (timechart by host), Single value panels for current/peak CPU, Table of hosts exceeding threshold.
-
-## Known False Positives
-
-Sustained high CPU during backups, batch jobs, or maintenance; correlate with change windows.
 
 ## References
 

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.21.json — DO NOT EDIT -->
+
 ---
 id: "1.2.21"
 title: "Disk I/O Queue Length (Windows)"
@@ -13,7 +15,7 @@ Sustained high disk queue lengths indicate storage bottlenecks invisible to CPU/
 
 ## Value
 
-Sustained high disk queue lengths indicate storage bottlenecks invisible to CPU/memory monitoring. Causes application hangs and timeout errors.
+Queue depth can show a disk bottleneck long before average CPU looks bad—if you also watch the primary Perfmon search, you catch contention earlier.
 
 ## Implementation
 
@@ -55,10 +57,10 @@ The first pipeline stage scopes events using **index**: perfmon; **sourcetype**:
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct
+| tstats `summariesonly` avg(Performance.storage_used_percent) as util
   from datamodel=Performance where nodename=Performance.Storage
-  by Performance.host Performance.mount span=1h
-| where disk_pct > 85
+  by Performance.host Performance.mount span=5m
+| where util >= 0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -94,10 +96,10 @@ index=perfmon sourcetype="Perfmon:LogicalDisk" counter="Current Disk Queue Lengt
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct
+| tstats `summariesonly` avg(Performance.storage_used_percent) as util
   from datamodel=Performance where nodename=Performance.Storage
-  by Performance.host Performance.mount span=1h
-| where disk_pct > 85
+  by Performance.host Performance.mount span=5m
+| where util >= 0
 ```
 
 ## Visualization

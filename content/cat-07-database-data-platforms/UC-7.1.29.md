@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.1.29.json — DO NOT EDIT -->
+
 ---
 id: "7.1.29"
 title: "MySQL InnoDB Buffer Pool Hit Ratio Monitoring"
@@ -22,6 +24,7 @@ Aggregate hourly for executive view; retain per-host series for alerts. Correlat
 ## Detailed Implementation
 
 Prerequisites
+• In operations we confirm in MySQL Workbench, Percona Monitoring and Management, or the managed-MySQL cloud console alongside Splunk.
 • Install and configure the required add-on or app: DB Connect, `SHOW GLOBAL STATUS`.
 • Ensure the following data sources are available: `Innodb_buffer_pool_read_requests`, `Innodb_buffer_pool_reads`.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -56,30 +59,9 @@ The first pipeline stage scopes events using **index**: database; **sourcetype**
 • `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.
 • Filters the current rows with `where fleet_avg < 99 OR worst < 95` — typically the threshold or rule expression for this monitoring goal.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**MySQL InnoDB Buffer Pool Hit Ratio Monitoring** — Fleet-wide buffer pool hit ratio SLO for MySQL/MariaDB with per-instance drilldown. Aligns capacity reviews with read IO pressure.
-
-Documented **Data sources**: `Innodb_buffer_pool_read_requests`, `Innodb_buffer_pool_reads`. **App/TA** (typical add-on context): DB Connect, `SHOW GLOBAL STATUS`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Databases.Query` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (fleet avg vs worst instance), Gauge (current hit ratio), Table (instances below 99%).
@@ -94,16 +76,10 @@ index=database sourcetype="dbconnect:mysql_status"
 | where fleet_avg < 99 OR worst < 95
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
-```
-
 ## Visualization
 
 Line chart (fleet avg vs worst instance), Gauge (current hit ratio), Table (instances below 99%).
 
 ## References
 
-- [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
+- [Splunk — DB Connect](https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX)

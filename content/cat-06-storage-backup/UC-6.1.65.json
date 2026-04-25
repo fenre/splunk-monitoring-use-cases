@@ -13,13 +13,15 @@
   "dataSources": "Array space and reduction metrics in `purestorage:array` (logical vs physical used, optional WAF fields)",
   "app": "Pure Storage Unified Add-on for Splunk (Splunkbase 5513)",
   "spl": "index=storage (sourcetype=\"purestorage:array\" OR sourcetype=\"PureStorage_REST\")\n| eval logical_b=coalesce(space_logical_used, logical_used_bytes)\n| eval physical_b=coalesce(space_physical_used, physical_used_bytes)\n| eval waf=coalesce(write_amplification, if(physical_b>0, round(logical_b/physical_b,3), null()))\n| timechart span=1d latest(waf) as waf by array_name",
+  "cimSpl": "| tstats `summariesonly` max(Performance.storage_used_percent) as used_pct\n  from datamodel=Performance where nodename=Performance.Storage\n  by Performance.host Performance.object span=1h\n| where used_pct > 80\n| sort - used_pct",
+  "cimModels": [
+    "Performance"
+  ],
+  "dataModelAcceleration": "Enable Data Model Acceleration for the CIM Performance data model (Performance.Storage node / storage_used_percent) after vendor fields are aliased to CIM; otherwise the cimSpl tstats variant may return no rows.",
   "description": "Rising write amplification consumes flash endurance and effective capacity as garbage collection works harder. Trending WAF highlights snapshot-heavy or overwrite-heavy workloads before latency climbs.",
   "value": "Avoids surprise capacity purchases and premature SSD wear by steering QoS, host alignment, and snapshot retention policies.",
   "implementation": "Deploy Unified Add-on REST inputs per array with an API token scoped for observability. If WAF is not returned, derive from logical/physical used and document the approximation. Store daily samples for YoY comparison.",
   "visualization": "Line chart (WAF by array), table (logical vs physical TB, WAF).",
-  "cimModels": [
-    "N/A"
-  ],
   "references": [
     {
       "title": "Pure Storage Unified Add-on for Splunk (Splunkbase)",
@@ -28,12 +30,18 @@
     {
       "title": "Pure Storage Splunk reference",
       "url": "https://support.purestorage.com/Solutions/Splunk/Splunk_Reference/Array_Monitoring_on_Splunk_with_PureStorage_Unified_App_and_TA"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
     }
   ],
+  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
   "equipment": [
     "pure_storage"
   ],
   "status": "draft",
+  "grandmaExplanation": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working.",
   "lastReviewed": "2026-04-24",
   "splunkVersions": [
     "9.2+",

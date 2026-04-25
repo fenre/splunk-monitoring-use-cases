@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.31.json — DO NOT EDIT -->
+
 ---
 id: "4.1.31"
 title: "CloudWatch Alarm State Changes"
@@ -65,6 +67,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:cloudwatch:events" detail-type="CloudWatch Alarm State Change" detail.state.value="ALARM"
 | table _time detail.alarmName detail.state.value detail.newStateReason
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Alerts.Alerts
+  where match(Alerts.app, "(?i)cloudwatch|metric") OR match(Alerts.alert_name, "(?i)alarm|threshold")
+  by Alerts.severity Alerts.alert_name span=1h
+| sort -count
 ```
 
 ## Visualization

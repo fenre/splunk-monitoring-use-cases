@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.2.46.json — DO NOT EDIT -->
+
 ---
 id: "5.2.46"
 title: "FortiGate Web Filter and Application Control Events (Fortinet)"
@@ -57,37 +59,35 @@ The first pipeline stage scopes events using **index**: firewall.
 • `eval` defines or adjusts **app_name** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **act** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **device** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by device act cat app_name hostname src** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by device act cat app_name hostname src** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` count sum(Web.bytes) as total_bytes
+| tstats `summariesonly` count
   from datamodel=Web.Web
-  by Web.src Web.dest Web.uri_path Web.action span=1h
+  by Web.status Web.url Web.http_method Web.dest span=1h
 | sort -count
 ```
 
 Understanding this CIM / accelerated SPL
 
-**FortiGate Web Filter and Application Control Events (Fortinet)** — FortiGate UTM combines web filtering (FortiGuard URL categories), DNS filtering, and application control in one policy pass. Reviewing blocked categories, high-risk apps, and allow/deny ratios shows policy drift, shadow IT, and risky user behavior without full packet capture. It also helps justify license spend and tune noisy categories that generate help-desk load.
-
-Documented **Data sources**: `sourcetype=fgt_utm`, `sourcetype=fortinet_fortios_utm`. **App/TA** (typical add-on context): `TA-fortinet_fortigate` (Splunkbase 2846). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+This block uses `tstats` on the Web data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Web.Web` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+• Uses `tstats` against accelerated summaries for the Web model — enable acceleration and confirm CIM tags on your source data.
+• Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
+Reconcile a sample of results with the FortiGate GUI or FortiManager for the same policies, objects, and time range.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (top categories), Table (user/src, app, action), Pie chart (block vs allow ratio).
 
@@ -106,9 +106,9 @@ index=firewall sourcetype IN ("fgt_utm","fortinet_fortios_utm")
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` count sum(Web.bytes) as total_bytes
+| tstats `summariesonly` count
   from datamodel=Web.Web
-  by Web.src Web.dest Web.uri_path Web.action span=1h
+  by Web.status Web.url Web.http_method Web.dest span=1h
 | sort -count
 ```
 

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.13.json — DO NOT EDIT -->
+
 ---
 id: "1.2.13"
 title: "PowerShell Script Execution"
@@ -13,7 +15,7 @@ PowerShell is the most common tool in modern Windows attacks (Cobalt Strike, Emp
 
 ## Value
 
-PowerShell is the most common tool in modern Windows attacks (Cobalt Strike, Empire, fileless malware). Script block logging captures the actual code executed.
+Script text turns noisy logs into something your team can triage without guessing whether PowerShell is friend or foe.
 
 ## Implementation
 
@@ -54,6 +56,20 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Pipeline stage (see **PowerShell Script Execution**): table _time host ScriptBlockText
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -68,6 +84,15 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-PowerShell/Operation
 | search ScriptBlockText="*EncodedCommand*" OR ScriptBlockText="*Invoke-Mimikatz*" OR ScriptBlockText="*Net.WebClient*" OR ScriptBlockText="*-nop -w hidden*"
 | table _time host ScriptBlockText
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

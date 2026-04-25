@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.28.json — DO NOT EDIT -->
+
 ---
 id: "1.2.28"
 title: "Windows Firewall Rule Changes"
@@ -13,7 +15,7 @@ Unauthorized firewall rule changes can open attack vectors. Malware often disabl
 
 ## Value
 
-Unauthorized firewall rule changes can open attack vectors. Malware often disables the firewall or adds allow rules for C2 communication.
+Firewall drift can silently open a server or break an app; tracking changes keeps security and app owners aligned.
 
 ## Implementation
 
@@ -59,9 +61,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.action All_Changes.dest span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -100,9 +102,9 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Firewall With Ad
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.action All_Changes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

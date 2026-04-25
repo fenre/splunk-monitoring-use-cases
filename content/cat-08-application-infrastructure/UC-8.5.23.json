@@ -12,13 +12,15 @@
   "dataSources": "`index=messaging` `sourcetype=rabbitmq:queue` from RabbitMQ Management HTTP API `/api/queues` (`messages_unacknowledged`, `messages`, `consumer_utilisation`)",
   "app": "RabbitMQ management plugin + scripted/HEC poller (`sourcetype=rabbitmq:queue`); AMQP Messaging Modular Input (Splunkbase 1812) optional",
   "spl": "index=messaging sourcetype=\"rabbitmq:queue\" earliest=-4h\n| bin _time span=5m\n| stats latest(messages_unacknowledged) as unacked latest(consumer_utilisation) as cu by _time, vhost, name\n| sort 0 vhost name _time\n| streamstats window=2 global=f current=f last(unacked) as prev_unacked by vhost, name\n| eval unacked_growth=unacked-prev_unacked\n| where unacked_growth >= 100 AND unacked >= 200 AND (isnull(cu) OR cu < 0.4)\n| table _time, vhost, name, unacked, prev_unacked, unacked_growth, cu",
-  "description": "A sustained rise in `messages_unacknowledged` while `consumer_utilisation` stays low usually means consumers have stalled, prefetch is exhausted, or processing latency jumped before queue depth (`messages_ready`) explodes. Catching the growth rate early limits backlog and memory pressure on the broker.",
-  "value": "Reduces time-to-detect silent consumer failure, preventing publisher throttling and SLA breaches on latency-sensitive workloads.",
-  "implementation": "Poll `/api/queues` at least every 60s; normalize `name`/`vhost` consistently. Tune `unacked_growth` and minimum `unacked` to your traffic. Exclude federation/shovel internal queues via a lookup if needed.",
-  "visualization": "Line chart (`messages_unacknowledged` per queue), overlay `consumer_utilisation`; single-value alert on growth; table of worst queues.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "A sustained rise in `messages_unacknowledged` while `consumer_utilisation` stays low usually means consumers have stalled, prefetch is exhausted, or processing latency jumped before queue depth (`messages_ready`) explodes. Catching the growth rate early limits backlog and memory pressure on the broker.",
+  "value": "Reduces time-to-detect silent consumer failure, preventing publisher throttling and SLA breaches on latency-sensitive workloads.",
+  "grandmaExplanation": "We use this to reduce time-to-detect silent consumer failure, preventing publisher throttling and service promises breaches on latency-sensitive workloads.",
+  "implementation": "Poll `/api/queues` at least every 60s; normalize `name`/`vhost` consistently. Tune `unacked_growth` and minimum `unacked` to your traffic. Exclude federation/shovel internal queues via a lookup if needed.",
+  "visualization": "Line chart (`messages_unacknowledged` per queue), overlay `consumer_utilisation`; single-value alert on growth; table of worst queues.",
   "references": [
     {
       "title": "RabbitMQ — Queue metrics (ready vs unacknowledged)",
@@ -29,6 +31,7 @@
       "url": "https://splunkbase.splunk.com/app/1812"
     }
   ],
+  "knownFalsePositives": "Queues and broker metrics swing during rebalancing, replay, or maintenance. We align with change windows.",
   "equipment": [
     "rabbitmq"
   ],
@@ -39,5 +42,5 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch whether messages are piling up in a stuck in-between state where they have been handed to apps but not finished, and we raise the alarm when that number keeps climbing faster than normal."
+  "detailedImplementation": ""
 }

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.2.json — DO NOT EDIT -->
+
 ---
 id: "4.4.2"
 title: "Cross-Cloud Identity Correlation"
@@ -56,7 +58,7 @@ The first pipeline stage scopes events using **index**: aws, azure, gcp.
 • `eval` defines or adjusts **cloud** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **user** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
-• `stats` rolls up events into metrics; results are split **by normalized_user** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by normalized_user** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where clouds_active > 1` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.1.27.json — DO NOT EDIT -->
+
 ---
 id: "7.1.27"
 title: "Oracle Tablespace Utilization"
@@ -22,6 +24,7 @@ Poll `DBA_TABLESPACE_USAGE_METRICS` (or `DBA_FREE_SPACE` + `DBA_DATA_FILES`) via
 ## Detailed Implementation
 
 Prerequisites
+• In operations we cross-check the same window in Oracle Enterprise Manager, SQLcl, or SQL Developer with `V$` views so live metrics match what Splunk shows.
 • Install and configure the required add-on or app: Splunk DB Connect.
 • Ensure the following data sources are available: `DBA_TABLESPACE_USAGE_METRICS`, `DBA_DATA_FILES`.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -56,30 +59,9 @@ The first pipeline stage scopes events using **index**: database; **sourcetype**
 • `timechart` plots the metric over time using **span=1d** buckets with a separate series **by TABLESPACE_NAME** — ideal for trending and alerting on this use case.
 • Filters the current rows with `where used_pct > 85` — typically the threshold or rule expression for this monitoring goal.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Databases.Tablespace by Tablespace.host, Tablespace.action span=1d | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Oracle Tablespace Utilization** — Approaching max size per tablespace causes ORA-1653 (out of space) errors and application failures. Proactive monitoring prevents outages.
-
-Documented **Data sources**: `DBA_TABLESPACE_USAGE_METRICS`, `DBA_DATA_FILES`. **App/TA** (typical add-on context): Splunk DB Connect. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Databases.Tablespace` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (tablespace used %), Table (tablespaces over threshold), Line chart (utilization trend by tablespace).
@@ -94,12 +76,6 @@ index=database sourcetype="dbconnect:oracle_tablespace"
 | where used_pct > 85
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Databases.Tablespace by Tablespace.host, Tablespace.action span=1d | sort - count
-```
-
 ## Visualization
 
 Gauge (tablespace used %), Table (tablespaces over threshold), Line chart (utilization trend by tablespace).
@@ -107,4 +83,3 @@ Gauge (tablespace used %), Table (tablespaces over threshold), Line chart (utili
 ## References
 
 - [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
-- [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)

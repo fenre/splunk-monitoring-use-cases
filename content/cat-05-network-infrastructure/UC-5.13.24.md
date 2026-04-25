@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.24.json — DO NOT EDIT -->
+
 ---
 id: "5.13.24"
 title: "Issue Resolution Time Tracking"
@@ -22,36 +24,43 @@ Enable the `issue` input. Ensure `issue_time` and `resolved_time` (epoch seconds
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).
-• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:issue (fields status, resolved_time, issue_time, priority, category).
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• **issue** modular input to `cisco:dnac:issue` in `index=catalyst` (Cisco Catalyst Add-on 7538).
+• **Validate field names** for **open** and **close** times on a **RESOLVED** raw event: `issue_time` and `resolved_time` are assumed to be **epoch seconds** as the SPL expects. If your TA uses **milliseconds** or **ISO strings**, add a normalizing **eval** in a macro before this search.
+• **Status token** for closed issues (commonly **`RESOLVED`**) must match **case** your JSON uses—adjust the search filter if your tenant differs.
+• `docs/implementation-guide.md` for retention (MTTR reports often need **90–180 days** of issues).
 
 Step 1 — Configure data collection
-Enable the `issue` input. Ensure `issue_time` and `resolved_time` (epoch seconds) are present in events or normalized via the TA. Validate field names if your build uses different aliases.
+• **Intent API:** `GET /dna/intent/api/v1/issues` (paged issue list).
+• **TA input:** **issue**; typical **300–900s** poll; confirm whether **closed** issues are re-sent each cycle (affects how many **RESOLVED** rows you have per `issueId`).
+• **Deduplication:** for MTTR, prefer **one row per `issueId` per state transition**; if the TA **replays** the same resolved issue, use **`| stats latest(resolved_time) as resolved_time ... by issueId`** in an intermediate saved search or **dedup** in validation first.
 
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Step 2 — Create the report
 ```spl
 index=catalyst sourcetype="cisco:dnac:issue" status="RESOLVED" | eval resolve_time_hrs=round((resolved_time-issue_time)/3600, 1) | stats avg(resolve_time_hrs) as avg_resolve_hrs median(resolve_time_hrs) as median_resolve_hrs max(resolve_time_hrs) as max_resolve_hrs by priority, category | sort priority
 ```
 
-Understanding this SPL
-
-**Issue Resolution Time Tracking** — MTTR is a key operational metric. Tracking resolution times by priority and category reveals bottlenecks and measures the effectiveness of the operations team.
+Understanding this SPL (time math, outliers, P1 first)
+• **Negative** `resolve_time_hrs` means **data error** (clock skew or swapped fields); add **`| where resolve_time_hrs>=0`** in production.
+• **Max** is sensitive to a single long-running TAC case; show **p95** in a v2 for leadership slides.
+• **`sort priority`** is **lexicographic**—document if **P10**-style values ever appear.
 
 **Pipeline walkthrough**
-
-• Filters to `RESOLVED` issues so you only measure completed work.
-• `eval resolve_time_hrs` converts the difference between `resolved_time` and `issue_time` from seconds to hours, rounded to one decimal.
-• `stats` summarises mean, median, and maximum resolution hours split by `priority` and `category` for service-level and root-cause views.
-
+• Keeps **resolved** work only, converts duration to **hours**, aggregates **mean/median/max** by **priority** and **Assurance** **category**.
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results.
+• Hand-check **2–3** issues in the **Catalyst** UI: compare **created/resolved** times to `issue_time`/`resolved_time` in Splunk in the same **TZ**.
+• **`| timechart` count** of **RESOLVED** to ensure steady ingest, not a **one-time** bulk import that distorts **avg** for the week.
+• **Sanity cap:** if **median** is **>10 days** and that surprises the team, segment by **category** and exclude **'informational'** in a v2.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions as required. Consider visualizations: Table (avg, median, max resolve hours by priority and category), bar chart of median MTTR by category.
+• **Dashboard:** table of **avg/median/max**; **add** a **bar** of **median** by **category** for QBRs.
+• **Cadence:** **monthly** PDF for service owners; not typically a **real-time** alert—pair with **UC-5.13.25** (repeaters) to drive **root cause** work.
+
+Step 5 — Troubleshooting
+• **NULL times:** `issue_time` / `resolved_time` not extracted—check **JSON** path in **props** and TA version.
+• **Zeros everywhere:** you may have **ingest** of **placeholders**; confirm **raw** has non-zero epoch values.
+• **Dramatic change after upgrade:** field rename in **Assurance** API—`fieldsummary` the **release week** and update **aliases** in **props**.
+
 
 ## SPL
 
@@ -67,3 +76,4 @@ Table (avg, median, max resolve hours by priority and category), bar chart of me
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

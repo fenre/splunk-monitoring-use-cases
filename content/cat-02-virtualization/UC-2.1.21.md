@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.21.json — DO NOT EDIT -->
+
 ---
 id: "2.1.21"
 title: "ESXi Host Unexpected Reboot Detection"
@@ -51,7 +53,6 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 • Scopes the data: index=vmware, sourcetype="vmware:events". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Pipeline stage (see **ESXi Host Unexpected Reboot Detection**): table _time, host, event_type, message, user
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

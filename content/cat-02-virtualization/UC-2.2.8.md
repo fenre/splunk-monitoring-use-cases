@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.2.8.json — DO NOT EDIT -->
+
 ---
 id: "2.2.8"
 title: "Checkpoint Age and Sprawl"
@@ -55,7 +57,6 @@ The first pipeline stage scopes events using **index**: hyperv; **sourcetype**: 
 • Filters the current rows with `where age_days > 3` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **Checkpoint Age and Sprawl**): table vm_name, host, checkpoint_name, age_days, size_gb, checkpoint_type
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.5.7.json — DO NOT EDIT -->
+
 ---
 id: "5.5.7"
 title: "Bandwidth Utilization per Site"
@@ -52,35 +54,9 @@ The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: c
 • `timechart` plots the metric over time using **span=1h** buckets with a separate series **by site** — ideal for trending and alerting on this use case.
 • `eval` defines or adjusts **out_mbps** — often to normalize units, derive a ratio, or prepare for thresholds.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats `summariesonly` sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.app span=1h
-| eval bytes=bytes_in+bytes_out
-| sort -bytes
-```
-
-Understanding this CIM / accelerated SPL
-
-**Bandwidth Utilization per Site** — WAN bandwidth consumption per site enables capacity planning and cost optimization.
-
-Documented **Data sources**: vManage interface metrics. **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.
-• `eval` defines or adjusts **bytes** — often to normalize units, derive a ratio, or prepare for thresholds.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart per site, Table, Stacked area.
@@ -96,10 +72,10 @@ index=sdwan sourcetype="cisco:sdwan:interface"
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+| tstats `summariesonly` sum(All_Traffic.bytes) as bytes
   from datamodel=Network_Traffic.All_Traffic
   by All_Traffic.src All_Traffic.dest All_Traffic.app span=1h
-| eval bytes=bytes_in+bytes_out
+| where bytes>0
 | sort -bytes
 ```
 

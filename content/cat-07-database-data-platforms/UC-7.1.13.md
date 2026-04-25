@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.1.13.json — DO NOT EDIT -->
+
 ---
 id: "7.1.13"
 title: "Schema Change Detection"
@@ -22,6 +24,7 @@ Enable SQL Server audit for DDL events (CREATE, ALTER, DROP). For PostgreSQL, se
 ## Detailed Implementation
 
 Prerequisites
+• In operations we cross-check the same window in SQL Server Management Studio, Azure Data Studio, or the Azure SQL portal with `sys.dm_*` views; psql, pgAdmin, or the managed-PostgreSQL console with `pg_stat_*` and replication views so live metrics match what Splunk shows.
 • Install and configure the required add-on or app: DB Connect, SQL Server audit.
 • Ensure the following data sources are available: SQL Server DDL triggers, audit logs, PostgreSQL `log_statement='ddl'`.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -55,7 +58,7 @@ The first pipeline stage scopes events using **index**: database; **sourcetype**
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.user, All_Changes.action, All_Changes.object span=1h | sort - count
 ```
 
 Understanding this CIM / accelerated SPL
@@ -68,14 +71,14 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Databases.Query` — enable acceleration for that model.
+• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (DDL events with details), Timeline (schema changes), Bar chart (changes by user).
@@ -91,7 +94,7 @@ index=database sourcetype="mssql:audit" action_id IN ("CR","AL","DR")
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.user, All_Changes.action, All_Changes.object span=1h | sort - count
 ```
 
 ## Visualization
@@ -100,4 +103,4 @@ Table (DDL events with details), Timeline (schema changes), Bar chart (changes b
 
 ## References
 
-- [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
+- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)

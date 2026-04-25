@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.1.24.json — DO NOT EDIT -->
+
 ---
 id: "9.1.24"
 title: "Stale Computer Account Cleanup"
@@ -58,7 +60,7 @@ The first pipeline stage scopes events using **index**: ad; **sourcetype**: ad:c
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare results with the authoritative identity source (directory, IdP, or PAM) for the same time range and with known change or maintenance tickets.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (stale computers), Bar chart (stale count by OU), Single value (candidates for cleanup).
@@ -76,10 +78,6 @@ index=ad sourcetype="ad:computers"
 ## Visualization
 
 Table (stale computers), Bar chart (stale count by OU), Single value (candidates for cleanup).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

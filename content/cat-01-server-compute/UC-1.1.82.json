@@ -8,25 +8,32 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=ps`",
+  "dataSources": "`sourcetype=ps` (Splunk_TA_nix process snapshot with a `state` / `S` field)",
   "app": "`Splunk_TA_nix`",
-  "spl": "index=os sourcetype=ps host=* state=\"D\"\n| stats count as dstate_count by host\n| where dstate_count > 0",
-  "description": "D-state processes indicate hanging I/O operations or kernel deadlocks requiring immediate investigation.",
-  "value": "D-state processes indicate hanging I/O operations or kernel deadlocks requiring immediate investigation.",
-  "implementation": "Monitor ps output for D-state (uninterruptible sleep) processes. Create alerts when any D-state processes exist for >5 minutes. Include wchan (wait channel) showing what I/O operation is blocking.",
+  "spl": "index=os sourcetype=ps host=* (S=\"D\" OR state=\"D\")\n| stats count as dstate_count by host\n| where dstate_count>0",
+  "description": "Counts processes in **D** (uninterruptible sleep) per **host** from each `ps` poll, so you can spot stuck I/O waiters that will not answer **SIGKILL** until the kernel finishes the op.",
+  "value": "Long **D** states line up with bad storage, **NFS** hangs, and driver bugs; they are a top call for storage and OS SRE before app teams burn days in app logs only.",
+  "implementation": "Use the `S` or `state` field your **ps** sourcetype actually ships; add `| where dstate_count>5` if a single **D** from a **df** snapshot is normal on your **NFS** clients.",
   "visualization": "Alert, Table",
   "cimModels": [
-    "N/A"
+    "Endpoint.Processes"
   ],
+  "cimSpl": "| tstats `summariesonly` count from datamodel=Endpoint.Processes where Processes.process_state=\"D\" by Processes.dest Processes.process_name span=5m | where count>0",
+  "dataModelAcceleration": "After `ps` is CIM-mapped into **Endpoint.Processes** with **process_state**, enable Endpoint model acceleration.",
+  "knownFalsePositives": "Short **D** during heavy **NFS** metadata—trend duration in a v2 use case; **ps** interval so large you only ever see one row; field `S` vs `state` mismatch—fix **props** first.",
   "references": [
     {
-      "title": "Splunk_TA_nix",
+      "title": "Splunk Add-on for Unix and Linux",
       "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "CIM: Endpoint",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
     }
   ],
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`.\n• Ensure the following data sources are available: `sourcetype=ps`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor ps output for D-state (uninterruptible sleep) processes. Create alerts when any D-state processes exist for >5 minutes. Include wchan (wait channel) showing what I/O operation is blocking.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=ps host=* state=\"D\"\n| stats count as dstate_count by host\n| where dstate_count > 0\n```\n\nUnderstanding this SPL\n\n**D-State (Uninterruptible Sleep) Process Detection** — D-state processes indicate hanging I/O operations or kernel deadlocks requiring immediate investigation.\n\nDocumented **Data sources**: `sourcetype=ps`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: ps. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=ps. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where dstate_count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table",
-  "grandmaExplanation": "D-state processes indicate hanging I/O operations or kernel deadlocks requiring immediate investigation — so you find out before users do when something is slowing down or breaking."
+  "detailedImplementation": "Prerequisites\n• **ps** script on a **5**-**15** minute cadence; faster if you need near-real-time **D** detection for trading stacks.\n\n**CIM** — **process_state** naming may differ (`D` vs `uninterruptible`); align `cimSpl` after you see **Fieldsummary** on `Processes`.\n\n\nStep 3 — Validate\n`ps -o pid,stat,wchan,cmd` (or `top` then **H** for threads) on the host; use `echo w > /proc/sysrq-trigger` only with an operator and a runbook, not casually.\n\nStep 4 — Operationalize\nOpen a **storage** bridge with **dmesg** **I/O** errors the same minute.\n\n",
+  "grandmaExplanation": "We help you know when programs are stuck waiting on the disk or network in a way they can’t be interrupted, which is a strong hint to look at storage before blaming the app."
 }

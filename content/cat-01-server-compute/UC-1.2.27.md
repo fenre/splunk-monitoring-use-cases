@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.27.json — DO NOT EDIT -->
+
 ---
 id: "1.2.27"
 title: "New Service Installation"
@@ -13,7 +15,7 @@ Attackers install malicious services for persistence. Unexpected service install
 
 ## Value
 
-Attackers install malicious services for persistence. Unexpected service installations outside change windows indicate compromise or unauthorized software.
+Persistence often starts with a new service—catching that beats chasing symptoms after the back door is in.
 
 ## Implementation
 
@@ -58,9 +60,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object All_Changes.dest span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -98,9 +100,9 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode=7045
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.object All_Changes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

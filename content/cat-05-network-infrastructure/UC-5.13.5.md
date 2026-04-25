@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.5.json — DO NOT EDIT -->
+
 ---
 id: "5.13.5"
 title: "Device Health by Site Hierarchy"
@@ -22,40 +24,45 @@ Prerequisite: UC-5.13.1 live with `siteId` and device health in `index=catalyst`
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).
-• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:devicehealth (Catalyst Center /dna/intent/api/v1/device-health).
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• **UC-5.13.1** with **`siteId`** on `cisco:dnac:devicehealth` (Catalyst **site hierarchy** must be populated in **Design > Network Hierarchy** and synced to inventory).
+• Cisco Catalyst Add-on (7538), **devicehealth** input, **`NETWORK-ADMIN-ROLE`** or **`SUPER-ADMIN-ROLE`**.
+• A **lookup** from **`siteId`** to **building name** is strongly recommended for tickets and reports.
+• See `docs/implementation-guide.md`.
 
 Step 1 — Configure data collection
-Prerequisite: UC-5.13.1 live with `siteId` and device health in `index=catalyst`. Enrich with a site name lookup if only IDs are present. Add this panel to regional operations dashboards; schedule a weekly report for the top 20 sites by unhealthy percentage.
+• **Intent API:** `GET /dna/intent/api/v1/device-health` via **devicehealth** modular input, sourcetype `cisco:dnac:devicehealth`.
+• **Key field:** `siteId` (UUID or string as emitted)—confirm in **one raw event**; missing `siteId` means devices are unassigned in Catalyst **hierarchy**.
+• **Poll:** default **900s**; for **head 20** weekly reports, **widen** the time range to **7d** to smooth single bad polls.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
 ```spl
 index=catalyst sourcetype="cisco:dnac:devicehealth" | stats avg(overallHealth) as avg_health count as device_count count(eval(overallHealth<50)) as unhealthy_count by siteId | eval unhealthy_pct=round(unhealthy_count*100/device_count,1) | sort -unhealthy_pct | head 20
 ```
 
 Understanding this SPL
-
-**Device Health by Site Hierarchy** — Pinpoints which physical locations have the worst network health, enabling site-specific remediation and resource allocation.
-
-Documented **Data sources**: index=catalyst, sourcetype cisco:dnac:devicehealth (Catalyst Center /dna/intent/api/v1/device-health). **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: catalyst; **sourcetype**: cisco:dnac:devicehealth. That sourcetype matches what this use case lists under Data sources.
+• **Per-site** aggregation answers “**where** is the pain?”; **`head 20`** focuses leadership on the **worst** sites—**increase to 50** or **remove** `head` if you use **filters** (region) instead.
+• **`<50` unhealthy** matches common **Poor** bands; align with your **SLO** per site **tier** (hospital vs. warehouse) if you add a **lookup** for stricter floors.
+• Cross-check **`device_count`**: a site with **2** devices and **1** unhealthy is **50%**—interpret with care.
 
 **Pipeline walkthrough**
-
-• `stats` groups all devices by `siteId` and summarizes average health, population size, and sub-threshold count per site.
-• `eval` converts counts to `unhealthy_pct` to compare large campuses against small branches fairly.
-• `head 20` after descending sort shows the most problematic sites for focused work orders and on-site support.
-
+• `stats` by **`siteId`**: **avg** health, population, and **count** below threshold.
+• `eval` **percentage**; `sort` then **`head 20`** for a **regional** hot list.
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+• Join **`siteId`** to Catalyst **UI** **site** names; spot-check **unhealthy** devices at one site in **Assurance** vs. Splunk row.
+• Compare **Top 20** **device totals** to **sum of site inventory** for the same scope—gaps point to **unassigned** devices.
+• **`| where device_count>10`** in a test search to see how ranking changes for **noise** from small sites.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (top 20 sites with avg_health, counts, unhealthy_pct), bar chart, choropleth or tile map if you join geo metadata.
+• **Dashboard:** **table** with **lookup**-enriched **site name**, **`avg_health`**, **`unhealthy_pct`**, **`device_count`**; default **Last 7 days** for exec reviews; **24h** for NOC.
+• **Scheduled report:** weekly **PDF** to regional leads; **drill** to **UC-5.13.1** and **device** inventory for the same `siteId`.
+• **Optional alert:** when **`unhealthy_pct`** for a **tier-1** site in a **lookup** exceeds **X%** with **min device_count**—avoid paging on every small branch blip.
+
+Step 5 — Troubleshooting
+• **All `siteId` = null:** fix **hierarchy** assignment in Catalyst and **re-inventory**; confirm TA sends the same field name.
+• **Site missing from top 20 but users complain:** the issue may be **client**-side—use **UC-5.13.9+**; or devices may sit in a **different** `siteId` than users expect (VPN, SD-WAN).
+• **Rankings shift every poll:** API instability or **duplicate** `deviceName` across sites—dedupe logic from **UC-5.13.1** notes applies.
+
 
 ## SPL
 
@@ -71,3 +78,4 @@ Table (top 20 sites with avg_health, counts, unhealthy_pct), bar chart, chorople
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

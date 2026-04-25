@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.105.json — DO NOT EDIT -->
+
 ---
 id: "1.2.105"
 title: "Windows Defender Exclusion Monitoring"
@@ -13,7 +15,7 @@ Attackers add Defender exclusions to hide malware. Monitoring exclusion changes 
 
 ## Value
 
-Attackers add Defender exclusions to hide malware. Monitoring exclusion changes detects evasion techniques and ensures antivirus coverage remains complete.
+Overly broad Defender exclusions are a favorite way to hide malware from scanning. Tracking changes makes sure quick break-fix exceptions do not silently become permanent risk.
 
 ## Implementation
 
@@ -71,6 +73,15 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Defender/Operati
 | rex field=New_Value "Exclusions\\\\(?<ExclusionType>[^\\\\]+)\\\\(?<ExclusionValue>.+)"
 | table _time, host, ExclusionType, ExclusionValue, Old_Value, New_Value
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.122.json — DO NOT EDIT -->
+
 ---
 id: "1.2.122"
 title: "Local Account Creation & Modification"
@@ -13,7 +15,7 @@ Creating local accounts is a persistence technique. On domain-joined systems, lo
 
 ## Value
 
-Creating local accounts is a persistence technique. On domain-joined systems, local account creation is rare and suspicious.
+Local account sprawl on servers weakens central control. Auditing creation and renames supports least privilege and proves who could sign in when local creds are abused.
 
 ## Implementation
 
@@ -99,8 +101,8 @@ index=wineventlog EventCode IN (4720, 4722, 4724, 4738) NOT TargetDomainName IN 
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

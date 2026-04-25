@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.1.22.json — DO NOT EDIT -->
+
 ---
 id: "5.1.22"
 title: "Syslog Source Health"
@@ -51,16 +53,12 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 
 • Uses `tstats` against precomputed summaries; ensure the referenced data model is accelerated.
 • Appends rows from a subsearch with `append`.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where event_count=0 OR isnull(event_count)` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Syslog Source Health**): table host
 • Renames fields with `rename` for clarity or joins.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
-
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On a heavy forwarder or syslog receiver, `telnet` or `openssl s_client` to the device and confirm UDP or TCP 514 is still accepted. Compare 24h `timechart` counts per host to a device you know is online; silent periods often mean a network ACL or NTP issue, not the switch.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (silent devices), Single value (count of silent devices), Status grid (all devices).

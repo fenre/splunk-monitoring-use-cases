@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.44.json — DO NOT EDIT -->
+
 ---
 id: "2.1.44"
 title: "ESXi Host Certificate Renewal Compliance"
@@ -57,7 +59,6 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 • Filters the current rows with `where days_to_expiry < 90` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 • Pipeline stage (see **ESXi Host Certificate Renewal Compliance**): table host, subject, issuer, not_after, days_to_expiry, severity
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

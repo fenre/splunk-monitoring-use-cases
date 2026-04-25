@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.12.5.json — DO NOT EDIT -->
+
 ---
 id: "5.12.5"
 title: "VoIP MOS Score Monitoring"
@@ -56,7 +58,7 @@ The first pipeline stage scopes events using **index**: voip; **sourcetype**: qo
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Sample a few low-MOS calls and compare the same leg in the UC manager or SBC’s CDR/RTT view; confirm encoder names and that passive recorder placement matches the path you measure.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (MOS trend), Scatter (loss vs. MOS), Table (worst calls).

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.127.json — DO NOT EDIT -->
+
 ---
 id: "1.1.127"
 title: "Swap Activity Rate Trending"
@@ -55,31 +57,25 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: vmst
 • Scopes the data: index=os, sourcetype=vmstat. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **swap_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by host, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, _time** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **threshold** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where avg_rate > threshold` — typically the threshold or rule expression for this monitoring goal.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+Optional CIM / accelerated variant (memory pressure view aligned to **Performance.Memory** — complements but does not replace `si`/`so` from vmstat):
 
 ```spl
-| tstats summariesonly=t avg(Performance.mem_used) as agg_value from datamodel=Performance.Memory by Performance.host span=5m | sort - agg_value
+| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct avg(Performance.swap_used_percent) as swap_pct
+  from datamodel=Performance where nodename=Performance.Memory
+  by Performance.host span=5m
+| where mem_pct > 85 OR swap_pct > 10
 ```
 
 Understanding this CIM / accelerated SPL
 
-**Swap Activity Rate Trending** — Pages swapped in/out per second (distinct from swap usage %) indicates memory pressure and I/O load. High swap I/O rate degrades performance even before swap usage is critical.
+**Swap Activity Rate Trending** — The CIM view surfaces normalized RAM and **swap space utilization**; tune thresholds alongside your vmstat swap I/O search.
 
-Documented **Data sources**: `sourcetype=vmstat`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance.Memory` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable **Data Model Acceleration** on **Performance.Memory**; otherwise `tstats` may return no results from summaries.
 
 
 Step 3 — Validate
@@ -87,27 +83,6 @@ Confirm that events are present in the index and that the search returns expecte
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (swap in/out rates by host), Table of hosts with elevated swap I/O, Single value (current swap rate).
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
 
 ## SPL
 
@@ -124,7 +99,10 @@ index=os sourcetype=vmstat host=*
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t avg(Performance.mem_used) as agg_value from datamodel=Performance.Memory by Performance.host span=5m | sort - agg_value
+| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct avg(Performance.swap_used_percent) as swap_pct
+  from datamodel=Performance where nodename=Performance.Memory
+  by Performance.host span=5m
+| where mem_pct > 85 OR swap_pct > 10
 ```
 
 ## Visualization

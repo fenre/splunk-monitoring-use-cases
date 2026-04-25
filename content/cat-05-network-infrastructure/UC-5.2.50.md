@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.2.50.json — DO NOT EDIT -->
+
 ---
 id: "5.2.50"
 title: "Check Point CoreXL CPU Distribution (Check Point)"
@@ -60,38 +62,14 @@ The first pipeline stage scopes events using **index**: firewall; **sourcetype**
 • `eval` defines or adjusts **gw** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **core_id** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **cpu_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by gw, core_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by gw** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by gw, core_id** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by gw** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **imbalance** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where imbalance > 30 OR max_cpu > 85` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats `summariesonly` count
-  from datamodel=Performance.All_Performance
-  by All_Performance.dest span=1h
-```
-
-Understanding this CIM / accelerated SPL
-
-**Check Point CoreXL CPU Distribution (Check Point)** — CoreXL distributes firewall inspection across multiple CPU cores (Firewall Worker instances). Uneven load distribution — where one core saturates while others idle — reduces effective throughput and causes packet drops on that core. This often happens when large flows or specific protocols always hash to the same core. Detecting core imbalance before it causes visible packet loss prevents elusive intermittent connectivity issues.
-
-Documented **Data sources**: `sourcetype=cp_log` (performance logs), `fw ctl multik stat` via scripted input. **App/TA** (typical add-on context): `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Performance.All_Performance` — enable acceleration for that model.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
-
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
+Compare key fields and timestamps in SmartConsole, SmartView, or the gateway’s local view so Splunk and Check Point match for the same events.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (CPU per core), Heatmap (core × time), Table (imbalanced gateways), Line chart (max core CPU trend).
 
@@ -129,14 +107,6 @@ index=firewall sourcetype="cp_log" earliest=-4h
 | eval imbalance=round(max_cpu - gw_avg, 1)
 | where imbalance > 30 OR max_cpu > 85
 | sort -imbalance
-```
-
-## CIM SPL
-
-```spl
-| tstats `summariesonly` count
-  from datamodel=Performance.All_Performance
-  by All_Performance.dest span=1h
 ```
 
 ## Visualization

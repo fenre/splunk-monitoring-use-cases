@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.4.19.json — DO NOT EDIT -->
+
 ---
 id: "9.4.19"
 title: "Shared Account Concurrent Login Detection"
@@ -54,7 +56,7 @@ The first pipeline stage scopes events using **index**: pam; **sourcetype**: cyb
 • Scopes the data: index=pam, sourcetype="cyberark:session". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **end_time** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-• `streamstats` rolls up events into metrics; results are split **by target_account** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `streamstats` rolls up events into metrics; results are split **by target_account** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where ip1!=ip2 AND t2 < end_time` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Shared Account Concurrent Login Detection**): table target_account, ip1, ip2, t1, t2
 
@@ -81,7 +83,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with CyberArk PrivateArk/Password Vault Web Access (or BeyondTrust / vendor console) for the same sessions, vault activity, and alerts.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (concurrent sessions), Timeline, Bar chart (accounts with overlap events).
@@ -106,10 +108,6 @@ index=pam sourcetype="cyberark:session"
 ## Visualization
 
 Table (concurrent sessions), Timeline, Bar chart (accounts with overlap events).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

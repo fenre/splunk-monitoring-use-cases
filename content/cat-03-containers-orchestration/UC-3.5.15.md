@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-3.5.15.json — DO NOT EDIT -->
+
 ---
 id: "3.5.15"
 title: "eBPF Auto-Instrumented Service Metrics (Beyla)"
@@ -63,7 +65,7 @@ The first pipeline stage scopes events using **index**: otel_metrics.
 • Uses `mstats` to query metrics indexes (pre-aggregated metric data).
 • `eval` defines or adjusts **signal** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **is_error** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by _time, service_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time, service_name** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **error_rate_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **req_per_sec** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Pipeline stage (see **eBPF Auto-Instrumented Service Metrics (Beyla)**): table _time, service_name, req_per_sec, error_rate_pct, avg_duration
@@ -73,7 +75,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Confirm that events are present in the index and that the search returns expected results. For Kubernetes and OpenShift data, sample rows should line up with what you see from the cluster command-line tool, the Kubernetes Dashboard (or OpenShift console), and your Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`) or OpenTelemetry collector view of the same objects. Compare with known good and bad scenarios where you have them. Verify field extractions and index permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (service RED metrics from Beyla), Line chart (request rate and error rate per service), Bar chart (services by instrumentation source — Beyla vs SDK), Gauge (error rate per service).

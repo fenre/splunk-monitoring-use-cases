@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.5.15.json — DO NOT EDIT -->
+
 ---
 id: "4.5.15"
 title: "GCP Cloud Functions Retry and Error Rate Trending"

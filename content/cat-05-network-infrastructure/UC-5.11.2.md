@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.11.2.json — DO NOT EDIT -->
+
 ---
 id: "5.11.2"
 title: "Interface Error and Discard Streaming"
@@ -54,11 +56,11 @@ The first pipeline stage scopes events using **index**: gnmi_metrics.
 • Pipeline stage (see **Interface Error and Discard Streaming**): table _time, host, name, err_rate, fcs_rate, discard_rate
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+CIM and metrics: this panel uses gNMI counter metrics in a **metrics** index. There is no standard CIM line-rate error counter; keep `cimModels` as N/A unless you add custom CIM fields.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare error and discard `mstats` series to a short SNMP walk or `show interface` counters on the same port; confirm baseline noise before alerting.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (error rates over time), Table (interfaces with active errors), Heatmap (errors across fabric).

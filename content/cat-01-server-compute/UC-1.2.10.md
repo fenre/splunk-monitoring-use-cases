@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.10.json — DO NOT EDIT -->
+
 ---
 id: "1.2.10"
 title: "Scheduled Task Failures"
@@ -13,7 +15,7 @@ Failed scheduled tasks break batch jobs, cleanup scripts, and automated processe
 
 ## Value
 
-Failed scheduled tasks break batch jobs, cleanup scripts, and automated processes. Often goes unnoticed until downstream effects appear.
+Failed tasks often mean skipped backups or drift—fixing the task before data loss beats discovering it at restore time.
 
 ## Implementation
 
@@ -54,6 +56,20 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Pipeline stage (see **Scheduled Task Failures**): table _time host TaskName ResultCode ActionName
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.action All_Changes.dest span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -68,6 +84,15 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-TaskScheduler/Operat
 | where ActionName!="0" AND ResultCode!="0"
 | table _time host TaskName ResultCode ActionName
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.object All_Changes.action All_Changes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

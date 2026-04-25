@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.3.json — DO NOT EDIT -->
+
 ---
 id: "1.1.3"
 title: "Disk Capacity Forecasting (Linux)"
@@ -13,7 +15,7 @@ Prevents outages caused by full filesystems. A full /var or / can bring down ser
 
 ## Value
 
-Prevents outages caused by full filesystems. A full /var or / can bring down services, databases, and logging. Enables proactive storage procurement.
+Running out of space on a root or data filesystem can stop logging, databases, and applications without warning. We help you see use climbing in time to expand, clean up, or rebalance data.
 
 ## Implementation
 
@@ -57,7 +59,7 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 ```spl
 | tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct
   from datamodel=Performance where nodename=Performance.Storage
-  by Performance.host, Performance.mount span=1h
+  by Performance.host Performance.mount span=1d
 | where disk_pct > 85
 ```
 
@@ -78,7 +80,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart with predict trendline, Table sorted by usage descending, Gauge per critical mount point.
@@ -117,7 +119,7 @@ index=os sourcetype=df host=myserver Filesystem="/dev/sda1"
 ```spl
 | tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct
   from datamodel=Performance where nodename=Performance.Storage
-  by Performance.host, Performance.mount span=1h
+  by Performance.host Performance.mount span=1d
 | where disk_pct > 85
 ```
 

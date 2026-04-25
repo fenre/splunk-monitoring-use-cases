@@ -35,5 +35,12 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw directory, IdP, PAM, or device feeds.",
+  "knownFalsePositives": "Global teams, weekend cutovers, vendor support windows, and on-call maintenance that is normal in your org but off local business hours — tune time zones and account exclude lists.",
+  "grandmaExplanation": "We flag when someone starts a privileged vault session at odd hours so you can review before off-hours access turns into unnoticed abuse.",
+  "cimModels": [
+    "N/A"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure: BeyondTrust TA / Splunk CIM Email & Authentication patterns (org deployment).\n• Data sources: `sourcetype=beyondtrust:session` (or normalized PAM session events forwarded from BeyondTrust).\n\nStep 1 — Configure data collection\nAdjust business-hour boundaries and weekend definition for your locale. Map `target_host` field names to your parser. Exclude maintenance accounts via lookup. Pair with on-call schedules to reduce false positives.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=pam sourcetype=\"beyondtrust:session\" earliest=-7d\n| eval user=coalesce(user, UserName, admin_user, \"\")\n| eval hour=strftime(_time, \"%H\")\n| eval dow=strftime(_time, \"%u\")\n| where (hour<7 OR hour>=19) OR dow IN (\"6\",\"7\")\n| stats count values(target_host) as targets by user\n| sort -count\n```\n\nStep 3 — Validate\nCompare with BeyondTrust session history in the vendor console for the same users, targets, and timestamps.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document the owner. Table (user × targets), timeline of off-hours sessions, pie (weekday vs weekend)."
 }

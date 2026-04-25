@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.2.12.json — DO NOT EDIT -->
+
 ---
 id: "2.2.12"
 title: "VM Generation and Secure Boot Compliance"
@@ -52,12 +54,11 @@ The first pipeline stage scopes events using **index**: hyperv; **sourcetype**: 
 **Pipeline walkthrough**
 
 • Scopes the data: index=hyperv, sourcetype="hyperv_vm_config". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by vm_name, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by vm_name, host** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **compliant** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where compliant="No"` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **VM Generation and Secure Boot Compliance**): table vm_name, host, gen, secure_boot, compliant
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.1.2.json — DO NOT EDIT -->
+
 ---
 id: "2.1.2"
 title: "ESXi Host Memory Ballooning"
@@ -17,17 +19,17 @@ Memory ballooning means the hypervisor is reclaiming memory from VMs. Swapping a
 
 ## Implementation
 
-Collected automatically by TA-vmware via vCenter API. Alert when balloon or swap values are >0 for extended periods. Investigate by comparing total VM memory allocation vs. host physical memory.
+Collected automatically by Splunk_TA_vmware via vCenter API. Alert when balloon or swap values are >0 for extended periods. Investigate by comparing total VM memory allocation vs. host physical memory.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `TA-vmware`.
+• Install and configure the required add-on or app: `Splunk_TA_vmware`.
 • Ensure the following data sources are available: `sourcetype=vmware:perf:mem`, vCenter performance metrics.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-Collected automatically by TA-vmware via vCenter API. Alert when balloon or swap values are >0 for extended periods. Investigate by comparing total VM memory allocation vs. host physical memory.
+Collected automatically by Splunk_TA_vmware via vCenter API. Alert when balloon or swap values are >0 for extended periods. Investigate by comparing total VM memory allocation vs. host physical memory.
 
 Step 2 — Create the search and alert
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
@@ -44,7 +46,7 @@ Understanding this SPL
 
 **ESXi Host Memory Ballooning** — Memory ballooning means the hypervisor is reclaiming memory from VMs. Swapping at the hypervisor level is worse — causes severe VM performance degradation invisible to the guest OS.
 
-Documented **Data sources**: `sourcetype=vmware:perf:mem`, vCenter performance metrics. **App/TA** (typical add-on context): `TA-vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: `sourcetype=vmware:perf:mem`, vCenter performance metrics. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:perf:mem. That sourcetype matches what this use case lists under Data sources.
 
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: vmware; **sourcetype**: 
 
 • Scopes the data: index=vmware, sourcetype="vmware:perf:mem". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `eval` defines or adjusts **metric** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by host, vm_name, metric** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, vm_name, metric** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where avg_value > 0` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -70,7 +72,7 @@ Understanding this CIM / accelerated SPL
 
 **ESXi Host Memory Ballooning** — Memory ballooning means the hypervisor is reclaiming memory from VMs. Swapping at the hypervisor level is worse — causes severe VM performance degradation invisible to the guest OS.
 
-Documented **Data sources**: `sourcetype=vmware:perf:mem`, vCenter performance metrics. **App/TA** (typical add-on context): `TA-vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: `sourcetype=vmware:perf:mem`, vCenter performance metrics. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
 
@@ -80,7 +82,6 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 • Filters the current rows with `where mem_pct > 95 OR swap_pct > 20` — typically the threshold or rule expression for this monitoring goal.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

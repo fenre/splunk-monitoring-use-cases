@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.124.json — DO NOT EDIT -->
+
 ---
 id: "1.1.124"
 title: "Linux Entropy Pool Depletion"
@@ -34,7 +36,8 @@ Run the following SPL in Search (then save as report or alert; adjust time range
 
 ```spl
 index=os sourcetype=entropy host=*
-| timechart span=5m avg(entropy_avail) as entropy by host
+| bin _time span=5m
+| stats avg(entropy_avail) as entropy by host, _time
 | where entropy < 500
 ```
 
@@ -49,7 +52,7 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: entr
 **Pipeline walkthrough**
 
 • Scopes the data: index=os, sourcetype=entropy. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by host** — ideal for trending and alerting on this use case.
+• Buckets and averages `entropy_avail` per host for alerting on low-pool conditions.
 • Filters the current rows with `where entropy < 500` — typically the threshold or rule expression for this monitoring goal.
 
 
@@ -84,7 +87,8 @@ For full details (paths, scheduling, permissions), see the Implementation guide:
 
 ```spl
 index=os sourcetype=entropy host=*
-| timechart span=5m avg(entropy_avail) as entropy by host
+| bin _time span=5m
+| stats avg(entropy_avail) as entropy by host, _time
 | where entropy < 500
 ```
 

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.33.json — DO NOT EDIT -->
+
 ---
 id: "4.1.33"
 title: "VPN Connection State and Tunnel Status"
@@ -65,6 +67,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/VPN" metric_name="TunnelState"
 | where Average != 1
 | table _time VpnId TunnelIpAddress Average
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

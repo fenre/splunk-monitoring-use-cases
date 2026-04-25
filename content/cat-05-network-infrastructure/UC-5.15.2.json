@@ -17,7 +17,7 @@
   "implementation": "Ensure DHCP service logs include scope/network identifiers. Build a daily summary of distinct active leases per scope; join scope size from a CMDB-exported lookup. Alert when trailing-seven-day max utilization exceeds 85% or week-over-week growth exceeds 20%.",
   "visualization": "Timechart (utilization % per scope), single-value (worst scope), table (scope, leases in use, free, trend).",
   "cimModels": [
-    "N/A"
+    "Network_Sessions"
   ],
   "references": [
     {
@@ -40,5 +40,9 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We track how full your Infoblox DHCP address pools are getting over time so you can add space before people lose connectivity."
+  "grandmaExplanation": "We show how full your DHCP address pools are over time so you can add space before people cannot get an address.",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Network_Sessions.DHCP\n  by DHCP.dhcp_server DHCP.network span=1d\n| where count>0\n| sort -count",
+  "dataModelAcceleration": "Enable acceleration for the Network_Sessions data model (DHCP node) when Infoblox DHCP is CIM-tagged; otherwise rely on the primary `index=dhcp` search in this UC.",
+  "knownFalsePositives": "New sites, large guest events, and IoT surges can fill pools—pair alerts with IPAM records and real lease need before expanding blindly.",
+  "detailedImplementation": "Prerequisites\n• Ingest `infoblox:dhcp` into `index=dhcp` (or your standard) and maintain `infoblox_scopes.csv` with `scope_id`, `pool_size`, and `network`.\n• Confirm DHCPACK or lease events include a scope or network key your `rex` can read.\n\nStep 1 — Configure data collection\nForward member logs; align lease timers with your reporting window. Refresh the scope size lookup when subnets change in IPAM.\n\nStep 2 — Create the search and alert\n```spl\nindex=dhcp sourcetype=\"infoblox:dhcp\" earliest=-7d@d latest=now\n| where match(_raw,\"(?i)DHCPACK|lease.*granted\")\n| rex field=_raw \"(?i)scope[\\s:=]+(?<scope_id>[^,\\s]+)\"\n| stats dc(mac) as active_leases by scope_id, host\n| lookup infoblox_scopes.csv scope_id OUTPUT pool_size network\n| eval util_pct=if(isnotnull(pool_size) AND pool_size>0, round(100*active_leases/pool_size,1), null())\n| where util_pct>=85 OR active_leases>=500\n| sort - util_pct\n```\n\nUnderstanding this SPL\nWe estimate distinct clients per scope and compare to your pool size from the lookup, then call out pools near exhaustion.\n\nStep 3 — Validate\nIn Grid Manager, open DHCP smart folders or the lease viewer for a scope you flagged and compare active lease counts to `active_leases` in the search. Reconcile `pool_size` in your lookup with the real range size in the GUI so utilization math matches operations.\n\nStep 4 — Operationalize\nSchedule the search daily; page when utilization is above 85% or absolute lease counts exceed your design.\n\nStep 5 — Troubleshooting\nIf `util_pct` is null, the lookup is missing a scope. If counts look high, confirm duplicate MACs and relay vs local DHCP are not double-counting."
 }

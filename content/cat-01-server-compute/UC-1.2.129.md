@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.129.json — DO NOT EDIT -->
+
 ---
 id: "1.2.129"
 title: "Sysmon Driver/Image Load Monitoring"

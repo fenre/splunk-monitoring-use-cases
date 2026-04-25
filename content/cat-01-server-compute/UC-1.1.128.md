@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.128.json — DO NOT EDIT -->
+
 ---
 id: "1.1.128"
 title: "Filesystem Inode Exhaustion"
@@ -49,7 +51,7 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: df_i
 **Pipeline walkthrough**
 
 • Scopes the data: index=os, sourcetype=df_inode. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, MountedOn** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, MountedOn** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where inode_pct > 80` — typically the threshold or rule expression for this monitoring goal.
 
 

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-2.5.9.json — DO NOT EDIT -->
+
 ---
 id: "2.5.9"
 title: "IGEL Cloud Gateway Connection Health"
@@ -56,7 +58,7 @@ The first pipeline stage scopes events using **index**: endpoint; **sourcetype**
 
 • Scopes the data: index=endpoint, sourcetype="igel:icg:security". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **fail_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where failed_auth > 5 OR fail_pct > 20` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **IGEL Cloud Gateway Connection Health**): table _time, total_events, success_auth, failed_auth, fail_pct, unique_sources
@@ -81,7 +83,6 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.

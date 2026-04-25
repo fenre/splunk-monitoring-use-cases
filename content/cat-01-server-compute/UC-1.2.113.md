@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.113.json — DO NOT EDIT -->
+
 ---
 id: "1.2.113"
 title: "COM Object Hijacking Detection"
@@ -13,7 +15,7 @@ COM hijacking replaces legitimate COM objects with malicious ones for persistenc
 
 ## Value
 
-COM hijacking replaces legitimate COM objects with malicious ones for persistence and privilege escalation. It's a stealthy technique that survives reboots.
+COM hijacks let legitimate apps load attacker DLLs. New or rare class registrations on servers warrant review because they are easy to miss in standard change windows.
 
 ## Implementation
 
@@ -71,6 +73,15 @@ index=wineventlog EventCode=13 TargetObject="*\\Classes\\CLSID\\*\\InprocServer3
 | table _time, host, User, Image, TargetObject, Details
 | rex field=TargetObject "CLSID\\\\(?<CLSID>[^\\\\]+)"
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

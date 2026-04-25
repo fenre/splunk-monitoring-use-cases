@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.2.29.json — DO NOT EDIT -->
+
 ---
 id: "4.2.29"
 title: "Azure Front Door Origin Health"
@@ -53,7 +55,7 @@ The first pipeline stage scopes events using **index**: azure; **sourcetype**: m
 • Scopes the data: index=azure, sourcetype="mscs:azure:diagnostics". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Extracts structured paths (JSON/XML) with `spath`.
 • Applies an explicit `search` filter to narrow the current result set.
-• `stats` rolls up events into metrics; results are split **by resourceId, properties.backendPoolName, properties.healthProbeSentResult** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by resourceId, properties.backendPoolName, properties.healthProbeSentResult** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.2.json — DO NOT EDIT -->
+
 ---
 id: "1.1.2"
 title: "Memory Pressure Detection (Linux)"
@@ -13,7 +15,7 @@ Prevents OOM kills, application crashes, and unresponsive systems by detecting m
 
 ## Value
 
-Prevents OOM kills, application crashes, and unresponsive systems by detecting memory exhaustion early.
+We track memory and swap pressure so you can act before the system runs out of memory, thrashes, or the kernel starts killing processes.
 
 ## Implementation
 
@@ -53,11 +55,9 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: vmst
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct
-                        avg(Performance.swap_used_percent) as swap_pct
+| tstats `summariesonly` avg(Performance.mem_used_percent) as memory_pct avg(Performance.swap_used_percent) as swap_pct
   from datamodel=Performance where nodename=Performance.Memory
   by Performance.host span=5m
-| where mem_pct > 95 OR swap_pct > 20
 ```
 
 Understanding this CIM / accelerated SPL
@@ -71,13 +71,13 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 **Pipeline walkthrough**
 
 • Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.
-• Filters the current rows with `where mem_pct > 95 OR swap_pct > 20` — typically the threshold or rule expression for this monitoring goal.
+• Matches the timechart’s averages and `by host` split; add mem/swap threshold filters in the alert to align with the deployment guidance in Step 1.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Area chart (memory + swap stacked), Single value panels showing current utilization, Gauge widget for threshold display.
@@ -113,11 +113,9 @@ index=os sourcetype=vmstat host=*
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct
-                        avg(Performance.swap_used_percent) as swap_pct
+| tstats `summariesonly` avg(Performance.mem_used_percent) as memory_pct avg(Performance.swap_used_percent) as swap_pct
   from datamodel=Performance where nodename=Performance.Memory
   by Performance.host span=5m
-| where mem_pct > 95 OR swap_pct > 20
 ```
 
 ## Visualization

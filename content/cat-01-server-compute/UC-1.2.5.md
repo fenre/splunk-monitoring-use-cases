@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.5.json — DO NOT EDIT -->
+
 ---
 id: "1.2.5"
 title: "Event Log Flood Detection"
@@ -13,7 +15,7 @@ Abnormal event log volumes often indicate error loops, misconfiguration, or an a
 
 ## Value
 
-Abnormal event log volumes often indicate error loops, misconfiguration, or an active attack. Also protects Splunk license from unexpected spikes.
+Spikes can be attack noise, a broken script, or a log storm that hides a real error—trending shows which host is the outlier.
 
 ## Implementation
 
@@ -52,11 +54,27 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:*". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `timechart` plots the metric over time using **span=1h** buckets with a separate series **by host** — ideal for trending and alerting on this use case.
-• `eventstats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `eventstats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **threshold** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where count > threshold` — typically the threshold or rule expression for this monitoring goal.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1h
+| eventstats avg(count) as avg_count, stdev(count) as stdev_count by All_Changes.dest
+| eval threshold=avg_count+(3*stdev_count)
+| where count > threshold
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
 
 
 Step 3 — Validate
@@ -72,6 +90,17 @@ index=wineventlog sourcetype="WinEventLog:*"
 | timechart span=1h count by host
 | eventstats avg(count) as avg_count, stdev(count) as stdev_count by host
 | eval threshold = avg_count + (3 * stdev_count)
+| where count > threshold
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1h
+| eventstats avg(count) as avg_count, stdev(count) as stdev_count by All_Changes.dest
+| eval threshold=avg_count+(3*stdev_count)
 | where count > threshold
 ```
 

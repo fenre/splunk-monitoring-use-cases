@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-3.1.9.json — DO NOT EDIT -->
+
 ---
 id: "3.1.9"
 title: "Docker Daemon Health and Version Drift"
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: containers; **sourcetype
 **Pipeline walkthrough**
 
 • Scopes the data: index=containers, sourcetype="docker:info". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **version_count** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where version_count > 1` — typically the threshold or rule expression for this monitoring goal.
 • Expands multivalue fields with `mvexpand` — use `limit=` to cap row explosion.
@@ -60,7 +62,7 @@ The first pipeline stage scopes events using **index**: containers; **sourcetype
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Confirm that events are present in the index and that the search returns expected results. For Docker data, spot-check a few events against the Docker engine on the host and the container list you expect. Compare with known good and bad scenarios if applicable. Verify field extractions and index permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, version, containers, images), Single value (version count), Status grid (host health).

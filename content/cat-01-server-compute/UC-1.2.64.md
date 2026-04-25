@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.64.json — DO NOT EDIT -->
+
 ---
 id: "1.2.64"
 title: "Event Log Channel Size / Overflow"
@@ -13,7 +15,7 @@ When event logs reach maximum size with overwrite-oldest policy, critical securi
 
 ## Value
 
-When event logs reach maximum size with overwrite-oldest policy, critical security events are lost. With do-not-overwrite policy, the log stops recording entirely.
+If a channel stops, your audit trail stops—this is a *data-loss* class alert for regulated shops, not a perf chart.
 
 ## Implementation
 
@@ -52,6 +54,20 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: wind
 • Filters the current rows with `where used_pct > 90` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **Event Log Channel Size / Overflow**): table _time, host, log_name, current_size_MB, max_size_MB, used_pct
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -86,6 +102,15 @@ For full details (paths, scheduling, permissions), see the Implementation guide:
 index=os sourcetype=windows:eventlog:size
 | where used_pct > 90
 | table _time, host, log_name, current_size_MB, max_size_MB, used_pct
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

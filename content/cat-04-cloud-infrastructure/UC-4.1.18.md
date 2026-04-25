@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.18.json — DO NOT EDIT -->
+
 ---
 id: "4.1.18"
 title: "CloudFormation Stack Drift"

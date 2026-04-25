@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.20.json — DO NOT EDIT -->
+
 ---
 id: "5.13.20"
 title: "Network Health Score Anomaly Detection"
@@ -22,40 +24,46 @@ Requires UC-5.13.16 and enough history for UC-5.13.17 to establish variance. The
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).
-• Ensure the following data sources are available: index=catalyst, sourcetype cisco:dnac:networkhealth (Catalyst Center network health summary).
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• **networkhealth** feed with continuous `cisco:dnac:networkhealth` in `index=catalyst` (Cisco Catalyst Add-on 7538).
+• **UC-5.13.16** and **UC-5.13.17** to validate the basic score and a simple trend before you add statistics.
+• **Rule of thumb:** use a **7–30 day** lookback in tests so `eventstats` has enough **hourly** buckets; a **single day** window makes **baseline** and **stdev** unstable.
+• Document that this technique uses **all rows in the search job** for **baseline/stdev**—it is a **tactical** NOC view, not a pre-trained **ML** model.
+• `docs/implementation-guide.md` for scheduled search limits and **search head** load.
 
 Step 1 — Configure data collection
-Requires UC-5.13.16 and enough history for UC-5.13.17 to establish variance. The `eventstats` here runs across the whole result set, so use a long lookback and watch for missing hours that can inflate `stdev`. Consider seasonal baselines in a follow-on if the network’s score drifts with quarters or school terms.
+• **API:** `GET /dna/intent/api/v1/network-health`; **input** **networkhealth**; **sourcetype** `cisco:dnac:networkhealth`.
+• **Interval:** **900s** typical; if you have **sub-hour** re-emits, `avg(healthScore)` in an hour still behaves sensibly, but check for **duplicate** timestamps in validation.
+• **Key field:** `healthScore` must be **numeric** (`| where isnum(healthScore)` in QA).
 
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Step 2 — Create the search and report
 ```spl
 index=catalyst sourcetype="cisco:dnac:networkhealth" | bin _time span=1h | stats avg(healthScore) as health by _time | eventstats avg(health) as baseline stdev(health) as stdev_health | where health < (baseline - 2*stdev_health) AND stdev_health > 0 | eval deviation=round((baseline-health)/stdev_health,1) | sort -deviation
 ```
 
-Understanding this SPL
-
-**Network Health Score Anomaly Detection** — Fixed thresholds for network health may not account for normal variations. Anomaly detection catches unusual drops relative to your network's specific baseline.
-
-Documented **Data sources**: index=catalyst, sourcetype cisco:dnac:networkhealth (Catalyst Center network health summary). **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: catalyst; **sourcetype**: cisco:dnac:networkhealth. That sourcetype matches what this use case lists under Data sources.
+Understanding this SPL (same-window stats, 2-sigma, caveats)
+• **`eventstats` baseline/stdev** are computed from **all hourly rows returned**; changing the time picker **changes** the “normal” line—set expectations in the runbook.
+• **Guard `stdev_health > 0`** avoids divide-by-near-zero noise when the score is **flat** for days.
+• **Tune** the **2x** multiplier to **2.5x** or **3x** if leadership sees too many “yellow” hours during ordinary volatility.
+• **Missing hours:** if **ingest** drops, a single low hour can look anomalous—pair with a **concurrent** `timechart` of `count` to detect **gaps**.
 
 **Pipeline walkthrough**
-
-• `bin` and `stats` reduce raw feeds to a single hourly `health` series so each bucket has one `avg(healthScore)` for the site-wide or global number depending on your data shape.
-• `eventstats` over all rows in the search time range computes a global `baseline` and `stdev` of that hourly line—interpret this as a same-window z-score test on the health curve.
-• `where` flags hours under two-sigma, suppressing flat or near-zero stdev, and `eval deviation` makes the z-score legible; `sort` points incident commanders to the worst first, then they open UC-5.13.16/18 to confirm the human-facing threshold story.
-
+• Hourly `bin` + `stats` build one **health** per bucket.
+• **Z-score** style filter surfaces **unusual** lows for triage with **UC-5.13.18** (threshold alerts) and **UC-5.13.16** (executive view).
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+• **Known incident week:** the search should return **rows** in hours you already documented; if not, the multiplier or lookback is too loose.
+• **`| timechart count`** in parallel: zero-hour gaps should **not** be treated as “health dropped to null.”
+• After **Catalyst** major upgrade, re-baseline: scoring changes can **shift** the whole curve.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of anomalous hours with deviation, overlay plot of `health` with a ribbon for baseline minus two sigma, combined alert card.
+• **Dashboard:** table of anomalous hours **plus** a **line** chart of **health** with **shaded** band for **baseline − 2σ** (clone this search into two panels).
+• **Alerting:** schedule **2× daily** for **review** or **on-demand**; many teams **do not** page on **statistical** health alone without **UC-5.13.18** also firing—document that policy.
+
+Step 5 — Troubleshooting
+• **Hundreds of rows:** baseline window too short or **stdev** very small after a long flatline—lengthen **earliest** or increase **span** to **4h** to match **UC-5.13.17** cadence.
+• **No rows ever:** `healthScore` stringified or **ingest** missing—`fieldsummary` and raw JSON.
+• **All rows after TA upgrade:** **field** rename in add-on; compare release notes and fix **props**.
+
 
 ## SPL
 
@@ -71,3 +79,4 @@ Table of anomalous hours with deviation, overlay plot of `health` with a ribbon 
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

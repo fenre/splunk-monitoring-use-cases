@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.114.json — DO NOT EDIT -->
+
 ---
 id: "1.2.114"
 title: "LSASS Memory Protection Monitoring"
@@ -13,7 +15,7 @@ LSASS contains credentials in memory. Monitoring LSASS access attempts and prote
 
 ## Value
 
-LSASS contains credentials in memory. Monitoring LSASS access attempts and protection status detects credential dumping tools like Mimikatz.
+LSASS protections make credential theft harder. When they are off or probed, assume follow-on techniques are in play and re-tighten before passwords are harvested at scale.
 
 ## Implementation
 
@@ -74,6 +76,15 @@ index=wineventlog EventCode=10 TargetImage="*\\lsass.exe"
 | table _time, host, SourceImage, SourceUser, GrantedAccess_hex, CallTrace
 | where match(GrantedAccess_hex, "0x1010|0x1FFFFF|0x143A")
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Endpoint.Processes
+  by Processes.user Processes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

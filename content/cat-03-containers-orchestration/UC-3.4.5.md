@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-3.4.5.json — DO NOT EDIT -->
+
 ---
 id: "3.4.5"
 title: "Registry Authentication and Authorization Failures"
@@ -52,30 +54,9 @@ The first pipeline stage scopes events using **index**: containers; **sourcetype
 
 • Scopes the data: index=containers, sourcetype="registry:audit". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by user, action, repository, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by user, action, repository, _time** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 10` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user, Authentication.action span=1h | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Registry Authentication and Authorization Failures** — Failed logins and denied pushes/pulls may indicate credential abuse or misconfiguration. Detecting anomalies supports security and access troubleshooting.
-
-Documented **Data sources**: Registry audit log API or log files. **App/TA** (typical add-on context): Registry audit logs (Harbor, Docker Registry, ECR). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
@@ -94,16 +75,10 @@ index=containers sourcetype="registry:audit" (action="login_failed" OR action="p
 | sort -count
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user, Authentication.action span=1h | sort - count
-```
-
 ## Visualization
 
 Table (user, action, count), Timechart of failures, Events list.
 
 ## References
 
-- [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

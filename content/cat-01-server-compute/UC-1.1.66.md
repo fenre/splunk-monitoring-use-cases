@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.66.json — DO NOT EDIT -->
+
 ---
 id: "1.1.66"
 title: "SELinux Denial Monitoring"
@@ -9,62 +11,44 @@ splunkPillar: "Security"
 
 ## Description
 
-SELinux denials indicate policy violations that may require tuning or signal legitimate attack attempts.
+Groups SELinux **denied** log lines by subject/object context so you can see where policy blocks cluster and whether a single tuple suddenly spikes.
 
 ## Value
 
-SELinux denials indicate policy violations that may require tuning or signal legitimate attack attempts.
+Policy mistakes and real attacks both show up as **deny** first; a grouped view is faster for app owners to tune booleans and for security to see lateral movement in **context** space.
 
 ## Implementation
 
-Enable SELinux audit logging. Monitor /var/log/audit/audit.log for denial messages. Create alerts for denial spikes indicating possible policy misconfigurations or attacks. Include context in alerts to help debugging.
+If you already ingest **linux_audit** with structured fields, switch the first line to that sourcetype; syslog-only shops should ensure **setroubleshootd** or **auditd** lines actually reach the **os** index. Parse **object** if your build leaves it in `_raw` only.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=syslog, /var/log/audit/audit.log`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• Kernel **audit** and SELinux in **enforcing** mode with logging you can read from `/var/log/audit/audit.log` and/or `journalctl` with **SELinux** tags.
 
 Step 1 — Configure data collection
-Enable SELinux audit logging. Monitor /var/log/audit/audit.log for denial messages. Create alerts for denial spikes indicating possible policy misconfigurations or attacks. Include context in alerts to help debugging.
+**Props** for **source_context** / **target_context** (or the AVC string equivalents) are critical; use the TA’s add-on for Linux props where possible.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+`action` in `stats` is removed because many builds never extracted it—re-add when your parser supplies it. Start as a **report**; alert after two consecutive windows `>5` for the same tuple.
 
-```spl
-index=os sourcetype=syslog "SELinux" "denied"
-| stats count by host, source_context, target_context, action
-| where count > 5
-```
-
-Understanding this SPL
-
-**SELinux Denial Monitoring** — SELinux denials indicate policy violations that may require tuning or signal legitimate attack attempts.
-
-Documented **Data sources**: `sourcetype=syslog, /var/log/audit/audit.log`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, source_context, target_context, action** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.
+**CIM** — There is no clean **All_Traffic**-style field for an AVC; keep this on raw unless you also model it into a custom data model.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`ausearch -m avc` on the host for the same second as Splunk; `sealert` (setroubleshoot) for human-readable text if you use the GUI helper.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Timechart
+Send **deny** spikes to the app that owns the **target** context, not only SOC, when the pattern matches a release.
+
+
 
 ## SPL
 
 ```spl
-index=os sourcetype=syslog "SELinux" "denied"
-| stats count by host, source_context, target_context, action
-| where count > 5
+index=os sourcetype=syslog (SELinux OR setroubleshoot) denied
+| stats count by host, source_context, target_context, object
+| where count>5
 ```
 
 ## Visualization
@@ -73,4 +57,5 @@ Table, Timechart
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

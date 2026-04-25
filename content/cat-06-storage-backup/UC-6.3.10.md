@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.3.10.json — DO NOT EDIT -->
+
 ---
 id: "6.3.10"
 title: "Backup Data Growth Rate"
@@ -58,10 +60,10 @@ The first pipeline stage scopes events using **index**: backup; **sourcetype**: 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare job session state, duration, and transferred bytes with Veeam Backup & Replication or Veeam Enterprise Manager for the same job and time window.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (repository usage % over time with prediction), Table (repositories with growth rate and ETA to full), Single value (days until first repository full).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Line chart (repository usage % over time with prediction), Table (repositories with growth rate and ETA to full), Single value (days until first repository full).
 
 Scripted input (generic example)
 This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
@@ -94,6 +96,16 @@ index=backup sourcetype="veeam:repository" OR sourcetype="backup:repository"
 | predict used as predicted future_timespan=30
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.storage_used_percent) as used_pct
+  from datamodel=Performance where nodename=Performance.Storage
+  by Performance.host Performance.object span=1h
+| where used_pct > 80
+| sort - used_pct
+```
+
 ## Visualization
 
 Line chart (repository usage % over time with prediction), Table (repositories with growth rate and ETA to full), Single value (days until first repository full).
@@ -101,3 +113,4 @@ Line chart (repository usage % over time with prediction), Table (repositories w
 ## References
 
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)
+- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.122.json — DO NOT EDIT -->
+
 ---
 id: "1.1.122"
 title: "Systemd Unit State Monitoring"
@@ -50,7 +52,7 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: syst
 **Pipeline walkthrough**
 
 • Scopes the data: index=os, sourcetype=systemd_units. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, Unit** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, Unit** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where total_restarts > 5` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 

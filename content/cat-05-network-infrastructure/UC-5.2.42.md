@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.2.42.json — DO NOT EDIT -->
+
 ---
 id: "5.2.42"
 title: "Juniper SRX Screen Counter Monitoring (Juniper SRX)"
@@ -61,40 +63,40 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 • Extracts fields with `rex` (regular expression).
 • Extracts fields with `rex` (regular expression).
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by _time host screen_type src dest** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• `eventstats` rolls up events into metrics; results are split **by screen_type, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by _time host screen_type src dest** so each row reflects one combination of those dimensions.
+• `eventstats` rolls up events into metrics; results are split **by screen_type, host** so each row reflects one combination of those dimensions.
 • `eval` defines or adjusts **threshold** — often to normalize units, derive a ratio, or prepare for thresholds.
 • Filters the current rows with `where screen_hits > threshold` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+
+
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Intrusion_Detection
-  by IDS_Attacks.signature, IDS_Attacks.src span=1h
+  from datamodel=Intrusion_Detection.IDS_Attacks
+  by IDS_Attacks.signature IDS_Attacks.severity IDS_Attacks.src IDS_Attacks.dest span=1h
+| where count>0
 | sort -count
 ```
 
 Understanding this CIM / accelerated SPL
 
-**Juniper SRX Screen Counter Monitoring (Juniper SRX)** — Junos “Screen” features apply stateless, early-drop protections against floods, sweeps, malformed packets, and classic DoS patterns before sessions are fully created. Those drops often never appear in session or traffic logs, so screen telemetry is the only way to see perimeter volumetric or reconnaissance attacks. Sustained spikes in specific screen categories usually mean an active attack, a misconfigured peer, or a need to tune thresholds—not “normal” firewall noise.
-
-Documented **Data sources**: `sourcetype=juniper:junos:firewall:structured` (syslog `RT_SCREEN_*`), SNMP screen or attack-related counters where published for your platform. **App/TA** (typical add-on context): `Splunk_TA_juniper` (Splunkbase 2847), SNMP Modular Input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+This block uses `tstats` on the Intrusion_Detection data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Intrusion_Detection` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+• Uses `tstats` against accelerated summaries for the Intrusion_Detection model — enable acceleration and confirm CIM tags on your source data.
+• Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
-
+Compare a sample of events in J-Web or the SRX command line for the same time and rule context so on-box messages and Splunk stay aligned.
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart (hits by screen type), Table (top sources), Single value (total screen drops vs prior day).
 
@@ -118,8 +120,9 @@ index=network (sourcetype="juniper:junos:firewall:structured" OR sourcetype="jun
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Intrusion_Detection
-  by IDS_Attacks.signature, IDS_Attacks.src span=1h
+  from datamodel=Intrusion_Detection.IDS_Attacks
+  by IDS_Attacks.signature IDS_Attacks.severity IDS_Attacks.src IDS_Attacks.dest span=1h
+| where count>0
 | sort -count
 ```
 

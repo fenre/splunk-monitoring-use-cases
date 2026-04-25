@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.46.json — DO NOT EDIT -->
+
 ---
 id: "4.1.46"
 title: "Direct Connect Virtual Interface BGP State"
@@ -65,6 +67,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/DX" metric_name="ConnectionState"
 | where Average != 1
 | table _time VirtualInterfaceId ConnectionState
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

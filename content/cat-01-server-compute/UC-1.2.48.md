@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.48.json — DO NOT EDIT -->
+
 ---
 id: "1.2.48"
 title: "PowerShell Script Block Logging"
@@ -13,7 +15,7 @@ Script Block Logging captures the full text of every PowerShell script executed,
 
 ## Value
 
-Script Block Logging captures the full text of every PowerShell script executed, including deobfuscated code. Essential for detecting fileless attacks and encoded commands.
+Broader text coverage trades extra noise for fewer blind spots in evolving attacker scripts—tune, do not remove.
 
 ## Implementation
 
@@ -54,6 +56,20 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Pipeline stage (see **PowerShell Script Block Logging**): table _time, host, Path, ScriptBlockText, UserName
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count>0
+```
+
+Understanding this CIM / accelerated SPL
+
+CIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.
+
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -68,6 +84,15 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-PowerShell/Operation
 | search ScriptBlockText IN ("*Invoke-Mimikatz*","*Net.WebClient*","*DownloadString*","*IEX*","*-enc*","*FromBase64*","*Invoke-Expression*")
 | table _time, host, Path, ScriptBlockText, UserName
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change where nodename=Change.All_Changes
+  by All_Changes.user All_Changes.dest span=1h
+| where count>0
 ```
 
 ## Visualization

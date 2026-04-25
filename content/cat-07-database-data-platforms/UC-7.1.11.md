@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-7.1.11.json — DO NOT EDIT -->
+
 ---
 id: "7.1.11"
 title: "Buffer Cache Hit Ratio"
@@ -22,6 +24,7 @@ Poll buffer cache performance counters via DB Connect every 15 minutes. Alert wh
 ## Detailed Implementation
 
 Prerequisites
+• In operations we cross-check backup reality in the right console for each engine: `msdb` and SSMS for SQL Server, RMAN and Enterprise Manager (or DBA views) for Oracle, and the postgres or managed-service view for PostgreSQL, alongside Splunk.
 • Install and configure the required add-on or app: DB Connect, performance counters.
 • Ensure the following data sources are available: SQL Server performance counters, PostgreSQL `pg_stat_bgwriter`.
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
@@ -54,30 +57,9 @@ The first pipeline stage scopes events using **index**: database; **sourcetype**
 • `timechart` plots the metric over time using **span=15m** buckets with a separate series **by instance_name** — ideal for trending and alerting on this use case.
 • Filters the current rows with `where hit_ratio < 95` — typically the threshold or rule expression for this monitoring goal.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Databases.Database_Instance by Database_Instance.host, Database_Instance.action span=15m | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Buffer Cache Hit Ratio** — Low buffer cache hit ratio means excessive disk I/O. Monitoring guides memory allocation decisions.
-
-Documented **Data sources**: SQL Server performance counters, PostgreSQL `pg_stat_bgwriter`. **App/TA** (typical add-on context): DB Connect, performance counters. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Databases.Database_Instance` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (buffer cache hit ratio), Line chart (hit ratio over time), Single value (current hit ratio %).
@@ -91,16 +73,10 @@ index=database sourcetype="dbconnect:perf_counters"
 | where hit_ratio < 95
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Databases.Database_Instance by Database_Instance.host, Database_Instance.action span=15m | sort - count
-```
-
 ## Visualization
 
 Gauge (buffer cache hit ratio), Line chart (hit ratio over time), Single value (current hit ratio %).
 
 ## References
 
-- [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
+- [Splunk — DB Connect](https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX)

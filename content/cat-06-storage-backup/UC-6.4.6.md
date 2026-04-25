@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.4.6.json — DO NOT EDIT -->
+
 ---
 id: "6.4.6"
 title: "Backup Encryption and Key Access Audit"
@@ -52,16 +54,16 @@ The first pipeline stage scopes events using **index**: backup; **sourcetype**: 
 
 • Scopes the data: index=backup, sourcetype=backup_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Discretizes time or numeric ranges with `bin`/`bucket`.
-• `stats` rolls up events into metrics; results are split **by user, key_id, event, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by user, key_id, event, _time** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 20` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (user, key, count), Timeline of key access, Bar chart by principal.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Pair alerts with the file-server or security team runbook and change calendar. Consider visualizations: Table (user, key, count), Timeline of key access, Bar chart by principal.
 
 ## SPL
 

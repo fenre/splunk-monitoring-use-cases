@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.1.16.json — DO NOT EDIT -->
+
 ---
 id: "8.1.16"
 title: "Web Server Thread Pool Exhaustion"
@@ -54,30 +56,10 @@ The first pipeline stage scopes events using **index**: web; **sourcetype**: ngi
 • Filters the current rows with `where util_pct > 85 OR queue_current > 50` — typically the threshold or rule expression for this monitoring goal.
 • `timechart` plots the metric over time using **span=5m** buckets with a separate series **by host, sourcetype** — ideal for trending and alerting on this use case.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Web.Web by Web.dest span=5m | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Web Server Thread Pool Exhaustion** — IIS `QueueFull`, NGINX worker saturation, or Apache `BusyWorkers` at limit causes queueing. Unified thresholding across stacks.
-
-Documented **Data sources**: `nginx:stub_status`, `Perfmon:W3SVC_W3WP`, `apache:server_status`. **App/TA** (typical add-on context): `TA-nginx` stub_status, `Splunk_TA_windows` perfmon, Apache mod_status. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Web.Web` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (util %), Line chart (util and queue), Table (hosts over threshold).
@@ -89,12 +71,6 @@ index=web (sourcetype="nginx:stub_status" OR sourcetype="apache:server_status" O
 | eval util_pct=coalesce(worker_util_pct, pct_busy, thread_pool_queue_length/max_threads*100)
 | where util_pct > 85 OR queue_current > 50
 | timechart span=5m max(util_pct) as util by host, sourcetype
-```
-
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Web.Web by Web.dest span=5m | sort - count
 ```
 
 ## Visualization

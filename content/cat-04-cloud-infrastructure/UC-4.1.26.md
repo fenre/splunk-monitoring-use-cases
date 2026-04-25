@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.26.json — DO NOT EDIT -->
+
 ---
 id: "4.1.26"
 title: "DynamoDB Throttled Requests and Consumed Capacity"
@@ -65,6 +67,16 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/DynamoDB" metric_name="ThrottledRequests"
 | where Sum > 0
 | timechart span=5m sum(Sum) by TableName, Operation
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` max(Performance.cpu_load_percent) as peak
+  from datamodel=Performance.Performance
+  by Performance.object Performance.host span=1h
+| where isnotnull(peak)
+| sort - peak
 ```
 
 ## Visualization

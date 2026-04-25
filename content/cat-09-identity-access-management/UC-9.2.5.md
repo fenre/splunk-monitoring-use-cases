@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.2.5.json — DO NOT EDIT -->
+
 ---
 id: "9.2.5"
 title: "Azure AD / Entra ID Conditional Access Policy Evaluation Failures"
@@ -61,7 +63,7 @@ The first pipeline stage scopes events using **index**: azure; **sourcetype**: a
 • Extracts structured paths (JSON/XML) with `spath`.
 • Extracts structured paths (JSON/XML) with `spath`.
 • Filters the current rows with `where result="failure" OR result="reportOnlyNotApplied"` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by displayName, result** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by displayName, result** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
@@ -87,7 +89,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with Entra ID sign-in and audit logs in the Microsoft Entra or Azure portal for the same users, resources, and time window.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (failures by policy), Table (blocked users with policy details), Line chart (failure rate trend), Pie chart (failures by application).
@@ -115,10 +117,6 @@ index=azure sourcetype="azure:aad:signin"
 ## Visualization
 
 Bar chart (failures by policy), Table (blocked users with policy details), Line chart (failure rate trend), Pie chart (failures by application).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

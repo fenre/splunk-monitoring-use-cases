@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.68.json — DO NOT EDIT -->
+
 ---
 id: "1.2.68"
 title: "NTFS Corruption and Self-Healing"
@@ -13,7 +15,7 @@ NTFS corruption can cause data loss, application failures, and boot issues. Self
 
 ## Value
 
-NTFS corruption can cause data loss, application failures, and boot issues. Self-healing events indicate disk degradation that will worsen.
+Catching file-system corruption and self-heal activity early helps avoid silent data loss, unplanned reboots, and long restores on servers that the business relies on.
 
 ## Implementation
 
@@ -27,7 +29,7 @@ Prerequisites
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-NTFS events log automatically. EventCode 55=structure corruption on volume (critical), 98=volume marked dirty (chkdsk needed at boot), 137/140=self-healing activity. Any EventCode 55 requires immediate attention — indicates metadata corruption that may spread. Correlate with WHEA (hardware) and SMART events to determine if underlying disk is failing. Schedule chkdsk offline and plan disk replacement.
+On the Universal Forwarder, enable the Windows `System` channel in `inputs.conf` (e.g. `[WinEventLog://System]`) with `current_only = 0` if you need backfill, and set `index`/`_TCP_ROUTING` per your design. NTFS events log to System with Source=Ntfs. EventCode 55=structure corruption on volume (critical), 98=volume marked dirty (chkdsk at boot), 137/140=self-healing. EventCode 55 needs immediate triage. Correlate with WHEA and SMART, schedule offline chkdsk, and plan disk replacement if hardware is failing.
 
 Step 2 — Create the search and alert
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
@@ -54,6 +56,17 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 • Pipeline stage (see **NTFS Corruption and Self-Healing**): table _time, host, issue, DriveName, CorruptionType
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+Optional CIM / accelerated variant (after tagging System NTFS into `Change`):
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.dest All_Changes.user All_Changes.object span=1h
+| where count >= 1
+```
+
+Enable **data model acceleration** on `Change` (All_Changes). The primary search with `Source=Ntfs` and EventCode filters remains the clearest; use CIM for rollups only when tagging is in place.
+
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -70,6 +83,15 @@ index=wineventlog sourcetype="WinEventLog:System" Source="Ntfs" EventCode IN (55
 | sort -_time
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.dest All_Changes.user All_Changes.object span=1h
+| where count >= 1
+```
+
 ## Visualization
 
 Table (corruption events), Timeline, Single value (affected volumes — target: 0).
@@ -77,3 +99,4 @@ Table (corruption events), Timeline, Single value (affected volumes — target: 
 ## References
 
 - [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)

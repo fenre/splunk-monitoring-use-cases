@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.86.json — DO NOT EDIT -->
+
 ---
 id: "1.2.86"
 title: "NTLM Audit and Restriction Monitoring"
@@ -13,7 +15,7 @@ NTLM is a legacy authentication protocol vulnerable to relay attacks. Auditing N
 
 ## Value
 
-NTLM is a legacy authentication protocol vulnerable to relay attacks. Auditing NTLM usage identifies applications and systems that need migration to Kerberos.
+Knowing who still sends NTLM traffic shows where to retire old apps, fix SPNs, and close off relay risk before auditors or attackers focus on the same weak paths.
 
 ## Implementation
 
@@ -50,33 +52,20 @@ The first pipeline stage scopes events using **index**: wineventlog.
 **Pipeline walkthrough**
 
 • Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by TargetName, DomainName, WorkstationName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by TargetName, DomainName, WorkstationName** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+Optional CIM / accelerated variant (NTLM-tagged `Authentication` events):
 
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
+  where (like(Authentication.app,"%NTLM%") OR like(Authentication.signature,"NTLM"))
   by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+| where count > 0
 ```
 
-Understanding this CIM / accelerated SPL
-
-**NTLM Audit and Restriction Monitoring** — NTLM is a legacy authentication protocol vulnerable to relay attacks. Auditing NTLM usage identifies applications and systems that need migration to Kerberos.
-
-Documented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4776), `sourcetype=WinEventLog:Microsoft-Windows-NTLM/Operational` (EventCode 8001, 8003, 8004). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.
-• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+Enable **data model acceleration** on `Authentication`. If `app` is empty, rely on the `source="WinEventLog:Microsoft-Windows-NTLM/Operational"` search in Step 2.
 
 
 Step 3 — Validate
@@ -99,9 +88,9 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-NTLM/Operational"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
+  where (like(Authentication.app,"%NTLM%") OR like(Authentication.signature,"NTLM"))
   by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+| where count > 0
 ```
 
 ## Visualization

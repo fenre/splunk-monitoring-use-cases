@@ -38800,7 +38800,7 @@ index=data_transfer earliest=-30d
 - **References:** [Saudi Personal Data Protection Law](https://sdaia.gov.sa/en/SDAIA/about/Files/PersonalDataEnglish.pdf)
 
 ### UC-22.50.24 · Basel III OPR25.1 — Operational risk event capture and loss-data aggregation
-- **Criticality:** 🔴 High
+- **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** IT Operations
@@ -38826,7 +38826,7 @@ index=risk_events sourcetype IN (oprisk_events, incident_mgmt) earliest=-30d
 - **References:** [Basel III — Operational Risk (OPR25)](https://www.bis.org/bcbs/publ/d516.htm)
 
 ### UC-22.50.25 · Basel III OPR25.8 — Business continuity and resilience: recovery objective monitoring
-- **Criticality:** 🔴 High
+- **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** IT Operations
@@ -38853,7 +38853,7 @@ index=bcp_dr sourcetype IN (bcp_test_results, dr_failover, backup_verification) 
 - **References:** [Basel III — Operational Risk (OPR25)](https://www.bis.org/bcbs/publ/d516.htm)
 
 ### UC-22.50.26 · COBIT APO13.01 — ISMS establishment: security-policy compliance and control-effectiveness monitoring
-- **Criticality:** 🔴 High
+- **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** Security
@@ -38878,7 +38878,7 @@ index=grc_compliance sourcetype IN (policy_compliance, control_assessment) earli
 - **References:** [COBIT 2019 Framework](https://www.isaca.org/resources/cobit)
 
 ### UC-22.50.27 · COBIT DSS05.03 — Endpoint security management: endpoint protection coverage and compliance
-- **Criticality:** 🔴 High
+- **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** Security
@@ -38931,7 +38931,7 @@ index=grc_compliance sourcetype IN (control_exceptions, audit_findings) earliest
 - **References:** [COBIT 2019 Framework](https://www.isaca.org/resources/cobit)
 
 ### UC-22.50.29 · COPPA §312.3 — Verifiable parental consent: consent-record completeness and audit trail
-- **Criticality:** 🔴 High
+- **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** Security
@@ -38957,7 +38957,7 @@ index=user_mgmt sourcetype IN (registration, consent_records) earliest=-30d
 - **References:** [COPPA Rule (16 CFR Part 312)](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-312)
 
 ### UC-22.50.30 · COPPA §312.8 — Data security and confidentiality: protective-control evidence for children's data
-- **Criticality:** 🔴 High
+- **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** Security
@@ -38983,7 +38983,7 @@ index=dlp OR index=access_logs sourcetype IN (dlp_events, data_access_audit) ear
 - **References:** [COPPA Rule (16 CFR Part 312)](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-312)
 
 ### UC-22.50.31 · COSO Principle 1 — Commitment to integrity: ethics-hotline and code-of-conduct violation monitoring
-- **Criticality:** 🔴 High
+- **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
 - **Splunk Pillar:** IT Operations
@@ -39008,7 +39008,7 @@ index=hr_compliance sourcetype IN (ethics_hotline, conduct_violations) earliest=
 - **References:** [COSO Internal Control — Integrated Framework (2013)](https://www.coso.org/guidance-on-ic)
 
 ### UC-22.50.32 · COSO Principle 5 — Accountability enforcement: segregation-of-duties and access-review evidence
-- **Criticality:** 🔴 High
+- **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** Security
@@ -39033,7 +39033,7 @@ index=iam sourcetype IN (role_assignments, sod_violations, access_reviews) earli
 - **References:** [COSO Internal Control — Integrated Framework (2013)](https://www.coso.org/guidance-on-ic)
 
 ### UC-22.50.33 · COSO Principle 11 — Technology general controls: IT change-management and configuration-drift monitoring
-- **Criticality:** 🔴 High
+- **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** IT Operations
@@ -39084,7 +39084,7 @@ index=grc_compliance sourcetype IN (monitoring_programme, control_deficiency) ea
 - **References:** [COSO Internal Control — Integrated Framework (2013)](https://www.coso.org/guidance-on-ic)
 
 ### UC-22.50.35 · FERPA §99.31 — Disclosure-without-consent monitoring: education-record access audit trail
-- **Criticality:** 🔴 High
+- **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** Security
@@ -39139,7 +39139,7 @@ index=sis_access sourcetype IN (education_record_disclosure, data_sharing_log) e
 - **References:** [FERPA (34 CFR Part 99)](https://www.ecfr.gov/current/title-34/subtitle-A/part-99)
 
 ### UC-22.50.37 · GLBA §314.4(b) — Risk assessment: information-security risk identification and tracking
-- **Criticality:** 🔴 High
+- **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** Security
@@ -39166,7 +39166,7 @@ index=grc_compliance sourcetype IN (risk_assessment, vuln_scan_summary) earliest
 - **References:** [GLBA Safeguards Rule (16 CFR Part 314)](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314)
 
 ### UC-22.50.38 · GLBA §314.4(c)(1) — Access controls: customer-information access governance and least-privilege enforcement
-- **Criticality:** 🔴 High
+- **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** Security
@@ -39194,7 +39194,7 @@ index=iam sourcetype IN (access_log, privilege_changes) earliest=-30d
 
 ### UC-22.50.39 · GLBA §314.4(d)(2) — Continuous monitoring: security-event detection and response-readiness evidence
 
-- **Criticality:** 🔴 High
+- **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** Security
@@ -39220,8 +39220,8 @@ index=iam sourcetype IN (access_log, privilege_changes) earliest=-30d
 - **References:** [GLBA Safeguards Rule (16 CFR Part 314)](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314)
 
 ### UC-22.50.40 · UN R155 7.2.2.2 — Vehicle cybersecurity risk assessment and mitigation monitoring
-- **Criticality:** 🔴 High
-- **Difficulty:** 🟣 Advanced
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** Security
 - **Regulations:** UN R155
@@ -39247,7 +39247,7 @@ index=vsoc sourcetype IN (tara_assessment, vehicle_vuln_tracker) earliest=-90d
 
 ### UC-22.50.41 · UN R155 7.2.2.5 — Cyber attack monitoring: VSOC detection and response evidence
 - **Criticality:** 🔴 Critical
-- **Difficulty:** 🟣 Advanced
+- **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** Security
 - **Regulations:** UN R155
@@ -39271,8 +39271,8 @@ index=vsoc sourcetype IN (tara_assessment, vehicle_vuln_tracker) earliest=-90d
 - **References:** [UN Regulation No. 155 — Cyber Security](https://unece.org/transport/documents/2021/03/standards/un-regulation-no-155-cyber-security-and-cyber-security)
 
 ### UC-22.50.42 · UN R156 7.1.1 — Software update management: OTA deployment tracking and integrity verification
-- **Criticality:** 🔴 High
-- **Difficulty:** 🟣 Advanced
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** IT Operations
 - **Regulations:** UN R156
@@ -39323,8 +39323,8 @@ index=ota_updates sourcetype IN (ota_audit_log, sw_version_registry) earliest=-9
 - **References:** [UN Regulation No. 156 — Software Updates](https://unece.org/transport/documents/2021/03/standards/un-regulation-no-156-software-update-and-software-update)
 
 ### UC-22.50.44 · FERC Order 887 — Internal network security monitoring for bulk electric systems
-- **Criticality:** 🔴 High
-- **Difficulty:** 🟣 Advanced
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** Security
 - **Regulations:** FERC CIP
@@ -39349,8 +39349,8 @@ index=ot_network sourcetype IN (bes_network_flow, esp_firewall, ot_ids) earliest
 - **References:** [FERC Critical Infrastructure Protection](https://www.ferc.gov/industries-data/electric/industry-activities/critical-infrastructure-protection)
 
 ### UC-22.50.45 · FERC Order 893 — Supply chain risk management for BES systems
-- **Criticality:** 🔴 High
-- **Difficulty:** 🟣 Advanced
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Security
 - **Splunk Pillar:** Security
 - **Regulations:** FERC CIP

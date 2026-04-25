@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.23.json — DO NOT EDIT -->
+
 ---
 id: "1.2.23"
 title: "Non-Paged Pool Exhaustion"
@@ -13,7 +15,7 @@ Non-paged pool memory is limited kernel memory. Exhaustion causes BSOD (DRIVER_I
 
 ## Value
 
-Non-paged pool memory is limited kernel memory. Exhaustion causes BSOD (DRIVER_IRQL_NOT_LESS_OR_EQUAL). Often caused by driver leaks.
+Nonpaged pool exhaustion is a kernel-level stop risk—earlier than waiting for a random hang with no user-facing error code.
 
 ## Implementation
 
@@ -57,11 +59,11 @@ The first pipeline stage scopes events using **index**: perfmon; **sourcetype**:
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct
-                        avg(Performance.swap_used_percent) as swap_pct
+| tstats `summariesonly` avg(Performance.mem_used) as mem_used
   from datamodel=Performance where nodename=Performance.Memory
-  by Performance.host span=5m
-| where mem_pct > 95 OR swap_pct > 20
+  by Performance.host span=15m
+| eval mem_MB = mem_used/1048576
+| where mem_MB > 256
 ```
 
 Understanding this CIM / accelerated SPL
@@ -98,11 +100,11 @@ index=perfmon sourcetype="Perfmon:Memory" counter="Pool Nonpaged Bytes"
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct
-                        avg(Performance.swap_used_percent) as swap_pct
+| tstats `summariesonly` avg(Performance.mem_used) as mem_used
   from datamodel=Performance where nodename=Performance.Memory
-  by Performance.host span=5m
-| where mem_pct > 95 OR swap_pct > 20
+  by Performance.host span=15m
+| eval mem_MB = mem_used/1048576
+| where mem_MB > 256
 ```
 
 ## Visualization

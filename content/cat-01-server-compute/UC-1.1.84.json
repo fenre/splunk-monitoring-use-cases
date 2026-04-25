@@ -8,25 +8,32 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=top`",
+  "dataSources": "`sourcetype=top` (Splunk_TA_nix per-process CPU fields)",
   "app": "`Splunk_TA_nix`",
-  "spl": "index=os sourcetype=top host=*\n| stats avg(cpu_pct) as avg_cpu by host, process\n| where avg_cpu > 80",
-  "description": "Runaway processes consuming excessive CPU degrade performance for all workloads on the host.",
-  "value": "Runaway processes consuming excessive CPU degrade performance for all workloads on the host.",
-  "implementation": "Use Splunk_TA_nix top input to track per-process CPU usage. Create alerts for processes consistently exceeding 80% CPU. Include user, parent process, and command line context. Suggest kill or scaling actions.",
+  "spl": "index=os sourcetype=top host=*\n| stats avg(cpu_pct) as avg_cpu by host, process\n| where avg_cpu>80",
+  "description": "Averages per-process **cpu_pct** from `top` samples in the search window and flags **(host,process)** pairs above an **80**% average—tune to your workload class.",
+  "value": "A single hot process on a shared host can starve others even when **vmstat** still looks “OK”; `top` granularity is the fastest path to the binary name for support teams.",
+  "implementation": "Field may be **pctCPU** or **pcpu** depending on TA version—normalize in **props**. Add `| where count>10` on underlying events to require enough samples before paging.",
   "visualization": "Table, Timechart",
   "cimModels": [
-    "N/A"
+    "Endpoint.Processes"
   ],
+  "cimSpl": "| tstats `summariesonly` avg(Processes.cpu_load_percent) as avg_cpu from datamodel=Endpoint.Processes by Processes.dest Processes.process_name span=5m | where avg_cpu>80",
+  "dataModelAcceleration": "Enable **Endpoint.Processes** acceleration after `top`/`ps` is mapped with **cpu_load_percent** per process (CIM field names may differ—align `Fieldsummary` first).",
+  "knownFalsePositives": "**gzip** during backup hour; **java** GC spikes; **containers** where **process** names collapse to `java`—add **container** id from **cgroup** in a follow-on use case.",
   "references": [
     {
-      "title": "Splunk_TA_nix",
+      "title": "Splunk Add-on for Unix and Linux",
       "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "CIM: Endpoint",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
     }
   ],
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`.\n• Ensure the following data sources are available: `sourcetype=top`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse Splunk_TA_nix top input to track per-process CPU usage. Create alerts for processes consistently exceeding 80% CPU. Include user, parent process, and command line context. Suggest kill or scaling actions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=top host=*\n| stats avg(cpu_pct) as avg_cpu by host, process\n| where avg_cpu > 80\n```\n\nUnderstanding this SPL\n\n**Runaway Process Detection (CPU Hog)** — Runaway processes consuming excessive CPU degrade performance for all workloads on the host.\n\nDocumented **Data sources**: `sourcetype=top`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: top. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=top. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, process** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where avg_cpu > 80` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Timechart",
-  "grandmaExplanation": "Runaway processes consuming excessive CPU degrade performance for all workloads on the host — so you find out before users do when something is slowing down or breaking."
+  "detailedImplementation": "Prerequisites\n• `top` script enabled; confirm **cpu_pct** exists with a short **Fieldsummary**.\n\n**CIM** — If `Processes.cpu_load_percent` does not exist in your build, adjust `cimSpl` to the field your **CIM** engineer published for per-process CPU.\n\n\nStep 3 — Validate\nRun `top` or `htop` on the host and **pidstat** for one-minute **CPU** proof; compare the **process** string to Splunk (watch for **truncation**).\n\nStep 4 — Operationalize\nUse the same panel next to the **CPU utilization trending** host-level UC for context.\n\n",
+  "grandmaExplanation": "We help you spot one program that is eating most of the processor for a while, so you can stop it or fix it before everything else on the machine feels slow."
 }

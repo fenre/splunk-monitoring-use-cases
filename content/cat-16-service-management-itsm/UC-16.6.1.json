@@ -19,6 +19,7 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "PagerDuty — Escalation policies",
@@ -29,6 +30,7 @@
       "url": "https://lantern.splunk.com/"
     }
   ],
+  "knownFalsePositives": "Views and deflection move after comms, training, launches, and when ticket types shift without a process fault.",
   "equipment": [
     "pagerduty"
   ],
@@ -40,5 +42,6 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We measure how often incidents are not acknowledged within the time your playbook allows. If that happens a lot, the escalation ladder is not matching real life."
+  "grandmaExplanation": "We measure how often incidents are not acknowledged within the time your playbook allows. If that happens a lot, the escalation ladder is not matching real life.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: PagerDuty REST API poller or Event Orchestration webhook normalizer.\n• Data: `index=alerts` `sourcetype=pagerduty:incident` with `escalation_policy`, `escalation_levels`, `first_acknowledgement_at`, `created_at`.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nMap `step_timeout` from exported escalation policy JSON if not on each incident. Treat `missed` carefully for low-urgency incidents. Pair with schedule coverage UCs for root cause.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"pagerduty:incident\"\n| eval created_epoch=coalesce(created_at_epoch, strptime(created_at, \"%Y-%m-%dT%H:%M:%SZ\"))\n| eval ack_epoch=coalesce(first_acknowledgement_at_epoch, strptime(first_acknowledgement_at, \"%Y-%m-%dT%H:%M:%SZ\"))\n| eval ack_delay_sec=ack_epoch-created_epoch\n| eval step_timeout=coalesce(escalation_policy_step_timeout_sec, 600)\n| eval missed_step=if(isnull(ack_epoch) OR ack_delay_sec > step_timeout,1,0)\n| bin _time span=1d\n| stats count as inc, sum(missed_step) as missed by _time, escalation_policy, service_name\n| eval timeout_rate=round(100*missed/nullif(inc,0),2)\n| where timeout_rate > 15 AND inc >= 5\n| sort -timeout_rate\n```\n\nUnderstanding this search\nEscalation policies encode contractual response times; when acknowledgements consistently arrive after configured step timeouts, teams burn trust in paging and auto-escalations become noise. Measuring timeout_rate per policy surfaces rotation and training gaps.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Line chart (timeout_rate by policy), stacked bar (missed vs met), table of worst services."
 }

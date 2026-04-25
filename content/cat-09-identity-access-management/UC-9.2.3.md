@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.2.3.json — DO NOT EDIT -->
+
 ---
 id: "9.2.3"
 title: "Schema Modification Audit"
@@ -79,7 +81,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the directory server’s admin or audit view (bind DNs, result codes) for the same time range.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (schema changes), Table (change details), Single value (schema changes this month).
@@ -105,10 +107,6 @@ index=ldap sourcetype="openldap:audit"
 ## Visualization
 
 Timeline (schema changes), Table (change details), Single value (schema changes this month).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

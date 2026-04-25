@@ -19,6 +19,7 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "PagerDuty App for Splunk",
@@ -29,6 +30,7 @@
       "url": "https://splunkbase.splunk.com/app/3759"
     }
   ],
+  "knownFalsePositives": "Deep escalations from real sev-1s, on-call load, or people stepping away at the wrong moment; separate a bad week from a broken policy.",
   "equipment": [
     "pagerduty"
   ],
@@ -38,5 +40,7 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases"
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We look for the chain that should page people until someone answers, but runs all the way out, so a real sev-1 is not a silent one.",
+  "detailedImplementation": "Prerequisites\n• Install and configure: PagerDuty REST API incremental pull.\n• Data: `pagerduty:incident` with `escalation_count`, `created_at_epoch`.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nMap policy names to business services; page leadership only after validation.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"pagerduty:incident\"\n| where escalation_count >= 4 AND status != \"resolved\"\n| eval age_m=(now()-created_at_epoch)/60\n| where age_m > 30\n| table incident_number, service_name, escalation_policy, age_m, status\n| sort -age_m\n```\n\nUnderstanding this search\nDeep escalations burn out multiple responder tiers for one root cause.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Timeline, Table (open incidents)."
 }

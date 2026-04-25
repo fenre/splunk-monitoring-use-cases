@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.16.json — DO NOT EDIT -->
+
 ---
 id: "5.13.16"
 title: "Network Health Score Overview"
@@ -69,6 +71,7 @@ Step 5 — Troubleshooting
 • **100% while users complain**—this is a **synthetic** health score: triangulate with **client** and **device** UCs the same hour.
 • **`_time` vs API `updateTime`:** for audit, compare raw JSON; Splunk’s `_time` is usually **ingest** unless the **TA** sets it from a JSON field.
 
+
 ## SPL
 
 ```spl
@@ -83,3 +86,4 @@ Single value (health_score and healthy_pct), table for historical snapshots, sim
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.7.json — DO NOT EDIT -->
+
 ---
 id: "1.2.7"
 title: "Account Lockout Tracking"
@@ -13,7 +15,7 @@ Lockouts frustrate users and can indicate active attacks. Identifying the source
 
 ## Value
 
-Lockouts frustrate users and can indicate active attacks. Identifying the source computer of the lockout dramatically speeds resolution.
+Lockouts block real work; tying user, source, and time cuts minutes off every ticket and highlights repeat offenders.
 
 ## Implementation
 
@@ -56,10 +58,9 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src span=1h
-| where count > 10
+  from datamodel=Authentication where nodename=Authentication
+  by Authentication.user Authentication.src Authentication.dest span=1h
+| where count>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -96,10 +97,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4740
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src span=1h
-| where count > 10
+  from datamodel=Authentication where nodename=Authentication
+  by Authentication.user Authentication.src Authentication.dest span=1h
+| where count>0
 ```
 
 ## Visualization

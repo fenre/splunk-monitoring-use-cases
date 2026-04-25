@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.79.json — DO NOT EDIT -->
+
 ---
 id: "1.2.79"
 title: "Sysmon DNS Query Logging"
@@ -13,7 +15,7 @@ Per-process DNS query logging reveals which applications communicate with which 
 
 ## Value
 
-Per-process DNS query logging reveals which applications communicate with which domains. Detects DGA, C2 callbacks, and data exfiltration at the endpoint level.
+Seeing which application resolves which name helps find malware that uses fast-changing domain names, odd volumes of lookups, or calls home from processes that should be quiet.
 
 ## Implementation
 
@@ -52,9 +54,20 @@ The first pipeline stage scopes events using **index**: wineventlog; **sourcetyp
 
 • Scopes the data: index=wineventlog, sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where NOT match(QueryName, "(?i)(microsoft\.com|windowsupdate\.com|office\.com|bing\.com|msftconnecttest)")` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by Image, host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by Image, host** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where unique_domains > 100` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Optional CIM / accelerated variant (Sysmon 22 → `Network_Resolution.DNS` — confirm `query`/`process` aliases in your CIM add-on):
+
+```spl
+| tstats `summariesonly` dc(DNS.query) as uq
+  from datamodel=Network_Resolution where nodename=Network_Resolution.DNS
+  by DNS.process DNS.dest span=1h
+| where uq > 100
+```
+
+Enable **data model acceleration** on `Network_Resolution`. The primary `EventCode=22` search is definitive if CIM mapping is not available.
 
 
 Step 3 — Validate
@@ -73,6 +86,15 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 | sort -unique_domains
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` dc(DNS.query) as uq
+  from datamodel=Network_Resolution where nodename=Network_Resolution.DNS
+  by DNS.process DNS.dest span=1h
+| where uq > 100
+```
+
 ## Visualization
 
 Table (queries by process), Bar chart (top resolving processes), Sankey diagram (process→domain).
@@ -80,3 +102,4 @@ Table (queries by process), Bar chart (top resolving processes), Sankey diagram 
 ## References
 
 - [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+- [CIM: Network Resolution](https://docs.splunk.com/Documentation/CIM/latest/User/NetworkResolution)

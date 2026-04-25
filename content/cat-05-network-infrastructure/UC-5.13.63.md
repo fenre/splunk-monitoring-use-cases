@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.63.json — DO NOT EDIT -->
+
 ---
 id: "5.13.63"
 title: "Wireless Client Experience Score by SSID"
@@ -22,13 +24,11 @@ Use the **TA’s existing inputs** (no custom Intent poller for this UC if the f
 ## Detailed Implementation
 
 Prerequisites
-• `Cisco Catalyst Add-on for Splunk` (7538) with `client` and ideally `clienthealth` inputs enabled to `index=catalyst` (see UCs in this category that use client telemetry).
+• `Cisco Catalyst Add-on for Splunk` (7538) with `client` and, if available, `clienthealth` inputs to `index=catalyst` (Intent API client listing and health).
 
-Step 1 — TA data path
-- `cisco:dnac:client` — from Catalyst Center client list/detail polling; should include `connectionType` (filter `WIRELESS`), `ssid` or equivalent BSSID-SSID resolution, `macAddress`, and experience fields (`healthScore` or the TA’s mapping).
-- `cisco:dnac:clienthealth` — optional additional enrichment if you build a `join` on `macAddress` for richer per-client KPIs; the default SPL averages within `cisco:dnac:client` only.
-
-Run `| fieldsummary` on a small window to confirm `healthScore`, `rssi`, and `ssid` field names; alias in `props.conf` if the TA uses different case.
+Step 1 — TA data path (Catalyst Center)
+• `cisco:dnac:client` should include `connectionType` (use `WIRELESS`), `ssid`, `macAddress`, and a numeric experience field such as `healthScore` (confirm with `| fieldsummary`).
+• `cisco:dnac:clienthealth` is optional for a **join** on `macAddress` if you need richer per-client metrics than this aggregate gives.
 
 Step 2 — Search
 
@@ -37,13 +37,14 @@ index=catalyst sourcetype="cisco:dnac:client" connectionType="WIRELESS" | stats 
 ```
 
 Step 3 — Optional join
-`index=catalyst (sourcetype="cisco:dnac:client" OR sourcetype="cisco:dnac:clienthealth")` then `stats` or `join` on `macAddress` for composite scoring.
+`index=catalyst (sourcetype="cisco:dnac:client" OR sourcetype="cisco:dnac:clienthealth")` with `join` or `stats` on `macAddress` when the TA stores scores only on the health sourcetype.
 
 Step 4 — Validate
-Compare top/bottom SSIDs to Catalyst Center Wireless → Clients / assurance insights.
+• Compare a few SSIDs to **Catalyst Center > Wireless > Clients** and any Assurance “experience” view for the same time window. Watch for `ssid` that is BSSID or internal — normalize in **props** if required.
 
-Step 5 — Operationalize
-Wi-Fi engineering review weekly; not a replacement for 802.11 on-site survey but a fleet-wide health signal.
+Step 5 — Operationalize and troubleshooting
+• **Weekly** Wi-Fi review: focus on the bottom SSIDs, not a single outlier client. **No `ssid`:** the TA may use `wlan` or a profile name — add `coalesce` in `stats by` until fields match the UI. **RSSI in wrong units:** some builds store dBm as negative; keep comparisons consistent. **This is not a site survey** — it is a fleet hint for triage, not a replacement for on-site validation.
+
 
 ## SPL
 

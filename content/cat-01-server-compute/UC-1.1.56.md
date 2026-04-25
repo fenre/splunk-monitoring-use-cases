@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.56.json — DO NOT EDIT -->
+
 ---
 id: "1.1.56"
 title: "Firewall Rule Hit Tracking (iptables/nftables)"
@@ -9,55 +11,37 @@ splunkPillar: "Security"
 
 ## Description
 
-Firewall rule tracking identifies blocked traffic patterns, helping optimize rules and detect attack attempts.
+Builds a top-list of kernel-style firewall block lines that mention UFW or explicit DENY/REJECT/DROP actions, to spot surges in blocked flows by source, port, and protocol.
 
 ## Value
 
-Firewall rule tracking identifies blocked traffic patterns, helping optimize rules and detect attack attempts.
+A sudden climb in denials for a single port or address range is often a scan, a mis-pointed client, or a policy bug—metrics here shorten triage for both security and app teams.
 
 ## Implementation
 
-Enable firewall logging in iptables/nftables. Configure kernel logging for denied traffic. Create alerts for spike in dropped packets to specific ports, and trending reports on top blocked IPs.
+Make sure your logging rules prefix messages so the search can see them. Lower `>100` in quiet segments or add time bucketing in a follow-on alert. Extract `src`, `dst_port`, and `protocol` with your props; if missing, add `REX` temporarily in the base search.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
-• Ensure the following data sources are available: `sourcetype=syslog, kernel ufw/firewall logs`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+• On each host, enable **iptables** or **nftables** `LOG` for deny actions you care about, and forward **kern**-priority syslog to the Splunk input already managed by the TA.
 
 Step 1 — Configure data collection
-Enable firewall logging in iptables/nftables. Configure kernel logging for denied traffic. Create alerts for spike in dropped packets to specific ports, and trending reports on top blocked IPs.
+Map vendor-specific strings; UFW labels lines with `[UFW` while raw iptables might only show `IN=... OUT=...`. Use **props** to normalize to `action`, `src`, and `dst_port`.
 
 Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+The SPL groups high-volume denials. Start with a **report**; promote to an **alert** only after the volume threshold matches your noise floor.
 
-```spl
-index=os sourcetype=syslog "ufw" ("DENY" OR "REJECT" OR "DROP")
-| stats count by host, src, dst_port, protocol
-| where count > 100
-```
-
-Understanding this SPL
-
-**Firewall Rule Hit Tracking (iptables/nftables)** — Firewall rule tracking identifies blocked traffic patterns, helping optimize rules and detect attack attempts.
-
-Documented **Data sources**: `sourcetype=syslog, kernel ufw/firewall logs`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, src, dst_port, protocol** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where count > 100` — typically the threshold or rule expression for this monitoring goal.
+**Understanding this SPL** — A straight count by tuple; adjust OR clauses if you standardize on `action=deny` instead of raw substrings.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On host, `iptables -L -n` / `nft list ruleset` to confirm the rule you think is logging; use `tcpdump` or `conntrack` if you also need to prove the packet really reached the policer.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Bar Chart
+Feed top sources into a threat or CMDB workflow; for benign partners, add CIDRs to an allow list rather than silencing the whole use case.
+
+
 
 ## SPL
 
@@ -73,4 +57,5 @@ Table, Bar Chart
 
 ## References
 
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

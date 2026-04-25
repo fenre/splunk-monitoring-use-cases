@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.3.1.json — DO NOT EDIT -->
+
 ---
 id: "4.3.1"
 title: "Audit Log Monitoring"
@@ -53,7 +55,7 @@ The first pipeline stage scopes events using **index**: gcp; **sourcetype**: goo
 • Scopes the data: index=gcp, sourcetype="google:gcp:pubsub:message". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Extracts structured paths (JSON/XML) with `spath`.
 • Extracts structured paths (JSON/XML) with `spath`.
-• `stats` rolls up events into metrics; results are split **by principal, method** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by principal, method** so each row reflects one combination of those dimensions.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
@@ -67,18 +69,17 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 Understanding this CIM / accelerated SPL
 
-**Audit Log Monitoring** — GCP audit logs capture all admin activity and data access. Foundational for security monitoring and compliance in GCP environments.
+**Audit Log Monitoring** — GCP audit logs capture all admin activity and data access.
 
-Documented **Data sources**: `sourcetype=google:gcp:pubsub:message` (via Pub/Sub). **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
 
 
 Step 3 — Validate

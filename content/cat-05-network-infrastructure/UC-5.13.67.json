@@ -15,10 +15,11 @@
   "description": "Correlates real-time webhook event notifications with the TA's polled issue data to verify comprehensive coverage and identify events that only appear in one data stream.",
   "value": "Running both push (webhook) and pull (TA polling) channels provides defense-in-depth. Correlation validates that both pipelines are capturing the same events.",
   "implementation": "**Push path:** HEC to `index=catalyst` `sourcetype=cisco:dnac:event:notification` (UC-5.13.64). **Pull path:** TA `issue` input → `cisco:dnac:issue` (UC-5.13.21), Intent API `GET /dna/intent/api/v1/issues`.\n\n**Correlation key:** The SPL assumes a shared identifier `eventId` on webhook events can join to `issueId` in TA issue events (`| rename issueId as eventId`). If your Catalyst Center payload uses a different name (`id`, `eventUuid`), update the `join` and `rename` to match. If no stable shared ID exists, use secondary correlation: `last(deviceId) + strftime` window or `left` time-based join within ±5m — that alternative is not in the base SPL here.\n\n**HEC setup:** Webhook to `https://<splunk>:8088/services/collector/event`, `Authorization: Splunk <HEC-token>`, `sourcetype=cisco:dnac:event:notification`.",
-  "visualization": "Table of `data_source` distribution, pie of Full coverage vs Webhook-only, optional Sankey (webhook stream vs issues stream) if you export to a data model.",
+  "visualization": "Table of `data_source` distribution, pie of Full coverage vs Webhook-only, optional Sankey in a third-party or Splunk visualization app to compare webhook and polled streams.",
   "cimModels": [
     "N/A"
   ],
+  "knownFalsePositives": "Webhook-only rows are common when the issues poller lags 15 minutes behind or when Catalyst emits an event that never becomes a persisted issue, which is a pipeline timing difference, not an outage. Mismatched IDs after an API upgrade can also make healthy dual-path reporting look one-sided until you update the `join` on `eventId` versus `issueId`.",
   "references": [
     {
       "title": "Splunkbase app 7538",

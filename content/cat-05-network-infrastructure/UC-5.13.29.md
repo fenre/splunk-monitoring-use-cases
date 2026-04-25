@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.29.json — DO NOT EDIT -->
+
 ---
 id: "5.13.29"
 title: "Non-Compliant Device Alerting"
@@ -76,3 +78,4 @@ Table (violation_count, violation_types by device), list panel for email or tick
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

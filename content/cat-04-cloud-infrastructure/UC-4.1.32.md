@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.32.json — DO NOT EDIT -->
+
 ---
 id: "4.1.32"
 title: "NAT Gateway Bytes Processed and Connection Tracking"
@@ -62,6 +64,15 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ```spl
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/NATGateway"
 | timechart span=1h sum(Sum) as bytes, avg(Average) as connections by NatGatewayId
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Performance.Performance
+  by Performance.object Performance.app span=1h
+| sort -count
 ```
 
 ## Visualization

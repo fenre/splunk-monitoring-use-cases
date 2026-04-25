@@ -12,13 +12,13 @@
   "dataSources": "`veeam:backup` / `veeam:job` completion rows with `job_name`, `end_time`, and backup copy metadata",
   "app": "Veeam App for Splunk (Splunkbase 7312) or TA-ingested job history",
   "spl": "index=backup (sourcetype=\"veeam:backup\" OR sourcetype=\"veeam:job\") earliest=-30d\n| eval jn=coalesce(job_name, JobName)\n| where match(jn,\"(?i)copy\")\n| eval end_epoch=coalesce(if(isnum(end_time), end_time, null()), strptime(job_end,\"%Y-%m-%d %H:%M:%S\"), strptime(job_end,\"%Y-%m-%dT%H:%M:%S%Z\"))\n| stats latest(end_epoch) as last_success by jn\n| eval days_since=round((now()-last_success)/86400,1)\n| where isnotnull(last_success) AND days_since > 7\n| sort - days_since",
+  "cimModels": [
+    "N/A"
+  ],
   "description": "Backup copy jobs carry Grandfather-Father-Son (GFS) anchors for compliance; if no successful copy lands within the policy window, offsite retention gaps violate internal and external audit requirements.",
   "value": "Protects legal hold and ransomware recovery postures by catching WAN outages, repository auth failures, or scheduling mistakes before quarterly reviews.",
   "implementation": "Tag backup copy jobs in Veeam with a consistent naming prefix. Adjust `days_since` threshold to match the tightest GFS interval (weekly anchor = 7 days). Join to a lookup of regulated workloads for routing severity. Use `veeam_vbr_syslog` with the same filters if REST ingestion is unavailable.",
   "visualization": "Table (job, days since success), timeline of successes, single value (worst gap).",
-  "cimModels": [
-    "N/A"
-  ],
   "references": [
     {
       "title": "Veeam App for Splunk (Splunkbase)",
@@ -29,11 +29,13 @@
       "url": "https://helpcenter.veeam.com/docs/backup/vsphere/backup_copy.html"
     }
   ],
+  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
   "equipment": [
     "syslog",
     "veeam"
   ],
   "status": "draft",
+  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early.",
   "lastReviewed": "2026-04-24",
   "splunkVersions": [
     "9.2+",

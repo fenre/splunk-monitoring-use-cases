@@ -12,19 +12,22 @@
   "dataSources": "Upstream `connection refused` aligned with FPM saturation confirms worker exhaustion.",
   "app": "Splunk Universal Forwarder; optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`); custom `props.conf`/`transforms.conf` for `phpfpm:*` sourcetypes",
   "spl": "index=web (sourcetype=\"nginx:error\" OR sourcetype=\"haproxy:http\")\n| regex _raw=\"(?i)(connect\\(\\) failed.*9000|Connection refused)\"\n| bin _time span=1m\n| stats count as refused by host, _time\n| join host _time [\n    search index=web sourcetype=\"phpfpm:status\" earliest=-2m latest=+2m\n    | bin _time span=1m\n    | stats max(active_processes) as act max(max_children) as mc by host, _time\n]\n| eval saturated=if(mc>0 AND act>=mc*0.95, 1, 0)\n| where refused > 0 AND saturated == 1",
-  "description": "Upstream connection refused errors timed with FPM at `max_children` confirm worker exhaustion rather than network partitions.",
-  "value": "Narrows blame between PHP, proxy, and network teams during incidents.",
-  "implementation": "Ingest nginx/haproxy error logs; time-align with `phpfpm:status` snapshots. Adjust join window for poll interval.",
-  "visualization": "Time series (pool utilization, queue, latency percentiles), single value alerts, top charts for scripts and methods.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
+  "description": "Upstream connection refused errors timed with FPM at `max_children` confirm worker exhaustion rather than network partitions.",
+  "value": "Narrows blame between PHP, proxy, and network teams during incidents.",
+  "grandmaExplanation": "We watch for signs that narrows blame between PHP, proxy, and network teams during incidents.",
+  "implementation": "Ingest nginx/haproxy error logs; time-align with `phpfpm:status` snapshots. Adjust join window for poll interval.",
+  "visualization": "Time series (pool utilization, queue, latency percentiles), single value alerts, top charts for scripts and methods.",
   "references": [
     {
       "title": "PHP-FPM configuration",
       "url": "https://www.nginx.com/resources/wiki/start/topics/tutorials/config_pitfalls/"
     }
   ],
+  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
   "equipment": [
     "haproxy",
     "linux",
@@ -41,5 +44,5 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch your PHP worker pools so busy sites do not run out of hands to answer requests."
+  "detailedImplementation": ""
 }

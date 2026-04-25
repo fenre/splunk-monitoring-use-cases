@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.42.json — DO NOT EDIT -->
+
 ---
 id: "1.2.42"
 title: ".NET CLR Performance Monitoring"
@@ -13,7 +15,7 @@ splunkPillar: "Observability"
 
 ## Value
 
-.NET garbage collection pauses and high exception rates cause application latency and instability. CLR monitoring reveals issues invisible to external health checks.
+High GC% often foreshadows OOM, restarts, and slow pages—an app-centric lens on a server metric you already collect.
 
 ## Implementation
 
@@ -55,10 +57,10 @@ The first pipeline stage scopes events using **index**: perfmon; **sourcetype**:
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu
-  from datamodel=Performance where nodename=Performance.CPU
-  by Performance.host span=1h
-| where avg_cpu > 90
+| tstats `summariesonly` avg(Performance.mem_used) as m
+  from datamodel=Performance where nodename=Performance.Memory
+  by Performance.host span=5m
+| where m>0
 ```
 
 Understanding this CIM / accelerated SPL
@@ -71,8 +73,8 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.
-• Filters the current rows with `where avg_cpu > 90` — typically the threshold or rule expression for this monitoring goal.
+• Uses `tstats` on the CIM data model in `cimModels` (see the accelerated SPL block). Enable that model in Data Model Acceleration.
+• The `where` and `by` clauses mirror the intent of the primary SPL; if tstats is empty, confirm field aliases in Splunk CIM and the Windows TA.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
@@ -94,10 +96,10 @@ index=perfmon sourcetype="Perfmon:dotNET_CLR_Memory" counter="% Time in GC" inst
 ## CIM SPL
 
 ```spl
-| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu
-  from datamodel=Performance where nodename=Performance.CPU
-  by Performance.host span=1h
-| where avg_cpu > 90
+| tstats `summariesonly` avg(Performance.mem_used) as m
+  from datamodel=Performance where nodename=Performance.Memory
+  by Performance.host span=5m
+| where m>0
 ```
 
 ## Visualization

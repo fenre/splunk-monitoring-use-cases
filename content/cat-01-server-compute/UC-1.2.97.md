@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.97.json — DO NOT EDIT -->
+
 ---
 id: "1.2.97"
 title: "Print Spooler Vulnerability Monitoring (PrintNightmare)"
@@ -13,7 +15,7 @@ Print Spooler vulnerabilities (CVE-2021-34527, CVE-2021-1675) enable remote code
 
 ## Value
 
-Print Spooler vulnerabilities (CVE-2021-34527, CVE-2021-1675) enable remote code execution and privilege escalation. Continuous monitoring ensures patches hold and exploitation attempts are caught.
+The print spooler keeps showing up in critical security patches. Driver installs, new printers, and odd RPC to spooler remain key signals of repeat exploitation and misconfigurations.
 
 ## Implementation
 
@@ -70,6 +72,15 @@ index=wineventlog ((source="WinEventLog:Microsoft-Windows-PrintService/Operation
 | eval Indicator=case(EventCode=316,"Driver_Install", EventCode=808,"RestrictDriverInstallation", EventCode=11,"Driver_File_Drop", 1=1,"Other")
 | table _time, host, Indicator, UserName, DriverName, TargetFilename
 | sort -_time
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Endpoint.Processes
+  by Processes.user Processes.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.4.29.json — DO NOT EDIT -->
+
 ---
 id: "4.4.29"
 title: "Multi-Cloud Backup Recovery Testing"
@@ -57,7 +59,7 @@ The first pipeline stage scopes events using **index**: aws, azure, gcp; **sourc
 • `eval` defines or adjusts **ok** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **provider** — often to normalize units, derive a ratio, or prepare for thresholds.
 • `eval` defines or adjusts **app_name** — often to normalize units, derive a ratio, or prepare for thresholds.
-• `stats` rolls up events into metrics; results are split **by app_name, provider** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by app_name, provider** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where failed>0` — typically the threshold or rule expression for this monitoring goal.
 
 

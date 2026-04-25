@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.3.36.json — DO NOT EDIT -->
+
 ---
 id: "4.3.36"
 title: "Memorystore (Redis) Health"
@@ -50,10 +52,125 @@ The first pipeline stage scopes events using **index**: gcp; **sourcetype**: goo
 **Pipeline walkthrough**
 
 • Scopes the data: index=gcp, sourcetype="google:gcp:monitoring". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by resource.labels.instance_id, bin(_time, 5m)** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by resource.labels.instance_id, bin(_time, 5m)** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where mem_ratio > 0.9` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.mem_used_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.Memory
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Memorystore (Redis) Health** — Redis backs sessions and caches; memory pressure and replication lag cause timeouts and stale reads.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on accelerated data model `Performance.Memory` — enable that model in Data Models and CIM add-ons, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.mem_used_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.Memory
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Memorystore (Redis) Health** — Redis backs sessions and caches; memory pressure and replication lag cause timeouts and stale reads.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (Memory node)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.mem_used_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.Memory
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Memorystore (Redis) Health** — Redis backs sessions and caches; memory pressure and replication lag cause timeouts and stale reads.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (Memory node)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.mem_used_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.Memory
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Memorystore (Redis) Health** — Redis backs sessions and caches; memory pressure and replication lag cause timeouts and stale reads.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (Memory node)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats `summariesonly` avg(Performance.mem_used_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.Memory
+  by Performance.host span=5m
+| sort - agg_value
+```
+
+Understanding this CIM / accelerated SPL
+
+**Memorystore (Redis) Health** — Redis backs sessions and caches; memory pressure and replication lag cause timeouts and stale reads.
+
+If you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.
+
+**Pipeline walkthrough**
+
+• Uses `tstats` on the `Performance` data model (Memory node)—enable that model in Data Models and the CIM add-on, or the search may return no rows.
+
+• Uses `sort` to rank results; add `head` to limit the table.
+
+Enable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.
 
 Step 3 — Validate
 Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
@@ -70,6 +187,15 @@ index=gcp sourcetype="google:gcp:monitoring" metric.type="redis.googleapis.com/s
 | sort - mem_ratio
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` avg(Performance.mem_used_percent) as agg_value
+  from datamodel=Performance where nodename=Performance.Memory
+  by Performance.host span=5m
+| sort - agg_value
+```
+
 ## Visualization
 
 Line chart (memory ratio, CPU), Table (instance, tier), Single value (evictions if exported).
@@ -77,3 +203,4 @@ Line chart (memory ratio, CPU), Table (instance, tier), Single value (evictions 
 ## References
 
 - [Splunk_TA_google-cloudplatform](https://splunkbase.splunk.com/app/3088)
+- [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.1.29.json — DO NOT EDIT -->
+
 ---
 id: "6.1.29"
 title: "MDS Zone Configuration Compliance"
@@ -52,39 +54,17 @@ The first pipeline stage scopes events using **index**: network; **sourcetype**:
 **Pipeline walkthrough**
 
 • Scopes the data: index=network, sourcetype="cisco:mds". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by switch, vsan_id, zone_name, action, user** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by switch, vsan_id, zone_name, action, user** so each row reflects one combination of those dimensions.
 • Appends rows from a subsearch with `append`.
-• `stats` rolls up events into metrics; results are split **by vsan_id, zone_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by vsan_id, zone_name** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where NOT match(sources,"baseline")` — typically the threshold or rule expression for this monitoring goal.
 • Pipeline stage (see **MDS Zone Configuration Compliance**): table vsan_id, zone_name, sources
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.user | sort - count
-```
-
-Understanding this CIM / accelerated SPL
-
-**MDS Zone Configuration Compliance** — Zoning controls which initiators can communicate with which targets. Misconfigured zones create security risks (unauthorized access) and operational risks (accidental data access). Tracking zone changes and validating against a known-good baseline prevents drift.
-
-Documented **Data sources**: MDS syslog (zone change events), NX-API CLI (`show zone`, `show zoneset active`). **App/TA** (typical add-on context): `cisco:mds` syslog, scripted input (MDS NX-API / CLI). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
-
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare port and error counters with the switch CLI (`show interface`, `porterrshow`) or DCNM for the same switch, port, and interval.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (zone changes), Timeline (change events), Diff view (current vs baseline).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production—not generic platform steps only. Consider visualizations: Table (zone changes), Timeline (change events), Diff view (current vs baseline).
 
 ## SPL
 
@@ -97,16 +77,10 @@ index=network sourcetype="cisco:mds" "ZONE" ("added" OR "removed" OR "activated"
 | table vsan_id, zone_name, sources
 ```
 
-## CIM SPL
-
-```spl
-| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.user | sort - count
-```
-
 ## Visualization
 
 Table (zone changes), Timeline (change events), Diff view (current vs baseline).
 
 ## References
 
-- [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

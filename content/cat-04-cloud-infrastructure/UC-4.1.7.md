@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.7.json — DO NOT EDIT -->
+
 ---
 id: "4.1.7"
 title: "S3 Bucket Policy Changes"

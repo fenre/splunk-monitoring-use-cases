@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-4.1.62.json — DO NOT EDIT -->
+
 ---
 id: "4.1.62"
 title: "RDS Performance Insights Trending"
@@ -51,13 +53,17 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 
 • Scopes the data: index=aws, sourcetype="aws:cloudwatch". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `timechart` plots the metric over time using **span=1h** buckets with a separate series **by DBInstanceIdentifier** — ideal for trending and alerting on this use case.
-• `streamstats` rolls up events into metrics; results are split **by DBInstanceIdentifier** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `streamstats` rolls up events into metrics; results are split **by DBInstanceIdentifier** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where dbload > baseline * 1.5` — typically the threshold or rule expression for this monitoring goal.
 
 Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
 
 ```spl
-| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.CPU by Performance.host span=1h | sort - agg_value
+| tstats `summariesonly` max(Performance.cpu_load_percent) as load_proxy
+  from datamodel=Performance.Performance
+  where match(Performance.object, "(?i)dbinstance|RDS|aws/rds")
+  by Performance.object span=1h
+| sort - load_proxy
 ```
 
 Understanding this CIM / accelerated SPL
@@ -70,7 +76,7 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 
 **Pipeline walkthrough**
 
-• Uses `tstats` against accelerated summaries for data model `Performance.CPU` — enable acceleration for that model.
+• Uses `tstats` against accelerated summaries for data model `Performance.Performance` (mapped DB host or instance metrics) — enable acceleration for that model.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
@@ -94,7 +100,11 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS" metric_name="DBLoad" s
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.CPU by Performance.host span=1h | sort - agg_value
+| tstats `summariesonly` max(Performance.cpu_load_percent) as load_proxy
+  from datamodel=Performance.Performance
+  where match(Performance.object, "(?i)dbinstance|RDS|aws/rds")
+  by Performance.object span=1h
+| sort - load_proxy
 ```
 
 ## Visualization

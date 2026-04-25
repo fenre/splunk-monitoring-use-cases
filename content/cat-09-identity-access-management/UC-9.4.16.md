@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.4.16.json — DO NOT EDIT -->
+
 ---
 id: "9.4.16"
 title: "Vault Synchronization Failures"
@@ -51,12 +53,12 @@ The first pipeline stage scopes events using **index**: pam; **sourcetype**: cyb
 
 • Scopes the data: index=pam, sourcetype="cyberark:vault_replication". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where status!="Success" OR lag_seconds > 120` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by primary_vault, dr_vault** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by primary_vault, dr_vault** so each row reflects one combination of those dimensions.
 • Pipeline stage (see **Vault Synchronization Failures**): table primary_vault, dr_vault, lag_seconds, errs
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with CyberArk PrivateArk/Password Vault Web Access (or BeyondTrust / vendor console) for the same sessions, vault activity, and alerts.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (lag), Table (failed jobs), Status grid (primary × DR).
@@ -73,10 +75,6 @@ index=pam sourcetype="cyberark:vault_replication"
 ## Visualization
 
 Line chart (lag), Table (failed jobs), Status grid (primary × DR).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

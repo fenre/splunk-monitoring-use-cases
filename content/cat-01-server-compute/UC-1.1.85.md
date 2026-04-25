@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.85.json — DO NOT EDIT -->
+
 ---
 id: "1.1.85"
 title: "Memory Hog Detection"
@@ -9,62 +11,42 @@ splunkPillar: "Observability"
 
 ## Description
 
-Memory-consuming processes can cause OOM conditions affecting all applications on the host.
+Averages **mem_pct** per **(host,process)** from `top` samples in the window and surfaces processes that sit above **40**% of host memory on average—tune per your headroom policy.
 
 ## Value
 
-Memory-consuming processes can cause OOM conditions affecting all applications on the host.
+Memory hogs push the kernel toward **OOM**; seeing the process name early steers you to **cgroup** limits, config, or leak triage faster than host-level **free** alone.
 
 ## Implementation
 
-Monitor per-process memory percentage from top input. Create alerts for processes consistently exceeding 40% of system memory. Include growth trend and suggest right-sizing or memory limit enforcement.
+If your **top** feed uses **RSS** in **KB** instead of **mem_pct**, replace the `stats` with `avg(rss_kb)/mem_total_kb` after you join a **meminfo** snapshot for the same **host**+**_time**.
 
 ## Detailed Implementation
 
 Prerequisites
-• Install and configure the required add-on or app: `Splunk_TA_nix`.
-• Ensure the following data sources are available: `sourcetype=top`.
-• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
-
-Step 1 — Configure data collection
-Monitor per-process memory percentage from top input. Create alerts for processes consistently exceeding 40% of system memory. Include growth trend and suggest right-sizing or memory limit enforcement.
-
-Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=os sourcetype=top host=*
-| stats avg(mem_pct) as avg_mem by host, process
-| where avg_mem > 40
-```
-
-Understanding this SPL
-
-**Memory Hog Detection** — Memory-consuming processes can cause OOM conditions affecting all applications on the host.
-
-Documented **Data sources**: `sourcetype=top`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: os; **sourcetype**: top. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-• Scopes the data: index=os, sourcetype=top. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by host, process** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-• Filters the current rows with `where avg_mem > 40` — typically the threshold or rule expression for this monitoring goal.
+• `top` interval fast enough to catch bursty **malloc** storms; pair with **vmstat** UC for reclaim context.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+`top` / `ps aux --sort=-%mem` on the host; `pmap` or **language**-level profilers if a leak is suspected.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Gauge
+If **OOM** already happened, pivot to **dmesg** for the **killer** line in the same minute as this search.
+
+
 
 ## SPL
 
 ```spl
 index=os sourcetype=top host=*
 | stats avg(mem_pct) as avg_mem by host, process
-| where avg_mem > 40
+| where avg_mem>40
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` avg(Processes.mem_usage) as avg_mem from datamodel=Endpoint.Processes by Processes.dest Processes.process_name span=5m | where avg_mem>40
 ```
 
 ## Visualization
@@ -73,4 +55,5 @@ Table, Gauge
 
 ## References
 
-- [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+- [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
+- [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)

@@ -11,14 +11,22 @@
   "dataSources": "`index=web` `sourcetype=traefik:access` (`RouterName` / `EntryPointName`)",
   "app": "Add On for Traefik Proxy (Splunkbase app 6733)",
   "spl": "index=web sourcetype=\"traefik:access\"\n| search RouterName=\"api@internal\" OR EntryPointName=\"traefik\"\n| where DownstreamStatus=401 OR DownstreamStatus=403\n| stats count by ClientAddr, DownstreamStatus\n| sort -count",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Web.Web\n  where (Web.status=401 OR Web.status=403)\n  by Web.src Web.dest Web.uri_path span=5m\n| sort -count",
+  "cimModels": [
+    "Web"
+  ],
+  "dataModelAcceleration": "Web: enable Data Model Acceleration for the CIM `Web` dataset once your HTTP access or proxy access logs are tagged and mapped to the model; otherwise `cimSpl` tstats may return no rows. Most teams start with the raw-log search in Step 2 and add acceleration after CIM field aliases validate.",
   "description": "Traefik’s API/dashboard should not see repeated 401/403 from unknown clients—possible credential stuffing or scanning.",
   "value": "Protects control plane endpoints that can expose dynamic configuration.",
+  "grandmaExplanation": "We watch Traefik’s management and API paths so we catch repeated unauthorized access before someone changes our routes or backends.",
   "implementation": "Restrict management entrypoints, enforce mTLS or IP allowlists, and log to Splunk.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Add On for Traefik Proxy (Splunkbase app 6733).\n• Ensure the following data sources are available: `index=web` `sourcetype=traefik:access` (`RouterName` / `EntryPointName`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRouter names depend on Traefik version; confirm `api@internal` in your access logs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"traefik:access\"\n| search RouterName=\"api@internal\" OR EntryPointName=\"traefik\"\n| where DownstreamStatus=401 OR DownstreamStatus=403\n| stats count by ClientAddr, DownstreamStatus\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Traefik Dashboard and API Unauthorized Access** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=traefik:access` (`RouterName` / `EntryPointName`). **App/TA**: Add On for Traefik Proxy (Splunkbase app 6733). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with the broker or gateway’s own UI or CLI (`kafka-consumer-groups`, RabbitMQ management, ActiveMQ console, or Traefik/Envoy access log on the node) for the same period.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (client × count), map, alert on new ClientAddr..",
   "visualization": "Table (client × count), map, alert on new ClientAddr.",
-  "cimModels": [
-    "N/A"
-  ],
   "references": [
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    },
     {
       "title": "Add On for Traefik Proxy (Splunkbase)",
       "url": "https://splunkbase.splunk.com/app/6733"
@@ -28,6 +36,7 @@
       "url": "https://doc.traefik.io/traefik/observability/logs-and-access-logs/"
     }
   ],
+  "knownFalsePositives": "4xx spikes from web crawlers, scanners, or after URL routing and auth policy changes. We correlate with change records and intent.",
   "equipment": [
     "traefik"
   ],
@@ -37,7 +46,5 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Add On for Traefik Proxy (Splunkbase app 6733).\n• Ensure the following data sources are available: `index=web` `sourcetype=traefik:access` (`RouterName` / `EntryPointName`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRouter names depend on Traefik version; confirm `api@internal` in your access logs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"traefik:access\"\n| search RouterName=\"api@internal\" OR EntryPointName=\"traefik\"\n| where DownstreamStatus=401 OR DownstreamStatus=403\n| stats count by ClientAddr, DownstreamStatus\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Traefik Dashboard and API Unauthorized Access** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=traefik:access` (`RouterName` / `EntryPointName`). **App/TA**: Add On for Traefik Proxy (Splunkbase app 6733). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nConfirm events exist, field extractions match your format, and thresholds reflect production baselines.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (client × count), map, alert on new ClientAddr..",
-  "grandmaExplanation": "We watch failed logins to your proxy’s control pages so snoops get noticed."
+  "reviewer": "@splunk-monitoring-use-cases"
 }

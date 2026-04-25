@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.58.json — DO NOT EDIT -->
+
 ---
 id: "5.13.58"
 title: "SWIM Upgrade Failure Alerting"
@@ -34,12 +36,10 @@ disabled = 0
 ## Detailed Implementation
 
 Prerequisites
-• UC-5.13.55 and SWIM data with `upgradeStatus` and `failureReason` (or mappable error fields) populated.
+• UC-5.13.55 and SWIM data with `upgradeStatus` and `failureReason` (or mappable error fields) populated in `cisco:dnac:swim`.
 
-Step 1 — Field extraction
-From `GET /dna/intent/api/v1/network-device-image-updates` (or device-specific update detail endpoints in your API version), map API error or status text into a single `failureReason` string for Splunk. If the body is JSON with nested `failure` objects, use `| spath` or index-time `KV_MODE=json` in props if you emit raw JSON.
-
-Token lifecycle: `POST /dna/system/api/v1/auth/token` before each run or on 401; never embed secrets in the script file.
+Step 1 — Field extraction (Catalyst Center)
+From `GET /dna/intent/api/v1/network-device-image-updates` (or the device image update detail in your API version), map API error or status text to a single `failureReason` in Splunk. If the body is JSON with nested `failure` objects, use `spath` in Search or set `KV_MODE=json` in **props** for the sourcetype. Authenticate with `POST /dna/system/api/v1/auth/token` and refresh the token on 401; keep secrets in Splunk’s credential store, not in the script file.
 
 Step 2 — Alert SPL
 
@@ -47,14 +47,17 @@ Step 2 — Alert SPL
 index=catalyst sourcetype="cisco:dnac:swim" upgradeStatus="FAILED" | stats count as failure_count values(failureReason) as reasons by deviceName, deviceFamily, runningVersion, targetVersion | sort -failure_count
 ```
 
-Step 3 — HEC (optional real-time)
-In Catalyst Center, add a webhook destination to `https://<splunk-hec>:8088/services/collector/event` with `Authorization: Splunk <token>`; subscribe to SWIM/firmware failure categories if available; assign `sourcetype=cisco:dnac:swim` in HEC or override via HEC `metadata` in the event wrapper.
+Step 3 — HEC (optional, faster than poll alone)
+Point Catalyst **Platform** webhooks to Splunk HEC when your release supports SWIM or deployment failure events; set default **sourcetype** to `cisco:dnac:swim` (or merge into the same index with a dedup key if both poll and webhook run).
 
 Step 4 — Validate
-Induce a controlled failure in lab or use historical failure events; confirm alert rows match Catalyst Center.
+Reproduce a known failure in lab or compare samples to **Catalyst Center > SWIM** for the same device and time.
 
-Step 5 — Operationalize
-Set alert throttling to avoid flapping, attach runbook (retry, check reachability, rollback).
+Step 5 — Operationalize and troubleshooting
+• **Throttling:** dedupe on `deviceName` + `targetVersion` in a 15–30 minute window to avoid duplicate pages during API retries from the poller.
+• **No failures in Splunk but UI shows one:** the script may map only a subset of error codes; expand the `failureReason` map and confirm `upgradeStatus=FAILED` is not normalized to a different string.
+• **Noise from canary or lab devices:** add a `lookup` of excluded hostnames or site IDs. **Stuck FAILED after user recovery:** clear state in the controller or wait for the next full poll; some failures are marked FAILED until a successful retry completes.
+
 
 ## SPL
 

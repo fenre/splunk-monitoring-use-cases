@@ -1,8 +1,10 @@
+<!-- AUTO-GENERATED from UC-8.7.4.json — DO NOT EDIT -->
+
 ---
 id: "8.7.4"
 title: "Cache Hit Ratio Trending"
 criticality: "medium"
-splunkPillar: "Security"
+splunkPillar: "Observability"
 ---
 
 # UC-8.7.4 · Cache Hit Ratio Trending
@@ -58,7 +60,8 @@ The first pipeline stage scopes events using **index**: middleware; **sourcetype
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (hit ratio %), dual axis (hits and misses counts), single value (30-day min hit ratio).

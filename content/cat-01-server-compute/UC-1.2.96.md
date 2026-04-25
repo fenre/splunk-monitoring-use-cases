@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.2.96.json — DO NOT EDIT -->
+
 ---
 id: "1.2.96"
 title: "DNS Server Zone Transfer Monitoring"
@@ -13,7 +15,7 @@ Zone transfers expose the entire DNS namespace to attackers. Unauthorized zone t
 
 ## Value
 
-Zone transfers expose the entire DNS namespace to attackers. Unauthorized zone transfers enable reconnaissance and must be detected immediately.
+A zone transfer to an unknown secondary can leak the whole DNS view of your network. Catching unapproved or failing transfers protects both name integrity and topology secrecy.
 
 ## Implementation
 
@@ -71,6 +73,15 @@ index=wineventlog source="WinEventLog:DNS Server" EventCode IN (6001, 6002)
 | table _time, host, Source_Network_Address, Zone, TransferType
 | lookup dns_authorized_transfer_partners Source_Network_Address OUTPUT authorized
 | where NOT authorized="yes"
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Resolution
+  by Network_Resolution.src Network_Resolution.dest span=1h
+| where count > 0
 ```
 
 ## Visualization

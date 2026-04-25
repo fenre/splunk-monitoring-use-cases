@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-8.2.22.json — DO NOT EDIT -->
+
 ---
 id: "8.2.22"
 title: ".NET Exception Rate Trending"
@@ -51,14 +53,15 @@ The first pipeline stage scopes events using **index**: perfmon; **sourcetype**:
 
 • Scopes the data: index=perfmon, sourcetype="Perfmon:CLR_Exceptions". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • `timechart` plots the metric over time using **span=5m** buckets with a separate series **by process_name** — ideal for trending and alerting on this use case.
-• `eventstats` rolls up events into metrics; results are split **by process_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `eventstats` rolls up events into metrics; results are split **by process_name** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where ex_rate > baseline * 5 AND ex_rate > 1` — typically the threshold or rule expression for this monitoring goal.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with JBoss, WebLogic, or Tomcat admin consoles, or `catalina` / server logs on the host, for the same window. Confirm hostnames and fields match the vendor UI.
+
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (exception rate), Table (process, spike factor), Single value (total exceptions/sec).

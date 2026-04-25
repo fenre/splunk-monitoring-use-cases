@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-3.4.4.json — DO NOT EDIT -->
+
 ---
 id: "3.4.4"
 title: "Registry Image Vulnerability Scan Results"
@@ -52,7 +54,7 @@ The first pipeline stage scopes events using **index**: containers; **sourcetype
 
 • Scopes the data: index=containers, sourcetype="registry:vuln_scan". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Applies an explicit `search` filter to narrow the current result set.
-• `stats` rolls up events into metrics; results are split **by image_tag, registry** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by image_tag, registry** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where vuln_count > 0` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 

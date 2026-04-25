@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.4.23.json — DO NOT EDIT -->
+
 ---
 id: "5.4.23"
 title: "Multicast and Broadcast Storm Detection (Meraki MR)"
@@ -50,13 +52,13 @@ The first pipeline stage scopes events using **index**: cisco_network; **sourcet
 **Pipeline walkthrough**
 
 • Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-• `stats` rolls up events into metrics; results are split **by ap_name, src_mac** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by ap_name, src_mac** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where pkt_count > 1000` — typically the threshold or rule expression for this monitoring goal.
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Open the Cisco Meraki Dashboard (organization or network scope, under Monitor as appropriate) and compare AP, client, security, or flow totals to the search for the same window. Spot-check a few device names, SSIDs, or MAC addresses against what you see live.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of broadcast sources; time-series of broadcast packets; alert threshold dashboard.
@@ -68,6 +70,16 @@ index=cisco_network sourcetype="meraki" type=flow dest="255.255.255.255" OR dest
 | stats sum(sent_bytes) as total_bytes, count as pkt_count by ap_name, src_mac
 | where pkt_count > 1000
 | sort - pkt_count
+```
+
+## CIM SPL
+
+```spl
+| tstats `summariesonly` sum(All_Traffic.bytes) as bytes
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src All_Traffic.dest All_Traffic.dvc span=1h
+| where bytes>0
+| sort -bytes
 ```
 
 ## Visualization

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-9.4.9.json — DO NOT EDIT -->
+
 ---
 id: "9.4.9"
 title: "Cross-Domain Trust Change Detection"
@@ -75,7 +77,7 @@ Enable Data Model Acceleration (and metric indexes for `mstats`) for the models 
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare with Event Viewer on domain controllers (or exported Security logs) and with Active Directory Users and Computers for the same objects and time window.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (trust changes), Timeline (events), Single value (changes this week).
@@ -97,10 +99,6 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4706, 4714)
 ## Visualization
 
 Table (trust changes), Timeline (events), Single value (changes this week).
-
-## Known False Positives
-
-Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 
 ## References
 

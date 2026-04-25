@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-6.2.8.json — DO NOT EDIT -->
+
 ---
 id: "6.2.8"
 title: "Bucket Policy Change Audit"
@@ -54,10 +56,10 @@ The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+Compare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.
 
 Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (policy changes), Table (bucket, user, action), Single value (changes last 24h).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Include who owns the cloud account and the bucket lifecycle policy, because object alerts often need a finance or app owner, not only the storage team. Consider visualizations: Timeline (policy changes), Table (bucket, user, action), Single value (changes last 24h).
 
 ## SPL
 
@@ -67,6 +69,15 @@ index=aws sourcetype="aws:cloudtrail" eventName IN ("PutBucketPolicy","DeleteBuc
 | sort -_time
 ```
 
+## CIM SPL
+
+```spl
+| tstats `summariesonly` count as events
+  from datamodel=Web.Web
+  by Web.http_method Web.dest span=5m
+| sort -events
+```
+
 ## Visualization
 
 Timeline (policy changes), Table (bucket, user, action), Single value (changes last 24h).
@@ -74,3 +85,4 @@ Timeline (policy changes), Table (bucket, user, action), Single value (changes l
 ## References
 
 - [Splunk_TA_aws](https://splunkbase.splunk.com/app/1876)
+- [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)

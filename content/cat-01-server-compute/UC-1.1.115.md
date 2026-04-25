@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-1.1.115.json — DO NOT EDIT -->
+
 ---
 id: "1.1.115"
 title: "Listening Port Compliance"
@@ -17,7 +19,7 @@ Port compliance ensures only authorized services are listening, reducing attack 
 
 ## Implementation
 
-Use Splunk_TA_nix openPorts input with baseline of expected listening ports per host. Create alerts for unexpected listening ports. Include service identification and change management correlation.
+Use Splunk_TA_nix `openPorts` (or `netstat`) with a lookup or macro `approved_port_list` of expected listening ports per host. Create alerts for unexpected listening ports. Include service identification (`ss -tunlp` on the host) and change management correlation.
 
 ## Detailed Implementation
 
@@ -27,7 +29,7 @@ Prerequisites
 • For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 Step 1 — Configure data collection
-Use Splunk_TA_nix openPorts input with baseline of expected listening ports per host. Create alerts for unexpected listening ports. Include service identification and change management correlation.
+Use Splunk_TA_nix `openPorts` input with a macro or lookup `approved_port_list` of expected listening ports per host. Create alerts for unexpected listening ports. Include process names from the collector or ad-hoc `ss`/`lsof` on Linux for triage.
 
 Step 2 — Create the search and alert
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
@@ -38,6 +40,8 @@ index=os sourcetype=openPorts host=*
 | stats count by host, port
 | where count > 0
 ```
+
+Replace `approved_port_list` with a real lookup or expanded list (for example `| inputlookup approved_ports` joined on host and port).
 
 Understanding this SPL
 
@@ -51,32 +55,10 @@ The first pipeline stage scopes events using **index**: os; **sourcetype**: open
 
 • Scopes the data: index=os, sourcetype=openPorts. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 • Filters the current rows with `where NOT (port IN (approved_port_list))` — typically the threshold or rule expression for this monitoring goal.
-• `stats` rolls up events into metrics; results are split **by host, port** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+• `stats` rolls up events into metrics; results are split **by host, port** so each row reflects one combination of those dimensions.
 • Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.
 
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats `summariesonly` count
-  from datamodel=Endpoint.Processes
-  by Processes.dest Processes.process_name Processes.user span=1h
-| sort -count
-```
-
-Understanding this CIM / accelerated SPL
-
-**Listening Port Compliance** — Port compliance ensures only authorized services are listening, reducing attack surface.
-
-Documented **Data sources**: `sourcetype=openPorts, netstat`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-• Uses `tstats` against accelerated summaries for data model `Endpoint.Processes` — enable acceleration for that model.
-• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+There is no direct CIM `tstats` equivalent for ad hoc listening-port inventory; keep this on `openPorts` or normalize into a custom lookup-friendly sourcetype if you need dashboards.
 
 
 Step 3 — Validate
@@ -94,15 +76,6 @@ index=os sourcetype=openPorts host=*
 | where count > 0
 ```
 
-## CIM SPL
-
-```spl
-| tstats `summariesonly` count
-  from datamodel=Endpoint.Processes
-  by Processes.dest Processes.process_name Processes.user span=1h
-| sort -count
-```
-
 ## Visualization
 
 Table, Alert
@@ -110,4 +83,3 @@ Table, Alert
 ## References
 
 - [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
-- [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)

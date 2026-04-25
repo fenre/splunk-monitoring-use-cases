@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.22.json — DO NOT EDIT -->
+
 ---
 id: "5.13.22"
 title: "Assurance Issue Trending Over Time"
@@ -68,6 +70,7 @@ Step 5 — Troubleshooting
 • **Ingest lag** hours behind reality: fix HEC/UF queues and indexer load before tuning SPL.
 • **Catalyst maintenance mode** with few new issues does not always mean a clean network—cross-check Syslog, SNMP, and client health UCs.
 
+
 ## SPL
 
 ```spl
@@ -82,3 +85,4 @@ Line or area timechart (count by priority over time), overlay annotations for ch
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)

@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.11.3.json — DO NOT EDIT -->
+
 ---
 id: "5.11.3"
 title: "BGP Peer State Change Detection via ON_CHANGE"
@@ -56,11 +58,11 @@ The first pipeline stage scopes events using **index**: gnmi_metrics.
 • Pipeline stage (see **BGP Peer State Change Detection via ON_CHANGE**): table _time, host, neighbor_address, state_label
 • Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+CIM and metrics: BGP state here is gNMI ON_CHANGE in a **metrics** index. Route-protocol state is not a standard CIM dataset; do not expect `tstats` on built-in CIM for this.
 
 
 Step 3 — Validate
-Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+On the router, `show bgp` / equivalent for the neighbor and confirm state is down when the metric leaves Established; capture one maintenance window to avoid paging planned work.
 
 Step 4 — Operationalize
 Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (BGP peer matrix — green=Established, red=down), Timeline (state change events), Table (non-established peers).

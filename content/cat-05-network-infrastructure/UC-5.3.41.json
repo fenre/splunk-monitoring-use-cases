@@ -15,16 +15,14 @@
   "value": "Appliance and control-plane high availability, including VRRP and overlay tunnels, must stay stable for uninterrupted forwarding. Spurious VRRP transitions, split roles between peers, or tunnel flaps create brownouts. Monitoring role and tunnel state over time localizes a failing unit or a broadcast domain issue on the LAN side of the edge.",
   "implementation": "Correlate HA and VRRP with power and link events from the same site. Set thresholds: any tunnel down over 1 minute; more than N VRRP events per 15 minutes; active role unknown for either peer. For paired appliances, a dashboard row per site should show mirror roles; mismatch triggers immediate investigation. Document flapping that maps to known firmware bugs and upgrade paths.",
   "visualization": "Timeline: HA role per site; line: VRRP event rate; state matrix: two appliances per site with color; tunnel up/down count.",
-  "cimModels": [
-    "Alerts"
-  ],
+  "cimModels": [],
   "references": [
     {
       "title": "Citrix — SD-WAN high availability and redundancy",
       "url": "https://docs.citrix.com/en-us/citrix-sd-wan/11-4/high-availability.html"
     }
   ],
-  "knownFalsePositives": "Lab VRRP and preemption tuning, or a forced failover on a test link, can flip SD-WAN HA state repeatedly. Non-production edge groups, or a minimum flap count in production, avoid paging on a deliberate HA exercise.",
+  "knownFalsePositives": "Rehearsals, firmware, and line cards can make HA or VRRP messages loud while traffic still fails over as designed.",
   "equipment": [
     "citrix",
     "snmp",
@@ -34,6 +32,6 @@
     "snmp_generic"
   ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• `index=sdwan` with `citrix:sdwan:ha|vrrp|tunnel` sourcetypes. Stable `site_id` and VRRP `group_id` via `REPORT-` in `props` (regex from syslog) or JSON path. Runbook: site to circuit, peer names.\n\nStep 1 — Configure data collection\nJSON preferred. Syslog: `line_breaker`, `EXTRACT-` for role strings `active/standby/master/backup`. Deduplicate dual logs: `dedup` on `_time+site+group`. Poll tunnels 1m; mark cumulative counters if applicable.\n\nStep 2 — Create the search and alert\nSev-1: tunnel `down`>2 aligned bins. Sev-2: `vrrp_events`>4/15m or `cur_role` in unknown,init,disabled. Add dynamic threshold: 2x site’s 7d mean flap count. Correlation: if tunnel down but VRRP quiet, underlay; both noisy, split-brain risk.\n\nStep 3 — Validate\nPlanned switchover: one role transition, short tunnel blip. Flapping without underlay change: check STP, duplex, or firmware. Compare CLI `show` states to latest Splunk `latest(role)`.\n\nStep 4 — Operationalize\nSite matrix panel: A/B role, tunnel, event rate. RFO: attach chart. Escalation: on-call for Sev-1, SD-WAN TAC with serials; note version for bug DB. Maintenance windows: suppress with saved-search schedule.",
-  "grandmaExplanation": "We watch the “who is the boss” signals between paired boxes and the tunnels they rely on — so you catch a wobbly pair or a role flip spree before the office loses the shared connection."
+  "detailedImplementation": "Prerequisites\n• `index=sdwan` with `citrix:sdwan:ha|vrrp|tunnel` sourcetypes. Stable `site_id` and VRRP `group_id` via `REPORT-` in `props` (regex from syslog) or JSON path. Runbook: site to circuit, peer names.\n\nStep 1 — Configure data collection\nJSON preferred. Syslog: `line_breaker`, `EXTRACT-` for role strings `active/standby/master/backup`. Deduplicate dual logs: `dedup` on `_time+site+group`. Poll tunnels 1m; mark cumulative counters if applicable.\n\nStep 2 — Create the search and alert\nSev-1: tunnel `down`>2 aligned bins. Sev-2: `vrrp_events`>4/15m or `cur_role` in unknown,init,disabled. Add dynamic threshold: 2x site’s 7d mean flap count. Correlation: if tunnel down but VRRP quiet, underlay; both noisy, split-brain risk.\n\nStep 3 — Validate\nCompare path, site, and policy state in the SD-WAN orchestrator or on-appliance health views for the same time range as the search.\nStep 4 — Operationalize\nSite matrix panel: A/B role, tunnel, event rate. RFO: attach chart. Escalation: on-call for Sev-1, SD-WAN TAC with serials; note version for bug DB. Maintenance windows: suppress with saved-search schedule.",
+  "grandmaExplanation": "We read high-availability and router redundancy style events on the same path so a rehearsed switch and a real fault are both time-stamped in data."
 }

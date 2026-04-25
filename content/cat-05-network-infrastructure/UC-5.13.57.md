@@ -1,3 +1,5 @@
+<!-- AUTO-GENERATED from UC-5.13.57.json — DO NOT EDIT -->
+
 ---
 id: "5.13.57"
 title: "Image Distribution and Upgrade Progress Tracking"
@@ -34,25 +36,29 @@ disabled = 0
 ## Detailed Implementation
 
 Prerequisites
-• UC-5.13.55 live with SWIM data in `index=catalyst`, `sourcetype=cisco:dnac:swim`.
+• UC-5.13.55 live with SWIM data in `index=catalyst`, `sourcetype=cisco:dnac:swim` including `upgradeStatus` and `deviceFamily` (from your poller or HEC path).
 
-Step 1 — API and fields
-Poll `GET /dna/intent/api/v1/network-device-image-updates` after `POST /dna/system/api/v1/auth/token`. Normalize the API’s state strings into a field `upgradeStatus` (for example map Catalyst Center’s enumeration to `SUCCESS`, `IN_PROGRESS`, `SCHEDULED`, `FAILED` for consistent SPL). Include `deviceFamily` in each event. If the API returns nested tasks, either flatten in the script or index one event per (device, task).
+Step 1 — API and fields (Catalyst Center)
+• Poll `GET /dna/intent/api/v1/network-device-image-updates` after `POST /dna/system/api/v1/auth/token`. Normalize the API’s state strings into `upgradeStatus` (for example `SUCCESS`, `IN_PROGRESS`, `SCHEDULED`, `FAILED`) for consistent SPL. Include `deviceFamily` in each event; flatten nested task lists in the script if the JSON is not one row per device.
+• Optional **push path:** HEC to `cisco:dnac:swim` (or a parallel sourcetype) and `| union` in dashboard base searches; dedupe on device + task id if poll and event both run.
 
-Step 2 — Real-time path
-If you enable Platform event notifications to HEC, set the HEC `sourcetype` to `cisco:dnac:swim` or a parallel sourcetype and add an `| union` in dashboards, or use `collect` in an alert to a summary index for trending.
-
-Step 3 — Search
+Step 2 — Search (progress view)
 
 ```spl
 index=catalyst sourcetype="cisco:dnac:swim" upgradeStatus=* | stats count by upgradeStatus, deviceFamily | eval status_order=case(upgradeStatus="SUCCESS",1,upgradeStatus="IN_PROGRESS",2,upgradeStatus="SCHEDULED",3,upgradeStatus="FAILED",4,1==1,5) | sort status_order -count
 ```
 
-Step 4 — Validate
-Trigger a test upgrade in a lab and confirm `upgradeStatus` transitions and counts match Catalyst Center SWIM job UI.
+Step 3 — Validate
+• Run a small lab upgrade; confirm that counts move from SCHEDULED/IN_PROGRESS to SUCCESS and that FAILED matches **Catalyst Center > SWIM** job details.
 
-Step 5 — Operationalize
-Use during change windows: dashboard refresh 1–5 min, optional alerts on rising `FAILED` or stalled `IN_PROGRESS` beyond an SLA window.
+Step 4 — Operationalize
+• During **change windows**, schedule a short refresh (1–5 minutes) on a dashboard; alert when `FAILED` increases against a **baseline** or when `IN_PROGRESS` exceeds an SLA (for example 4 hours) with no SUCCESS.
+
+Step 5 — Troubleshooting
+• **Flat or missing `upgradeStatus`:** poller not mapping API fields, or the script runs outside the change window; confirm `cisco:dnac:swim` events include `upgradeStatus` in raw data.
+• **Inflated IN_PROGRESS after restart:** the API may re-emit a task; use `dc(deviceName)` in a time-bounded `stats` to avoid double-counting duplicate lines.
+• **HEC 401/404:** HEC token or URL wrong; Catalyst Center may still have healthy SWIM while Splunk is quiet — see UC-5.13.64 for the notification pipeline when you combine push and pull data.
+
 
 ## SPL
 
