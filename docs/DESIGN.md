@@ -81,7 +81,7 @@ The product serves three audiences, each addressed by a different surface:
 |---|---|---|
 | Splunk Sales Engineer (SE) | Dashboard + `.spl` exports | Find the 10 most relevant UCs for a customer conversation; drop the content pack into a live instance |
 | Splunk practitioner (detection engineer, platform admin) | Markdown source + CI | Author new UCs, enforce quality, rebase vendor-specific searches |
-| Integrator or tooling author | `catalog.json`, `api/cat-*.json`, `api/v1/*.json`, `llms*.txt`, OpenAPI, MCP server | Pull the catalog into another system (CMDB tagging, chatbot, documentation portal, Cursor/Claude Desktop agent, compliance automation) |
+| Integrator or tooling author | `catalog.json`, `api/cat-*.json`, `api/v1/*.json`, `llms*.txt`, OpenAPI, MCP server, `AGENTS.md` | Pull the catalog into another system (CMDB tagging, chatbot, documentation portal, Cursor/Claude Desktop agent, compliance automation) |
 
 Replicators who want to stand up the same system for a different vendor are served by [§14 Replication guide](#14-replication-guide) and `templates/replication-starter/`.
 

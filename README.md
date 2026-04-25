@@ -8,6 +8,8 @@ Browse them in the **interactive dashboard** or use the **machine-readable catal
 
 **Feedback:** In the dashboard, open any use case (technical or plain-language view) and click **Report issue on GitHub** to open a new issue with the UC id, source markdown link, and current page URL pre-filled. Forks can set `window.SITE_CUSTOM.siteRepoUrl` in `index.html` to point at their repository.
 
+**AI agents** (Cursor, Claude Code, Codex, Copilot): start at **[AGENTS.md](AGENTS.md)** for schemas, field maps, MCP tools, and build commands.
+
 **Want to replicate this product** for another vendor, query language, or content domain? Start at **[docs/DESIGN.md](docs/DESIGN.md)** — the full product design document — and the minimum-viable fork under **[templates/replication-starter/](templates/replication-starter/)**. See also the [replication guide](docs/replication-guide.md) and [architecture decision records](docs/adr/).
 
 ---
@@ -121,6 +123,7 @@ Open **`tools/data-sizing/`** (or click "Data Sizing Tool" in the dashboard foot
 ├── config/
 │   └── uc_to_log_family.json   Default log family per category (manifest-all)
 ├── other/                  Environment-specific files (not part of the core catalog)
+├── AGENTS.md               AI agent entrypoint (schemas, field maps, MCP, commands)
 ├── CODEBASE-DIAGRAM.md     Mermaid diagrams of architecture and data flow
 ├── CHANGELOG.md            Release history
 └── LICENSE                 MIT License
@@ -335,6 +338,7 @@ If you use this catalog in research or production, please cite it — metadata i
 | [Product Design](docs/DESIGN.md) | Full product design document describing architecture and replication targets |
 | [Replication Guide](docs/replication-guide.md) | Step-by-step guide to porting the platform to another stack |
 | [Architecture Decisions](docs/adr/) | ADRs capturing static-site, catalog.json and transcript-log choices |
+| [AI Agent Entrypoint](AGENTS.md) | Start-here guide for AI agents: schemas, field maps, MCP tools, commands |
 | [Architecture Diagrams](CODEBASE-DIAGRAM.md) | Mermaid diagrams of the build pipeline and data flow |
 | [Catalog API (OpenAPI 3.1)](openapi.yaml) &nbsp;/&nbsp; [Swagger UI](api-docs.html) | Interactive API reference for the JSON endpoints |
 

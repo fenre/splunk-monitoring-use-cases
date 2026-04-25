@@ -3118,8 +3118,10 @@ def write_llms_txt(data, cat_meta, files, total_uc):
         "",
         "## Docs",
         "",
+        "- [AGENTS.md]({base}/AGENTS.md): AI agent entrypoint — schemas, field maps, "
+        "MCP tools, build commands, and Cursor rules".format(base=SITE_BASE_URL),
         "- [Catalog JSON]({base}/catalog.json): Machine-readable JSON catalog of all use cases "
-        "(structured data with abbreviated field keys)".format(base=SITE_BASE_URL),
+        "(structured data with abbreviated field keys; includes inline _field_map)".format(base=SITE_BASE_URL),
         "- [Catalog Schema]({base}/docs/catalog-schema.md): Field reference for catalog.json — "
         "explains every key and how to query the data".format(base=SITE_BASE_URL),
         "- [Category Index]({base}/use-cases/INDEX.md): Category overview with descriptions, "
@@ -3884,6 +3886,7 @@ def main():
     # Write catalog.json for Splunk UI Toolkit / React app (same data as data.js)
     catalog = {
         "_schema_url": f"{SITE_BASE_URL}/docs/catalog-schema.md",
+        "_agents_url": f"{SITE_BASE_URL}/AGENTS.md",
         "_readme": (
             "Splunk monitoring use case catalog. Keys are abbreviated — see _schema_url "
             "for full field reference. DATA contains categories with subcategories and use "
@@ -3892,6 +3895,21 @@ def main():
             "implementationRoadmap groups UC ids into crawl / walk / run / unassigned "
             "buckets per category for the 'where do I start?' planner view."
         ),
+        "_field_map": {
+            "_about": "Abbreviated key → full field name. Category: i=id, n=name, s=subcategories. "
+                      "Subcategory: i=id, n=name, u=use_cases. Use case fields below.",
+            "i": "id", "n": "title", "c": "criticality", "f": "difficulty",
+            "v": "value", "ge": "grandmaExplanation", "t": "app_ta",
+            "d": "dataSources", "q": "spl", "qs": "cimSpl", "m": "implementation",
+            "md": "detailedImplementation", "z": "visualization", "a": "cimModels",
+            "dma": "dataModelAcceleration", "schema": "schema", "mtype": "monitoringType",
+            "kfp": "knownFalsePositives", "refs": "references", "mitre": "mitreAttack",
+            "dtype": "detectionType", "sdomain": "securityDomain", "reqf": "requiredFields",
+            "script": "scriptExample", "premium": "premiumApps", "hw": "equipmentModels",
+            "e": "equipmentIds", "em": "equipmentModelIds", "status": "status",
+            "reviewed": "lastReviewed", "sver": "splunkVersions", "rby": "reviewer",
+            "wv": "wave", "pre": "prerequisiteUseCases",
+        },
         "DATA": data,
         "CAT_META": cat_meta,
         "CAT_GROUPS": CAT_GROUPS,
