@@ -4,6 +4,7 @@
   "title": "ISO/IEC 27001:2022 Annex A.5.24 — Incident-management planning: runbook currency attestation",
   "criticality": "medium",
   "difficulty": "beginner",
+  "subcategory": "22.6#1",
   "monitoringType": [
     "Compliance",
     "Security"
@@ -62,13 +63,16 @@
   "dataSources": "`index=soar` sourcetype=phantom:playbook OR sourcetype=runbook:metadata; runbook register lookup `ir_runbook_register.csv`.",
   "app": "Splunk SOAR",
   "spl": "| inputlookup ir_runbook_register.csv\n| eval last_reviewed=strptime(last_reviewed,\"%Y-%m-%d\")\n| eval age_days=round((now()-last_reviewed)/86400,0)\n| eval is_stale=if(age_days>cadence_days,1,0)\n| where is_stale=1\n| table runbook_id owner last_reviewed age_days cadence_days is_stale",
-  "description": "Flags runbooks past their configured review cadence so the IR team can recertify them before an incident proves they are stale.",
-  "value": "Satisfies the A.5.24 'planning and preparation' sub-requirement: incident procedures are continuously refreshed, not one-time written.",
-  "implementation": "(1) Maintain ir_runbook_register.csv with owner + cadence_days; (2) schedule UC daily; (3) stale runbooks open a recertification task to the owner with 14d SLA; (4) monthly IR committee review. Indexes required: `index=soar`; Sourcetypes: `sourcetype=phantom:playbook`, `sourcetype=runbook:metadata;`.",
-  "visualization": "Table of stale runbooks by owner, single value 'stale runbooks', bar chart of age by runbook family.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable",
+  "description": "Flags runbooks past their configured review cadence so the IR team can recertify them before an incident proves they are stale.",
+  "value": "Satisfies the A.5.24 'planning and preparation' sub-requirement: incident procedures are continuously refreshed, not one-time written.",
+  "grandmaExplanation": "We flag runbooks past their configured review cadence so the IR team can recertify them before an incident proves they are stale — so you can show exactly what is being watched and when something went wrong.",
+  "implementation": "(1) Maintain ir_runbook_register.csv with owner + cadence_days; (2) schedule UC daily; (3) stale runbooks open a recertification task to the owner with 14d SLA; (4) monthly IR committee review. Indexes required: `index=soar`; Sourcetypes: `sourcetype=phantom:playbook`, `sourcetype=runbook:metadata;`.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk SOAR.\n• Ensure the following data sources are available: `index=soar` sourcetype=phantom:playbook OR sourcetype=runbook:metadata; runbook register lookup `ir_runbook_register.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain ir_runbook_register.csv with owner + cadence_days; (2) schedule UC daily; (3) stale runbooks open a recertification task to the owner with 14d SLA; (4) monthly IR committee review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup ir_runbook_register.csv\n| eval last_reviewed=strptime(last_reviewed,\"%Y-%m-%d\")\n| eval age_days=round((now()-last_reviewed)/86400,0)\n| eval is_stale=if(age_days>cadence_days,1,0)\n| where is_stale=1\n| table runbook_id owner last_reviewed age_days cadence_days is_stale\n```\n\nUnderstanding this SPL\n\n**ISO/IEC 27001:2022 Annex A.5.24 — Incident-management planning: runbook currency attestation** — Satisfies the A.5.24 'planning and preparation' sub-requirement: incident procedures are continuously refreshed, not one-time written.\n\nDocumented **Data sources**: `index=soar` sourcetype=phantom:playbook OR sourcetype=runbook:metadata; runbook register lookup `ir_runbook_register.csv`. **App/TA** (typical add-on context): Splunk SOAR. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• `eval` defines or adjusts **last_reviewed** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **age_days** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **is_stale** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where is_stale=1` — typically the threshold or rule expression for this monitoring goal.\n\nOutput fields: age_days, cadence_days, is_stale, last_reviewed, owner, runbook_id.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the asset/access review evidence. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of stale runbooks by owner, single value 'stale runbooks', bar chart of age by runbook family.",
+  "visualization": "Table of stale runbooks by owner, single value 'stale runbooks', bar chart of age by runbook family.",
   "references": [
     {
       "url": "https://www.iso.org/standard/27001",
@@ -86,7 +90,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "Runbooks under active revision have an incomplete last_reviewed — exclude where state=in_review.",
+  "knownFalsePositives": "Access reviews lag during HR transitions, manager changes, or quarterly review cycles.",
   "detectionType": "Baseline",
   "securityDomain": "audit",
   "requiredFields": [
@@ -103,8 +107,5 @@
   "reviewer": "N/A",
   "premiumApps": [
     "Splunk SOAR"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk SOAR.\n• Ensure the following data sources are available: `index=soar` sourcetype=phantom:playbook OR sourcetype=runbook:metadata; runbook register lookup `ir_runbook_register.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain ir_runbook_register.csv with owner + cadence_days; (2) schedule UC daily; (3) stale runbooks open a recertification task to the owner with 14d SLA; (4) monthly IR committee review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup ir_runbook_register.csv\n| eval last_reviewed=strptime(last_reviewed,\"%Y-%m-%d\")\n| eval age_days=round((now()-last_reviewed)/86400,0)\n| eval is_stale=if(age_days>cadence_days,1,0)\n| where is_stale=1\n| table runbook_id owner last_reviewed age_days cadence_days is_stale\n```\n\nUnderstanding this SPL\n\n**ISO/IEC 27001:2022 Annex A.5.24 — Incident-management planning: runbook currency attestation** — Satisfies the A.5.24 'planning and preparation' sub-requirement: incident procedures are continuously refreshed, not one-time written.\n\nDocumented **Data sources**: `index=soar` sourcetype=phantom:playbook OR sourcetype=runbook:metadata; runbook register lookup `ir_runbook_register.csv`. **App/TA** (typical add-on context): Splunk SOAR. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• `eval` defines or adjusts **last_reviewed** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **age_days** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **is_stale** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where is_stale=1` — typically the threshold or rule expression for this monitoring goal.\n\nOutput fields: age_days, cadence_days, is_stale, last_reviewed, owner, runbook_id.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of stale runbooks by owner, single value 'stale runbooks', bar chart of age by runbook family.",
-  "grandmaExplanation": "We watch for flags runbooks past their configured review cadence so the ir team can recertify them before an incident proves they are stale. This helps maintain steady compliance posture and reduces manual review effort.",
-  "subcategory": "22.6#1"
+  ]
 }

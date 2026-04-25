@@ -27,14 +27,16 @@
   "dataSources": "All indexes feeding CUI-classified hosts, `cui_hosts.csv` lookup, `cui_required_sources.csv` lookup",
   "app": "Splunk Enterprise Security (263), Splunk Common Information Model Add-on (1621).",
   "spl": "| tstats count WHERE index=* by index, sourcetype, host _time span=1h\n| lookup cui_hosts.csv host OUTPUT cui_flag\n| where cui_flag=\"true\"\n| stats dc(sourcetype) AS sourcetype_count dc(host) AS host_count latest(_time) AS last_event BY index\n| lookup cui_required_sources.csv index OUTPUT required_sourcetypes\n| eval missing=if(sourcetype_count < required_sourcetypes, \"gap\", \"ok\")\n| where missing=\"gap\"\n| table index, sourcetype_count, required_sourcetypes, host_count, last_event",
+  "cimModels": [
+    "N/A"
+  ],
+  "dataModelAcceleration": "Not applicable",
   "description": "Verifies that all required audit record sources (Windows Security, EDR, network flow, application logs) are actively ingesting from CUI-classified systems. CMMC AU.L2-3.3.1 requires organisations to create and retain audit records to the extent needed to enable monitoring, analysis, investigation, and reporting of unlawful or unauthorized system activity.",
   "value": "Provides continuous verification that audit record creation is functioning on all CUI-scoped systems. Identifies gaps in log collection that would violate the CMMC requirement to create audit records for all CUI system activity.",
+  "grandmaExplanation": "We check that all required audit record sources (Windows Security, network flow, application logs) are actively ingesting from CUI-classified systems — so you can show exactly what is being watched and when something went wrong.",
   "implementation": "(1) Verify data sources: All indexes feeding CUI-classified hosts, `cui_hosts.csv` lookup, `cui_required_sources.csv` lookup; (2) Maintain CUI-scoped lookups; (3) Schedule search at compliance-aligned interval; (4) Route findings to ticketing queue; (5) Retain exports per records management policy.",
+  "detailedImplementation": "Prerequisites\n• Ensure the following data sources are available: All indexes feeding CUI-classified hosts, `cui_hosts.csv` lookup, `cui_required_sources.csv` lookup.\n• Install and configure: Splunk Enterprise Security (263), Splunk Common Information Model Add-on (1621).\n\nStep 1 — Configure data collection\nVerify that all required data sources are ingesting into Splunk. Maintain the CUI-scoped lookups (cui_hosts.csv, cui_network_segments.csv, etc.) with current asset inventory.\n\nStep 2 — Create the search and alert\nRun the following SPL (save as report or alert):\n\n```spl\n| tstats count WHERE index=* by index, sourcetype, host _time span=1h\n| lookup cui_hosts.csv host OUTPUT cui_flag\n| where cui_flag=\"true\"\n| stats dc(sourcetype) AS sourcetype_count dc(host) AS host_count latest(_time) AS last_event BY index\n| lookup cui_required_sources.csv index OUTPUT required_sourcetypes\n| eval missing=if(sourcetype_count < required_sourcetypes, \"gap\", \"ok\")\n| where missing=\"gap\"\n| table index, sourcetype_count, required_sourcetypes, host_count, last_event\n```\n\nStep 3 — Validate\nConfirm expected results against known CUI systems. Verify lookup tables are populated and field extractions are correct.\n\nStep 4 — Operationalize\nSchedule the search at an appropriate interval. Route findings to the compliance ticketing queue. Table showing index, expected vs actual sourcetype count, host count, and last event time. Single value panel for total gaps detected.",
   "visualization": "Table showing index, expected vs actual sourcetype count, host count, and last event time. Single value panel for total gaps detected.",
-  "cimModels": [
-    "Endpoint"
-  ],
-  "cimSpl": "| tstats count from datamodel=Endpoint by Endpoint.dest, Endpoint.sourcetype | stats dc(Endpoint.sourcetype) AS src_count BY Endpoint.dest",
   "references": [
     {
       "title": "Splunk Enterprise Security",
@@ -53,7 +55,7 @@
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
     }
   ],
-  "knownFalsePositives": "Maintenance windows where hosts are rebooted may temporarily reduce sourcetype counts. Correlate with change management before raising severity.",
+  "knownFalsePositives": "Level achievements take time during gap remediation, evidence packaging, or scheduled assessments.",
   "requiredFields": [
     "index",
     "sourcetype",
@@ -65,7 +67,5 @@
   "lastReviewed": "2026-04-22",
   "premiumApps": [
     "Splunk Enterprise Security"
-  ],
-  "detailedImplementation": "Prerequisites\n• Ensure the following data sources are available: All indexes feeding CUI-classified hosts, `cui_hosts.csv` lookup, `cui_required_sources.csv` lookup.\n• Install and configure: Splunk Enterprise Security (263), Splunk Common Information Model Add-on (1621).\n\nStep 1 — Configure data collection\nVerify that all required data sources are ingesting into Splunk. Maintain the CUI-scoped lookups (cui_hosts.csv, cui_network_segments.csv, etc.) with current asset inventory.\n\nStep 2 — Create the search and alert\nRun the following SPL (save as report or alert):\n\n```spl\n| tstats count WHERE index=* by index, sourcetype, host _time span=1h\n| lookup cui_hosts.csv host OUTPUT cui_flag\n| where cui_flag=\"true\"\n| stats dc(sourcetype) AS sourcetype_count dc(host) AS host_count latest(_time) AS last_event BY index\n| lookup cui_required_sources.csv index OUTPUT required_sourcetypes\n| eval missing=if(sourcetype_count < required_sourcetypes, \"gap\", \"ok\")\n| where missing=\"gap\"\n| table index, sourcetype_count, required_sourcetypes, host_count, last_event\n```\n\nStep 3 — Validate\nConfirm expected results against known CUI systems. Verify lookup tables are populated and field extractions are correct.\n\nStep 4 — Operationalize\nSchedule the search at an appropriate interval. Route findings to the compliance ticketing queue. Table showing index, expected vs actual sourcetype count, host count, and last event time. Single value panel for total gaps detected.",
-  "grandmaExplanation": "We check that every computer handling sensitive government data is sending its security logs to our monitoring system. If any computer stops sending logs, we catch it immediately so nothing goes unmonitored."
+  ]
 }

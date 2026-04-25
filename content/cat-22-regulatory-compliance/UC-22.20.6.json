@@ -27,14 +27,17 @@
   "dataSources": "Chef InSpec compliance reports (`chef:compliance`), Puppet reports (`puppet:report`), Ansible results (`ansible:result`), `cui_hosts.csv` lookup",
   "app": "Splunk Add-on for Chef (if available), Splunk Common Information Model Add-on (1621).",
   "spl": "index=os sourcetype IN (\"chef:compliance\", \"puppet:report\", \"ansible:result\") earliest=-24h\n| lookup cui_hosts.csv hostname AS host OUTPUT cui_flag\n| where cui_flag=\"true\"\n| eval drift=if(control_status=\"failed\" OR status=\"changed\" OR result=\"non-compliant\", 1, 0)\n| stats sum(drift) AS drift_count count AS total_checks latest(_time) AS last_check BY host, profile\n| eval drift_pct=round(100*drift_count/total_checks, 1)\n| where drift_count > 0\n| sort - drift_pct\n| table host, profile, total_checks, drift_count, drift_pct, last_check",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count",
+  "cimModels": [
+    "Change"
+  ],
+  "dataModelAcceleration": "Enable acceleration for the Change data model (Change.All_Changes).",
   "description": "Detects configuration baseline drift on CUI-classified systems using configuration management tool outputs (Chef InSpec, Puppet, Ansible). CMMC CM.L2-3.4.1 requires establishing and maintaining baseline configurations and inventories of organisational systems throughout the system development life cycle.",
   "value": "Continuously monitors CUI systems for deviations from approved baseline configurations, providing evidence that baselines are actively enforced and drift is detected and remediated.",
+  "grandmaExplanation": "We catch configuration baseline drift on CUI-classified systems using configuration management tool outputs (Chef InSpec, Puppet, Ansible) — so you can show exactly what is being watched and when something went wrong.",
   "implementation": "(1) Verify data sources: Chef InSpec compliance reports (`chef:compliance`), Puppet reports (`puppet:report`), Ansible results (`ansible:result`), `cui_hosts.csv` lookup; (2) Maintain CUI-scoped lookups; (3) Schedule search at compliance-aligned interval; (4) Route findings to ticketing queue; (5) Retain exports per records management policy.",
+  "detailedImplementation": "Prerequisites\n• Ensure the following data sources are available: Chef InSpec compliance reports (`chef:compliance`), Puppet reports (`puppet:report`), Ansible results (`ansible:result`), `cui_hosts.csv` lookup.\n• Install and configure: Splunk Add-on for Chef (if available), Splunk Common Information Model Add-on (1621).\n\nStep 1 — Configure data collection\nVerify that all required data sources are ingesting into Splunk. Maintain the CUI-scoped lookups (cui_hosts.csv, cui_network_segments.csv, etc.) with current asset inventory.\n\nStep 2 — Create the search and alert\nRun the following SPL (save as report or alert):\n\n```spl\nindex=os sourcetype IN (\"chef:compliance\", \"puppet:report\", \"ansible:result\") earliest=-24h\n| lookup cui_hosts.csv hostname AS host OUTPUT cui_flag\n| where cui_flag=\"true\"\n| eval drift=if(control_status=\"failed\" OR status=\"changed\" OR result=\"non-compliant\", 1, 0)\n| stats sum(drift) AS drift_count count AS total_checks latest(_time) AS last_check BY host, profile\n| eval drift_pct=round(100*drift_count/total_checks, 1)\n| where drift_count > 0\n| sort - drift_pct\n| table host, profile, total_checks, drift_count, drift_pct, last_check\n```\n\nStep 3 — Validate\nConfirm expected results against known CUI systems. Verify lookup tables are populated and field extractions are correct.\n\nStep 4 — Operationalize\nSchedule the search at an appropriate interval. Route findings to the compliance ticketing queue. Table of hosts with drift percentage. Heat map of drift by profile. Single value for total hosts with active drift.",
   "visualization": "Table of hosts with drift percentage. Heat map of drift by profile. Single value for total hosts with active drift.",
-  "cimModels": [
-    "Endpoint"
-  ],
-  "cimSpl": "| tstats count from datamodel=Endpoint.Processes WHERE Endpoint.dest IN (cui_hosts_lookup) BY Endpoint.dest | rename Endpoint.dest AS host",
   "references": [
     {
       "title": "Splunk Enterprise Security",
@@ -53,7 +56,7 @@
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
     }
   ],
-  "knownFalsePositives": "Approved changes during maintenance windows may temporarily trigger drift alerts. Correlate with change management tickets.",
+  "knownFalsePositives": "Level achievements take time during gap remediation, evidence packaging, or scheduled assessments.",
   "requiredFields": [
     "_time",
     "host",
@@ -68,7 +71,5 @@
   "lastReviewed": "2026-04-22",
   "premiumApps": [
     "Splunk Enterprise Security"
-  ],
-  "detailedImplementation": "Prerequisites\n• Ensure the following data sources are available: Chef InSpec compliance reports (`chef:compliance`), Puppet reports (`puppet:report`), Ansible results (`ansible:result`), `cui_hosts.csv` lookup.\n• Install and configure: Splunk Add-on for Chef (if available), Splunk Common Information Model Add-on (1621).\n\nStep 1 — Configure data collection\nVerify that all required data sources are ingesting into Splunk. Maintain the CUI-scoped lookups (cui_hosts.csv, cui_network_segments.csv, etc.) with current asset inventory.\n\nStep 2 — Create the search and alert\nRun the following SPL (save as report or alert):\n\n```spl\nindex=os sourcetype IN (\"chef:compliance\", \"puppet:report\", \"ansible:result\") earliest=-24h\n| lookup cui_hosts.csv hostname AS host OUTPUT cui_flag\n| where cui_flag=\"true\"\n| eval drift=if(control_status=\"failed\" OR status=\"changed\" OR result=\"non-compliant\", 1, 0)\n| stats sum(drift) AS drift_count count AS total_checks latest(_time) AS last_check BY host, profile\n| eval drift_pct=round(100*drift_count/total_checks, 1)\n| where drift_count > 0\n| sort - drift_pct\n| table host, profile, total_checks, drift_count, drift_pct, last_check\n```\n\nStep 3 — Validate\nConfirm expected results against known CUI systems. Verify lookup tables are populated and field extractions are correct.\n\nStep 4 — Operationalize\nSchedule the search at an appropriate interval. Route findings to the compliance ticketing queue. Table of hosts with drift percentage. Heat map of drift by profile. Single value for total hosts with active drift.",
-  "grandmaExplanation": "We check that every computer handling sensitive government data is still configured exactly the way it should be. If someone changes a setting from the approved setup, we catch it right away."
+  ]
 }

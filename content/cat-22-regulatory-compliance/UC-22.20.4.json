@@ -27,14 +27,16 @@
   "dataSources": "`WinEventLog:Security`, `cui_hosts.csv` lookup",
   "app": "Splunk Add-on for Microsoft Windows (742), Splunk Enterprise Security (263).",
   "spl": "index=wineventlog sourcetype=WinEventLog:Security EventCode IN (4624, 4648, 4672) earliest=-24h\n| lookup cui_hosts.csv ComputerName AS dest OUTPUT cui_flag\n| where cui_flag=\"true\"\n| eval user=coalesce(TargetUserName, SubjectUserName)\n| eval logon_type=case(Logon_Type=\"2\",\"Interactive\", Logon_Type=\"3\",\"Network\", Logon_Type=\"10\",\"RemoteInteractive\", true(),Logon_Type)\n| stats dc(dest) AS systems_accessed count AS actions values(logon_type) AS logon_types BY user\n| where user!=\"-\" AND user!=\"SYSTEM\" AND user!=\"*$\"\n| sort - actions\n| table user, systems_accessed, actions, logon_types",
+  "cimModels": [
+    "N/A"
+  ],
+  "dataModelAcceleration": "Not applicable",
   "description": "Ensures unique user traceability on CUI-classified systems by correlating authentication events (logon, explicit credential use, privilege escalation) to individual user accounts. CMMC AU.L2-3.3.2 requires that actions can be traced to individual users so that they can be held accountable.",
   "value": "Maps every action on CUI systems to a named individual user, enabling the organisation to demonstrate that shared/generic accounts are not used for CUI access and that all activity is attributable.",
+  "grandmaExplanation": "We help you make sure unique user traceability on CUI-classified systems by correlating authentication events (logon, explicit credential use, privilege escalation) to individual user accounts — so you can show exactly what is being watched and when something went wrong.",
   "implementation": "(1) Verify data sources: `WinEventLog:Security`, `cui_hosts.csv` lookup; (2) Maintain CUI-scoped lookups; (3) Schedule search at compliance-aligned interval; (4) Route findings to ticketing queue; (5) Retain exports per records management policy.",
+  "detailedImplementation": "Prerequisites\n• Ensure the following data sources are available: `WinEventLog:Security`, `cui_hosts.csv` lookup.\n• Install and configure: Splunk Add-on for Microsoft Windows (742), Splunk Enterprise Security (263).\n\nStep 1 — Configure data collection\nVerify that all required data sources are ingesting into Splunk. Maintain the CUI-scoped lookups (cui_hosts.csv, cui_network_segments.csv, etc.) with current asset inventory.\n\nStep 2 — Create the search and alert\nRun the following SPL (save as report or alert):\n\n```spl\nindex=wineventlog sourcetype=WinEventLog:Security EventCode IN (4624, 4648, 4672) earliest=-24h\n| lookup cui_hosts.csv ComputerName AS dest OUTPUT cui_flag\n| where cui_flag=\"true\"\n| eval user=coalesce(TargetUserName, SubjectUserName)\n| eval logon_type=case(Logon_Type=\"2\",\"Interactive\", Logon_Type=\"3\",\"Network\", Logon_Type=\"10\",\"RemoteInteractive\", true(),Logon_Type)\n| stats dc(dest) AS systems_accessed count AS actions values(logon_type) AS logon_types BY user\n| where user!=\"-\" AND user!=\"SYSTEM\" AND user!=\"*$\"\n| sort - actions\n| table user, systems_accessed, actions, logon_types\n```\n\nStep 3 — Validate\nConfirm expected results against known CUI systems. Verify lookup tables are populated and field extractions are correct.\n\nStep 4 — Operationalize\nSchedule the search at an appropriate interval. Route findings to the compliance ticketing queue. Table of users with system count and action count. Bar chart of logon types per user. Single value for total unique users on CUI systems.",
   "visualization": "Table of users with system count and action count. Bar chart of logon types per user. Single value for total unique users on CUI systems.",
-  "cimModels": [
-    "Authentication"
-  ],
-  "cimSpl": "| tstats count from datamodel=Authentication WHERE Authentication.dest IN (cui_hosts_lookup) BY Authentication.user, Authentication.dest, Authentication.action | sort - count",
   "references": [
     {
       "title": "Splunk Enterprise Security",
@@ -53,7 +55,7 @@
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
     }
   ],
-  "knownFalsePositives": "Service accounts and machine accounts (ending with $) generate high volumes of logon events — these are filtered by the search. Scheduled tasks running under named accounts are expected.",
+  "knownFalsePositives": "Level achievements take time during gap remediation, evidence packaging, or scheduled assessments.",
   "requiredFields": [
     "_time",
     "user",
@@ -66,7 +68,5 @@
   "lastReviewed": "2026-04-22",
   "premiumApps": [
     "Splunk Enterprise Security"
-  ],
-  "detailedImplementation": "Prerequisites\n• Ensure the following data sources are available: `WinEventLog:Security`, `cui_hosts.csv` lookup.\n• Install and configure: Splunk Add-on for Microsoft Windows (742), Splunk Enterprise Security (263).\n\nStep 1 — Configure data collection\nVerify that all required data sources are ingesting into Splunk. Maintain the CUI-scoped lookups (cui_hosts.csv, cui_network_segments.csv, etc.) with current asset inventory.\n\nStep 2 — Create the search and alert\nRun the following SPL (save as report or alert):\n\n```spl\nindex=wineventlog sourcetype=WinEventLog:Security EventCode IN (4624, 4648, 4672) earliest=-24h\n| lookup cui_hosts.csv ComputerName AS dest OUTPUT cui_flag\n| where cui_flag=\"true\"\n| eval user=coalesce(TargetUserName, SubjectUserName)\n| eval logon_type=case(Logon_Type=\"2\",\"Interactive\", Logon_Type=\"3\",\"Network\", Logon_Type=\"10\",\"RemoteInteractive\", true(),Logon_Type)\n| stats dc(dest) AS systems_accessed count AS actions values(logon_type) AS logon_types BY user\n| where user!=\"-\" AND user!=\"SYSTEM\" AND user!=\"*$\"\n| sort - actions\n| table user, systems_accessed, actions, logon_types\n```\n\nStep 3 — Validate\nConfirm expected results against known CUI systems. Verify lookup tables are populated and field extractions are correct.\n\nStep 4 — Operationalize\nSchedule the search at an appropriate interval. Route findings to the compliance ticketing queue. Table of users with system count and action count. Bar chart of logon types per user. Single value for total unique users on CUI systems.",
-  "grandmaExplanation": "We check that every action on computers handling sensitive government data can be traced back to a specific person. No anonymous or shared accounts should be used."
+  ]
 }
