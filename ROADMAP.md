@@ -129,15 +129,51 @@ See [`CHANGELOG.md`](CHANGELOG.md) for full release notes.
 
 ---
 
-## Next up: v7.2 — Expand & Refine *(no fixed date)*
+## Next up: v7.2 — Gold Standard Content Uplift *(in progress)*
 
 With the v7.0 per-UC architecture and the v7.1 non-technical rewrite in
-place, the v7.2 focus shifts to **raising the scorecard grades** and
-completing the SSG page generation — most categories currently sit in
-"Needs work" because KFP, MITRE mappings, reviewed-dates and sample
-fixtures haven't been authored for non-security UCs.
+place, **v7.2 elevates content quality across the entire catalog** to match
+the standard set by the Catalyst Center subcategory (5.13). The guiding
+principle: *quality is operational utility, not field-count compliance;
+fewer excellent UCs beat many shallow ones.*
 
-### Content + tooling work targeted for v7.2
+### Gold Standard initiative
+
+The Gold Standard defines tiered quality profiles (Gold / Silver / Bronze)
+based on **operational completeness** — can someone implement a UC end-to-end
+from this page alone?
+
+Infrastructure shipped:
+- **Quality profile schema** (`schemas/uc-profile-gold.json`) — tiered
+  requirements emphasizing depth and product-specific detail
+- **Template guide** (`docs/gold-standard-template.md`) — the quality
+  contract: 5-step structure, anti-patterns, exemplar UC-5.13.1
+- **Cursor authoring rule** (`.cursor/rules/gold-standard-authoring.mdc`) —
+  AI authoring contract guiding agents to product-specific depth, not
+  template filling
+- **Depth audit** (`scripts/audit_gold_profile.py`) — quality gate measuring
+  substance, detecting shallow boilerplate and consolidation candidates
+- **Build-time quality scores** — per-UC depth score and tier with actionable
+  gap descriptions injected by `parse_content.py`, aggregated per subcategory
+- **UI quality indicators** — depth badges on UC cards, quality progress bars
+  on subcategory cards, quality gaps in the detail panel, category quality
+  summaries, and a dedicated Quality review tab
+- **Scorecard integration** — content depth is now a 20% weighted dimension
+  in `generate_scorecard.py`
+- **Markdown generation** (`scripts/generate_md_from_json.py`) — JSON is the
+  single source of truth; .md files are build artifacts
+
+### Content uplift workflow
+
+Each subcategory is uplifted via Cursor agent sessions, branch per
+subcategory, human review via PR:
+
+1. Agent reads subcategory context and assesses holistically
+2. Agent consolidates redundant UCs and deepens remaining ones
+3. `audit_gold_profile.py` validates depth and flags gaps
+4. PR review ensures product knowledge accuracy
+
+### Additional v7.2 targets
 
 - **Top-200 sample-event coverage** — Expand the `samples/` tree from 15
   fixtures to 200, targeting the most-used UCs identified by dashboard

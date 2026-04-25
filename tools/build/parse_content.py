@@ -301,6 +301,10 @@ def _load_categories_from_content(
 
         # Re-derive every field the legacy post-processor block sets.
         _post_process_category(record, legacy)
+
+        # Compute quality scores and inject into UC + subcategory dicts.
+        _inject_quality_scores(record)
+
         cat.categories.append(record)
 
     if reproducible:
@@ -640,6 +644,170 @@ def _post_process_category(record: dict[str, Any], legacy) -> None:
             final_regs = sorted(manual_regs | auto_regs)
             if final_regs:
                 uc["regs"] = final_regs
+
+
+# ---------------------------------------------------------------------------
+# Quality score computation (Gold Standard)
+# ---------------------------------------------------------------------------
+
+_QUALITY_BRONZE_FIELDS = {"i", "n", "c", "f", "q", "v", "d", "t", "m"}
+_QUALITY_SILVER_EXTRA = {"mtype", "md", "refs", "e", "ge", "wv"}
+_QUALITY_GOLD_EXTRA = {"z", "em"}
+
+_QS_BOILERPLATE_RE = re.compile(
+    r"install the (?:ta|add-on|app) and (?:configure|enable)|"
+    r"check (?:splunkd\.log|the logs|your data)|"
+    r"ensure (?:the|your) (?:ta|add-on|app) is (?:installed|configured)",
+    re.IGNORECASE,
+)
+_QS_PRODUCT_RE = re.compile(
+    r"sourcetype\s*[=:\"]\s*\S+|index\s*=\s*\S+|"
+    r"/(?:api|dna|v[12]|rest)/|inputs\.conf|modular\s+input|"
+    r"(?:GET|POST|PUT)\s+/|\d+\s*(?:seconds?|minutes?|hours?)\b|"
+    r"(?:RBAC|role|permission|SUPER-ADMIN|NETWORK-ADMIN)|"
+    r"(?:Splunkbase|splunkbase)\s+\d{3,}",
+    re.IGNORECASE,
+)
+_QS_SECTION_PATTERNS = [
+    re.compile(r"(?:prerequisite|step\s*0|before\s+you\s+begin)", re.IGNORECASE),
+    re.compile(r"(?:step\s*1|configure\s+data|data\s+collection)", re.IGNORECASE),
+    re.compile(r"(?:step\s*2|create\s+the\s+search|understanding\s+this\s+spl)", re.IGNORECASE),
+    re.compile(r"(?:step\s*3|validat)", re.IGNORECASE),
+    re.compile(r"(?:step\s*4|step\s*5|operationaliz|troubleshoot)", re.IGNORECASE),
+]
+
+
+def _compute_quality(uc: dict[str, Any]) -> tuple[str, int, list[str]]:
+    """Return (tier, depth_score, gaps) for a legacy-keyed UC dict."""
+    def _present(key: str) -> bool:
+        v = uc.get(key)
+        if v is None:
+            return False
+        if isinstance(v, str):
+            return len(v.strip()) > 0
+        return True
+
+    gaps: list[str] = []
+
+    # Bronze
+    bronze = all(_present(k) for k in _QUALITY_BRONZE_FIELDS)
+    if not bronze:
+        missing = [k for k in _QUALITY_BRONZE_FIELDS if not _present(k)]
+        return ("none", max(0, 10 - len(missing) * 2), [f"missing: {k}" for k in missing])
+
+    depth = 25
+
+    # Silver
+    silver_missing = [k for k in _QUALITY_SILVER_EXTRA if not _present(k)]
+    silver = not silver_missing
+    md_text = uc.get("md", "") or ""
+    sections_matched = 0
+    if isinstance(md_text, str):
+        sections_matched = sum(1 for p in _QS_SECTION_PATTERNS if p.search(md_text))
+    if silver and isinstance(md_text, str):
+        if sections_matched < 3:
+            silver = False
+            gaps.append("detailedImplementation needs at least 3 named sections (has %d)" % sections_matched)
+        if len(md_text) < 200:
+            silver = False
+            gaps.append("detailedImplementation is too short for Silver (%d chars, need 200+)" % len(md_text))
+    if silver_missing:
+        for k in silver_missing:
+            _FIELD_LABELS = {"mtype": "monitoring type", "md": "detailed implementation",
+                             "refs": "references", "e": "equipment", "ge": "plain-language explanation", "wv": "wave"}
+            gaps.append("add %s for Silver tier" % _FIELD_LABELS.get(k, k))
+    if silver:
+        depth = 50
+
+    # Gold
+    gold_missing = [k for k in _QUALITY_GOLD_EXTRA if not _present(k)]
+    gold = silver and not gold_missing
+    if gold and isinstance(md_text, str):
+        if sections_matched < 4:
+            gold = False
+            gaps.append("detailedImplementation needs at least 4 named sections for Gold (has %d)" % sections_matched)
+        if len(md_text) < 500:
+            gold = False
+            gaps.append("detailedImplementation is too short for Gold (%d chars, need 500+)" % len(md_text))
+        refs = uc.get("refs", "")
+        if isinstance(refs, str):
+            ref_count = len([u for u in refs.split("),") if u.strip()])
+        else:
+            ref_count = 0
+        if ref_count < 2:
+            gold = False
+            gaps.append("add at least 2 references for Gold tier")
+    elif silver and gold_missing:
+        _GOLD_LABELS = {"z": "visualization guidance", "em": "equipment models"}
+        for k in gold_missing:
+            gaps.append("add %s for Gold tier" % _GOLD_LABELS.get(k, k))
+    if gold:
+        depth = 75
+
+    # Depth bonuses/penalties with gap tracking
+    has_specificity_bonus = False
+    has_vendor_ui = False
+    has_troubleshooting = False
+
+    if isinstance(md_text, str) and md_text:
+        specificity = len(_QS_PRODUCT_RE.findall(md_text))
+        if specificity >= 5:
+            depth += 10
+            has_specificity_bonus = True
+        elif specificity >= 3:
+            depth += 5
+            has_specificity_bonus = True
+        elif specificity < 2 and len(md_text) > 300:
+            gaps.append("implementation lacks product-specific terms (sourcetypes, API paths, field names)")
+
+        sentences = [s.strip() for s in re.split(r"[.!?\n]", md_text) if len(s.strip()) > 15]
+        if sentences:
+            generic = sum(1 for s in sentences if _QS_BOILERPLATE_RE.search(s))
+            if generic / len(sentences) > 0.5:
+                depth -= 15
+                gaps.append("implementation is >50%% generic boilerplate")
+
+        md_lower = md_text.lower()
+        has_vendor_ui = bool(re.search(
+            r"vendor\s+(?:ui|dashboard|console|portal|gui)|compare\s+(?:to|with|against)\s+(?:the\s+)?(?:vendor|native)|"
+            r"(?:assurance|dashboard|portal|console)\s*(?:>|›|→|page)|cross.?reference|verify\s+(?:in|against)\s+(?:the\s+)?(?:vendor|native)",
+            md_lower))
+        if has_vendor_ui:
+            depth += 5
+        elif gold:
+            gaps.append("validation step should reference vendor UI for comparison")
+
+        has_troubleshooting = bool(re.search(
+            r"(?:no\s+events?\s+appear|events?\s+(?:are\s+)?missing|data\s+(?:is\s+)?not\s+(?:arriving|flowing|appearing))|"
+            r"(?:permission\s+denied|access\s+denied|unauthorized|403|401)|"
+            r"(?:timeout|connection\s+refused|unreachable|dns\s+resolution)|"
+            r"(?:check\s+(?:that|whether|if)\s+the\s+(?:input|modular\s+input|scripted\s+input))",
+            md_lower))
+        if has_troubleshooting:
+            depth += 5
+        elif gold or silver:
+            gaps.append("troubleshooting should mention product-specific failure modes")
+
+    tier = "gold" if gold else ("silver" if silver else "bronze")
+    return (tier, max(0, min(100, depth)), gaps)
+
+
+def _inject_quality_scores(record: dict[str, Any]) -> None:
+    """Add quality scores to each UC and aggregate per subcategory."""
+    for sub in record.get("s", []):
+        scores: list[int] = []
+        tier_dist = {"gold": 0, "silver": 0, "bronze": 0, "none": 0}
+        for uc in sub.get("u", []):
+            tier, depth, gaps = _compute_quality(uc)
+            uc["_qs"] = depth
+            uc["_qt"] = tier
+            if gaps:
+                uc["_qg"] = gaps
+            scores.append(depth)
+            tier_dist[tier] += 1
+        if scores:
+            sub["qa"] = round(sum(scores) / len(scores), 1)
+            sub["qd"] = tier_dist
 
 
 # ---------------------------------------------------------------------------

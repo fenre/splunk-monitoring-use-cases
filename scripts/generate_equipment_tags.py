@@ -187,18 +187,27 @@ def _apply_tags(
     """Return a new sidecar dict with ``equipment``/``equipmentModels`` set.
 
     Conventions:
+        - Computed tags are **merged** with any existing values so that
+          manually-set tags (from Gold uplift agents or hand-edits) are
+          never lost.
         - Empty arrays are ELIDED (key is removed). Keeps diffs small.
-        - If the computed arrays equal the existing ones, no change.
+        - If the merged arrays equal the existing ones, no change.
         - Keys re-ordered to the canonical field order to keep sidecar
           outputs stable across generator runs.
     """
     out = dict(sidecar)
-    if equipment:
-        out["equipment"] = equipment
+    existing_eq = set(sidecar.get("equipment") or [])
+    existing_models = set(sidecar.get("equipmentModels") or [])
+
+    merged_eq = sorted(existing_eq | set(equipment))
+    merged_models = sorted(existing_models | set(equipment_models))
+
+    if merged_eq:
+        out["equipment"] = merged_eq
     else:
         out.pop("equipment", None)
-    if equipment_models:
-        out["equipmentModels"] = equipment_models
+    if merged_models:
+        out["equipmentModels"] = merged_models
     else:
         out.pop("equipmentModels", None)
     return _reorder_sidecar(out)

@@ -71,12 +71,13 @@ PROVENANCE_WEIGHT = {
 #  - Sample coverage is aspirational (top-200 goal); weight low for now.
 #  - MITRE coverage only applies to security UCs; weighted modestly.
 DIMENSION_WEIGHTS = {
-    "references_pct":        0.25,
-    "provenance_authority":  0.25,
+    "content_depth":         0.20,
+    "references_pct":        0.20,
+    "provenance_authority":  0.20,
     "freshness":             0.15,
-    "kfp_pct":               0.15,
-    "mitre_pct":             0.10,
-    "samples_pct":           0.10,
+    "kfp_pct":               0.10,
+    "mitre_pct":             0.08,
+    "samples_pct":           0.07,
 }
 assert abs(sum(DIMENSION_WEIGHTS.values()) - 1.0) < 1e-9
 
@@ -87,6 +88,7 @@ class CategoryScore:
     name: str
     uc_count: int
     security_count: int
+    content_depth: float  # 0-100 avg depth score from Gold Standard audit
     references_pct: float
     kfp_pct: float
     mitre_pct: float
@@ -94,6 +96,7 @@ class CategoryScore:
     freshness_median_days: float | None
     provenance_authority: float  # 0-100
     samples_pct: float
+    depth_tier_distribution: dict = field(default_factory=dict)
     composite: float = 0.0
     grade: str = ""
     status_distribution: dict = field(default_factory=dict)
@@ -172,7 +175,8 @@ def _compute_category(cat_entry: dict, provenance: dict, samples: set[str]) -> C
     total = len(ucs)
     if total == 0:
         return CategoryScore(cat_num=cat_num, name=name, uc_count=0,
-                             security_count=0, references_pct=0.0,
+                             security_count=0, content_depth=0.0,
+                             references_pct=0.0,
                              kfp_pct=0.0, mitre_pct=0.0, freshness_score=0.0,
                              freshness_median_days=None,
                              provenance_authority=0.0, samples_pct=0.0)
@@ -214,12 +218,20 @@ def _compute_category(cat_entry: dict, provenance: dict, samples: set[str]) -> C
 
     samples_hits = sum(1 for u in ucs if (u.get("i") or "") in samples)
 
+    # Content depth from Gold Standard quality scores (injected by build)
+    depth_scores = [u.get("_qs", 0) for u in ucs]
+    content_depth = sum(depth_scores) / total if total else 0.0
+    depth_tier_dist: dict[str, int] = defaultdict(int)
+    for u in ucs:
+        depth_tier_dist[u.get("_qt", "none")] += 1
+
     refs_pct = with_refs / total * 100
     kfp_pct  = with_kfp / total * 100
     mitre_pct = (mitre_hits / len(security_ucs) * 100) if security_ucs else 0.0
     samples_pct = samples_hits / total * 100 if total else 0.0
 
     composite = (
+        content_depth        * DIMENSION_WEIGHTS["content_depth"] +
         refs_pct             * DIMENSION_WEIGHTS["references_pct"] +
         provenance_authority * DIMENSION_WEIGHTS["provenance_authority"] +
         fresh_pct            * DIMENSION_WEIGHTS["freshness"] +
@@ -233,6 +245,7 @@ def _compute_category(cat_entry: dict, provenance: dict, samples: set[str]) -> C
         name=name,
         uc_count=total,
         security_count=len(security_ucs),
+        content_depth=content_depth,
         references_pct=refs_pct,
         kfp_pct=kfp_pct,
         mitre_pct=mitre_pct,
@@ -240,6 +253,7 @@ def _compute_category(cat_entry: dict, provenance: dict, samples: set[str]) -> C
         freshness_median_days=med_days,
         provenance_authority=provenance_authority,
         samples_pct=samples_pct,
+        depth_tier_distribution=dict(depth_tier_dist),
         composite=composite,
         grade=_grade(composite),
         status_distribution=dict(status_counts),
@@ -272,12 +286,13 @@ def render_markdown(scores: list[CategoryScore]) -> str:
         "",
         "| Dimension | Weight | What it measures |",
         "| --------- | ------ | ---------------- |",
-        "| References | 25% | % of UCs citing at least one external source |",
-        "| Provenance authority | 25% | Weighted average authority of citations (Splunk official = 1.0, community = 0.5, contributor = 0.2) |",
+        "| Content depth | 20% | Average Gold Standard depth score (0–100) measuring operational completeness |",
+        "| References | 20% | % of UCs citing at least one external source |",
+        "| Provenance authority | 20% | Weighted average authority of citations (Splunk official = 1.0, community = 0.5, contributor = 0.2) |",
         "| Freshness | 15% | Median age of the `Last reviewed` field (≤90d = 100, >2y = 20) |",
-        "| Known false positives | 15% | % of UCs with populated KFP guidance |",
-        "| MITRE ATT&CK coverage | 10% | % of security UCs tagged with ATT&CK technique IDs |",
-        "| Sample fixtures | 10% | % of UCs with a `samples/UC-<id>/` fixture |",
+        "| Known false positives | 10% | % of UCs with populated KFP guidance |",
+        "| MITRE ATT&CK coverage | 8% | % of security UCs tagged with ATT&CK technique IDs |",
+        "| Sample fixtures | 7% | % of UCs with a `samples/UC-<id>/` fixture |",
         "",
         "Grades:",
         "",
@@ -295,8 +310,8 @@ def render_markdown(scores: list[CategoryScore]) -> str:
         "",
         "## Per-category scorecard",
         "",
-        "| Cat | Category | UCs | Refs | KFP | MITRE* | Fresh | Prov. | Samples | Composite | Grade |",
-        "| --- | -------- | --- | ---- | --- | ------ | ----- | ----- | ------- | --------- | ----- |",
+        "| Cat | Category | UCs | Depth | Refs | KFP | MITRE* | Fresh | Prov. | Samples | Composite | Grade |",
+        "| --- | -------- | --- | ----- | ---- | --- | ------ | ----- | ----- | ------- | --------- | ----- |",
     ]
     sorted_scores = sorted(scores,
                            key=lambda s: (int(s.cat_num) if s.cat_num.isdigit() else 9999))
@@ -304,6 +319,7 @@ def render_markdown(scores: list[CategoryScore]) -> str:
         mitre_cell = f"{s.mitre_pct:.0f}%" if s.security_count else "n/a"
         lines.append(
             f"| {s.cat_num} | {s.name[:45]} | {s.uc_count:,} | "
+            f"{s.content_depth:.0f} | "
             f"{fmt_pct(s.references_pct)} | {fmt_pct(s.kfp_pct)} | {mitre_cell} | "
             f"{fmt_days(s.freshness_median_days)} | {s.provenance_authority:.0f} | "
             f"{fmt_pct(s.samples_pct)} | **{s.composite:.1f}** | **{_grade_badge(s.grade)}** |"
@@ -415,6 +431,7 @@ def main() -> int:
                         "name": s.name,
                         "uc_count": s.uc_count,
                         "security_count": s.security_count,
+                        "content_depth": round(s.content_depth, 2),
                         "references_pct": round(s.references_pct, 2),
                         "kfp_pct": round(s.kfp_pct, 2),
                         "mitre_pct": round(s.mitre_pct, 2),
@@ -422,6 +439,7 @@ def main() -> int:
                         "freshness_median_days": s.freshness_median_days,
                         "provenance_authority": round(s.provenance_authority, 2),
                         "samples_pct": round(s.samples_pct, 2),
+                        "depth_tier_distribution": s.depth_tier_distribution,
                         "composite": round(s.composite, 2),
                         "grade": s.grade,
                         "status_distribution": s.status_distribution,
