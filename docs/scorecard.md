@@ -9,12 +9,13 @@ averaged with the following weights:
 
 | Dimension | Weight | What it measures |
 | --------- | ------ | ---------------- |
-| References | 25% | % of UCs citing at least one external source |
-| Provenance authority | 25% | Weighted average authority of citations (Splunk official = 1.0, community = 0.5, contributor = 0.2) |
+| Content depth | 20% | Average Gold Standard depth score (0–100) measuring operational completeness |
+| References | 20% | % of UCs citing at least one external source |
+| Provenance authority | 20% | Weighted average authority of citations (Splunk official = 1.0, community = 0.5, contributor = 0.2) |
 | Freshness | 15% | Median age of the `Last reviewed` field (≤90d = 100, >2y = 20) |
-| Known false positives | 15% | % of UCs with populated KFP guidance |
-| MITRE ATT&CK coverage | 10% | % of security UCs tagged with ATT&CK technique IDs |
-| Sample fixtures | 10% | % of UCs with a `samples/UC-<id>/` fixture |
+| Known false positives | 10% | % of UCs with populated KFP guidance |
+| MITRE ATT&CK coverage | 8% | % of security UCs tagged with ATT&CK technique IDs |
+| Sample fixtures | 7% | % of UCs with a `samples/UC-<id>/` fixture |
 
 Grades:
 
@@ -28,35 +29,35 @@ Grades:
 ## Global rollup
 
 - **Total UCs:** 6,587
-- **Weighted composite score:** 72.8 — overall grade **Silver**
+- **Weighted composite score:** 65.6 — overall grade **Bronze**
 
 ## Per-category scorecard
 
-| Cat | Category | UCs | Refs | KFP | MITRE* | Fresh | Prov. | Samples | Composite | Grade |
-| --- | -------- | --- | ---- | --- | ------ | ----- | ----- | ------- | --------- | ----- |
-| 1 | Server & Compute | 275 | 100.0% | 0.4% | 0% | 8d | 100 | 1.8% | **65.2** | **Bronze** |
-| 2 | Virtualization | 176 | 100.0% | 30.1% | 34% | 0d | 85 | 29.5% | **72.2** | **Silver** |
-| 3 | Containers & Orchestration | 129 | 100.0% | 0.0% | 0% | — | 92 | 0.8% | **48.2** | **Needs work** |
-| 4 | Cloud Infrastructure | 227 | 100.0% | 0.9% | 83% | — | 100 | 0.9% | **58.5** | **Bronze** |
-| 5 | Network Infrastructure | 374 | 100.0% | 6.4% | 5% | 0d | 98 | 6.1% | **66.6** | **Bronze** |
-| 6 | Storage & Backup | 81 | 100.0% | 1.2% | 0% | — | 100 | 0.0% | **50.2** | **Needs work** |
-| 7 | Database & Data Platforms | 122 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
-| 8 | Application Infrastructure | 106 | 100.0% | 0.9% | 0% | — | 100 | 0.0% | **50.1** | **Needs work** |
-| 9 | Identity & Access Management | 104 | 100.0% | 100.0% | 84% | — | 100 | 1.0% | **73.5** | **Silver** |
-| 10 | Security Infrastructure | 2,409 | 100.0% | 100.0% | 85% | 0d | 88 | 0.3% | **85.5** | **Gold** |
-| 11 | Email & Collaboration | 107 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
-| 12 | DevOps & CI/CD | 88 | 100.0% | 0.0% | 0% | — | 100 | 1.1% | **50.1** | **Needs work** |
-| 13 | Observability & Monitoring Stack | 143 | 100.0% | 0.0% | 0% | — | 100 | 0.7% | **50.1** | **Needs work** |
-| 14 | IoT & Operational Technology (OT) | 230 | 100.0% | 100.0% | 0% | — | 100 | 0.0% | **65.0** | **Bronze** |
-| 15 | Data Center Physical Infrastructure | 81 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
-| 16 | Service Management & ITSM | 81 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
-| 17 | Network Security & Zero Trust | 105 | 100.0% | 100.0% | 92% | — | 100 | 0.0% | **74.2** | **Silver** |
-| 18 | Data Center Fabric & SDN | 76 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
-| 19 | Compute Infrastructure (HCI & Converged) | 72 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
-| 20 | Cost & Capacity Management | 77 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
-| 21 | Industry Verticals | 129 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
-| 22 | Regulatory and Compliance Frameworks | 1,332 | 100.0% | 100.0% | 10% | 2d | 96 | 0.0% | **80.1** | **Silver** |
-| 23 | Business Analytics & Executive Intelligence | 63 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
+| Cat | Category | UCs | Depth | Refs | KFP | MITRE* | Fresh | Prov. | Samples | Composite | Grade |
+| --- | -------- | --- | ----- | ---- | --- | ------ | ----- | ----- | ------- | --------- | ----- |
+| 1 | Server & Compute | 275 | 37 | 100.0% | 0.4% | 0% | 9d | 100 | 1.8% | **62.6** | **Bronze** |
+| 2 | Virtualization | 176 | 37 | 100.0% | 30.1% | 34% | 1d | 85 | 29.5% | **67.2** | **Bronze** |
+| 3 | Containers & Orchestration | 129 | 37 | 100.0% | 0.0% | 0% | — | 92 | 0.8% | **45.8** | **Needs work** |
+| 4 | Cloud Infrastructure | 227 | 36 | 100.0% | 0.9% | 83% | — | 100 | 0.9% | **54.1** | **Needs work** |
+| 5 | Network Infrastructure | 374 | 36 | 100.0% | 6.4% | 5% | 1d | 98 | 6.1% | **63.3** | **Bronze** |
+| 6 | Storage & Backup | 81 | 37 | 100.0% | 1.2% | 0% | — | 100 | 0.0% | **47.6** | **Needs work** |
+| 7 | Database & Data Platforms | 122 | 36 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **47.3** | **Needs work** |
+| 8 | Application Infrastructure | 106 | 37 | 100.0% | 0.9% | 0% | — | 100 | 0.0% | **47.5** | **Needs work** |
+| 9 | Identity & Access Management | 104 | 37 | 100.0% | 100.0% | 84% | — | 100 | 1.0% | **64.2** | **Bronze** |
+| 10 | Security Infrastructure | 2,409 | 28 | 100.0% | 100.0% | 85% | 1d | 88 | 0.3% | **74.9** | **Silver** |
+| 11 | Email & Collaboration | 107 | 37 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **47.4** | **Needs work** |
+| 12 | DevOps & CI/CD | 88 | 37 | 100.0% | 0.0% | 0% | — | 100 | 1.1% | **47.4** | **Needs work** |
+| 13 | Observability & Monitoring Stack | 143 | 36 | 100.0% | 0.0% | 0% | — | 100 | 0.7% | **47.2** | **Needs work** |
+| 14 | IoT & Operational Technology (OT) | 230 | 36 | 100.0% | 100.0% | 0% | — | 100 | 0.0% | **57.3** | **Bronze** |
+| 15 | Data Center Physical Infrastructure | 81 | 37 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **47.4** | **Needs work** |
+| 16 | Service Management & ITSM | 81 | 37 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **47.4** | **Needs work** |
+| 17 | Network Security & Zero Trust | 105 | 38 | 100.0% | 100.0% | 92% | — | 100 | 0.0% | **65.0** | **Bronze** |
+| 18 | Data Center Fabric & SDN | 76 | 37 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **47.5** | **Needs work** |
+| 19 | Compute Infrastructure (HCI & Converged) | 72 | 37 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **47.4** | **Needs work** |
+| 20 | Cost & Capacity Management | 77 | 37 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **47.4** | **Needs work** |
+| 21 | Industry Verticals | 129 | 36 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **47.3** | **Needs work** |
+| 22 | Regulatory and Compliance Frameworks | 1,332 | 35 | 100.0% | 100.0% | 10% | 3d | 96 | 0.0% | **72.0** | **Silver** |
+| 23 | Business Analytics & Executive Intelligence | 63 | 37 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **47.5** | **Needs work** |
 
 \* MITRE coverage counts only UCs whose `pillar` is `security` or `both`.
 
@@ -64,10 +65,10 @@ Grades:
 
 | Grade | Categories | Total UCs |
 | ----- | ---------- | --------- |
-| **Gold** | 1 | 2,409 |
-| **Silver** | 4 | 1,717 |
-| **Bronze** | 4 | 1,106 |
-| **Needs work** | 14 | 1,355 |
+| **Gold** | 0 | 0 |
+| **Silver** | 2 | 3,741 |
+| **Bronze** | 6 | 1,264 |
+| **Needs work** | 15 | 1,582 |
 
 ## How to improve a score
 

@@ -3335,6 +3335,35 @@ def validate_non_technical(data):
     return errors
 
 
+def validate_docs_uc_map(data):
+    """Cross-check docs-uc-map.js UC IDs against parsed use cases."""
+    map_path = os.path.join(SCRIPT_DIR, "docs-uc-map.js")
+    if not os.path.isfile(map_path):
+        print("  SKIP docs-uc-map.js not found")
+        return 0
+
+    with open(map_path, encoding="utf-8") as f:
+        content = f.read()
+
+    valid_ids = set()
+    for cat in data:
+        for sub in cat.get("s", []):
+            for uc in sub.get("u", []):
+                valid_ids.add(uc["i"])
+
+    ref_pattern = re.compile(r'"(\d+\.\d+\.\d+)"')
+    refs = ref_pattern.findall(content)
+
+    errors = 0
+    for ref in refs:
+        if ref not in valid_ids:
+            print(f"  ERROR docs-uc-map.js references unknown UC {ref}")
+            errors += 1
+
+    print(f"  Docs-UC map: {len(refs)} UC refs, {errors} errors")
+    return errors
+
+
 # ---------------------------------------------------------------------------
 #  Implementation-ordering validator  ("crawl → walk → run" roadmap)
 # ---------------------------------------------------------------------------
@@ -3836,6 +3865,12 @@ def main():
     if nt_errors:
         print(f"  WARNING: {nt_errors} error(s) in non-technical-view.js — fix before release")
 
+    # Validate docs-uc-map.js cross-references
+    print("\nValidating docs-uc-map.js...")
+    dm_errors = validate_docs_uc_map(data)
+    if dm_errors:
+        print(f"  WARNING: {dm_errors} error(s) in docs-uc-map.js — fix before release")
+
     # Validate implementation-ordering graph (uc['pre'] / uc['wv']).
     # Fails the build on unknown prerequisite ids, self-references, or cycles.
     print("\nValidating implementation-ordering graph...")
@@ -3878,6 +3913,19 @@ def main():
     # Compute the per-category implementation roadmap (crawl/walk/run/unassigned).
     # Shared between data.js (for the SPA) and catalog.json (for consumers).
     roadmap = compute_implementation_roadmap(data)
+
+    # Inject Gold Standard quality scores into every UC and aggregate per
+    # subcategory.  Reuses the depth-aware scorer from the v7 build pipeline
+    # (tools/build/parse_content.py) so legacy data.js consumers (the SPA)
+    # get the same _qt / _qs / _qg signals as the v7 dist/ output.
+    try:
+        sys.path.insert(0, os.path.join(SCRIPT_DIR, "tools", "build"))
+        import parse_content as _pc
+        for cat in data:
+            _pc._inject_quality_scores(cat)
+        print("Injected Gold Standard quality scores into DATA")
+    except Exception as exc:
+        print(f"WARNING: could not inject quality scores: {exc}")
 
     # Write output (starters are derived at runtime by the dashboard)
     size_kb = write_data_js(data, cat_meta, OUTPUT, recently_added, roadmap)

@@ -297,7 +297,9 @@ LEGACY_TOP_LEVEL = (
     "clause-navigator.html",
     "compliance-story.html",
     "api-docs.html",
+    "docs.html",
     "non-technical-view.js",
+    "docs-uc-map.js",
     "provenance.json",
     "provenance.js",
     "mitre_techniques.json",
@@ -648,6 +650,7 @@ _TOPLEVEL_FILE_REWRITES = (
     re.compile(r'src="(custom-text\.js)"'),
     re.compile(r'src="(mitre_techniques\.json)"'),
     re.compile(r'src="(recently-added\.json)"'),
+    re.compile(r'src="(docs-uc-map\.js)"'),
     # Legacy companion files exposed via <link rel=alternate|preload|...>.
     re.compile(r'href="(provenance\.[^"#?]+)"'),
     re.compile(r'href="(scorecard\.[^"#?]+)"'),
@@ -661,6 +664,8 @@ _TOPLEVEL_FILE_REWRITES = (
     re.compile(r'href="(favicon\.(?:ico|svg))"'),
     re.compile(r'href="(icon(?:-\d+)?\.(?:svg|png))"'),
     re.compile(r'href="(og-image(?:-\d+)?\.png)"'),
+    re.compile(r'href="(docs\.html)"'),
+    re.compile(r'href="(guide-reader\.html[^"]*)"'),
     # Legacy nested scripts and links shipped under tools/data-sizing/.
     # Covers both the <script src="..."> bootstrap include and the
     # "Data Sizing Tool" <a href="..."> in the footer / help text, so

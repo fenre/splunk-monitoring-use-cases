@@ -8,6 +8,7 @@ on:
       - "content/**"
       - "build.py"
       - "non-technical-view.js"
+      - "docs-uc-map.js"
       - "scripts/**"
       - "schemas/**"
       - "data/**"
@@ -353,6 +354,22 @@ jobs:
         # for the authoring model.
         run: python3 scripts/generate_grandma_explanations.py --check
 
+      - name: Gold Standard quality audit
+        # Validates UC content depth against the Gold Standard quality profile.
+        # Runs in summary mode (non-blocking) to surface quality distribution
+        # in CI logs. The --check flag is not used here to avoid blocking PRs
+        # on existing content — it should be enabled per-subcategory as uplift
+        # PRs land.
+        run: python3 scripts/audit_gold_profile.py --summary
+        continue-on-error: true
+
+      - name: Markdown freshness check
+        # JSON is the single source of truth. This checks that .md companion
+        # files are up-to-date with their JSON source. Non-blocking during the
+        # transition period.
+        run: python3 scripts/generate_md_from_json.py --check
+        continue-on-error: true
+
       - name: Phase 4.3 cat-22 non-technical block regeneration check
         # Phase 4.3 deliverable. scripts/regenerate_cat22_ntv.py is the
         # single source of truth for the ``"22": { ... }`` block in
@@ -669,6 +686,16 @@ jobs:
             const n = Object.keys(window.NON_TECHNICAL).length;
             if (n < 1) { console.error('No categories found'); process.exit(1); }
             console.log(n + ' categories OK');
+          "
+
+      - name: Docs-UC map JS syntax
+        run: |
+          node -e "
+            eval(require('fs').readFileSync('docs-uc-map.js','utf8'));
+            const n = Object.keys(DOC_UC_MAP).length;
+            const r = Object.keys(UC_DOC_MAP).length;
+            if (n < 1) { console.error('No doc entries found'); process.exit(1); }
+            console.log(n + ' doc entries, ' + r + ' reverse UC entries OK');
           "
 
       - name: Version consistency

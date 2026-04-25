@@ -38,6 +38,9 @@ Please fill in the sections below. Delete anything that doesn't apply.
 - [ ] If adding a new **MITRE ATT&CK** mapping, the technique ID is valid.
 - [ ] If adding a new category or subcategory, updated `non-technical-view.js`
       (per `.cursor/rules/non-technical-sync.mdc`).
+- [ ] If adding or renaming a doc under `docs/`, or adding a UC that exemplifies
+      an existing doc, updated `docs-uc-map.js`
+      (per `.cursor/rules/docs-uc-map-sync.mdc`).
 - [ ] If bumping the version, `VERSION`, `CHANGELOG.md` and the release-notes
       block in `index.html` all agree (per `.cursor/rules/versioning.mdc`).
 
