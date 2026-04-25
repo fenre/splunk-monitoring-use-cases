@@ -10,9 +10,10 @@ function renderUCCard(uc) {
   var cimModels = Array.isArray(uc.a) ? uc.a : null;
   var mtypes = Array.isArray(uc.mtype) ? uc.mtype : null;
   var provCode = (window.PROVENANCE && window.PROVENANCE[uc.i]) || null;
-  var showTagStrip = ta || cimModels || mtypes || uc.escu || (Array.isArray(uc.regs) && uc.regs.length) || uc.status || uc.reviewed || provCode;
+  var showTagStrip = ta || cimModels || mtypes || uc.escu || (Array.isArray(uc.regs) && uc.regs.length) || uc.status || uc.reviewed || provCode || uc._qt;
   if (showTagStrip) {
     html += '<div class="uc-card-tags">';
+    if (uc._qt) html += '<span class="uc-card-depth depth-' + esc(uc._qt) + '" title="Content depth: ' + esc(uc._qt) + ' (' + (uc._qs || 0) + '/100)">' + esc(uc._qt === 'gold' ? 'Deep' : uc._qt === 'silver' ? 'Solid' : uc._qt === 'bronze' ? 'Basic' : 'Stub') + '</span>';
     if (uc.status) html += '<span class="uc-card-status ' + esc(uc.status) + '" title="Quality status">' + esc(uc.status) + '</span>';
     if (provCode) {
       var provLabel = (window.PROVENANCE_LABELS && window.PROVENANCE_LABELS[provCode]) || 'Source';
@@ -267,7 +268,7 @@ function renderOverview() {
   html += activeFilterTags();
 
   html += '<div class="ov-tab-bar">';
-  [['all', SITE.filterAll || 'Categories'], ['subcats', SITE.statSubcategories || 'Subcategories'], ['alluc', SITE.statUseCases || 'Use Cases'], ['quickwins', SITE.statQuickWins || 'Quick Wins'], ['recent', 'Recently Added']].forEach(function(g) {
+  [['all', SITE.filterAll || 'Categories'], ['subcats', SITE.statSubcategories || 'Subcategories'], ['alluc', SITE.statUseCases || 'Use Cases'], ['quickwins', SITE.statQuickWins || 'Quick Wins'], ['recent', 'Recently Added'], ['quality', 'Quality']].forEach(function(g) {
     html += '<button type="button" class="ov-tab' + (ovGroupFilter === g[0] ? ' active' : '') + '" onclick="filterOvGroup(\'' + g[0] + '\')">' + esc(g[1]) + '</button>';
   });
   html += '<select class="ov-sort" onchange="setSort(this.value)">';
@@ -364,6 +365,49 @@ function renderOverview() {
       html += '</div></div>';
     });
     html += '</div>';
+  } else if (ovGroupFilter === 'quality') {
+    var qCats = DATA.map(function(cat) {
+      var deep = 0, solid = 0, basic = 0, stub = 0, dSum = 0, dN = 0, gapMap = {};
+      cat.s.forEach(function(sc) {
+        sc.u.forEach(function(u) {
+          if (u._qt === 'gold') deep++;
+          else if (u._qt === 'silver') solid++;
+          else if (u._qt === 'bronze') basic++;
+          else stub++;
+          if (typeof u._qs === 'number') { dSum += u._qs; dN++; }
+          if (u._qg) u._qg.forEach(function(g) { gapMap[g] = (gapMap[g] || 0) + 1; });
+        });
+      });
+      return { cat: cat, deep: deep, solid: solid, basic: basic, stub: stub, avg: dN ? Math.round(dSum / dN) : 0, total: dN, gaps: gapMap };
+    }).sort(function(a, b) { return a.avg - b.avg; });
+    var globalDeep = 0, globalTotal = 0, globalSum = 0;
+    qCats.forEach(function(q) { globalDeep += q.deep; globalTotal += q.total; globalSum += q.avg * q.total; });
+    var globalAvg = globalTotal ? Math.round(globalSum / globalTotal) : 0;
+    html += '<div class="ov-section"><h3 class="ov-h3">Content Quality — ' + globalDeep + ' deep / ' + globalTotal + ' total · avg depth ' + globalAvg + '/100</h3>';
+    html += '<p style="padding:0 1rem;font-size:13px;color:var(--text-secondary);max-width:720px">Sorted by average depth (weakest first). Click a category to see subcategory-level gaps.</p>';
+    html += '<div class="quality-cat-grid">';
+    qCats.forEach(function(q) {
+      var meta = CAT_META[q.cat.i] || {};
+      var pct = q.total ? Math.round(q.deep / q.total * 100) : 0;
+      html += '<article class="quality-cat-card" onclick="selectCat(' + q.cat.i + ')">';
+      html += '<div class="quality-cat-head"><div class="c-cat-card-icon">' + si(meta.icon || 'globe') + '</div>';
+      html += '<div><div class="quality-cat-title">' + esc(q.cat.n) + '</div>';
+      html += '<div class="quality-cat-stats">' + q.deep + ' deep / ' + q.total + ' total · avg ' + q.avg + '/100</div></div></div>';
+      html += '<div class="sc-quality"><div class="sc-quality-bar">';
+      if (q.deep) html += '<div class="sc-q-seg sc-q-gold" style="width:' + (q.deep / q.total * 100) + '%"></div>';
+      if (q.solid) html += '<div class="sc-q-seg sc-q-silver" style="width:' + (q.solid / q.total * 100) + '%"></div>';
+      if (q.basic) html += '<div class="sc-q-seg sc-q-bronze" style="width:' + (q.basic / q.total * 100) + '%"></div>';
+      if (q.stub) html += '<div class="sc-q-seg sc-q-none" style="width:' + (q.stub / q.total * 100) + '%"></div>';
+      html += '</div><span class="sc-quality-label">' + pct + '% deep</span></div>';
+      var topGaps = Object.keys(q.gaps).sort(function(a, b) { return q.gaps[b] - q.gaps[a]; }).slice(0, 3);
+      if (topGaps.length) {
+        html += '<div class="quality-cat-gaps">';
+        topGaps.forEach(function(g) { html += '<div class="quality-gap-item">' + esc(q.gaps[g] + ' UCs: ' + g) + '</div>'; });
+        html += '</div>';
+      }
+      html += '</article>';
+    });
+    html += '</div></div>';
   } else {
     var heroCatIds = ovHeroGroupFilter ? CAT_GROUPS[ovHeroGroupFilter] : null;
     html += '<div class="c-cat-grid">';
@@ -376,7 +420,11 @@ function renderOverview() {
       var meta = CAT_META[cat.i] || {};
       html += '<div class="c-cat-card" onclick="selectCat(' + cat.i + ')"><div class="c-cat-card-head"><div class="c-cat-card-icon">' + si(meta.icon || 'globe') + '</div><div><div class="c-cat-card-title">' + esc(cat.n) + '</div>';
       html += '<div class="c-cat-card-num">' + disp + ' use cases · ' + cat.s.length + ' subcategories</div></div></div>';
-      html += '<div class="c-cat-card-desc">' + esc(stripMd(meta.desc || '')) + '</div><div class="c-cat-card-footer">';
+      html += '<div class="c-cat-card-desc">' + esc(stripMd(meta.desc || '')) + '</div>';
+      var ovDeep = 0, ovDSum = 0, ovDN = 0;
+      cat.s.forEach(function(sc) { sc.u.forEach(function(u) { if (u._qt === 'gold') ovDeep++; if (typeof u._qs === 'number') { ovDSum += u._qs; ovDN++; } }); });
+      if (ovDN) html += '<div class="cat-quality-summary">' + ovDeep + ' deep / ' + ovDN + ' total · avg ' + Math.round(ovDSum / ovDN) + '/100</div>';
+      html += '<div class="c-cat-card-footer">';
       cat.s.slice(0, 3).forEach(function(sc) { html += '<span class="c-cat-card-badge">' + esc(sc.n) + '</span>'; });
       if (cat.s.length > 3) html += '<span class="c-cat-card-badge">+' + (cat.s.length - 3) + '</span>';
       html += '</div></div>';
@@ -471,6 +519,18 @@ function renderSubcategoryView() {
   html += '<div class="c-section-header"><div class="c-section-title">' + esc(cat.n) + '</div>';
   html += '<div class="c-section-desc">' + esc(stripMd(meta.desc || '')) + '</div>';
   html += '<div style="margin-top:6px;font-size:12px;color:var(--text-tertiary)">' + cat.s.length + ' subcategories · ' + catFiltered.length + ' / ' + totalCount + ' use cases</div>';
+  var catDeepCount = 0, catSolidCount = 0, catDepthSum = 0, catDepthN = 0;
+  cat.s.forEach(function(sc) {
+    sc.u.forEach(function(u) {
+      if (u._qt === 'gold') catDeepCount++;
+      else if (u._qt === 'silver') catSolidCount++;
+      if (typeof u._qs === 'number') { catDepthSum += u._qs; catDepthN++; }
+    });
+  });
+  if (catDepthN) {
+    var catAvgDepth = Math.round(catDepthSum / catDepthN);
+    html += '<div class="cat-quality-summary">' + catDeepCount + ' deep · ' + catSolidCount + ' solid · avg depth ' + catAvgDepth + '/100</div>';
+  }
   html += '</div>';
 
   html += '<div class="sc-view-grid">';
@@ -499,6 +559,22 @@ function renderSubcategoryView() {
     if (critCounts.medium) html += '<span class="sc-crit-dot medium">' + critCounts.medium + ' Medium</span>';
     if (critCounts.low) html += '<span class="sc-crit-dot low">' + critCounts.low + ' Low</span>';
     html += '</div>';
+
+    if (sc.qa !== undefined) {
+      var qd = sc.qd || {};
+      var qGold = qd.gold || 0, qSilver = qd.silver || 0, qBronze = qd.bronze || 0, qNone = qd.none || 0;
+      var qTotal = qGold + qSilver + qBronze + qNone;
+      var qPct = qTotal ? Math.round((qGold + qSilver) / qTotal * 100) : 0;
+      html += '<div class="sc-quality">';
+      html += '<div class="sc-quality-bar">';
+      if (qGold) html += '<div class="sc-q-seg sc-q-gold" style="width:' + (qGold / qTotal * 100) + '%"></div>';
+      if (qSilver) html += '<div class="sc-q-seg sc-q-silver" style="width:' + (qSilver / qTotal * 100) + '%"></div>';
+      if (qBronze) html += '<div class="sc-q-seg sc-q-bronze" style="width:' + (qBronze / qTotal * 100) + '%"></div>';
+      if (qNone) html += '<div class="sc-q-seg sc-q-none" style="width:' + (qNone / qTotal * 100) + '%"></div>';
+      html += '</div>';
+      html += '<span class="sc-quality-label" title="' + qGold + ' deep / ' + qSilver + ' solid / ' + qBronze + ' basic / ' + qNone + ' stub">' + qPct + '% coverage</span>';
+      html += '</div>';
+    }
 
     var topUCs = entries.slice(0, 3);
     if (topUCs.length) {
@@ -557,7 +633,11 @@ function renderCategory() {
   currentDisplayedList = filtered;
   var meta = CAT_META[cat.i] || {};
   var html = breadcrumb(cat) + filterStrip() + activeFilterTags();
-  html += '<div class="c-section-header"><div class="c-section-title">' + esc(cat.n) + '</div><div class="c-section-desc">' + esc(stripMd(meta.desc || '')) + '</div></div>';
+  html += '<div class="c-section-header"><div class="c-section-title">' + esc(cat.n) + '</div><div class="c-section-desc">' + esc(stripMd(meta.desc || '')) + '</div>';
+  var cDeep = 0, cSolid = 0, cDSum = 0, cDN = 0;
+  cat.s.forEach(function(sc) { sc.u.forEach(function(u) { if (u._qt === 'gold') cDeep++; else if (u._qt === 'silver') cSolid++; if (typeof u._qs === 'number') { cDSum += u._qs; cDN++; } }); });
+  if (cDN) html += '<div class="cat-quality-summary">' + cDeep + ' deep · ' + cSolid + ' solid · avg depth ' + Math.round(cDSum / cDN) + '/100</div>';
+  html += '</div>';
   if (currentSearch) {
     html += '<div class="c-search-heading">Filtered in category</div>';
     html += '<div class="uc-grid">';

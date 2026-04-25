@@ -522,7 +522,7 @@ function restoreFromHash() {
     reRender();
     return;
   }
-  if (['alluc','subcats','quickwins','recent'].indexOf(h) !== -1) {
+  if (['alluc','subcats','quickwins','recent','quality'].indexOf(h) !== -1) {
     currentCat = null; currentSearch = ''; ovGroupFilter = h;
     document.getElementById('search-input').value = '';
     reRender();

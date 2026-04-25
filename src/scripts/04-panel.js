@@ -18,7 +18,17 @@ function fillPanelBody(e) {
   if (uc.ind) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Industry</div><div>' + esc(uc.ind) + '</div></div>';
   if (uc.sdomain) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Security domain</div><div>' + esc(uc.sdomain) + '</div></div>';
   if (uc.dtype) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Detection type</div><div>' + esc(uc.dtype) + '</div></div>';
+  if (uc._qt) {
+    var tierLabel = uc._qt === 'gold' ? 'Deep' : uc._qt === 'silver' ? 'Solid' : uc._qt === 'bronze' ? 'Basic' : 'Stub';
+    html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Content depth</div><div><span class="uc-card-depth depth-' + esc(uc._qt) + '">' + esc(tierLabel) + '</span> <span style="color:var(--text-secondary);font-size:12px">' + (uc._qs || 0) + '/100</span></div></div>';
+  }
   html += '</div>';
+
+  if (uc._qg && uc._qg.length) {
+    html += '<div class="c-panel-section quality-callout"><div class="c-panel-section-title">Quality gaps</div><div class="c-panel-section-body"><ul>';
+    uc._qg.forEach(function(g) { html += '<li>' + esc(g) + '</li>'; });
+    html += '</ul></div></div>';
+  }
 
   html += renderImplementationOrdering(uc);
 
@@ -196,6 +206,13 @@ function fillPanelBody(e) {
     html += '</div>';
   }
   if (uc.tuc) html += '<div class="c-panel-section"><div class="c-panel-section-title">Telco use case</div><div class="c-panel-section-body">' + esc(stripMd(uc.tuc)) + '</div></div>';
+
+  var ucDocs = typeof UC_DOC_MAP !== 'undefined' && UC_DOC_MAP[uc.i];
+  if (ucDocs && ucDocs.length) {
+    html += '<div class="c-panel-section"><div class="c-panel-label">Related Documentation</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+    ucDocs.forEach(function(d) { html += '<a class="c-doc-chip" href="guide-reader.html?src=' + esc(d.path) + '" title="' + esc(d.title) + '">' + esc(d.title) + '</a>'; });
+    html += '</div></div>';
+  }
 
   html += '<div class="c-panel-gh"><a class="c-btn c-btn-secondary" href="' + esc(githubIssueUrlForEntry(e)) + '" target="_blank" rel="noopener">Report issue on GitHub</a></div>';
   document.getElementById('panel-body').innerHTML = html;
