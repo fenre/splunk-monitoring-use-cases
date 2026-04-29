@@ -906,11 +906,14 @@ try{if(localStorage.getItem('cisco-ui-theme')==='dark')document.documentElement.
   }
 
   // ----- data load -----
+  function _timedFetch(url) {
+    var ctrl = new AbortController();
+    var timer = setTimeout(function() { ctrl.abort(); }, 15000);
+    return fetch(url, { credentials: "same-origin", headers: { "Accept": "application/json" }, signal: ctrl.signal })
+      .then(function(r) { clearTimeout(timer); return r; }, function(e) { clearTimeout(timer); throw e.name === 'AbortError' ? new Error(url + ' — timed out (15 s)') : e; });
+  }
   function loadIndex() {
-    return fetch("api/v1/compliance/clauses/index.json", {
-      credentials: "same-origin",
-      headers: { "Accept": "application/json" },
-    })
+    return _timedFetch("api/v1/compliance/clauses/index.json")
       .then(function (res) {
         if (!res.ok) throw new Error("HTTP " + res.status);
         return res.json();
@@ -1241,7 +1244,7 @@ try{if(localStorage.getItem('cisco-ui-theme')==='dark')document.documentElement.
     //      of a percent-encoding, so this mapping is injective.)
     var endpoint = (row.endpoint || "").replace(/^\/+/, "").replace(/%/g, "%25");
     if (!endpoint) return Promise.reject(new Error("Missing endpoint for " + clauseId));
-    var p = fetch(endpoint, { credentials: "same-origin", headers: { "Accept": "application/json" } })
+    var p = _timedFetch(endpoint)
       .then(function (res) {
         if (!res.ok) throw new Error("HTTP " + res.status);
         return res.json();

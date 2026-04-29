@@ -316,10 +316,6 @@ function openPanel(idx) {
   openDetail(e);
 }
 
-function closePanel() {
-  closeDetail();
-}
-
 function navPanel(dir) {
   var n = panelIdx + dir;
   if (n >= 0 && n < panelUCList.length) {

@@ -478,7 +478,8 @@ function launchDSAFromInventory() {
 function updateHash(replace) {
   var hash = '#overview';
   if (detailOpen) return;
-  if (document.getElementById('panel-backdrop').classList.contains('open')) return;
+  var pb = document.getElementById('panel-backdrop');
+  if (pb && pb.classList.contains('open')) return;
   if (currentSearch) hash = '#search=' + encodeURIComponent(currentSearch);
   else if (currentCat != null) {
     hash = '#cat-' + currentCat;
@@ -991,9 +992,7 @@ function initApp() {
   var fl = document.getElementById('footer-feedback');
   if (fl && SITE.siteRepoUrl) fl.href = SITE.siteRepoUrl;
 
-  var headerLogo = document.getElementById('header-logo');
-  headerLogo.addEventListener('click', goHome);
-  headerLogo.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goHome(); } });
+  document.getElementById('header-logo').addEventListener('click', goHome);
   document.getElementById('theme-btn').addEventListener('click', toggleTheme);
   document.getElementById('hamburger').addEventListener('click', function() {
     document.getElementById('sidebar').classList.toggle('open');
@@ -1069,7 +1068,6 @@ function initApp() {
       if (document.getElementById('rn-overlay').classList.contains('open')) { closeReleaseNotes(); return; }
       if (document.activeElement === siEl && siEl.value) { siEl.value = ''; siEl.blur(); currentSearch = ''; selectCat(null); return; }
       if (detailOpen) { closeDetail(); return; }
-      if (document.getElementById('panel-backdrop').classList.contains('open')) { closePanel(); return; }
       if (document.getElementById('mitre-map-overlay').classList.contains('open')) { closeMitreMap(); return; }
       closeMobileSidebar();
       return;
@@ -1078,14 +1076,7 @@ function initApp() {
       if (e.key === 'ArrowLeft') navPanel(-1);
       if (e.key === 'ArrowRight') navPanel(1);
     }
-    if (document.getElementById('panel-backdrop').classList.contains('open')) {
-      if (e.key === 'ArrowLeft') navPanel(-1);
-      if (e.key === 'ArrowRight') navPanel(1);
-    }
   });
-
-  document.getElementById('panel-backdrop').addEventListener('click', function(ev) { if (ev.target === this) closePanel(); });
-  document.getElementById('panel').addEventListener('click', function(ev) { ev.stopPropagation(); });
 
   window.addEventListener('popstate', function() { restoreFromHash(); });
 
