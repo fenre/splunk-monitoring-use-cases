@@ -1,0 +1,1264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "product": "Cisco Catalyst Center",
+  "productAliases": ["DNA Center", "DNAC"],
+  "integrationGuide": "docs/guides/catalyst-center.md",
+  "purpose": "Domain packs are the reusable scaffolding that authors and reviewers draw from when writing or uplifting Catalyst Center UC content. Each pack pre-populates the sourcetype family's TA, API path, fields, validation pattern, KFPs, and troubleshooting modes so sibling UCs read coherently. The pack is reference material — it is NOT auto-merged into UC files; authors copy and customise.",
+  "lastReviewed": "2026-04-29",
+  "common": {
+    "ta": {
+      "name": "Cisco Catalyst Add-on for Splunk",
+      "splunkbaseId": 7538,
+      "splunkbaseUrl": "https://splunkbase.splunk.com/app/7538",
+      "minVersion": "1.0",
+      "scope": "Search head + heavy forwarder (or single-instance). Indexer for index-time transforms if applicable.",
+      "license": "Free TA. Requires Cisco DNA Essentials (minimum) on Catalyst Center for inventory; DNA Advantage for full Assurance health scores; DNA Premier for SDA and advanced analytics."
+    },
+    "catalystCenter": {
+      "minVersion": "2.3.5",
+      "authMethod": "Token-based. POST /dna/system/api/v1/auth/token with Basic auth, returns token for X-Auth-Token header.",
+      "rbacRoles": {
+        "NETWORK-ADMIN-ROLE": "Required for most Assurance, health, compliance, and inventory endpoints.",
+        "SUPER-ADMIN-ROLE": "Required for audit logs, some compliance detail endpoints, and event notification subscriptions."
+      },
+      "networkPath": "HTTPS TCP 443 from Splunk TA host to Catalyst Center management IP/FQDN.",
+      "webhookPath": "HTTPS TCP 8088 from Catalyst Center to Splunk HEC endpoint (for event notifications)."
+    },
+    "index": "catalyst",
+    "references": [
+      {
+        "title": "Cisco Catalyst Add-on for Splunk (Splunkbase 7538)",
+        "url": "https://splunkbase.splunk.com/app/7538"
+      },
+      {
+        "title": "Cisco Catalyst Center API Documentation",
+        "url": "https://developer.cisco.com/docs/catalyst-center/"
+      },
+      {
+        "title": "Catalyst Center Integration Guide",
+        "url": "docs/guides/catalyst-center.md"
+      }
+    ]
+  },
+  "packs": {
+    "devicehealth": {
+      "ta": {
+        "inputName": "devicehealth",
+        "inputStanza": "devicehealth",
+        "sourcetype": "cisco:dnac:devicehealth",
+        "apiEndpoint": "GET /dna/intent/api/v1/device-health",
+        "defaultInterval": 900,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per managed device per poll",
+        "rbacRole": "NETWORK-ADMIN-ROLE"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:devicehealth",
+        "fields": {
+          "overallHealth": "integer 0-100; composite health score from Assurance analytics",
+          "reachabilityHealth": "string; Reachable or Unreachable (ICMP/SNMP reachability)",
+          "deviceName": "string; device hostname from Catalyst Center inventory",
+          "deviceType": "string; device platform family (e.g., Cisco Catalyst 9300 Switch)",
+          "siteId": "string; site UUID from Catalyst Center hierarchy",
+          "platformId": "string; hardware PID (e.g., C9300-48P)",
+          "managementIpAddress": "string; management IP address",
+          "softwareVersion": "string; IOS-XE version (e.g., 17.9.4a)",
+          "deviceFamily": "string; device family (e.g., Switches and Hubs)",
+          "location": "string; site hierarchy path (e.g., HQ/Floor3/IDF-3A)",
+          "memoryScore": "integer 0-100; memory health score",
+          "cpuScore": "integer 0-100; CPU health score",
+          "interDeviceLinkScore": "integer 0-100; link health score"
+        },
+        "cimModel": null,
+        "notes": "Core health scoring. Each event represents one device. The TA follows Cisco pagination and token auth automatically."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Assurance > Health > Device Health",
+          "Catalyst Center > Assurance > Health > Device Health > [device name] > Device 360"
+        ],
+        "spotChecks": [
+          "Pick 3-5 devices; compare overallHealth in Splunk to the same device in Assurance > Device Health within a single poll window. Differences of 1-2 points are normal due to poll timing.",
+          "Run | stats dc(deviceName) as devices and compare to Catalyst Center > Inventory device count for the same site scope.",
+          "Run | timechart count by deviceType over 24h to catch silent gaps (flat line at zero for any device type).",
+          "Validate that reachabilityHealth values match what the Catalyst Center Assurance UI shows as reachable/unreachable."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Catalyst Center Assurance analytics recomputation cycle",
+          "system": "Catalyst Center Assurance engine",
+          "distinguish": "Health scores temporarily drop to 0 or null during the 2-3 minute Assurance recomputation window, typically at the top of each hour. Look for overallHealth=0 affecting many devices simultaneously within a 2-3 minute window, then recovering.",
+          "suppress": "Add | where overallHealth>0 to filter recomputation artifacts, or require two consecutive polls showing degradation before alerting."
+        },
+        {
+          "scenario": "New device onboarding via Plug and Play (PnP)",
+          "system": "Catalyst Center PnP provisioning",
+          "distinguish": "Newly onboarded devices report low or zero health scores until Assurance builds a baseline (typically 30-60 minutes). Correlate with index=catalyst sourcetype=\"cisco:dnac:device\" where softwareVersion changes or upTime is very short.",
+          "suppress": "Maintain a catalyst_new_devices lookup populated by PnP events; exclude devices onboarded within the last 2 hours."
+        },
+        {
+          "scenario": "Catalyst Center cluster upgrade or maintenance window",
+          "system": "Catalyst Center platform",
+          "distinguish": "During Catalyst Center upgrades (2-6 hours for major versions), the API may return stale data or errors. Check index=_internal sourcetype=splunkd component=ExecProcessor \"TA_cisco_catalyst\" for HTTP 503 errors in the same window.",
+          "suppress": "Use a catalyst_maintenance_windows lookup with start/end times; filter events where _time falls within a scheduled window."
+        },
+        {
+          "scenario": "Virtual domain scope mismatch — devices not visible to the TA service account",
+          "system": "Catalyst Center virtual domains",
+          "distinguish": "If the service account's virtual domain scope is narrower than the full inventory, some devices appear missing rather than unhealthy. Compare dc(deviceName) in Splunk to Catalyst Center > Inventory at Global scope.",
+          "suppress": "Not a false positive to suppress — this is a configuration gap. Expand the service account's virtual domain access or create separate inputs per domain."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No cisco:dnac:devicehealth events appearing in index=catalyst",
+          "cause": "The devicehealth modular input is disabled, the service account credentials are wrong or expired, or the Catalyst Center URL is incorrect.",
+          "fix": "Check TA > Inputs > verify devicehealth is enabled. Check index=_internal sourcetype=splunkd component=ExecProcessor \"TA_cisco_catalyst\" for 401 Unauthorized (bad credentials), Connection refused (wrong URL/firewall), or SSL certificate verify failed. Re-enter credentials in TA > Configuration > Account."
+        },
+        {
+          "symptom": "Events appear but overallHealth is null or 0 for all devices",
+          "cause": "Assurance is not licensed (DNA Essentials does not include full health scoring) or Assurance analytics is disabled for the site.",
+          "fix": "Verify Catalyst Center licensing: DNA Advantage or Premier is required for full health scores. In Catalyst Center, confirm Assurance is enabled for the affected sites under System > Settings."
+        },
+        {
+          "symptom": "Device count in Splunk is lower than Catalyst Center Inventory",
+          "cause": "Virtual domain scope mismatch, API pagination failure, or API throttling dropping some responses.",
+          "fix": "Verify service account has access to all virtual domains. Check TA logs for pagination errors. If device count exceeds 500, confirm the TA handles pagination correctly (check for HTTP 429 in logs)."
+        },
+        {
+          "symptom": "Health scores in Splunk differ significantly from Catalyst Center UI (>5 points)",
+          "cause": "Clock skew between Splunk and Catalyst Center, or the TA is polling during an Assurance recomputation window.",
+          "fix": "Verify NTP synchronization. Compare timestamps: Splunk _time vs Catalyst Center event timestamp. If persistent, stagger the poll interval to avoid the hourly recomputation window."
+        },
+        {
+          "symptom": "Events stop arriving after a Catalyst Center upgrade",
+          "cause": "API field names or authentication flow may have changed in the new Catalyst Center version.",
+          "fix": "Check TA compatibility matrix. Run a sample query to verify field names match. Re-authenticate the TA account if the token format changed. Check Splunkbase for a TA update."
+        }
+      ]
+    },
+    "clienthealth": {
+      "ta": {
+        "inputName": "clienthealth",
+        "inputStanza": "clienthealth",
+        "sourcetype": "cisco:dnac:clienthealth",
+        "apiEndpoint": "GET /dna/intent/api/v1/client-health",
+        "defaultInterval": 900,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~3 events per poll (ALL, WIRED, WIRELESS categories)",
+        "rbacRole": "NETWORK-ADMIN-ROLE"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:clienthealth",
+        "fields": {
+          "scoreCategory": "string; client category: ALL, WIRED, WIRELESS",
+          "value": "integer 0-100; health score for this category",
+          "clientCount": "integer; number of clients in this score category",
+          "scoreDetail{}": "array/object; nested health score breakdown — requires spath | mvexpand | spath to flatten"
+        },
+        "cimModel": null,
+        "notes": "Uses nested JSON structure. Standard field extraction fails; use | spath output=categories path=scoreDetail{} | mvexpand categories | spath input=categories to flatten."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Assurance > Health > Client Health",
+          "Catalyst Center > Assurance > Health > Client Health > Wired / Wireless tabs"
+        ],
+        "spotChecks": [
+          "Compare the ALL/WIRED/WIRELESS health scores in Splunk to Catalyst Center > Assurance > Client Health within the same poll window.",
+          "Run | stats sum(clientCount) and compare to the total connected clients shown in Catalyst Center > Assurance > Client Health.",
+          "Validate scoreDetail nesting: run | spath output=categories path=scoreDetail{} | mvexpand categories | spath input=categories | head 5 to confirm flattening works."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Mass DHCP renewal event causing temporary client disconnections",
+          "system": "DHCP infrastructure (Windows DHCP, Cisco ISE DHCP)",
+          "distinguish": "A sudden drop in clientCount or health score coinciding with DHCP scope renewal. Correlate with DHCP server logs: index=dhcp OR index=ise sourcetype=cisco:ise:syslog DHCP in the same 15-minute window.",
+          "suppress": "If DHCP renewals are scheduled, add the renewal window to catalyst_maintenance_windows lookup."
+        },
+        {
+          "scenario": "Wireless RF environment change (channel reassignment or power adjustment)",
+          "system": "Catalyst Center RRM (Radio Resource Management)",
+          "distinguish": "Client health drops on WIRELESS category while WIRED remains stable. Correlate with index=catalyst sourcetype=\"cisco:dnac:wireless:rf\" for channel or power changes in the same time window.",
+          "suppress": "Require WIRELESS health to remain below threshold for 2+ consecutive polls before alerting, to ride through RRM transients."
+        },
+        {
+          "scenario": "Guest SSID onboarding surge during large meetings or events",
+          "system": "Guest Wi-Fi / Catalyst Center guest portal",
+          "distinguish": "WIRELESS clientCount spikes while health score drops, concentrated on guest SSIDs. Filter by SSID if the data includes SSID-level breakdown in scoreDetail.",
+          "suppress": "Exclude guest SSID clients from health alerting using | where scoreCategory!=\"GUEST\" or a guest_ssid lookup."
+        },
+        {
+          "scenario": "Catalyst Center client health data delayed during high-device-count environments",
+          "system": "Catalyst Center Assurance engine / API pagination",
+          "distinguish": "clientCount or health score shows gaps or sudden jumps. Check index=_internal for TA pagination or timeout errors during the same interval.",
+          "suppress": "Not a false positive to suppress — increase the poll interval to reduce API load, or contact Cisco TAC if the Assurance engine is underperforming."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "scoreDetail is empty or shows only the ALL category",
+          "cause": "The Catalyst Center API response may not include WIRED/WIRELESS breakdown if no clients are connected in that category, or the API version differs.",
+          "fix": "Verify at least one wired and one wireless client exists in Catalyst Center > Assurance > Client Health. If the issue persists, check the API response with a direct curl call to /dna/intent/api/v1/client-health."
+        },
+        {
+          "symptom": "clientCount shows 0 but Catalyst Center UI shows active clients",
+          "cause": "Clock skew causing the API to return data for a different time window than expected, or Assurance data purge window exceeded.",
+          "fix": "Verify NTP sync. Pass a timestamp parameter in the API request matching the current time. Check that the Catalyst Center Assurance 7-day retention window has not expired for the queried period."
+        },
+        {
+          "symptom": "Health score is 0 for WIRELESS but clients are connected",
+          "cause": "Wireless controllers may not be reporting health data to Catalyst Center Assurance, or the WLC integration is not configured.",
+          "fix": "In Catalyst Center, verify the wireless controller is discovered and assigned to a site. Check Assurance > Health > Network Health for WLC health status."
+        }
+      ]
+    },
+    "networkhealth": {
+      "ta": {
+        "inputName": "networkhealth",
+        "inputStanza": "networkhealth",
+        "sourcetype": "cisco:dnac:networkhealth",
+        "apiEndpoint": "GET /dna/intent/api/v1/network-health",
+        "defaultInterval": 900,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per poll (aggregate network score)",
+        "rbacRole": "NETWORK-ADMIN-ROLE"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:networkhealth",
+        "fields": {
+          "healthScore": "integer 0-100; overall network health score",
+          "goodCount": "integer; number of healthy network elements",
+          "badCount": "integer; number of unhealthy network elements",
+          "totalCount": "integer; total managed network elements"
+        },
+        "cimModel": null,
+        "notes": "Aggregate network score. One event per poll covering the entire managed network."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Assurance > Health > Network Health",
+          "Catalyst Center > Assurance > Health > Network Health > Summary tile"
+        ],
+        "spotChecks": [
+          "Compare healthScore in Splunk to the main Network Health tile in Catalyst Center > Assurance within the same poll window.",
+          "Verify goodCount + badCount = totalCount (some versions may include a fairCount).",
+          "Run | timechart avg(healthScore) over 7 days and compare the trend shape to Catalyst Center > Assurance > Network Health 7-day view."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Catalyst Center Assurance data refresh cycle",
+          "system": "Catalyst Center Assurance engine",
+          "distinguish": "healthScore drops briefly to 0 or null during the Assurance recomputation cycle, affecting the aggregate score for 1-2 minutes. Check if badCount also jumps to equal totalCount in the same event.",
+          "suppress": "Require two consecutive polls showing degradation before alerting. Use | eventstats latest(healthScore) as prev_score by sourcetype to compare adjacent polls."
+        },
+        {
+          "scenario": "Planned network maintenance window (firmware upgrades, topology changes)",
+          "system": "Change management / ITSM",
+          "distinguish": "Network health drops during a documented change window. Correlate with index=catalyst sourcetype=\"cisco:dnac:audit:logs\" for configuration changes, or check the ITSM system for approved change tickets.",
+          "suppress": "Use a catalyst_maintenance_windows lookup keyed on start/end times. Filter events where _time falls within an approved window."
+        },
+        {
+          "scenario": "Single high-impact device failure skewing the aggregate score",
+          "system": "Core/distribution network device",
+          "distinguish": "healthScore drops significantly but badCount increases by only 1-2 devices. Correlate with index=catalyst sourcetype=\"cisco:dnac:devicehealth\" where overallHealth<25 to identify the culprit.",
+          "suppress": "Do not suppress — this is a real event. But context in the alert should identify the specific device(s) driving the score drop."
+        },
+        {
+          "scenario": "Catalyst Center site scope change (devices added or removed from management)",
+          "system": "Catalyst Center Inventory",
+          "distinguish": "totalCount changes between polls, causing healthScore to shift. Correlate with index=catalyst sourcetype=\"cisco:dnac:device\" to check for inventory changes.",
+          "suppress": "Track totalCount baseline and alert only when healthScore drops AND totalCount remains stable."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "healthScore is always 100 or always 0",
+          "cause": "If always 100: no devices are reporting issues (validate device count). If always 0: Assurance is not computing health (licensing or configuration issue).",
+          "fix": "For always 100: verify totalCount matches expected fleet size. For always 0: check Assurance licensing (DNA Advantage required) and that Assurance analytics is enabled."
+        },
+        {
+          "symptom": "goodCount + badCount does not equal totalCount",
+          "cause": "Some devices may be in a transitional state (provisioning, rebooting) that Assurance categorizes separately.",
+          "fix": "This is expected behavior. Account for the difference as 'unscored' devices in dashboards."
+        }
+      ]
+    },
+    "issue": {
+      "ta": {
+        "inputName": "issue",
+        "inputStanza": "issue",
+        "sourcetype": "cisco:dnac:issue",
+        "apiEndpoint": "GET /dna/intent/api/v1/issues",
+        "defaultInterval": 900,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per active issue per poll",
+        "rbacRole": "NETWORK-ADMIN-ROLE"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:issue",
+        "fields": {
+          "priority": "string; P1 (critical) through P4 (informational)",
+          "category": "string; issue category (Connectivity, Onboarding, Security, etc.)",
+          "name": "string; human-readable issue name",
+          "deviceName": "string; affected device hostname",
+          "status": "string; ACTIVE, RESOLVED, IGNORED",
+          "issueId": "string; unique issue identifier",
+          "siteId": "string; site UUID",
+          "lastOccurenceTime": "epoch milliseconds; last occurrence timestamp",
+          "deviceType": "string; device platform family"
+        },
+        "cimModel": null,
+        "notes": "Assurance-detected issues. Only active issues are returned by default; resolved issues drop from the API response."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Assurance > Issues > Open Issues",
+          "Catalyst Center > Assurance > Issues > Resolved Issues",
+          "Catalyst Center > Assurance > Issues > [issue name] > Issue Detail"
+        ],
+        "spotChecks": [
+          "Compare the count of P1 issues in Splunk (| search priority=P1 status=ACTIVE | stats count) to Catalyst Center > Assurance > Issues filtered by P1.",
+          "Pick a specific active issue in Catalyst Center; verify it appears in Splunk with matching priority, category, and deviceName.",
+          "Run | timechart count by priority over 24h and compare the trend to Catalyst Center > Assurance > Issues > Trends."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Assurance auto-resolved issues that are transient network events",
+          "system": "Catalyst Center Assurance auto-resolution engine",
+          "distinguish": "Issues with status=RESOLVED appearing within minutes of creation. The issue lifecycle is: ACTIVE → RESOLVED when the condition clears. Check if lastOccurenceTime - firstOccurenceTime < 5 minutes.",
+          "suppress": "Filter | where status=\"ACTIVE\" to exclude auto-resolved transients, or require the issue to persist across 2+ poll cycles."
+        },
+        {
+          "scenario": "Catalyst Center bug creating spurious P3/P4 issues",
+          "system": "Catalyst Center Assurance issue detection (known bug in some 2.3.x versions)",
+          "distinguish": "High volume of P3/P4 issues with the same name affecting many devices simultaneously, not correlated with actual network events.",
+          "suppress": "Filter by priority IN (\"P1\",\"P2\") for alerting. Track P3/P4 volume for trending only. Open a Cisco TAC case for the specific bug ID."
+        },
+        {
+          "scenario": "Network device reload or power cycle clearing issues",
+          "system": "Network device (planned or unplanned reboot)",
+          "distinguish": "Multiple issues for the same deviceName transition from ACTIVE to RESOLVED after a reboot. Correlate with index=catalyst sourcetype=\"cisco:dnac:devicehealth\" where upTime resets to a low value.",
+          "suppress": "Do not suppress — the resolution after reboot is expected behavior. But avoid alerting on the RESOLVED transition if the original ACTIVE alert was already acknowledged."
+        },
+        {
+          "scenario": "Issue priority reclassification by Catalyst Center Assurance",
+          "system": "Catalyst Center Assurance priority engine",
+          "distinguish": "The same issueId appears with different priority values across polls (e.g., P2 → P1 escalation). This is legitimate priority adjustment based on impact analysis.",
+          "suppress": "Track by issueId and alert on the current priority. Use | stats latest(priority) as current_priority by issueId."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No cisco:dnac:issue events despite known network issues",
+          "cause": "The issues input may be disabled, or the Assurance engine has not detected the issue yet (detection can lag 5-15 minutes).",
+          "fix": "Verify the issue input is enabled in the TA. Check Catalyst Center > Assurance > Issues to confirm the issue is detected there first. If issues exist in Catalyst Center but not in Splunk, check TA logs for API errors."
+        },
+        {
+          "symptom": "Issue events show status=ACTIVE for issues already resolved in Catalyst Center",
+          "cause": "Poll timing: the TA may have captured the issue before Assurance marked it resolved, and the next poll hasn't occurred yet.",
+          "fix": "Wait for the next poll cycle. If the issue persists across multiple polls, check for API pagination issues or Catalyst Center sync delays."
+        },
+        {
+          "symptom": "Duplicate issueId entries in the same poll",
+          "cause": "API pagination may return overlapping pages if issues are created/resolved during the poll.",
+          "fix": "Use | stats latest(*) by issueId to deduplicate. This is a known behavior with paginated API responses."
+        },
+        {
+          "symptom": "Issue category or name values are different between Catalyst Center versions",
+          "cause": "Catalyst Center Assurance adds or renames issue categories across versions.",
+          "fix": "Review the issue category values after a Catalyst Center upgrade. Update SPL filters and dashboards to match the new category names."
+        }
+      ]
+    },
+    "compliance": {
+      "ta": {
+        "inputName": "compliance",
+        "inputStanza": "compliance",
+        "sourcetype": "cisco:dnac:compliance",
+        "apiEndpoint": "GET /dna/intent/api/v1/compliance",
+        "defaultInterval": 3600,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per device per poll",
+        "rbacRole": "NETWORK-ADMIN-ROLE"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:compliance",
+        "fields": {
+          "complianceStatus": "string; COMPLIANT, NON_COMPLIANT, ERROR, IN_PROGRESS, NOT_APPLICABLE",
+          "complianceType": "string; RUNNING_CONFIG, PSIRT, IMAGE, EOX, NETWORK_PROFILE",
+          "deviceName": "string; device being assessed",
+          "deviceUuid": "string; device UUID",
+          "managementIpAddress": "string; management IP",
+          "lastUpdateTime": "epoch milliseconds; last compliance check timestamp"
+        },
+        "cimModel": "Change",
+        "notes": "Config compliance against golden templates. complianceType distinguishes between running config, PSIRT, image, and EOX compliance checks."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Provision > Inventory > Compliance tab",
+          "Catalyst Center > Provision > Compliance > Device Compliance Detail"
+        ],
+        "spotChecks": [
+          "Compare the count of NON_COMPLIANT devices in Splunk to Catalyst Center > Provision > Inventory > Compliance tab.",
+          "Pick a specific non-compliant device and verify the complianceType matches what Catalyst Center shows.",
+          "Run | stats count by complianceStatus to verify the distribution matches the Catalyst Center compliance summary."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Device compliance check in progress after a configuration push",
+          "system": "Catalyst Center template provisioning",
+          "distinguish": "complianceStatus shows IN_PROGRESS or ERROR temporarily after a template push. Correlate with index=catalyst sourcetype=\"cisco:dnac:audit:logs\" for recent configuration changes to the same device.",
+          "suppress": "Exclude complianceStatus=IN_PROGRESS from non-compliance alerting. Re-check on the next poll cycle."
+        },
+        {
+          "scenario": "Golden template updated but devices not yet re-checked",
+          "system": "Catalyst Center Compliance engine",
+          "distinguish": "Multiple devices suddenly show NON_COMPLIANT after a golden template update, even though their actual configuration has not changed. Correlate with audit logs for template modifications.",
+          "suppress": "Wait for the next compliance check cycle (up to 24 hours for some compliance types). Alert only on devices that remain non-compliant after two consecutive polls."
+        },
+        {
+          "scenario": "Compliance check failure due to device unreachability",
+          "system": "Network device reachability",
+          "distinguish": "complianceStatus shows ERROR for a device that is also showing reachabilityHealth=Unreachable in devicehealth. The compliance check could not connect to the device.",
+          "suppress": "Correlate with devicehealth reachability. If the device is unreachable, the compliance ERROR is a symptom, not the root cause. Alert on the reachability issue instead."
+        },
+        {
+          "scenario": "NOT_APPLICABLE compliance status for devices that don't support the compliance type",
+          "system": "Catalyst Center Compliance engine",
+          "distinguish": "Certain compliance types (e.g., IMAGE compliance for APs, EOX for virtual devices) return NOT_APPLICABLE. This is expected, not a failure.",
+          "suppress": "Filter | where complianceStatus NOT IN (\"NOT_APPLICABLE\",\"IN_PROGRESS\") for compliance violation alerting."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "All devices show COMPLIANT even though configuration drift exists",
+          "cause": "No golden template has been assigned to the devices, or the compliance profile does not include RUNNING_CONFIG checks.",
+          "fix": "In Catalyst Center > Provision > Compliance, verify that a compliance profile is assigned to the device family and that RUNNING_CONFIG is included in the check types."
+        },
+        {
+          "symptom": "complianceStatus is always ERROR for audit log endpoints",
+          "cause": "The service account may lack SUPER-ADMIN-ROLE required for some compliance detail endpoints.",
+          "fix": "Verify the service account role. Escalate to SUPER-ADMIN-ROLE if needed, or split into two accounts with different roles."
+        },
+        {
+          "symptom": "Compliance events have stale lastUpdateTime (>48 hours old)",
+          "cause": "The compliance engine may have stopped running due to Catalyst Center resource constraints or a stuck compliance job.",
+          "fix": "In Catalyst Center, manually trigger a compliance re-check. Check Catalyst Center cluster health for resource issues (CPU, memory, disk)."
+        }
+      ]
+    },
+    "securityadvisory": {
+      "ta": {
+        "inputName": "securityadvisory",
+        "inputStanza": "securityadvisory",
+        "sourcetype": "cisco:dnac:securityadvisory",
+        "apiEndpoint": "GET /dna/intent/api/v1/security-advisory/advisory",
+        "defaultInterval": 3600,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per advisory-device pair",
+        "rbacRole": "NETWORK-ADMIN-ROLE"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:securityadvisory",
+        "fields": {
+          "advisoryId": "string; Cisco advisory identifier (e.g., cisco-sa-iosxe-webui-privesc-j22SaA)",
+          "advisoryTitle": "string; human-readable advisory title",
+          "severity": "string; CRITICAL, HIGH, MEDIUM, LOW, INFORMATIONAL",
+          "cveId": "string; associated CVE identifier(s)",
+          "deviceCount": "integer; number of affected devices",
+          "deviceId": "string; affected device UUID (when per-device data is available)",
+          "fixedVersions": "array of strings; IOS-XE versions that fix the vulnerability",
+          "publicationDate": "string; PSIRT publication date"
+        },
+        "cimModel": "Vulnerabilities",
+        "notes": "PSIRT/CVE advisory data. Catalyst Center cross-references published PSIRTs against the software versions running on managed devices."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Provision > Inventory > Security Advisories",
+          "Catalyst Center > Provision > Security Advisories > [advisory ID]"
+        ],
+        "spotChecks": [
+          "Compare the count of CRITICAL advisories in Splunk to Catalyst Center > Security Advisories filtered by Critical severity.",
+          "Pick a specific advisory (by advisoryId) and verify deviceCount matches between Splunk and Catalyst Center.",
+          "Run | stats dc(advisoryId) by severity to verify the severity distribution matches the Catalyst Center summary."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Advisory applies to a software version not actually running on any managed device",
+          "system": "Catalyst Center PSIRT scanning engine",
+          "distinguish": "Some advisory-device pairs exist because the device family matches but the specific software version is not vulnerable. Check if fixedVersions includes the device's current softwareVersion.",
+          "suppress": "Correlate with index=catalyst sourcetype=\"cisco:dnac:device\" to verify the device's actual softwareVersion against the advisory's affected versions list."
+        },
+        {
+          "scenario": "Advisory published but compensating controls already in place",
+          "system": "Network security infrastructure (ACLs, IPS, segmentation)",
+          "distinguish": "The vulnerability requires specific network conditions that compensating controls mitigate. Review the advisory's conditions and verify compensating controls in the network configuration.",
+          "suppress": "Maintain a catalyst_advisory_exceptions lookup with advisoryId, deviceName, and justification. Filter excepted advisories from alerting dashboards."
+        },
+        {
+          "scenario": "Catalyst Center re-scans after PSIRT database update, generating duplicate advisory events",
+          "system": "Catalyst Center PSIRT scanning engine",
+          "distinguish": "The same advisoryId-deviceId pairs appear in a new poll after a PSIRT database update. The advisory is not new, just re-detected.",
+          "suppress": "Deduplicate using | stats earliest(_time) as first_seen latest(_time) as last_seen by advisoryId, deviceId. Alert only on advisories where first_seen is within the current reporting window."
+        },
+        {
+          "scenario": "End-of-life devices that cannot be patched",
+          "system": "EOL hardware/software in the network",
+          "distinguish": "Advisories flagged against devices running EOL software versions where no patch is available. The advisory is valid but unresolvable through firmware update.",
+          "suppress": "Do not suppress — these are legitimate findings. Flag them in a separate 'unresolvable' dashboard with a risk-accepted status and compensating controls documentation."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No securityadvisory events despite known vulnerable devices",
+          "cause": "The securityadvisory input may be disabled, or Catalyst Center has not completed its PSIRT scan against the device inventory.",
+          "fix": "Verify the input is enabled. In Catalyst Center, check Provision > Security Advisories to confirm the PSIRT scan has completed. The initial scan can take several hours for large inventories."
+        },
+        {
+          "symptom": "Advisory severity in Splunk does not match Cisco's published PSIRT severity",
+          "cause": "Catalyst Center may apply its own severity assessment based on local context (device exposure, compensating controls).",
+          "fix": "Compare with the authoritative PSIRT listing at https://sec.cloudapps.cisco.com/security/center/publicationListing.x. The Catalyst Center severity may differ from the published PSIRT base score."
+        }
+      ]
+    },
+    "device": {
+      "ta": {
+        "inputName": "device",
+        "inputStanza": "device",
+        "sourcetype": "cisco:dnac:device",
+        "apiEndpoint": "GET /dna/intent/api/v1/network-device",
+        "defaultInterval": 3600,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per device per poll",
+        "rbacRole": "NETWORK-ADMIN-ROLE"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:device",
+        "fields": {
+          "hostname": "string; device hostname",
+          "platformId": "string; hardware PID (e.g., C9300-48P)",
+          "softwareVersion": "string; IOS-XE version",
+          "managementIpAddress": "string; management IP",
+          "upTime": "string; device uptime (e.g., 45 days, 3:22:15)",
+          "serialNumber": "string; hardware serial number",
+          "macAddress": "string; base MAC address",
+          "role": "string; device role (ACCESS, DISTRIBUTION, CORE, BORDER ROUTER)",
+          "family": "string; device family"
+        },
+        "cimModel": "Compute_Inventory",
+        "notes": "Full device inventory. Use for inventory tracking, version auditing, and uptime monitoring."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Provision > Inventory",
+          "Catalyst Center > Provision > Inventory > [device name] > Device Detail"
+        ],
+        "spotChecks": [
+          "Run | stats dc(hostname) and compare to the device count in Catalyst Center > Provision > Inventory.",
+          "Pick 3 devices and verify hostname, platformId, softwareVersion, and managementIpAddress match Catalyst Center.",
+          "Run | stats count by family to verify device family distribution matches inventory."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Device with multiple management IPs (HSRP, VRF, dual-stack)",
+          "system": "Network device with redundancy or VRF configuration",
+          "distinguish": "The same physical device may appear with different managementIpAddress values if the IP changes during failover or VRF routing changes. Check if hostname and serialNumber are consistent.",
+          "suppress": "Deduplicate by serialNumber rather than managementIpAddress for inventory counts."
+        },
+        {
+          "scenario": "Device hostname change during rename or migration",
+          "system": "Network device provisioning",
+          "distinguish": "A device appears as 'new' with a different hostname but the same serialNumber and managementIpAddress. Correlate with audit logs for a rename event.",
+          "suppress": "Track devices by serialNumber or managementIpAddress for continuity. Use a catalyst_device_renames lookup to map old → new hostnames."
+        },
+        {
+          "scenario": "RMA replacement device with same hostname but different serial",
+          "system": "Hardware RMA process",
+          "distinguish": "A new serialNumber appears for an existing hostname and managementIpAddress. This is expected during RMA.",
+          "suppress": "Do not suppress — flag as an inventory change for asset tracking. Update asset management records."
+        },
+        {
+          "scenario": "Catalyst Center inventory sync delay for newly discovered devices",
+          "system": "Catalyst Center device discovery",
+          "distinguish": "Newly discovered devices may appear with incomplete fields (missing softwareVersion or upTime) for the first few polls while Catalyst Center completes its inventory collection.",
+          "suppress": "Allow 2-3 poll cycles for complete inventory data. Alert only on devices with missing critical fields after 3+ hours."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "Device inventory in Splunk is missing devices that are in Catalyst Center",
+          "cause": "Virtual domain scope mismatch, or API pagination not returning all devices.",
+          "fix": "Verify service account virtual domain access. For large inventories (>500 devices), check TA logs for pagination errors or HTTP 429 throttling."
+        },
+        {
+          "symptom": "softwareVersion shows outdated values after a device upgrade",
+          "cause": "The device input polls hourly by default; the version may not update until the next poll after the upgrade completes.",
+          "fix": "Wait for the next poll cycle. If the issue persists, check that Catalyst Center > Provision > Inventory shows the updated version."
+        }
+      ]
+    },
+    "sitehealth": {
+      "ta": {
+        "inputName": "sitehealth",
+        "inputStanza": "sitehealth",
+        "sourcetype": "cisco:dnac:sitehealth",
+        "apiEndpoint": "GET /dna/intent/api/v1/site-health",
+        "defaultInterval": 900,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per site per poll",
+        "rbacRole": "NETWORK-ADMIN-ROLE"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:sitehealth",
+        "fields": {
+          "siteName": "string; site name from hierarchy",
+          "siteId": "string; site UUID",
+          "siteType": "string; area, building, or floor",
+          "networkHealthAverage": "integer 0-100; average network health for the site",
+          "clientHealthWired": "integer 0-100; wired client health at the site",
+          "clientHealthWireless": "integer 0-100; wireless client health at the site",
+          "numberOfNetworkDevice": "integer; device count at the site"
+        },
+        "cimModel": null,
+        "notes": "Site-level health aggregation. Use to identify underperforming sites quickly."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Assurance > Health > Network Health > Site view"
+        ],
+        "spotChecks": [
+          "Compare networkHealthAverage for 3 sites between Splunk and the Catalyst Center Assurance site health view.",
+          "Verify numberOfNetworkDevice matches the device count for each site in Catalyst Center > Provision > Inventory filtered by site."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Site hierarchy restructuring in Catalyst Center",
+          "system": "Catalyst Center site management",
+          "distinguish": "Sites are renamed, merged, or split. This causes apparent new sites and missing sites in Splunk data. Correlate with audit logs for site hierarchy changes.",
+          "suppress": "Use | stats latest(*) by siteId to track by UUID rather than siteName. Maintain a site_name_history lookup for dashboard continuity."
+        },
+        {
+          "scenario": "Small site with few devices where a single device failure dramatically impacts the score",
+          "system": "Remote office or branch with 2-5 devices",
+          "distinguish": "networkHealthAverage drops below threshold but numberOfNetworkDevice is very small. A single device reboot can cause this.",
+          "suppress": "Normalize health scores by site size: alert only when numberOfNetworkDevice > 5 AND networkHealthAverage < threshold, or use a per-site threshold lookup."
+        },
+        {
+          "scenario": "Newly created site with no devices assigned yet",
+          "system": "Catalyst Center site provisioning",
+          "distinguish": "siteType=floor or building with numberOfNetworkDevice=0 and no health scores. The site exists in the hierarchy but has no devices.",
+          "suppress": "Filter | where numberOfNetworkDevice>0 for health monitoring dashboards."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "Site health shows 0 for all sites",
+          "cause": "Assurance is not enabled for the sites, or the service account cannot access site-level health data.",
+          "fix": "Verify Assurance is enabled for the affected sites in Catalyst Center. Check service account role and virtual domain access."
+        }
+      ]
+    },
+    "interfacehealth": {
+      "ta": {
+        "inputName": "interfacehealth",
+        "inputStanza": "interfacehealth",
+        "sourcetype": "cisco:dnac:interfacehealth",
+        "apiEndpoint": "GET /dna/intent/api/v1/interface",
+        "defaultInterval": 900,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per interface per poll (high volume for large networks)",
+        "rbacRole": "NETWORK-ADMIN-ROLE"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:interfacehealth",
+        "fields": {
+          "portName": "string; interface name (e.g., GigabitEthernet1/0/1)",
+          "status": "string; interface operational status (up, down, administratively down)",
+          "speed": "string; interface speed (e.g., 1000000, 10000000)",
+          "adminStatus": "string; administrative status (UP, DOWN)",
+          "deviceId": "string; device UUID",
+          "ipv4Address": "string; IPv4 address if configured",
+          "vlanId": "string; access or native VLAN ID"
+        },
+        "cimModel": null,
+        "notes": "Interface-level status. HIGH VOLUME — one event per interface per device per poll. For a 1000-device network with 48 interfaces each, expect ~48,000 events per poll. Consider increasing the poll interval to 1800s+ for large deployments."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Assurance > Health > Device Health > [device] > Device 360 > Interfaces"
+        ],
+        "spotChecks": [
+          "Pick a device with known interface states; compare portName and status in Splunk to the Device 360 interface view.",
+          "Run | stats count by status to verify the up/down distribution is reasonable for your network."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Access port flapping due to endpoint power cycling (printers, IP phones)",
+          "system": "End-user devices on access ports",
+          "distinguish": "Interface status toggles between up and down multiple times per hour on access-layer ports. These are not infrastructure failures.",
+          "suppress": "Filter by device role: alert only on distribution/core interfaces, or require sustained down status across 2+ polls for access ports."
+        },
+        {
+          "scenario": "Administratively shut interfaces showing as down",
+          "system": "Network configuration (intentional shutdown)",
+          "distinguish": "adminStatus=DOWN indicates the interface was intentionally shut. This is not a failure.",
+          "suppress": "Filter | where adminStatus=\"UP\" AND status=\"down\" to catch only operational failures on interfaces that should be up."
+        },
+        {
+          "scenario": "Interface flap during STP reconvergence",
+          "system": "Spanning Tree Protocol",
+          "distinguish": "Multiple interfaces on the same device or VLAN transition to down and back to up within seconds. Check for STP topology change notifications in syslog.",
+          "suppress": "Require the interface to remain down for >5 minutes before alerting. Use a summary index to track flap counts."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "Extremely high event volume from interfacehealth",
+          "cause": "Every interface on every device generates an event per poll. Large networks can produce tens of thousands of events per poll.",
+          "fix": "Increase the poll interval to 1800s or 3600s. Consider filtering to uplink/trunk interfaces only if access port monitoring is not required."
+        },
+        {
+          "symptom": "portName format differs between device families",
+          "cause": "Different IOS/IOS-XE platforms use different interface naming conventions (GigabitEthernet vs Gi, TenGigabitEthernet vs Te).",
+          "fix": "Use | rex to normalize interface names, or create a lookup mapping short names to long names for consistent reporting."
+        }
+      ]
+    },
+    "fabricsite": {
+      "ta": {
+        "inputName": "fabricsite",
+        "inputStanza": "fabricsite",
+        "sourcetype": "cisco:dnac:fabricsite",
+        "apiEndpoint": "GET /dna/intent/api/v1/business/sda/fabric-site",
+        "defaultInterval": 3600,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per fabric site per poll",
+        "rbacRole": "NETWORK-ADMIN-ROLE"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:fabricsite",
+        "fields": {
+          "fabricName": "string; SDA fabric name",
+          "siteId": "string; site UUID",
+          "fabricType": "string; fabric type (e.g., FABRIC_SITE, FABRIC_ZONE)",
+          "fabricDomainType": "string; fabric domain classification"
+        },
+        "cimModel": null,
+        "notes": "SDA fabric topology. Requires DNA Premier licensing for full SDA features. For deep fabric monitoring (VXLAN/LISP metrics), consider streaming telemetry (gNMI, subcategory 5.11)."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Provision > SD-Access > Fabric Sites"
+        ],
+        "spotChecks": [
+          "Compare the list of fabric sites in Splunk to Catalyst Center > Provision > SD-Access > Fabric Sites.",
+          "Verify fabricType values match the topology configured in Catalyst Center."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Fabric site provisioning in progress",
+          "system": "Catalyst Center SDA provisioning",
+          "distinguish": "Fabric sites may appear with incomplete configuration during provisioning. Check audit logs for ongoing SDA provisioning tasks.",
+          "suppress": "Allow 1-2 poll cycles after provisioning before alerting on incomplete fabric configuration."
+        },
+        {
+          "scenario": "Fabric site removed but still appearing in Splunk due to poll lag",
+          "system": "Catalyst Center SDA management",
+          "distinguish": "A fabric site was deleted in Catalyst Center but the last poll still shows it. The next poll will remove it.",
+          "suppress": "Use | stats latest(_time) by fabricName to identify stale entries."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No fabricsite events",
+          "cause": "SDA is not configured in Catalyst Center, or the service account lacks access to SDA endpoints.",
+          "fix": "Verify SDA is deployed. Check Catalyst Center > Provision > SD-Access for fabric site configuration. SDA requires DNA Premier licensing."
+        }
+      ]
+    },
+    "swim": {
+      "ta": {
+        "inputName": "swim (custom scripted input)",
+        "inputStanza": "script://./bin/poll_swim_compliance.py",
+        "sourcetype": "cisco:dnac:swim",
+        "apiEndpoint": "GET /dna/intent/api/v1/compliance/detail?complianceType=IMAGE",
+        "defaultInterval": 3600,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per device per poll",
+        "rbacRole": "NETWORK-ADMIN-ROLE",
+        "notes": "SWIM is NOT a native TA modular input — requires a custom scripted input. See docs/guides/catalyst-center.md § Custom Scripted Inputs."
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:swim",
+        "fields": {
+          "imageCompliance": "string; COMPLIANT, NON_COMPLIANT",
+          "runningVersion": "string; currently running IOS-XE version",
+          "targetVersion": "string; golden image target version",
+          "deviceFamily": "string; device platform family (e.g., Cisco Catalyst 9300)",
+          "deviceName": "string; device hostname",
+          "managementIpAddress": "string; management IP",
+          "upgradeStatus": "string; upgrade status for in-progress upgrades (FAILED, SUCCESS, IN_PROGRESS)"
+        },
+        "cimModel": "Change",
+        "notes": "Software Image Management. Custom scripted input required."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Provision > Image Management > SWIM",
+          "Catalyst Center > Provision > Inventory > Software Image tab"
+        ],
+        "spotChecks": [
+          "Compare NON_COMPLIANT device count in Splunk to the non-compliant count in Catalyst Center > SWIM > Image Compliance.",
+          "Pick 3 devices and verify runningVersion and targetVersion match the Catalyst Center SWIM dashboard."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Device in the middle of a firmware upgrade (IN_PROGRESS status)",
+          "system": "Catalyst Center SWIM upgrade process",
+          "distinguish": "imageCompliance is NON_COMPLIANT during an active upgrade. upgradeStatus shows IN_PROGRESS. The device will become COMPLIANT after the upgrade completes and the device reboots.",
+          "suppress": "Filter | where upgradeStatus!=\"IN_PROGRESS\" for compliance alerting. Track IN_PROGRESS devices in a separate upgrade monitoring panel."
+        },
+        {
+          "scenario": "Golden image target changed but compliance check not yet run",
+          "system": "Catalyst Center SWIM golden image management",
+          "distinguish": "All devices in a family suddenly show NON_COMPLIANT after a golden image target change. The devices' firmware is unchanged; the target moved.",
+          "suppress": "Correlate with audit logs for golden image target changes. Allow 24 hours after a target change before alerting on non-compliance."
+        },
+        {
+          "scenario": "Device running a version newer than the golden image",
+          "system": "Manual firmware upgrade or lab device",
+          "distinguish": "A device runs a version newer than targetVersion (e.g., running 17.12.1 when golden is 17.9.4a). SWIM marks it NON_COMPLIANT because it doesn't match, not because it's outdated.",
+          "suppress": "Create a catalyst_swim_exceptions lookup for devices intentionally running non-golden versions. Include the justification."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No cisco:dnac:swim events",
+          "cause": "SWIM requires a custom scripted input — it is not a native TA modular input. The script may not be deployed.",
+          "fix": "Deploy the SWIM polling script per docs/guides/catalyst-center.md § Custom Scripted Inputs. Verify the script's inputs.conf stanza is enabled on the heavy forwarder."
+        },
+        {
+          "symptom": "upgradeStatus field is missing from SWIM events",
+          "cause": "The SWIM API returns upgradeStatus only for devices with active or recent upgrade activity.",
+          "fix": "This is expected. Devices without upgrade activity will not have this field. Use | fillnull upgradeStatus value=\"N/A\" in SPL."
+        }
+      ]
+    },
+    "wireless_rf": {
+      "ta": {
+        "inputName": "wireless_rf (custom scripted input)",
+        "inputStanza": "script://./bin/poll_wireless_rf.py",
+        "sourcetype": "cisco:dnac:wireless:rf",
+        "apiEndpoint": "GET /dna/intent/api/v1/wireless/rf-profile and per-AP detail from Assurance",
+        "defaultInterval": 900,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per AP per poll",
+        "rbacRole": "NETWORK-ADMIN-ROLE",
+        "notes": "Wireless RF metrics are NOT a native TA modular input — requires a custom scripted input."
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:wireless:rf",
+        "fields": {
+          "apName": "string; access point name",
+          "band": "string; radio band (2.4GHz, 5GHz, 6GHz)",
+          "channel": "integer; current operating channel",
+          "channelUtilization": "integer 0-100; channel utilization percentage",
+          "interferencePercentage": "integer 0-100; RF interference level",
+          "txPowerLevel": "integer; transmit power level",
+          "noiseFloor": "integer; noise floor in dBm"
+        },
+        "cimModel": null,
+        "notes": "Wireless RF analytics. Custom scripted input."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Assurance > Health > Network Health > AP Health > RF tab"
+        ],
+        "spotChecks": [
+          "Pick an AP and compare channel, channelUtilization, and interferencePercentage to the Catalyst Center AP 360 view.",
+          "Run | stats avg(channelUtilization) by band to verify the average utilization is reasonable for your RF environment."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "RRM (Radio Resource Management) channel or power change",
+          "system": "Catalyst Center RRM engine",
+          "distinguish": "Channel or txPowerLevel changes between polls. This is RRM optimizing the RF environment automatically.",
+          "suppress": "Do not alert on channel changes alone. Alert only when channelUtilization remains >80% or interferencePercentage >50% after the RRM change."
+        },
+        {
+          "scenario": "Temporary RF interference from non-Wi-Fi devices (microwaves, Bluetooth, radar)",
+          "system": "Physical RF environment",
+          "distinguish": "interferencePercentage spikes on 2.4GHz or 5GHz but recovers within 1-2 polls. Check if the spike is localized to specific APs.",
+          "suppress": "Require sustained interference (2+ polls) before alerting. Use | eventstats to compare with the AP's baseline interference level."
+        },
+        {
+          "scenario": "AP reboot or radio reset clearing channel utilization counters",
+          "system": "Access point hardware",
+          "distinguish": "channelUtilization drops to 0 or near-0 after an AP reboot. The counters reset and accumulate again over the next poll cycle.",
+          "suppress": "Correlate with index=catalyst sourcetype=\"cisco:dnac:devicehealth\" for AP devices where overallHealth changed significantly in the same window."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No wireless:rf events",
+          "cause": "The wireless RF scripted input is not deployed, or no wireless controllers / APs are managed by Catalyst Center.",
+          "fix": "Deploy the wireless RF polling script. Verify that wireless controllers are discovered in Catalyst Center > Provision > Inventory and that APs are visible in Assurance."
+        },
+        {
+          "symptom": "RF data only for 2.4GHz and 5GHz, not 6GHz",
+          "cause": "6GHz (Wi-Fi 6E) support depends on the Catalyst Center version and the AP models deployed. Older Catalyst Center versions may not report 6GHz RF data.",
+          "fix": "Verify Catalyst Center version supports Wi-Fi 6E reporting. Check that the deployed APs have 6GHz radios (e.g., Cisco Catalyst 9166 or 9164)."
+        }
+      ]
+    },
+    "audit_logs": {
+      "ta": {
+        "inputName": "audit_logs",
+        "inputStanza": "audit_logs",
+        "sourcetype": "cisco:dnac:audit:logs",
+        "apiEndpoint": "GET /dna/data/api/v1/event/event-series/audit-log",
+        "defaultInterval": 300,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "Variable; ~10-100 events/day in typical environments",
+        "rbacRole": "SUPER-ADMIN-ROLE"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:audit:logs",
+        "fields": {
+          "auditUserName": "string; user who performed the action",
+          "auditRequestType": "string; HTTP method (GET, PUT, POST, DELETE)",
+          "auditDescription": "string; description of the administrative action",
+          "auditParentId": "string; parent audit event ID (for grouped operations)",
+          "createdDateTime": "epoch milliseconds; when the action occurred",
+          "isSystemEvent": "boolean; true for system-generated events, false for user-initiated"
+        },
+        "cimModel": "Change",
+        "notes": "Admin activity audit trail. Requires SUPER-ADMIN-ROLE. Polls more frequently (300s) than other inputs due to the time-sensitive nature of audit data."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > System > Settings > Audit Logs",
+          "Catalyst Center > Activities > Audit Log"
+        ],
+        "spotChecks": [
+          "Compare the last 10 audit events in Splunk to Catalyst Center > Activities > Audit Log for the same time period.",
+          "Verify that user-initiated actions (isSystemEvent=false) show the correct auditUserName.",
+          "Run | stats count by auditRequestType to verify the distribution of GET/PUT/POST/DELETE matches expected admin activity patterns."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "System-generated audit events from scheduled Catalyst Center operations",
+          "system": "Catalyst Center scheduled tasks (discovery, compliance checks, SWIM scans)",
+          "distinguish": "isSystemEvent=true and auditUserName is a system account (e.g., 'system', 'scheduler'). These are routine platform operations, not human-initiated changes.",
+          "suppress": "Filter | where isSystemEvent=false for human activity monitoring. Include system events only in completeness/gap detection dashboards."
+        },
+        {
+          "scenario": "Catalyst Center API polling by the TA itself generating audit events",
+          "system": "Splunk TA API polling",
+          "distinguish": "GET requests from the TA service account appear in audit logs. The auditUserName matches the TA's configured service account, and auditRequestType=GET.",
+          "suppress": "Filter | where auditUserName!=\"splunk-svc@example.com\" (or whatever the TA service account is). Use the actual service account name from the TA configuration."
+        },
+        {
+          "scenario": "Bulk configuration push generating many audit events in a short window",
+          "system": "Catalyst Center template deployment",
+          "distinguish": "A template deployment to 50+ devices generates 50+ audit events within minutes, all with the same auditDescription pattern and grouped by auditParentId.",
+          "suppress": "Group by auditParentId for bulk operation summarization: | stats count values(auditDescription) by auditParentId, auditUserName."
+        },
+        {
+          "scenario": "After-hours activity from authorized change window",
+          "system": "Change management / ITSM",
+          "distinguish": "Administrative activity outside business hours that corresponds to an approved change ticket.",
+          "suppress": "Correlate with ITSM change records. Use a catalyst_change_windows lookup with approved times and users. Still alert — but enrich with the change ticket ID for context."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No audit log events despite administrative activity in Catalyst Center",
+          "cause": "The service account may lack SUPER-ADMIN-ROLE, which is required for the audit log API endpoint.",
+          "fix": "Verify the service account role in Catalyst Center > System > Users and Roles. Escalate to SUPER-ADMIN-ROLE."
+        },
+        {
+          "symptom": "Audit events missing for GET requests",
+          "cause": "Catalyst Center may not audit all GET requests by default, depending on the version and audit configuration.",
+          "fix": "This is expected in many Catalyst Center deployments. GET audit logging can be enabled in System > Settings > Audit Configuration, but may increase event volume significantly."
+        },
+        {
+          "symptom": "auditDescription is empty or generic for some events",
+          "cause": "Some audit events from internal Catalyst Center services lack detailed descriptions.",
+          "fix": "Use auditRequestType and the API path (if available in the event) to infer the action. This is a Catalyst Center limitation."
+        }
+      ]
+    },
+    "event_notification": {
+      "ta": {
+        "inputName": "HEC webhook (not a TA modular input)",
+        "inputStanza": "N/A — webhook POST from Catalyst Center to Splunk HEC",
+        "sourcetype": "cisco:dnac:event:notification",
+        "apiEndpoint": "Catalyst Center → Splunk HEC (push model, not poll)",
+        "defaultInterval": "Real-time (event-driven)",
+        "intervalUnit": "N/A",
+        "volumeEstimate": "Variable; event-driven. Depends on subscribed event types and network activity.",
+        "rbacRole": "SUPER-ADMIN-ROLE (for configuring event subscriptions in Catalyst Center)"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:event:notification",
+        "fields": {
+          "eventType": "string; machine-readable event type (e.g., NETWORK_DEVICE_UNREACHABLE)",
+          "eventCategory": "string; NETWORK, SYSTEM, SECURITY, APP",
+          "eventSeverity": "integer; 1 (critical) through 5 (informational)",
+          "description": "string; human-readable event description",
+          "timestamp": "epoch milliseconds; event timestamp",
+          "domain": "string; Catalyst Center domain (e.g., Global/HQ)",
+          "tenantId": "string; tenant identifier",
+          "source": "string; event source system (e.g., Assurance)"
+        },
+        "cimModel": null,
+        "notes": "Push-based event notifications via webhook. Requires HEC setup and Catalyst Center webhook destination configuration. See docs/guides/catalyst-center.md § Webhook and HEC Setup."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Platform > Developer Toolkit > Event Notifications",
+          "Catalyst Center > System > Settings > External Services > Destinations > Webhook"
+        ],
+        "spotChecks": [
+          "Trigger a test webhook from Catalyst Center > System > Settings > Destinations > Webhook > Test. Verify the event appears in Splunk.",
+          "Run | stats count by eventCategory eventType over 24h to verify the distribution of subscribed events.",
+          "Compare the count of severity 1-2 events to Catalyst Center > Assurance > Issues for the same period."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Webhook retry delivering duplicate events",
+          "system": "Catalyst Center webhook delivery engine",
+          "distinguish": "If Splunk HEC responds slowly or the network path has intermittent issues, Catalyst Center may retry the webhook, delivering the same event multiple times.",
+          "suppress": "Deduplicate by a combination of eventType, timestamp, and description: | stats count by eventType, timestamp, description | where count>1."
+        },
+        {
+          "scenario": "Informational events generating high volume without actionable content",
+          "system": "Catalyst Center event notification subscriptions",
+          "distinguish": "eventSeverity=4 or 5 events may be informational status updates (e.g., device sync completed, scheduled task finished).",
+          "suppress": "Filter | where eventSeverity<=2 for critical alerting. Include severity 3-5 only in trending dashboards."
+        },
+        {
+          "scenario": "Catalyst Center platform upgrade generating system health notifications",
+          "system": "Catalyst Center platform",
+          "distinguish": "During an upgrade, SYSTEM category events fire for service restarts, health checks, and component updates. These are expected.",
+          "suppress": "Use a catalyst_maintenance_windows lookup. Alert on SYSTEM events only outside maintenance windows."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No event notification events in Splunk",
+          "cause": "HEC token not configured, webhook destination not set up in Catalyst Center, or firewall blocking Catalyst Center → Splunk HEC (port 8088).",
+          "fix": "Verify: (1) HEC token exists and is enabled, (2) Catalyst Center webhook destination is configured and test returns 200, (3) Firewall allows Catalyst Center → Splunk on port 8088. See docs/guides/catalyst-center.md § Webhook and HEC Setup."
+        },
+        {
+          "symptom": "Events arrive but with wrong sourcetype or index",
+          "cause": "HEC token not scoped to the correct sourcetype and index.",
+          "fix": "Edit the HEC token to set source type to cisco:dnac:event:notification and allowed index to catalyst."
+        },
+        {
+          "symptom": "Webhook test succeeds but production events don't arrive",
+          "cause": "Event subscriptions not configured for the desired event types in Catalyst Center > Platform > Developer Toolkit > Event Notifications.",
+          "fix": "Create subscriptions for each event type/category you want to receive. Verify the subscription is active and points to the correct webhook destination."
+        }
+      ]
+    },
+    "license": {
+      "ta": {
+        "inputName": "license (custom scripted input)",
+        "inputStanza": "script://./bin/poll_license.py",
+        "sourcetype": "cisco:dnac:license",
+        "apiEndpoint": "GET /dna/intent/api/v1/licenses/device/count and /dna/intent/api/v1/licenses/device/summary",
+        "defaultInterval": 86400,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per license type per poll",
+        "rbacRole": "NETWORK-ADMIN-ROLE",
+        "notes": "Licensing status is NOT a native TA modular input — requires a custom scripted input. Daily poll is sufficient."
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:license",
+        "fields": {
+          "licenseType": "string; license tier (DNA_ESSENTIALS, DNA_ADVANTAGE, DNA_PREMIER)",
+          "totalLicenses": "integer; total purchased licenses",
+          "consumedLicenses": "integer; licenses in use",
+          "availableLicenses": "integer; remaining available licenses",
+          "expirationDate": "string; license expiration date (if term-based)"
+        },
+        "cimModel": null,
+        "notes": "License utilization tracking. Use to prevent license exhaustion and plan renewals."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > System > Settings > Licensing"
+        ],
+        "spotChecks": [
+          "Compare totalLicenses and consumedLicenses for each license type to Catalyst Center > System > Settings > Licensing.",
+          "Verify availableLicenses = totalLicenses - consumedLicenses."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "License count fluctuation during device onboarding/decommissioning",
+          "system": "Catalyst Center device provisioning",
+          "distinguish": "consumedLicenses changes between polls due to devices being added or removed. This is normal operational behavior.",
+          "suppress": "Alert only when consumedLicenses/totalLicenses > 0.9 (90% utilization threshold), not on individual count changes."
+        },
+        {
+          "scenario": "Term-based license approaching expiration",
+          "system": "Cisco Smart Licensing",
+          "distinguish": "expirationDate is within 90 days. The license is valid but approaching renewal deadline.",
+          "suppress": "Do not suppress — alert at 90, 60, 30, and 7 days before expiration."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No license events",
+          "cause": "The license scripted input is not deployed.",
+          "fix": "Deploy the license polling script per docs/guides/catalyst-center.md § Custom Scripted Inputs."
+        },
+        {
+          "symptom": "License type shows as 'cico:dnac:license' (typo in sourcetype)",
+          "cause": "Known typo in some script deployments or SPL.",
+          "fix": "Correct the sourcetype to cisco:dnac:license in the scripted input's inputs.conf stanza."
+        }
+      ]
+    },
+    "site_topology": {
+      "ta": {
+        "inputName": "site_topology",
+        "inputStanza": "site_topology",
+        "sourcetype": "cisco:dnac:site:topology",
+        "apiEndpoint": "GET /dna/intent/api/v1/topology/site-topology",
+        "defaultInterval": 3600,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per site per poll",
+        "rbacRole": "NETWORK-ADMIN-ROLE"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:site:topology",
+        "fields": {
+          "siteId": "string; site UUID",
+          "siteName": "string; site name",
+          "siteType": "string; area, building, floor",
+          "parentSiteName": "string; parent site in the hierarchy"
+        },
+        "cimModel": "Compute_Inventory",
+        "notes": "Site hierarchy structure. Use to map devices to physical locations."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Design > Network Hierarchy"
+        ],
+        "spotChecks": [
+          "Compare the site hierarchy tree in Splunk (| stats count by parentSiteName, siteName) to Catalyst Center > Design > Network Hierarchy.",
+          "Verify siteType (area/building/floor) matches the Catalyst Center hierarchy."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Site hierarchy restructuring (sites moved, renamed, or deleted)",
+          "system": "Catalyst Center Design > Network Hierarchy",
+          "distinguish": "parentSiteName changes for existing siteId entries. This is an intentional hierarchy change.",
+          "suppress": "Track by siteId for continuity. Alert on unexpected hierarchy changes only if they occur outside a change window."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "Site topology shows flat hierarchy (no parent-child relationships)",
+          "cause": "The network hierarchy may not be fully configured in Catalyst Center > Design.",
+          "fix": "Configure the full site hierarchy in Catalyst Center > Design > Network Hierarchy before relying on topology data."
+        }
+      ]
+    },
+    "client": {
+      "ta": {
+        "inputName": "client",
+        "inputStanza": "client",
+        "sourcetype": "cisco:dnac:client",
+        "apiEndpoint": "GET /dna/intent/api/v1/client-detail",
+        "defaultInterval": 900,
+        "intervalUnit": "seconds",
+        "volumeEstimate": "~1 event per client per poll (can be very high volume)",
+        "rbacRole": "NETWORK-ADMIN-ROLE"
+      },
+      "data": {
+        "index": "catalyst",
+        "sourcetype": "cisco:dnac:client",
+        "fields": {
+          "macAddress": "string; client MAC address",
+          "hostType": "string; WIRED or WIRELESS",
+          "connectionType": "string; connection method",
+          "healthScore{}": "object; per-client health scores (nested JSON)",
+          "ssid": "string; SSID for wireless clients",
+          "vlanId": "string; VLAN assignment",
+          "location": "string; physical location from site hierarchy"
+        },
+        "cimModel": null,
+        "notes": "Per-client detail. HIGH VOLUME — one event per connected client per poll. For enterprise networks with thousands of clients, this can generate significant data volume. Consider using clienthealth (aggregate) for health monitoring and client (per-client) only for specific troubleshooting UCs."
+      },
+      "validation": {
+        "vendorUiPaths": [
+          "Catalyst Center > Assurance > Health > Client Health > Client detail view"
+        ],
+        "spotChecks": [
+          "Run | stats dc(macAddress) and compare to total client count in Catalyst Center > Assurance > Client Health.",
+          "Pick a specific client MAC and verify its hostType, ssid, and location match Catalyst Center."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Guest clients with rotating MAC addresses (MAC randomization)",
+          "system": "Client device privacy features (iOS, Android, Windows MAC randomization)",
+          "distinguish": "dc(macAddress) appears inflated because clients use randomized MACs. Look for locally administered MAC addresses (second hex digit is 2, 6, A, or E).",
+          "suppress": "For inventory accuracy, filter out locally administered MACs or group by other identifiers (username, SSID) rather than MAC."
+        },
+        {
+          "scenario": "Client roaming between APs causing apparent disconnection/reconnection",
+          "system": "Wireless infrastructure (802.11r/k/v roaming)",
+          "distinguish": "The same macAddress appears connected to different APs across polls. This is normal wireless roaming.",
+          "suppress": "Do not alert on AP changes for wireless clients. Track roaming frequency as a quality metric instead."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "Extremely high event volume from client detail",
+          "cause": "One event per client per poll. Enterprise networks with 10,000+ clients generate massive data volume.",
+          "fix": "Consider using clienthealth (aggregate health scores) instead of per-client detail for monitoring. Reserve client detail polling for specific troubleshooting scenarios or reduce the poll interval."
+        }
+      ]
+    }
+  }
+}
