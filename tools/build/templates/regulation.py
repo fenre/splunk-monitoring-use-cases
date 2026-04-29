@@ -478,8 +478,8 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
 <meta name="description" content="{description}">
-<meta name="theme-color" content="#a3360e" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1a1817" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#003B8A" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1214" media="(prefers-color-scheme: dark)">
 <link rel="canonical" href="{canonical}">
 <link rel="alternate" type="application/json" href="{json_alt}" title="JSON twin">
 <meta property="og:type" content="website">
@@ -491,6 +491,9 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{og_title}">
 <meta name="twitter:description" content="{description}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>{css}</style>
 {extra_link}
 {jsonld}
@@ -498,7 +501,7 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
 <body>
 <header class="site">
 <nav>
-<a class="brand" href="{site_root}/">{site_short}</a>
+<a class="brand" href="{site_root}/">Use Case Catalog</a><span class="brand-sub">Community Reference</span>
 <a href="{site_root}/browse/">Browse</a>
 <a href="{site_root}/regulation/">Regulations</a>
 <a href="{site_root}/api/">API</a>
@@ -539,8 +542,8 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
 <meta name="description" content="{description}">
-<meta name="theme-color" content="#a3360e" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1a1817" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#003B8A" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1214" media="(prefers-color-scheme: dark)">
 <link rel="canonical" href="{canonical}">
 <link rel="alternate" type="application/json" href="{json_alt}" title="JSON twin">
 <meta property="og:type" content="website">
@@ -552,13 +555,16 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{og_title}">
 <meta name="twitter:description" content="{description}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>{css}</style>
 {jsonld}
 </head>
 <body>
 <header class="site">
 <nav>
-<a class="brand" href="{site_root}/">{site_short}</a>
+<a class="brand" href="{site_root}/">Use Case Catalog</a><span class="brand-sub">Community Reference</span>
 <a href="{site_root}/browse/">Browse</a>
 <a href="{site_root}/regulation/">Regulations</a>
 <a href="{site_root}/api/">API</a>

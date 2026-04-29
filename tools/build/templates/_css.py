@@ -20,21 +20,22 @@ from __future__ import annotations
 PAGE_CSS = """
 :root {
   color-scheme: light dark;
-  --bg: light-dark(#fafaf9, #1a1817);
-  --bg-soft: light-dark(#f3f1ef, #221f1d);
-  --bg-card: light-dark(#ffffff, #2a2624);
-  --fg: light-dark(#1a1817, #f0ece8);
-  --fg-soft: light-dark(#5a544e, #b8b2ab);
-  --fg-muted: light-dark(#7a746e, #918a82);
-  --accent: light-dark(#a3360e, #ff7748);
-  --accent-soft: light-dark(#fde9d8, #2e2018);
-  --accent-fg: light-dark(#ffffff, #1a1817);
-  --border: light-dark(#e6e2dd, #3a3531);
-  --code-bg: light-dark(#f5f1ec, #1f1c1a);
+  --bg: light-dark(#F7F7F7, #0F1214);
+  --bg-soft: light-dark(#F0F1F2, #171B20);
+  --bg-card: light-dark(#FFFFFF, #23282E);
+  --fg: light-dark(#23282E, #E8EBF1);
+  --fg-soft: light-dark(#464C54, #D0D4D9);
+  --fg-muted: light-dark(#656C75, #979FA8);
+  --accent: light-dark(#1D69CC, #649EF5);
+  --accent-soft: light-dark(#e8f0fc, #1a2840);
+  --accent-fg: #FFFFFF;
+  --border: light-dark(#E1E4E8, #464C54);
+  --code-bg: light-dark(#F0F1F2, #171B20);
   --crit-bg: light-dark(#fde2dc, #4a1e16);
   --high-bg: light-dark(#fde9d8, #4a3018);
   --med-bg:  light-dark(#fdf3d8, #4a4018);
   --low-bg:  light-dark(#dff5e6, #1a3a25);
+  --bg-header: #003B8A;
   --max-w: 64rem;
   --radius: 8px;
 }
@@ -43,7 +44,7 @@ html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
                "Helvetica Neue", Arial, sans-serif;
   font-size: 16px; line-height: 1.55;
   color: var(--fg); background: var(--bg);
@@ -56,20 +57,29 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .prov { color: var(--fg-muted); font-size: 0.85rem; font-style: italic; }
 .lede { font-size: 1.125rem; color: var(--fg-soft); max-width: 42rem;
   margin: 0.75rem 0 1rem; }
-header.site, footer.site {
-  background: var(--bg-soft); border-bottom: 1px solid var(--border);
+header.site {
+  background: var(--bg-header); border-bottom: none;
+  padding: 0 1rem; height: 56px;
+}
+footer.site {
+  background: var(--bg-soft); border-top: 1px solid var(--border);
   padding: 0.75rem 1rem;
 }
-footer.site { border-top: 1px solid var(--border); border-bottom: none; }
 header.site nav, footer.site nav {
-  max-width: var(--max-w); margin: 0 auto;
+  max-width: var(--max-w); margin: 0 auto; height: 100%;
   display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: center;
 }
-header.site .brand { font-weight: 700; color: var(--fg); text-decoration: none; }
-header.site nav a, footer.site nav a {
+header.site .brand { font-weight: 700; color: #FFFFFF; text-decoration: none; font-size: 1rem; }
+header.site .brand-sub { font-size: 0.625rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: rgba(255,255,255,0.65); margin-left: 0.75rem; }
+header.site nav a {
+  color: rgba(255,255,255,0.85); text-decoration: none; font-size: 0.875rem;
+}
+header.site nav a:hover { color: #FFFFFF; }
+footer.site nav a {
   color: var(--fg-soft); text-decoration: none; font-size: 0.9rem;
 }
-header.site nav a:hover, footer.site nav a:hover { color: var(--accent); }
+footer.site nav a:hover { color: var(--accent); }
 main { max-width: var(--max-w); margin: 0 auto; padding: 1.25rem 1rem 3rem; }
 nav.breadcrumb { font-size: 0.875rem; color: var(--fg-muted); margin-bottom: 1rem; }
 nav.breadcrumb ol { list-style: none; padding: 0; margin: 0;
@@ -82,7 +92,7 @@ nav.breadcrumb a:hover { color: var(--accent); text-decoration: underline; }
 article { background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 1.5rem; }
 article > header h1 { font-size: 1.875rem; line-height: 1.2; margin: 0 0 0.5rem; }
-.uc-id { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+.uc-id { font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   color: var(--fg-muted); font-size: 0.875rem; }
 article h2, .section-h { font-size: 1.375rem; margin: 2rem 0 0.75rem;
   padding-top: 0.5rem; border-top: 1px solid var(--border); }
@@ -91,7 +101,7 @@ article h3 { font-size: 1.0625rem; margin: 1.25rem 0 0.5rem; }
 article p { margin: 0.5rem 0 1rem; }
 article ul, article ol { margin: 0.5rem 0 1rem; padding-left: 1.5rem; }
 article li { margin: 0.25rem 0; }
-article code { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+article code { font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   background: var(--code-bg); padding: 1px 4px; border-radius: 3px; font-size: 0.875em; }
 article pre { background: var(--code-bg); border: 1px solid var(--border);
   border-radius: 6px; padding: 0.875rem 1rem; overflow-x: auto; line-height: 1.4;
@@ -120,7 +130,7 @@ a.badge:hover { border-color: var(--accent); color: var(--accent); }
 a.uc-chip { display: inline-flex; align-items: center; gap: 0.375rem;
   padding: 0.25rem 0.625rem; border-radius: 999px; font-size: 0.8125rem;
   border: 1px solid var(--border); background: var(--bg-soft); color: var(--fg);
-  text-decoration: none; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  text-decoration: none; font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
 a.uc-chip:hover, a.uc-chip:focus-visible { border-color: var(--accent); color: var(--accent); }
 a.uc-chip .chip-id { font-weight: 600; letter-spacing: 0.01em; }
 a.uc-chip .chip-wave { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -173,7 +183,7 @@ ul.link-list a:hover { text-decoration: underline; }
 .card:hover, .card:focus-visible { border-color: var(--accent); }
 .card-head { display: flex; justify-content: space-between; gap: 0.5rem;
   font-size: 0.75rem; color: var(--fg-muted); margin-bottom: 0.25rem; }
-.card-head .cat-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.card-head .cat-id { font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
 .card-title { font-weight: 600; font-size: 1rem; margin-bottom: 0.25rem; color: var(--fg); }
 .card-blurb { margin: 0; color: var(--fg-soft); font-size: 0.85rem; line-height: 1.4; }
 @media (prefers-reduced-motion: reduce) { .card { transition: none; } }
