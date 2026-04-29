@@ -17,48 +17,66 @@
       "mode": "satisfies",
       "assurance": "partial",
       "assurance_rationale": "Uplifted from contributing: SPL directly addresses Art.21(2)(c) requirements with specific, actionable monitoring.",
-      "controlObjective": "Evidence that NIS2 Art.21(2)(c) (Business continuity and crisis management) is enforced — Splunk UC-22.2.17: NIS2 Backup Management and Disaster Recovery Verification.",
-      "evidenceArtifact": "Saved search 'UC-22.2.17' running on index=backup (backup software logs — Veeam, Commvault, Rubrik, AWS Backup), index=itsi_summary (service recovery KPIs), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "controlObjective": "Merges `backup:job_status` runs and `backup:restore_test` outcomes with `nis2_backup_schedule` so failed jobs, missed RPO windows, and failing drills share one timeline.",
+      "evidenceArtifact": "`UC-22.2.17` saved search on `index=backup` (`sourcetype=backup:job_status`, `sourcetype=backup:restore_test`) with `lookup nis2_backup_schedule` (system_name, backup_policy, rpo_hours, rto_hours); exports vaulted under RFC3161. SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(c)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=backup` (backup software logs — Veeam, Commvault, Rubrik, AWS Backup), `index=itsi_summary` (service recovery KPIs)",
-  "app": "Veeam App for Splunk (Splunkbase 7312), Splunk ITSI (Splunkbase 1841)",
-  "spl": "index=backup sourcetype IN (\"veeam:backup\",\"commvault:job\",\"rubrik:event\",\"aws:backup\") earliest=-7d\n| eval job_status=lower(coalesce(status, result, job_result, state))\n| eval success=if(match(job_status,\"(?i)success|completed|ok\"), 1, 0)\n| eval failed=if(match(job_status,\"(?i)fail|error|warning|missed\"), 1, 0)\n| stats sum(success) as successful, sum(failed) as failed, latest(_time) as last_backup by job_name, target_system\n| eval days_since_backup=round((now()-last_backup)/86400, 1)\n| eval backup_gap=if(days_since_backup > 1, \"OVERDUE\", \"OK\")\n| where failed > 0 OR backup_gap=\"OVERDUE\"\n| sort - days_since_backup\n| table target_system, job_name, successful, failed, days_since_backup, backup_gap",
-  "description": "While UC-22.2.4 monitors live service health during crises, Article 21(2)(c) specifically requires backup management and disaster recovery capabilities. This use case tracks backup job success/failure, validates restore test completion, and monitors RTO/RPO target adherence — providing the operational evidence that NIS2 auditors specifically ask for: \"show me your last successful restore test.\"",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes backup, itsi_summary and sourcetypes aws:backup, commvault:job, rubrik:event. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Forward backup software logs via syslog or HEC; (2) define RTO/RPO targets per NIS2-scoped service and validate against actual backup frequency; (3) alert on any failed backup for critical systems; (4) track restore test completion in a KV store (date, system, result, duration); (5) schedule monthly restore tests and report results; (6) include restore test evidence in Article 21(2)(f) effectiveness assessment (UC-22.2.9). Indexes required: `index=backup`, `index=itsi_summary`; Sourcetypes: `sourcetype=aws:backup`, `sourcetype=commvault:job`, `sourcetype=rubrik:event`, `sourcetype=veeam:backup`.",
-  "visualization": "Table (failed/overdue backups), Single value (backup success rate %), Bar chart (failures by system), Timeline (backup history).",
+  "dataSources": "`index=backup sourcetype=backup:job_status` via Splunk Add-on for Veeam Backup & Replication (Splunkbase 5601) or generic HEC: `job_name`, `status`, `host`, `bytes_transferred`, `duration_sec`. `index=backup sourcetype=backup:restore_test` (Commvault, NetBackup, Veeam SureBackup style exports): `test_id`, `test_result`, `target_system`, `completed_at`. Lookup `nis2_backup_schedule.csv` binds `system_name` to `backup_policy`, `rpo_hours`, `rto_hours`, `last_successful_backup`. Optional `index=itsi_summary` for drill overlays (Splunkbase 1841).",
+  "app": "Splunk Add-on for Veeam Backup & Replication (Splunkbase 5601), optional Splunk IT Service Intelligence (Splunkbase 1841); define HEC token `backup-hec` on indexers if sending raw JSON",
+  "spl": "(index=backup sourcetype=backup:job_status earliest=-14d@d) OR (index=backup sourcetype=backup:restore_test earliest=-120d@d)\n| eval system_key=coalesce(host,target_system,vm_name,client_name)\n| eval lane=if(sourcetype=\"backup:job_status\",\"backup_job\",\"restore_test\")\n| lookup nis2_backup_schedule system_name AS system_key OUTPUT backup_policy, rpo_hours, rto_hours, last_successful_backup\n| eval job_status=lower(coalesce(status,job_result,test_result,state))\n| eval job_failed=if(lane=\"backup_job\" AND match(job_status,\"fail|error|warning|cancel\"),1,0)\n| eval restore_failed=if(lane=\"restore_test\" AND NOT match(job_status,\"pass|success|ok\"),1,0)\n| eval last_evt=_time\n| stats latest(last_evt) as last_evt max(job_failed) as any_job_fail max(restore_failed) as any_restore_fail by system_key lane\n| eval hours_since=round((now()-last_evt)/3600,1)\n| eval rpo_breach=if(lane=\"backup_job\" AND isnotnull(rpo_hours) AND hours_since>rpo_hours,1,0)\n| eval combined_risk=if((any_job_fail>0) OR (any_restore_fail>0) OR (rpo_breach>0),1,0)\n| where combined_risk=1\n| table system_key lane hours_since rpo_hours any_job_fail any_restore_fail backup_policy\n| sort 0 - hours_since",
+  "description": "Tracks backup engine run outcomes plus restore-test records against each system row’s RPO/RTO targets, calling out missed cadence, failed copy jobs, and restore checks that never reached success.",
+  "value": "Restore confidence improves because operations and compliance share one timeline that states when data was last protected, when it was last proven recoverable, and which machines still breach the agreed window.",
+  "implementation": "(1) Install Splunk Add-on for Veeam (Splunkbase 5601) or send `backup:job_status` over HEC with extractions in `props.conf`. (2) Ingest restore-test reports as `backup:restore_test`. (3) Populate `nis2_backup_schedule.csv`. (4) Alert when `combined_risk=1`. (5) Archive weekly PDF with RFC3161 signing.",
+  "visualization": "Row-level table for breach reasons; timeline panel of `last_evt`; single value widgets for count of systems past `rpo_hours`; optional ITSI Glass Table linked by `system_key`.",
   "cimModels": [
     "N/A"
   ],
   "references": [
     {
-      "title": "Veeam App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7312"
+      "title": "Splunk Add-on for Veeam Backup & Replication (Splunkbase 5601)",
+      "url": "https://splunkbase.splunk.com/app/5601"
     },
     {
-      "title": "Splunk ITSI",
+      "title": "Splunk IT Service Intelligence (Splunkbase 1841)",
       "url": "https://splunkbase.splunk.com/app/1841"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Operational noise during large maintenance windows, controlled exercises, or scope changes to critical entity lists.",
+  "knownFalsePositives": "**Weekly synthetic fulls that always warn:** Distinguish vendor warning codes that still exit zero. Suppress with `where NOT match(job_status,\".*catalog.*warning\")` after validating with backup admins.\n\n**Restore tests on disposable clones:** Distinguish `target_system` prefixed `LAB-`. Suppress using `lookup nis2_backup_schedule system_name AS system_key OUTPUT environment | where environment!=\"lab\"`.\n\n**Snapshot-only workloads without legacy agent jobs:** Distinguish storage-array copies not emitting `backup:job_status`. Use a time-bound exception register entry until HEC coverage ships.\n\n**Long RPO business acceptance:** Distinguish systems with board-approved 168h RPO. Suppress by updating `rpo_hours=168` in the CSV instead of muting the alert globally.\n\n**Indexer lag inflating hours_since:** Distinguish `_indextime` lag over two hours using `eval lag_mins=(_indextime-_time)/60`. Suppress paging with `where lag_mins<120` until catch-up finishes.",
   "requiredFields": [
-    "backup_gap",
-    "days_since_backup",
-    "failed",
-    "job_name",
+    "any_job_fail",
+    "any_restore_fail",
+    "backup_policy",
+    "combined_risk",
+    "hours_since",
     "job_status",
-    "last_backup",
-    "success",
-    "successful",
-    "target_system"
+    "lane",
+    "last_evt",
+    "rpo_breach",
+    "rpo_hours",
+    "system_key"
   ],
   "equipment": [
     "commvault",
-    "hashicorp",
+    "hecv2",
     "itsi",
     "syslog",
     "veeam"
@@ -67,15 +85,30 @@
     "hashicorp_vault"
   ],
   "status": "verified",
-  "lastReviewed": "2026-04-22",
+  "lastReviewed": "2026-04-29",
   "premiumApps": [
     {
       "name": "Splunk ITSI",
       "displayName": "Splunk IT Service Intelligence (ITSI)"
     }
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Veeam App for Splunk (Splunkbase 7312), Splunk ITSI (Splunkbase 1841).\n• Ensure the following data sources are available: `index=backup` (backup software logs — Veeam, Commvault, Rubrik, AWS Backup), `index=itsi_summary` (service recovery KPIs).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Forward backup software logs via syslog or HEC; (2) define RTO/RPO targets per NIS2-scoped service and validate against actual backup frequency; (3) alert on any failed backup for critical systems; (4) track restore test completion in a KV store (date, system, result, duration); (5) schedule monthly restore tests and report results; (6) include restore test evidence in Article 21(2)(f) effectiveness assessment (UC-22.2.9).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=backup sourcetype IN (\"veeam:backup\",\"commvault:job\",\"rubrik:event\",\"aws:backup\") earliest=-7d\n| eval job_status=lower(coalesce(status, result, job_result, state))\n| eval success=if(match(job_status,\"(?i)success|completed|ok\"), 1, 0)\n| eval failed=if(match(job_status,\"(?i)fail|error|warning|missed\"), 1, 0)\n| stats sum(success) as successful, sum(failed) as failed, latest(_time) as last_backup by job_name, target_system\n| eval days_since_backup=round((now()-last_backup)/86400, 1)\n| eval backup_gap=if(days_since_backup > 1, \"OVERDUE\", \"OK\")\n| where failed > 0 OR backup_gap=\"OVERDUE\"\n| sort - days_since_backup\n| table target_system, job_name, successful, failed, days_since_backup, backup_gap\n```\n\nUnderstanding this SPL\n\n**NIS2 Backup Management and Disaster Recovery Verification (Art. 21(2)(c))** — While UC-22.2.4 monitors live service health during crises, Article 21(2)(c) specifically requires backup management and disaster recovery capabilities. This use case tracks backup job success/failure, validates restore test completion, and monitors RTO/RPO target adherence — providing the operational evidence that NIS2 auditors specifically ask for: \"show me your last successful restore test.\"\n\nDocumented **Data sources**: `index=backup` (backup software logs — Veeam, Commvault, Rubrik, AWS Backup), `index=itsi_summary` (service recovery KPIs). **App/TA** (typical add-on context): Veeam App for Splunk (Splunkbase 7312), Splunk ITSI (Splunkbase 1841). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: backup.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=backup, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **job_status** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **success** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **failed** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `stats` aggregates events by **job_name, target_system**, producing one row per unique combination for trend analysis and threshold evaluation.\n• `eval` defines or adjusts **days_since_backup** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **backup_gap** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where failed > 0 OR backup_gap=\"OVERDUE\"` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOutput fields: backup_gap, days_since_backup, failed, job_name, job_status, last_backup, success, successful.\n\nStep 3 — Validate\nCompare with AWS CloudTrail or the AWS console for the same account, region, and time window, and with IAM or control-tower evidence if this search flags admin activity.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed/overdue backups), Single value (backup success rate %), Bar chart (failures by system), Timeline (backup history).",
-  "grandmaExplanation": "We while UC-22.2.4 monitors live service health during crises, Article 21(2)(c) specifically requires backup management and disaster recovery capabilities.",
+  "detailedImplementation": "Prerequisites\n• `index=backup` on all search roles plus `httpinput` token scoped to that index for Splunk Add-on for Veeam (Splunkbase 5601) or vendor forwarders.\n• Heavy Forwarder or Search Head with `props.conf` stanzas `[backup:job_status]` and `[backup:restore_test]` defining `TIME_PREFIX` and `MAX_TIMESTAMP_LOOKAHEAD` for ISO timestamps.\n• CSV `nis2_backup_schedule.csv` synchronized weekly from CMDB; `transforms.conf` stanza `[nis2_backup_schedule]` with `case_sensitive_match = false`.\n• Optional Splunk IT Service Intelligence (Splunkbase 1841) for correlating service IDs during DR rehearsals.\n\nStep 1 — Configure data collection\nOn the Veeam collector host, enable the TA modular input (vendor REST defaults documented in Splunkbase 5601) or configure `inputs.conf` `[splunk_modular_input://Veeam:Backup]` pointing to Backup Enterprise Manager with a least-privilege service account. For Commvault/NetBackup without native TA, use `curl` scripted input POSTing JSON to `https://<idx>:8088/services/collector/event` with `Authorization: Splunk <token>` and sourcetype override `backup:job_status`. Expect 2–5 KB/event per job completion; plan 30-day retention hot and 400-day frozen for regulated workloads.\n\nStep 2 — Create the search and alert\nDrop the UC SPL into Search, verify counts against the vendor Operations console (for example Veeam **Home → Last 24 hours** widget). Save As → Alert with cron `5 * * * *`, throttle `system_key` for 4 hours, severity 3 when `any_restore_fail=1`. Provide drilldown `index=backup system_key=$row.system_key$ earliest=-90d`. Tie lookup columns `rpo_hours` to the contract stored in your BC register.\n\nStep 3 — Validate\nRun a controlled failed backup in lab; confirm Splunk shows `any_job_fail=1` within 15 minutes. Execute documented restore test; ensure `backup:restore_test` row maps `test_result=success`. Validate lookup coverage: `| inputlookup nis2_backup_schedule | stats count` vs distinct `system_name` totals.\n\nStep 4 — Operationalize & Troubleshoot\nDashboard Studio layout: top row breach counts, middle table sorted by `hours_since`, bottom row restore-test calendar heatmap. Route PagerDuty only when `environment=\"prod\"` via lookup. Weekly compliance CSV exported to SharePoint with RFC3161 token embedded in filename convention `UC-22.2.17-YYYYMMDD.tsr`.\n\nStep 5 — Troubleshooting\n• **No `backup:job_status`** — TA modular input disabled; check `$SPLUNK_HOME/var/log/splunk/splunkd.log` for HTTP 403 to Veeam REST — rotate API key under **Settings → Passwords**.\n• **`system_key` null** — FIELDALIAS missing; map `vm_display_name` to `host` in `props.conf`.\n• **False RPO breaches after DST** — normalize all timestamps UTC at ingestion using `TZ=UTC` in `props.conf`.\n• **`restore_test` duplicates** — dedup on `test_id` using `| stats first(*) by test_id` in alert-only mode.\n• **Lookup stale** — automate CSV push via GitOps runner every Sunday 02:00.\n\n",
+  "grandmaExplanation": "We watch whether your nightly copies of important systems actually finish, and whether practice restores really worked. If a machine slips past the time window you promised, it shows up before you need it in a real emergency.",
   "cimSpl": "",
-  "dataModelAcceleration": "Not applicable"
+  "dataModelAcceleration": "Not applicable",
+  "owner": "Head of IT Operations",
+  "controlFamily": "backup-restore-evidence",
+  "exclusions": "Does not perform the physical restore itself, certify vendor support contracts, or waive legal duties when backups fail — it only surfaces facts for humans to act on.",
+  "evidence": "Hourly alert `UC-22.2.17`, weekly compliance workbook, and RFC3161 countersignature bundle stored beside the DR test calendar.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "wave": "crawl",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Inject a failed `backup:job_status` row for `host=SAP-PRD-01` with `status=Failed` and confirm the hourly alert fires; set `rpo_hours=4` in the lookup while leaving `last_evt` older than four hours for the same `system_key` and verify `rpo_breach=1`; ingest `backup:restore_test` with `test_result=failed` and confirm `any_restore_fail` stays set until a passing row arrives.",
+    "negativeScenario": "After bringing all jobs to `success` inside the RPO window and logging a passing restore test within SLA, run the search across the last seven days and expect an empty result set while the backup console still shows green history — proving tuning does not mask fresh failures because the alert window is sliding hourly.",
+    "fixtureRef": "sample-data/uc-22.2.17-fixture.json"
+  }
 }

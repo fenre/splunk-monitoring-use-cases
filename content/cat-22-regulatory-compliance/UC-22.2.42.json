@@ -20,36 +20,77 @@
       "evidenceArtifact": "Saved search 'UC-22.2.42' running on index _audit and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.20",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=_audit` (scheduled PDF delivery actions), `index=email_meta` (optional DLP headers only), `nis2_board_report_schedule.csv`",
-  "app": "Splunk Enterprise / Splunk Cloud Platform (`index=_audit`)",
-  "spl": "| inputlookup nis2_board_report_schedule.csv\n| join report_name [\n    search index=_audit action=search earliest=-90d\n    | where match(info, \"(?i)sendemail|pdf\")\n    | stats latest(_time) as last_sent by report_name\n]\n| eval expected_cadence_days=case(frequency=\"monthly\",35,frequency=\"quarterly\",100,1=1,10)\n| eval days_since=round((now()-last_sent)/86400,0)\n| where days_since > expected_cadence_days OR isnull(last_sent)\n| table report_name, frequency, last_sent, days_since",
-  "description": "Oversight requires that risk information actually reaches the board. This use case verifies scheduled executive cyber dashboards were generated, emailed to governance distribution lists, and acknowledged — using Splunk `_audit` and mail gateway metadata (aggregated).",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes _audit, email_meta. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Name board cyber reports consistently for `_audit` filtering; (2) avoid ingesting email bodies — metadata only; (3) alert secretariat when distribution misses a cycle; (4) archive PDFs to board portal with hash recorded in KV store; (5) align content with UC-22.2.21/22 risk metrics. Indexes required: `index=_audit`, `index=email_meta`; Lookups: `nis2_board_report_schedule`, `nis2_board_report_schedule.csv`.",
-  "visualization": "Table (missed distributions), Timeline (report sends), Single value (late reports). Key fields: `days_since`, `expected_cadence_days`, `frequency`, `last_sent`, `report_name`.",
+  "dataSources": "`index=_audit` with `sourcetype=audittrail` (Splunk internal audit trail for scheduled searches) carrying `action`, `info`, `search_id`, `user`, and `savedsearch_name` when the scheduler renders PDFs and invokes `sendemail`. Expected `info` strings include renderer hints and mail-transport markers. Coverage expectations and board distribution lists are versioned in `nis2_board_report_schedule.csv` (`report_name`, `frequency`, `distribution_list`, `last_expected_date`). Platform context: Splunk Cloud always retains `_audit`; Splunk Enterprise installs should mirror this visibility with admin roles — see [Splunkbase 361](https://splunkbase.splunk.com/app/361) packaging for on-prem Enterprise.",
+  "app": "Splunk Enterprise 9.x ([Splunkbase 361](https://splunkbase.splunk.com/app/361)) or Splunk Cloud Platform — no extra TA required because `_audit` ships with the deployment.",
+  "spl": "| inputlookup nis2_board_report_schedule.csv\n| eval report_key=lower(report_name)\n| join type=left report_key [\n    search index=_audit sourcetype=audittrail action=search earliest=-180d\n    | where match(info,\"(?i)sendemail|pdf|rendered\")\n    | eval report_key=lower(savedsearch_name)\n    | stats latest(_time) as last_delivery by report_key\n]\n| eval expected_cadence_days=case(frequency=\"monthly\",35,frequency=\"quarterly\",100,frequency=\"weekly\",10,1=1,14)\n| eval days_since=if(isnotnull(last_delivery), round((now()-last_delivery)/86400,0), null())\n| eval missed_cadence=if(isnull(last_delivery),1,if(days_since>expected_cadence_days,1,0))\n| where missed_cadence=1\n| eval evidence_id=md5(report_name . \"|\" . frequency . \"|\" . if(isnotnull(last_delivery), tostring(last_delivery), \"no_audit_hit\"))\n| table report_name, frequency, distribution_list, last_expected_date, last_delivery, days_since, expected_cadence_days, evidence_id",
+  "description": "Reconciles each `report_name` from `nis2_board_report_schedule.csv` against `index=_audit` scheduler events and highlights board cyber packs whose PDF/email dispatch is absent or older than the policy cadence encoded in `frequency`.",
+  "value": "Gives the board secretary and incident leadership an automatic paper trail that scheduled cyber risk briefings actually left Splunk on time, which matters when regulators ask whether oversight artefacts reached directors—not merely whether dashboards exist.",
+  "implementation": "(1) Keep `savedsearch_name` identical to `report_name` (case-insensitive) or maintain a mapping lookup. (2) Ensure alert actions log `sendemail` with `format=pdf` where possible so `info` matches the SPL predicate. (3) Delegate ownership to Head of IR with secretariat co-ownership documented in the runbook. (4) Weekly schedule with **180-day** lookback. (5) Archive positive outcomes to `index=audit_evidence` if your programme requires WORM storage beyond `_audit` retention.",
+  "visualization": "Table of missed rows with `distribution_list`, `last_expected_date`, and `evidence_id`; timeline of `last_delivery`; single value count of breaches by `frequency`.",
   "cimModels": [
     "N/A"
   ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "title": "Splunk Docs — About auditing Splunk activity",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Auditsplunkactivity",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Splunk Docs — Schedule reports in Splunk Web",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Report/Schedulereport",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Reports may queue during major incidents while details are confirmed, or during initial 24h triage.",
+  "knownFalsePositives": "• **Executive read-only SharePoint drop instead of email** — Distinguish: board portal ingestion skipped `sendemail` but files landed in Microsoft 365; `info` lacks mail tokens. Suppress: add `alternate_delivery=sharepoint` to `nis2_board_report_schedule.csv` and `lookup` it to bypass email predicates when flagged.\n• **Saved search renamed mid-quarter** — Distinguish: `_audit` shows a new `savedsearch_name` while the lookup still lists the legacy `report_name`. Suppress: maintain `nis2_report_name_alias.csv` and `lookup` before the join to normalise keys.\n• **High-availability failover reran the same job twice** — Distinguish: duplicate `search_id` values within seconds with identical `user`. Suppress: keep `| stats latest(_time)` as written; optionally `dedup search_id` inside the subsearch.\n• **Quarterly blackout where the CIO postponed the pack during M&A quiet period** — Distinguish: formal board communication logged in the exception register. Suppress: time-bound exception rows in `nis2_reporting_exceptions.csv` with `quiet_until` evaluated via `inputlookup` in a preliminary `eval`.\n• **PDF renderer succeeded but email action disabled in `savedsearches.conf`** — Distinguish: `info` references `rendered_report` without `sendemail`. Suppress: extend the `where match(info,...)` clause or add a correlated `index=_internal` sourcetype=scheduler filter after Change Approval documents the configuration drift.",
   "requiredFields": [
+    "report_name",
+    "frequency",
+    "distribution_list",
+    "last_expected_date",
+    "last_delivery",
     "days_since",
     "expected_cadence_days",
-    "frequency",
-    "last_sent",
-    "report_name"
+    "evidence_id"
   ],
-  "lastReviewed": "2026-04-22",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform (`index=_audit`).\n• Ensure the following data sources are available: `index=_audit` (scheduled PDF delivery actions), `index=email_meta` (optional DLP headers only), `nis2_board_report_schedule.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Name board cyber reports consistently for `_audit` filtering; (2) avoid ingesting email bodies — metadata only; (3) alert secretariat when distribution misses a cycle; (4) archive PDFs to board portal with hash recorded in KV store; (5) align content with UC-22.2.21/22 risk metrics.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup nis2_board_report_schedule.csv\n| join report_name [\n    search index=_audit action=search earliest=-90d\n    | where match(info, \"(?i)sendemail|pdf\")\n    | stats latest(_time) as last_sent by report_name\n]\n| eval expected_cadence_days=case(frequency=\"monthly\",35,frequency=\"quarterly\",100,1=1,10)\n| eval days_since=round((now()-last_sent)/86400,0)\n| where days_since > expected_cadence_days OR isnull(last_sent)\n| table report_name, frequency, last_sent, days_since\n```\n\nUnderstanding this SPL\n\n**NIS2 Board-Level Cyber Risk Reporting Distribution Audit (Art. 20)** — Oversight requires that risk information actually reaches the board. This use case verifies scheduled executive cyber dashboards were generated, emailed to governance distribution lists, and acknowledged — using Splunk `_audit` and mail gateway metadata (aggregated).\n\nDocumented **Data sources**: `index=_audit` (scheduled PDF delivery actions), `index=email_meta` (optional DLP headers only), `nis2_board_report_schedule.csv`. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform (`index=_audit`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• `eval` defines or adjusts **expected_cadence_days** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **days_since** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where days_since > expected_cadence_days OR isnull(last_sent)` — typically the threshold or rule expression for this monitoring goal.\n\nOutput fields: days_since, expected_cadence_days, frequency, last_sent, report_name.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (missed distributions), Timeline (report sends), Single value (late reports).",
-  "grandmaExplanation": "We oversight requires that risk information actually reaches the board.",
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Splunk administrators must confirm `auditTrail` (often materialised as `index=_audit` with `sourcetype=audittrail`) is retained for at least **180 days** on indexers — Cloud defaults usually exceed this; Enterprise teams should verify `indexes.conf` frozenTimePeriodInSecs.\n• Roles running this search need `indexes=_audit` and `search`/`schedule_search` capabilities; delegate via a named role `board_report_auditor` rather than sharing `admin` passwords.\n• Populate `nis2_board_report_schedule.csv` under `$SPLUNK_HOME/etc/apps/<governance_app>/lookups/` and register it in `transforms.conf`; columns must include `report_name`, `frequency`, `distribution_list`, `last_expected_date` for secretariat cross-checks.\n• Hardware clock sync: skew >5 minutes between search heads and indexers makes `days_since` misleading — validate NTP before go-live.\n\nStep 1 — Configure data collection\nStandardise Splunk report names in **Settings → Searches, reports, and alerts → Reports** so each board pack uses a `savedsearch_name` that normalises cleanly to the lookup (`lower()` match in the SPL). Enable **Schedule** with PDF output and email action; confirm `default.meta` exports the object to the `search` app if multiple teams edit it.\n\nOptional hardening: pipe alerts through a heavy forwarder with `outputs.conf` client certs — not required for `_audit`, but keeps mail actions observable in hybrid layouts.\n\nStep 2 — Create the search\nClone the SPL into `UC-22.2.42 — Board report distribution audit`. Schedule weekly (Monday 06:00) with summary indexing disabled — you want interactive review for missed cadences.\n\nUnderstanding this SPL: the lookup lists the should-have-sent board packs; the left join keeps catalogue entries even if `_audit` never recorded completion. `match(info,...)` focuses on PDF/email dispatch markers Splunk writes into `info`. `expected_cadence_days` encodes **35-day** monthly tolerance (covers five-week months) and **100-day** quarterly tolerance. `evidence_id` fingerprints each miss for GRC exports.\n\nStep 3 — Validate\nPick a known-good report from last month: run the subsearch alone (`index=_audit sourcetype=audittrail action=search savedsearch_name=\"<name>\"`) and confirm `user` matches the service account. Compare `last_delivery` to the PDF stored in the board portal. Run `| rest /servicesNS/-/-/saved/searches` locally to confirm the cron matches `frequency`.\n\nStep 4 — Operationalize\nDashboard layout: row 1 — count of open misses; row 2 — table grouped by `frequency`; row 3 — timeline. Alert via email to Head of IR and board secretary distro. Attach runbook describing how to replay the saved search with `sendpreview` after remediation.\n\nStep 5 — Troubleshooting\n• **Zero `_audit` rows** — A role removed `dispatch.auto_*` permissions; check `splunkd.log` for `AuditLogger` errors or verify the search actually ran (Settings → Activity → Triggered alerts).\n• **Everything flagged missed despite PDFs arriving** — `savedsearch_name` mismatch; reconcile using `| inputlookup nis2_board_report_schedule.csv` against `| metadata type=savedsearches`.\n• **info field lacks sendemail text on Splunk Cloud** — Some builds abbreviate `info`; broaden the regex or add `OR match(info,\"dashboard\")` temporarily while Splunk Support reviews your tenant’s audit format.\n• **Join latency** — Subsearch hits indexer quota; shrink earliest to **120d** but document reduced forensic depth.\n• **False stale during indexer maintenance** — Maintenance windows should be recorded; use `lookup maintenance_window host OUTPUT paused | where paused!=1` if you add host metadata later.\n\nCommand-line aids: `splunk btool savedsearches list --debug | grep sendemail` confirms mail actions at the CLI without opening the UI.",
+  "grandmaExplanation": "We keep a dated log of whether the big cyber summary that is meant for directors was actually sent on schedule, so nobody has to guess if the board saw the risk picture on time.",
   "cimSpl": "",
-  "dataModelAcceleration": "Not applicable"
+  "dataModelAcceleration": "Not applicable",
+  "owner": "Head of IR",
+  "controlFamily": "board-exec-reporting",
+  "exclusions": "Does not read mailbox bodies, does not prove directors opened attachments, and does not decide whether a postponed report legally satisfies national transposition of NIS2 — counsel remains accountable for those judgments.",
+  "evidence": "Weekly `UC-22.2.42` JSON/CSV export with `evidence_id`, underlying `_audit` query scoped to `savedsearch_name`, and the signed timestamp metadata referenced in `evidenceSigning` for chain-of-custody.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Fixture: lookup row report_name=\"NIS2_Board_Risk_Monthly\" quarterly frequency; `_audit` contains no `action=search` events whose `savedsearch_name` equals that string in the last two quarters — weekly run returns `missed_cadence=1`, populates `evidence_id`, and lists the stale `distribution_list` for remediation.",
+    "negativeScenario": "Fixture sanity check geared toward non-alerts: `_audit` includes a fresh `action=search` hit 18 days ago for the same saved search with `info` mentioning `sendemail`, while the lookup still expects `monthly` cadence — `days_since` stays 18, below the **35-day** monthly tolerance, so the outer `where` clause removes the row and the alert remains silent which auditors treat as the desired healthy state.",
+    "fixtureRef": "sample-data/uc-22.2.42-fixture.json"
+  }
 }

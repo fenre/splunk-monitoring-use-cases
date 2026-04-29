@@ -10,7 +10,7 @@ What this script does
                                     priority weights, authoritative URLs)
    - data/evidence-pack-extras.json (auditor-facing metadata: retention,
                                     roles, authoritative guidance, etc.)
-   - use-cases/cat-*/uc-*.json     (UC sidecars with compliance[] arrays)
+   - content/cat-*/UC-*.json       (UC sidecars with compliance[] arrays)
    - reports/compliance-gaps.json   (pre-computed per-version coverage,
                                     produced by
                                     scripts/audit_compliance_gaps.py)
@@ -76,7 +76,7 @@ REGULATIONS_PATH = ROOT / "data" / "regulations.json"
 EXTRAS_PATH = ROOT / "data" / "evidence-pack-extras.json"
 EXTRAS_SCHEMA_PATH = ROOT / "schemas" / "evidence-pack-extras.schema.json"
 GAPS_REPORT_PATH = ROOT / "reports" / "compliance-gaps.json"
-UC_SIDECAR_GLOB = "use-cases/cat-*/uc-*.json"
+UC_SIDECAR_GLOB = "content/cat-*/UC-*.json"
 DOCS_OUT_DIR = ROOT / "docs" / "evidence-packs"
 API_OUT_DIR = ROOT / "api" / "v1" / "evidence-packs"
 VERSION_PATH = ROOT / "VERSION"
@@ -142,13 +142,7 @@ def _get_version() -> str:
 # ----------------------------------------------------------------------
 def _iter_uc_sidecars() -> list[Path]:
     """Return every UC sidecar path, sorted."""
-    paths: list[Path] = []
-    for category_dir in sorted((ROOT / "use-cases").glob("cat-*")):
-        if not category_dir.is_dir():
-            continue
-        for side_path in sorted(category_dir.glob("uc-*.json")):
-            paths.append(side_path)
-    return paths
+    return sorted(ROOT.glob(UC_SIDECAR_GLOB))
 
 
 def _load_all_ucs() -> list[dict[str, Any]]:
@@ -399,11 +393,12 @@ def _build_uc_details(
                 else:
                     evidence_list.append({"field": key, "description": val})
             evidence = evidence_list
+        evidence_count = len(evidence) if isinstance(evidence, list) else (1 if isinstance(evidence, str) and evidence.strip() else 0)
         details[uc_id] = {
             "title": entry["uc_title"] or uc_doc.get("title") or "",
             "controlFamily": uc_doc.get("controlFamily"),
             "owner": uc_doc.get("owner"),
-            "evidence_count": len(evidence) if isinstance(evidence, list) else 0,
+            "evidence_count": evidence_count,
             "source_path": entry["source_path"],
         }
     return details
@@ -506,7 +501,7 @@ def _render_markdown_pack(
     lines.append("> This evidence pack is the auditor-facing view of the "
                  "Splunk monitoring catalogue's coverage of the regulation. "
                  "Every clause coverage claim is traceable to a specific UC "
-                 "sidecar JSON file (`use-cases/cat-*/uc-*.json`); every "
+                "sidecar JSON file (`content/cat-*/UC-*.json`); every "
                  "retention figure cites its legal basis; every URL resolves "
                  "to an official regulator or standards-body source. The "
                  "pack does **not** assert legal conclusions — it tabulates "
@@ -840,7 +835,7 @@ def _render_markdown_pack(
                  f"commonClauses, priority weights, authoritative URLs")
     lines.append(f"- [`data/evidence-pack-extras.json`](../../data/evidence-pack-extras.json) — "
                  f"retention, roles, authoritative guidance, penalty, testing approach")
-    lines.append(f"- [`use-cases/cat-*/uc-*.json`](../../use-cases) — "
+    lines.append(f"- [`content/cat-*/UC-*.json`](../../content) — "
                  f"UC sidecars containing compliance[] entries, controlFamily, "
                  f"owner, evidence fields")
     lines.append(f"- [`api/v1/compliance/regulations/{reg_id}@*.json`](../../api/v1/compliance/regulations/) — "
@@ -1057,7 +1052,7 @@ def _render_readme(
     lines.append("The packs are generated deterministically from "
                  "[`data/regulations.json`](../../data/regulations.json), "
                  "[`data/evidence-pack-extras.json`](../../data/evidence-pack-extras.json), "
-                 "the UC sidecars under [`use-cases/cat-*/`](../../use-cases), "
+                 "the UC sidecars under [`content/cat-*/`](../../content), "
                  "and the pre-computed coverage metrics under "
                  "[`api/v1/compliance/regulations/`](../../api/v1/compliance/regulations/).")
     lines.append("")

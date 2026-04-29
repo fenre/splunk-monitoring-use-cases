@@ -21,51 +21,86 @@
       "evidenceArtifact": "Saved search 'UC-22.2.37' running on WinEventLog:Security EventCode=4624/4648, cyberark:session, nis2_scada_maintenance_windows.csv, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(a)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`WinEventLog:Security` EventCode=4624/4648, `cyberark:session`, `nis2_scada_maintenance_windows.csv`",
-  "app": "Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for CyberArk (Splunkbase 2891)",
-  "spl": "(index=win_sec EventCode=4624 Logon_Type=10 OR Logon_Type=2) OR sourcetype=\"cyberark:session\" earliest=-7d\n| eval host=coalesce(dest_nt_host, ComputerName, target_host)\n| lookup nis2_scada_asset_inventory.csv host OUTPUT scada_role plant_site\n| where scada_role IN (\"HMI\",\"ENG_WORKSTATION\",\"SCADA_SERVER\")\n| join host [\n    | inputlookup nis2_scada_maintenance_windows.csv\n    | eval starttime=strptime(start,\"%Y-%m-%d %H:%M:%S\")\n    | eval endtime=strptime(end,\"%Y-%m-%d %H:%M:%S\")\n]\n| where _time < starttime OR _time > endtime\n| stats values(user) as users count by host plant_site\n| sort - count",
-  "description": "Interactive access to SCADA/HMI layers is high risk. This use case monitors engineering workstation logons, HMI tag writes, and remote-desktop sessions to SCADA hosts — correlating with maintenance windows and approved technician identities.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes win_sec and sourcetypes cyberark:session. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Inventory SCADA hosts with roles in `nis2_scada_asset_inventory.csv`; (2) ingest maintenance windows from plant maintenance system; (3) alert on interactive access outside windows; (4) integrate PAM session video references for investigations; (5) align with safety permit-to-work where applicable. Indexes required: `index=win_sec`; Sourcetypes: `sourcetype=cyberark:session`.",
-  "visualization": "Table (out-of-window access), Timeline (sessions), Single value (distinct technicians), Map (plant sites). Key fields: `endtime`, `host`, `plant_site`, `starttime`, `users`.",
+  "dataSources": "`index=ot_access` with `sourcetype=scada:access_log` (operator logins, writes, engineering actions; extracted fields: `asset_id`, `access_user`, `session_id`, `action`, `result`). `index=pam` with `sourcetype=cyberark:session` (privileged sessions into OT; fields: `user`, `target_host`, `protocol`). Splunk Add-on for CyberArk ([Splunkbase 2891](https://splunkbase.splunk.com/app/2891)) and Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)). KV/CSV lookup `nis2_scada_assets.csv` with columns `asset_id`, `asset_name`, `scada_type`, `criticality`, `authorized_users`. Optional CIM Authentication tagging for identity analytics.",
+  "app": "Splunk Add-on for CyberArk (Splunkbase 2891), Splunk Enterprise Security (Splunkbase 263)",
+  "spl": "(index=ot_access sourcetype=scada:access_log) OR (index=pam sourcetype=cyberark:session) earliest=-24h\n| eval asset_id=coalesce(asset_id, plant_asset_id, target_host, dest_host, TargetAddress)\n| eval access_user=coalesce(access_user, user, User, user_name)\n| lookup nis2_scada_assets.csv asset_id OUTPUT asset_name, scada_type, criticality, authorized_users\n| where isnotnull(scada_type) AND criticality IN (\"high\",\"critical\")\n| eval action_norm=lower(coalesce(action, activity, EventType, \"login\"))\n| eval user_in_roster=if(match(lower(authorized_users), lower(access_user)), 1, 0)\n| where user_in_roster=0 OR match(action_norm, \"(write|modify|download|program|force)\")\n| lookup nis2_scada_maintenance_windows.csv asset_id OUTPUT start, end\n| eval starttime=strptime(start,\"%Y-%m-%d %H:%M:%S\") | eval endtime=strptime(end,\"%Y-%m-%d %H:%M:%S\")\n| eval in_maint=if(_time>=starttime AND _time<=endtime,1,0)\n| where in_maint=0 OR user_in_roster=0\n| stats earliest(_time) as first_seen latest(_time) as last_seen values(action_norm) as actions dc(session_id) as sessions by asset_id asset_name scada_type access_user criticality\n| sort - sessions",
+  "description": "Detects logins, privileged sessions, and high-risk engineering actions against inventoried plant control assets when the actor is outside the approved user roster for that asset, or when the activity occurs outside an approved maintenance interval.",
+  "value": "Turns scattered plant-access logs and vault sessions into defensible proof that only expected people touched critical control gear at expected times, so leadership can answer oversight questions without assembling spreadsheets after the fact.",
+  "implementation": "Ingest `scada:access_log` into `index=ot_access` and CyberArk sessions into `index=pam` using Splunkbase 2891. Maintain `nis2_scada_assets.csv` and `nis2_scada_maintenance_windows.csv` under change control. Map fields `asset_id`, `access_user`, `action`, `session_id`. Schedule the saved search every 15 minutes over rolling 24 hours; route results to ES correlation or a compliance dashboard. Normalize identities toward the CIM Authentication model where possible for ES identity tables.",
+  "visualization": "Table of asset_id, asset_name, access_user, actions, sessions; timeline of first_seen/last_seen; single value of distinct off-roster users; map or bar split by scada_type. Optional ES Incident Review drilldown when Splunkbase 263 is licensed.",
   "cimModels": [
     "Authentication"
   ],
-  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user, Authentication.action, Authentication.src | sort - count",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication where nodename=Authentication by Authentication.user, Authentication.action, Authentication.src | sort - count",
   "references": [
     {
-      "title": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742"
-    },
-    {
-      "title": "Splunk Add-on for CyberArk",
+      "title": "Splunk Add-on for CyberArk (Splunkbase 2891)",
       "url": "https://splunkbase.splunk.com/app/2891"
     },
     {
-      "title": "CIM: Authentication",
+      "title": "Splunk Enterprise Security (Splunkbase 263)",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk CIM: Authentication data model",
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Operational noise during large maintenance windows, controlled exercises, or scope changes to critical entity lists.",
+  "knownFalsePositives": "• **Break-glass CyberArk sessions** — Distinguish: ticketed emergency change with duty manager approval in ServiceNow. Suppress: time-bound rows in `nis2_scada_breakglass_exceptions.csv` keyed on `access_user`, `asset_id`, and expiry `_time`.\n• **New hire or rotated contractor identity** — Distinguish: HR effective-dated roster in workday export matches `access_user` but lookup stale. Suppress: refresh `nis2_scada_assets.csv` same-day; short filter `where effective_date<=now()` after lookup enrichment.\n• **Asset_id remapping after line shutdown** — Distinguish: old `asset_id` still appears on legacy HMI logs while CMDB shows merged tag. Suppress: maintain `nis2_scada_asset_aliases.csv` lookup mapping retired IDs to canonical `asset_id` before the roster check.\n• **Vendor jump-server shared account** — Distinguish: single service account used by multiple named engineers; logs lack human name. Suppress: exception register column `shared_account_override` with mandatory ticket reference; join `cyberark:session` ClientHost before filtering.\n• **Read-only monitoring poll mistaken as access** — Distinguish: `action` contains poll/heartbeat from IT monitoring; source subnet documented. Suppress: `where NOT cidrmatch(\"10.40.0.0/16\", src_ip)` or dedicated allow list lookup `nis2_scada_monitoring_subnets.csv`.",
   "mitreAttack": [
     "T0859",
     "T1078"
   ],
   "requiredFields": [
-    "endtime",
-    "host",
-    "plant_site",
-    "starttime",
-    "users"
+    "asset_id",
+    "access_user",
+    "action_norm",
+    "scada_type",
+    "authorized_users"
   ],
   "equipment": [
     "cyberark"
   ],
-  "lastReviewed": "2026-04-22",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for CyberArk (Splunkbase 2891).\n• Ensure the following data sources are available: `WinEventLog:Security` EventCode=4624/4648, `cyberark:session`, `nis2_scada_maintenance_windows.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Inventory SCADA hosts with roles in `nis2_scada_asset_inventory.csv`; (2) ingest maintenance windows from plant maintenance system; (3) alert on interactive access outside windows; (4) integrate PAM session video references for investigations; (5) align with safety permit-to-work where applicable.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n(index=win_sec EventCode=4624 Logon_Type=10 OR Logon_Type=2) OR sourcetype=\"cyberark:session\" earliest=-7d\n| eval host=coalesce(dest_nt_host, ComputerName, target_host)\n| lookup nis2_scada_asset_inventory.csv host OUTPUT scada_role plant_site\n| where scada_role IN (\"HMI\",\"ENG_WORKSTATION\",\"SCADA_SERVER\")\n| join host [\n    | inputlookup nis2_scada_maintenance_windows.csv\n    | eval starttime=strptime(start,\"%Y-%m-%d %H:%M:%S\")\n    | eval endtime=strptime(end,\"%Y-%m-%d %H:%M:%S\")\n]\n| where _time < starttime OR _time > endtime\n| stats values(user) as users count by host plant_site\n| sort - count\n```\n\nUnderstanding this SPL\n\n**NIS2 SCADA System Access Monitoring (Art. 21(2)(a))** — Interactive access to SCADA/HMI layers is high risk. This use case monitors engineering workstation logons, HMI tag writes, and remote-desktop sessions to SCADA hosts — correlating with maintenance windows and approved technician identities.\n\nDocumented **Data sources**: `WinEventLog:Security` EventCode=4624/4648, `cyberark:session`, `nis2_scada_maintenance_windows.csv`. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for CyberArk (Splunkbase 2891). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: win_sec; **sourcetype**: cyberark:session. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=win_sec, sourcetype=\"cyberark:session\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **host** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where scada_role IN (\"HMI\",\"ENG_WORKSTATION\",\"SCADA_SERVER\")` — typically the threshold or rule expression for this monitoring goal.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• Filters the current rows with `where _time < starttime OR _time > endtime` — typically the threshold or rule expression for this monitoring goal.\n• `stats` aggregates events by **host plant_site**, producing one row per unique combination for trend analysis and threshold evaluation.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nThis use case does not use a CIM tstats shortcut; the primary SPL above is the source of truth after field normalization in your environment.\n\nOutput fields: endtime, host, plant_site, starttime, users.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (out-of-window access), Timeline (sessions), Single value (distinct technicians), Map (plant sites).",
-  "grandmaExplanation": "We interactive access to SCADA/HMI layers is high risk.",
-  "dataModelAcceleration": "Enable for Authentication"
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with a role that can search `index=ot_access` and `index=pam` (custom role `ot_compliance_analyst` recommended; avoid admin).\n• Install Splunk Add-on for CyberArk ([Splunkbase 2891](https://splunkbase.splunk.com/app/2891)) on Heavy Forwarders or Intermediate Tier where REST polling runs; confirm `inputs.conf` modular input intervals (default often 60 seconds to 5 minutes — raise only after vendor API rate review).\n• Optional Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)) on the search tier for identity correlation and Incident Review workflows.\n• Network path from the collector tier to CyberArk PVWA REST and to any SCADA historian security-export share.\n• CSV lookups deployed app-local: `$SPLUNK_HOME/etc/apps/search/lookups/nis2_scada_assets.csv` plus `nis2_scada_maintenance_windows.csv` with `transforms.conf` definitions under change control.\n\nStep 1 — Configure data collection\nRoute plant security/audit exports so SCADA/HMI access lines land in `index=ot_access` as `sourcetype=scada:access_log`. Minimum extracted fields: `asset_id`, `access_user`, `action`, `session_id`, `result`, `src_ip`. Enable CyberArk session feeds per vendor guidance into `index=pam` `sourcetype=cyberark:session` using the TA’s configurable field mappings (`props.conf` on indexers). Validate daily volume: aim <5% skew versus CyberArk «Sessions» Activity report for the same 24h window.\n\nStep 2 — Create the search and alert\nIn Search & Reporting, paste the UC SPL (saved search name `UC-22.2.37`). Tune `criticality` filter and `action_norm` regex to your vocabulary — avoid over-broad `match()` that includes benign reads. For Enterprise Security, add an equivalent correlation search under **Configure > Content Management** with adaptive response actions to **Create notable event** when roster or maintenance checks fail.\n\n```spl\n(index=ot_access sourcetype=scada:access_log) OR (index=pam sourcetype=cyberark:session) earliest=-24h\n| eval asset_id=coalesce(asset_id, plant_asset_id, target_host, dest_host, TargetAddress)\n| eval access_user=coalesce(access_user, user, User, user_name)\n| lookup nis2_scada_assets.csv asset_id OUTPUT asset_name, scada_type, criticality, authorized_users\n```\n\nUnderstanding this SPL: the union captures both native plant access logs and vaulted sessions. `lookup` binds each event to roster and criticality before filtering. Schedule the alert every **15 minutes** with a **24-hour** lookback; throttle on `asset_id` + `access_user` for **4 hours** to limit duplicate pages during persistent vendor work.\n\nStep 3 — Validate\nSpot-check five events: compare `access_user` and `asset_id` to CyberArk «Session Details» UI and the plant’s local historian audit grid. Run `| rest /services/server/info splunk_server=local` to confirm search head version. Confirm lookup coverage with `| inputlookup nis2_scada_assets.csv | stats count`, then join to `| inputlookup nis2_scada_maintenance_windows.csv | stats count`. Any zero-row lookup indicates a broken deploy path.\n\nStep 4 — Operationalize & Troubleshoot\nPublish a dashboard row: table of off-roster or out-of-window access, single-value trend of distinct violators, and a timeline panel grouped by `plant_site` if you add that column to the asset lookup. Runbook: (1) confirm not a break-glass ticket; (2) verify roster CSV freshness; (3) replay session in CyberArk playback; (4) open safety discussion if programming actions precede a permit. Failure modes: **missing `asset_id`** — fix forwarder field extraction; **flood of CyberArk heartbeats** — add `where len(session_id)>0`; **empty results when incidents known** — indexer timezone skew; compare `_time` vs source clock beyond **300 seconds**.\n\nStep 5 — Governance\nArchive weekly PDF/CSV exports of the saved search to `index=audit_evidence` with restricted role ACLs. Review quarterly with OT security and process owners to retire stale maintenance windows and aliases.",
+  "grandmaExplanation": "We watch who connects to the computers that run important plants and factories. When someone shows up who should not be there, or they poke around outside an agreed maintenance window, we highlight it so leaders can ask good questions before harm spreads.",
+  "dataModelAcceleration": "Enable for Authentication when ES is deployed; summary range 30 days minimum for roster analytics.",
+  "owner": "CISO",
+  "controlFamily": "access-review-cadence",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel or competent-authority review. Does not certify functional safety of the controller—only visibility of access telemetry available to Splunk.",
+  "evidence": "Scheduled saved search `UC-22.2.37`, dashboard panels on restricted NIS2 posture workbook, and archived exports in `index=audit_evidence` retained per your records policy.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "A contractor account starts a CyberArk session to asset HEX-PLANT-01 while `nis2_scada_assets.csv` lists only internal engineers for that asset_id; the saved search returns a row with nonzero sessions and actions including modify within a closed maintenance window.",
+    "negativeScenario": "An operator listed in `authorized_users` performs routine read-only polling during an open maintenance window with matching `window_start/window_end`; after roster and window enrichment the search returns zero notable rows for that session.",
+    "fixtureRef": "sample-data/uc-22.2.37-fixture.json"
+  },
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
 }

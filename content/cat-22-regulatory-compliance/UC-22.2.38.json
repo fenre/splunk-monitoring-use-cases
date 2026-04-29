@@ -21,16 +21,17 @@
       "evidenceArtifact": "Saved search 'UC-22.2.38' running on index=ot_changes (HEC), index=itsm sourcetype=\"snow:change_request\", nis2_ot_patch_policy.csv, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(e)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=ot_changes` (HEC), `index=itsm` `sourcetype=\"snow:change_request\"`, `nis2_ot_patch_policy.csv`",
-  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), HTTP Event Collector (HEC — vendor patch tools)",
+  "dataSources": "`index=ot_changes` `sourcetype=ot:vendor:patch` or `sourcetype=windecs:changelog` via **HTTP Event Collector** token (port 8088) from PLC engineering workstation agents; `index=itsm` `sourcetype=snow:change_request` (number, start_date, end_date, cmdb_ci) via Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)); baseline CSV `nis2_ot_patch_policy.csv` (asset_id, required_fw_version, last_approved_change_epoch).",
+  "app": "Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)), Splunk Connect for OT / generic HEC for vendor patch forwarders; optional Splunk Add-on for Microsoft SCCM ([Splunkbase 1599](https://splunkbase.splunk.com/app/1599)) for parallel IT plant gateways.",
   "spl": "index=ot_changes earliest=-90d\n| stats latest(firmware_version) as observed_fw latest(_time) as last_change by asset_id\n| lookup nis2_ot_patch_policy.csv asset_id OUTPUT required_fw_version last_approved_change_epoch\n| eval fw_compliant=if(observed_fw=required_fw_version,1,0)\n| eval change_stale=if(last_change < last_approved_change_epoch,1,0)\n| where fw_compliant=0 OR change_stale=1\n| table asset_id, observed_fw, required_fw_version, last_change, change_stale",
-  "description": "Patch and change management for ICS must balance availability with security. This use case tracks firmware updates, PLC logic downloads, and antivirus signature updates for OT endpoints — flagging systems past approved patch cycles or changes without linked change records.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes itsm, ot_changes and sourcetypes snow:change_request. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Forward vendor-specific OT change events via HEC; (2) require ServiceNow change tickets for logic downloads; (3) alert when observed firmware diverges from approved baseline; (4) coordinate outage windows with operations; (5) retain evidence for sector regulator inspections. Indexes required: `index=itsm`, `index=ot_changes`; Sourcetypes: `sourcetype=snow:change_request`; Lookups: `nis2_ot_patch_policy`, `nis2_ot_patch_policy.csv`.",
-  "visualization": "Table (non-compliant assets), Timeline (patch waves), Single value (assets past policy), Bar chart (by vendor). Key fields: `asset_id`, `change_stale`, `fw_compliant`, `last_change`, `observed_fw`, `required_fw_version`.",
+  "description": "Compares the latest firmware string and last engineering change timestamp observed in OT vendor telemetry against an approved baseline table to find PLCs or RTUs that drifted from policy or never recorded a change after the last CAB approval epoch.",
+  "value": "Plant managers can hand an inspector a Splunk report that ties patch windows to actual controller versions without walking the shop floor with USB sticks, reducing downtime disputes when a CVE fix was scheduled but not propagated.",
+  "implementation": "(1) Route Rockwell/Siemens/Schneider engineering tool exports or agent logs to `index=ot_changes` through HEC with TLS. (2) Maintain `nis2_ot_patch_policy.csv` from monthly OT CAB minutes including `last_approved_change_epoch`. (3) Pull `snow:change_request` (1928) for contextual CHG numbers — join in a second panel. (4) Schedule search weekly due to low event rates. (5) Store evidence **7 years** in `audit_evidence` if mandated.",
+  "visualization": "Table of non-compliant asset_id, timeline of last_change, bar chart of stale changes by plant site.",
   "cimModels": [
     "N/A"
   ],
@@ -41,11 +42,30 @@
       "url": "https://splunkbase.splunk.com/app/1928"
     },
     {
+      "title": "Splunk Add-on for Microsoft SCCM",
+      "url": "https://splunkbase.splunk.com/app/1599"
+    },
+    {
       "title": "CIM: Change",
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Operational noise during large maintenance windows, controlled exercises, or scope changes to critical entity lists.",
+  "knownFalsePositives": "• **Vendor telemetry reports maintenance string not applied yet** — Distinguish: ladder download queued but reboot pending next outage. Suppress: time-bound exception `ot_pending_reboot.csv` with asset_id, expiry.\n• **Duplicate asset_id after site rename** — Distinguish: new CSV row supersedes old device. Suppress: lookup `asset_id_alias.csv` mapping retired IDs.\n• **Firmware normalization mismatch (01.04 vs 1.4)** — Distinguish: string compare fails though semantically equal. Suppress: `eval observed_norm=replace(observed_fw,\"^0+\",\"\")` before compare.\n• **ServiceNow CAB timestamp in local timezone** — Distinguish: epoch off by 3600s causing change_stale=1. Suppress: convert all epochs to UTC in CSV build script.\n• **Test bench floods HEC** — Distinguish: asset_id prefixed `LAB-`. Suppress: `where NOT match(asset_id,\"^LAB-\")` filter on production dashboards only.",
   "requiredFields": [
     "asset_id",
     "change_stale",
@@ -57,8 +77,24 @@
   "equipment": [
     "servicenow"
   ],
-  "lastReviewed": "2026-04-22",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for ServiceNow (Splunkbase 1928), HTTP Event Collector (HEC — vendor patch tools).\n• Ensure the following data sources are available: `index=ot_changes` (HEC), `index=itsm` `sourcetype=\"snow:change_request\"`, `nis2_ot_patch_policy.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Forward vendor-specific OT change events via HEC; (2) require ServiceNow change tickets for logic downloads; (3) alert when observed firmware diverges from approved baseline; (4) coordinate outage windows with operations; (5) retain evidence for sector regulator inspections.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot_changes earliest=-90d\n| stats latest(firmware_version) as observed_fw latest(_time) as last_change by asset_id\n| lookup nis2_ot_patch_policy.csv asset_id OUTPUT required_fw_version last_approved_change_epoch\n| eval fw_compliant=if(observed_fw=required_fw_version,1,0)\n| eval change_stale=if(last_change < last_approved_change_epoch,1,0)\n| where fw_compliant=0 OR change_stale=1\n| table asset_id, observed_fw, required_fw_version, last_change, change_stale\n```\n\nUnderstanding this SPL\n\n**NIS2 Industrial Control System Patching and Change Evidence (Art. 21(2)(e))** — Patch and change management for ICS must balance availability with security. This use case tracks firmware updates, PLC logic downloads, and antivirus signature updates for OT endpoints — flagging systems past approved patch cycles or changes without linked change records.\n\nDocumented **Data sources**: `index=ot_changes` (HEC), `index=itsm` `sourcetype=\"snow:change_request\"`, `nis2_ot_patch_policy.csv`. **App/TA** (typical add-on context): Splunk Add-on for ServiceNow (Splunkbase 1928), HTTP Event Collector (HEC — vendor patch tools). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot_changes.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot_changes, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` aggregates events by **asset_id**, producing one row per unique combination for trend analysis and threshold evaluation.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **fw_compliant** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **change_stale** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where fw_compliant=0 OR change_stale=1` — typically the threshold or rule expression for this monitoring goal.\n\nThis use case does not use a CIM tstats shortcut; the primary SPL above is the source of truth after field normalization in your environment.\n\nOutput fields: asset_id, change_stale, fw_compliant, last_change, observed_fw, required_fw_version.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (non-compliant assets), Timeline (patch waves), Single value (assets past policy), Bar chart (by vendor).",
-  "grandmaExplanation": "We patch and change management for ICS must balance availability with security.",
-  "dataModelAcceleration": "Not applicable"
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Dedicated HEC token on indexers accepting OT VLAN sources; restrict network ACL to engineering jump hosts only.\n• Universal Forwarder **not** always possible on PLCs — prefer vendor gateway or scheduled CSV push via scripted input.\n• Splunk Add-on for ServiceNow (1928) with read-only `change_request` role.\n• Governance: OT CAB publishes CSV updates into `lookups/` through git-controlled pipeline with checksum validation.\n\nStep 1 — Configure data collection\nCreate HEC token under **Settings → Data inputs → HTTP Event Collector** named `ot_patch_hec`, index=`ot_changes`, sourcetype=`ot:vendor:patch`.\nOn engineering workstation, use vendor SDK or PowerShell to POST JSON `{\"asset_id\":\"PLC12\",\"firmware_version\":\"v3.2.1\"}` every **15 minutes** after maintenance windows.\nImport `nis2_ot_patch_policy.csv` columns: asset_id, required_fw_version, last_approved_change_epoch (unix seconds).\nEnable ServiceNow change_request pull every **600 seconds** filtered to `u_ot_relevant=true` custom flag.\n\nStep 2 — Create the search and alert\nRun weekly (`cron 15 5 * * 1`) with `earliest=-90d@d`. Save `UC-22.2.38_ot_patch_drift`.\nAlert when `fw_compliant=0` for assets tagged `tier=0` in lookup extension column.\nOptional join: `| join asset_id [ search index=itsm sourcetype=snow:change_request | stats latest(start_date) as chg_start by cmdb_ci | rename cmdb_ci as asset_id ]`.\n\nStep 3 — Validate\nPick asset recently patched in vendor tool; confirm `firmware_version` field matches Splunk `observed_fw`.\nSimulate CSV bump: raise `required_fw_version` — search should flag row until telemetry catches up.\nValidate `last_approved_change_epoch` aligns with ServiceNow `start_date` converted to epoch — differences indicate CAB data defect not Splunk defect.\n\nStep 4 — Operationalize\nDashboard split by plant: filter `asset_id` prefix. Integrate with SOAR playbook asking engineer attach vendor PDF certificate.\nArchive weekly PDF to `index=audit_evidence` with `_meta` tagging `clause=Art.21(2)(e)`.\n\nStep 5 — Troubleshooting\n• **No ot_changes events** — HEC token disabled post cluster restart; re-enable via distsearch peer baseline.\n• **lookup missing asset** — default `required_fw_version` null skips compare; enforce completeness with splunk ingest validation.\n• **last_change always equals now** — duplicate events each poll; dedup `asset_id` using `stats latest(_time)` already — check `_raw` uniqueness.\n• **change_stale stuck at 1** — telemetry timestamp never updates because device offline — add liveness panel.\n• **string firmware compare too strict** — switch to `if(like(observed_fw,required_fw_version+\"%\"),1,0)` pattern for build numbers.",
+  "grandmaExplanation": "We check factory controllers against the approved version list and the official maintenance schedule, so you can prove the sensitive equipment got its fixes on time and nothing silently drifted out of spec.",
+  "dataModelAcceleration": "Not applicable",
+  "owner": "Board / Audit Committee",
+  "controlFamily": "evidence-continuity",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
+  "evidence": "Weekly saved search `UC-22.2.38`, OT CAB-signed CSV revision, and PDF export stored in the operations evidence library with timestamped archive metadata.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Inject telemetry where `observed_fw` is `2.0.0` while the lookup mandates `2.1.0` and `last_change` epoch precedes `last_approved_change_epoch`; the search returns the asset_id with both noncompliance indicators set.",
+    "negativeScenario": "Send telemetry matching `required_fw_version` with `last_change` newer than the CAB epoch plus fixtures flagged `LAB-` assets filtered out by production macro; the saved search completes with zero production rows.",
+    "fixtureRef": "sample-data/uc-22.2.38-fixture.json"
+  }
 }

@@ -21,16 +21,17 @@
       "evidenceArtifact": "Saved search 'UC-22.2.3' running on index=vulnerability sourcetype=\"tenable:vuln\" (cve, severity, plugin_name, host, first_found, last_fixed, state), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(e)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=vulnerability` `sourcetype=\"tenable:vuln\"` (cve, severity, plugin_name, host, first_found, last_fixed, state)",
-  "app": "Tenable Add-On for Splunk (Splunkbase 4060)",
+  "dataSources": "`index=vulnerability` (or `index=vuln`) `sourcetype=tenable:vuln` fields host, severity, first_found, state from Tenable Add-On for Splunk ([Splunkbase 4060](https://splunkbase.splunk.com/app/4060)); complementary patch posture from `index=patch` `sourcetype=wsus:update` or `sourcetype=sccm:compliance` via Splunk Add-on for Microsoft SCCM ([Splunkbase 1599](https://splunkbase.splunk.com/app/1599)) with BulletinID, ComplianceState — map to CIM Vulnerabilities for board-level rollups.",
+  "app": "Tenable Add-On for Splunk ([Splunkbase 4060](https://splunkbase.splunk.com/app/4060)); Splunk Add-on for Microsoft SCCM (Splunkbase 1599) when correlating patch deployment; optional CIM Vulneraries data model acceleration on the search head.",
   "spl": "index=vulnerability sourcetype=\"tenable:vuln\" state=\"Active\"\n| eval host=coalesce(host, hostname, dns_name)\n| eval first_found=coalesce(first_found, first_seen)\n| eval age_days=round((now()-first_found)/86400, 1)\n| eval sla_days=case(severity=\"Critical\",7, severity=\"High\",30, 1=1,90)\n| eval sla_breach=if(age_days>sla_days, 1, 0)\n| stats count as open_vulns, max(age_days) as max_age by host, severity\n| where sla_breach=1\n| sort - max_age\n| table host, severity, open_vulns, max_age, sla_days",
-  "description": "Tracks CVE exposure and remediation latency from first detection to fix to demonstrate systematic vulnerability handling for essential and important entities.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes vulnerability and sourcetypes tenable:vuln. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Install Tenable Add-On (4060) and route data to `index=vulnerability`; (2) validate field names (`cve_id` vs `cve`, `first_seen` vs `first_found`) in Data Summary; (3) tune `sla_days` to your security policy; (4) integrate with change/patch tickets for exception tracking. Sourcetypes: `sourcetype=tenable:vuln`.",
-  "visualization": "Table (over-SLA assets), Bar chart (count by severity), Line chart (open critical CVE trend).",
+  "description": "Surfaces active Tenable-plugin findings where the time since first_seen exceeds policy-based remediation deadlines per severity bucket for each host.",
+  "value": "Compliance teams can hand auditors a repeatable report that shows which servers breached internal fix deadlines and for how long, instead of exporting ad-hoc CSV snapshots from the scanner console every quarter.",
+  "implementation": "(1) Install Tenable Add-On (4060) and confirm events land in `index=vulnerability` with `state` populated. (2) Open **Settings → Data Summary → Sourcetypes** and verify whether your feed uses `first_seen` vs `first_found`. (3) Copy SLA constants into a macro `nis2_sla_severity(1)` so operations can change thresholds once. (4) For patch proof, mirror SCCM (1599) compliance into `index=patch` and schedule a follow-on correlation search. (5) Route alerts to SecOps on-call with the host CMDB owner field.",
+  "visualization": "Table of hosts past SLA, bar chart of open_vulns by severity, line chart of rolling count of breached hosts over 90 days.",
   "cimModels": [
     "Vulnerabilities"
   ],
@@ -41,11 +42,30 @@
       "url": "https://splunkbase.splunk.com/app/4060"
     },
     {
+      "title": "Splunk Add-on for Microsoft SCCM",
+      "url": "https://splunkbase.splunk.com/app/1599"
+    },
+    {
       "title": "CIM: Vulnerabilities",
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Scanner findings that are false positives, accepted risks with a formal exception, or test assets outside the regulatory perimeter.",
+  "knownFalsePositives": "• **Tenable plugin false positives on legacy middle-ware** — Distinguish: plugin ID flagged for years with formal VA waiver in ServiceNow. Suppress: lookup `vuln_exception_register.csv` with plugin_id, host, expiry_date.\n• **Test or scan labs outside production scope** — Distinguish: host matches `lab_prefix` from CMDB. Suppress: `where NOT match(host,\"^(lab|tst)-\")` or join asset class lookup.\n• **Deferred patching inside approved cyber-maintenance blackout** — Distinguish: CAB-approved freeze with CHG record. Suppress: time-bound exception table `patch_blackout_exceptions.csv` keyed on host and epoch window.\n• **Field mapping drift (`first_seen` null)** — Distinguish: scanner upgrade renamed fields; age stays zero. Suppress: fix `props.conf` on indexers, interim filter `where isnotnull(first_found)`.\n• **Container hosts counted twice** — Distinguish: duplicate assets for docker host vs cluster member. Suppress: dedup on `host` after `rex` normalization to lowercase FQDN.",
   "mitreAttack": [
     "T1562"
   ],
@@ -62,8 +82,24 @@
   "equipment": [
     "tenable"
   ],
-  "lastReviewed": "2026-04-22",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Tenable Add-On for Splunk (Splunkbase 4060).\n• Ensure the following data sources are available: `index=vulnerability` `sourcetype=\"tenable:vuln\"` (cve, severity, plugin_name, host, first_found, last_fixed, state).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Install Tenable Add-On (4060) and route data to `index=vulnerability`; (2) validate field names (`cve_id` vs `cve`, `first_seen` vs `first_found`) in Data Summary; (3) tune `sla_days` to your security policy; (4) integrate with change/patch tickets for exception tracking.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vulnerability sourcetype=\"tenable:vuln\" state=\"Active\"\n| eval host=coalesce(host, hostname, dns_name)\n| eval first_found=coalesce(first_found, first_seen)\n| eval age_days=round((now()-first_found)/86400, 1)\n| eval sla_days=case(severity=\"Critical\",7, severity=\"High\",30, 1=1,90)\n| eval sla_breach=if(age_days>sla_days, 1, 0)\n| stats count as open_vulns, max(age_days) as max_age by host, severity\n| where sla_breach=1\n| sort - max_age\n| table host, severity, open_vulns, max_age, sla_days\n```\n\nUnderstanding this SPL\n\n**NIS2 Vulnerability Disclosure and Patch Management Tracking (Art. 21(2)(e))** — Tracks CVE exposure and remediation latency from first detection to fix to demonstrate systematic vulnerability handling for essential and important entities.\n\nDocumented **Data sources**: `index=vulnerability` `sourcetype=\"tenable:vuln\"` (cve, severity, plugin_name, host, first_found, last_fixed, state). **App/TA** (typical add-on context): Tenable Add-On for Splunk (Splunkbase 4060). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vulnerability; **sourcetype**: tenable:vuln. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vulnerability, sourcetype=\"tenable:vuln\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **host** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **first_found** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **age_days** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **sla_days** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **sla_breach** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `stats` aggregates events by **host, severity**, producing one row per unique combination for trend analysis and threshold evaluation.\n• Filters the current rows with `where sla_breach=1` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nSee also the **CIM SPL** field in this use case; enable the matching data model acceleration if you run the tstats variant in production.\n\nOutput fields: age_days, first_found, host, max_age, open_vulns, severity, sla_breach, sla_days.\n\nStep 3 — Validate\nCompare with the vulnerability scanner console (Tenable, Qualys, or your standard tool) for the same asset and scan window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (over-SLA assets), Bar chart (count by severity), Line chart (open critical CVE trend).",
-  "grandmaExplanation": "We track CVE exposure and remediation latency from first detection to fix to demonstrate systematic vulnerability handling for essential and important entities.",
-  "dataModelAcceleration": "Enable for Vulnerabilities"
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Tenable Add-On for Splunk (Splunkbase 4060) on a heavy forwarder or SC4S path that preserves JSON from Tenable.io / Security Center exports; search heads need the same TA version for field knowledge bundles.\n• Indexes: standardize on `index=vulnerability` for scanner-native events (rename if you still use `index=vuln`). Analyst role must include it.\n• Optional: Splunk Add-on for Microsoft SCCM (Splunkbase 1599) writing to `index=patch` so patch compliance can be joined later.\n• Clock skew under **5 minutes** NTP between scanner and Splunk; otherwise `age_days` misstates SLA breaches.\n\nStep 1 — Configure data collection\nEnable the Tenable modular input or API poller documented in the TA README; confirm `/services/data/inputs` REST endpoint lists the input as enabled. Set sourcetype override to `tenable:vuln` if the TA default matches your deployment build.\nValidate daily volume: `index=vulnerability sourcetype=tenable:vuln earliest=-1d | stats count` — compare with Tenable UI licensed asset counts.\nFor hybrid SCCM corroboration, route `sourcetype=sccm:compliance` with fields `BulletinID`, `ComplianceState`, `ComputerName` into `index=patch`.\n\nStep 2 — Create the search and alert\nRun the SPL with **Last 7 days** first to verify volume, then tighten to recurring schedule: **hourly** with **relative_time** window matching corporate SLA policy. Save as `UC-22.2.3_tenable_sla_breach`.\nAdd macro `%(nis2_sla_eval)` wrapping the `eval sla_days` block for reuse in executive dashboards.\nIf using CIM acceleration, mirror the breach logic inside `tstats` using summariesonly=true against `Vulnerabilities` datamodel — expect 10x faster scans for 50k+ assets.\n\nStep 3 — Validate\nPick one host flagged Critical in Tenable Workbench; compare `first_found` epoch in Splunk (`| convert ctime(first_found)`) to the UI timeline.\nRun `| stats count by state` to ensure inactive findings are excluded when `state!=\"Active\"`.\nFor SCCM cross-check, search `index=patch` for the same KB identifier referenced by the plugin family; mismatches indicate ticketing-not-patch issues, not scanner error.\n\nStep 4 — Operationalize\nDashboard rows: host owner from CMDB lookup, business criticality, CAB-linked change URL. Alert actions: ServiceNow incident via scripted output or SOAR webhook.\nWeekly managerial panel: SLA breach backlog trend by severity bucket; export CSV to `index=audit_evidence` through HEC if your GRC team requires immutable copies.\n\nStep 5 — Troubleshooting\n• **Empty index** — modular input credentials expired; rotate API keys in **Configuration > Accounts** of the TA.\n• **all age_days null** — `_time` used instead of epoch field; confirm Tenable JSON path in `props.conf` `TIME_PREFIX`.\n• **over-counting breaches** — duplicate events per scan job; add `| dedup plugin_id, host` before `stats`.\n• **CIM path slower than raw** — acceleration disabled; enable under **Settings → Data models → Vulnerabilities** for at least 30 days summary range.\n• **False severity spikes** — Tenable severity mapping changed; rebuild KV store reference table `tenable_severity_map.csv`.",
+  "grandmaExplanation": "We measure how long serious security holes have stayed open on each computer. When something important has waited too long, we raise it so the people responsible for fixing it can act before auditors or criminals force the issue.",
+  "dataModelAcceleration": "Enable for Vulnerabilities",
+  "owner": "Board / Audit Committee",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
+  "evidence": "Saved search `UC-22.2.3` outputs, weekly dashboard PDF, and tamper-evident archive of result snapshots in `index=audit_evidence` referenced by the control matrix row.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "crawl",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Seed Tenable-shaped events where `state=Active`, severity is Critical, and `first_found` is older than eight days; the alert fires listing the host with `max_age` above the seven-day SLA and includes open_vulns counts.",
+    "negativeScenario": "Ingest matching events for the same host but include an open exception record in `vuln_exception_register.csv` covering the plugin_id until next quarter; the scheduled search returns no rows after the lookup filter is applied.",
+    "fixtureRef": "sample-data/uc-22.2.3-fixture.json"
+  }
 }

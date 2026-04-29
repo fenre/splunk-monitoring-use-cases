@@ -6,7 +6,7 @@
 > **Authoritative source**: [https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201)
 > **Effective from**: 2007-11-15
 
-> This evidence pack is the auditor-facing view of the Splunk monitoring catalogue's coverage of the regulation. Every clause coverage claim is traceable to a specific UC sidecar JSON file (`use-cases/cat-*/uc-*.json`); every retention figure cites its legal basis; every URL resolves to an official regulator or standards-body source. The pack does **not** assert legal conclusions — it tabulates what the catalogue covers, names the authoritative source, and flags gaps. Interpretation stays with counsel.
+> This evidence pack is the auditor-facing view of the Splunk monitoring catalogue's coverage of the regulation. Every clause coverage claim is traceable to a specific UC sidecar JSON file (`content/cat-*/UC-*.json`); every retention figure cites its legal basis; every URL resolves to an official regulator or standards-body source. The pack does **not** assert legal conclusions — it tabulates what the catalogue covers, names the authoritative source, and flags gaps. Interpretation stays with counsel.
 
 > **Live views.** [Buyer narrative (`compliance-story.html?reg=sox-itgc`)](../../compliance-story.html?reg=sox-itgc) · [Auditor clause navigator (`clause-navigator.html#reg=sox-itgc`)](../../clause-navigator.html#reg=sox-itgc) · [JSON twin (`api/v1/compliance/story/sox-itgc.json`)](../../api/v1/compliance/story/sox-itgc.json)
 
@@ -42,7 +42,7 @@ All public companies registered with the SEC (US issuers and foreign private iss
 - **Clauses tracked**: 12
 - **Clauses covered by at least one UC**: 12 / 12 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 38
+- **Contributing UCs**: 40
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -59,11 +59,11 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`ITGC.AccessMgmt.Review`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.AccessMgmt.Review) | Periodic access review | 0.7 | `full` | [UC-22.12.26](#uc-22-12-26), [UC-22.40.3](#uc-22-40-3) |
 | [`ITGC.ChangeMgmt.Authorization`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.ChangeMgmt.Authorization) | Change authorised | 1.0 | `full` | [UC-16.4.1](#uc-16-4-1), [UC-22.42.1](#uc-22-42-1), [UC-7.1.13](#uc-7-1-13) |
 | [`ITGC.ChangeMgmt.Testing`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.ChangeMgmt.Testing) | Change tested | 1.0 | `full` | [UC-22.11.95](#uc-22-11-95), [UC-22.12.12](#uc-22-12-12), [UC-22.12.13](#uc-22-12-13), [UC-22.12.14](#uc-22-12-14), [UC-22.12.15](#uc-22-12-15), [UC-22.12.16](#uc-22-12-16) (+2 more) |
-| [`ITGC.ChangeMgmt.Approval`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.ChangeMgmt.Approval) | Change approved | 1.0 | `full` | [UC-12.2.17](#uc-12-2-17), [UC-22.12.10](#uc-22-12-10), [UC-22.12.11](#uc-22-12-11), [UC-22.12.39](#uc-22-12-39), [UC-22.6.55](#uc-22-6-55) |
+| [`ITGC.ChangeMgmt.Approval`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.ChangeMgmt.Approval) | Change approved | 1.0 | `full` | [UC-12.2.17](#uc-12-2-17), [UC-22.12.10](#uc-22-12-10), [UC-22.12.11](#uc-22-12-11), [UC-22.12.39](#uc-22-12-39), [UC-22.6.55](#uc-22-6-55), [UC-5.13.46](#uc-5-13-46) |
 | [`ITGC.Operations.JobSchedule`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Operations.JobSchedule) | Batch scheduling and monitoring | 0.7 | `full` | [UC-22.12.40](#uc-22-12-40) |
 | [`ITGC.Operations.Backup`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Operations.Backup) | Backup and restore | 1.0 | `full` | [UC-22.45.3](#uc-22-45-3) |
 | [`ITGC.Logging.Continuity`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Logging.Continuity) | Audit trail completeness | 1.0 | `partial` | [UC-22.35.2](#uc-22-35-2), [UC-22.9.8](#uc-22-9-8), [UC-7.1.40](#uc-7-1-40) |
-| [`ITGC.Logging.Review`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Logging.Review) | Log review | 0.7 | `partial` | [UC-22.47.2](#uc-22-47-2), [UC-22.49.3](#uc-22-49-3) |
+| [`ITGC.Logging.Review`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Logging.Review) | Log review | 0.7 | `partial` | [UC-22.47.2](#uc-22-47-2), [UC-22.49.3](#uc-22-49-3), [UC-5.13.45](#uc-5-13-45) |
 
 ### 4.1 Contributing UC detail
 
@@ -86,89 +86,89 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-12-1'></a>
-- **UC-22.12.1** —
+- **UC-22.12.1** — User provisioning evidence tied to financial application accounts
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.1.json`](../../content/cat-22-regulatory-compliance/UC-22.12.1.json)
 <a id='uc-22-12-10'></a>
-- **UC-22.12.10** —
+- **UC-22.12.10** — Change approval workflow evidence for financially material CIs
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.10.json`](../../content/cat-22-regulatory-compliance/UC-22.12.10.json)
 <a id='uc-22-12-11'></a>
-- **UC-22.12.11** —
+- **UC-22.12.11** — CAB evidence and high-risk change documentation gaps
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.11.json`](../../content/cat-22-regulatory-compliance/UC-22.12.11.json)
 <a id='uc-22-12-12'></a>
-- **UC-22.12.12** —
+- **UC-22.12.12** — Production change volume during financial close windows
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.12.json`](../../content/cat-22-regulatory-compliance/UC-22.12.12.json)
 <a id='uc-22-12-13'></a>
-- **UC-22.12.13** —
+- **UC-22.12.13** — Failed change rollback and backout evidence tracking
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.13.json`](../../content/cat-22-regulatory-compliance/UC-22.12.13.json)
 <a id='uc-22-12-14'></a>
-- **UC-22.12.14** —
+- **UC-22.12.14** — Changes executed outside approved maintenance windows
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.14.json`](../../content/cat-22-regulatory-compliance/UC-22.12.14.json)
 <a id='uc-22-12-15'></a>
-- **UC-22.12.15** —
+- **UC-22.12.15** — Financial close batch job failures and runtime SLA breaches
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.15.json`](../../content/cat-22-regulatory-compliance/UC-22.12.15.json)
 <a id='uc-22-12-16'></a>
-- **UC-22.12.16** —
+- **UC-22.12.16** — General ledger database backup success within policy windows
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.16.json`](../../content/cat-22-regulatory-compliance/UC-22.12.16.json)
 <a id='uc-22-12-17'></a>
-- **UC-22.12.17** —
+- **UC-22.12.17** — Unauthorized batch schedule or dependency modifications
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.17.json`](../../content/cat-22-regulatory-compliance/UC-22.12.17.json)
 <a id='uc-22-12-18'></a>
-- **UC-22.12.18** —
+- **UC-22.12.18** — ITSI service health for financial reporting dependency chain
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.18.json`](../../content/cat-22-regulatory-compliance/UC-22.12.18.json)
 <a id='uc-22-12-2'></a>
-- **UC-22.12.2** —
+- **UC-22.12.2** — Privileged access review completion and aging for financial systems
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.2.json`](../../content/cat-22-regulatory-compliance/UC-22.12.2.json)
 <a id='uc-22-12-26'></a>
-- **UC-22.12.26** —
+- **UC-22.12.26** — Sensitive management financial report access and export
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.26.json`](../../content/cat-22-regulatory-compliance/UC-22.12.26.json)
 <a id='uc-22-12-28'></a>
-- **UC-22.12.28** —
+- **UC-22.12.28** — Quarterly privileged ERP role population for sign-off
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.28.json`](../../content/cat-22-regulatory-compliance/UC-22.12.28.json)
 <a id='uc-22-12-3'></a>
-- **UC-22.12.3** —
+- **UC-22.12.3** — Segregation of duties conflicts across SAP / Oracle financial roles
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.3.json`](../../content/cat-22-regulatory-compliance/UC-22.12.3.json)
 <a id='uc-22-12-36'></a>
 - **UC-22.12.36** —
   - Control family: `—`
@@ -194,71 +194,71 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-12-5'></a>
-- **UC-22.12.5** —
+- **UC-22.12.5** — Terminated-user authentication after HR termination date
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.5.json`](../../content/cat-22-regulatory-compliance/UC-22.12.5.json)
 <a id='uc-22-35-2'></a>
-- **UC-22.35.2** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.35.2** — Log tamper detection via write-once-read-many chain-of-custody
+  - Control family: `evidence-continuity`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.35.2.json`](../../content/cat-22-regulatory-compliance/UC-22.35.2.json)
 <a id='uc-22-40-1'></a>
-- **UC-22.40.1** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.40.1** — Privileged session recording — missing recordings for elevated sessions
+  - Control family: `privileged-session-recording`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.40.1.json`](../../content/cat-22-regulatory-compliance/UC-22.40.1.json)
 <a id='uc-22-40-2'></a>
-- **UC-22.40.2** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.40.2** — Break-glass account usage review with mandatory post-use approval
+  - Control family: `privileged-session-recording`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.40.2.json`](../../content/cat-22-regulatory-compliance/UC-22.40.2.json)
 <a id='uc-22-40-3'></a>
-- **UC-22.40.3** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.40.3** — Periodic access review SLA — stale certifications by control owner
+  - Control family: `privileged-session-recording`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.40.3.json`](../../content/cat-22-regulatory-compliance/UC-22.40.3.json)
 <a id='uc-22-42-1'></a>
-- **UC-22.42.1** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.42.1** — Unauthorized production change — no approved CR matches the observed change
+  - Control family: `policy-to-control-traceability`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.42.1.json`](../../content/cat-22-regulatory-compliance/UC-22.42.1.json)
 <a id='uc-22-45-3'></a>
-- **UC-22.45.3** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.45.3** — Backup completeness — unprotected workloads with regulated data
+  - Control family: `backup-restore-evidence`
+  - Owner: `Head of IT Operations`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.45.3.json`](../../content/cat-22-regulatory-compliance/UC-22.45.3.json)
 <a id='uc-22-47-2'></a>
-- **UC-22.47.2** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.47.2** — Repeat audit findings — same control deficiency across consecutive audit cycles
+  - Control family: `policy-to-control-traceability`
+  - Owner: `Board / Audit Committee`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.47.2.json`](../../content/cat-22-regulatory-compliance/UC-22.47.2.json)
 <a id='uc-22-48-1'></a>
-- **UC-22.48.1** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.48.1** — Segregation of duties — toxic role combinations in IAM
+  - Control family: `access-review-cadence`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.48.1.json`](../../content/cat-22-regulatory-compliance/UC-22.48.1.json)
 <a id='uc-22-48-2'></a>
-- **UC-22.48.2** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.48.2** — SoD violations via break-glass usage — emergency role abuse
+  - Control family: `access-review-cadence`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.48.2.json`](../../content/cat-22-regulatory-compliance/UC-22.48.2.json)
 <a id='uc-22-49-3'></a>
-- **UC-22.49.3** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.49.3** — Litigation-hold override audit — holds applied/released without ticket
+  - Control family: `retention-end-enforcement`
+  - Owner: `Legal`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.49.3.json`](../../content/cat-22-regulatory-compliance/UC-22.49.3.json)
 <a id='uc-22-6-55'></a>
 - **UC-22.6.55** —
   - Control family: `—`
@@ -266,11 +266,23 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-9-8'></a>
-- **UC-22.9.8** —
+- **UC-22.9.8** — Compliance Trending — Auditor Evidence Pack Generation Volume and Deficiency Rate
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.9.8.json`](../../content/cat-22-regulatory-compliance/UC-22.9.8.json)
+<a id='uc-5-13-45'></a>
+- **UC-5.13.45** — Audit Log Activity Overview
+  - Control family: `log-source-completeness`
+  - Owner: `Head of IT Operations`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-05-network-infrastructure/UC-5.13.45.json`](../../content/cat-05-network-infrastructure/UC-5.13.45.json)
+<a id='uc-5-13-46'></a>
+- **UC-5.13.46** — Configuration Change Audit Trail
+  - Control family: `log-source-completeness`
+  - Owner: `Head of IT Operations`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-05-network-infrastructure/UC-5.13.46.json`](../../content/cat-05-network-infrastructure/UC-5.13.46.json)
 <a id='uc-7-1-13'></a>
 - **UC-7.1.13** —
   - Control family: `—`
@@ -412,7 +424,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 
 - [`data/regulations.json`](../../data/regulations.json) — commonClauses, priority weights, authoritative URLs
 - [`data/evidence-pack-extras.json`](../../data/evidence-pack-extras.json) — retention, roles, authoritative guidance, penalty, testing approach
-- [`use-cases/cat-*/uc-*.json`](../../use-cases) — UC sidecars containing compliance[] entries, controlFamily, owner, evidence fields
+- [`content/cat-*/UC-*.json`](../../content) — UC sidecars containing compliance[] entries, controlFamily, owner, evidence fields
 - [`api/v1/compliance/regulations/sox-itgc@*.json`](../../api/v1/compliance/regulations/) — pre-computed coverage metrics (when present)
 
 - Generator: [`scripts/generate_evidence_packs.py`](../../scripts/generate_evidence_packs.py)
@@ -421,9 +433,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 7.1
+catalogue_version: 7.2
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     d182323bff36ebe11168f94776fbb9639b116f5b15f71d1bf7d161c41626f5bc
+inputs_sha256:     05d15d6f921fc6af3c7dbfacf931dcfd40d45bd1e8a91ef250232b39e24f110e
 ```
 
 To re-generate:

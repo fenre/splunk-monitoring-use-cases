@@ -21,20 +21,21 @@
       "evidenceArtifact": "Saved search 'UC-22.2.29' running on TLS metadata from Stream, certificate inventory, nis2_crypto_policy.csv (min_tls_version, allowed_ciphers), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(h)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "TLS metadata from Stream, certificate inventory, `nis2_crypto_policy.csv` (min_tls_version, allowed_ciphers)",
-  "app": "Splunk Add-on for Stream (Splunkbase 1809), Splunk Enterprise Security (Splunkbase 263)",
-  "spl": "index=stream sourcetype=\"stream:tls\" earliest=-24h\n| stats latest(tls_version) as tls_version latest(cipher) as cipher values(expiry_epoch) as cert_expiry by dest_ip dest_port\n| lookup nis2_scoped_service_map dest_ip OUTPUT service_name nis2_in_scope\n| where nis2_in_scope=\"true\"\n| eval weak_tls=if(match(tls_version,\"SSLv|TLSv1\\.0|TLSv1\\.1\"),1,0)\n| eval cert_problem=if(cert_expiry < relative_time(now(),\"+30d@d\"),1,0)\n| where weak_tls=1 OR cert_problem=1\n| table service_name, dest_ip, dest_port, tls_version, cipher, cert_problem",
-  "description": "Appropriate use of cryptography protects network and information system security. This use case monitors TLS versions, weak cipher suites, and certificate expiry for public and internal services supporting NIS2-scoped workloads — aligning with organisational cryptography standards.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes stream and sourcetypes stream:tls. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Enable passive TLS inspection on critical VLAN mirrors; (2) map IPs to NIS2 services; (3) alert on weak protocols and imminent expiry; (4) integrate with PKI renewal workflow; (5) document exceptions with compensating controls. Indexes required: `index=stream`; Sourcetypes: `sourcetype=stream:tls`; Lookups: `nis2_scoped_service_map`.",
-  "visualization": "Table (weak TLS services), Timeline (certificate expiry), Single value (critical expiries), Bar chart (by cipher family).",
+  "dataSources": "`index=pki` `sourcetype=stream:tls` (dest_ip, dest_port, tls_version, cipher, expiry_epoch) via Splunk Add-on for Stream ([Splunkbase 1809](https://splunkbase.splunk.com/app/1809)); `index=certificates` `sourcetype=certificate:inventory` for `ssl_serial`, `ssl_issuer`, `ssl_end_time` aligned to CIM Certificates; lookup `nis2_crypto_policy.csv` supplying `min_tls_version`, `allowed_ciphers`; optional Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)) for service_name enrichment.",
+  "app": "Splunk Add-on for Stream (Splunkbase 1809), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621)",
+  "spl": "index=pki sourcetype=\"stream:tls\" earliest=-24h\n| stats latest(tls_version) as tls_version latest(cipher) as cipher values(expiry_epoch) as cert_expiry by dest_ip dest_port\n| lookup nis2_scoped_service_map dest_ip OUTPUT service_name nis2_in_scope\n| where nis2_in_scope=\"true\"\n| eval weak_tls=if(match(tls_version,\"SSLv|TLSv1\\.0|TLSv1\\.1\"),1,0)\n| eval cert_problem=if(cert_expiry < relative_time(now(),\"+30d@d\"),1,0)\n| where weak_tls=1 OR cert_problem=1\n| table service_name, dest_ip, dest_port, tls_version, cipher, cert_problem",
+  "description": "Correlates passive TLS observations from Stream with inventory-derived certificate expirations and `nis2_scoped_service_map` to list only NIS2-scoped listeners that run outdated protocols or face thirty-day renewals.",
+  "value": "Weak TLS versions are invisible until a pen test or outage; combining wire-derived protocol data with scoped service context lets risk owners prioritize renewals that actually map to regulated workloads instead of every lab VM in the enterprise.",
+  "implementation": "(1) Mirror production VLANs to Stream. (2) Maintain `nis2_scoped_service_map`. (3) Import `nis2_crypto_policy.csv`. (4) Alert on `weak_tls=1`. (5) PKI workflow webhook on `cert_problem=1`. (6) Annual evidence export + `evidenceSigning`.",
+  "visualization": "Table with color rules on tls_version, timeline for cert_expiry, map of dest_ip.",
   "cimModels": [
-    "N/A"
+    "Certificates"
   ],
-  "cimSpl": "",
+  "cimSpl": "| tstats summariesonly=t min(All_Certificates.ssl_end_time) as soonest from datamodel=Certificates.All_Certificates by All_Certificates.ssl_subject | where soonest < relative_time(now(),\"+30d\")",
   "references": [
     {
       "title": "Splunk Add-on for Stream",
@@ -47,9 +48,24 @@
     {
       "title": "CIM: Certificates",
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Certificates"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Operational noise during large maintenance windows, controlled exercises, or scope changes to critical entity lists.",
+  "knownFalsePositives": "1) **Legacy mainframe TN3270 TLS gateways** cannot upgrade beyond TLSv1.1 until vendor patch. *Distinguish:* `service_name` matches `nis2_crypto_policy.csv` exception list. *Suppress:* `lookup nis2_crypto_policy service_name OUTPUT waive_until`. 2) **Stream misses TLS 1.3 downgrade to plaintext** because capture ACL changed. *Distinguish:* event volume drop >50%. *Suppress:* do not suppress—open infra ticket; only pause alert via time-bound exception register. 3) **Shared load balancer IP reused** mapping wrong `service_name`. *Distinguish:* `dest_port` differing entries. *Suppress:* enrich via `lookup vip_service dest_ip dest_port`. 4) **Certificate inventory stale** triggers false cert_problem. *Distinguish:* `certificate:inventory _indextime` older than 7d. *Suppress:* join latest inventory `| join ...` with freshness filter. 5) **Pentest TLS downgrade tooling** during sanctioned test week. *Distinguish:* `src_ip` in `pentest_supernet`. *Suppress:* `where NOT cidrmatch(\"192.0.2.0/24\",src_ip)` assuming Stream forwards client IP.\n",
   "requiredFields": [
     "cert_expiry",
     "cert_problem",
@@ -60,11 +76,24 @@
     "tls_version",
     "weak_tls"
   ],
-  "lastReviewed": "2026-04-22",
+  "lastReviewed": "2026-04-29",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Stream (Splunkbase 1809), Splunk Enterprise Security (Splunkbase 263).\n• Ensure the following data sources are available: TLS metadata from Stream, certificate inventory, `nis2_crypto_policy.csv` (min_tls_version, allowed_ciphers).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Enable passive TLS inspection on critical VLAN mirrors; (2) map IPs to NIS2 services; (3) alert on weak protocols and imminent expiry; (4) integrate with PKI renewal workflow; (5) document exceptions with compensating controls.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=stream sourcetype=\"stream:tls\" earliest=-24h\n| stats latest(tls_version) as tls_version latest(cipher) as cipher values(expiry_epoch) as cert_expiry by dest_ip dest_port\n| lookup nis2_scoped_service_map dest_ip OUTPUT service_name nis2_in_scope\n| where nis2_in_scope=\"true\"\n| eval weak_tls=if(match(tls_version,\"SSLv|TLSv1\\.0|TLSv1\\.1\"),1,0)\n| eval cert_problem=if(cert_expiry < relative_time(now(),\"+30d@d\"),1,0)\n| where weak_tls=1 OR cert_problem=1\n| table service_name, dest_ip, dest_port, tls_version, cipher, cert_problem\n```\n\nUnderstanding this SPL\n\n**NIS2 Cryptography Policy Compliance — TLS and Certificate Posture (Art. 21(2)(h))** — Appropriate use of cryptography protects network and information system security. This use case monitors TLS versions, weak cipher suites, and certificate expiry for public and internal services supporting NIS2-scoped workloads — aligning with organisational cryptography standards.\n\nDocumented **Data sources**: TLS metadata from Stream, certificate inventory, `nis2_crypto_policy.csv` (min_tls_version, allowed_ciphers). **App/TA** (typical add-on context): Splunk Add-on for Stream (Splunkbase 1809), Splunk Enterprise Security (Splunkbase 263). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: stream; **sourcetype**: stream:tls. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=stream, sourcetype=\"stream:tls\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` aggregates events by **dest_ip dest_port**, producing one row per unique combination for trend analysis and threshold evaluation.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where nis2_in_scope=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **weak_tls** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **cert_problem** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where weak_tls=1 OR cert_problem=1` — typically the threshold or rule expression for this monitoring goal.\n\nThis use case does not use a CIM tstats shortcut; the primary SPL above is the source of truth after field normalization in your environment.\n\nOutput fields: cert_expiry, cert_problem, cipher, dest_ip, dest_port, service_name, tls_version, weak_tls.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (weak TLS services), Timeline (certificate expiry), Single value (critical expiries), Bar chart (by cipher family).",
-  "grandmaExplanation": "We appropriate use of cryptography protects network and information system security.",
-  "dataModelAcceleration": "Not applicable"
+  "detailedImplementation": "Prerequisites\n• Splunk Stream Independent Stream Forwarder ≥8.x with **Configure → Stream → Capture** selecting TLS handshakes only (disable payload retention).\n• Network SPAN/RSPAN capacity validated (rule of thumb: 3–5% of total bandwidth).\n• Splunk Add-on for Stream ([Splunkbase 1809](https://splunkbase.splunk.com/app/1809)) on Stream Forwarder + Search Head for field extractions.\n• CSV `nis2_scoped_service_map` listing `dest_ip,service_name,nis2_in_scope` approved by legal weekly.\n• Splunk Enterprise Security optional for correlation with `assets_by_cidr` if internal IP overlaps.\n\nStep 1 — Configure data collection\n• On Stream Forwarder `/opt/streamfwd/local/streamfwd.conf` set `port_capture = 443,8443,6443` and `protocol = tls`.\n• Confirm Splunk receives `index=pki` `sourcetype=stream:tls` within 2 minutes via `tcpdump` + HEC ack.\n• Maintain `nis2_crypto_policy.csv` with columns `service_family,min_tls_version,allowed_cipher_suites`.\n• Import certificate inventory nightly to `index=certificates` for reconciliation.\n\nStep 2 — Create the search and alert\nUse primary `spl`; add companion lookup:\n```spl\n| lookup nis2_crypto_policy service_name OUTPUT min_tls_version allowed_ciphers\n| eval policy_break=if(mvfind(split(allowed_ciphers,\",\"),cipher)=-1,1,0)\n```\nSchedule alert hourly if `weak_tls=1`.\n\nStep 3 — Validate\n• Pick VIP: compare Splunk `tls_version` to `openssl s_client -connect vip:443 -tls1_2`.\n• Validate `cert_expiry` vs `x509` PEM from PKI vault.\n• For scoped map, ping IPAM **Infoblox** / **BlueCat** owner to ensure IP still assigned to service.\n\nStep 4 — Operationalize\n• Dashboard with two tabs: **Protocol downgrade**, **Renewal clock**.\n• ServiceNow change requests auto-opened with `correlation_id = dest_ip + dest_port`.\n• Signed monthly PDF referencing `evidenceSigning` TSA receipt.\n\nStep 5 — Troubleshooting\n• **No dest_ip** — NAT metadata missing; enable `add_field(dest_ip)` in Stream pipeline.\n• **`cert_expiry` multivalue** — use `mvindex(cert_expiry,-1)` after stats.\n• **High false weak_tls** — middle boxes strip TLS extensions; verify with packet capture on SPAN.\n• **Lookup missing** — `nis2_scoped_service_map` outdated after cloud migration; refresh via Terraform output.\n",
+  "grandmaExplanation": "We listen quietly to how computers greet each other on the network and check whether they use strong secret handshakes. If a handshake is too old or a security badge is about to run out of date, we flag only the systems the law cares about most.",
+  "dataModelAcceleration": "Accelerate Certificates if inventory model used heavily",
+  "owner": "CISO",
+  "controlFamily": "crypto-drift",
+  "exclusions": "Does not operate hardware security modules, manage root key ceremonies, or decide which national algorithms are legally recognized—only organizational policy alignment and monitoring.",
+  "evidence": "`UC-22.2.29` correlation workbook, redacted `stream:tls` pcap-to-SPL reconciliation notes, inventory CSV hashes, and RFC3161 signature bundle stored per `evidenceSigning` alongside PKI CAB drafts.",
+  "evidenceSigning": { "method": "rfc3161-tsa", "tsaUrl": "http://timestamp.digicert.com" },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Staging VIP intentionally negotiates TLSv1.0 on port 443 while scoped map marks `nis2_in_scope=true`; within one hour the alert surfaces `weak_tls=1`, `service_name=payments_api`, proving enforcement targets in-scope listeners only.",
+    "negativeScenario": "Production uplift completes with TLSv1.3 only, new certificates carry ninety-day lifetimes managed via automated ACME, scoped map retires the lab IP, and seven consecutive runs return zero rows while external Qualys SSL scan shows grade A for the same endpoint.",
+    "fixtureRef": "sample-data/uc-22.2.29-fixture.json"
+  }
 }

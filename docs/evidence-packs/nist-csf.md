@@ -6,7 +6,7 @@
 > **Authoritative source**: [https://www.nist.gov/cyberframework](https://www.nist.gov/cyberframework)
 > **Effective from**: 2024-02-26
 
-> This evidence pack is the auditor-facing view of the Splunk monitoring catalogue's coverage of the regulation. Every clause coverage claim is traceable to a specific UC sidecar JSON file (`use-cases/cat-*/uc-*.json`); every retention figure cites its legal basis; every URL resolves to an official regulator or standards-body source. The pack does **not** assert legal conclusions — it tabulates what the catalogue covers, names the authoritative source, and flags gaps. Interpretation stays with counsel.
+> This evidence pack is the auditor-facing view of the Splunk monitoring catalogue's coverage of the regulation. Every clause coverage claim is traceable to a specific UC sidecar JSON file (`content/cat-*/UC-*.json`); every retention figure cites its legal basis; every URL resolves to an official regulator or standards-body source. The pack does **not** assert legal conclusions — it tabulates what the catalogue covers, names the authoritative source, and flags gaps. Interpretation stays with counsel.
 
 > **Live views.** [Buyer narrative (`compliance-story.html?reg=nist-csf`)](../../compliance-story.html?reg=nist-csf) · [Auditor clause navigator (`clause-navigator.html#reg=nist-csf`)](../../clause-navigator.html#reg=nist-csf) · [JSON twin (`api/v1/compliance/story/nist-csf.json`)](../../api/v1/compliance/story/nist-csf.json)
 
@@ -73,113 +73,113 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 ### 4.1 Contributing UC detail
 
 <a id='uc-22-7-1'></a>
-- **UC-22.7.1** —
+- **UC-22.7.1** — NIST CSF Maturity Posture Dashboard
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.1.json`](../../content/cat-22-regulatory-compliance/UC-22.7.1.json)
 <a id='uc-22-7-10'></a>
-- **UC-22.7.10** —
+- **UC-22.7.10** — Enterprise Risk Appetite vs Open Critical Vulnerabilities
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.10.json`](../../content/cat-22-regulatory-compliance/UC-22.7.10.json)
 <a id='uc-22-7-11'></a>
-- **UC-22.7.11** —
+- **UC-22.7.11** — Security Role Attestation — RBAC Changes vs HR Start Dates
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.11.json`](../../content/cat-22-regulatory-compliance/UC-22.7.11.json)
 <a id='uc-22-7-16'></a>
-- **UC-22.7.16** —
+- **UC-22.7.16** — Hardware Asset Coverage — Agents Missing on In-Scope Servers
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.16.json`](../../content/cat-22-regulatory-compliance/UC-22.7.16.json)
 <a id='uc-22-7-19'></a>
-- **UC-22.7.19** —
+- **UC-22.7.19** — Business Process Impact — Incidents by Critical Application
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.19.json`](../../content/cat-22-regulatory-compliance/UC-22.7.19.json)
 <a id='uc-22-7-23'></a>
-- **UC-22.7.23** —
+- **UC-22.7.23** — Privileged Path — PAM JIT Elevation vs Standing Admin Logons
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.23.json`](../../content/cat-22-regulatory-compliance/UC-22.7.23.json)
 <a id='uc-22-7-26'></a>
-- **UC-22.7.26** —
+- **UC-22.7.26** — Encryption in Transit — Deprecated TLS on Internal APIs
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.26.json`](../../content/cat-22-regulatory-compliance/UC-22.7.26.json)
 <a id='uc-22-7-27'></a>
-- **UC-22.7.27** —
+- **UC-22.7.27** — DLP — Blocked Exfil to Personal Email Domains
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.27.json`](../../content/cat-22-regulatory-compliance/UC-22.7.27.json)
 <a id='uc-22-7-31'></a>
-- **UC-22.7.31** —
+- **UC-22.7.31** — EDR Heartbeat Gap Beyond Policy SLA
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.31.json`](../../content/cat-22-regulatory-compliance/UC-22.7.31.json)
 <a id='uc-22-7-32'></a>
-- **UC-22.7.32** —
+- **UC-22.7.32** — Administrative API Logging Volume Drop vs Baseline
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.32.json`](../../content/cat-22-regulatory-compliance/UC-22.7.32.json)
 <a id='uc-22-7-33'></a>
-- **UC-22.7.33** —
+- **UC-22.7.33** — Proxy Denies Toward Young Threat-Intel Domains
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.33.json`](../../content/cat-22-regulatory-compliance/UC-22.7.33.json)
 <a id='uc-22-7-37'></a>
-- **UC-22.7.37** —
+- **UC-22.7.37** — Anomaly on Outbound Bytes from Database Subnet
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.37.json`](../../content/cat-22-regulatory-compliance/UC-22.7.37.json)
 <a id='uc-22-7-39'></a>
-- **UC-22.7.39** —
+- **UC-22.7.39** — IR Ticket Stuck in Containment Beyond SLA
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.39.json`](../../content/cat-22-regulatory-compliance/UC-22.7.39.json)
 <a id='uc-22-7-4'></a>
-- **UC-22.7.4** —
+- **UC-22.7.4** — NIST CSF Protect — Identity Authentication Hardening and MFA Gaps
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.4.json`](../../content/cat-22-regulatory-compliance/UC-22.7.4.json)
 <a id='uc-22-7-46'></a>
-- **UC-22.7.46** —
+- **UC-22.7.46** — Scheduled Restore Test Outcomes vs Policy Frequency
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.46.json`](../../content/cat-22-regulatory-compliance/UC-22.7.46.json)
 <a id='uc-22-7-5'></a>
-- **UC-22.7.5** —
+- **UC-22.7.5** — NIST CSF Detect — Continuous Vulnerability Exposure Drift on Critical Servers
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.5.json`](../../content/cat-22-regulatory-compliance/UC-22.7.5.json)
 <a id='uc-22-7-6'></a>
-- **UC-22.7.6** —
+- **UC-22.7.6** — NIST CSF Respond — Incident Response Playbook Execution and Stage Timestamps
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.6.json`](../../content/cat-22-regulatory-compliance/UC-22.7.6.json)
 <a id='uc-22-7-8'></a>
-- **UC-22.7.8** —
+- **UC-22.7.8** — Governance Context — Business Critical Services Mapped to IT Assets
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.8.json`](../../content/cat-22-regulatory-compliance/UC-22.7.8.json)
 
 ## 5. Evidence collection
 
@@ -293,7 +293,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 
 - [`data/regulations.json`](../../data/regulations.json) — commonClauses, priority weights, authoritative URLs
 - [`data/evidence-pack-extras.json`](../../data/evidence-pack-extras.json) — retention, roles, authoritative guidance, penalty, testing approach
-- [`use-cases/cat-*/uc-*.json`](../../use-cases) — UC sidecars containing compliance[] entries, controlFamily, owner, evidence fields
+- [`content/cat-*/UC-*.json`](../../content) — UC sidecars containing compliance[] entries, controlFamily, owner, evidence fields
 - [`api/v1/compliance/regulations/nist-csf@*.json`](../../api/v1/compliance/regulations/) — pre-computed coverage metrics (when present)
 
 - Generator: [`scripts/generate_evidence_packs.py`](../../scripts/generate_evidence_packs.py)
@@ -302,9 +302,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 7.1
+catalogue_version: 7.2
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     d182323bff36ebe11168f94776fbb9639b116f5b15f71d1bf7d161c41626f5bc
+inputs_sha256:     05d15d6f921fc6af3c7dbfacf931dcfd40d45bd1e8a91ef250232b39e24f110e
 ```
 
 To re-generate:

@@ -21,15 +21,16 @@
       "evidenceArtifact": "Saved search 'UC-22.2.26' running on nis2_segment_coverage_expectations.csv, metadata:indexes, firewall sourcetype counts, CIM Network_Traffic, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(a)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`nis2_segment_coverage_expectations.csv`, `metadata:indexes`, firewall sourcetype counts, CIM Network_Traffic",
+  "dataSources": "`index=network` `sourcetype=syslog` from core switches or routers for per-segment heartbeats; `index=firewall` or `index=netfw` with `sourcetype=pan:traffic`, `sourcetype=stream:ipfix`, or CIM-mapped traffic for `src`, `dest`, `action`, `bytes`; optional wire-rate telemetry via Splunk Add-on for Stream (Splunkbase 1809). Governance lookup `nis2_segment_coverage_expectations.csv` carries segment_id, vlan, zone, expected_events_per_day, nis2_scope. Enterprise Security (Splunkbase 263) Data Source Monitoring complements raw EPS checks.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Stream (Splunkbase 1809)",
   "spl": "| inputlookup nis2_segment_coverage_expectations.csv\n| join segment_id [\n    | tstats `summariesonly` count where index=netfw earliest=-24h by index\n    | eval segment_id=case(\n        match(index,\"(?i)corp\"),\"CORP\",\n        match(index,\"(?i)dmz\"),\"DMZ\",\n        1=1,\"OTHER\")\n    | stats sum(count) as events by segment_id\n]\n| eval expected_eps=expected_events_per_day/86400*3600\n| eval coverage_gap=if(events < expected_eps*0.5, 1, 0)\n| where coverage_gap=1\n| table segment_id, events, expected_eps, nis2_scope",
-  "description": "Network security policies must be enforced uniformly. This use case measures log source coverage and IDS inspection rates per network segment defined in the security architecture — identifying blind spots where NIS2-scoped traffic is not visible to Splunk.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes netfw. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Define minimum event rates per segment from baselines; (2) tag segments as in-scope for NIS2; (3) alert when collectors fail or indexes stop receiving; (4) integrate with ES data source monitoring; (5) quarterly architecture review of blind spots. Indexes required: `index=netfw`; Lookups: `nis2_segment_coverage_expectations`, `nis2_segment_coverage_expectations.csv`.",
+  "description": "Compares each architected network segment’s expected daily log volume (from your expectations register) to the last 24 hours of actually indexed firewall or flow events, surfacing VLANs or DMZ tiers that fell below half of their baseline so monitoring blind spots do not linger unnoticed.",
+  "value": "Policy language is easy; consistent visibility is harder—this control gives programme managers a numeric yes/no per zone for audit conversations, backed by ingestion stats instead of hand-waved network diagrams.",
+  "implementation": "(1) Fill `nis2_segment_coverage_expectations.csv` with `segment_id`, `vlan`, `zone`, `expected_events_per_day`, `nis2_scope`. (2) Align `index` naming in the `case()` stanza with real `index=netfw` silos or add one row per index prefix. (3) Install Stream TA 1809 if IPFIX is your segment witness. (4) Schedule daily; notify networking when `coverage_gap=1`. (5) Quarterly reconcile with ES » Settings » Data inputs inventory.",
   "visualization": "Table (segments with gaps), Single value (blind segments), Heatmap (EPS by hour), Map (site coverage). Key fields: `coverage_gap`, `events`, `expected_eps`, `nis2_scope`, `segment_id`.",
   "cimModels": [
     "N/A"
@@ -47,9 +48,24 @@
     {
       "title": "CIM: Network_Traffic",
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Operational noise during large maintenance windows, controlled exercises, or scope changes to critical entity lists.",
+  "knownFalsePositives": "**Weekend traffic lull** — Distinguish: retail segments idle Saturday night; `-50%` expected. Suppress: multiply `expected_eps` by `weekend_factor` from `lookup nis2_segment_coverage_expectations` extra column or apply `where date_wday!=\"saturday\"` short-term filter.\n\n**Log filtering change** — Distinguish: new drop rule on firewall halves EPS legitimately. Suppress: require linked change ticket in exception register before **14 days** grace; use `lookup coverage_exception_register.csv segment_id` with expiry.\n\n**Index reroute** — Distinguish: events moved from `index=netfw` to `index=network` for licensing. Suppress: update tstats clause to `where index IN (netfw,network)` and adjust mapping `case()` accordingly.\n\n**Collector outage** — Distinguish: universal forwarder down, `metadata` shows frozen queue; EPS zero. Suppress: correlate with Monitoring Console host alerts, then pause alert via time-bound exception entry lasting **4 hours**.\n\n**Stream sampler tuning** — Distinguish: Stream 1809 sampling rate halved after NIC upgrade. Suppress: recalibrate `expected_events_per_day` using **7 day** rolling average script feeding the lookup nightly.\n",
   "mitreAttack": [
     "T1048"
   ],
@@ -60,11 +76,27 @@
     "nis2_scope",
     "segment_id"
   ],
-  "lastReviewed": "2026-04-22",
+  "lastReviewed": "2026-04-29",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Stream (Splunkbase 1809).\n• Ensure the following data sources are available: `nis2_segment_coverage_expectations.csv`, `metadata:indexes`, firewall sourcetype counts, CIM Network_Traffic.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Define minimum event rates per segment from baselines; (2) tag segments as in-scope for NIS2; (3) alert when collectors fail or indexes stop receiving; (4) integrate with ES data source monitoring; (5) quarterly architecture review of blind spots.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup nis2_segment_coverage_expectations.csv\n| join segment_id [\n    | tstats `summariesonly` count where index=netfw earliest=-24h by index\n    | eval segment_id=case(\n        match(index,\"(?i)corp\"),\"CORP\",\n        match(index,\"(?i)dmz\"),\"DMZ\",\n        1=1,\"OTHER\")\n    | stats sum(count) as events by segment_id\n]\n| eval expected_eps=expected_events_per_day/86400*3600\n| eval coverage_gap=if(events < expected_eps*0.5, 1, 0)\n| where coverage_gap=1\n| table segment_id, events, expected_eps, nis2_scope\n```\n\nUnderstanding this SPL\n\n**NIS2 Network Security Monitoring Coverage by Segment (Art. 21(2)(a))** — Network security policies must be enforced uniformly. This use case measures log source coverage and IDS inspection rates per network segment defined in the security architecture — identifying blind spots where NIS2-scoped traffic is not visible to Splunk.\n\nDocumented **Data sources**: `nis2_segment_coverage_expectations.csv`, `metadata:indexes`, firewall sourcetype counts, CIM Network_Traffic. **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Stream (Splunkbase 1809). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• `eval` defines or adjusts **expected_eps** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **coverage_gap** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where coverage_gap=1` — typically the threshold or rule expression for this monitoring goal.\n\nThis use case does not use a CIM tstats shortcut; the primary SPL above is the source of truth after field normalization in your environment.\n\nOutput fields: coverage_gap, events, expected_eps, nis2_scope, segment_id.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (segments with gaps), Single value (blind segments), Heatmap (EPS by hour), Map (site coverage).",
-  "grandmaExplanation": "We network security policies must be enforced uniformly.",
-  "dataModelAcceleration": "Not applicable"
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise Security (Splunkbase 263) not strictly mandatory but recommended for navigation context; Stream TA (Splunkbase 1809) if IPFIX feeds exist.\n• Indexes partitioned by zone (`index=netfw_corp`, `index=netfw_dmz`, etc.) or tagged via `host=fw-*`; adjust the `case()` mapping to your standard.\n• CSV `nis2_segment_coverage_expectations.csv` uploaded via Settings → Lookups with read restricted to `secgov_admin` **RBAC** role.\n• Forwarder fleet on firewalls with `inputs.conf` `splunktcp` or `syslog` stanzas; verify with `btool` on heavy forwarders.\n• Baseline maths: compute `expected_events_per_day` after **30 days** of smooth operations.\n\nStep 1 — Configure data collection\nEnsure each segment has at least one choke-point device feeding Splunk. For Palo Alto, set log forwarding to HF with `sourcetype=pan:traffic` in `props.conf`. For Cisco ASA, use `sourcetype=cisco:asa`. If using Stream, configure `streamfwd` modular input with `streamfwdcapture` NIC bindings.\n\nValidate EPS per index using `| tstats count where index=netfw earliest=-24h by index` manually before automating.\n\nStep 2 — Create the search and alert\nThe provided SPL pulls the lookup, joins segment aggregates from `tstats`, derives `expected_eps` for one hour, and flags `<50%`. Tune denominator `/86400*3600` if you prefer **15 minute** windows—multiply accordingly.\n\nAdd optional clause `| append [| rest /services/data/indexes` to confirm indexes still exist—guards against typo segments.\n\nSchedule daily 08:00 with `earliest=-25h@h` to smooth midnight skew.\n\nStep 3 — Validate\nPick DMZ segment; pause one collector for **10 minutes**; run search—expect `coverage_gap=1`. Restore feed and confirm next run clears row.\n\nCross-check totals with firewall vendor System Logs » Log Forwarding counters if available.\n\nStep 4 — Operationalize\nDashboard \"NIS2 coverage map\": choropleth by site code (`lookup sites_geo`), table underneath with `segment_id`, `nis2_scope`, last cleared timestamp.\n\nIntegrate email to network SOC with deep link `/app/search/search?q=%7C%20loadjob` pattern.\n\nStep 5 — Troubleshooting\n• **Join drops segments** — use `join type=left` to retain expected rows with null events → treat null as zero via `fillnull events`. • **OTHER bucket crowded** — refine regex in `eval segment_id`. • **tstats permission** — role missing `indexes` → grant `netfw` in authorize.conf. • **False gap during holiday** — add `lookup public_holidays.csv` to zero-out alert. • **Acceleration missing** — if using `datamodel=Network_Traffic` variant, enable acceleration; not required for raw `tstats` but helps cross-checks.\n",
+  "grandmaExplanation": "We compare how much network traffic record-keeping we expect from each part of the building’s wiring to what actually arrived yesterday. If a whole zone goes strangely quiet, we treat that as a missing security camera—not as success—so nobody can hide a blind spot in the paperwork.",
+  "dataModelAcceleration": "Enable Network_Traffic if you add a CIM cross-check; optional for base EPS method",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does not certify that packet capture depth or DPI coverage matches every protocol requirement; it signals ingest-level visibility gaps only, not full IDS sensor placement quality or cloud flow-log completeness unless those feeds share the same indexes.",
+  "evidence": "Daily `UC-22.2.26` CSV export, joined snapshot of `nis2_segment_coverage_expectations.csv` version, and indexer metadata screenshot packaged into `index=audit_evidence` quarterly.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "After stopping syslog forwarding from the DMZ firewall tier for two hours while keeping other zones healthy, the next daily run flags the DMZ `segment_id` with `coverage_gap=1` and events below half of `expected_eps`.",
+    "negativeScenario": "With all collectors healthy for a week and the expectations CSV aligned to measured holiday-adjusted baselines, the scheduled search produces no rows, and the empty-state PDF is attached to the quarter’s evidence bundle as proof of continuous full-segment ingest.",
+    "fixtureRef": "sample-data/uc-22.2.26-fixture.json"
+  }
 }

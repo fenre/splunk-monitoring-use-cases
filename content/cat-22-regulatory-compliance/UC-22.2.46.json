@@ -22,46 +22,82 @@
       "controlObjective": "Evidence that MFA and secured emergency communication systems are operational.",
       "evidenceArtifact": "Saved search verifying emergency communication channel availability and encryption status.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(j)",
-      "requires_sme_review": false
+      "requires_sme_review": false,
+      "provenance": "maintainer"
     }
   ],
-  "dataSources": "UC platform health (`uc_platform:health`), Signal/Teams/Zulip audit logs, out-of-band communication test results",
-  "app": "Splunk Enterprise Security (263).",
-  "spl": "| inputlookup emergency_comm_channels.csv\n| join type=outer channel_id [search index=itsm sourcetype IN (\"uc_health\", \"comms:test_result\") earliest=-30d\n  | stats latest(status) AS last_status latest(_time) AS last_test_time latest(encryption_verified) AS encrypted BY channel_id]\n| eval days_since_test=round((now()-last_test_time)/86400)\n| eval channel_ok=if(last_status=\"operational\" AND encrypted=\"true\" AND days_since_test<=30, 1, 0)\n| append [search index=auth sourcetype IN (\"okta:events\", \"azure:audit\") action=\"authentication\" earliest=-7d\n  | where match(app, \"(?i)(signal|teams|zulip|mattermost|crisis)\")\n  | eval mfa_used=if(isnotnull(mfa_method) AND mfa_method!=\"none\", 1, 0)\n  | stats count AS auth_events sum(mfa_used) AS with_mfa BY app\n  | eval channel_id=app, channel_type=\"comms_platform\", last_status=\"auth_check\", encrypted=\"n/a\", days_since_test=0, channel_ok=if(with_mfa/auth_events>=0.95, 1, 0)]\n| where channel_ok=0\n| table channel_id, channel_type, last_status, encrypted, days_since_test, channel_ok",
-  "description": "Verifies that both MFA and secure emergency communication channels are operational per NIS2 Art.21(2)(j). Checks out-of-band communication system availability, encryption status, and test recency alongside MFA enforcement on communication platforms.",
-  "value": "Closes the gap in Art.21(2)(j) coverage by addressing the 'secured communications' requirement that was previously covered only by MFA monitoring.",
-  "implementation": "(1) Maintain emergency_comm_channels.csv with all crisis communication systems; (2) Schedule monthly communication channel tests; (3) Verify MFA on all communication platforms; (4) Alert when any channel fails verification.",
-  "visualization": "Table of emergency communication channels with status. Single value for channels passing verification. Bar chart of MFA coverage by platform.",
+  "dataSources": "`index=comms` `sourcetype=teams:audit_log` (often via Splunk Add-on for Microsoft Office 365, Splunkbase 4055) exposes `actor`, `operation`, `ResultStatus`, `Workload` for crisis teamworkspaces. Synthetic probe results arrive as `sourcetype=comms:test_result` or `uc_platform:health` with fields `channel_id`, `status`, `encryption_verified`, `latency_ms`. Identity assurance can layer `index=auth` with `sourcetype=OktaIM2:log` or `sourcetype=azure:audit` capturing `mfa_method`. Lookup `emergency_comm_channels.csv` lists `channel_id`, `channel_type`, `owner_team`, `requires_encryption`. ServiceNow ITSM tasks may land in `index=itsm` `sourcetype=snow:task` (Splunk Add-on for ServiceNow, Splunkbase 1928).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Okta Identity Cloud (Splunkbase 6553)",
+  "spl": "| inputlookup emergency_comm_channels.csv\n| join type=outer channel_id [\n    search index=comms (sourcetype=teams:audit_log OR sourcetype=comms:test_result OR sourcetype=uc_platform:health) earliest=-30d\n    | eval row_status=coalesce(ResultStatus, status, health_state)\n    | stats latest(row_status) AS last_status latest(_time) AS last_test_time latest(encryption_verified) AS encrypted BY channel_id\n]\n| eval days_since_test=round((now()-last_test_time)/86400)\n| eval channel_ok=if(last_status IN (\"Success\",\"Succeeded\") AND encrypted==\"true\" AND days_since_test<=30, 1, 0)\n| append [\n    search index=auth (sourcetype=OktaIM2:log OR sourcetype=azure:audit) earliest=-7d\n    | where match(app, \"(?i)(signal|teams|zulip|mattermost|crisis)\")\n    | eval mfa_used=if(isnotnull(mfa_method) AND mfa_method!=\"none\", 1, 0)\n    | stats count AS auth_events sum(mfa_used) AS with_mfa BY app\n    | eval channel_id=app, channel_type=\"comms_platform\", last_status=\"auth_check\", encrypted=\"n/a\", days_since_test=0, channel_ok=if(with_mfa/auth_events>=0.95, 1, 0)\n]\n| where channel_ok=0\n| table channel_id, channel_type, last_status, encrypted, days_since_test, channel_ok",
+  "description": "Combines scripted channel health probes, Microsoft Teams audit evidence, and identity-provider multi-step sign-in rates to prove crisis comms stay encrypted, tested, and protected with strong authentication during the last rolling month.",
+  "value": "Stops the compliance story from ending at “MFA exists” by also showing the dedicated emergency collaboration paths were exercised recently and still meet encryption expectations—what incident leaders actually need during ransomware or blackout scenarios.",
+  "implementation": "(1) Maintain `emergency_comm_channels.csv` with every out-of-band phone bridge, secure chat, and executive war room. (2) Emit synthetic `comms:test_result` events weekly from your monitoring tool (curl/Telegraf acceptable). (3) Ingest Teams admin audit per Splunkbase 4055. (4) Save `UC-22.2.46` daily. (5) Map failures to `snow:task` automation with Splunkbase 1928.",
+  "visualization": "Table of failing channels, single value count still healthy, bar chart of MFA ratio per app.",
   "cimModels": [
     "N/A"
   ],
   "cimSpl": "",
   "references": [
     {
+      "title": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055)",
+      "url": "https://splunkbase.splunk.com/app/4055"
+    },
+    {
+      "title": "Splunk Enterprise Security (Splunkbase 263)",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
       "title": "NIS2 Directive",
       "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Operational noise during large maintenance windows, controlled exercises, or scope changes to critical entity lists.",
+  "knownFalsePositives": "• **Teams admin audit delay** — Distinguish: Microsoft Graph export lags **4 hours**; `last_test_time` stale though operations succeeded. Suppress: require `days_since_test>2` before paging or join Splunkbase **4055** health index.\n• **Phone bridges without digital encryption flag** — Distinguish: PSTN path cannot emit `encryption_verified=true`. Suppress: mark `requires_encryption=false` in lookup for voice-only channels.\n• **Break-glass accounts exempt from MFA** — Distinguish: ratio drops below 95% intentionally for `app=crisis_admin`. Suppress: whitelist rows in `nis2_comms_mfa_exceptions.csv` with expiry.\n• **Purple-team login storms** — Distinguish: synthetic auth bursts during drills skew ratios. Suppress: filter SPL `where NOT [subsearch drill window]` or use time-bound exception register.\n• **Signal/Matrix self-host blanks** — Distinguish: sourcetype not yet onboarded; append returns nulls. Suppress: treat null as `channel_ok=unknown` with manual checklist until HEC path live.\n",
   "requiredFields": [
-    "_time",
     "channel_id",
     "channel_type",
-    "status",
-    "encryption_verified",
-    "mfa_method",
-    "app"
+    "channel_ok",
+    "days_since_test",
+    "encrypted",
+    "last_status"
   ],
   "equipment": [
     "azure",
     "okta"
   ],
   "status": "verified",
-  "lastReviewed": "2026-04-22",
+  "lastReviewed": "2026-04-29",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "Prerequisites\n• Maintain emergency_comm_channels.csv lookup with all crisis communication channels.\n• Configure health checks for out-of-band communication systems.\n\nStep 1 — Register channels\nPopulate emergency_comm_channels.csv with channel_id, channel_type, expected_encryption.\n\nStep 2 — Create the search\n(see SPL above)\n\nStep 3 — Validate\nCompare ticket and field counts with the ServiceNow ITSM or GRC console (same time range) and confirm synchronization fields and sourcetypes used by this search.\n\n\nStep 4 — Operationalize\nSchedule daily. Alert on any channel_ok=0.",
-  "grandmaExplanation": "We verifies that both and secure emergency communication channels are operational per NIS2 Art.21(2)(j).",
-  "dataModelAcceleration": "Not applicable"
+  "detailedImplementation": "Prerequisites\n• HTTP Event Collector endpoint for synthetic probes writing JSON `{\\\"channel_id\\\":\\\"BRIDGE01\\\",\\\"status\\\":\\\"ok\\\",\\\"encryption_verified\\\":true}`.\n• Splunk Add-on for Microsoft Office 365 (Splunkbase 4055) with Graph permissions `AuditLog.Read.All`; polling every **300 seconds**.\n• Splunk Add-on for Okta (Splunkbase 6553) or Azure add-on feeding `index=auth` with `mfa_method` field alias.\n• Lookup directory ACL restricted; emergency roster treated as confidential.\n• Splunk Enterprise Security (Splunkbase 263) correlation optional for enrichment with asset owners.\n\nStep 1 — Configure data collection\nCreate `inputs.conf` scripted probe `comms_probe.sh` with `interval = 86400` posting to HEC. Map Teams audit to `sourcetype=teams:audit_log`. Validate field extractions in **Settings > Fields**.\n\nStep 2 — Create the search and alert\nSave provided SPL as `UC-22.2.46`. Schedule daily 06:00 local. Use `sendemail` to crisis leadership distribution only after two consecutive failures.\n\n```spl\n| inputlookup emergency_comm_channels.csv\n| join type=outer channel_id [\n    search index=comms sourcetype=comms:test_result earliest=-30d\n    | stats latest(status) as last_status latest(_time) as last_test_time latest(encryption_verified) as encrypted by channel_id\n]\n```\n\nTune `channel_ok` logic if your Teams success token differs (`Succeeded` vs `Success`).\n\nStep 3 — Validate\nManually fail a lab channel: stop probe script, confirm alert within **24 hours**. Restore service, rerun negative test.\n\nStep 4 — Operationalize & Troubleshoot\nDashboard rows: channel metadata, last probe, MFA ratio. If `join` drops rows, verify `channel_id` casing—normalize with `| eval channel_id=upper(channel_id)` on both sides.\n\nStep 5 — Governance\nQuarterly desktop exercise references this dashboard screenshot. Sign using `evidenceSigning`. Exceptions documented in `nis2_exception_register.csv` with accountable executive.\n",
+  "grandmaExplanation": "We check that the special hotlines and chat rooms used when things go really wrong still work, still scramble their content when they should, and still get their regular fire-drill test—alongside making sure people actually use the safer sign-in options on those tools.",
+  "dataModelAcceleration": "Not applicable",
+  "controlFamily": "break-glass-access",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
+  "evidence": "Daily `UC-22.2.46` failure export (CSV), Teams admin audit excerpts with `actor` and `operation`, synthetic probe logs, and signed PDF summary in `audit_evidence` mapping to Art.21(2)(j).",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Stop the synthetic probe for `channel_id=WARROOM-Teams` so `last_test_time` ages beyond 30 days while `encrypted` remains true; the search must return `channel_ok=0` for that channel.",
+    "negativeScenario": "Restart the probe so a fresh `comms:test_result` arrives with `status=Success`, `encryption_verified=true`, within the 30-day window; rerun and confirm the channel no longer appears in the failure table.",
+    "fixtureRef": "sample-data/uc-22.2.46-fixture.json"
+  }
 }

@@ -20,16 +20,17 @@
       "evidenceArtifact": "Saved search 'UC-22.2.15' running on index devops and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(e)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=devops` (CI/CD pipeline events from GitHub Actions, GitLab CI, Jenkins), `index=codescan` (SAST/SCA scan results), `index=itsm` (change management records)",
-  "app": "Splunk Add-on for GitHub (Splunkbase 5596), Splunk Add-on for Jira (Splunkbase 1438)",
+  "dataSources": "`index=devops` `sourcetype=github:audit` (action, repo, actor) and `sourcetype=gitlab:audit` via HEC/webhooks; `index=devops` `sourcetype=jenkins:build` for on-prem pipelines; `index=sast` `sourcetype=sonarqube:issues` (severity, project, key); Splunk Add-on for GitHub ([Splunkbase 5596](https://splunkbase.splunk.com/app/5596)) REST modular inputs hitting `/repos/{owner}/{repo}/actions` pulls complement webhook feeds.",
+  "app": "Splunk Add-on for GitHub ([Splunkbase 5596](https://splunkbase.splunk.com/app/5596)), Splunk Add-on for Jira ([Splunkbase 1438](https://splunkbase.splunk.com/app/1438)) for change linkage, generic **HTTP Event Collector** for GitLab/Jenkins JSON.",
   "spl": "index=devops sourcetype IN (\"github:webhook\",\"gitlab:pipeline\",\"jenkins:build\") earliest=-30d\n| eval has_security_scan=if(match(lower(_raw),\"(?i)sast|sca|snyk|sonar|trivy|semgrep|security.scan|code.scan\"), 1, 0)\n| eval deployment=if(match(lower(_raw),\"(?i)deploy|release|prod|production\"), 1, 0)\n| stats count as total_builds, sum(has_security_scan) as scanned_builds, sum(deployment) as deployments by repository\n| eval scan_coverage=round(100*scanned_builds/total_builds, 1)\n| where scan_coverage < 80 OR (deployments > 0 AND scanned_builds = 0)\n| sort scan_coverage\n| table repository, total_builds, scanned_builds, scan_coverage, deployments",
-  "description": "Article 21(2)(e) extends beyond vulnerability management to require security in system acquisition, development, and maintenance lifecycles. This use case monitors CI/CD pipeline security gates, tracks code scanning results, and validates that change management processes include security review — demonstrating that security is embedded in the development lifecycle rather than bolted on after deployment.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes codescan, devops, itsm and sourcetypes github:webhook, gitlab:pipeline, jenkins:build. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Forward CI/CD pipeline events to Splunk via webhooks or HEC; (2) define minimum security gate requirements (SAST scan, dependency check, container image scan); (3) alert on deployments to production without security scan evidence; (4) track scan coverage percentage as a NIS2 KPI; (5) correlate with change management tickets to verify security review sign-off. Indexes required: `index=codescan`, `index=devops`, `index=itsm`; Sourcetypes: `sourcetype=github:webhook`, `sourcetype=gitlab:pipeline`, `sourcetype=jenkins:build`.",
-  "visualization": "Table (repos without scans), Bar chart (scan coverage by repo), Single value (overall scan coverage %), Line chart (coverage trend). Key fields: `deployment`, `deployments`, `has_security_scan`, `repository`, `scan_coverage`, `scanned_builds`.",
+  "description": "Measures, per GitHub/GitLab/Jenkins repository, the share of pipeline runs in the last 30 days that show evidence of a security scan stage and calls out repos that still shipped production keywords without any scanning hits.",
+  "value": "Executives testing NIS2 development controls get a plain scoreboard of which product teams skip automated checks before code hits production, so security champions know where to spend coaching hours before an audit interview.",
+  "implementation": "(1) Enable GitHub audit streaming or webhook posts into `index=devops` with `sourcetype=github:webhook`. (2) Mirror GitLab pipeline JSON through HEC token on port **8088** if cloud SaaS cannot install the TA directly. (3) Tag production branches so `deployment` regex matches real releases, not developer chatter. (4) Pair SonarQube issues (`index=sast`) in a sister dashboard for depth. (5) Escalate repos below `80%` coverage to engineering leads in Jira (1438).",
+  "visualization": "Table of failing repositories, bar chart of scan_coverage, single value fleet average, line trend of coverage over 90 days.",
   "cimModels": [
     "N/A"
   ],
@@ -41,9 +42,28 @@
     {
       "title": "Splunk Add-on for Jira",
       "url": "https://splunkbase.splunk.com/app/1438"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "GitHub REST API — workflow runs",
+      "url": "https://docs.github.com/en/rest/actions/workflow-runs"
     }
   ],
-  "knownFalsePositives": "Scanner findings that are false positives, accepted risks with a formal exception, or test assets outside the regulatory perimeter.",
+  "knownFalsePositives": "• **Mono-repo with scan jobs in a different workflow file** — Distinguish: `_raw` never mentions SAST keywords but Sonar runs nightly outside CI. Suppress: lookup `repo_scan_exceptions.csv` documenting alternate job names.\n• **Blue/green deploy phrases in logs without customer impact** — Distinguish: developers type \"prod-like\" in feature branches. Suppress: restrict `deployment=1` to default branch via `where match(branch,\"^(main|master|release/)`)` after field extract.\n• **Security scanning handled only in release trains quarterly** — Distinguish: policy allows quarterly bulk scans vs per-commit. Suppress: time-bound exception register `sdlc_policy_exceptions.csv` with repo and effective_through.\n• **Jenkins shared library hides scan stage text** — Distinguish: `_raw` lacks keywords though library runs scans. Suppress: enrich with `lookup repo_has_external_sonar.csv` and OR that flag into `has_security_scan`.\n• **High churn forks or student sandboxes** — Distinguish: repository tagged `classification=personal` in GitHub metadata. Suppress: `where classification!=\"personal\"` after metadata join.",
   "requiredFields": [
     "deployment",
     "deployments",
@@ -59,9 +79,25 @@
     "jenkins",
     "jira"
   ],
-  "lastReviewed": "2026-04-22",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for GitHub (Splunkbase 5596), Splunk Add-on for Jira (Splunkbase 1438).\n• Ensure the following data sources are available: `index=devops` (CI/CD pipeline events from GitHub Actions, GitLab CI, Jenkins), `index=codescan` (SAST/SCA scan results), `index=itsm` (change management records).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Forward CI/CD pipeline events to Splunk via webhooks or HEC; (2) define minimum security gate requirements (SAST scan, dependency check, container image scan); (3) alert on deployments to production without security scan evidence; (4) track scan coverage percentage as a NIS2 KPI; (5) correlate with change management tickets to verify security review sign-off.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops sourcetype IN (\"github:webhook\",\"gitlab:pipeline\",\"jenkins:build\") earliest=-30d\n| eval has_security_scan=if(match(lower(_raw),\"(?i)sast|sca|snyk|sonar|trivy|semgrep|security.scan|code.scan\"), 1, 0)\n| eval deployment=if(match(lower(_raw),\"(?i)deploy|release|prod|production\"), 1, 0)\n| stats count as total_builds, sum(has_security_scan) as scanned_builds, sum(deployment) as deployments by repository\n| eval scan_coverage=round(100*scanned_builds/total_builds, 1)\n| where scan_coverage < 80 OR (deployments > 0 AND scanned_builds = 0)\n| sort scan_coverage\n| table repository, total_builds, scanned_builds, scan_coverage, deployments\n```\n\nUnderstanding this SPL\n\n**NIS2 Secure System Acquisition and Development Lifecycle (Art. 21(2)(e))** — Article 21(2)(e) extends beyond vulnerability management to require security in system acquisition, development, and maintenance lifecycles. This use case monitors CI/CD pipeline security gates, tracks code scanning results, and validates that change management processes include security review — demonstrating that security is embedded in the development lifecycle rather than bolted on after deployment.\n\nDocumented **Data sources**: `index=devops` (CI/CD pipeline events from GitHub Actions, GitLab CI, Jenkins), `index=codescan` (SAST/SCA scan results), `index=itsm` (change management records). **App/TA** (typical add-on context): Splunk Add-on for GitHub (Splunkbase 5596), Splunk Add-on for Jira (Splunkbase 1438). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **has_security_scan** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **deployment** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `stats` aggregates events by **repository**, producing one row per unique combination for trend analysis and threshold evaluation.\n• `eval` defines or adjusts **scan_coverage** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where scan_coverage < 80 OR (deployments > 0 AND scanned_builds = 0)` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOutput fields: deployment, deployments, has_security_scan, repository, scan_coverage, scanned_builds, total_builds.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (repos without scans), Bar chart (scan coverage by repo), Single value (overall scan coverage %), Line chart (coverage trend).",
-  "grandmaExplanation": "We stay on top of secure system acquisition and development lifecycle — so we can show we run security operations and reporting the way the cyber rules that apply to us require.",
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Splunk Add-on for GitHub (Splunkbase 5596) installed on heavy forwarder + search head so REST modular inputs and lookup definitions stay synchronized.\n• HEC token (Settings → Data inputs → HTTP Event Collector) dedicated to CI JSON; index=`devops`, sourcetype forced in HEC ack channel.\n• RBAC: pipeline visibility often contains secrets metadata — restrict `devops` index to engineering security roles only.\n• Capacity: assume **2–5 KB** per pipeline event; large enterprises should set **30 day** retention hot tier then roll to frozen for cost control.\n\nStep 1 — Configure data collection\nConfigure GitHub Enterprise webhooks for `workflow_run` events pointed at your collector URL or enable the TA modular input hitting `api.github.com` every **300 seconds** for org-level audit logs.\nFor GitLab.com, use `log_level=info` pipeline webhooks because JSON includes job names needed for regex tuning.\nJenkins: install Splunk plug-in or file monitor `jenkins.log` via UF; map to `sourcetype=jenkins:build` with **DATETIME_CONFIG** tuned for ISO8601.\nOptional Sonar hook: route issues to `index=sast` `sourcetype=sonarqube:issues` for deeper findings; link keys via `repository` name.\n\nStep 2 — Create the search and alert\nExecute SPL across **30 days** (`earliest=-30d@d`). Save as `UC-22.2.15_pipeline_scan_coverage`. Schedule weekly for management reporting; daily for regulated entities with fast release cadence.\nParameterize thresholds via macro `%(nis2_scan_coverage_threshold)` default **80**.\nAdd post-processing to join ServiceNow change (`snow:change`) if you need proof that deployments tied to CAB approvals.\n\nStep 3 — Validate\nPick repository with known GitHub Action `security/snyk` job; confirm `_raw` contains keyword and `has_security_scan=1` count increments.\nRun `| stats sum(deployment) by repository` and reconcile with GitHub Releases page counts.\nValidate false repo list against internal CMDB `owner_email` to ensure notifications reach correct directorate.\n\nStep 4 — Operationalize\nDashboard layout: top single value for fleet coverage, middle heatmap repo x week, bottom table sorted ascending on scan_coverage. Enable drilldown to raw events filtered on repository.\nIntegrate Jira Automation: webhook triggered when saved search yields new repo row.\nArchive weekly CSV to `index=audit_evidence` with `host=splunk-sh` source=`nis2_sdlc_kpi`.\n\nStep 5 — Troubleshooting\n• **Zero events** — HEC token wrong index or ACK disabled; check `splunkd.log` for `HttpInputHandler` errors.\n• **Regex never matches** — scanners renamed (\"CodeQL\" only) — expand alternation in `match()`.\n• **coverage stuck at 100 but audits fail** — `total_builds` tiny sample; widen to **90 days** window.\n• **Performance slow** — add `summariesonly` not applicable to raw; instead schedule summary index generation nightly via `collect`.\n• **Duplicate pipeline rows** — dedup `build_url` field before stats using `| dedup build_url`.",
+  "grandmaExplanation": "We check whether the automatic safety checks ran before new software left the factory floor, so risky changes are caught while they are still easy to undo instead of after customers are affected.",
   "cimSpl": "",
-  "dataModelAcceleration": "Not applicable"
+  "dataModelAcceleration": "Not applicable",
+  "owner": "Board / Audit Committee",
+  "controlFamily": "evidence-continuity",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
+  "evidence": "Weekly saved search `UC-22.2.15`, exported KPI workbook, and companion panel in the secure engineering dashboard referenced in the NIS2 evidence register.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "crawl",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Fixture pushes 12 synthetic `jenkins:build` events for `repo-a` with zero `_raw` matches for security tooling words but two events mentioning `deploy to production`; the search returns `repo-a` with `scan_coverage` below 80 and deployments greater than zero.",
+    "negativeScenario": "Fixture sends only events for `repo-b` where each build string includes `sonar` and none mention production deploys; the saved search output is empty for `repo-b` even though build volume is high.",
+    "fixtureRef": "sample-data/uc-22.2.15-fixture.json"
+  }
 }

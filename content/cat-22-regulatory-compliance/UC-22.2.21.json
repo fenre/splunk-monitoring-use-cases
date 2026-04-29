@@ -16,21 +16,22 @@
       "clause": "Art.21(2)",
       "mode": "satisfies",
       "assurance": "contributing",
-      "assurance_rationale": "NIS2 Art.21(2) — Reviewed: SPL provides contributing evidence for this regulatory requirement. The search query directly addresses the monitoring objective specified by the clause.",
+      "assurance_rationale": "Art.21(2) is assigned contributing assurance because this UC provides concrete Splunk evidence for the observable control condition, while policy approval, legal interpretation, and official filings remain outside Splunk.",
       "controlObjective": "Evidence that NIS2 Art.21(2) is enforced — Splunk UC-22.2.21: NIS2 Risk Analysis Evidence for Essential Entities.",
       "evidenceArtifact": "Saved search 'UC-22.2.21' running on index=risk sourcetype=\"stash\", tenable:vuln, nis2_entity_classification.csv (entity_tier=essential), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=risk` `sourcetype=\"stash\"`, `tenable:vuln`, `nis2_entity_classification.csv` (entity_tier=essential)",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Tenable Add-On for Splunk (Splunkbase 4060)",
-  "spl": "| inputlookup nis2_entity_classification.csv WHERE entity_tier=\"essential\"\n| rename asset_id as risk_object\n| join risk_object [\n    search index=risk sourcetype=\"stash\" earliest=-30d\n    | stats latest(risk_score) as residual_risk max(risk_score) as peak_risk by risk_object\n]\n| join risk_object [\n    search index=tenable sourcetype=\"tenable:vuln\" severity IN (\"Critical\",\"High\") earliest=-14d\n    | stats dc(plugin_id) as open_critical_high by host\n    | rename host as risk_object\n]\n| eval analysis_stale=if(residual_risk > 80 OR open_critical_high > 5, \"ESCALATE\", \"Monitor\")\n| table risk_object, business_service, residual_risk, peak_risk, open_critical_high, analysis_stale\n| sort - residual_risk",
-  "description": "Essential entities must implement a comprehensive set of risk-management measures proportionate to the risks posed. This use case aggregates residual risk scores, vulnerability exposure, and control maturity for assets tagged as essential — producing continuous evidence that formal risk analysis is refreshed and acted upon, not only performed annually on paper.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes risk, tenable and sourcetypes stash, tenable:vuln. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Tag all in-scope assets with `entity_tier` in `nis2_entity_classification.csv`; (2) ensure ES risk and vuln scans cover essential services; (3) define risk thresholds with CISO sign-off; (4) alert when residual risk or critical findings breach policy; (5) export quarterly risk analysis workbook attachments from dashboard PDFs. Indexes required: `index=risk`, `index=tenable`; Sourcetypes: `sourcetype=stash`, `sourcetype=tenable:vuln`.",
-  "visualization": "Heatmap (risk by service), Table (essential assets breaching threshold), Single value (mean residual risk), Line chart (trend). Key fields: `analysis_stale`, `business_service`, `open_critical_high`, `peak_risk`, `residual_risk`, `risk_object`.",
+  "dataSources": "`index=grc` `sourcetype=grc:risk` with `risk_object`, `risk_score`, `review_date`, `grc_status`; `index=vuln` `sourcetype=tenable:vuln` with `host`, `plugin_id`, `severity`, `state` (Tenable TA Splunkbase 4060). Policy cadence from `index=itsm` `sourcetype=snow:sn_grc_policy` (`policy_number`, `next_review_date`) via Splunk Add-on for ServiceNow (Splunkbase 1928). In-scope essential assets come from lookup `nis2_entity_classification.csv` fields `asset_id`, `business_service`, `entity_tier`. Splunk Enterprise Security (Splunkbase 263) enriches identities when `host` maps to `assets_by_str`.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Tenable Add-On for Splunk (Splunkbase 4060)",
+  "spl": "| inputlookup nis2_entity_classification.csv WHERE entity_tier=\"essential\"\n| rename asset_id as risk_object\n| join risk_object type=left [\n    search index=grc sourcetype=grc:risk earliest=-90d\n    | stats latest(risk_score) as residual_risk max(risk_score) as peak_risk by risk_object\n]\n| join risk_object type=left [\n    search index=vuln sourcetype=\"tenable:vuln\" severity IN (\"Critical\",\"High\") state=\"Active\" earliest=-14d\n    | stats dc(plugin_id) as open_critical_high by host\n    | rename host as risk_object\n]\n| fillnull value=0 residual_risk peak_risk open_critical_high\n| eval analysis_stale=if(residual_risk > 80 OR open_critical_high > 5, \"ESCALATE\", \"Monitor\")\n| table risk_object, business_service, residual_risk, peak_risk, open_critical_high, analysis_stale\n| sort - residual_risk",
+  "description": "Correlates GRC risk scores and live high-severity exposure for assets classified as essential, highlighting combinations where analysis is stale or backlog exceeds policy so essential-tier proof stays current.",
+  "value": "Lets executives defend the essential-entity risk register during supervision by showing machine-generated joins between formal scores, open scanner reality, and the legal tier tag—without relying on quarterly PowerPoint snapshots alone.",
+  "implementation": "(1) Keep `nis2_entity_classification.csv` authoritative for `entity_tier=essential` and map `asset_id` to scanner host names. (2) Land `grc:risk` nightly with stable `risk_object` keys. (3) Save search `UC-22.2.21` tri-weekly; page risk owners only on `analysis_stale=ESCALATE`. (4) Pair with ServiceNow GRC tasks for remediation links. (5) Archive outputs with `evidenceSigning` when submitting annual packs.",
+  "visualization": "Heatmap of residual risk by `business_service`, sortable table of essential assets breaching thresholds, single-value average residual risk, 90-day trend line.",
   "cimModels": [
     "N/A"
   ],
@@ -41,15 +42,30 @@
       "url": "https://splunkbase.splunk.com/app/263"
     },
     {
+      "title": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
       "title": "Tenable Add-On for Splunk",
       "url": "https://splunkbase.splunk.com/app/4060"
     },
     {
-      "title": "CIM: Vulnerabilities",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Scanner findings that are false positives, accepted risks with a formal exception, or test assets outside the regulatory perimeter.",
+  "knownFalsePositives": "• **Accepted risk entries not coded in GRC** — Distinguish: residual numbers stay high because formal acceptance exists yet Splunk lacks the flag. Suppress: join `nis2_risk_exception_register.csv` on `risk_object` where `exception_state=approved`.\n• **Scanner duplicates from dual agents** — Distinguish: `open_critical_high` inflates when two Tenable connectors report the same host. Suppress: dedup inside a macro `m_tenable_host_dedup` before `dc(plugin_id)`.\n• **Essential asset hostname drift** — Distinguish: CMDB retired `asset_id` but scanners still use old hostname. Suppress: lookup `nis2_asset_alias.csv` mapping `legacy_host`→`risk_object`.\n• **Quarterly GRC import lag** — Distinguish: `grc:risk` timestamps stall while manual workshops finish. Suppress: time-bound exception rows valid **30 days** with owner approval in `nis2_exception_register.csv`.\n• **Decommissioned plant still in scanner** — Distinguish: host pings but tag `decomm=true` in CMDB. Suppress: filter `| lookup nis2_decom_hosts.csv host OUTPUT decomm | where decomm!=\"true\"`.",
   "mitreAttack": [
     "T1048"
   ],
@@ -64,11 +80,27 @@
   "equipment": [
     "tenable"
   ],
-  "lastReviewed": "2026-04-22",
+  "lastReviewed": "2026-04-29",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263), Tenable Add-On for Splunk (Splunkbase 4060).\n• Ensure the following data sources are available: `index=risk` `sourcetype=\"stash\"`, `tenable:vuln`, `nis2_entity_classification.csv` (entity_tier=essential).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag all in-scope assets with `entity_tier` in `nis2_entity_classification.csv`; (2) ensure ES risk and vuln scans cover essential services; (3) define risk thresholds with CISO sign-off; (4) alert when residual risk or critical findings breach policy; (5) export quarterly risk analysis workbook attachments from dashboard PDFs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup nis2_entity_classification.csv WHERE entity_tier=\"essential\"\n| rename asset_id as risk_object\n| join risk_object [\n    search index=risk sourcetype=\"stash\" earliest=-30d\n    | stats latest(risk_score) as residual_risk max(risk_score) as peak_risk by risk_object\n]\n| join risk_object [\n    search index=tenable sourcetype=\"tenable:vuln\" severity IN (\"Critical\",\"High\") earliest=-14d\n    | stats dc(plugin_id) as open_critical_high by host\n    | rename host as risk_object\n]\n| eval analysis_stale=if(residual_risk > 80 OR open_critical_high > 5, \"ESCALATE\", \"Monitor\")\n| table risk_object, business_service, residual_risk, peak_risk, open_critical_high, analysis_stale\n| sort - residual_risk\n```\n\nUnderstanding this SPL\n\n**NIS2 Risk Analysis Evidence for Essential Entities (Art. 21(2))** — Essential entities must implement a comprehensive set of risk-management measures proportionate to the risks posed. This use case aggregates residual risk scores, vulnerability exposure, and control maturity for assets tagged as essential — producing continuous evidence that formal risk analysis is refreshed and acted upon, not only performed annually on paper.\n\nDocumented **Data sources**: `index=risk` `sourcetype=\"stash\"`, `tenable:vuln`, `nis2_entity_classification.csv` (entity_tier=essential). **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Tenable Add-On for Splunk (Splunkbase 4060). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Renames fields with `rename` for clarity or joins.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• `eval` defines or adjusts **analysis_stale** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nThis use case does not use a CIM tstats shortcut; the primary SPL above is the source of truth after field normalization in your environment.\n\nOutput fields: analysis_stale, business_service, open_critical_high, peak_risk, residual_risk, risk_object.\n\nStep 3 — Validate\nCompare with the ES Risk framework views (index=risk) and the ServiceNow GRC console for the same period so risk scores and asset fields line up.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap (risk by service), Table (essential assets breaching threshold), Single value (mean residual risk), Line chart (trend).",
-  "grandmaExplanation": "We essential entities must implement a comprehensive set of risk-management measures proportionate to the risks posed.",
-  "dataModelAcceleration": "Not applicable"
+  "detailedImplementation": "Prerequisites\n• Search heads with access to `index=grc`, `index=vuln`, and lookup `nis2_entity_classification.csv` version-controlled in Git.\n• Splunk Add-on for ServiceNow (Splunkbase 1928) configured with OAuth; optional REST pull for `sn_grc_risk` if you rename sourcetype to `grc:risk` via `props.conf`.\n• Tenable Add-On (Splunkbase 4060) writing consistent `host`, `severity`, `plugin_id`, `state`, `first_found` into `index=vuln`; verify **60 minute** forwarder lag SLA.\n• Splunk Enterprise Security (Splunkbase 263) asset model if you need to map scanner `host` to `business_service`; otherwise rely on lookup columns.\n• RBAC role `nis2_grc_analysts` with `rest` properties limited to read-only.\n\nStep 1 — Configure data collection\nPublish `nis2_entity_classification.csv` via Deployment Server. Ensure each essential row’s `asset_id` matches the primary key used in `grc:risk`. If ServiceNow is system-of-record, schedule a scripted export into `grc:risk` or use the TA’s modular input hitting `/api/now/table/sn_grc_risk` every **15 minutes** during business hours.\n\nStep 2 — Create the search and alert\nLoad the provided SPL, validate both joins return fields, then save as `UC-22.2.21`. Use `alert.digest_mode=true` for grouped emails. Throttle on `risk_object` for **4 hours**.\n\n```spl\n| inputlookup nis2_entity_classification.csv WHERE entity_tier=\"essential\"\n| rename asset_id as risk_object\n| join risk_object type=left [\n    search index=grc sourcetype=grc:risk earliest=-90d\n    | stats latest(risk_score) as residual_risk max(risk_score) as peak_risk by risk_object\n]\n```\n\nUnderstanding this SPL: `fillnull` prevents null arithmetic; tune thresholds `80` / `5` via macro `m_nis2_essential_risk_thresholds`.\n\nStep 3 — Validate\nPick five assets from the CSV and compare `residual_risk` with the GRC UI for the same ID. Cross-check `open_critical_high` with Tenable’s Workbench. Document discrepancies in the runbook.\n\nStep 4 — Operationalize & Troubleshoot\nAdd the search to the NIS2 essential dashboard with drilldown to vulnerability detail. If joins drop rows, verify field names (`risk_object` vs `u_cmdb_ci`). Use `| rest /servicesNS/-/-/authentication/users splunk_server=local` only for audits of who can run the search.\n\nStep 5 — Governance\nMonthly governance forum reviews ESCALATE rows. Archive the result set to `index=audit_evidence` with metadata `nis2_clause=Art.21(2)` and RFC3161 stamp via `evidenceSigning`. Update lookup when legal reclassifies entities.\n",
+  "grandmaExplanation": "We line up the official \"how risky is this asset\" score with what the vulnerability scanner still sees for the sites labelled most important, so weaker spots do not hide behind paperwork.",
+  "dataModelAcceleration": "Not applicable",
+  "owner": "Board / Audit Committee",
+  "controlFamily": "log-source-completeness",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
+  "evidence": "Scheduled run of `UC-22.2.21` with timestamp, field extract snapshot (`risk_object`, `analysis_stale`), and PDF dashboard export retained in `audit_evidence` for essential-entity risk monitoring.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Load a test `risk_object=E-TEST-01` in `nis2_entity_classification.csv` with `entity_tier=essential`, inject `grc:risk` rows where `risk_score=90`, and confirm `analysis_stale=ESCALATE` even if vulnerability count is zero.",
+    "negativeScenario": "For the same asset, lower `risk_score` below 50 and ensure active critical findings stay at or below policy so the row drops off when rerunning after the lookback windows refresh with clean data.",
+    "fixtureRef": "sample-data/uc-22.2.21-fixture.json"
+  }
 }

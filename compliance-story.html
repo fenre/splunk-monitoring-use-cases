@@ -594,6 +594,86 @@ html.dark .cs-hero { background: linear-gradient(135deg, rgba(4,159,217,0.12), r
 .cs-legend-label { font-size: 12.5px; color: var(--text-secondary); line-height: 1.3; }
 .cs-legend-label strong { color: var(--text-primary); font-weight: 700; display: block; }
 
+.cs-deep-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+}
+.cs-deep-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+.cs-deep-metric {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  background: var(--bg-muted);
+}
+.cs-deep-metric strong {
+  display: block;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--text-primary);
+  margin-bottom: 5px;
+}
+.cs-deep-metric span {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+.cs-deep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.cs-deep-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+.cs-deep-card h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+.cs-deep-card ul { margin: 0; padding-left: 18px; }
+.cs-deep-card li { margin: 4px 0; font-size: 12.5px; color: var(--text-secondary); }
+.cs-deep-domains {
+  margin-top: 14px;
+  overflow-x: auto;
+}
+.cs-deep-domains table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.cs-deep-domains th,
+.cs-deep-domains td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.cs-deep-domains th {
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+.cs-deep-policy {
+  margin-top: 12px;
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+}
+
 /* ----- highlights / gaps ----- */
 .cs-highlights, .cs-gaps {
   display: grid;
@@ -1068,6 +1148,7 @@ try{if(localStorage.getItem('cisco-ui-theme')==='dark')document.documentElement.
     var tier = data.tier || 3;
     var juris = Array.isArray(data.jurisdiction) ? data.jurisdiction.join(" / ") : (data.jurisdiction || "");
     var headline = buyer.coverageHeadline || "";
+    var deepCoverage = data.deepCoverage || null;
 
     var html = "";
     html += '<a class="cs-back" href="compliance-story.html">&larr; All regulations</a>';
@@ -1103,6 +1184,10 @@ try{if(localStorage.getItem('cisco-ui-theme')==='dark')document.documentElement.
       'Priority-weighted coverage multiplies each clause by regulator emphasis so high-risk clauses dominate the score.</p>';
     html += renderCoveragePanel(summary, stateCounts);
     html += "</section>";
+
+    if (deepCoverage) {
+      html += renderDeepCoverage(deepCoverage);
+    }
 
     /* ---- highlights ---- */
     html += '<section class="cs-section">';
@@ -1229,6 +1314,80 @@ try{if(localStorage.getItem('cisco-ui-theme')==='dark')document.documentElement.
           escapeHtml(sub) + "</div>" +
       "</div>"
     );
+  }
+
+  function renderDeepCoverage(dc) {
+    var coverage = dc.coverageByType || {};
+    var assurance = dc.assuranceByTarget || {};
+    var confidence = dc.reviewConfidence || {};
+    var sources = dc.sourceCoverage || {};
+    var domains = Array.isArray(dc.domainOverview) ? dc.domainOverview : [];
+    var artifacts = dc.canonicalArtifacts || {};
+    var html = '<section class="cs-section">';
+    html += '<h3>' + escapeHtml(dc.title || "Deep coverage overview") + '</h3>';
+    html += '<p class="cs-section-sub">' + escapeHtml(dc.summary || "") + '</p>';
+    html += '<div class="cs-deep-panel">';
+    html += '<div class="cs-deep-metrics">';
+    html += deepMetric(dc.matrixRows, "Matrix rows");
+    html += deepMetric(dc.monitorableRows, "Monitorable rows");
+    html += deepMetric(dc.nis2UcCount, "Tagged UCs");
+    html += deepMetric(dc.legalBoundaryRowCount, "Legal-boundary rows");
+    html += '</div>';
+    html += '<div class="cs-deep-grid">';
+    html += deepList("Coverage by type", coverage);
+    html += deepList("Assurance target", assurance);
+    html += deepList("Review confidence", confidence);
+    html += deepList("Source authority", sources);
+    html += '</div>';
+    if (domains.length) {
+      html += '<div class="cs-deep-domains"><table>';
+      html += '<thead><tr><th>Control family</th><th>Rows</th><th>Full</th><th>Partial</th><th>Contributing</th><th>Not monitorable</th></tr></thead><tbody>';
+      html += domains.map(function (d) {
+        var cov = d.coverageByType || {};
+        return '<tr>' +
+          '<td>' + escapeHtml(d.controlFamily || "") + '</td>' +
+          '<td>' + escapeHtml(String(d.rowCount || 0)) + '</td>' +
+          '<td>' + escapeHtml(String(cov.full || 0)) + '</td>' +
+          '<td>' + escapeHtml(String(cov.partial || 0)) + '</td>' +
+          '<td>' + escapeHtml(String(cov.contributing || 0)) + '</td>' +
+          '<td>' + escapeHtml(String(cov["not-monitorable"] || 0)) + '</td>' +
+          '</tr>';
+      }).join("");
+      html += '</tbody></table></div>';
+    }
+    if (dc.noOverclaimingPolicy) {
+      html += '<p class="cs-deep-policy"><strong>No overclaiming:</strong> ' +
+        escapeHtml(dc.noOverclaimingPolicy) + '</p>';
+    }
+    if (artifacts && (artifacts.matrix || artifacts.sourceMap || artifacts.evidencePack || artifacts.methodology)) {
+      html += '<section class="cs-related" style="margin-top:12px">';
+      if (artifacts.evidencePack) html += relatedLink(artifacts.evidencePack, "Evidence pack", "Auditor-facing per-regulation evidence pack.");
+      if (artifacts.matrix) html += relatedLink(artifacts.matrix, "Coverage matrix (data)", "Authoritative no-gap obligation matrix in data/.");
+      if (artifacts.sourceMap) html += relatedLink(artifacts.sourceMap, "Source map (data)", "Authoritative source register and authority ranking.");
+      if (artifacts.methodology) html += relatedLink(artifacts.methodology, "Monitoring methodology", "Method, scoping, and review-confidence calibration.");
+      if (artifacts.externalReview) html += relatedLink(artifacts.externalReview, "External review pack", "Peer-review handout for auditors and external reviewers.");
+      if (artifacts.maturityBenchmark) html += relatedLink(artifacts.maturityBenchmark, "Maturity benchmark", "Capability ladder for monitoring posture.");
+      html += '</section>';
+    }
+    html += '</div></section>';
+    return html;
+  }
+
+  function deepMetric(value, label) {
+    var display = value == null ? "\u2014" : String(value);
+    return '<div class="cs-deep-metric"><strong>' + escapeHtml(display) + '</strong><span>' + escapeHtml(label) + '</span></div>';
+  }
+
+  function deepList(title, obj) {
+    var keys = Object.keys(obj || {}).sort();
+    var html = '<div class="cs-deep-card"><h4>' + escapeHtml(title) + '</h4>';
+    if (!keys.length) return html + '<ul><li>No data</li></ul></div>';
+    html += '<ul>';
+    keys.forEach(function (key) {
+      html += '<li><code>' + escapeHtml(key) + '</code>: ' + escapeHtml(String(obj[key])) + '</li>';
+    });
+    html += '</ul></div>';
+    return html;
   }
 
   function renderHighlight(h) {

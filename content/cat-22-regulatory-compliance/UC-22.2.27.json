@@ -21,20 +21,21 @@
       "evidenceArtifact": "Saved search 'UC-22.2.27' running on index=itsm (vuln disclosure tickets), index=email_gateway (parsed security@), HEC from bug bounty APIs, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(e)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=itsm` (vuln disclosure tickets), `index=email_gateway` (parsed security@), HEC from bug bounty APIs",
-  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), HTTP Event Collector (HEC)",
+  "dataSources": "`index=itsm` `sourcetype=snow:incident` (number, category, opened_at, work_start, state) ingested via Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)) using `/now/table/incident`; `index=email_gateway` `sourcetype=ms:o365:message` or `sourcetype=proofpoint:tap` for messages sent to `security@`; HEC JSON from HackerOne `reports` API (resource `/v1/reports`) landing in `index=bugbounty`.",
+  "app": "Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)), HTTP Event Collector global token for **bug bounty** and **secure mailbox** JSON.",
   "spl": "index=itsm sourcetype=\"snow:incident\" category=\"*Vulnerability Disclosure*\" earliest=-90d\n| eval opened=strptime(opened_at,\"%Y-%m-%d %H:%M:%S\")\n| eval triaged=strptime(work_start,\"%Y-%m-%d %H:%M:%S\")\n| eval triage_hours=round((triaged-opened)/3600,2)\n| eval sla_breach=if(triage_hours>48 OR isnull(triaged),1,0)\n| stats count as tickets sum(sla_breach) as breaches avg(triage_hours) as avg_triage\n| eval breach_pct=round(100*breaches/tickets,1)\n| table tickets, breaches, breach_pct, avg_triage",
-  "description": "Coordinated vulnerability disclosure and cooperation with researchers support systemic resilience. This use case tracks intake of `security@` reports, HackerOne/Bugcrowd submissions, and PGP-encrypted mailbox events — measuring time-to-triage against internal policy.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes email_gateway, itsm and sourcetypes snow:incident. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Publish disclosure policy URL in security.txt and monitor referrers optionally; (2) auto-create ServiceNow incidents from email and bounty webhooks; (3) alert on SLA breaches; (4) link findings to engineering Jira; (5) annual report on researcher cooperation metrics. Indexes required: `index=email_gateway`, `index=itsm`; Sourcetypes: `sourcetype=snow:incident`.",
-  "visualization": "Table (breached tickets), Line chart (triage time trend), Single value (breach %), Bar chart (by product team).",
+  "description": "Aggregates ServiceNow incidents tagged for coordinated disclosure and calculates what share missed a 48-hour work-start SLA, producing breach rate and average triage hours for leadership review.",
+  "value": "Researchers and regulators increasingly ask for proof you respond quickly; this search turns mailbox chaos into two numbers—percent late and average hours—suitable for an annual assurance letter without hand-counting tickets.",
+  "implementation": "(1) Normalize `category` values in SNOW so disclosure incidents always match `*Vulnerability Disclosure*`. (2) Map `work_start` or `work_notes` first activity timestamp consistently — adjust `strptime` format to your locale. (3) Use HEC Ack for bug bounty ingestion at `/services/collector/event`. (4) Keep raw email in `index=email_gateway` with PII access restricted via RBAC. (5) Export monthly PDF to `index=audit_evidence`.",
+  "visualization": "Single value breach_pct, line chart avg_triage, table of worst incidents with drilldown to SNOW.",
   "cimModels": [
-    "Vulnerabilities"
+    "N/A"
   ],
-  "cimSpl": "| tstats summariesonly=t count from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.dest, Vulnerabilities.severity | sort - count",
+  "cimSpl": "",
   "references": [
     {
       "title": "Splunk Add-on for ServiceNow",
@@ -43,9 +44,27 @@
     {
       "title": "CIM: Ticket Management",
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Ticket_Management"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA Coordinated Vulnerability Disclosure — Good practices",
+      "url": "https://www.enisa.europa.eu/publications/good-practice-guide-on-vulnerability-disclosure"
+    },
+    {
+      "title": "ServiceNow Table API — incident",
+      "url": "https://docs.servicenow.com/bundle/tokyo-application-development/page/integrate/inbound-rest/concept/c_TableAPI.html"
     }
   ],
-  "knownFalsePositives": "Reports may queue during major incidents while details are confirmed, or during initial 24h triage.",
+  "knownFalsePositives": "• **Major Sev-1 outage steals triage time** — Distinguish: incidents opened during documented crisis window with problem record. Suppress: `crisis_blackout.csv` time-bound exception register matched on opened_at.\n• **Holidays or on-call rotation gaps** — Distinguish: no analyst logged `work_start` until Tuesday. Suppress: adjust SLA macro for bank holidays via lookup `holiday_calendar.csv`.\n• **Duplicate SNOW records for same researcher email** — Distinguish: two incidents share external reporter hash. Suppress: `dedup number` after sort -_time or merge workflow in ServiceNow.\n• **Bugcrowd API lag replays old reports** — Distinguish: `_time` cluster but `opened_at` stale. Suppress: filter HEC events `where payload_age_seconds < 900` at ingest time using **props.conf** `EVAL`.\n• **Category typo breaks match** — Distinguish: team renamed category to `Vuln Disclosure`. Suppress: broaden search `where like(category,\"%Disclosure%\")` or maintain `nis2_vd_categories.csv` lookup.",
   "requiredFields": [
     "avg_triage",
     "breach_pct",
@@ -60,8 +79,24 @@
     "jira",
     "servicenow"
   ],
-  "lastReviewed": "2026-04-22",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for ServiceNow (Splunkbase 1928), HTTP Event Collector (HEC).\n• Ensure the following data sources are available: `index=itsm` (vuln disclosure tickets), `index=email_gateway` (parsed security@), HEC from bug bounty APIs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Publish disclosure policy URL in security.txt and monitor referrers optionally; (2) auto-create ServiceNow incidents from email and bounty webhooks; (3) alert on SLA breaches; (4) link findings to engineering Jira; (5) annual report on researcher cooperation metrics.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:incident\" category=\"*Vulnerability Disclosure*\" earliest=-90d\n| eval opened=strptime(opened_at,\"%Y-%m-%d %H:%M:%S\")\n| eval triaged=strptime(work_start,\"%Y-%m-%d %H:%M:%S\")\n| eval triage_hours=round((triaged-opened)/3600,2)\n| eval sla_breach=if(triage_hours>48 OR isnull(triaged),1,0)\n| stats count as tickets sum(sla_breach) as breaches avg(triage_hours) as avg_triage\n| eval breach_pct=round(100*breaches/tickets,1)\n| table tickets, breaches, breach_pct, avg_triage\n```\n\nUnderstanding this SPL\n\n**NIS2 Vulnerability Disclosure Policy Operational Signals (Art. 21(2)(e))** — Coordinated vulnerability disclosure and cooperation with researchers support systemic resilience. This use case tracks intake of `security@` reports, HackerOne/Bugcrowd submissions, and PGP-encrypted mailbox events — measuring time-to-triage against internal policy.\n\nDocumented **Data sources**: `index=itsm` (vuln disclosure tickets), `index=email_gateway` (parsed security@), HEC from bug bounty APIs. **App/TA** (typical add-on context): Splunk Add-on for ServiceNow (Splunkbase 1928), HTTP Event Collector (HEC). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:incident. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:incident\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **opened** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **triaged** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **triage_hours** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **sla_breach** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **breach_pct** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n\nThis use case does not use a CIM tstats shortcut; the primary SPL above is the source of truth after field normalization in your environment.\n\nOutput fields: avg_triage, breach_pct, breaches, opened, sla_breach, tickets, triage_hours, triaged.\n\nStep 3 — Validate\nCompare ticket and field counts with the ServiceNow ITSM or GRC console (same time range) and confirm synchronization fields and sourcetypes used by this search.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (breached tickets), Line chart (triage time trend), Single value (breach %), Bar chart (by product team).",
-  "grandmaExplanation": "We coordinated vulnerability disclosure and cooperation with researchers support systemic resilience.",
-  "dataModelAcceleration": "Enable for Vulnerabilities"
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Splunk Add-on for ServiceNow (Splunkbase 1928) with service account using `restapi` role; OAuth token stored in **passwords.conf** via Manager UI.\n• Search head must reach `https://<instance>.service-now.com/api/now/table/incident` — allow firewall **443/tcp** outbound.\n• Incident field extraction: confirm `category`, `opened_at`, `work_start` exist; optional use `sys_updated_on` if work_start unreliable — document mapping in runbook.\n• HEC token with index=`bugbounty` sourcetype=`hackerone:report` for bounty feeds; enable indexer acknowledgement if WAN is lossy.\n\nStep 1 — Configure data collection\nUnder **Inputs → ServiceNow** enable incremental incident poller every **300 seconds** with filter `sysparm_query=categorySTARTSWITHVulnerability Disclosure` to reduce API volume.\nFor secure mailboxes, use Splunk Connect for O365 or Proofpoint TA, route to `index=email_gateway`, mask PII at index if required by DPO.\nConfigure **HTTP Event Collector** global settings → **Enable SSL** on port **8088** when receiving HackerOne webhooks.\n\nStep 2 — Create the search and alert\nRun SPL monthly first (`earliest=-90d@d`) to baseline breach_pct. Save as `UC-22.2.27_vd_sla`.\nAlert when `breach_pct > 15` **OR** `avg_triage > 36` hours — tune for your policy (48h is default threshold inside eval).\nAdd `appendcols` subsearch from `index=bugbounty` if you need researcher-facing SLAs separate from SNOW.\n\nStep 3 — Validate\nPick five incidents in ServiceNow UI, compare `opened_at` vs first work note timestamp manually; ensure delta matches `triage_hours` within rounding.\nUse `| fillnull value=0 sla_breach` before stats to treat untriaged as breach (matches eval).\nValidate REST input vs UI counts: `| tstats count where index=itsm sourcetype=snow:incident category=\"*Vulnerability Disclosure*\"` should approximate SNOW list length.\n\nStep 4 — Operationalize\nDashboard tab 1: KPI tiles. Tab 2: histogram of triage_hours. Tab 3: hyperlink to `https://<instance>.service-now.com/nav_to.do?uri=incident` with tokenized `number`.\nQuarterly report: PDF + CSV to `index=audit_evidence` with `_signTime` if using Splunk ACS export tools.\n\nStep 5 — Troubleshooting\n• **strptime returns null** — timestamp strings include timezone suffix; extend format to `%Y-%m-%d %H:%M:%S%Z`.\n• **work_start always null** — field not mirrored from SNOW; switch to `u_first_response` custom column via field alias.\n• **Zero tickets** — ServiceNow filter too strict; loosen `category` OR fix case sensitivity with lower().\n• **Duplicate counting** — incidents reopened; add `| dedup number sortby - _time` before stats.\n• **HEC 400 errors** — JSON not wrapped in `{\\\"event\\\": {...}}`; fix HEC sender template.",
+  "grandmaExplanation": "We measure how quickly real people answer when someone emails a security weakness, so you can show the world you treat those messages seriously instead of letting them gather dust.",
+  "dataModelAcceleration": "Not applicable",
+  "owner": "Head of IR",
+  "controlFamily": "ir-drill-evidence",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
+  "evidence": "Saved search `UC-22.2.27` monthly workbook, ServiceNow incident export hash, and HEC receipt IDs archived under the vulnerability disclosure control folder.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Import fixture `snow:incident` rows where half the tickets never receive `work_start` within 48 hours of `opened_at`; the summary panel shows `breach_pct` above zero and `avg_triage` above the policy line.",
+    "negativeScenario": "Replay fixtures where every incident records `work_start` within six hours and categories strictly follow the disclosure naming standard; the search shows `breach_pct` equal to zero while ticket volume remains non-zero.",
+    "fixtureRef": "sample-data/uc-22.2.27-fixture.json"
+  }
 }

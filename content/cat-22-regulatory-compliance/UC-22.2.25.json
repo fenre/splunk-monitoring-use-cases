@@ -21,16 +21,17 @@
       "evidenceArtifact": "Saved search 'UC-22.2.25' running on nis2_supplier_assessment_register.csv, index=github (Dependabot alerts), index=itsm, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(d)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`nis2_supplier_assessment_register.csv`, `index=github` (Dependabot alerts), `index=itsm`",
-  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for GitHub (Splunkbase 5596)",
-  "spl": "| inputlookup nis2_supplier_assessment_register.csv\n| eval assessment_due=strptime(next_assessment_date,\"%Y-%m-%d\")\n| eval overdue=if(now()>assessment_due,1,0)\n| join supplier_id [\n    search index=github sourcetype=\"dependabot_alert\" earliest=-30d\n    | stats dc(alert_number) as open_supply_chain_alerts by repo\n    | rename repo as supplier_code_repo\n]\n| where overdue=1 OR open_supply_chain_alerts > 10\n| table supplier_name, tier, next_assessment_date, overdue, open_supply_chain_alerts",
-  "description": "Beyond detecting abnormal supplier sessions (UC-22.2.2), entities must assess and document supply chain risk. This use case tracks completion of security questionnaires, on-site assessments, and software bill of materials (SBOM) reviews for suppliers touching NIS2-scoped services.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes github, itsm and sourcetypes dependabot_alert. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Classify suppliers by tier in the register; (2) sync assessment due dates from GRC or ServiceNow; (3) correlate critical repos with supplier-maintained code; (4) escalate overdue tier-1 assessments to procurement and CISO; (5) document compensating controls when assessments slip. Indexes required: `index=github`, `index=itsm`; Sourcetypes: `sourcetype=dependabot_alert`; Lookups: `nis2_supplier_assessment_register`, `nis2_supplier_assessment_register.csv`.",
-  "visualization": "Table (overdue assessments), Bar chart (alerts by supplier), Single value (tier-1 gaps).",
+  "dataSources": "`nis2_supplier_assessment_register.csv` lookup (supplier_id, supplier_name, tier, next_assessment_date, supplier_code_repo); `index=github` `sourcetype=dependabot_alert` (alert_number, repo, severity); `index=itsm` `sourcetype=snow:task` for linked remediation tasks when Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)) pulls `/now/table/sn_task`.",
+  "app": "Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)), Splunk Add-on for GitHub ([Splunkbase 5596](https://splunkbase.splunk.com/app/5596)) with REST or webhook ingestion for Dependabot.",
+  "spl": "| inputlookup nis2_supplier_assessment_register.csv\n| eval assessment_due=strptime(next_assessment_date,\"%Y-%m-%d\")\n| eval overdue=if(now()>assessment_due,1,0)\n| join supplier_code_repo type=left [\n    search index=github sourcetype=\"dependabot_alert\" earliest=-30d\n    | stats dc(alert_number) as open_supply_chain_alerts by repo\n    | rename repo as supplier_code_repo\n]\n| fillnull value=0 open_supply_chain_alerts\n| where overdue=1 OR open_supply_chain_alerts > 10\n| table supplier_name, tier, next_assessment_date, overdue, open_supply_chain_alerts",
+  "description": "Combines the authoritative supplier assessment register with open Dependabot-style repository alerts so procurement sees both paperwork gaps and concrete open dependency findings per supplier code base.",
+  "value": "Leadership receives one numbered list that pairs \"assessment overdue\" with \"dependency alerts still open\" so board updates do not claim green third-party posture while GitHub still shows dozens of unfixed issues.",
+  "implementation": "(1) Publish `nis2_supplier_assessment_register.csv` under `lookups/` with `supplier_id` matching your CMDB key. (2) Map `supplier_code_repo` to GitHub `repo` names (`org/name`). (3) Configure GitHub TA (5596) modular input or HEC for Dependabot JSON. (4) Optional: mirror ServiceNow tasks (1928) to prove compensating documentation exists. (5) Tune threshold `open_supply_chain_alerts > 10` per tier.\n\n**Note:** Normalize `supplier_code_repo` to lowercase `org/repo` to match GitHub `repo` before scheduling.",
+  "visualization": "Table (supplier_name, tier, overdue flag, alert count), bar chart by tier, single value overdue tier-1 count.",
   "cimModels": [
     "N/A"
   ],
@@ -42,9 +43,28 @@
     {
       "title": "Splunk Add-on for GitHub",
       "url": "https://splunkbase.splunk.com/app/5596"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "GitHub Dependabot alerts API",
+      "url": "https://docs.github.com/en/rest/dependabot/alerts"
     }
   ],
-  "knownFalsePositives": "Supply chain alerts from new vendor onboarding, M&A integration, or scheduled risk reviews.",
+  "knownFalsePositives": "• **Assessment due date mis-keyed in CSV** — Distinguish: typo pushes next_assessment_date into past. Suppress: governance process to fix lookup; interim `where supplier_name!=\"EXAMPLE_VENDOR\"` filter.\n• **Dependabot duplicates same CVE across alerts** — Distinguish: `dc(alert_number)` still inflates counts. Suppress: replace with `dc(security_advisory_id)` after field extract.\n• **Supplier uses GitLab not GitHub** — Distinguish: repo field empty, join misses. Suppress: add parallel subsearch for `sourcetype=gitlab:vulnerability` or mark supplier `sca_platform=github` in register.\n• **Planned acceptance of low-severity dependency noise** — Distinguish: risk acceptance memo signed for dev-only repos. Suppress: `vuln_exception_register.csv` keyed on repo with `max_cvss`.\n• **Quarterly questionnaire cadence mis-aligned with CSV monthly updates** — Distinguish: real-world review happened but CSV stale <30 days. Suppress: sync ServiceNow field `u_next_assessment` nightly via scripted export.",
   "requiredFields": [
     "assessment_due",
     "next_assessment_date",
@@ -58,9 +78,25 @@
     "github",
     "servicenow"
   ],
-  "lastReviewed": "2026-04-22",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for GitHub (Splunkbase 5596).\n• Ensure the following data sources are available: `nis2_supplier_assessment_register.csv`, `index=github` (Dependabot alerts), `index=itsm`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Classify suppliers by tier in the register; (2) sync assessment due dates from GRC or ServiceNow; (3) correlate critical repos with supplier-maintained code; (4) escalate overdue tier-1 assessments to procurement and CISO; (5) document compensating controls when assessments slip.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup nis2_supplier_assessment_register.csv\n| eval assessment_due=strptime(next_assessment_date,\"%Y-%m-%d\")\n| eval overdue=if(now()>assessment_due,1,0)\n| join supplier_id [\n    search index=github sourcetype=\"dependabot_alert\" earliest=-30d\n    | stats dc(alert_number) as open_supply_chain_alerts by repo\n    | rename repo as supplier_code_repo\n]\n| where overdue=1 OR open_supply_chain_alerts > 10\n| table supplier_name, tier, next_assessment_date, overdue, open_supply_chain_alerts\n```\n\nUnderstanding this SPL\n\n**NIS2 Supply Chain Security Assessment Coverage (Art. 21(2)(d))** — Beyond detecting abnormal supplier sessions (UC-22.2.2), entities must assess and document supply chain risk. This use case tracks completion of security questionnaires, on-site assessments, and software bill of materials (SBOM) reviews for suppliers touching NIS2-scoped services.\n\nDocumented **Data sources**: `nis2_supplier_assessment_register.csv`, `index=github` (Dependabot alerts), `index=itsm`. **App/TA** (typical add-on context): Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for GitHub (Splunkbase 5596). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• `eval` defines or adjusts **assessment_due** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **overdue** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• Filters the current rows with `where overdue=1 OR open_supply_chain_alerts > 10` — typically the threshold or rule expression for this monitoring goal.\n\nOutput fields: assessment_due, next_assessment_date, open_supply_chain_alerts, overdue, supplier_code_repo, supplier_name, tier.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (overdue assessments), Bar chart (alerts by supplier), Single value (tier-1 gaps).",
-  "grandmaExplanation": "We beyond detecting abnormal supplier sessions (UC-22.2.2), entities must assess and document supply chain risk.",
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Splunk Add-on for GitHub (Splunkbase 5596) and ServiceNow (1928) deployed to the same search head running compliance dashboards.\n• Lookup `nis2_supplier_assessment_register.csv` stored under `lookups/` with permissions limited to `compliance_admin` role.\n• GitHub token scopes: `repo` + `security_events` for Dependabot; rotate **every 90 days**.\n• Index capacity: Dependabot alerts are bursty after org-wide rebases — allocate **5 GB/day** headroom for large dev shops.\n\nStep 1 — Configure data collection\nExport supplier register fields: `supplier_id`, `supplier_name`, `tier`, `next_assessment_date`, `supplier_code_repo`. Use `inputlookup` dry run in Search to validate `strptime` on `next_assessment_date` (support optional `T` time).\nEnable GitHub webhook `dependabot_alert` pointing to HEC or use TA polling every **900 seconds** hitting `api.github.com/orgs/{org}/dependabot/alerts`.\nServiceNow: enable incident/task pull focused on `supplier_security_review` topics if you need human workflow proof.\n\nStep 2 — Create the search and alert\nRun SPL weekly (Monday 06:00) with **earliest=-30d** on subsearch to capture open alerts.\nSave as `UC-22.2.25_assessment_vs_dependabot`. If join explodes, replace with `stats` + `lookup` pattern.\nAdd `| fillnull value=0 open_supply_chain_alerts` before final where to avoid dropping purely overdue suppliers.\n\nStep 3 — Validate\nPick vendor `tier=1` with known overdue questionnaire in GRC; confirm `overdue=1`.\nCross-check GitHub UI Dependabot count vs `open_supply_chain_alerts` for same repo string — reconcile case sensitivity using `| eval repo=lower(repo)` upstream.\nValidate ServiceNow ticket exists if compensating control claimed — search `index=itsm` `sourcetype=snow:task`.\n\nStep 4 — Operationalize\nDashboard: color overdue rows red, alert count amber >5. Email CSV to procurement DL via scheduled PDF.\nEscalation matrix: tier-1 suppliers page CISO secondary on-call.\nArchive `lookup` versions weekly into git with hash referenced in audit workbook.\n\nStep 5 — Troubleshooting\n• **join yields zero alerts** — field mismatch; ensure `supplier_code_repo` matches GitHub `repo`.\n• **Subsearch hits limit** — raise subsearch `maxout` in limits.conf (change control) or narrow earliest window.\n• **Token 401** — GitHub PAT expired; TA logs in `splunkd.log` under RestHandler.\n• **CSV strptime fail** — dates use `DD/MM/YYYY`; update `strptime` format.\n• **mass FP after tooling upgrade** — Dependabot introduced new severity field — update stats to filter `state=open` only.",
+  "grandmaExplanation": "We line up the paperwork deadlines for checking outside suppliers with the real open problems reported in the code libraries those suppliers help maintain, so nobody thinks the homework is done when the toolbox is still messy.",
   "cimSpl": "",
-  "dataModelAcceleration": "Not applicable"
+  "dataModelAcceleration": "Not applicable",
+  "owner": "Procurement",
+  "controlFamily": "third-party-activity",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
+  "evidence": "Saved search `UC-22.2.25` output, Dependabot reconciliation worksheet, and signed lookup version hash stored with the NIS2 supplier risk evidence bundle.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Populate the lookup with a tier-1 supplier whose `next_assessment_date` is seven days in the past and ensure the GitHub subsearch returns twelve open `dependabot_alert` events; the combined row appears with `overdue=1` and `open_supply_chain_alerts` above the threshold.",
+    "negativeScenario": "Use the same supplier row but refresh `next_assessment_date` to ninety days ahead and reduce Dependabot fixtures below three open alerts; the scheduled search produces zero rows and the audit log records a clean run.",
+    "fixtureRef": "sample-data/uc-22.2.25-fixture.json"
+  }
 }

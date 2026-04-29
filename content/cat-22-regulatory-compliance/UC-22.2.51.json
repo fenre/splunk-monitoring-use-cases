@@ -1,0 +1,119 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.51",
+  "title": "NIS2 Art.12/21 secure development and vulnerability disclosure evidence",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "policy-to-control-traceability",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.12",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.12 receives partial assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.12 using NIS2 Art.12/21 secure development and vulnerability disclosure evidence.",
+      "evidenceArtifact": "Saved search for NIS2 Art.12/21 secure development and vulnerability disclosure evidence, dashboard panel, and archived result export in index=audit_evidence for Art.12.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.12",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(e)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.21(2)(e) receives partial assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.21(2)(e) using NIS2 Art.12/21 secure development and vulnerability disclosure evidence.",
+      "evidenceArtifact": "Saved search for NIS2 Art.12/21 secure development and vulnerability disclosure evidence, dashboard panel, and archived result export in index=audit_evidence for Art.21(2)(e).",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(e)",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(f)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.21(2)(f) receives partial assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.21(2)(f) using NIS2 Art.12/21 secure development and vulnerability disclosure evidence.",
+      "evidenceArtifact": "Saved search for NIS2 Art.12/21 secure development and vulnerability disclosure evidence, dashboard panel, and archived result export in index=audit_evidence for Art.21(2)(f).",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(f)",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=devops` `sourcetype=github:audit` with `action`, `repo`, `actor`, `created_at` from Splunk Add-on for GitHub ([Splunkbase 5598](https://splunkbase.splunk.com/app/5598)); `index=sast` `sourcetype=sonarqube:issues` with `severity`, `status`, `project_key`; `index=vuln` for scanner SLA context; `lookup=vulnerability_disclosure_intake.csv` tracking `reporter`, `disclosure_status`, `due_date`.",
+  "app": "Splunk Add-on for GitHub ([Splunkbase 5598](https://splunkbase.splunk.com/app/5598)); Splunk Enterprise / Splunk Cloud for HEC ingestion of SonarQube webhooks.",
+  "spl": "| inputlookup vulnerability_disclosure_intake.csv\n| eval due_epoch=strptime(due_date,\"%Y-%m-%d\")\n| eval intake_overdue=if(disclosure_status!=\"closed\" AND now()>due_epoch,1,0)\n| where intake_overdue=1\n| eval finding_type=\"disclosure_overdue\", asset=coalesce(disclosure_id,reporter_email)\n| fields finding_type, asset, disclosure_status, due_date\n| append [\n    search index=sast sourcetype=sonarqube:issues severity IN (\"BLOCKER\",\"CRITICAL\") status=OPEN earliest=-7d\n    | stats dc(key) as open_findings by project_key\n    | eval finding_type=\"sast_open_critical\", asset=project_key\n]\n| append [\n    search index=devops sourcetype=github:audit earliest=-7d action=\"repo.access\" OR action=\"protected_branch.*\"\n    | search NOT match(actor,\"^(svc-|github-app)\")\n    | stats dc(repo) as repos_touched by actor\n    | where repos_touched>15\n    | eval finding_type=\"audit_volume_spike\", asset=actor\n]\n| lookup nis2_secdv_kfp_exceptions asset OUTPUT exception_until\n| where isnull(exception_until) OR now()>strptime(exception_until,\"%Y-%m-%d\")\n| table finding_type, asset, disclosure_status, due_date, open_findings, repos_touched",
+  "description": "Combines GitHub organisation audit events, open SonarQube blocker and critical findings, and CSV-tracked vulnerability-disclosure tickets so engineering gates and external reporter SLAs stay visible to compliance.",
+  "value": "Product and legal leadership receive a single operational rhythm for secure build controls and coordinated disclosure rather than waiting for annual questionnaires to uncover stale scanner noise or unanswered researcher emails.",
+  "implementation": "(1) Install Splunkbase 5598 and connect the GitHub App with least privilege. (2) Send SonarQube issues via HEC. (3) Maintain `vulnerability_disclosure_intake.csv` with legal. (4) Alert weekly; attach owners per `project_key`. (5) Archive to `index=audit_evidence`.",
+  "visualization": "Stacked bar of disclosure states, table of open critical SAST issues, timeline of `github:audit` branch events.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "Splunk Add-on for GitHub (Splunkbase 5598)",
+      "url": "https://splunkbase.splunk.com/app/5598"
+    },
+    {
+      "title": "Splunk Docs — Configure Splunk Connect for GitHub (HEC pattern)",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Github/Configure"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
+    }
+  ],
+  "knownFalsePositives": "• **Canary repos excluded from branch policies** — Distinguish: repository name matches `^lab-`. Suppress: `lookup nis2_secdv_kfp_exceptions` listing allowed repos with `exception_until`.\n• **SonarQube noise in generated code** — Distinguish: `component` path includes `/generated/`. Suppress: filter `where NOT match(component,\"/generated/\")` after validating with appsec.\n• **Duplicate HEC events** — Distinguish: `_raw` hash repeats within 60 seconds. Suppress: `dedup 60 keeplog=false` in subsearch.\n• **Emergency break-glass merges during incident** — Distinguish: `incident_id` tagged in commit message. Suppress: join `break_glass_register` CSV with 24-hour auto expiry.",
+  "requiredFields": [
+    "_time",
+    "owner",
+    "status",
+    "evidence_id",
+    "clause",
+    "affected_asset",
+    "affected_service"
+  ],
+  "exclusions": "Does not perform legal triage of vulnerability reports, sign safe harbour statements, or certify pen-test scopes; does not replace secure SDLC policy.",
+  "evidence": "Saved search `UC-22.2.51` output, correlated `github:audit` and `sonarqube:issues` events, disclosure CSV snapshots, and sealed export in `index=audit_evidence`.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "controlTest": {
+    "positiveScenario": "Seed `vulnerability_disclosure_intake.csv` with `disclosure_status=open` and a `due_date` in the past, then run the search to confirm the intake branch surfaces the overdue `disclosure_id` while a parallel SonarQube fixture populates `count>0` for `project_key=demo_service`.",
+    "negativeScenario": "When every disclosure row is `closed` ahead of schedule and no open blocker SonarQube issues exist for monitored projects, the combined result set is empty except for deliberately injected test traffic that you filter out in the lab.",
+    "fixtureRef": "sample-data/uc-22.2.51-fixture.json"
+  },
+  "status": "verified",
+  "lastReviewed": "2026-04-29",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "Prerequisites\n• Splunk Add-on for GitHub ([Splunkbase 5598](https://splunkbase.splunk.com/app/5598)).\n• Heavy forwarder with outbound `443/tcp` to `api.github.com` or your GHES hostname.\n• SonarQube webhook to HEC token posting JSON with `sourcetype=sonarqube:issues`; validate with `curl` test event.\n• Indexes `devops`, `sast`, `vuln`, `audit_evidence` provisioned.\n• RBAC role `appsec_compliance` with read access only to required indexes.\n\nStep 1 — Configure data collection\nInstall the add-on on search head + heavy forwarder. In `local/inputs.conf` enable the audit modular input with `interval = 300` seconds and `index = devops`. Map `sourcetype=github:audit`. For SonarQube, sample `props.conf` should extract `severity`, `status`, `project_key`, `component`. Document API path `/api/issues/search` if polling instead of webhooks. Maintain `vulnerability_disclosure_intake.csv` with service owner column for routing.\n\nStep 2 — Create the search and alert\nTighten `severity` list per risk appetite. Schedule twice weekly.\n\n```spl\n| inputlookup vulnerability_disclosure_intake.csv\n| eval due_epoch=strptime(due_date,\"%Y-%m-%d\")\n| eval intake_overdue=if(disclosure_status!=\"closed\" AND now()>due_epoch,1,0)\n| append [search index=sast sourcetype=sonarqube:issues severity IN (\"BLOCKER\",\"CRITICAL\") status=OPEN earliest=-7d | stats count by project_key]\n```\n\nAppend GitHub branch policy branch as shown in main `spl`. Wire lookup suppressions.\n\nStep 3 — Validate\nPick repo with known protected branches; confirm `github:audit` events appear within 15 minutes. Run Sonar CLI scan to create a BLOCKER; ensure event hits Splunk within HEC flush window (default 30 seconds). Compare CSV row count to legal mailbox.\n\nStep 4 — Operationalize\nDashboard with three panels: disclosures, Sonar roll-up, GitHub policy drift. PagerDuty low urgency for SAST, high for overdue disclosures past legal SLA. Monthly PDF to `index=audit_evidence` via scheduled report.\n\nStep 5 — Troubleshooting\n• **403 from GitHub** — token missing `audit_log` scope; regenerate in org settings.\n• **HEC 400** — JSON not indexed extractions; add `props.conf` `KV_MODE=json`.\n• **Null branch audits** — enterprise only feature; remove GitHub append macro for teams not licensed.\n• **Append result explosion** — add `| stats values(*) by disclosure_id` consolidation.",
+  "grandmaExplanation": "We watch whether software checks and safety nets for new code are really happening, and whether outside researchers who report problems get timely answers. If something important slips, we point to the right engineering or legal owner.",
+  "dataModelAcceleration": "Optional Alerts model tagging; otherwise keep explicit sourcetype filters for performance."
+}

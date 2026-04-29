@@ -21,38 +21,82 @@
       "evidenceArtifact": "Saved search 'UC-22.2.40' running on index=sis_audit (HEC), index=itsm (permit-to-work), nis2_sis_critical_tags.csv, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(c)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=sis_audit` (HEC), `index=itsm` (permit-to-work), `nis2_sis_critical_tags.csv`",
-  "app": "HTTP Event Collector (HEC — historian exports), Splunk Add-on for ServiceNow (Splunkbase 1928)",
-  "spl": "index=sis_audit earliest=-30d\n| lookup nis2_sis_critical_tags.csv tag_id OUTPUT sil_level plant_area\n| where match(lower(event_type),\"(?i)bypass|force|override|interlock.disable\")\n| join tag_id [\n    search index=itsm sourcetype=\"snow:sc_task\" short_description=\"*permit*\" earliest=-30d\n    | stats latest(state) as permit_state by cmdb_ci\n    | rename cmdb_ci as tag_id\n]\n| where permit_state!=\"Closed\" OR isnull(permit_state)\n| stats count by tag_id sil_level plant_area permit_state\n| sort - count",
-  "description": "Cyber-physical incidents can impair safety instrumented functions. This use case monitors bypass events, force bits, interlock disables, and alarm floods from SIS and BMS historians — ensuring safety overrides are short-lived, authorised, and correlated with maintenance work orders.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes itsm, sis_audit and sourcetypes snow:sc_task. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Work with functional safety officers to define critical tags; (2) ingest audit trails without exceeding vendor-supported rates; (3) alert immediately on unapproved bypass; (4) enforce maximum bypass duration timers in secondary logic where possible; (5) quarterly review with process safety and cybersecurity jointly. Indexes required: `index=itsm`, `index=sis_audit`; Sourcetypes: `sourcetype=snow:sc_task`; Lookups: `nis2_sis_critical_tags`, `nis2_sis_critical_tags.csv`.",
-  "visualization": "Table (unauthorised overrides), Timeline (bypass events), Single value (open safety overrides), Bar chart (by plant area). Key fields: `permit_state`, `plant_area`, `sil_level`, `tag_id`.",
+  "dataSources": "`index=ot_safety` with `sourcetype=sis:status` (interlock state, trip bits, channel healthy flags; fields `sis_id`, `interlock_state`, `quality_flag`, `timestamp_source`). `sourcetype=edge_hub:modbus` from Splunk Edge Hub collectors carrying safety PLC registers (`register_address`, `value_raw`, `unit_id`). `sourcetype=sis:change_log` for configuration/bypass audit lines (`event_type`, `operator_id`, `peer_approved`). Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)) for correlation; Splunk OT Security Add-on ([Splunkbase 5151](https://splunkbase.splunk.com/app/5151)) optional for asset context. Lookup `nis2_sis_inventory.csv`: `sis_id`, `sis_name`, `sil_level`, `last_test_date`, `test_cycle_months`.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk OT Security Add-on (Splunkbase 5151)",
+  "spl": "(index=ot_safety (sourcetype=sis:status OR sourcetype=edge_hub:modbus OR sourcetype=sis:change_log)) earliest=-30d\n| eval sis_id=coalesce(sis_id, controller_id, plc_name, unit_id)\n| eval event_text=lower(coalesce(event_type, message, Operation, interlock_note, \"\"))\n| lookup nis2_sis_inventory.csv sis_id OUTPUT sis_name, sil_level, last_test_date, test_cycle_months\n| where isnotnull(sil_level)\n| where match(event_text, \"(?i)bypass|force|override|inhibit|maintenance.?mode\") OR (sourcetype=\"sis:status\" AND interlock_state IN (\"defeated\",\"bypassed\",\"manual_override\"))\n| join type=left sis_id [\n    search index=itsm sourcetype=snow:sc_task short_description=\"*permit*\" earliest=-30d\n    | stats latest(state) as permit_state latest(number) as permit_ticket by cmdb_ci\n    | rename cmdb_ci as sis_id\n]\n| where permit_state!=\"Closed\" OR isnull(permit_state)\n| eval months_since_test=if(isnotnull(last_test_date), round((now()-last_test_date)/(30*86400),2), null())\n| stats count values(event_text) as events max(months_since_test) as months_since_test by sis_id sis_name sil_level permit_state permit_ticket last_test_date test_cycle_months\n| sort - count",
+  "description": "Flags safety-system bypasses, forced interlock states, and configuration events that read as overrides when there is no closed maintenance permit aligned to the same engineering object; inventory fields surface proof-test age for triage but do not alone trigger the alert.",
+  "value": "Helps the organisation prove that trip paths and safety overrides were either tied to authorised maintenance work or escalated quickly—reducing the chance that an unnoticed bypass becomes the root cause of a major physical incident.",
+  "implementation": "Land historian and Edge Hub telemetry in `index=ot_safety`. Normalise `sis_id` across `sis:status`, `edge_hub:modbus`, and `sis:change_log`. Maintain `nis2_sis_inventory.csv` with proof-test cadence. Ingest ServiceNow permit tasks into `index=itsm` `sourcetype=snow:sc_task` (Splunk Add-on for ServiceNow, Splunkbase 1928 on HF). Schedule UC-22.2.40 daily with 30-day lookback; page OT/SIS SMEs on new unpermitted bypass clusters.",
+  "visualization": "Table of sis_id, sis_name, sil_level, events, permit_state; timeline of bypass strings; single value count of open overrides; bar chart by plant if you add `plant_area` to the inventory lookup.",
   "cimModels": [
-    "N/A"
+    "Alerts"
   ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Alerts where nodename=Alerts.All_Alerts by Alerts.signature | head 20",
   "references": [
     {
-      "title": "Splunk Add-on for ServiceNow",
+      "title": "Splunk OT Security Add-on (Splunkbase 5151)",
+      "url": "https://splunkbase.splunk.com/app/5151"
+    },
+    {
+      "title": "Splunk Enterprise Security (Splunkbase 263)",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
       "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Reports may queue during major incidents while details are confirmed, or during initial 24h triage.",
+  "knownFalsePositives": "• **Controlled shutdown with word “force” in vendor text** — Distinguish: benign alarm text contains force-load but `interlock_state` stays normal. Suppress: tighten `where` to require `interlock_state IN (\"defeated\",\"bypassed\")` plus ticket join, or filter the SPL with `where NOT match(event_text,\"force.?load\")`.\n• **PLC download during annual turnaround** — Distinguish: long maintenance window with hundreds of acknowledged changes. Suppress: `nis2_turnaround_windows.csv` time-bound exception lookup keyed on `plant_area` and `_time`.\n• **Stale ServiceNow state** — Distinguish: permit closed in the field but `snow:sc_task` still shows Work in Progress. Suppress: reconcile via 15-minute accelerated summary of latest state; manual exception register row with ticket number until ITSM backlog clears.\n• **Edge Hub duplicate register polls** — Distinguish: identical Modbus reads every **5 seconds** inflate counts. Suppress: `| bin _time span=1m | stats latest(value_raw) as value_raw by sis_id register_address _time` before bypass logic.\n• **Proof-test schedule mismatch** — Distinguish: vendor moved digital twin tests off-cycle. Suppress: update `test_cycle_months` and `last_test_date` columns in `nis2_sis_inventory.csv` after signed SIS verification letter.",
   "requiredFields": [
-    "permit_state",
-    "plant_area",
+    "sis_id",
+    "sis_name",
     "sil_level",
-    "tag_id"
+    "event_text",
+    "permit_state"
   ],
   "equipment": [
     "servicenow"
   ],
-  "lastReviewed": "2026-04-22",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HTTP Event Collector (HEC — historian exports), Splunk Add-on for ServiceNow (Splunkbase 1928).\n• Ensure the following data sources are available: `index=sis_audit` (HEC), `index=itsm` (permit-to-work), `nis2_sis_critical_tags.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Work with functional safety officers to define critical tags; (2) ingest audit trails without exceeding vendor-supported rates; (3) alert immediately on unapproved bypass; (4) enforce maximum bypass duration timers in secondary logic where possible; (5) quarterly review with process safety and cybersecurity jointly.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=sis_audit earliest=-30d\n| lookup nis2_sis_critical_tags.csv tag_id OUTPUT sil_level plant_area\n| where match(lower(event_type),\"(?i)bypass|force|override|interlock.disable\")\n| join tag_id [\n    search index=itsm sourcetype=\"snow:sc_task\" short_description=\"*permit*\" earliest=-30d\n    | stats latest(state) as permit_state by cmdb_ci\n    | rename cmdb_ci as tag_id\n]\n| where permit_state!=\"Closed\" OR isnull(permit_state)\n| stats count by tag_id sil_level plant_area permit_state\n| sort - count\n```\n\nUnderstanding this SPL\n\n**NIS2 Safety System Integrity Monitoring (SIL / SIS Interlocks) (Art. 21(2)(c))** — Cyber-physical incidents can impair safety instrumented functions. This use case monitors bypass events, force bits, interlock disables, and alarm floods from SIS and BMS historians — ensuring safety overrides are short-lived, authorised, and correlated with maintenance work orders.\n\nDocumented **Data sources**: `index=sis_audit` (HEC), `index=itsm` (permit-to-work), `nis2_sis_critical_tags.csv`. **App/TA** (typical add-on context): HTTP Event Collector (HEC — historian exports), Splunk Add-on for ServiceNow (Splunkbase 1928). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: sis_audit.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=sis_audit, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where match(lower(event_type),\"(?i)bypass|force|override|interlock.disable\")` — typically the threshold or rule expression for this monitoring goal.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• Filters the current rows with `where permit_state!=\"Closed\" OR isnull(permit_state)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` aggregates events by **tag_id sil_level plant_area permit_state**, producing one row per unique combination for trend analysis and threshold evaluation.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOutput fields: permit_state, plant_area, sil_level, tag_id.\n\nStep 3 — Validate\nCompare ticket and field counts with the ServiceNow ITSM or GRC console (same time range) and confirm synchronization fields and sourcetypes used by this search.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unauthorised overrides), Timeline (bypass events), Single value (open safety overrides), Bar chart (by plant area).",
-  "grandmaExplanation": "We cyber-physical incidents can impair safety instrumented functions.",
-  "cimSpl": "",
-  "dataModelAcceleration": "Not applicable"
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Functional safety SME signs off field names (`interlock_state`, `sis_id`) before production alerting; Splunk cannot interpret IEC 61511 logic absent vendor truth tables.\n• Heavy Forwarder or Edge layer receiving Modbus/OPC payloads via Splunk Edge Hub with HEC token scoped to `index=ot_safety` (token created under **Settings > Data inputs > HTTP Event Collector**).\n• Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)) optional but recommended for multi-domain correlation with IT change data.\n• Splunk OT Security Add-on ([Splunkbase 5151](https://splunkbase.splunk.com/app/5151)) on search heads for enrichment macros against OT asset classes.\n• ServiceNow integration: install Splunk Add-on for ServiceNow (Splunkbase 1928) and enable incident/task inputs with REST base URL `https://<instance>.service-now.com/api/now/table/sc_task` pulling fields `number`, `state`, `cmdb_ci`.\n\nStep 1 — Configure data collection\nMap each safety controller to `sis_id` consistent with CMDB and historian tags. Route `sourcetype=sis:status` alarms from the vendor export, `sourcetype=sis:change_log` from configuration audit REST pulls (poll no faster than vendor allows — often **60 seconds**), and `sourcetype=edge_hub:modbus` from field collectors. Validate volume: baseline events/minute per `sis_id` for **7 days** before alarming.\n\nStep 2 — Create the search and alert\nPaste UC SPL; adjust regex for locale-specific strings. Save as `UC-22.2.40` with cron `15 6 * * *` (daily after night shift) over `-30d@d` to `-d@d`. For ES, mirror as correlation search referencing the same SPL in **Configure > Correlation Searches** with notable aggregation by `sis_id`.\n\n```spl\n(index=ot_safety (sourcetype=sis:status OR sourcetype=edge_hub:modbus OR sourcetype=sis:change_log)) earliest=-30d\n| eval sis_id=coalesce(sis_id, controller_id, plc_name, unit_id)\n```\n\nUnderstanding this SPL: telemetry union captures analog bypass registers and textual audits. `lookup nis2_sis_inventory.csv` supplies SIL metadata and proof-test due dates. `join` to ITSM enforces permit pairing.\n\nStep 3 — Validate\nPick a known maintenance day: results should show `permit_state=\"Closed\"` rows excluded. Inject a test Modbus coil toggle in lab; confirm alert within **15 minutes** and video playback from historian. Compare counts with Splunk **Job Inspector** versus vendor safety report for the same hour.\n\nStep 4 — Operationalize & Troubleshoot\nDashboards: timeline panel colored by `sil_level`, table sorted by `months_since_test`. Runbook: verify physical key-switch position, confirm permit PDF, reset logic only after dual sign-off. Failure modes: **null `sis_id`** — fix transform at ingest; **empty ITSM join** — `cmdb_ci` string mismatch; remediate with alias lookup `nis2_sis_cmdb_aliases.csv`.\n\nStep 5 — Governance\nQuarterly joint review between cyber and process safety; archive compliance exports with retention per national law. Never tune thresholds without updating the proof-test evidence pack.",
+  "grandmaExplanation": "We watch the automatic shutoff gear that keeps plants from hurting people. When someone sidesteps that protection without a proper signed maintenance ticket, or when tests fall overdue, we raise a clear flag so experts can fix it before something breaks for real.",
+  "dataModelAcceleration": "Accelerate Alerts datamodel if ES notables will reuse signatures from this search; otherwise raw-index searches suffice.",
+  "owner": "Head of IT Operations",
+  "controlFamily": "ir-drill-evidence",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel or competent-authority review. Does not replace onsite safety instrumented function engineering studies or proof-test execution—only visibility of telemetry Splunk receives.",
+  "evidence": "Scheduled saved search `UC-22.2.40`, resilience dashboard panels, and archived CSV/PDF exports in `index=audit_evidence` showing bypass events joined to permit state.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "A technician forces a valve interlock on `sis_id=SIS-REACTOR-A` while `snow:sc_task` shows no closed permit linked to that CMDB CI; the search emits at least one stats row with nonzero count and a null or non-Closed permit_state.",
+    "negativeScenario": "During a fully documented outage the same `sis_id` logs bypass strings but the related permit task is `Closed` within the search window, so the permit join excludes the event and the correlation yields no rows.",
+    "fixtureRef": "sample-data/uc-22.2.40-fixture.json"
+  },
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
 }

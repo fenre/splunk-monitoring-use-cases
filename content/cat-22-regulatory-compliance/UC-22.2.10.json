@@ -20,16 +20,17 @@
       "evidenceArtifact": "Saved search 'UC-22.2.10' running on sourcetype ms:o365:management and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(g)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=training` (LMS completion records via CSV/HEC), `index=email` `sourcetype=\"ms:o365:management\"` (phishing simulation results), `` `notable` `` macro",
-  "app": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), CSV lookup (LMS export)",
+  "dataSources": "`index=training` `sourcetype=lms:completion` (fields course_id, employee_id, completion_date, department) plus HEC JSON from HR; `index=email` `sourcetype=ms:o365:management` for phishing simulation exports from Splunk Add-on for Microsoft Office 365 ([Splunkbase 4055](https://splunkbase.splunk.com/app/4055)); optional `index=auth` for workforce sign-in volume context. CIM-ready fields after FIELDALIAS: user, action, dest.",
+  "app": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Connect for HTTP Event Collector (built-in), CSV/kvstore lookup `nis2_training_completion`",
   "spl": "| inputlookup nis2_training_completion.csv\n| eval days_since_training=round((now()-strptime(completion_date,\"%Y-%m-%d\"))/86400, 0)\n| eval overdue=if(days_since_training > 365 OR isnull(completion_date), 1, 0)\n| stats count as total_staff, sum(overdue) as overdue_count, avg(days_since_training) as avg_days_since\n| eval compliance_pct=round(100*(total_staff-overdue_count)/total_staff, 1)\n| table total_staff, overdue_count, compliance_pct, avg_days_since",
-  "description": "Article 21(2)(g) requires basic cyber hygiene practices and cybersecurity training for all staff. This use case tracks training completion rates, identifies overdue personnel, and correlates training gaps with security incident involvement — proving that awareness is delivered, measured, and effective.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes email, training and sourcetypes ms:o365:management. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Export LMS completion data to `nis2_training_completion.csv` via scheduled script or HEC; (2) include all NIS2-scope employees (not just IT); (3) alert when compliance drops below 90%; (4) correlate training-overdue users with notable events to demonstrate risk-based prioritisation; (5) track phishing simulation click rates as effectiveness evidence. Indexes required: `index=email`, `index=training`; Sourcetypes: `sourcetype=ms:o365:management`.",
-  "visualization": "Single value (compliance %), Bar chart (completion by department), Table (overdue staff), Line chart (compliance trend quarterly).",
+  "description": "Measures organization-wide security awareness training freshness by ingesting LMS completion rows — including course identifiers — and flags anyone overdue against a 365-day policy so hygiene evidence can be joined to leadership dashboards.",
+  "value": "Boards and competent authorities increasingly ask for proof that human-facing controls (training cadence, phishing drill outcomes) keep pace with operational risk; this workflow turns HR and Microsoft 365 telemetry into a repeatable percentage and overdue headcount without waiting for annual PDF exports.",
+  "implementation": "(1) Publish `nis2_training_completion.csv` nightly via HEC or `outputlookup` from your LMS API worker. (2) Map Microsoft 365 phishing campaigns into `index=email` using TA 4055 MessageTrace modules if simulations land there. (3) Alert when `compliance_pct` < 90. (4) Correlate overdue users with `index=auth` notables via `lookup` on `employee_id`. (5) Archive weekly evidence to `audit_evidence`.",
+  "visualization": "Single value compliance %, bar chart by department from lookup field, line chart of rolling overdue count, table drilldown to employee_id.",
   "cimModels": [
     "N/A"
   ],
@@ -37,9 +38,28 @@
     {
       "title": "Splunk Add-on for Microsoft Office 365",
       "url": "https://splunkbase.splunk.com/app/4055"
+    },
+    {
+      "title": "Splunk Docs — HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Reports may queue during major incidents while details are confirmed, or during initial 24h triage.",
+  "knownFalsePositives": "1) **Microsoft 365 phishing simulations marked as real malware training** causing employees to retake modules unnecessarily. *Distinguish:* `ms:o365:management` payload references an official `campaign_id`. *Suppress:* lookup `nis2_phishing_campaign_allowlist.csv` on `campaign_id`. 2) **Contractors exempt from corporate LMS** appearing overdue forever. *Distinguish:* HR tags `worker_type=contractor` in the CSV. *Suppress:* `where worker_type!=\"contractor\" OR isnotnull(exception_register_id)`. 3) **Employees on parental leave with waived curriculum** still counted in `total_staff`. *Distinguish:* `leave_status=active_leave` in `nis2_training_completion.csv`. *Suppress:* filter `where leave_status!=\"active_leave\"`. 4) **Duplicate LMS rows after HR system migration** double-counting completions. *Distinguish:* identical `completion_date` + `course_id` within one minute. *Suppress:* `| dedup employee_id course_id`. 5) **KnowBe4 or Cornerstone lagging 48h behind** making fresh trainings look overdue. *Distinguish:* `_indextime - _time > 172800` on LMS HEC stream. *Suppress:* time-bound exception register entry valid for the vendor outage window.",
   "requiredFields": [
     "avg_days_since",
     "compliance_pct",
@@ -51,9 +71,22 @@
   "equipment": [
     "m365"
   ],
-  "lastReviewed": "2026-04-22",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), CSV lookup (LMS export).\n• Ensure the following data sources are available: `index=training` (LMS completion records via CSV/HEC), `index=email` `sourcetype=\"ms:o365:management\"` (phishing simulation results), `` `notable` `` macro.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Export LMS completion data to `nis2_training_completion.csv` via scheduled script or HEC; (2) include all NIS2-scope employees (not just IT); (3) alert when compliance drops below 90%; (4) correlate training-overdue users with notable events to demonstrate risk-based prioritisation; (5) track phishing simulation click rates as effectiveness evidence.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup nis2_training_completion.csv\n| eval days_since_training=round((now()-strptime(completion_date,\"%Y-%m-%d\"))/86400, 0)\n| eval overdue=if(days_since_training > 365 OR isnull(completion_date), 1, 0)\n| stats count as total_staff, sum(overdue) as overdue_count, avg(days_since_training) as avg_days_since\n| eval compliance_pct=round(100*(total_staff-overdue_count)/total_staff, 1)\n| table total_staff, overdue_count, compliance_pct, avg_days_since\n```\n\nUnderstanding this SPL\n\n**NIS2 Cyber Hygiene and Training Compliance (Art. 21(2)(g))** — Article 21(2)(g) requires basic cyber hygiene practices and cybersecurity training for all staff. This use case tracks training completion rates, identifies overdue personnel, and correlates training gaps with security incident involvement — proving that awareness is delivered, measured, and effective.\n\nDocumented **Data sources**: `index=training` (LMS completion records via CSV/HEC), `index=email` `sourcetype=\"ms:o365:management\"` (phishing simulation results), `` `notable` `` macro. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), CSV lookup (LMS export). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• `eval` defines or adjusts **days_since_training** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **overdue** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **compliance_pct** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n\nOutput fields: avg_days_since, compliance_pct, days_since_training, overdue, overdue_count, total_staff.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (compliance %), Bar chart (completion by department), Table (overdue staff), Line chart (compliance trend quarterly).",
-  "grandmaExplanation": "We stay on top of cyber hygiene and training compliance — so we can show we run security operations and reporting the way the cyber rules that apply to us require.",
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Splunk Search Head with **Lookup Editor** or `lookups/` directory permissions; role `nis2_training_auditor` can `inputlookup` + `outputlookup` but cannot delete indexes.\n• HTTP Event Collector token restricted to `index=training` `sourcetype=lms:completion` (Settings → Data inputs → HTTP Event Collector).\n• Splunk Add-on for Microsoft Office 365 ([Splunkbase 4055](https://splunkbase.splunk.com/app/4055)) ≥4.7 installed on search tier with an Azure AD application registration granted `Report.Read.All` if phishing metrics come from Graph reports feeding `ms:o365:management`.\n• Baseline CSV schema: `employee_id`, `completion_date`, `course_id`, `department`, optional `worker_type`, `leave_status`. File stored at `$SPLUNK_HOME/etc/apps/TA-nis2-compliance/lookups/nis2_training_completion.csv` with version control.\n\nStep 1 — Configure data collection\n• LMS pipeline: schedule worker every 6 hours to POST JSON `{ \"employee_id\":\"E123\", \"completion_date\":\"2026-04-01\", \"course_id\":\"SEC-101\" }` to HEC URI `/services/collector/event` with `Authorization: Splunk <token>`.\n• props.conf stanza:\n```ini\n[lms:completion]\nTIME_PREFIX = \"completion_date\"\\s*:\\s*\nTIME_FORMAT = %Y-%m-%d\nSHOULD_LINEMERGE = false\n```\n• Office 365 TA: under **Inputs**, enable the management activity input that maps phishing simulation summaries; validate `index=email` event count via `| tstats prestats=t count FROM datamodel=Authentication WHERE index=email` (optional mapping).\n• Expected volume: 1 event per employee per course per year ≈ `headcount × courses` — plan <50 MB/year for 10k staff.\n\nStep 2 — Create the search and alert\nReuse the `spl` field verbatim for the aggregate KPI. Create a secondary drilldown:\n```spl\n| inputlookup nis2_training_completion.csv\n| eval overdue=if(round((now()-strptime(completion_date,\"%Y-%m-%d\"))/86400,0)>365,1,0)\n| where overdue=1\n| table employee_id, department, course_id, completion_date\n```\nSchedule alert **UC-22.2.10-overdue** weekly Monday 07:00 with `where overdue_count>25` after first search (use savedsearch chaining).\n\nStep 3 — Validate\n• Sample 10 employees: compare CSV `completion_date` to LMS UI; discrepancy >1 day indicates timezone — set `strftime`/`strptime` with `%z`.\n• Run `| inputlookup nis2_training_completion.csv | stats dc(employee_id)` vs HR headcount feed; investigate gaps.\n• For Microsoft 365 phishing metrics (if enabled), compare Splunk row counts to **Security → Email & collaboration → Attack simulation training** portal for the same `campaign_id`.\n\nStep 4 — Operationalize\n• Dashboard: KPI row, overdue table, 12-week trend (`timechart` wrapper around summary index).\n• Process: GRC team exports signed CSV monthly per `evidenceSigning`; attach to NIS2 Art.21(2)(g) folder.\n• Integrate: push overdue `employee_id` list to ServiceNow `sn_hr_core` update set via scripted alert action.\n\nStep 5 — Troubleshooting\n• **Empty lookup** — worker failed; check HEC ack returns a JSON payload whose text field reads Success and `_internal` `tail http_event_collector`.\n• **compliance_pct>100 artifact** — duplicate keys; run `| stats count by employee_id | where count>1`.\n• **All users overdue after DST shift** — fix `TIME_FORMAT` missing offset.\n• **ms:o365:management silence** — renew Azure certificate or rotate client secret in TA configuration UI.\n",
+  "grandmaExplanation": "We check a simple list that shows who finished this year’s security lessons and who is late, using the same dates the training website stores. That helps leaders prove everyone gets refresher training, not just the tech team.",
   "cimSpl": "",
-  "dataModelAcceleration": "Not applicable"
+  "dataModelAcceleration": "Not applicable",
+  "owner": "HR",
+  "controlFamily": "training-effectiveness",
+  "exclusions": "Does not certify that training content meets national requirements, translate legal text, excuse individuals without HR approval, or replace signed attendance sheets where collective bargaining mandates paper records.",
+  "evidence": "Weekly saved search `UC-22.2.10` output, `nis2_training_completion.csv` version hash recorded in Git, and RFC 3161-signed export blobs referenced by `evidenceSigning` for annual hygiene attestations.",
+  "evidenceSigning": { "method": "rfc3161-tsa", "tsaUrl": "http://timestamp.digicert.com" },
+  "status": "verified",
+  "wave": "crawl",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Fixture loads `nis2_training_completion.csv` where thirty percent of rows have `completion_date` older than 400 days; the aggregate search reports `compliance_pct` below seventy and `overdue_count` equal to thirty percent of `total_staff`, confirming the math surfaces stale training.",
+    "negativeScenario": "Fixture refreshes every employee within ninety days and marks contractors with `worker_type=contractor` plus active exceptions in `nis2_phishing_campaign_allowlist.csv`; the overdue drilldown returns zero internal staff after `where worker_type!=\"contractor\"`, demonstrating tuned green-state output.",
+    "fixtureRef": "sample-data/uc-22.2.10-fixture.json"
+  }
 }

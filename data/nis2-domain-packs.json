@@ -1,0 +1,941 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "regulation": "NIS2",
+  "regulationVersion": "Directive (EU) 2022/2555",
+  "playbook": "docs/gold-standard-authoring-playbook.md",
+  "purpose": "Domain packs are the reusable scaffolding that authors and reviewers draw from when writing or uplifting NIS2 UC sidecars. Each pack pre-populates the data-source family's TA, sourcetypes, fields, CIM mapping, validation pattern, KFPs, and troubleshooting modes so sibling UCs read coherently. The pack is reference material — it is NOT auto-merged into UC sidecars; authors copy and customise.",
+  "lastReviewed": "2026-04-29",
+  "packs": {
+    "es-notables": {
+      "ta": {
+        "name": "Splunk Enterprise Security",
+        "splunkbaseId": 263,
+        "minVersion": "7.0",
+        "scope": "Premium app on a dedicated Search Head or Search Head Cluster; not installed on indexers or forwarders.",
+        "license": "ES is a premium app. Notable storage uses the KV-store-backed `incident_review` collection from ES 7.0 onwards; older ES used `index=notable`."
+      },
+      "data": {
+        "macro": "`notable`",
+        "expansion": "Defined in `SA-Threatintelligence/macros.conf`. Resolves to a search over the `notable` index (or KV-store collection in ES 7.0+) with `eventtype=notable`.",
+        "indexes": ["notable", "risk"],
+        "sourcetypes": ["stash"],
+        "fields": ["rule_name", "urgency", "status", "owner", "status_description", "comment", "src", "dest", "user", "category", "severity", "risk_score", "risk_object", "risk_object_type", "_time"],
+        "expectedVolume": "1 row per notable raised. Fleet steady-state typically 50–500 notables/day depending on correlation-rule scope and tuning."
+      },
+      "cim": {
+        "models": ["Alerts"],
+        "node": "Alerts",
+        "dmaRecommendation": "Alerts data model is small; acceleration adds little value. Run searches against the macro directly."
+      },
+      "validation": {
+        "vendorUi": "Splunk ES > Incident Review",
+        "pages": ["Configure > Content Management (correlation searches)", "Configure > General > Notable Event Statuses", "Configure > Incident Management > Notable Event Suppressions"],
+        "spotChecks": [
+          "Pick two notables in Incident Review; confirm `rule_name`, `urgency`, `status` match the macro output.",
+          "Run `\\`notable\\` | timechart count` over 24h and confirm against ES Incident Review queue depth.",
+          "Run `\\`notable\\` | stats count by status` and reconcile with the Status filter in Incident Review."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Active major incident — analysts deliberately leave notables open while triaging the underlying campaign.",
+          "system": "ES Incident Review",
+          "distinguish": "Look for a parent risk object with `risk_score > 250` in `index=risk` for the same time window, and an open ServiceNow MAJ ticket.",
+          "suppress": "Mark the parent campaign as a single notable suppression in `Configure > Incident Management > Notable Event Suppressions` for the duration of the incident; do not suppress the rule globally."
+        },
+        {
+          "scenario": "Holiday weekend or staffing gap — no analyst on shift to acknowledge.",
+          "system": "PagerDuty / on-call schedule",
+          "distinguish": "Cross-check `index=pagerduty sourcetype=pagerduty:incident` for an unacknowledged page corresponding to the notable.",
+          "suppress": "Do NOT suppress; instead escalate the on-call schedule. The aged notable is a real finding for the IR drill metric."
+        },
+        {
+          "scenario": "Bulk recategorisation after correlation-rule tuning — notables are temporarily not closed while analysts re-triage.",
+          "system": "ES Configure > Content Management",
+          "distinguish": "Correlate with the `lastModified` timestamp on the correlation search (`| rest /servicesNS/-/SA-ThreatIntelligence/saved/searches`).",
+          "suppress": "Time-bound exception in `nis2_exception_register.csv` keyed on `rule_name`, valid for the 7-day re-triage window."
+        },
+        {
+          "scenario": "Risk-Based Alerting (RBA) suppresses individual notables — only the aggregate fires as a notable.",
+          "system": "ES Risk Analysis",
+          "distinguish": "If a per-rule notable is missing but `index=risk` shows recent contributions for that rule, RBA is consolidating.",
+          "suppress": "Do not flag — the aggregate is the correct evidence surface. Update the UC's SPL to count risk-aggregated notables instead."
+        },
+        {
+          "scenario": "Notable raised by a correlation search whose `urgency` is set to `informational` — collected for context, not paged.",
+          "system": "ES Configure > Content Management",
+          "distinguish": "`\\`notable\\` urgency=\"informational\"` should NOT count toward the SLA metric.",
+          "suppress": "Filter `urgency IN (\"high\",\"critical\")` in the SPL, as the exemplars do."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "`\\`notable\\` | head 1` returns no events.",
+          "cause": "ES is not installed on the search head OR the user lacks `read` on `index=notable`.",
+          "fix": "Confirm with `| rest /services/apps/local | search title=SplunkEnterpriseSecuritySuite | table version`. Add `read` for `index=notable` to the user's role."
+        },
+        {
+          "symptom": "All `urgency` values are `informational`.",
+          "cause": "Risk-Based Alerting is consolidating individual rule fires; the only notables raised are aggregate `Risk Analysis` notables which default to `informational`.",
+          "fix": "Either pivot to `index=risk` for evidence, or raise the urgency on the aggregate Risk Analysis correlation search via `Configure > Content Management > Risk Analysis`."
+        },
+        {
+          "symptom": "`status` field is `null` on most notables.",
+          "cause": "Notables raised before ES 7.0 used `index=notable` and an `event_id`-keyed adhoc lookup for status; after 7.0 the source of truth is the KV-store `incident_review` collection. The macro reconciles, but lookup permissions must be granted.",
+          "fix": "Confirm role has `read` on the `incident_review` KV collection: `| inputlookup incident_review_lookup | head 1` should return a row."
+        },
+        {
+          "symptom": "Notable counts in Splunk match Incident Review but do not match SOAR/ServiceNow ticket counts.",
+          "cause": "Not every notable opens a ticket — only those above the SOAR playbook threshold. Or the ITSM forwarder is dropping events.",
+          "fix": "Reconcile against the SOAR playbook configuration (which urgencies trigger ticket creation). For ITSM, check `index=_internal source=*soar* OR source=*snow*` for HEC errors."
+        },
+        {
+          "symptom": "`hours_open` is negative or absurdly large.",
+          "cause": "Forwarder clock skew on the indexer that originally indexed the notable, or `_time` was overridden to a parsed event timestamp instead of the notable creation time.",
+          "fix": "Check `\\`notable\\` | eval lag=_indextime-_time | stats avg(lag) p95(lag) max(lag)`. Investigate hosts with large lag via `chronyc sources`."
+        },
+        {
+          "symptom": "After upgrading ES, the macro returns rows but `rule_name` is empty.",
+          "cause": "ES 7.3+ moved the rule_name lookup to a JSON config in the KV store. The macro expansion in older saved searches still references the legacy CSV.",
+          "fix": "Re-import the macro from the current `SA-Threatintelligence` app or run `splunk reload deploy-server` if cluster-managed. Verify with `| rest /services/saved/searches/notable | table search`."
+        }
+      ],
+      "premiumApps": ["Splunk Enterprise Security"]
+    },
+
+    "soar-cases": {
+      "ta": {
+        "name": "Splunk SOAR (formerly Phantom)",
+        "splunkbaseId": null,
+        "minVersion": "6.2",
+        "scope": "Splunk SOAR is a separate platform. The Splunk Add-on for Phantom (Splunkbase 3411) ships SOAR's audit and case data into Splunk for searching.",
+        "license": "Splunk SOAR is licensed by case volume; the add-on is free. The Phantom Add-on requires API token (read-only) on the SOAR instance."
+      },
+      "data": {
+        "indexes": ["soar", "phantom"],
+        "sourcetypes": ["phantom:container", "phantom:artifact", "phantom:action_run", "phantom:playbook_run", "phantom:audit"],
+        "fields": ["container_id", "container_name", "playbook_name", "owner", "status", "severity", "label", "due_time", "create_time", "close_time", "source_data_identifier"],
+        "expectedVolume": "1 container per SOC ticket-equivalent. Fleet 100–1000 containers/day depending on SOAR scope."
+      },
+      "cim": {
+        "models": ["Alerts", "Change"],
+        "dmaRecommendation": "Phantom add-on tags actions to Change for audit. Acceleration is optional; the data is small."
+      },
+      "validation": {
+        "vendorUi": "Splunk SOAR > Cases / Investigation",
+        "pages": ["Settings > Audit Log", "Sources > Asset configuration"],
+        "spotChecks": [
+          "Pick a recent container in SOAR; verify `container_id`, `status`, `owner`, `due_time` in Splunk match.",
+          "`index=soar sourcetype=phantom:container | timechart count` should match the SOAR > Investigations queue depth."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "SOAR playbook re-runs after a code change — duplicate `action_run` records for the same container.",
+          "system": "SOAR > Playbooks > Run history",
+          "distinguish": "Group by `(container_id, playbook_name)` and take `latest(_time)` to dedupe.",
+          "suppress": "SPL: `| dedup container_id, playbook_name`"
+        },
+        {
+          "scenario": "Containers stuck in `New` because the auto-assignment playbook is disabled during maintenance.",
+          "system": "SOAR > Settings > Automation",
+          "distinguish": "Check the auto-assignment playbook's `last_run` time; if older than the container's `create_time`, the playbook is the cause.",
+          "suppress": "Time-bound exception keyed on `label` for the maintenance period."
+        },
+        {
+          "scenario": "Closed containers re-opened after analyst review — `status` flips from `Closed` back to `Open`.",
+          "system": "SOAR > Investigation",
+          "distinguish": "Look for `phantom:audit` events with `action=container_status_change` and `new_value=Open` on the container.",
+          "suppress": "Reset the SLA clock from the most recent re-open time, not from the original create time."
+        },
+        {
+          "scenario": "External integration timeout (e.g. ServiceNow API down) leaves `action_run` in `Pending` — not a real backlog.",
+          "system": "SOAR > Action Run history",
+          "distinguish": "Filter to `status NOT IN (\"Pending\", \"Running\")` for the SLA metric; track Pending separately.",
+          "suppress": "Update the SPL `where` clause."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No SOAR events at all.",
+          "cause": "Phantom add-on not configured or API token expired.",
+          "fix": "On the SOAR HF, check `index=_internal source=*phantom* | head 20` for OAuth/HTTP errors. Refresh the API token in Phantom Add-on Settings."
+        },
+        {
+          "symptom": "`container_name` is empty for older events.",
+          "cause": "SOAR < 6.0 stored the name only in `meta`; the add-on has been updated to extract from `meta.name`.",
+          "fix": "Update the Phantom Add-on to ≥3.0; older versions miss recent fields."
+        },
+        {
+          "symptom": "Counts don't match the SOAR UI.",
+          "cause": "Multi-tenant SOAR — the API token has access to one tenant only.",
+          "fix": "Enumerate tenants in SOAR Settings; create a token per tenant or use a service-account with cross-tenant scope."
+        }
+      ],
+      "premiumApps": ["Splunk SOAR"]
+    },
+
+    "servicenow-grc": {
+      "ta": {
+        "name": "Splunk Add-on for ServiceNow",
+        "splunkbaseId": 1928,
+        "minVersion": "7.7",
+        "scope": "Heavy Forwarder with reachability to the ServiceNow instance API. Requires REST OAuth or basic-auth credentials with `read` on the GRC tables.",
+        "license": "Free. ServiceNow GRC plugins (Policy & Compliance, Risk, Audit) are licensed separately by ServiceNow."
+      },
+      "data": {
+        "indexes": ["itsm", "grc"],
+        "sourcetypes": ["snow:incident", "snow:problem", "snow:change_request", "snow:sn_compliance_policy", "snow:sn_grc_policy", "snow:sn_risk_risk", "snow:sn_audit_audit_task", "snow:sc_req_item"],
+        "modularInputs": ["servicenow_modular_input"],
+        "apiPaths": ["/api/now/table/sn_grc_policy", "/api/now/table/sn_risk_risk", "/api/now/table/sn_audit_audit_task", "/api/now/table/sn_compliance_policy"],
+        "pollInterval": 300,
+        "fields": ["sys_id", "number", "state", "owner", "assignment_group", "category", "subcategory", "review_date", "due_date", "approval_state", "policy_statement", "risk_score", "control_id", "audit_status", "sys_updated_on"],
+        "expectedVolume": "1 record per row per change. GRC tables typically have hundreds to low thousands of records; full sync ≈ 1 MB/poll."
+      },
+      "cim": {
+        "models": ["Change", "Alerts"],
+        "node": "Change",
+        "dmaRecommendation": "Acceleration recommended for `Change` if multiple ITSM-feeding UCs are in flight."
+      },
+      "validation": {
+        "vendorUi": "ServiceNow > GRC > Policy and Compliance > Policies; > Risk > Risk Register; > Audit > Audit Tasks",
+        "pages": ["System Definition > Tables (sn_grc_policy, sn_risk_risk, sn_audit_audit_task)", "GRC > Administration > Properties"],
+        "spotChecks": [
+          "Pick a known policy in ServiceNow GRC; verify the `sys_id` and `state` match in Splunk.",
+          "Compare the Splunk row count to the `Number of Records` shown in the ServiceNow table list view."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Quarterly attestation push — the modular input ingests hundreds of policy/risk records that look 'updated'.",
+          "system": "ServiceNow GRC > Administration > Schedules",
+          "distinguish": "The `sys_updated_on` for the bulk batch falls within the attestation window (typically the first business day of the quarter).",
+          "suppress": "Time-bound exception in `nis2_exception_register.csv` for the attestation window; apply `where NOT (date_mday IN (1,2) AND date_month IN (\"january\",\"april\",\"july\",\"october\"))` only as a last resort."
+        },
+        {
+          "scenario": "Policy retirement — a policy is intentionally moved to `state=Retired` and an `evidence_age_days` calculation flags it as overdue.",
+          "system": "ServiceNow GRC > Policy > Lifecycle",
+          "distinguish": "Filter `state` IN (active states) before the SLA calculation: `| where state IN (\"Published\", \"Approved\", \"Under Review\")`.",
+          "suppress": "Update the SPL filter; do not suppress the rule."
+        },
+        {
+          "scenario": "Risk register bulk re-scoring — the risk owner changes the `risk_score` for many rows in one shift.",
+          "system": "ServiceNow GRC > Risk > Risk Register",
+          "distinguish": "Look for many `sys_updated_on` entries for one `sys_updated_by` user in a tight window.",
+          "suppress": "Compare against the change request that authorised the re-scoring; do not suppress in SPL."
+        },
+        {
+          "scenario": "Audit task closed but the closure note hasn't propagated — the task shows `state=Closed Complete` but `actual_end` is null.",
+          "system": "ServiceNow > Audit > Audit Tasks",
+          "distinguish": "Wait one polling cycle (5 min) and re-evaluate; if still null, the audit lead didn't fill in `actual_end`.",
+          "suppress": "Notify the audit lead via runbook; do not auto-suppress."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "`index=itsm sourcetype=snow:sn_grc_policy | head 1` returns nothing.",
+          "cause": "The modular input is configured for a different table or the ServiceNow GRC plugin is not licensed.",
+          "fix": "On the HF, `splunk btool inputs list --debug | grep servicenow_modular_input`. Confirm the stanza names `sn_grc_policy` (or `sn_compliance_policy` depending on plugin)."
+        },
+        {
+          "symptom": "401 Unauthorized in `index=_internal source=*servicenow*`.",
+          "cause": "OAuth token expired or service account locked.",
+          "fix": "Refresh the OAuth token in ServiceNow Add-on Settings; verify the service-account in ServiceNow > User Administration > Users is not locked."
+        },
+        {
+          "symptom": "429 Too Many Requests recurring.",
+          "cause": "ServiceNow REST rate limit hit.",
+          "fix": "Increase `interval` on the modular input; raise the ServiceNow rate-limit profile via ServiceNow Admin > System Properties > glide.rest.outbound.max."
+        },
+        {
+          "symptom": "Splunk records older than the corresponding ServiceNow records.",
+          "cause": "ServiceNow timezone mismatch — modular input timestamps in UTC but the table stores in instance TZ.",
+          "fix": "Set the modular input's `timezone` to UTC and reconcile with the ServiceNow `glide.sys.default.tz` system property."
+        }
+      ],
+      "premiumApps": []
+    },
+
+    "cmdb": {
+      "ta": {
+        "name": "Splunk Add-on for ServiceNow (CMDB tables) OR Splunk Asset & Identity framework (ES) OR Splunk DB Connect",
+        "splunkbaseId": 1928,
+        "minVersion": "7.7",
+        "scope": "Same HF as servicenow-grc when sourcing from ServiceNow CMDB. ES Asset & Identity framework runs on the ES SH and reads from KV-store / lookup files.",
+        "license": "ServiceNow CMDB is part of ITSM. The ES Asset & Identity framework is included with ES."
+      },
+      "data": {
+        "indexes": ["cmdb", "asset"],
+        "sourcetypes": ["snow:cmdb_ci", "snow:cmdb_ci_server", "snow:cmdb_ci_appl", "snow:cmdb_ci_business_app", "csv:asset"],
+        "lookups": ["assets_by_str.csv", "identity_lookup.csv", "nis2_entity_scope.csv", "nis2_sector_overlay.csv"],
+        "apiPaths": ["/api/now/table/cmdb_ci", "/api/now/table/cmdb_ci_server", "/api/now/table/cmdb_ci_appl"],
+        "fields": ["sys_id", "name", "ci_class", "operational_status", "owned_by", "support_group", "u_nis2_in_scope", "u_nis2_essential_or_important", "u_sector", "ip_address", "asset_tag", "u_data_classification"],
+        "expectedVolume": "1 row per CI per change. CMDB sizes range 5k–500k CIs depending on org."
+      },
+      "cim": {
+        "models": ["Vulnerabilities", "Endpoint"],
+        "node": "Asset_Center",
+        "dmaRecommendation": "Asset & Identity framework is mandatory for ES correlation searches that pivot on asset criticality."
+      },
+      "validation": {
+        "vendorUi": "ServiceNow > Configuration > CIs > All Configuration Items",
+        "pages": ["ServiceNow > Configuration > Business Applications", "ES > Configure > Identity Management > Assets"],
+        "spotChecks": [
+          "Pick a known production server CI; confirm `name`, `ip_address`, `support_group` match in Splunk.",
+          "Run `| inputlookup assets_by_str.csv | stats dc(asset)` and reconcile with ServiceNow's CMDB > All CIs filter for the same scope."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "RMA / hardware refresh — asset is decommissioned in CMDB but still appears in monitoring data because forwarder hasn't been removed.",
+          "system": "ServiceNow CMDB",
+          "distinguish": "Look for `operational_status=6` (Retired). Compare to recent `_indextime` for the host.",
+          "suppress": "Filter `where operational_status != 6` in the SPL; add a runbook step to remove the forwarder."
+        },
+        {
+          "scenario": "Newly onboarded business unit — CIs created without `u_nis2_in_scope` populated.",
+          "system": "ServiceNow CMDB",
+          "distinguish": "`u_nis2_in_scope` is null AND `sys_created_on > now()-7d`.",
+          "suppress": "Defer the SLA clock by 7 days from creation; surface to the asset owner for classification."
+        },
+        {
+          "scenario": "Bulk import from network discovery (e.g. ServiceNow Discovery, Cisco Catalyst Center) creates duplicate CIs with different `name` formats.",
+          "system": "ServiceNow CMDB > Reconciliation",
+          "distinguish": "Group by `serial_number` or `mac_address`; if multiple `sys_id` map to one device, you have duplicates.",
+          "suppress": "Run the ServiceNow CMDB reconciliation rule; do not suppress in SPL."
+        },
+        {
+          "scenario": "Cloud auto-scaling group — short-lived CIs created and destroyed, never reach steady-state in CMDB.",
+          "system": "ServiceNow CMDB > Cloud Discovery",
+          "distinguish": "`ci_class` is `cmdb_ci_aws_ec2_instance` AND `lifecycle_seconds < 3600`.",
+          "suppress": "Exclude transient CIs from the scope SLA; track them via cloud-native inventory instead."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "Asset lookup returns 0 rows in ES.",
+          "cause": "ES Asset & Identity inputs are not configured to merge the ServiceNow CMDB feed.",
+          "fix": "ES > Configure > Data Enrichment > Asset and Identity Configuration > Asset Sources. Add the `assets_by_str` lookup; click `Save & Apply`."
+        },
+        {
+          "symptom": "`u_nis2_in_scope` field is null on every CI.",
+          "cause": "The custom field exists in CMDB but isn't included in the modular input's `field_list` filter.",
+          "fix": "Update `inputs.conf` for the modular input to add `field_list=...,u_nis2_in_scope,u_sector,u_nis2_essential_or_important`."
+        },
+        {
+          "symptom": "Asset count is 10× expected.",
+          "cause": "Discovery sources are creating CIs without reconciliation; duplicates inflate the count.",
+          "fix": "ServiceNow CMDB > Reconciliation > Identification Rules. Configure SerialNumber or MacAddress as the identity attribute."
+        }
+      ],
+      "premiumApps": ["Splunk Enterprise Security"]
+    },
+
+    "backup": {
+      "ta": {
+        "name": "Veeam App for Splunk (or Commvault, Rubrik, Cohesity, AWS Backup, Druva equivalents)",
+        "splunkbaseId": 7312,
+        "minVersion": "1.0",
+        "scope": "TA installed on a HF that can reach the backup product's API or syslog. Veeam supports SNMP traps + Veeam REST + raw event log.",
+        "license": "TA is free. Veeam (and other backup) licensing is per-protected-VM/TB."
+      },
+      "data": {
+        "indexes": ["backup"],
+        "sourcetypes": ["veeam:backup", "veeam:event", "veeam:job", "commvault:job", "commvault:event", "rubrik:event", "rubrik:metric", "cohesity:event", "aws:backup", "druva:event"],
+        "fields": ["job_name", "target_system", "status", "result", "job_result", "state", "start_time", "end_time", "duration_seconds", "data_size_bytes", "transfer_rate", "restore_point_id", "retention_policy"],
+        "expectedVolume": "1 event per job execution per target. Fleet 1k–10k jobs/day."
+      },
+      "cim": {
+        "models": [],
+        "dmaRecommendation": "No native CIM mapping for backup. Build domain dashboards directly."
+      },
+      "validation": {
+        "vendorUi": "Veeam Backup & Replication Console > Statistics; Commvault Command Center > Job Controller; Rubrik UI > Events; Cohesity Helios > Audit Log",
+        "pages": ["Veeam: Job List > Last 24h", "Commvault: Reports > Backup Job Summary"],
+        "spotChecks": [
+          "Pick a job that just ran; confirm `start_time`, `end_time`, `result` in Splunk match the Veeam Console.",
+          "Run `| stats latest(_time) by job_name` and reconcile with the Veeam job list."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Tape rotation maintenance window — backups deliberately offlined for ~2h while libraries are serviced.",
+          "system": "Veeam > Backup Infrastructure > Tape Library",
+          "distinguish": "Match the gap to the `index=changes` CHG record for tape maintenance; the gap is bounded.",
+          "suppress": "Time-bound exception in `nis2_exception_register.csv` keyed on `target_system` for the window."
+        },
+        {
+          "scenario": "Deduplication catalogue rebuild after a Veeam upgrade — first post-upgrade backup runs longer and may hit warning state.",
+          "system": "Veeam upgrade history",
+          "distinguish": "Look for the upgrade event `index=_internal source=*veeam* upgrade` within 24h of the warning.",
+          "suppress": "Treat as informational for 24h after upgrade; surface as a finding only after the second backup also warns."
+        },
+        {
+          "scenario": "Newly added job — first run is a full backup, takes longer, may overlap the next scheduled job.",
+          "system": "Veeam > Jobs > new job's run history",
+          "distinguish": "`start_time` of the second run intersects `end_time` of the first; both same `job_name` with `is_full=1` for the first.",
+          "suppress": "Allow 3 successful runs before applying the SLA; use `| where job_run_seq > 3`."
+        },
+        {
+          "scenario": "Backup target is full — Veeam reports `Warning` not `Failed`, but the next run will fail unless storage is freed.",
+          "system": "Veeam > Backup Infrastructure > Repositories",
+          "distinguish": "Look for `state=Warning` AND repository_free_pct < 10.",
+          "suppress": "Do not suppress; this is a real finding. Page the storage team."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No `veeam:backup` events.",
+          "cause": "Veeam syslog forwarding not enabled, or Veeam REST API token expired.",
+          "fix": "Veeam Console > General Options > Notifications > SNMP/Syslog. For REST, regenerate the API token in Veeam Console > Users."
+        },
+        {
+          "symptom": "`status` field is empty on most events.",
+          "cause": "Veeam JSON event format changed in v12.1; older props.conf extractions miss the new path.",
+          "fix": "Upgrade the Veeam App for Splunk to the latest; props.conf in the app handles both pre-v12 and v12.1+."
+        },
+        {
+          "symptom": "Duplicate events for the same job.",
+          "cause": "Both syslog AND the API are configured; Veeam emits twice.",
+          "fix": "Disable syslog OR disable the API input; pick one canonical path."
+        },
+        {
+          "symptom": "Restore-point-test events missing.",
+          "cause": "SureBackup / SureReplica jobs are a separate event class; the modular input may not include them.",
+          "fix": "Check `index=backup sourcetype=veeam:event eventtype=*surebackup*`. Update the input's filter to include surebackup events."
+        }
+      ],
+      "premiumApps": ["Splunk ITSI"]
+    },
+
+    "idp": {
+      "ta": {
+        "name": "Splunk Add-on for Microsoft Azure / Okta / Microsoft 365",
+        "splunkbaseId": 3110,
+        "minVersion": "5.0",
+        "scope": "HF with reachability to Microsoft Graph and/or Okta API. OAuth client credentials with `AuditLog.Read.All` (Azure) or `okta.logs.read` (Okta).",
+        "license": "Free. Azure AD P1/P2 license required for risk events; Okta API rate limits depend on org size.",
+        "siblingTAs": [
+          "Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110)",
+          "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055)",
+          "Splunk Add-on for Okta Identity Cloud (Splunkbase 6553)",
+          "Microsoft Sentinel Add-on for Splunk (Splunkbase 6207)"
+        ]
+      },
+      "data": {
+        "indexes": ["auth", "azure", "okta", "o365"],
+        "sourcetypes": ["ms:aad:signin", "ms:aad:audit", "ms:aad:risk", "OktaIM2:log", "o365:management:activity", "WinEventLog:Security", "linux:auth"],
+        "fields": ["userPrincipalName", "actor.alternateId", "Account_Name", "user", "result", "result_reason", "authenticationMethod", "authenticationRequirement", "conditionalAccessStatus", "ipAddress", "client.ipAddress", "src", "factor", "outcome.result"],
+        "expectedVolume": "1 event per sign-in. Fleet 100k–10M events/day for large orgs."
+      },
+      "cim": {
+        "models": ["Authentication"],
+        "node": "Authentication.Authentication",
+        "dmaRecommendation": "Authentication DMA is mandatory for fleet-scale MFA queries — raw queries time out beyond ~1M events."
+      },
+      "validation": {
+        "vendorUi": "Microsoft Entra > Sign-in logs; Okta > Reports > System Log",
+        "pages": ["Entra > Conditional Access > Insights and reporting", "Okta > Security > Authentication Policies"],
+        "spotChecks": [
+          "Find your own most recent sign-in in Entra; verify `userPrincipalName`, `authenticationMethod`, `conditionalAccessStatus` in Splunk match.",
+          "Run `| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action` and reconcile with Entra > Sign-ins > Filter by Status."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Conditional Access policy blocks legacy auth — generates `result=Failure` but is the desired enforcement, not a security event.",
+          "system": "Entra > Conditional Access",
+          "distinguish": "`result=Failure` AND `result_reason` matches `legacy authentication blocked`.",
+          "suppress": "Filter the SPL to exclude `result_reason=*legacy*`; track legacy-blocked separately for compliance evidence."
+        },
+        {
+          "scenario": "MFA fatigue protection (Microsoft Authenticator number-matching) — generates `Failed` events when the user types the wrong number, but the user is legitimate.",
+          "system": "Entra > Sign-in logs > Authentication Details",
+          "distinguish": "`authenticationDetails.authenticationStepResultDetail` includes `Wrong number`. The user retries successfully within 60s.",
+          "suppress": "Group by `(user, ipAddress)` over 5min; if any success follows the failure, treat as one successful event."
+        },
+        {
+          "scenario": "Service account using legacy SAML for B2B integration — `authenticationRequirement` is `singleFactorAuthentication` by design.",
+          "system": "Entra > Enterprise applications > {app} > Sign-in logs",
+          "distinguish": "`appId` in `nis2_b2b_apps_allowlist.csv`.",
+          "suppress": "`| lookup nis2_b2b_apps_allowlist.csv appId OUTPUT b2b_allowed | where isnull(b2b_allowed)`"
+        },
+        {
+          "scenario": "Break-glass account — single-factor by design, monitored separately for use.",
+          "system": "Entra > Conditional Access policy excluding break-glass account",
+          "distinguish": "`userPrincipalName` matches a known break-glass UPN (held in `nis2_breakglass_accounts.csv`).",
+          "suppress": "Filter break-glass from the MFA % calculation; monitor `count` of break-glass uses separately and alert on any."
+        },
+        {
+          "scenario": "Recently provisioned user — first 24h of sign-ins may use SMS while waiting for hardware-token provisioning.",
+          "system": "HR system / IDP joiner workflow",
+          "distinguish": "User's `createdDateTime` (Entra) within last 24h.",
+          "suppress": "Defer the MFA-strength SLA by 24h from createdDateTime."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No `ms:aad:signin` events.",
+          "cause": "App registration permissions wrong, or Azure AD diagnostic settings not exporting to the Event Hub the TA reads from.",
+          "fix": "Confirm in Azure Portal > Microsoft Entra ID > Diagnostic settings that `SignInLogs` is exported. Verify the TA's app registration has `AuditLog.Read.All` consented at the tenant level."
+        },
+        {
+          "symptom": "`mfa_used` always 0 even when MFA is enforced.",
+          "cause": "TA version < 5.0 doesn't extract `authenticationDetails`; the SPL's regex on `_raw` falls through.",
+          "fix": "Upgrade the TA. Verify by running `index=azure sourcetype=ms:aad:signin | head 1 | table authenticationDetails`."
+        },
+        {
+          "symptom": "Okta event count is 1/10 of Okta's UI count.",
+          "cause": "Okta API rate-limit dropped events, or the modular input's `start_time` advanced past unfetched events.",
+          "fix": "Check `index=_internal source=*okta* | search 429`. Reset the Okta input's checkpoint via `splunk reset-input`."
+        },
+        {
+          "symptom": "Authentication DMA acceleration is empty.",
+          "cause": "TA's eventtypes.conf doesn't tag the events with `authentication`; DMA acceleration relies on the tag.",
+          "fix": "On the SH, `| eventcount summarize=false index=azure | head 1` and confirm `eventtype=ms_aad_signin` and `tag::eventtype=authentication`."
+        }
+      ],
+      "premiumApps": []
+    },
+
+    "pam": {
+      "ta": {
+        "name": "Splunk Add-on for CyberArk (or BeyondTrust, HashiCorp Vault equivalents)",
+        "splunkbaseId": 2891,
+        "minVersion": "4.0",
+        "scope": "Syslog from CyberArk PVWA / EPV. The TA parses CEF/Syslog. For Vault: HCP/Enterprise audit log ingest via HEC.",
+        "license": "Free. CyberArk PAM, BeyondTrust Password Safe, and Vault Enterprise are licensed by user/secret count."
+      },
+      "data": {
+        "indexes": ["pam", "cyberark"],
+        "sourcetypes": ["cyberark:pas", "cyberark:session", "cyberark:audit", "beyondtrust:pbsm", "vault:audit"],
+        "fields": ["actor", "target_user", "target_system", "vault_account", "session_id", "session_duration", "command", "outcome", "policy_id", "request_id", "approval_chain"],
+        "expectedVolume": "1 event per password retrieval / session start. Fleet 1k–50k events/day."
+      },
+      "cim": {
+        "models": ["Authentication", "Change"],
+        "node": "Change",
+        "dmaRecommendation": "Authentication acceleration; Change acceleration if ITSM correlation is required."
+      },
+      "validation": {
+        "vendorUi": "CyberArk PVWA > Reports > Activity; BeyondTrust > Reports > User Access Activity",
+        "pages": ["CyberArk > Master Policy > Privileged Access Workflows", "Vault > Settings > Audit"],
+        "spotChecks": [
+          "Pull a recent `Show Password` action from PVWA Reports; confirm `actor`, `vault_account`, `_time` match.",
+          "Compare `| stats count by actor` to the Activity report for the same scope."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Scheduled service-account password rotation — generates `password change` events that look like privileged activity.",
+          "system": "CyberArk > Master Policy > Password Management > Rotation",
+          "distinguish": "`actor=Master Policy Engine` (or service-account name); `command=ChangePassword`.",
+          "suppress": "Exclude the rotation engine actor from the SLA; track separately for change-management evidence."
+        },
+        {
+          "scenario": "Approved emergency access — out-of-hours retrieval with multi-step approval chain.",
+          "system": "CyberArk > Recordings > Live Sessions",
+          "distinguish": "`approval_chain` is non-empty AND each approval is from a distinct `approver_id`.",
+          "suppress": "Cross-reference with `index=changes` for an emergency CHG record; exclude only when matched."
+        },
+        {
+          "scenario": "Discovery scan — CyberArk's account-discovery service touches every safe.",
+          "system": "CyberArk > Accounts > Account Discovery",
+          "distinguish": "`actor=PasswordManager` AND `command=Discover`.",
+          "suppress": "Exclude the `PasswordManager` actor from the activity SLA."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No `cyberark:pas` events.",
+          "cause": "CyberArk PVWA syslog forwarding not enabled, or syslog destination IP wrong.",
+          "fix": "PVWA > Administration > Configuration Options > Logging > Syslog. Confirm destination matches the SC4S / HF receiver."
+        },
+        {
+          "symptom": "`session_duration` always 0.",
+          "cause": "Session was started but PSM (Privileged Session Manager) didn't emit the close event because the session is still open.",
+          "fix": "Filter `| where outcome=\"Closed\" AND session_duration > 0` for SLA calculations."
+        },
+        {
+          "symptom": "Vault audit log ingestion stops.",
+          "cause": "HEC token reached its rate limit, or Vault audit device disabled.",
+          "fix": "On Vault: `vault audit list`. On Splunk: check `index=_internal source=*hec* token=*vault*` for 429."
+        }
+      ],
+      "premiumApps": []
+    },
+
+    "vuln": {
+      "ta": {
+        "name": "Tenable Add-On for Splunk (or Qualys, Rapid7, Defender Vulnerability Management equivalents)",
+        "splunkbaseId": 4060,
+        "minVersion": "6.0",
+        "scope": "HF with API reachability to Tenable.io / Tenable.sc / Qualys cloud. API key with `Vulnerabilities`/`Reports` scope.",
+        "license": "Free. Vendor licenses by asset count."
+      },
+      "data": {
+        "indexes": ["vulnerability", "vuln"],
+        "sourcetypes": ["tenable:io:vulnerabilities", "tenable:io:assets", "tenable:sc:vuln", "qualys:hostvuln", "qualys:assetdetail", "rapid7:asg", "ms:defender:vulnerability"],
+        "apiPaths": ["/vulns/export", "/api/2.0/fo/asset/host/vm/detection/", "/v1/asset_groups"],
+        "pollInterval": 3600,
+        "fields": ["plugin_id", "plugin_name", "severity", "cvss_score", "cvss3_score", "vpr_score", "cve", "asset_id", "asset_uuid", "ip", "hostname", "first_found", "last_found", "state", "patch_published", "exploitability_ease", "patch_pub_date"],
+        "expectedVolume": "1 event per vulnerability per asset per scan. Fleet 100k–10M events/day."
+      },
+      "cim": {
+        "models": ["Vulnerabilities"],
+        "node": "Vulnerabilities",
+        "dmaRecommendation": "Vulnerabilities DMA is mandatory for any fleet-scale query — raw counts time out at ~1M rows."
+      },
+      "validation": {
+        "vendorUi": "Tenable.io > Vulnerabilities; Qualys VMDR > Vulnerabilities",
+        "pages": ["Tenable.io > Settings > Connectors", "Qualys > Sensors > Cloud Agents"],
+        "spotChecks": [
+          "Pick a known critical CVE on a known asset; confirm `plugin_id`, `severity`, `last_found` in Splunk match.",
+          "`| tstats summariesonly=t count from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.severity` matches Tenable.io > Dashboard severity tiles."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Quarterly Patch Tuesday — fresh CVEs published, all assets show `state=open` until next scan completes.",
+          "system": "Microsoft / vendor Security Bulletin",
+          "distinguish": "`first_found > now()-7d` AND `patch_published > now()-7d`.",
+          "suppress": "Defer the SLA clock by 7 days from `first_found` for newly published CVEs; track separately for trend."
+        },
+        {
+          "scenario": "Asset reimaged — old vulnerability records persist for ~30 days until Tenable expires them.",
+          "system": "Tenable.io > Assets > Asset Details > Last Authenticated Scan",
+          "distinguish": "`last_found < now()-30d` AND `state=open`.",
+          "suppress": "Filter the SPL to `last_found > now()-30d` for the SLA metric."
+        },
+        {
+          "scenario": "Compensating control in place — VPR is high but the asset is segmented and unreachable from untrusted zones.",
+          "system": "ServiceNow GRC > Compensating Controls",
+          "distinguish": "Lookup `nis2_compensating_controls.csv` keyed on `(plugin_id, asset_id)` returns a non-expired entry.",
+          "suppress": "Filter the SPL via lookup; require the compensating-control owner to renew quarterly."
+        },
+        {
+          "scenario": "Vendor false positive (e.g. Tenable plugin 12345 misdetects on CentOS Stream).",
+          "system": "Tenable Plugin Feed",
+          "distinguish": "Tenable issues a plugin update; the next scan correctly classifies.",
+          "suppress": "Time-bound exception keyed on `(plugin_id, distro)` until the plugin update is deployed."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No `tenable:io:vulnerabilities` events.",
+          "cause": "Tenable.io export job failed (export takes 5–30 min to materialise); API key scope insufficient.",
+          "fix": "On Tenable: Settings > My Account > API Keys > regenerate; ensure scope includes `vulns`. Check `index=_internal source=*tenable* | head 20`."
+        },
+        {
+          "symptom": "Asset count is 1/3 of Tenable.io count.",
+          "cause": "Splunk is only ingesting `state=open`; closed/fixed are excluded by the export query.",
+          "fix": "If full asset count is needed, change the export query to include `state IN (open, fixed, reopened)`. Default is `open` only."
+        },
+        {
+          "symptom": "Vulnerabilities DMA acceleration empty.",
+          "cause": "TA's tags.conf doesn't tag events as `vulnerability`.",
+          "fix": "On the SH, `| eventcount summarize=false index=vulnerability | head 1` should show `eventtype=tenable_io_vuln` and `tag::eventtype=vulnerability`."
+        },
+        {
+          "symptom": "Duplicate vulnerabilities per asset.",
+          "cause": "Both agent-based and network-based scans configured; same asset scanned twice.",
+          "fix": "Dedupe in SPL on `(plugin_id, asset_uuid)` taking `latest(_time)`."
+        }
+      ],
+      "premiumApps": []
+    },
+
+    "lms": {
+      "ta": {
+        "name": "KnowBe4 Add-on for Splunk (or Cornerstone, Workday Learning equivalents)",
+        "splunkbaseId": 3839,
+        "minVersion": "1.5",
+        "scope": "HF with API reachability to KnowBe4. Reporter API token (read-only).",
+        "license": "Free. KnowBe4 / Cornerstone / Workday licenses by user."
+      },
+      "data": {
+        "indexes": ["hr", "training", "lms"],
+        "sourcetypes": ["knowbe4:event", "knowbe4:training", "knowbe4:phishing", "workday:audit", "cornerstone:learning"],
+        "apiPaths": ["/v1/users", "/v1/training_campaigns", "/v1/training/enrollments", "/v1/phishing/security_tests"],
+        "pollInterval": 3600,
+        "fields": ["user_id", "email", "campaign_id", "campaign_name", "enrollment_id", "completion_status", "completion_date", "due_date", "phishing_test_id", "clicked", "reported", "credential_entered"],
+        "expectedVolume": "1 event per user per training assignment status change. Fleet 50k–500k events/day."
+      },
+      "cim": {
+        "models": [],
+        "dmaRecommendation": "No CIM mapping for LMS. Build domain dashboards directly."
+      },
+      "validation": {
+        "vendorUi": "KnowBe4 Console > Training > Campaigns; Cornerstone > Reports > Transcript Status",
+        "pages": ["KnowBe4 > Settings > API > Reporter API", "Workday > Recruiting > Job Requisitions"],
+        "spotChecks": [
+          "Pick a recent campaign; verify `completion_status` per user matches the KnowBe4 transcript.",
+          "`| stats count by completion_status` reconciles with the campaign summary."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Quarterly campaign rollover — bulk `Past Due` ratings resolve over 30 days as users complete.",
+          "system": "KnowBe4 > Training > Campaigns",
+          "distinguish": "`due_date` for many users falls in the same week.",
+          "suppress": "Defer the SLA clock by 30 days from `due_date` for the rollover quarter."
+        },
+        {
+          "scenario": "New hire — assigned training but in onboarding window; not yet at desk.",
+          "system": "HR onboarding workflow",
+          "distinguish": "Lookup `hr_employees.csv` for `start_date > now()-14d`.",
+          "suppress": "Defer SLA by 30 days from start_date."
+        },
+        {
+          "scenario": "Leave of absence — user assigned but on parental/medical leave.",
+          "system": "HR leave system",
+          "distinguish": "Lookup `hr_loa.csv` for `loa_active=true`.",
+          "suppress": "Suspend the SLA for the LoA period; resume on return."
+        },
+        {
+          "scenario": "Phishing test follow-up training — assigned only after a click; due date is 14 days post-click.",
+          "system": "KnowBe4 > Phishing > Failures",
+          "distinguish": "`enrollment_id` references a campaign with `is_remediation=true`.",
+          "suppress": "Use a separate SLA (14 days) for remediation training; do not group with annual."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "Training events not arriving.",
+          "cause": "KnowBe4 Reporter API token expired or rate-limited.",
+          "fix": "KnowBe4 Console > Account Settings > API > Regenerate Reporter API token. Increase poll `interval` if hitting 429."
+        },
+        {
+          "symptom": "User counts don't match KnowBe4 active-users.",
+          "cause": "Active Directory sync delay — KnowBe4 enrolled users not yet in `hr_employees.csv`.",
+          "fix": "Verify the AD sync schedule in KnowBe4 Console > Account Settings > Active Directory."
+        }
+      ],
+      "premiumApps": []
+    },
+
+    "crypto": {
+      "ta": {
+        "name": "Splunk Stream (TLS metadata) + Venafi + HashiCorp Vault audit",
+        "splunkbaseId": 1809,
+        "minVersion": "8.0",
+        "scope": "Splunk Stream on a network tap or via SPAN port for TLS handshake metadata. Venafi REST polling on HF. Vault audit via HEC.",
+        "license": "Splunk Stream is free; Venafi and Vault licensed separately."
+      },
+      "data": {
+        "indexes": ["pki", "ssl", "stream"],
+        "sourcetypes": ["stream:tcp", "stream:tls", "venafi:certificate", "vault:audit", "stream:http"],
+        "fields": ["ssl_version", "ssl_cipher_suite", "ssl_issuer", "ssl_subject", "ssl_validity_days", "ssl_publickey", "ssl_publickey_size", "cert_serial", "cert_thumbprint", "cert_expiry", "key_id", "key_type", "tls_version", "ja3"],
+        "expectedVolume": "1 event per TLS handshake per session. Fleet 1k–10M events/day depending on tap scope."
+      },
+      "cim": {
+        "models": ["Certificates", "Network_Traffic"],
+        "node": "Certificates.SSL",
+        "dmaRecommendation": "Certificates DMA acceleration is recommended for any cert-inventory query."
+      },
+      "validation": {
+        "vendorUi": "Venafi TPP > Policy Tree > Certificates; Vault UI > Secrets > PKI",
+        "pages": ["Venafi > Reports > Compliance", "Vault > Secrets > PKI > Roles"],
+        "spotChecks": [
+          "Pick a known certificate in Venafi; confirm `cert_serial`, `cert_expiry` match in Splunk.",
+          "Run `| tstats summariesonly=t latest(Certificates.SSL.cert_expiry) by Certificates.SSL.cert_subject_common_name` and reconcile with Venafi inventory."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Test environment — self-signed certs, weak ciphers — by design.",
+          "system": "DNS naming convention",
+          "distinguish": "`ssl_subject` matches `*-test.*` or `dev.*` patterns.",
+          "suppress": "Filter test domains via lookup `nis2_environment_classification.csv`."
+        },
+        {
+          "scenario": "Legacy IoT device — only supports TLS 1.0 / 1.1; on a segmented VLAN with compensating controls.",
+          "system": "Network segmentation policy",
+          "distinguish": "`src` IP in the IoT VLAN range AND device is in `nis2_compensating_controls.csv`.",
+          "suppress": "Filter via lookup; do not suppress globally."
+        },
+        {
+          "scenario": "Cipher rotation in progress — old cipher temporarily allowed during a rolling upgrade.",
+          "system": "Change management",
+          "distinguish": "Match a `index=changes` CHG record for cipher migration; bounded time window.",
+          "suppress": "Time-bound exception during the migration window."
+        },
+        {
+          "scenario": "Cert renewed but old cert still in cache — Splunk Stream sees both old and new for ~24h.",
+          "system": "Application cert cache (typically Java keystore or nginx)",
+          "distinguish": "Two `cert_serial` for same `ssl_subject` within 24h; older serial expires inside 24h.",
+          "suppress": "Dedupe to `latest(_time) by ssl_subject, cert_serial`."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No TLS metadata.",
+          "cause": "Splunk Stream not deployed or not seeing the tap traffic.",
+          "fix": "Splunk Stream > Configuration > Stream Sources > confirm `tls` stream is enabled and `tap_interface` is set."
+        },
+        {
+          "symptom": "Cert expiry events missing.",
+          "cause": "Venafi TPP polling job disabled or REST credential lacks `Read` on certificates.",
+          "fix": "Venafi > Identity > Permissions > confirm the API account has `Read` on the policy folder."
+        }
+      ],
+      "premiumApps": []
+    },
+
+    "dns": {
+      "ta": {
+        "name": "Splunk Stream (DNS) OR Cisco Umbrella TA OR Splunk Add-on for Microsoft DNS / BIND",
+        "splunkbaseId": 1809,
+        "minVersion": "8.0",
+        "scope": "Splunk Stream on the recursive resolver path, OR ingest from Microsoft DNS Analytical Channel via Splunk Add-on for Microsoft Windows.",
+        "license": "Free. Volume can be 100GB+/day at large orgs."
+      },
+      "data": {
+        "indexes": ["dns", "stream"],
+        "sourcetypes": ["stream:dns", "MSAD:NT6:DNS", "umbrella_dns", "dns:bind", "WinEventLog:DNS Server"],
+        "fields": ["query", "query_type", "reply_code", "answer", "src_ip", "dest_ip", "dns_server", "ttl", "domain"],
+        "expectedVolume": "1 event per DNS query. Fleet 10M–1B events/day."
+      },
+      "cim": {
+        "models": ["Network_Resolution"],
+        "node": "DNS",
+        "dmaRecommendation": "Mandatory acceleration; raw queries time out beyond seconds."
+      },
+      "validation": {
+        "vendorUi": "Cisco Umbrella > Reports > Activity Search; Microsoft DNS Console > Event Viewer",
+        "pages": ["Splunk Stream > Configuration > Stream Sources > DNS"],
+        "spotChecks": [
+          "Issue a DNS query for a known domain; verify `query`, `answer` in Splunk within 30 seconds.",
+          "`| tstats summariesonly=t count from datamodel=Network_Resolution.DNS by DNS.query` top-N matches Umbrella's top queries."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Software update poll — Microsoft / Adobe / vendor SaaS makes 1000s of repetitive DNS queries to update servers.",
+          "system": "Vendor update server",
+          "distinguish": "`domain` matches a known update domain (e.g. `windowsupdate.com`).",
+          "suppress": "Filter via `nis2_dns_update_allowlist.csv`."
+        },
+        {
+          "scenario": "DNS cache flush — temporary spike in queries after a TTL expiry.",
+          "system": "Recursive resolver cache",
+          "distinguish": "Bounded spike; returns to baseline in 5 min.",
+          "suppress": "Use a 5-min smoothed average for the SLA."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No DNS events.",
+          "cause": "Splunk Stream not deployed, or Microsoft DNS Analytical Channel not enabled.",
+          "fix": "Splunk Stream > confirm DNS stream is enabled and unfiltered. For MS DNS, enable the Analytical channel via `wevtutil sl Microsoft-Windows-DNSServer/Analytical /e:true /q:true`."
+        }
+      ],
+      "premiumApps": []
+    },
+
+    "ot": {
+      "ta": {
+        "name": "Cisco Cyber Vision OR Nozomi Networks OR Claroty OR Splunk OT Security Add-on + Splunk Edge Hub",
+        "splunkbaseId": 6059,
+        "minVersion": "1.5",
+        "scope": "Cyber Vision Center has a Splunk forwarder integration; Nozomi/Claroty syslog. Edge Hub for direct OT sensor ingest.",
+        "license": "OT Security Add-on requires Splunk OT Security; sensor TAs licensed by vendor."
+      },
+      "data": {
+        "indexes": ["ot", "scada", "edge_hub"],
+        "sourcetypes": ["cisco:cybervision:event", "cisco:cybervision:asset", "nozomi:event", "claroty:alert", "modbus:metric", "opcua:metric"],
+        "fields": ["asset_id", "asset_name", "asset_type", "vendor", "model", "ip", "mac", "vlan", "protocol", "function_code", "register_address", "value", "operator", "severity", "tag_name"],
+        "expectedVolume": "1 event per asset state change or detected anomaly. Fleet ~10–100k events/day per OT site."
+      },
+      "cim": {
+        "models": ["Endpoint", "Alerts"],
+        "dmaRecommendation": "OT data is sparse; acceleration optional."
+      },
+      "validation": {
+        "vendorUi": "Cyber Vision Center > Inventory > Components; Nozomi Guardian > Asset Management",
+        "pages": ["Cyber Vision > Settings > Sensors", "Nozomi > Configuration > Data sources"],
+        "spotChecks": [
+          "Pick a known PLC; verify `asset_id`, `vendor`, `model` in Splunk match.",
+          "`| stats dc(asset_id)` matches Cyber Vision Inventory count for the same site."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Scheduled engineering download — programmer connects to PLC during a maintenance window; looks like privileged access.",
+          "system": "Engineering work permit system",
+          "distinguish": "Match against `index=changes` for a CHG record; engineering laptop in `nis2_ot_engineer_endpoints.csv`.",
+          "suppress": "Time-bound exception during the work permit window."
+        },
+        {
+          "scenario": "Sensor discovery scan — Nozomi/Claroty active scan triggers protocol traffic that looks anomalous.",
+          "system": "Nozomi Configuration > Active Discovery Schedule",
+          "distinguish": "`src_ip` matches the Guardian's IP range.",
+          "suppress": "Filter the Guardian's IP from the anomaly SLA."
+        },
+        {
+          "scenario": "Process startup — first 10 minutes of a process run produce setpoint changes that look like tampering.",
+          "system": "DCS / SCADA startup procedure",
+          "distinguish": "Process is in `Startup` mode in the historian.",
+          "suppress": "Suspend the SLA for 10 min after the historian's `Startup` flag is set."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "No OT events.",
+          "cause": "Cyber Vision sensor not paired with the Splunk integration, or syslog destination wrong.",
+          "fix": "Cyber Vision Center > Settings > Splunk Integration > confirm receiver IP."
+        },
+        {
+          "symptom": "`asset_id` field empty.",
+          "cause": "Cyber Vision exports a different asset reference key in newer firmware.",
+          "fix": "Update the Cyber Vision TA to the latest; confirm the `asset_id` extraction in the TA's `props.conf`."
+        }
+      ],
+      "premiumApps": ["Splunk OT Security Add-on", "Splunk Edge Hub"]
+    },
+
+    "audit-evidence": {
+      "ta": {
+        "name": "Splunk-internal evidence index — author-managed",
+        "splunkbaseId": null,
+        "minVersion": null,
+        "scope": "Index `audit_evidence` is a restricted index used to archive UC outputs, dashboard exports, and saved-search results for tamper-evident retention. Roles: only `audit_evidence_writer` can write; `audit_evidence_reader` can read.",
+        "license": "Standard Splunk indexing licence applies. RFC 3161 timestamping (`evidenceSigning.method = rfc3161-tsa`) is recommended for production."
+      },
+      "data": {
+        "indexes": ["audit_evidence"],
+        "sourcetypes": ["evidence:saved_search", "evidence:dashboard_export", "evidence:scheduled_report"],
+        "fields": ["uc_id", "evidence_id", "owner", "control_id", "_time", "tsa_signature", "sigstore_bundle"],
+        "expectedVolume": "1 event per UC saved-search run. Steady-state ~100MB/day for the full Tier-1 catalogue."
+      },
+      "cim": {
+        "models": [],
+        "dmaRecommendation": "None — evidence index is not a CIM source."
+      },
+      "validation": {
+        "vendorUi": "Splunk audit log (`index=_audit`) — the canonical source-of-truth for who-ran-what",
+        "pages": ["Settings > Access Controls > Audit"],
+        "spotChecks": [
+          "`index=audit_evidence | stats count by uc_id` shows expected entries for each scheduled UC.",
+          "Check `index=_audit action=search uc_id=*` for the corresponding search executions."
+        ]
+      },
+      "kfps": [
+        {
+          "scenario": "Scheduled UC search produces 0 results — no evidence event written.",
+          "system": "Scheduled saved search",
+          "distinguish": "Result count = 0 is itself evidence; ensure the saved search writes a `result_count=0` event to `audit_evidence`.",
+          "suppress": "Configure the saved search's alert action to write to `audit_evidence` even on 0 results."
+        }
+      ],
+      "troubleshooting": [
+        {
+          "symptom": "`audit_evidence` index empty.",
+          "cause": "Saved-search alert action not configured to summary-index into `audit_evidence`.",
+          "fix": "Edit the saved search > Edit Alert Actions > Add `Summary Index = audit_evidence`."
+        }
+      ],
+      "premiumApps": []
+    }
+  }
+}

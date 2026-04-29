@@ -17,49 +17,94 @@
       "mode": "satisfies",
       "assurance": "partial",
       "assurance_rationale": "Uplifted from contributing: SPL directly addresses Art.21(2)(c) requirements with specific, actionable monitoring.",
-      "controlObjective": "Evidence that NIS2 Art.21(2)(c) (Business continuity and crisis management) is enforced — Splunk UC-22.2.4: NIS2 Business Continuity and Crisis Management Monitoring.",
-      "evidenceArtifact": "Saved search 'UC-22.2.4' running on index=itsi_summary (health_score, service_name, kpi_name, severity_value, severity_label, is_service_in_maintenance), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "controlObjective": "Shows BCM plans, BIA reviews, and failover tests stay on schedule by matching ServiceNow GRC policies plus `category=bcp_review` tasks to `nis2_bcp_inventory`, and surfaces ITSI services that leave 'green' during `is_drill` exercises.",
+      "evidenceArtifact": "Saved search `UC-22.2.4` on `index=itsm` (`sourcetype=snow:sn_grc_policy`, `sourcetype=snow:task`) and `index=itsi` `sourcetype=itsi:service_health`, enriched via `lookup nis2_bcp_inventory` (plan_id, owner, review_cycle_days, last_review_date, last_test_date); exports/PDF to vault with RFC3161. SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(c)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=itsi_summary` (health_score, service_name, kpi_name, severity_value, severity_label, is_service_in_maintenance)",
-  "app": "Splunk IT Service Intelligence (Splunkbase 1841)",
-  "spl": "index=itsi_summary is_service_in_maintenance=0 earliest=-24h\n| eval rto_rpo_risk=if(severity_value>=3 OR health_score<70, 1, 0)\n| stats avg(health_score) as avg_health,\n        count(eval(rto_rpo_risk=1)) as breach_events\n    by service_name, kpi_name\n| where breach_events>0 OR avg_health<85\n| sort - breach_events\n| table service_name, kpi_name, avg_health, breach_events",
-  "description": "Uses ITSI service health and KPI breach signals as live evidence that continuity targets (RTO/RPO expressed as service KPIs) are monitored during incidents and crises.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes itsi_summary. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Model each regulated NIS2 service in ITSI with KPIs tied to RTO/RPO (e.g. availability, transaction success, replication lag); (2) set severity thresholds so `severity_value>=3` aligns with crisis playbooks; (3) display on Glass Table / Service Analyzer for NOC/C-level crisis calls; (4) attach episode workflows for major incidents. Indexes required: `index=itsi_summary`.",
-  "visualization": "Service Analyzer (ITSI), Glass Table, Line chart (health_score over time), Table (KPIs in breach). Key fields: `avg_health`, `breach_events`, `kpi_name`, `rto_rpo_risk`, `service_name`.",
+  "dataSources": "`index=itsm` with Splunk Add-on for ServiceNow (Splunkbase 1928) normalized pulls: `sourcetype=snow:sn_grc_policy` (plan identifiers, `sys_updated_on`, workflow state, policy classification) and `sourcetype=snow:task` for `category=bcp_review` work (task number, assignment group, closed_at, test_date). `index=itsi` with Splunk IT Service Intelligence (Splunkbase 1841): `sourcetype=itsi:service_health` (service_id, service_name, service_health_status, drill_window flags if tagged). CSV lookup `nis2_bcp_inventory.csv` joins plan_id to review_cycle_days, last_review_date, last_test_date, owner, and BIA refresh markers.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk IT Service Intelligence (Splunkbase 1841); define `nis2_bcp_inventory` in `transforms.conf` on the Search Head",
+  "spl": "(index=itsm (sourcetype=snow:sn_grc_policy OR (sourcetype=snow:task category=bcp_review)) earliest=-180d@d) OR (index=itsi sourcetype=itsi:service_health is_drill=1 earliest=-24h)\n| eval plan_key=if(index=\"itsm\",coalesce(plan_id,u_bcp_plan_ref,cmdb_ci),service_name)\n| lookup nis2_bcp_inventory plan_id AS plan_key OUTPUT plan_name, owner, review_cycle_days, last_review_date, last_test_date\n| eval last_review_epoch=if(isnotnull(last_review_date),strptime(last_review_date,\"%Y-%m-%d\"),null())\n| eval days_since_review=if(index=\"itsm\" AND isnotnull(last_review_epoch),round((now()-last_review_epoch)/86400,1),null())\n| eval review_breach=0\n| eval review_breach=if(index=\"itsm\" AND ((days_since_review>review_cycle_days) OR isnull(last_test_date) OR match(lower(state),\"pending|waiting|work in progress\")),1,review_breach)\n| eval review_breach=if(index=\"itsi\" AND NOT match(service_health_status,\"(?i)normal|green\"),1,review_breach)\n| where review_breach=1\n| stats latest(service_health_status) as svc_status latest(days_since_review) as days_since_review latest(owner) as plan_owner values(plan_name) as plans by plan_key index\n| sort 0 - days_since_review",
+  "description": "Correlates ServiceNow GRC and BCM task evidence with a BCP inventory lookup and ITSI service-health rows during declared drills, surfacing overdue plan reviews, missing failover test dates, stalled workflow states, and services that breach health expectations while `is_drill=1`.",
+  "value": "Instead of chasing spreadsheets before an audit, executives get a dated list of which continuity artefacts are out of cadence and which practice runs actually stressed the production service tree — so gaps are fixed before regulators ask and crisis calls start with facts, not guesses.",
+  "implementation": "(1) Install Splunk Add-on for ServiceNow (Splunkbase 1928) and enable the GRC/policy and task pulls your process already uses; map `category=bcp_review` for BCM work. (2) Load `nis2_bcp_inventory.csv` via Lookup Editor or `lookups/` + `transforms.conf`. (3) Tag ITSI entities used in failover drills; ensure `itsi:service_health` includes `is_drill` during exercises. (4) Schedule the saved search weekly and push results to the compliance dashboard. (5) Archive outputs with RFC3161 timestamping per `evidenceSigning`.",
+  "visualization": "Dashboard Studio row A: table of `plan_key`, `plan_owner`, `days_since_review`, BIA freshness flag from lookup. Row B: ITSI Service Analyzer deep link for drill services in breach. Row C: single value of open `snow:task` counts stuck >14 days.",
   "cimModels": [
     "N/A"
   ],
   "references": [
     {
-      "title": "Splunk IT Service Intelligence",
+      "title": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "Splunk IT Service Intelligence (Splunkbase 1841)",
       "url": "https://splunkbase.splunk.com/app/1841"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Reports may queue during major incidents while details are confirmed, or during initial 24h triage.",
+  "knownFalsePositives": "**ServiceNow backlog grooming:** Distinguish long-lived `snow:task` items already waived by risk acceptance in the ticket. Suppress with `lookup nis2_bcp_exception_register exception_key AS number OUTPUT suppress_until | where now() > suppress_until OR isnull(suppress_until)`.\n\n**Vendor field renames after upgrade:** Distinguish missing `plan_id` because the field moved to a new alias. Suppress nothing — fix `props.conf` FIELDALIAS in Splunk Add-on for ServiceNow (Splunkbase 1928) until `plan_key` populates again.\n\n**Planned maintenance on ITSI KPIs during drills:** Distinguish `service_health_status` red caused by known change windows from real failover failure. Suppress with `lookup maintenance_windows_drills service_name OUTPUT in_window | where in_window!=1` or a time-bound exception row.\n\n**Historical imports inflating “days since review”:** Distinguish bulk-loaded policies with synthetic `last_review_date`. Suppress via filter `where source!=\"legacy_migrate\"` after tagging those sources during onboarding.",
   "requiredFields": [
-    "avg_health",
-    "breach_events",
-    "kpi_name",
-    "rto_rpo_risk",
-    "service_name"
+    "category",
+    "days_since_review",
+    "is_drill",
+    "plan_key",
+    "plan_name",
+    "plan_owner",
+    "review_cycle_days",
+    "service_health_status",
+    "service_name",
+    "sourcetype",
+    "state",
+    "last_review_date",
+    "last_test_date"
   ],
   "equipment": [
+    "itsm",
     "itsi"
   ],
-  "lastReviewed": "2026-04-22",
+  "lastReviewed": "2026-04-29",
   "premiumApps": [
     {
       "name": "Splunk ITSI",
       "displayName": "Splunk IT Service Intelligence (ITSI)"
     }
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk IT Service Intelligence (Splunkbase 1841).\n• Ensure the following data sources are available: `index=itsi_summary` (health_score, service_name, kpi_name, severity_value, severity_label, is_service_in_maintenance).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Model each regulated NIS2 service in ITSI with KPIs tied to RTO/RPO (e.g. availability, transaction success, replication lag); (2) set severity thresholds so `severity_value>=3` aligns with crisis playbooks; (3) display on Glass Table / Service Analyzer for NOC/C-level crisis calls; (4) attach episode workflows for major incidents.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsi_summary is_service_in_maintenance=0 earliest=-24h\n| eval rto_rpo_risk=if(severity_value>=3 OR health_score<70, 1, 0)\n| stats avg(health_score) as avg_health,\n        count(eval(rto_rpo_risk=1)) as breach_events\n    by service_name, kpi_name\n| where breach_events>0 OR avg_health<85\n| sort - breach_events\n| table service_name, kpi_name, avg_health, breach_events\n```\n\nUnderstanding this SPL\n\n**NIS2 Business Continuity and Crisis Management Monitoring (Art. 21(2)(c))** — Uses ITSI service health and KPI breach signals as live evidence that continuity targets (RTO/RPO expressed as service KPIs) are monitored during incidents and crises.\n\nDocumented **Data sources**: `index=itsi_summary` (health_score, service_name, kpi_name, severity_value, severity_label, is_service_in_maintenance). **App/TA** (typical add-on context): Splunk IT Service Intelligence (Splunkbase 1841). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsi_summary.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsi_summary, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **rto_rpo_risk** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `stats` aggregates events by **service_name, kpi_name**, producing one row per unique combination for trend analysis and threshold evaluation.\n• Filters the current rows with `where breach_events>0 OR avg_health<85` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOutput fields: avg_health, breach_events, kpi_name, rto_rpo_risk, service_name.\n\nStep 3 — Validate\nCompare with service health in the ITSI views and the operational runbook for the same service window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Service Analyzer (ITSI), Glass Table, Line chart (health_score over time), Table (KPIs in breach).",
-  "grandmaExplanation": "We uses ITSI service health and KPI breach signals as live evidence that continuity targets (RTO/RPO expressed as service KPIs) are monitored during incidents and crises.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud search tier with role `nis2_bcp_reader` granting `index=itsm`, `index=itsi`, and `srchLookups` for `nis2_bcp_inventory`.\n• Splunk Add-on for ServiceNow (Splunkbase 1928) ≥8.x on a Heavy Forwarder or data collection node with OAuth / basic credential stored in the credential store; enable modular inputs that hydrate `sourcetype=snow:sn_grc_policy` and `sourcetype=snow:task` at ≤15 minute intervals for BCM categories.\n• Splunk IT Service Intelligence (Splunkbase 1841) with Service Analyzer access; drill tagging convention `is_drill=1` on `sourcetype=itsi:service_health` rows for the regulated entity tree (configure via ITSI episode policy or alert aggregation during exercises).\n• CSV lookup `lookups/nis2_bcp_inventory.csv` deployed through the shared compliance app with `transforms.conf` stanza `[nis2_bcp_inventory]` and `check_matches = warn` during QA.\n\nStep 1 — Configure data collection\nIn `$SPLUNK_HOME/etc/apps/Splunk_TA_snow/local/inputs.conf`, duplicate the vendor template stanzas for GRC policy tables and `sc_task` / `task` pulls, setting `index = itsm`, `polling_interval = 300`, and `start_by_shell = false` as recommended in the TA docs. Map table columns to `plan_id`, `state`, `category`, and `cmdb_ci` via `props.conf` FIELDALIAS so the SPL `plan_key` coalesce resolves consistently. For ITSI, validate KV store collections `itsi_group_entities` include CMDB keys that line up with `plan_key`. Run `splunk cmd splunkd print-modinput-config --serveruri https://localhost:8089 Splunk_TA_snow://<input>` from the CLI to confirm the modular input returns HTTP 200 and JSON payloads under 5 MB per poll.\n\nStep 2 — Create the search, test panel, and alert\nUse Search & Reporting → New Search, paste the UC SPL, set time range Last 180 days, then Save As → Alert with cron `0 7 * * MON` and throttle 24 hours on `plan_key`. Add a drilldown that opens `ServiceNow -> GRC -> Policies` filtered by `plan_key` and a second drill that opens ITSI **Service Analyzer** for `service_name`. Understanding this SPL: the outer search isolates BCM artefacts; `lookup nis2_bcp_inventory` supplies contractual review cadence; `eval review_breach` turns policy data into a boolean; the `append` subsearch pulls only drill-window health rows so failover evidence is not drowned by steady-state noise.\n\nStep 3 — Validate\nPick three plans from the CSV and manually confirm `last_review_date` in ServiceNow matches the Splunk row within one business day. Run `| makeresults | eval plan_key=\"TEST-PLAN-01\" | lookup nis2_bcp_inventory plan_id AS plan_key OUTPUT *` to verify the lookup path. In ITSI, execute a coordinated drill, watch `index=itsi sourcetype=itsi:service_health is_drill=1 earliest=-4h` in Search, and confirm severity lines up with the Service Analyzer tile for the same `service_name`.\n\nStep 4 — Operationalize & Troubleshoot\nPublish a Dashboard Studio board with tokens for `plan_owner` and `service_name`. Wire an adaptive response (email or webhook) that embeds the RFC3161 token reference produced by your evidence pipeline. Weekly governance: export the panel to PDF, store in the records tool, and attach the timestamp manifest.\n\nStep 5 — Troubleshooting\n• **No `snow:sn_grc_policy` events** — input disabled or wrong endpoint: check **Settings → Data inputs → Splunk Add-on for ServiceNow**, validate REST path `/api/now/table/sn_grc_policy`, rotate API credentials if HTTP 401 appears in `splunkd.log`.\n• **Lookup misses every row** — casing mismatch on `plan_id`; normalize with `| eval plan_key=lower(plan_key)` before lookup or rebuild CSV keys.\n• **`append` returns nothing** — ITSI macro not setting `is_drill=1`; temporarily remove `is_drill=1` filter, confirm `sourcetype=itsi:service_health` exists, then re-enable tagging via episode workflow.\n• **False overdue reviews** — CSV `review_cycle_days` stale; refresh the file and bump `last_updated` column tracked in a helper search.\n• **RBAC errors** — user missing `itsm` or `itsi` index: add indexes to the role via **Settings → Access controls → Roles**.",
+  "grandmaExplanation": "We check that your emergency plans are reviewed on time, that practice runs are actually recorded, and that when you rehearse a failover the important services still look healthy. If something slips, you see it early instead of during an auditor visit.",
   "cimSpl": "",
-  "dataModelAcceleration": "Not applicable"
+  "dataModelAcceleration": "Not applicable",
+  "owner": "Head of IT Operations",
+  "controlFamily": "ir-drill-evidence",
+  "exclusions": "Does not certify legal conformity of the directive itself, file formal supervisory notifications, sign off board minutes, or replace qualified legal review of crisis communications.",
+  "evidence": "Weekly saved search `UC-22.2.4`, Dashboard Studio panel export, RFC3161-qualified PDF or CSV bundle stored in the restricted evidence index with owner `Head of IT Operations`.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "crawl",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Insert a BCM policy row in ServiceNow whose `last_review_date` in `nis2_bcp_inventory` is 400 days old while `review_cycle_days` is 365, and confirm the alert fires naming `plan_key`, `plan_owner`, and the open `snow:task` number; during an ITSI drill set `is_drill=1` on a non-green service and verify the appended subsearch lists `service_name` with `unhealthy_drill_signals>0`.",
+    "negativeScenario": "Update the inventory so `last_review_date` is within cycle, close related tasks to `Complete`, keep ITSI services green throughout the drill window, and confirm the scheduled search returns zero breach rows after the 7 a.m. Monday run while the audit dashboard still shows the last successful empty snapshot timestamp.",
+    "fixtureRef": "sample-data/uc-22.2.4-fixture.json"
+  }
 }

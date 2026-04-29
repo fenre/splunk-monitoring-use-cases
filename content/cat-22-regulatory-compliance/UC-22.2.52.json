@@ -1,0 +1,106 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.52",
+  "title": "NIS2 Art.21 access, HR security, privileged accounts, MFA and secure communications evidence",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "access-review-cadence",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(i)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.21(2)(i) receives partial assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.21(2)(i) using NIS2 Art.21 access, HR security, privileged accounts, MFA and secure communications evidence.",
+      "evidenceArtifact": "Saved search for NIS2 Art.21 access, HR security, privileged accounts, MFA and secure communications evidence, dashboard panel, and archived result export in index=audit_evidence for Art.21(2)(i).",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(i)",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(j)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.21(2)(j) receives partial assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.21(2)(j) using NIS2 Art.21 access, HR security, privileged accounts, MFA and secure communications evidence.",
+      "evidenceArtifact": "Saved search for NIS2 Art.21 access, HR security, privileged accounts, MFA and secure communications evidence, dashboard panel, and archived result export in index=audit_evidence for Art.21(2)(j).",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(j)",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "CIM **Authentication** data model (fields `user`, `action`, `app`, `signature`); `index=auth` `sourcetype=okta:systemlog` with `outcome.result`, `target{}.id`, `eventType`; `index=pam` `sourcetype=cyberark:pta` or `sourcetype=cyberark:session` with `user`, `safe`, `reason`; `index=hr` `sourcetype=workday:worker` with `Employee_ID`, `Termination_Date` (Workday); optional Splunk Add-on for Okta via HEC patterns documented on Splunkbase.",
+  "app": "Splunk CIM ([Splunkbase 1621](https://splunkbase.splunk.com/app/1621)) for Authentication normalisation; Splunk Add-on for Okta (commonly Splunkbase 3686 or community TA — confirm your standard); enterprise archive platform.",
+  "spl": "index=hr sourcetype=workday:worker Employee_Status!=\"Active\" OR isnotnull(Termination_Date)\n| eval employee_id=coalesce(Employee_ID,employeeId)\n| join employee_id type=inner [\n    search index=auth sourcetype=okta:systemlog outcome.result=SUCCESS earliest=-24h\n    | mvexpand target{}.id\n    | rename target{}.id as employee_id\n    | stats latest(_time) as last_login by employee_id\n]\n| table employee_id, Termination_Date, last_login, _time\n| append [\n    search index=pam sourcetype=cyberark:session earliest=-24h reason!=\"PAM policy approved\"\n    | stats count by user, safe\n    | where count>10\n]\n| append [\n    search index=auth sourcetype=okta:systemlog eventType=user.authentication.verify earliest=-24h outcome.result!=SUCCESS\n    | stats dc(user) as failed_mfa_users\n]\n| lookup nis2_access_kfp_exceptions employee_id OUTPUT exception_until\n| where isnull(exception_until) OR now()>strptime(exception_until,\"%Y-%m-%d\")",
+  "description": "Detects high-risk overlaps such as successful identity-provider logins within a day of HR termination timestamps, unusual CyberArk session volume, and clustered Okta MFA verification failures mapped to privileged populations.",
+  "value": "People operations and security operations share a defensible timeline that privileged access and authentication hygiene stayed aligned with employment status, which is one of the first items inspectors ask after any insider- or contractor-led incident.",
+  "implementation": "(1) Normalise HR feed into `index=hr`. (2) Map Okta fields through CIM Authentication. (3) Ingest PAM sessions with `safe` / `user`. (4) Schedule hourly with 24h window. (5) Push hits to SOAR playbook for step-up review.",
+  "visualization": "Timeline of terminated-user logins, heatmap of CyberArk `safe`, single value failed MFA count.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "Splunk Common Information Model (Splunkbase 1621)",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    },
+    {
+      "title": "Splunk Docs — Authentication data model",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
+    }
+  ],
+  "knownFalsePositives": "• **Contractor rehire same day** — Distinguish: new Workday profile reuses login but different `Employee_ID`. Suppress: HR feed includes `Rehire_Flag`; filter `where Rehire_Flag!=1`.\n• **Mailbox migration triggering bulk PAM checkouts** — Distinguish: change ticket CHG tied to `safe`. Suppress: exception register keyed on `chg_id` for 48 hours.\n• **Okta device trust push retries** — Distinguish: user agent `OktaMobile`. Suppress: `where user_agent!=\"OktaMobile/xyz\"` after pilot.\n• **Service accounts mis-tagged as human** — Distinguish: `user` starts `svc_`. Suppress: lookup `nis2_svc_allowlist.csv`.",
+  "requiredFields": [
+    "_time",
+    "owner",
+    "status",
+    "evidence_id",
+    "clause",
+    "affected_asset",
+    "affected_service"
+  ],
+  "exclusions": "Does not perform workforce legal decisions, revoke access in source systems, or attest union consultation; does not replace PAM policy design.",
+  "evidence": "Saved search `UC-22.2.52` correlation output, referenced `okta:systemlog` and `cyberark:session` excerpts, HR join proofs, and signed export stored in `index=audit_evidence`.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "controlTest": {
+    "positiveScenario": "In a lab tenant, mark `Termination_Date=yesterday` for a test worker while replaying a successful `okta:systemlog` sign-on for the same `employee_id` within twelve hours and verify the join returns that row with `last_login` populated.",
+    "negativeScenario": "For active employees without termination rows and only routine PAM usage under the checkout threshold, the scheduled search produces no correlated termination-login rows and the append stats stay below alert thresholds in steady state.",
+    "fixtureRef": "sample-data/uc-22.2.52-fixture.json"
+  },
+  "status": "verified",
+  "lastReviewed": "2026-04-29",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "cimSpl": "| tstats summariesonly=true count from datamodel=Authentication.Authentication where nodename=Authentication.Authentication action=success by Authentication.user span=1h\n| rename Authentication.user as user",
+  "detailedImplementation": "Prerequisites\n• Identity Provider (for example Okta) logging to `index=auth` with `sourcetype=okta:systemlog`; confirm `eventType`, `outcome.result`, and JSON paths for `target{}.id` via `Settings` > `Fields`.\n• CyberArk or equivalent PAM pushing `cyberark:session` or CEF to `index=pam` every 60 seconds via syslog or HEC.\n• Workday or HRIS CSV to `index=hr` `sourcetype=workday:worker` with daily refresh.\n• Install Splunk Common Information Model ([Splunkbase 1621](https://splunkbase.splunk.com/app/1621)) on search heads; accelerate Authentication model (summary range 30 days, rebuild weekly).\n• RBAC: searches may include PII — restrict to `hr_security` role with splunk_dsid masking where required.\n\nStep 1 — Configure data collection\nCreate `props.conf` transforms for Okta multivalue `target` arrays. For CyberArk, map `Reason`, `User`, `Safe` fields. HR feed: schedule `inputs.conf` `batch` input at 02:00 with `host_segment` for tenant separation. Document retention: HR 7 years per policy, auth 400 days.\n\nStep 2 — Create the search and alert\nPrototype with `| makeresults` disabled in prod. Use 1h schedule during pilot. Join keys must align — often `employee_id` equals Okta `login` not email; maintain `nis2_id_map.csv` if needed.\n\n```spl\nindex=hr sourcetype=workday:worker (Employee_Status!=\"Active\" OR isnotnull(Termination_Date))\n| eval employee_id=coalesce(Employee_ID,employeeId)\n| join employee_id type=inner [\n    search index=auth sourcetype=okta:systemlog outcome.result=SUCCESS earliest=-24h\n    | mvexpand target{}.id\n    | rename target{}.id as employee_id\n    | stats latest(_time) as last_login by employee_id\n]\n```\n\nAdd PAM and MFA branches via `append` as in main `spl`. Apply `lookup nis2_access_kfp_exceptions`.\n\nStep 3 — Validate\nHR team supplies three synthetic IDs: terminated, active, rehired. Confirm only terminated-with-login fires. Compare counts with Okta System Log UI for same interval.\n\nStep 4 — Operationalize\nDashboard with drilldown to `Authentication` datamodel using `tstats`. Integrate with ServiceNow SecOps incident table. Weekly management metric: mean time to revoke after termination.\n\nStep 5 — Troubleshooting\n• **Empty join** — field mismatch; use `coalesce` across `user`, `employee_id`, `login`.\n• **Overmatching MFA fails** — bots; add `where user NOT IN (lookup)`.\n• **KV Store slow joins** — migrate HR to summary index refreshed nightly.\n• **Clock skew** — ensure NTP across IDP and indexers; evaluate `_indextime` vs `_time`.",
+  "grandmaExplanation": "We check that people who should no longer get into systems are not still signing in, and we watch the special admin keys that open many doors at once. If something looks off, we tell security and people-teams together.",
+  "dataModelAcceleration": "Enable acceleration on the Authentication data model (`Settings` > `Data models` > `Authentication`) with 30-day summary for `tstats` panels tied to this UC."
+}

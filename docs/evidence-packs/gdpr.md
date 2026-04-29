@@ -6,7 +6,7 @@
 > **Authoritative source**: [https://eur-lex.europa.eu/eli/reg/2016/679/oj](https://eur-lex.europa.eu/eli/reg/2016/679/oj)
 > **Effective from**: 2018-05-25
 
-> This evidence pack is the auditor-facing view of the Splunk monitoring catalogue's coverage of the regulation. Every clause coverage claim is traceable to a specific UC sidecar JSON file (`use-cases/cat-*/uc-*.json`); every retention figure cites its legal basis; every URL resolves to an official regulator or standards-body source. The pack does **not** assert legal conclusions — it tabulates what the catalogue covers, names the authoritative source, and flags gaps. Interpretation stays with counsel.
+> This evidence pack is the auditor-facing view of the Splunk monitoring catalogue's coverage of the regulation. Every clause coverage claim is traceable to a specific UC sidecar JSON file (`content/cat-*/UC-*.json`); every retention figure cites its legal basis; every URL resolves to an official regulator or standards-body source. The pack does **not** assert legal conclusions — it tabulates what the catalogue covers, names the authoritative source, and flags gaps. Interpretation stays with counsel.
 
 > **Live views.** [Buyer narrative (`compliance-story.html?reg=gdpr`)](../../compliance-story.html?reg=gdpr) · [Auditor clause navigator (`clause-navigator.html#reg=gdpr`)](../../clause-navigator.html#reg=gdpr) · [JSON twin (`api/v1/compliance/story/gdpr.json`)](../../api/v1/compliance/story/gdpr.json)
 
@@ -76,323 +76,323 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 ### 4.1 Contributing UC detail
 
 <a id='uc-10-11-62'></a>
-- **UC-10.11.62** —
+- **UC-10.11.62** — Zscaler Data Protection Policy Effectiveness
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.11.62.json`](../../content/cat-10-security-infrastructure/UC-10.11.62.json)
 <a id='uc-10-3-89'></a>
-- **UC-10.3.89** —
+- **UC-10.3.89** — Disable Defender Submit Samples Consent Feature
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.3.89.json`](../../content/cat-10-security-infrastructure/UC-10.3.89.json)
 <a id='uc-10-4-111'></a>
-- **UC-10.4.111** —
+- **UC-10.4.111** — O365 Tenant Wide Admin Consent Granted
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.4.111.json`](../../content/cat-10-security-infrastructure/UC-10.4.111.json)
 <a id='uc-10-4-114'></a>
-- **UC-10.4.114** —
+- **UC-10.4.114** — O365 User Consent Blocked for Risky Application
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.4.114.json`](../../content/cat-10-security-infrastructure/UC-10.4.114.json)
 <a id='uc-10-4-115'></a>
-- **UC-10.4.115** —
+- **UC-10.4.115** — O365 User Consent Denied for OAuth Application
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.4.115.json`](../../content/cat-10-security-infrastructure/UC-10.4.115.json)
 <a id='uc-10-4-24'></a>
-- **UC-10.4.24** —
+- **UC-10.4.24** — Azure AD Block User Consent For Risky Apps Disabled
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.4.24.json`](../../content/cat-10-security-infrastructure/UC-10.4.24.json)
 <a id='uc-10-4-39'></a>
-- **UC-10.4.39** —
+- **UC-10.4.39** — O365 Admin Consent Bypassed by Service Principal
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.4.39.json`](../../content/cat-10-security-infrastructure/UC-10.4.39.json)
 <a id='uc-10-4-45'></a>
-- **UC-10.4.45** —
+- **UC-10.4.45** — O365 Block User Consent For Risky Apps Disabled
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.4.45.json`](../../content/cat-10-security-infrastructure/UC-10.4.45.json)
 <a id='uc-10-4-75'></a>
-- **UC-10.4.75** —
+- **UC-10.4.75** — O365 File Permissioned Application Consent Granted by User
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.4.75.json`](../../content/cat-10-security-infrastructure/UC-10.4.75.json)
 <a id='uc-10-4-79'></a>
-- **UC-10.4.79** —
+- **UC-10.4.79** — O365 Mail Permissioned Application Consent Granted by User
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.4.79.json`](../../content/cat-10-security-infrastructure/UC-10.4.79.json)
 <a id='uc-10-7-137'></a>
-- **UC-10.7.137** —
+- **UC-10.7.137** — Azure AD Admin Consent Bypassed by Service Principal
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.7.137.json`](../../content/cat-10-security-infrastructure/UC-10.7.137.json)
 <a id='uc-10-7-154'></a>
-- **UC-10.7.154** —
+- **UC-10.7.154** — Azure AD OAuth Application Consent Granted By User
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.7.154.json`](../../content/cat-10-security-infrastructure/UC-10.7.154.json)
 <a id='uc-10-7-166'></a>
-- **UC-10.7.166** —
+- **UC-10.7.166** — Azure AD Tenant Wide Admin Consent Granted
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.7.166.json`](../../content/cat-10-security-infrastructure/UC-10.7.166.json)
 <a id='uc-11-3-11'></a>
-- **UC-11.3.11** —
+- **UC-11.3.11** — Collaboration App Permission and Consent Audit
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-11-email-collaboration/UC-11.3.11.json`](../../content/cat-11-email-collaboration/UC-11.3.11.json)
 <a id='uc-22-1-1'></a>
-- **UC-22.1.1** —
+- **UC-22.1.1** — GDPR PII Detection in Application Log Data
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.1.json`](../../content/cat-22-regulatory-compliance/UC-22.1.1.json)
 <a id='uc-22-1-10'></a>
-- **UC-22.1.10** —
+- **UC-22.1.10** — GDPR Privileged Access to Personal Data Stores
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.10.json`](../../content/cat-22-regulatory-compliance/UC-22.1.10.json)
 <a id='uc-22-1-11'></a>
-- **UC-22.1.11** —
+- **UC-22.1.11** — GDPR Right to Erasure Verification
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.11.json`](../../content/cat-22-regulatory-compliance/UC-22.1.11.json)
 <a id='uc-22-1-13'></a>
-- **UC-22.1.13** —
+- **UC-22.1.13** — GDPR High-Risk Breach Communication to Data Subjects
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.13.json`](../../content/cat-22-regulatory-compliance/UC-22.1.13.json)
 <a id='uc-22-1-14'></a>
-- **UC-22.1.14** —
+- **UC-22.1.14** — GDPR Data Protection Impact Assessment Coverage
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.14.json`](../../content/cat-22-regulatory-compliance/UC-22.1.14.json)
 <a id='uc-22-1-15'></a>
-- **UC-22.1.15** —
+- **UC-22.1.15** — GDPR Third-Party Processor Compliance Monitoring
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.15.json`](../../content/cat-22-regulatory-compliance/UC-22.1.15.json)
 <a id='uc-22-1-16'></a>
-- **UC-22.1.16** —
+- **UC-22.1.16** — GDPR Consent Withdrawal Processing Enforcement
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.16.json`](../../content/cat-22-regulatory-compliance/UC-22.1.16.json)
 <a id='uc-22-1-18'></a>
-- **UC-22.1.18** —
+- **UC-22.1.18** — GDPR Automated Decision-Making and Profiling Transparency
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.18.json`](../../content/cat-22-regulatory-compliance/UC-22.1.18.json)
 <a id='uc-22-1-2'></a>
-- **UC-22.1.2** —
+- **UC-22.1.2** — GDPR Data Subject Access Request Fulfillment Tracking
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.2.json`](../../content/cat-22-regulatory-compliance/UC-22.1.2.json)
 <a id='uc-22-1-29'></a>
-- **UC-22.1.29** —
+- **UC-22.1.29** — GDPR Processor Personal Data Breach Notification SLA
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.29.json`](../../content/cat-22-regulatory-compliance/UC-22.1.29.json)
 <a id='uc-22-1-3'></a>
-- **UC-22.1.3** —
+- **UC-22.1.3** — GDPR Breach Notification Timeline Monitoring
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.3.json`](../../content/cat-22-regulatory-compliance/UC-22.1.3.json)
 <a id='uc-22-1-36'></a>
-- **UC-22.1.36** —
+- **UC-22.1.36** — GDPR Transfer Impact Assessment (TIA) Status for Third-Country Transfers
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.36.json`](../../content/cat-22-regulatory-compliance/UC-22.1.36.json)
 <a id='uc-22-1-38'></a>
-- **UC-22.1.38** —
+- **UC-22.1.38** — GDPR Data Localization Enforcement for Restricted Processing
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.38.json`](../../content/cat-22-regulatory-compliance/UC-22.1.38.json)
 <a id='uc-22-1-39'></a>
-- **UC-22.1.39** —
+- **UC-22.1.39** — GDPR Adequacy Decision and Legal Basis Change Monitoring
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.39.json`](../../content/cat-22-regulatory-compliance/UC-22.1.39.json)
 <a id='uc-22-1-41'></a>
-- **UC-22.1.41** —
+- **UC-22.1.41** — GDPR Unauthorized Cloud Service Detection (Shadow SaaS)
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.41.json`](../../content/cat-22-regulatory-compliance/UC-22.1.41.json)
 <a id='uc-22-1-43'></a>
-- **UC-22.1.43** —
+- **UC-22.1.43** — GDPR Personal Data in Non-Approved Systems (ROPA Drift Detection)
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.43.json`](../../content/cat-22-regulatory-compliance/UC-22.1.43.json)
 <a id='uc-22-1-44'></a>
-- **UC-22.1.44** —
+- **UC-22.1.44** — GDPR Cross-Border Personal Data Flow Anomaly Detection
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.44.json`](../../content/cat-22-regulatory-compliance/UC-22.1.44.json)
 <a id='uc-22-1-46'></a>
-- **UC-22.1.46** —
+- **UC-22.1.46** — GDPR Consent Mechanism Audit (Lawful Basis Alignment)
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.46.json`](../../content/cat-22-regulatory-compliance/UC-22.1.46.json)
 <a id='uc-22-1-6'></a>
-- **UC-22.1.6** —
+- **UC-22.1.6** — GDPR Cross-Border Data Transfer Monitoring
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.6.json`](../../content/cat-22-regulatory-compliance/UC-22.1.6.json)
 <a id='uc-22-1-7'></a>
-- **UC-22.1.7** —
+- **UC-22.1.7** — GDPR Security of Processing — Encryption and Pseudonymisation Coverage
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.7.json`](../../content/cat-22-regulatory-compliance/UC-22.1.7.json)
 <a id='uc-22-1-8'></a>
-- **UC-22.1.8** —
+- **UC-22.1.8** — GDPR Records of Processing Activities Completeness
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.8.json`](../../content/cat-22-regulatory-compliance/UC-22.1.8.json)
 <a id='uc-22-1-9'></a>
-- **UC-22.1.9** —
+- **UC-22.1.9** — GDPR Data Protection by Design — Data Minimisation Validation
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.1.9.json`](../../content/cat-22-regulatory-compliance/UC-22.1.9.json)
 <a id='uc-22-35-2'></a>
-- **UC-22.35.2** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.35.2** — Log tamper detection via write-once-read-many chain-of-custody
+  - Control family: `evidence-continuity`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.35.2.json`](../../content/cat-22-regulatory-compliance/UC-22.35.2.json)
 <a id='uc-22-35-3'></a>
-- **UC-22.35.3** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.35.3** — Indexer replication lag exposing evidence to single-point failure
+  - Control family: `evidence-continuity`
+  - Owner: `Head of Platform`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.35.3.json`](../../content/cat-22-regulatory-compliance/UC-22.35.3.json)
 <a id='uc-22-36-1'></a>
-- **UC-22.36.1** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.36.1** — DSAR fulfillment SLA tracker with verification evidence trail
+  - Control family: `data-subject-request-lifecycle`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.36.1.json`](../../content/cat-22-regulatory-compliance/UC-22.36.1.json)
 <a id='uc-22-36-2'></a>
-- **UC-22.36.2** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.36.2** — Right-to-erasure propagation completeness across downstream systems
+  - Control family: `data-subject-request-lifecycle`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.36.2.json`](../../content/cat-22-regulatory-compliance/UC-22.36.2.json)
 <a id='uc-22-36-3'></a>
-- **UC-22.36.3** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.36.3** — Portability export integrity — signed manifest verification
+  - Control family: `data-subject-request-lifecycle`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.36.3.json`](../../content/cat-22-regulatory-compliance/UC-22.36.3.json)
 <a id='uc-22-37-1'></a>
-- **UC-22.37.1** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.37.1** — Consent capture evidence freshness — stale-consent alerting
+  - Control family: `data-subject-request-lifecycle`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.37.1.json`](../../content/cat-22-regulatory-compliance/UC-22.37.1.json)
 <a id='uc-22-38-1'></a>
-- **UC-22.38.1** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.38.1** — Cross-border personal-data flow anomaly — egress to unsanctioned jurisdictions
+  - Control family: `data-flow-cross-border`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.38.1.json`](../../content/cat-22-regulatory-compliance/UC-22.38.1.json)
 <a id='uc-22-38-2'></a>
-- **UC-22.38.2** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.38.2** — SCC / adequacy decision reference freshness — stale-safeguard detector
+  - Control family: `data-flow-cross-border`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.38.2.json`](../../content/cat-22-regulatory-compliance/UC-22.38.2.json)
 <a id='uc-22-38-3'></a>
-- **UC-22.38.3** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.38.3** — Data localization enforcement — regulated-data must-stay-in-region
+  - Control family: `data-flow-cross-border`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.38.3.json`](../../content/cat-22-regulatory-compliance/UC-22.38.3.json)
 <a id='uc-22-39-1'></a>
-- **UC-22.39.1** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.39.1** — Multi-regulator breach-notification SLA tracker (24h NIS2 / 72h GDPR / 72h HIPAA)
+  - Control family: `ir-drill-evidence`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.39.1.json`](../../content/cat-22-regulatory-compliance/UC-22.39.1.json)
 <a id='uc-22-39-2'></a>
-- **UC-22.39.2** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.39.2** — Regulator-portal submission evidence — one-way API acknowledgement audit
+  - Control family: `ir-drill-evidence`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.39.2.json`](../../content/cat-22-regulatory-compliance/UC-22.39.2.json)
 <a id='uc-22-39-3'></a>
-- **UC-22.39.3** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.39.3** — Data-subject breach communication timeline tracker (Art.34 / §164.404)
+  - Control family: `ir-drill-evidence`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.39.3.json`](../../content/cat-22-regulatory-compliance/UC-22.39.3.json)
 <a id='uc-22-41-1'></a>
-- **UC-22.41.1** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.41.1** — Encryption-at-rest coverage gap — unencrypted storage with regulated data
+  - Control family: `crypto-drift`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.41.1.json`](../../content/cat-22-regulatory-compliance/UC-22.41.1.json)
 <a id='uc-22-44-2'></a>
-- **UC-22.44.2** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.44.2** — Subprocessor inventory change — notification SLA to data controllers
+  - Control family: `third-party-activity`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.44.2.json`](../../content/cat-22-regulatory-compliance/UC-22.44.2.json)
 <a id='uc-22-49-1'></a>
-- **UC-22.49.1** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.49.1** — Retention execution evidence — records past retention still present
+  - Control family: `retention-end-enforcement`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.49.1.json`](../../content/cat-22-regulatory-compliance/UC-22.49.1.json)
 <a id='uc-22-49-2'></a>
-- **UC-22.49.2** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.49.2** — Disposal workflow completion — failed disposals requiring manual review
+  - Control family: `retention-end-enforcement`
+  - Owner: `DPO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.49.2.json`](../../content/cat-22-regulatory-compliance/UC-22.49.2.json)
 <a id='uc-22-9-4'></a>
-- **UC-22.9.4** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.9.4** — Regulatory Incident Response Time Trending
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.9.4.json`](../../content/cat-22-regulatory-compliance/UC-22.9.4.json)
 
 ## 5. Evidence collection
 
@@ -507,7 +507,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 
 - [`data/regulations.json`](../../data/regulations.json) — commonClauses, priority weights, authoritative URLs
 - [`data/evidence-pack-extras.json`](../../data/evidence-pack-extras.json) — retention, roles, authoritative guidance, penalty, testing approach
-- [`use-cases/cat-*/uc-*.json`](../../use-cases) — UC sidecars containing compliance[] entries, controlFamily, owner, evidence fields
+- [`content/cat-*/UC-*.json`](../../content) — UC sidecars containing compliance[] entries, controlFamily, owner, evidence fields
 - [`api/v1/compliance/regulations/gdpr@*.json`](../../api/v1/compliance/regulations/) — pre-computed coverage metrics (when present)
 
 - Generator: [`scripts/generate_evidence_packs.py`](../../scripts/generate_evidence_packs.py)
@@ -516,9 +516,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 7.1
+catalogue_version: 7.2
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     d182323bff36ebe11168f94776fbb9639b116f5b15f71d1bf7d161c41626f5bc
+inputs_sha256:     05d15d6f921fc6af3c7dbfacf931dcfd40d45bd1e8a91ef250232b39e24f110e
 ```
 
 To re-generate:

@@ -21,15 +21,16 @@
       "evidenceArtifact": "Saved search 'UC-22.2.24' running on index=itsi_summary, nis2_bcp_test_register.csv, index=itsm (major incidents), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(c)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=itsi_summary`, `nis2_bcp_test_register.csv`, `index=itsm` (major incidents)",
+  "dataSources": "`index=itsi` `sourcetype=itsi:service_health` fields such as service_name, service_health_score, alert_severity; `index=itsi_summary` KPI rollups with alert_duration and severity for outage math; `index=itsm` `sourcetype=snow:incident` records (number, category, u_priority, opened_at, resolved_at) for crisis tickets tagged ICT continuity; CSV `nis2_bcp_test_register.csv` columns service_name, last_tabletop_date, rto_minutes. Apps: Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928).",
   "app": "Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928)",
   "spl": "| inputlookup nis2_bcp_test_register.csv\n| eval test_date_epoch=strptime(last_tabletop_date,\"%Y-%m-%d\")\n| eval months_since=round((now()-test_date_epoch)/2592000,1)\n| where months_since > 12\n| join service_name [\n    search index=itsi_summary earliest=-90d\n    | where severity IN (\"Critical\",\"High\")\n    | stats sum(alert_duration) as downtime_seconds by service_name\n]\n| eval rto_seconds=rto_minutes*60\n| eval rto_breach=if(downtime_seconds > rto_seconds, 1, 0)\n| table service_name, months_since, downtime_seconds, rto_seconds, rto_breach",
-  "description": "Business continuity, crisis management, and ICT continuity are explicit Article 21 themes. This use case monitors declared RTO/RPO adherence during real incidents and exercises, combining ITSI service degradation windows with BCP test completion records.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes itsi_summary, itsm. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Record BCP/ICT continuity test dates per critical service; (2) map services to ITSI entities; (3) alert when annual tabletop is overdue; (4) measure downtime during sev1 incidents against RTO; (5) integrate with UC-22.2.17 for backup evidence. Indexes required: `index=itsi_summary`, `index=itsm`; Lookups: `nis2_bcp_test_register`, `nis2_bcp_test_register.csv`.",
+  "description": "Combines a register of when each in-scope service last proved its continuity plan (tabletop or drill) with measured outage seconds from ITSI summaries so you can see both testing cadence slip and real recoveries that exceeded the declared recovery-time objective.",
+  "value": "Executives answering NIS2 questions need more than a policy binder—they need dated proof that exercises happened and that major outages stayed inside agreed time boxes; this automation stitches telemetry and ticket metadata into one reviewer-friendly table instead of three separate spreadsheets.",
+  "implementation": "(1) Maintain `nis2_bcp_test_register.csv` under `lookups/` with one row per critical service and numeric `rto_minutes`. (2) Map `service_name` values to ITSI service IDs so `join` keys stay stable. (3) Install ITSI (1841); verify `index=itsi_summary` receives alert_duration populated by glass tables or deep dives. (4) Configure ServiceNow add-on (1928) `inputs.conf` modular input polling `/api/now/table/incident` into `index=itsm` as `sourcetype=snow:incident`. (5) Schedule `UC-22.2.24` weekly; email compliance when `months_since>12` or `rto_breach=1`.",
   "visualization": "Table (overdue tests and RTO breaches), Timeline (tests and incidents), Single value (services breaching RTO). Key fields: `downtime_seconds`, `months_since`, `rto_breach`, `rto_seconds`, `service_name`, `test_date_epoch`.",
   "cimModels": [
     "N/A"
@@ -42,9 +43,28 @@
     {
       "title": "Splunk Add-on for ServiceNow",
       "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ITSI service health deep dives",
+      "url": "https://docs.splunk.com/Documentation/ITSI/latest/Admin/Introduction"
     }
   ],
-  "knownFalsePositives": "Reports may queue during major incidents while details are confirmed, or during initial 24h triage.",
+  "knownFalsePositives": "**ServiceNow backlog during Sev-1** — Distinguish: incidents created late, priority field flipped after triage; ITSI already counted downtime. Suppress: require `opened_at` within **30 minutes** of ITSI start via correlated join, else flag as data-quality not breach.\n\n**Planned DR drills** — Distinguish: change record `CHG*` linked, ITSI maintenance suppresses alerts. Suppress: `lookup dr_drill_windows.csv service_name OUTPUT in_drill` and add `where in_drill!=1` as time-bound exception.\n\n**Duplicate ITSI episodes** — Distinguish: same outage split across two services due to bad entity merge; `downtime_seconds` double counts. Suppress: dedupe with `stats max(downtime_seconds) by service_name, incident_id` AFTER joining ServiceNow `number` field.\n\n**Stale register row** — Distinguish: service decommissioned but CSV not retired shows “overdue tabletop.” Suppress: maintain `nis2_bcp_test_register.csv` status column with `where status!=\"retired\"` filter; track removals in your exception register.\n\n**Synthetic monitoring blips** — Distinguish: sub-minute TCP checks flip ITSI severity without user impact. Suppress: require `alert_duration` > **300 seconds** in the subsearch with `where alert_duration>300` before summing.\n",
   "requiredFields": [
     "downtime_seconds",
     "months_since",
@@ -57,15 +77,31 @@
     "itsi",
     "servicenow"
   ],
-  "lastReviewed": "2026-04-22",
+  "lastReviewed": "2026-04-29",
   "premiumApps": [
     {
       "name": "Splunk ITSI",
       "displayName": "Splunk IT Service Intelligence (ITSI)"
     }
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928).\n• Ensure the following data sources are available: `index=itsi_summary`, `nis2_bcp_test_register.csv`, `index=itsm` (major incidents).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Record BCP/ICT continuity test dates per critical service; (2) map services to ITSI entities; (3) alert when annual tabletop is overdue; (4) measure downtime during sev1 incidents against RTO; (5) integrate with UC-22.2.17 for backup evidence.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup nis2_bcp_test_register.csv\n| eval test_date_epoch=strptime(last_tabletop_date,\"%Y-%m-%d\")\n| eval months_since=round((now()-test_date_epoch)/2592000,1)\n| where months_since > 12\n| join service_name [\n    search index=itsi_summary earliest=-90d\n    | where severity IN (\"Critical\",\"High\")\n    | stats sum(alert_duration) as downtime_seconds by service_name\n]\n| eval rto_seconds=rto_minutes*60\n| eval rto_breach=if(downtime_seconds > rto_seconds, 1, 0)\n| table service_name, months_since, downtime_seconds, rto_seconds, rto_breach\n```\n\nUnderstanding this SPL\n\n**NIS2 Business Continuity and ICT Continuity Evidence (Art. 21(2)(c))** — Business continuity, crisis management, and ICT continuity are explicit Article 21 themes. This use case monitors declared RTO/RPO adherence during real incidents and exercises, combining ITSI service degradation windows with BCP test completion records.\n\nDocumented **Data sources**: `index=itsi_summary`, `nis2_bcp_test_register.csv`, `index=itsm` (major incidents). **App/TA** (typical add-on context): Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• `eval` defines or adjusts **test_date_epoch** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **months_since** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where months_since > 12` — typically the threshold or rule expression for this monitoring goal.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• `eval` defines or adjusts **rto_seconds** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **rto_breach** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n\nOutput fields: downtime_seconds, months_since, rto_breach, rto_seconds, service_name, test_date_epoch.\n\nStep 3 — Validate\nCompare with service health in the ITSI views and the operational runbook for the same service window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (overdue tests and RTO breaches), Timeline (tests and incidents), Single value (services breaching RTO).",
-  "grandmaExplanation": "We business continuity, crisis management, and ICT continuity are explicit Article 21 themes.",
+  "detailedImplementation": "Prerequisites\n• Splunk IT Service Intelligence (Splunkbase 1841) with ITSI role `itoa_admin` or `itoa_analyst` for builders and a read-only `itsi_viewer` for auditors.\n• KV store or CSV lookup `nis2_bcp_test_register.csv` in TA_LOOKUP app on search head; fields must include `service_name`, `last_tabletop_date`, `rto_minutes`.\n• `index=itsi_summary` searchable for **90 days** minimum; confirm via Settings → Indexes.\n• ServiceNow SaaS reachable over HTTPS; Splunk Add-on for ServiceNow (Splunkbase 1928) with OAuth storage in `passwords.conf`; inputs poll `https://<instance>.service-now.com/api/now/table/incident`.\n• Optional: live `index=itsi` `sourcetype=itsi:service_health` for spot validation of scores against dashboards (Configuration → Services).\n\nStep 1 — Configure data collection\nIn ITSI, ensure each NIS2-scoped service has KPIs tied to real entities; activate Episode Monitoring only where needed to avoid duplicate `alert_duration`.\n\nOn the ServiceNow add-on, create a modular input with filter `sysparm_query=category=ict_continuity^ORu_business_serviceISNOTEMPTY` (adapt to your CMDB fields). Force `sourcetype=snow:incident` in `props.conf` and extract `number`, `opened_at`, `resolved_at`, `u_priority`.\n\nUpload the BCP register with `inputlookup` permissions limited to continuity team **RBAC** role `nis2_continuity`.\n\nStep 2 — Create the search and alert\nRun the join SPL nightly. The `months_since>12` arm surfaces stale drills; the ITSI subsearch sums `alert_duration` where severity is Critical/High—adapt severities to your thresholds. If `join` drops rows, switch to `| join type=left service_name` to keep overdue tests even without outages.\n\nFor richer proof, add a union clause scanning `index=itsm sourcetype=snow:incident category=ict_continuity` to list incident numbers beside RTO math.\n\nSchedule weekly, Monday 06:00 local, earliest `-90d@d` for summaries, throttle on `service_name` for **7 days**.\n\nStep 3 — Validate\nPick a service with known June drill: `inputlookup` should show `months_since` <12 and no row after filter. Inject a replayed ITSI episode of **600 seconds**; confirm `downtime_seconds` matches Episode Analytics UI within 5%.\n\nCross-check ServiceNow incident `resolved_at - opened_at` against ITSI duration; if they diverge >10%, fix timezone parsing (`strptime` with `%z`).\n\nStep 4 — Operationalize\nDashboard “NIS2 continuity posture”: panel 1 overdue tests; panel 2 RTO breaches with drilldown to ServiceNow `number`; panel 3 timeline of `last_tabletop_date`.\n\nWire alert to Microsoft Teams governance channel plus JIRA Compliance project as optional webhook.\n\nStep 5 — Troubleshooting\n• **Empty itsi_summary** — verify Episode Aggregation saved searches running; check `scheduler.log` for skipped jobs. • **Join removes everything** — mismatch on `service_name` case; normalize with `| eval service_name=lower(service_name)` both sides. • **ServiceNow 401** — rotate OAuth refresh token in Storage Passwords. • **False RTO breach** — `alert_duration` includes maintenance; join `lookup change_calendar` and subtract approved windows with `eval downtime_seconds=max(downtime_seconds-maintenance_seconds,0)` using **24 hour** lookahead.\n",
+  "grandmaExplanation": "We track two practical things: when we last practiced how to keep important systems running in a crisis, and whether real disruptions stayed inside the time we promised. That way, when oversight asks, we have plain dates and numbers—not frantic emails.",
   "cimSpl": "",
-  "dataModelAcceleration": "Not applicable"
+  "dataModelAcceleration": "Not applicable",
+  "owner": "Head of IT Operations",
+  "controlFamily": "backup-restore-evidence",
+  "exclusions": "Does not perform business-impact analysis for every subsidiary, does not certify supplier continuity arrangements on its own, and does not replace board-approved crisis communications plans or legal filings to regulators.",
+  "evidence": "Weekly `UC-22.2.24` report in PDF, underlying lookup revision hash, and correlated ServiceNow incident IDs stored under `index=audit_evidence` with reviewer attestation fields.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "After intentionally letting a test service miss its annual tabletop date and simulating a 45-minute Sev-1 in ITSI, the report lists that service with `months_since>12` and `rto_breach=1` when `rto_minutes` is set to 30.",
+    "negativeScenario": "When the register row is current within 12 months and ITSI shows no critical episodes beyond a 2-minute synthetic ping glitch suppressed by the duration filter, the weekly run returns no qualifying rows and the empty output is archived as the passing control sample.",
+    "fixtureRef": "sample-data/uc-22.2.24-fixture.json"
+  }
 }

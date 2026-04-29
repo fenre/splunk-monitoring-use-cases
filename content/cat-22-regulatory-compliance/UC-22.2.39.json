@@ -21,31 +21,54 @@
       "evidenceArtifact": "Saved search 'UC-22.2.39' running on index=ot_protocol (HEC from Edge Hub or passive taps), nis2_ot_baseline.csv, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(f)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=ot_protocol` (HEC from Edge Hub or passive taps), `nis2_ot_baseline.csv`",
-  "app": "Splunk Add-on for Stream (Splunkbase 1809), HTTP Event Collector (HEC — edge gateway logs)",
-  "spl": "index=ot_protocol sourcetype=\"modbus:session\" earliest=-7d\n| stats count dc(function_code) as fn_variety avg(register_span) as avg_span by plc_name cell_line\n| lookup nis2_ot_baseline.csv cell_line OUTPUT expected_fn_variety expected_span\n| eval anomaly=if(fn_variety > expected_fn_variety*2 OR avg_span > expected_span*3, 1, 0)\n| where anomaly=1\n| table _time, plc_name, cell_line, fn_variety, expected_fn_variety, avg_span, expected_span",
-  "description": "OT incidents may manifest as Modbus function anomalies, unusual OPC-UA browse depth, or historian gaps rather than Windows malware. This use case baselines industrial protocol traffic per cell line and alerts on deviations that suggest manipulation or sensor spoofing.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes ot_protocol and sourcetypes modbus:session. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Build baselines per production cell during golden runs; (2) ingest Modbus/OPC-UA metadata without disrupting real-time control; (3) tune thresholds with engineering; (4) route alerts to OT SOC; (5) feed confirmed incidents into UC-22.2.1/UC-22.2.33 reporting paths. Indexes required: `index=ot_protocol`; Sourcetypes: `sourcetype=modbus:session`; Lookups: `nis2_ot_baseline`, `nis2_ot_baseline.csv`.",
-  "visualization": "Line chart (function code diversity), Table (anomalous cells), Single value (anomaly count), Heatmap (by shift).",
+  "dataSources": "`index=ot_network` `sourcetype=edge_hub:modbus` (Splunk Edge Hub collectors) carries `function_code`, `register_span`, `unit_id`, `plc_name`, `cell_line`. Companion `sourcetype=edge_hub:opcua` feeds `node_id`, `browse_depth` when OPC-UA pilots exist. Baselines stored in `nis2_ot_baseline.csv` with `expected_fn_variety`, `expected_span`. Splunk Enterprise Security (Splunkbase 263) routes notables to OT SOC queues; Splunk OT Security Add-on (Splunkbase 5151) optional for asset context. Ingest uses HTTP Event Collector token on Heavy Forwarder per **Settings > Data inputs > HTTP Event Collector**.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk OT Security Add-on (Splunkbase 5151), HTTP Event Collector (HEC — Edge Hub forwarder), Splunk Edge Hub solution documentation",
+  "spl": "index=ot_network sourcetype=edge_hub:modbus earliest=-7d\n| stats count dc(function_code) as fn_variety avg(register_span) as avg_span by plc_name cell_line\n| lookup nis2_ot_baseline.csv cell_line OUTPUT expected_fn_variety expected_span\n| eval anomaly=if(fn_variety > expected_fn_variety*2 OR avg_span > expected_span*3, 1, 0)\n| where anomaly=1\n| table plc_name, cell_line, fn_variety, expected_fn_variety, avg_span, expected_span, anomaly",
+  "description": "Statistically compares Modbus traffic diversity and register span per PLC/cell to engineering-approved baselines so unusual industrial conversations—possible manipulation or spoofing—surface before they cascade into physical harm.",
+  "value": "Gives safety and plant leadership audit-grade proof that operational technology is watched with the same seriousness as office systems, by storing baseline deviations with timestamps suitable for regulator briefings after near-misses.",
+  "implementation": "(1) Capture baselines during golden runs with operations sign-off. (2) Land Edge Hub firehose on `index=ot_network`, never on security-only indexes. (3) Tune multipliers (`*2`, `*3`) with plant engineers. (4) Page OT SOC via ES (Splunkbase 263) with response SLAs. (5) Feed confirmed anomalies into incident ticketing (`snow:incident` via Splunkbase 1928 if adopted).",
+  "visualization": "Line chart of `fn_variety`, table of anomalous cells, single value anomaly count, heatmap by shift.",
   "cimModels": [
     "N/A"
   ],
   "references": [
     {
-      "title": "Splunk Add-on for Stream",
-      "url": "https://splunkbase.splunk.com/app/1809"
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk OT Security Add-on (Splunkbase 5151)",
+      "url": "https://splunkbase.splunk.com/app/5151"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Reports may queue during major incidents while details are confirmed, or during initial 24h triage.",
+  "knownFalsePositives": "• **Planned recipe experiments** — Distinguish: operations widen `function_code` mix for QA lots. Suppress: lookup `nis2_ot_change_window.csv` keyed on `cell_line` with `experiment=true` and `valid_until`.\n• **Firmware downloads** — Distinguish: short spikes when vendor updates PLC. Suppress: time-bound exception register rows referencing `change_ticket`.\n• **Simulator labs sharing production names** — Distinguish: lab `plc_name` collides with live tag. Suppress: append `| where NOT match(plc_name,\"LAB$\")` or segregate lab traffic to `index=ot_lab`.\n• **Baseline CSV drift** — Distinguish: baseline stale after throughput upgrade. Suppress: enforce quarterly regeneration workflow; temporary widen multipliers via macro argument.\n• **Passive tap packet loss** — Distinguish: span looks huge because mirrored span incomplete. Suppress: correlate with `interface_errors` from tap switch using side join before alerting.\n",
   "mitreAttack": [
     "T0855"
   ],
   "requiredFields": [
-    "_time",
     "anomaly",
     "avg_span",
     "cell_line",
@@ -60,9 +83,24 @@
     "opcua"
   ],
   "status": "verified",
-  "lastReviewed": "2026-04-22",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Stream (Splunkbase 1809), HTTP Event Collector (HEC — edge gateway logs).\n• Ensure the following data sources are available: `index=ot_protocol` (HEC from Edge Hub or passive taps), `nis2_ot_baseline.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Build baselines per production cell during golden runs; (2) ingest Modbus/OPC-UA metadata without disrupting real-time control; (3) tune thresholds with engineering; (4) route alerts to OT SOC; (5) feed confirmed incidents into UC-22.2.1/UC-22.2.33 reporting paths.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot_protocol sourcetype=\"modbus:session\" earliest=-7d\n| stats count dc(function_code) as fn_variety avg(register_span) as avg_span by plc_name cell_line\n| lookup nis2_ot_baseline.csv cell_line OUTPUT expected_fn_variety expected_span\n| eval anomaly=if(fn_variety > expected_fn_variety*2 OR avg_span > expected_span*3, 1, 0)\n| where anomaly=1\n| table _time, plc_name, cell_line, fn_variety, expected_fn_variety, avg_span, expected_span\n```\n\nUnderstanding this SPL\n\n**NIS2 OT Incident Detection — Process and Protocol Anomalies (Art. 21(2)(f))** — OT incidents may manifest as Modbus function anomalies, unusual OPC-UA browse depth, or historian gaps rather than Windows malware. This use case baselines industrial protocol traffic per cell line and alerts on deviations that suggest manipulation or sensor spoofing.\n\nDocumented **Data sources**: `index=ot_protocol` (HEC from Edge Hub or passive taps), `nis2_ot_baseline.csv`. **App/TA** (typical add-on context): Splunk Add-on for Stream (Splunkbase 1809), HTTP Event Collector (HEC — edge gateway logs). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot_protocol; **sourcetype**: modbus:session. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot_protocol, sourcetype=\"modbus:session\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` aggregates events by **plc_name cell_line**, producing one row per unique combination for trend analysis and threshold evaluation.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **anomaly** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where anomaly=1` — typically the threshold or rule expression for this monitoring goal.\n\nOutput fields: _time, anomaly, avg_span, cell_line, expected_fn_variety, expected_span, fn_variety, plc_name.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (function code diversity), Table (anomalous cells), Single value (anomaly count), Heatmap (by shift).",
-  "grandmaExplanation": "We oT incidents may manifest as Modbus function anomalies, unusual OPC-UA browse depth, or historian gaps rather than Windows malware.",
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Splunk Edge Hub or equivalent gateway splitting Modbus metadata (not blocking control frames) into JSON for HEC. Token restricted to `index=ot_network`.\n• Heavy Forwarder on plant DMZ with **1 Gbps** mirror to tap; clock synchronised within **100 ms** of PLC NTP.\n• OT Safety SME approves field dictionary (`function_code`, `register_span`).\n• Splunk Enterprise Security (Splunkbase 263) with OT-specific notable queue.\n• Splunk OT Security Add-on (Splunkbase 5151) optional for enrichment macros.\n\nStep 1 — Configure data collection\nCreate HEC token `ot_edge_ingest`, set `indexes = ot_network`, `source type = edge_hub:modbus` in `inputs.conf` override. Validate with `index=ot_network | head 1` showing extractions.\n\nStep 2 — Create the search and alert\nRun SPL over rolling `earliest=-7d`. Save `UC-22.2.39`. Use adaptive response in ES to assign OT tier. OPC-UA variant: duplicate search with `sourcetype=edge_hub:opcua`, swap stats for `dc(node_id)`.\n\n```spl\nindex=ot_network sourcetype=edge_hub:modbus earliest=-7d\n| stats count dc(function_code) as fn_variety avg(register_span) as avg_span by plc_name cell_line\n```\n\nUnderstanding this SPL: anomalies compare live stats to CSV baselines—never thresholds alone—to respect each line’s physics.\n\nStep 3 — Validate\nDuring approved maintenance, inject known-good traffic and confirm search stays quiet. During drills, inject wider function mix and expect alert within **10 minutes**.\n\nStep 4 — Operationalize & Troubleshoot\nIf `lookup` misses, check `cell_line` spelling vs historian. If `register_span` null, update field_alias in `props.conf`.\n\nStep 5 — Governance\nArchive notable PDF + SPL snapshot to `audit_evidence`. Apply `evidenceSigning`. Review baselines quarterly with plant manager sign-off. Filter the SPL using `lookup nis2_ot_exception_register.csv` only after dual-control approval.\n",
+  "grandmaExplanation": "We learn what \"normal\" chatter looks like on the factory floor networks, then we speak up when a line starts talking in an unusual way that could mean trouble—not just when office computers misbehave.",
   "cimSpl": "",
-  "dataModelAcceleration": "Not applicable"
+  "dataModelAcceleration": "Not applicable",
+  "owner": "Head of IR",
+  "controlFamily": "ir-drill-evidence",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
+  "evidence": "`UC-22.2.39` results listing `plc_name`, `cell_line`, `anomaly`, plus Edge Hub sample payloads and ES notable IDs archived under `audit_evidence` for OT effectiveness reviews.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Lower `expected_fn_variety` in `nis2_ot_baseline.csv` for lab `cell_line=LINE-QA` so the live stats exceed 2× baseline; the search must return `anomaly=1` for that PLC/cell pair.",
+    "negativeScenario": "Restore baseline numbers or halt the injected traffic pattern and rerun over `-7d`; expect the QA line to disappear from the anomaly table when both ratios fall below thresholds.",
+    "fixtureRef": "sample-data/uc-22.2.39-fixture.json"
+  }
 }

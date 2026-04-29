@@ -1,26 +1,26 @@
 # Compliance coverage report
 
-Status: **passed**  |  Generated: 2026-04-24T21:01:32Z
+Status: **failed**  |  Generated: 2026-04-29T18:22:15Z
 
 ## Summary
 
-* UC files checked: **7330**
-* UC files valid:   **7330**
-* Compliance entries: **2035**
-* Findings: **0** (errors: **0**, baselined: **0**)
+* UC files checked: **7337**
+* UC files valid:   **7336**
+* Compliance entries: **2082**
+* Findings: **42** (errors: **1**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
 ## Global coverage (all tiers)
 
 * Clause coverage %: **100.0**
 * Priority-weighted %: **100.0**
-* Assurance-adjusted %: **68.3263**
+* Assurance-adjusted %: **66.1264**
 
 ## Per tier
 
 | Tier | Clause % | Priority-weighted % | Assurance-adjusted % |
 |------|----------|----------------------|-----------------------|
-| tier-1 | 100.0 | 100.0 | 79.6749 |
+| tier-1 | 100.0 | 100.0 | 74.2945 |
 | tier-2 | 100.0 | 100.0 | 53.7342 |
 | tier-3 | 100.0 | 100.0 | 50.0 |
 
@@ -67,8 +67,8 @@ Status: **passed**  |  Generated: 2026-04-24T21:01:32Z
 | mifid-ii | 100.0 | 100.0 | 50.0 |
 | nerc-cip | 100.0 | 100.0 | 70.0 |
 | nesa-uae-ias | 100.0 | 100.0 | 50.0 |
-| nis2 | 100.0 | 100.0 | 66.2281 |
-| nist-800-53 | 100.0 | 100.0 | 72.7273 |
+| nis2 | 100.0 | 100.0 | 49.4444 |
+| nist-800-53 | 100.0 | 100.0 | 73.8095 |
 | nist-csf | 100.0 | 100.0 | 67.5393 |
 | no-kbf-nve | 100.0 | 100.0 | 50.0 |
 | no-personopplysningsloven | 100.0 | 100.0 | 50.0 |
@@ -140,8 +140,8 @@ Status: **passed**  |  Generated: 2026-04-24T21:01:32Z
 | Multiple@n/a | 3 | 0.0 | 0.0 | 0.0 |
 | NERC CIP@current | 2 | 100.0 | 100.0 | 70.0 |
 | NESA IAS@v2 (2020) | 2 | 100.0 | 100.0 | 50.0 |
-| NIS2@Directive (EU) 2022/2555 | 1 | 100.0 | 100.0 | 66.2281 |
-| NIST 800-53@Rev. 5 | 1 | 100.0 | 100.0 | 72.7273 |
+| NIS2@Directive (EU) 2022/2555 | 1 | 100.0 | 100.0 | 49.4444 |
+| NIST 800-53@Rev. 5 | 1 | 100.0 | 100.0 | 73.8095 |
 | NIST CSF@1.1 | 1 | 100.0 | 100.0 | 100.0 |
 | NIST CSF@2.0 | 1 | 100.0 | 100.0 | 61.4907 |
 | NO KBF@2012 as amended | 2 | 100.0 | 100.0 | 50.0 |
@@ -173,6 +173,12 @@ Status: **passed**  |  Generated: 2026-04-24T21:01:32Z
 ## Golden tuples
 
 * Total: **52**  |  Passed: **52**  |  Failed: **0**
+
+## Blocking findings
+
+| Level | UC | Code | Path | Message |
+|-------|----|------|------|---------|
+| error | 13.2.7 | uc-schema-validation | content/cat-13-observability-monitoring-stack/UC-13.2.7.json:premiumApps/1 | {'name': 'Splunk Machine Learning Toolkit', 'displayName': 'Splunk Machine Learning Toolkit (MLTK)', 'note': 'required — fit and apply macros shared with ITSI predictive jobs'} is not valid under any of the given schemas |
 
 ---
 

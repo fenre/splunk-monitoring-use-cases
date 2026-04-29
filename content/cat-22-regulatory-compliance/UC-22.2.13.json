@@ -20,16 +20,17 @@
       "evidenceArtifact": "Saved search 'UC-22.2.13' running on index vulnerability and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(i)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "ES Asset Framework (`asset_lookup_by_str`, `asset_lookup_by_cidr`), CIM Network_Traffic data model, `index=vulnerability` (asset discovery scans)",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Qualys (Splunkbase 2964)",
+  "dataSources": "Splunk Enterprise Security asset lookups (`asset_lookup_by_str`, fields category, priority, owner, nt_host) plus `index=cmdb` `sourcetype=snow:cmdb_ci_server` (fields sys_id, host_name, u_business_service) via Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)); accelerated CIM `Network_Traffic.All_Traffic` with `All_Traffic.src`, `All_Traffic.dest`, `All_Traffic.bytes`.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Qualys (Splunkbase 2964), Splunk Common Information Model Add-on (Splunkbase 1621)",
   "spl": "| tstats `summariesonly` dc(All_Traffic.dest_port) as ports, sum(All_Traffic.bytes) as total_bytes\n  from datamodel=Network_Traffic.All_Traffic\n  by All_Traffic.src\n| rename All_Traffic.src as src\n| lookup asset_lookup_by_str key AS src OUTPUT category, priority, owner, nt_host\n| where isnull(category) OR category=\"unknown\"\n| sort - total_bytes\n| head 100\n| table src, nt_host, category, owner, ports, total_bytes",
-  "description": "Article 21(2)(i) includes asset management alongside access control and HR security. This use case validates that the ES asset framework is populated and current for NIS2-scoped systems, detects unknown or unmanaged assets communicating on critical networks, and tracks configuration baseline drift — ensuring the asset inventory that underpins all other NIS2 controls is reliable.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes vulnerability. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Populate ES asset framework from CMDB, vulnerability scanners, and network discovery tools; (2) schedule this search daily to find active IPs not in the asset inventory; (3) classify discovered assets by NIS2 criticality (essential service vs supporting); (4) alert on high-traffic unknown assets; (5) track asset inventory completeness as a NIS2 KPI in UC-22.2.9 effectiveness dashboard. Indexes required: `index=vulnerability`; Lookups: `asset_lookup_by_str`.",
-  "visualization": "Table (unknown active assets), Single value (% assets classified), Bar chart (assets by category), Map (asset locations if geo data available).",
+  "description": "Uses fifteen-minute (or better) summarized east-west traffic from the accelerated Network Traffic model and compares each internal `src` IP against the ES asset lookup to expose high-volume senders that lack an approved CMDB category.",
+  "value": "NIS2 Article 21 expects inventories that stay trustworthy between annual audits; continuously proving that mystery IPs do not dominate traffic gives assurance that change windows, segmentation projects, and CMDB hygiene actually stick—not just spreadsheets.",
+  "implementation": "(1) Keep `asset_lookup_by_str` synced from ServiceNow `cmdb_ci_server` nightly. (2) Accelerate CIM Network_Traffic for 30+ days. (3) Run search daily; route top `/16` hits to network engineering. (4) Join `uc-22.2.9` dashboard KPIs. (5) Reference `nis2_asset_exception_register.csv` for lab VLANs.",
+  "visualization": "Table of unknown senders, choropleth if geo IP enabled, link to Qualys host detail.",
   "cimModels": [
     "Network_Traffic"
   ],
@@ -40,15 +41,34 @@
       "url": "https://splunkbase.splunk.com/app/263"
     },
     {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
       "title": "Splunk Add-on for Qualys",
       "url": "https://splunkbase.splunk.com/app/2964"
     },
     {
       "title": "CIM: Network_Traffic",
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Operational noise during large maintenance windows, controlled exercises, or scope changes to critical entity lists.",
+  "knownFalsePositives": "1) **Qualys passive scanner appliances** appearing as top talkers. *Distinguish:* `src` matches `qualys_scanner_subnets.csv`. *Suppress:* `lookup qualys_scanner_subnets subnet AS src OUTPUT-ignore=true | where isnull(ignore)`. 2) **ServiceNow MID Server NAT pools** sharing one external IP. *Distinguish:* `owner=MID_Server_*` in CMDB. *Suppress:* enrich via `lookup mid_nat_map`. 3) **Kubernetes node masquerade traffic** where pod IP not in CMDB. *Distinguish:* `src` inside `10.42.0.0/16` overlay. *Suppress:* time-bound exception for cluster builds in `nis2_asset_exception_register.csv`. 4) **Ephemeral AWS Lambda egress** missing static CMDB rows. *Distinguish:* flow logs include `eni-*` interface tag. *Suppress:* join `index=aws sourcetype=aws:cloudwatchlogs:vpcflow`. 5) **Guest wireless VLAN** allowed to be `unknown`. *Distinguish:* `src` in `guest_wifi_supernet`. *Suppress:* `where NOT cidrmatch(\"10.200.0.0/16\",src)`.",
   "requiredFields": [
     "category",
     "nt_host",
@@ -61,11 +81,23 @@
     "qualys"
   ],
   "status": "verified",
-  "lastReviewed": "2026-04-22",
+  "lastReviewed": "2026-04-29",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Qualys (Splunkbase 2964).\n• Ensure the following data sources are available: ES Asset Framework (`asset_lookup_by_str`, `asset_lookup_by_cidr`), CIM Network_Traffic data model, `index=vulnerability` (asset discovery scans).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Populate ES asset framework from CMDB, vulnerability scanners, and network discovery tools; (2) schedule this search daily to find active IPs not in the asset inventory; (3) classify discovered assets by NIS2 criticality (essential service vs supporting); (4) alert on high-traffic unknown assets; (5) track asset inventory completeness as a NIS2 KPI in UC-22.2.9 effectiveness dashboard.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| tstats `summariesonly` dc(All_Traffic.dest_port) as ports, sum(All_Traffic.bytes) as total_bytes\n  from datamodel=Network_Traffic.All_Traffic\n  by All_Traffic.src\n| rename All_Traffic.src as src\n| lookup asset_lookup_by_str key AS src OUTPUT category, priority, owner, nt_host\n| where isnull(category) OR category=\"unknown\"\n| sort - total_bytes\n| head 100\n| table src, nt_host, category, owner, ports, total_bytes\n```\n\nUnderstanding this SPL\n\n**NIS2 Asset Management and Configuration Baseline (Art. 21(2)(i))** — Article 21(2)(i) includes asset management alongside access control and HR security. This use case validates that the ES asset framework is populated and current for NIS2-scoped systems, detects unknown or unmanaged assets communicating on critical networks, and tracks configuration baseline drift — ensuring the asset inventory that underpins all other NIS2 controls is reliable.\n\nDocumented **Data sources**: ES Asset Framework (`asset_lookup_by_str`, `asset_lookup_by_cidr`), CIM Network_Traffic data model, `index=vulnerability` (asset discovery scans). **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Qualys (Splunkbase 2964). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Renames fields with `rename` for clarity or joins.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(category) OR category=\"unknown\"` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\nSee also the **CIM SPL** field in this use case; enable the matching data model acceleration if you run the tstats variant in production.\n\nOutput fields: category, nt_host, owner, ports, src, total_bytes.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unknown active assets), Single value (% assets classified), Bar chart (assets by category), Map (asset locations if geo data available).",
-  "grandmaExplanation": "We stay on top of asset management and configuration baseline — so we can show we run security operations and reporting the way the cyber rules that apply to us require.",
-  "dataModelAcceleration": "Enable for Network_Traffic"
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)) ≥7.2 with **Configure → Data Enrichment → Asset and Identity** imports enabled; schedule `identity` merge hourly and `asset` nightly.\n• Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)) pulling `cmdb_ci_server` via REST `/api/now/table/cmdb_ci_server?sysparm_query=sys_class_name=cmdb_ci_linux_server` or equivalent filter; map to `index=cmdb` `sourcetype=snow:cmdb_ci_server` with fields `ip_address`, `host_name`, `managed_by`, `u_nis2_tier`.\n• CIM Network_Traffic acceleration covering at least 14 days of east-west NetFlow or Zeek `conn` logs re-tagged into `All_Traffic` datasets.\n• Disk budget: summary buckets ~200 MB/day per 10k flows/sec after filtering.\n\nStep 1 — Configure data collection\n• **Asset import**: under ES **Asset Management**, configure prioritized list ServiceNow > Qualys > Active Directory; ensure `asset_lookup_by_str` contains RFC1918 keys.\n• **Flow ingestion**: confirm `props.conf` sets `EVAL-bytes = bytes_in + bytes_out` for bi-directional flows.\n• ServiceNow TA: enable modular input with poll 900s, OAuth stored in **Passwords**.\n• Run baseline `| inputlookup asset_lookup_by_str | stats count` — should be ≥95% of routed IPs for critical VLANs.\n\nStep 2 — Create the search and alert\nUse provided `spl`. Add post-process:\n```spl\n| lookup nis2_asset_exception_register src OUTPUT reason\n| where isnull(reason)\n```\nSave correlation search **UC-22.2.13** firing when `total_bytes > 50e9`.\n\nStep 3 — Validate\n• Select an unknown `src` and trace ARP table / VMware port group to confirm it is genuinely orphan vs stale CMDB row.\n• Compare `total_bytes` totals to NetFlow collector UI (e.g., **Arista CloudVision** or **Cisco DNA Traffic Analytics**) for same hour.\n• Validate ServiceNow row: `index=cmdb host_name=* | search <candidate>` must return `sys_id`.\n\nStep 4 — Operationalize\n• ES Incident Review panel + executive posture dashboard row \"Unknown asset GB/day\".\n• Weekly ticket to CMDB steward with CSV signed via `evidenceSigning`.\n• Integrate Qualys add-on ([Splunkbase 2964](https://splunkbase.splunk.com/app/2964)) for vulnerability context join on IP.\n\nStep 5 — Troubleshooting\n• **tstats empty** — Network_Traffic not accelerated; enable in **Settings**.\n• **Everything unknown** — asset merge not running; check `splunkd.log` for `AssetExtraction` errors.\n• **All results guest Wi-Fi** — missing `cidrmatch` filter; add to base search.\n• **False positives after SD-WAN migration** — refresh `asset_lookup_by_str` import mappings.\n",
+  "grandmaExplanation": "We compare the address book of company computers with the real traffic on the internal roads. If something is sending lots of data but is not on the list, we point it out so the owners can register or shut it down.",
+  "dataModelAcceleration": "Enable for Network_Traffic",
+  "owner": "CISO",
+  "controlFamily": "access-review-cadence",
+  "exclusions": "Does not auto-quarantine hosts, approve firewall changes, replace official CMDB reconciliation ceremonies, or satisfy hardware disposal evidence outside Splunk’s scope.",
+  "evidence": "Daily `UC-22.2.13` result set, ES screenshot of enriched assets, ServiceNow `cmdb_ci` change references for remediated IPs, and RFC3161-sealed CSV via `evidenceSigning` each quarter.",
+  "evidenceSigning": { "method": "rfc3161-tsa", "tsaUrl": "http://timestamp.digicert.com" },
+  "wave": "crawl",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Test VLAN generates 12 TB/day from IP `10.66.7.8` with no `asset_lookup_by_str` row; within first hourly run the correlation search lists the IP in the top position with `category=unknown`, satisfying the detective control.",
+    "negativeScenario": "After CMDB sync adds the same IP with `category=production_db` and `owner=dba_team`, and `nis2_asset_exception_register.csv` documents the disaster-recovery floating address, rerunning the search yields zero rows post-filters despite continued high volume.",
+    "fixtureRef": "sample-data/uc-22.2.13-fixture.json"
+  }
 }

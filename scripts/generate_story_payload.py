@@ -76,6 +76,8 @@ UC_GLOB = "content/cat-*/UC-*.json"
 VERSION_FILE = REPO_ROOT / "VERSION"
 EVIDENCE_PACK_DIR = REPO_ROOT / "docs" / "evidence-packs"
 PRIMER_PATH = REPO_ROOT / "docs" / "regulatory-primer.md"
+NIS2_MATRIX_PATH = REPO_ROOT / "data" / "per-regulation" / "nis2-coverage-expansion.json"
+NIS2_SOURCE_MAP_PATH = REPO_ROOT / "data" / "nis2-source-map.json"
 
 
 # ---------------------------------------------------------------------------
@@ -634,6 +636,156 @@ def _github_heading_anchor(heading_line: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+_LEGAL_BOUNDARY_CONFIDENCES = {"requires-legal-review", "national-interpretation"}
+
+
+def _count_nis2_ucs(uc_index: Mapping[str, Mapping[str, Any]]) -> int:
+    """Count UCs that map a NIS2 clause via ``compliance[]``.
+
+    Mirrors the lookup that ``scripts/audit_nis2_no_gap.py`` uses: each
+    UC sidecar carries a ``compliance[]`` array of entries, and an entry
+    whose ``regulation`` is ``NIS2`` (case-insensitive) marks the UC as
+    in-scope. Keeping the same matcher means the deep-coverage block
+    cannot drift from the no-gap audit's view of which UCs claim NIS2.
+    """
+    count = 0
+    for uc in uc_index.values():
+        compliance = uc.get("compliance") or []
+        if not isinstance(compliance, list):
+            continue
+        for entry in compliance:
+            if not isinstance(entry, Mapping):
+                continue
+            value = entry.get("regulation")
+            if isinstance(value, str) and value.strip().lower() == "nis2":
+                count += 1
+                break
+    return count
+
+
+def _bucket_counts(
+    rows: Iterable[Mapping[str, Any]], field: str, allowed: Iterable[str]
+) -> Dict[str, int]:
+    counts: Dict[str, int] = {key: 0 for key in allowed}
+    for row in rows:
+        value = row.get(field)
+        if isinstance(value, str) and value in counts:
+            counts[value] += 1
+    return counts
+
+
+def build_nis2_deep_coverage(
+    reg_id: str,
+    uc_index: Mapping[str, Mapping[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Compute the NIS2 ``deepCoverage`` block from canonical data sources.
+
+    The block is appended to the NIS2 story payload only and is read by
+    ``compliance-story.html`` to render the no-gap matrix headline next
+    to the buyer / auditor / implementer blocks. All numbers are derived
+    from the matrix in ``data/per-regulation/nis2-coverage-expansion.json``
+    and the source register in ``data/nis2-source-map.json`` so there is
+    a single source of truth — no parallel report file to drift from.
+    """
+    if reg_id != "nis2" or not NIS2_MATRIX_PATH.exists():
+        return None
+    matrix = _load_json(NIS2_MATRIX_PATH)
+    rows = matrix.get("coverageRows") or []
+    if not rows:
+        return None
+
+    coverage_levels = ("full", "partial", "contributing", "not-monitorable")
+    coverage_by_type = _bucket_counts(rows, "splunkCoverageType", coverage_levels)
+    assurance_by_target = _bucket_counts(rows, "assuranceTarget", coverage_levels)
+
+    confidence_counts: Dict[str, int] = defaultdict(int)
+    for row in rows:
+        value = row.get("reviewConfidence")
+        if isinstance(value, str) and value:
+            confidence_counts[value] += 1
+
+    source_counts: Dict[str, int] = defaultdict(int)
+    for row in rows:
+        value = row.get("sourceType")
+        if isinstance(value, str) and value:
+            source_counts[value] += 1
+
+    domain_counts: Dict[str, Dict[str, int]] = defaultdict(
+        lambda: {key: 0 for key in coverage_levels}
+    )
+    for row in rows:
+        family = row.get("controlFamily") or "unspecified"
+        coverage = row.get("splunkCoverageType")
+        if not isinstance(family, str):
+            family = "unspecified"
+        if isinstance(coverage, str) and coverage in coverage_levels:
+            domain_counts[family][coverage] += 1
+        else:
+            domain_counts[family].setdefault("unspecified", 0)
+            domain_counts[family]["unspecified"] += 1
+
+    domain_overview = []
+    for family in sorted(domain_counts):
+        breakdown = domain_counts[family]
+        total = sum(breakdown.values())
+        domain_overview.append(
+            {
+                "controlFamily": family,
+                "rowCount": total,
+                "coverageByType": dict(breakdown),
+            }
+        )
+
+    monitorable_rows = sum(
+        1 for row in rows if row.get("splunkCoverageType") != "not-monitorable"
+    )
+    legal_boundary_rows = sum(
+        1
+        for row in rows
+        if row.get("splunkCoverageType") == "not-monitorable"
+        or row.get("reviewConfidence") in _LEGAL_BOUNDARY_CONFIDENCES
+    )
+
+    deep: Dict[str, Any] = {
+        "title": "NIS2 no-gap coverage matrix",
+        "summary": (
+            "Per-clause Splunk coverage decision recorded for every NIS2 "
+            "directive article and Implementing Regulation domain, with "
+            "explicit non-legal boundaries on rows where Splunk produces "
+            "evidence but cannot establish legal compliance on its own."
+        ),
+        "noOverclaimingPolicy": (
+            "Splunk produces monitoring, workflow, and evidence support; it "
+            "does not certify legal compliance. Every row carries an "
+            "official-source citation and a Splunk evidence boundary so "
+            "reviewers can challenge the mapping."
+        ),
+        "matrixRows": len(rows),
+        "monitorableRows": monitorable_rows,
+        "legalBoundaryRowCount": legal_boundary_rows,
+        "nis2UcCount": _count_nis2_ucs(uc_index),
+        "coverageByType": coverage_by_type,
+        "assuranceByTarget": assurance_by_target,
+        "reviewConfidence": dict(sorted(confidence_counts.items())),
+        "sourceCoverage": dict(sorted(source_counts.items())),
+        "domainOverview": domain_overview,
+        "canonicalArtifacts": {
+            "matrix": "data/per-regulation/nis2-coverage-expansion.json",
+            "sourceMap": "data/nis2-source-map.json",
+            "evidencePack": "docs/evidence-packs/nis2.md",
+            "methodology": "docs/nis2-monitoring-methodology.md",
+            "externalReview": "docs/nis2-external-review-pack.md",
+            "maturityBenchmark": "docs/nis2-maturity-benchmark.md",
+        },
+    }
+
+    if NIS2_SOURCE_MAP_PATH.exists():
+        source_map = _load_json(NIS2_SOURCE_MAP_PATH)
+        deep["sourceAuthorityRanking"] = source_map.get("sourceAuthorityRanking") or []
+
+    return deep
+
+
 def build_story(
     reg_payload: Mapping[str, Any],
     areas: Mapping[str, Any],
@@ -655,7 +807,7 @@ def build_story(
     evidence_pack = discover_evidence_pack(reg_id)
     primer_anchor = discover_primer_anchor(reg_short)
 
-    return {
+    story = {
         "apiVersion": api_version,
         "catalogueVersion": catalogue_version,
         "generatedAt": generated_at,
@@ -681,6 +833,10 @@ def build_story(
             "buyerStoryPage": f"compliance-story.html?reg={reg_id}",
         },
     }
+    deep_coverage = build_nis2_deep_coverage(reg_id, uc_index)
+    if deep_coverage:
+        story["deepCoverage"] = deep_coverage
+    return story
 
 
 # ---------------------------------------------------------------------------

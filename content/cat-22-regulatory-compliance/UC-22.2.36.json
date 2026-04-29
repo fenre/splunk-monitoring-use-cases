@@ -21,15 +21,16 @@
       "evidenceArtifact": "Saved search 'UC-22.2.36' running on Firewall and IDS logs tagged with zone, nis2_ot_segment_policy.csv, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(a)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "Firewall and IDS logs tagged with `zone`, `nis2_ot_segment_policy.csv`",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Stream (Splunkbase 1809)",
-  "spl": "index=netfw earliest=-24h\n| lookup nis2_ot_segment_policy.csv src_zone dest_zone OUTPUT allowed\n| where allowed=\"false\"\n| stats sum(bytes) as bytes count as sessions by src_zone dest_zone dest_port app\n| where sessions > 10\n| sort - bytes\n| table src_zone, dest_zone, dest_port, app, bytes, sessions",
-  "description": "Operational technology environments rely on strict segmentation between IT and OT. This use case detects east-west flows that violate Purdue zone boundaries — for example SMB or RDP from corporate VLANs into PLC subnets documented as prohibited.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes netfw. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Standardise zone naming across OT and IT firewalls; (2) encode allowed zone pairs in policy lookup; (3) alert SOC-OT fusion cell on any denied-pattern traffic that actually occurred (policy violation or mis-tagging); (4) weekly review with plant engineering; (5) document change tickets for approved exceptions. Indexes required: `index=netfw`.",
+  "dataSources": "`index=firewall` or `index=ot_network` with `sourcetype=pan:traffic` (src_zone, dest_zone, bytes, dest_port, app per Splunk Add-on for Palo Alto Networks, Splunkbase 2757) and `sourcetype=cisco:asa` from Splunk Add-on for Cisco ASA (Splunkbase 1620) with normalized zone tags; optional Zeek or IDS for corroboration. Policy lookup `nis2_ot_segment_policy.csv` includes src_zone, dest_zone, allowed, protocol, port. Splunk Enterprise Security (Splunkbase 263) enriches ownership.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Add-on for Cisco ASA (Splunkbase 1620)",
+  "spl": "index=netfw earliest=-24h src_zone=* dest_zone=*\n| lookup nis2_ot_segment_policy.csv src_zone dest_zone OUTPUT allowed protocol port\n| where allowed=\"false\"\n| stats sum(bytes) as bytes count as sessions by src_zone dest_zone dest_port app\n| where sessions > 10\n| sort - bytes\n| table src_zone, dest_zone, dest_port, app, bytes, sessions",
+  "description": "Aggregates firewall sessions that cross Purdue-style zone pairs your policy marks as forbidden—surfacing repeated SMB, RDP, or HTTP crossings from IT VLANs toward OT cells where the lookup says those conversations should never succeed in bulk.",
+  "value": "Plant safety and production uptime depend on hard boundaries; this gives OT governance teams repeatable evidence that the choke-point firewalls actually see—and log—the east-west attempts that bypass paper diagrams, so regulators trust the segmentation story.",
+  "implementation": "(1) Normalize `src_zone`/`dest_zone` naming between Palo Alto (`pan:traffic`) and Cisco ASA extractions. (2) Maintain `nis2_ot_segment_policy.csv` rows for each allowed/blocked pair with `allowed=true|false`. (3) Heavy forwarders parse locally; avoid sending raw pcaps to Splunk. (4) Save alert `UC-22.2.36` hourly; route to OT SOC distribution list. (5) Weekly workstation with plant engineering to clear false positives via exception register updates.",
   "visualization": "Sankey (zone to zone), Table (violations), Single value (distinct forbidden paths), Heatmap (sessions by hour).",
   "cimModels": [
     "N/A"
@@ -37,19 +38,34 @@
   "cimSpl": "",
   "references": [
     {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "Splunk Add-on for Cisco ASA",
+      "url": "https://splunkbase.splunk.com/app/1620"
+    },
+    {
       "title": "Splunk Enterprise Security",
       "url": "https://splunkbase.splunk.com/app/263"
     },
     {
-      "title": "Splunk Add-on for Stream",
-      "url": "https://splunkbase.splunk.com/app/1809"
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
     },
     {
-      "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Operational noise during large maintenance windows, controlled exercises, or scope changes to critical entity lists.",
+  "knownFalsePositives": "**Jump host patch management** — Distinguish: single admin IP, scheduled `SCCM` window, `app` tagged microsoft-ds. Suppress: `lookup ot_jump_hosts.csv src OUTPUT ok_jump` then `where ok_jump!=1`.\n\n**Mis-tagged zones after firewall swap** — Distinguish: sudden flood of “violations” right after rule push; `dest_zone` equals `any`. Suppress: time-bound exception for **48 hours** tied to change ticket; validate tags via `lookup zone_mapping_audit.csv`.\n\n**Vendor remote support VPN** — Distinguish: known supplier ASNs, small `sessions` count bursts. Suppress: extend policy CSV `allowed=true` row with protocol `tcp/443` plus comment field logged to exception register.\n\n**Duplicate logging** — Distinguish: same flow logged by ASA and Palo Alto; double `bytes`. Suppress: dedupe using `stats sum(bytes) by flow_id` if both devices emit `session_id`; else filter with `where sourcetype=pan:traffic` only.\n\n**PLC firmware multicast** — Distinguish: broadcast helper crossing zones but policy should allow UDP/2222. Suppress: add explicit `port` and `protocol` tuple to `nis2_ot_segment_policy.csv` with `allowed=true` after OT sign-off.\n",
   "mitreAttack": [
     "T0881"
   ],
@@ -61,11 +77,27 @@
     "sessions",
     "src_zone"
   ],
-  "lastReviewed": "2026-04-22",
+  "lastReviewed": "2026-04-29",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Stream (Splunkbase 1809).\n• Ensure the following data sources are available: Firewall and IDS logs tagged with `zone`, `nis2_ot_segment_policy.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Standardise zone naming across OT and IT firewalls; (2) encode allowed zone pairs in policy lookup; (3) alert SOC-OT fusion cell on any denied-pattern traffic that actually occurred (policy violation or mis-tagging); (4) weekly review with plant engineering; (5) document change tickets for approved exceptions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=netfw earliest=-24h\n| lookup nis2_ot_segment_policy.csv src_zone dest_zone OUTPUT allowed\n| where allowed=\"false\"\n| stats sum(bytes) as bytes count as sessions by src_zone dest_zone dest_port app\n| where sessions > 10\n| sort - bytes\n| table src_zone, dest_zone, dest_port, app, bytes, sessions\n```\n\nUnderstanding this SPL\n\n**NIS2 OT Network Segmentation Validation (Art. 21(2)(a))** — Operational technology environments rely on strict segmentation between IT and OT. This use case detects east-west flows that violate Purdue zone boundaries — for example SMB or RDP from corporate VLANs into PLC subnets documented as prohibited.\n\nDocumented **Data sources**: Firewall and IDS logs tagged with `zone`, `nis2_ot_segment_policy.csv`. **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Stream (Splunkbase 1809). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: netfw.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=netfw, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where allowed=\"false\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` aggregates events by **src_zone dest_zone dest_port app**, producing one row per unique combination for trend analysis and threshold evaluation.\n• Filters the current rows with `where sessions > 10` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nThis use case does not use a CIM tstats shortcut; the primary SPL above is the source of truth after field normalization in your environment.\n\nOutput fields: app, bytes, dest_port, dest_zone, sessions, src_zone.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sankey (zone to zone), Table (violations), Single value (distinct forbidden paths), Heatmap (sessions by hour).",
-  "grandmaExplanation": "We operational technology environments rely on strict segmentation between IT and OT.",
-  "dataModelAcceleration": "Not applicable"
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise Security (Splunkbase 263) recommended for asset & identity joins; Palo Alto TA (Splunkbase 2757) and Cisco ASA TA (Splunkbase 1620) on search heads + indexers.\n• Dedicated `index=ot_network` or reuse `index=firewall` with strict **RBAC** limiting analysts to OT VLAN tags.\n• Field aliases in `props.conf` guaranteeing `src_zone` and `dest_zone` exist for both vendors—use `EVAL-` lines if Palo Alto uses `vsys` naming.\n• Lookup `nis2_ot_segment_policy.csv` version-controlled in Git with Splunk Deployment Server push.\n• Network time sync (NTP) within **1 second** on OT firewalls to align sessions.\n\nStep 1 — Configure data collection\nOn Palo Alto, enable zone labels in traffic logs; forward via syslog to HF with `UDP 514` or `TLS` syslog‑ng. Map to `sourcetype=pan:traffic` per TA defaults.\n\nFor Cisco ASA in OT demilitarized zones, enable `logging threat` and zoning via context; ingest into same index with unique `fw_cluster` field.\n\nValidate with `index=firewall sourcetype=pan:traffic | stats dc(src_zone)` expecting >3 zones.\n\nStep 2 — Create the search and alert\nBase search filters last **24 hours**; `lookup` attaches `allowed`. Weed out noise with `sessions>10`. Extend with `where protocol=\"tcp\" AND dest_port IN (445,3389)` for classic lateral movement focus.\n\nConsider correlating IDS `sourcetype=suricata` signatures using `join` on `src_ip` after `rename`.\n\nSchedule hourly; throttle by `src_zone`,`dest_zone` pair for **12 hours**.\n\nStep 3 — Validate\nDuring maintenance, attempt controlled RDP from CORP-PC subnet toward HMI VLAN in lab—confirm row appears with accurate `bytes` and `sessions` vs firewall session browser.\n\nImportantly, verify denied vs allowed semantics: some devices log even blocked attempts—set `where action=\"allow\"` if your policy tracks only successful crossings.\n\nStep 4 — Operationalize\nDashboard with Sankey edges weighted by `bytes`; clicking edge drills into raw events (Events panel in ES Security Intelligence).\n\nCreate adaptive response notable in ES with playbooks linking to work order system.\n\nStep 5 — Troubleshooting\n• **Lookup misses** — default `allowed` null behaves like false positive; set `OUTPUTNEW` carefully or `fillnull allowed=\"true\"` for unknown pairs awaiting classification. • **Huge `bytes` spikes** — backups crossing zones; cross-check `app=smb` vs NetBackup hosts; use `where NOT backup_flag=1` after tagging. • **No zones** — logging template missing; open Palo Alto UI Device → Log Settings. • **ASA field blank** — interface labels not mapped; edit `transforms.conf` zone extraction. • **Performance** — narrow `index=firewall earliest=-4h` during incident storms.\n",
+  "grandmaExplanation": "Factories and plants keep fragile equipment on separate network lanes from the regular office Wi‑Fi. We watch the checkpoints between those lanes—the firewalls—and loudly report traffic patterns that behave like someone drove the wrong way through a one-way gate, especially when it keeps happening.",
+  "dataModelAcceleration": "Not applicable",
+  "owner": "CISO",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does not validate physical access controls, safety instrumented system programming integrity, or vendor remote-access contracts; it only sees what the paired firewall and IDS logs chose to record and forward during the sampled interval.",
+  "evidence": "Hourly `UC-22.2.36` panel snapshots, exported CSV of offending `src_zone`→`dest_zone` pairs, and signed policy lookup hash archived under `index=audit_evidence` for OT governance reviews.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "In a sandbox, generate at least eleven allowed-session records from CORP-LAN toward PLC-AREA with the lookup marking that pair `allowed=false`; the search ranks the pair with `sessions>10` and non-zero `bytes`, matching the firewall’s own session counter.",
+    "negativeScenario": "When only approved maintenance pairs exist—with temporary `allowed=true` rows current in `nis2_ot_segment_policy.csv` and no other crossings—the hourly alert returns zero results and the empty output is stamped into the quarterly OT segmentation attestation workbook.",
+    "fixtureRef": "sample-data/uc-22.2.36-fixture.json"
+  }
 }

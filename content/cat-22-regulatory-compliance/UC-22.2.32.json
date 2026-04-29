@@ -16,21 +16,22 @@
       "clause": "Art.21(2)",
       "mode": "satisfies",
       "assurance": "contributing",
-      "assurance_rationale": "NIS2 Art.21(2) — Reviewed: SPL provides contributing evidence for this regulatory requirement. The search query directly addresses the monitoring objective specified by the clause.",
+      "assurance_rationale": "Art.21(2) is assigned contributing assurance because this UC provides concrete Splunk evidence for the observable control condition, while policy approval, legal interpretation, and official filings remain outside Splunk.",
       "controlObjective": "Evidence that NIS2 Art.21(2) is enforced — Splunk UC-22.2.32: NIS2 Proportional Security Measure Verification by Tier.",
       "evidenceArtifact": "Saved search 'UC-22.2.32' running on nis2_control_matrix.csv (control_id, required_for_tier), ES correlation search inventory, nis2_entity_classification.csv, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`nis2_control_matrix.csv` (control_id, required_for_tier), ES correlation search inventory, `nis2_entity_classification.csv`",
-  "app": "Splunk Enterprise Security (Splunkbase 263)",
+  "dataSources": "`lookup=nis2_control_matrix.csv` defines `control_id`, `required_for_tier`, `owner_team`. `lookup=nis2_entity_classification.csv` supplies `legal_entity_id`, `entity_tier` for proportionality context. Live enforcement checks pull disabled flags from Splunk Enterprise Security correlation searches via REST (`/servicesNS/-/SplunkEnterpriseSecurity/saved/searches`, Splunkbase 263). Supplement with `index=grc` `sourcetype=grc:risk` to show whether missing controls align to accepted risk treatment.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928) optional for control ownership tickets",
   "spl": "| inputlookup nis2_control_matrix.csv\n| join entity_tier [\n    | inputlookup nis2_entity_classification.csv\n    | stats values(entity_tier) as entity_tiers by legal_entity_id\n    | mvexpand entity_tiers\n    | rename entity_tiers as entity_tier\n]\n| where required_for_tier=\"true\"\n| join control_id [\n    | rest /servicesNS/-/SplunkEnterpriseSecurity/saved/searches count=0 splunk_server=local\n    | search title=\"nis2_*\"\n    | eval control_id=replace(title,\"nis2_\",\"\")\n    | stats latest(disabled) as search_disabled by control_id\n]\n| where search_disabled=1 OR isnull(search_disabled)\n| table control_id, entity_tier, search_disabled",
-  "description": "Important entities are not required to implement every control at essential-entity intensity. This use case compares deployed detective and preventive controls against a tiered control matrix — surfacing overkill gaps (waste) and under-provision gaps (risk) relative to classification.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Encode which ES searches map to which control IDs; (2) mark controls required per tier; (3) alert when required searches are disabled; (4) review quarterly with risk committee; (5) attach matrix version to audit evidence. Lookups: `nis2_control_matrix`, `nis2_control_matrix.csv`, `nis2_entity_classification`, `nis2_entity_classification.csv`.",
-  "visualization": "Matrix heatmap (tier vs control), Table (disabled required controls), Single value (coverage %). Key fields: `control_id`, `entity_tier`, `entity_tiers`, `search_disabled`.",
+  "description": "Cross-checks the NIS2 control matrix against your active Enterprise Security correlation searches so you can prove required detective controls stay enabled for each entity tier—or expose intentional gaps with a ticket trail.",
+  "value": "Helps proportionality reviews by translating \"which tier needs which control\" into live Splunk configuration state instead of slide-deck assertions, so internal audit can trace a disabled search back to a named `control_id`.",
+  "implementation": "(1) Prefix every mandated correlation search with `nis2_` + `control_id`. (2) Version `nis2_control_matrix.csv` whenever risk committee moves a control between tiers. (3) Save `UC-22.2.32` weekly. (4) Auto-assign SNOW tasks using Splunkbase 1928 alert action. (5) Mirror outputs into GRC workbook quarterly.",
+  "visualization": "Matrix heatmap of tier vs control coverage, table of disabled required controls, single value for percentage enabled.",
   "cimModels": [
     "N/A"
   ],
@@ -38,21 +39,55 @@
     {
       "title": "Splunk Enterprise Security",
       "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Operational noise during large maintenance windows, controlled exercises, or scope changes to critical entity lists.",
+  "knownFalsePositives": "• **ES maintenance bundle disables searches temporarily** — Distinguish: rollout window **30 minutes**. Suppress: join `_internal` `deployment` events or time-bound `nis2_exception_register.csv` with `change_ticket`.\n• **Testing copies of searches** — Distinguish: titles include `_dev` suffix not in matrix. Suppress: `where match(title,\"^nis2_[A-Z0-9]+$\")` in rest subsearch.\n• **Renamed control IDs** — Distinguish: matrix still references old `control_id`. Suppress: lookup `nis2_control_alias.csv` mapping old to new before REST join.\n• **SHC captain-only REST view** — Distinguish: some members lack SplunkEnterpriseSecurity app context. Suppress: run saved search on captain with `splunk_server=local` service account role `ess_rest_reader`.\n• **Intentional seasonal pause** — Distinguish: retail freezes correlation during peak sales with CISO approval. Suppress: lookup `nis2_control_pause_calendar.csv` keyed on week number.\n",
   "requiredFields": [
     "control_id",
     "entity_tier",
-    "entity_tiers",
     "search_disabled"
   ],
-  "lastReviewed": "2026-04-22",
+  "lastReviewed": "2026-04-29",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263).\n• Ensure the following data sources are available: `nis2_control_matrix.csv` (control_id, required_for_tier), ES correlation search inventory, `nis2_entity_classification.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Encode which ES searches map to which control IDs; (2) mark controls required per tier; (3) alert when required searches are disabled; (4) review quarterly with risk committee; (5) attach matrix version to audit evidence.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup nis2_control_matrix.csv\n| join entity_tier [\n    | inputlookup nis2_entity_classification.csv\n    | stats values(entity_tier) as entity_tiers by legal_entity_id\n    | mvexpand entity_tiers\n    | rename entity_tiers as entity_tier\n]\n| where required_for_tier=\"true\"\n| join control_id [\n    | rest /servicesNS/-/SplunkEnterpriseSecurity/saved/searches count=0 splunk_server=local\n    | search title=\"nis2_*\"\n    | eval control_id=replace(title,\"nis2_\",\"\")\n    | stats latest(disabled) as search_disabled by control_id\n]\n| where search_disabled=1 OR isnull(search_disabled)\n| table control_id, entity_tier, search_disabled\n```\n\nUnderstanding this SPL\n\n**NIS2 Proportional Security Measure Verification by Tier (Art. 21(2))** — Important entities are not required to implement every control at essential-entity intensity. This use case compares deployed detective and preventive controls against a tiered control matrix — surfacing overkill gaps (waste) and under-provision gaps (risk) relative to classification.\n\nDocumented **Data sources**: `nis2_control_matrix.csv` (control_id, required_for_tier), ES correlation search inventory, `nis2_entity_classification.csv`. **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• Filters the current rows with `where required_for_tier=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• Filters the current rows with `where search_disabled=1 OR isnull(search_disabled)` — typically the threshold or rule expression for this monitoring goal.\n\nOutput fields: control_id, entity_tier, entity_tiers, search_disabled.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Matrix heatmap (tier vs control), Table (disabled required controls), Single value (coverage %).",
-  "grandmaExplanation": "We important entities are not required to implement every control at essential-entity intensity.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise Security (Splunkbase 263) ≥7.0 deployed to Search Head Cluster; verify app context `SplunkEnterpriseSecurity` exists.\n• Service account `svc_es_readout` granted `list_saved_searches` via **Settings > Authentication > Roles** without interactive login.\n• CSV `nis2_control_matrix.csv` and `nis2_entity_classification.csv` on Deployment Server with SHA manifest.\n• Network ACL allowing REST `8089/tcp` loopback from SH to itself (or SHC captain).\n• Understanding of naming convention `nis2_<control_id>` matching matrix rows.\n\nStep 1 — Configure data collection\nImport matrix from GRC tool. Ensure `required_for_tier` uses lowercase `essential` / `important`. Align entity tiers with legal register.\n\nStep 2 — Create the search and alert\nGrant the saved search `rest` + `edit_saved_search`? actually read-only rest works. Save as `UC-22.2.32`. Use `| rest /servicesNS/-/SplunkEnterpriseSecurity/saved/searches count=0 splunk_server=local` snippet exactly as in production CIS benchmarks.\n\n```spl\n| rest /servicesNS/-/SplunkEnterpriseSecurity/saved/searches count=0 splunk_server=local\n| search title=\"nis2_*\"\n```\n\nThrottle alerts to business hours after **14-day** baseline.\n\nStep 3 — Validate\nManually disable a lab correlation search titled `nis2_TEST1`; confirm row returns with `search_disabled=1`. Re-enable and confirm disappearance.\n\nStep 4 — Operationalize & Troubleshoot\nIf REST returns zero rows, check role lacks ES namespace—error 403 in `splunkd.log`. For SHC, run on deployer-published account with replicated permissions.\n\nStep 5 — Governance\nAttach matrix version ID to each export. Sign with `evidenceSigning`. Review quarterly with risk committee; map exceptions to `nis2_exception_register.csv`.\n",
+  "grandmaExplanation": "We compare the \"who must have which safety alarm switched on\" spreadsheet to what is actually running inside the security monitoring tool, tier by tier, so nobody accidentally lives with the stricter alarms turned off—or the lighter ones left on waste mode forever.",
   "cimSpl": "",
-  "dataModelAcceleration": "Not applicable"
+  "dataModelAcceleration": "Not applicable",
+  "owner": "CISO",
+  "controlFamily": "evidence-continuity",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
+  "evidence": "`UC-22.2.32` CSV listing `control_id`, `entity_tier`, `search_disabled`, REST capture timestamp, and risk-committee minutes cross-reference stored in `audit_evidence`.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Disable a non-production ES correlation search whose `title` matches `nis2_<control_id>` for a row where `required_for_tier=true`; the alert must emit that `control_id` with `search_disabled=1`.",
+    "negativeScenario": "Re-enable the same saved search (or delete the test object) and rerun within **15 minutes** so REST returns `disabled=0`, clearing the control from the failure roster.",
+    "fixtureRef": "sample-data/uc-22.2.32-fixture.json"
+  }
 }

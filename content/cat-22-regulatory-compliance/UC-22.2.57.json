@@ -1,0 +1,122 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.57",
+  "title": "NIS2 crawl/walk/run maturity and next-best-control benchmark dashboard",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "wave": "run",
+  "prerequisiteUseCases": [],
+  "monitoringType": [
+    "Compliance",
+    "Security",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "All sectors in NIS2 Annex I and II",
+  "owner": "CISO",
+  "controlFamily": "policy-to-control-traceability",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.20(1)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.20(1) receives contributing assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.20(1) using NIS2 crawl/walk/run maturity and next-best-control benchmark dashboard.",
+      "evidenceArtifact": "Saved search for NIS2 crawl/walk/run maturity and next-best-control benchmark dashboard, dashboard panel, and archived result export in index=audit_evidence for Art.20(1).",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.20(1)",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(f)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(f) receives contributing assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.21(2)(f) using NIS2 crawl/walk/run maturity and next-best-control benchmark dashboard.",
+      "evidenceArtifact": "Saved search for NIS2 crawl/walk/run maturity and next-best-control benchmark dashboard, dashboard panel, and archived result export in index=audit_evidence for Art.21(2)(f).",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(f)",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`| inputlookup nis2_obligation_matrix.csv` carries `clause`, `coverage`, `assurance`, and `uc_id` rows maintained by the compliance office; `| inputlookup uc_implementation_status.csv` layers implementation telemetry `status` (crawl/walk/run), `wave`, `last_reviewed`, and `owner` for each `uc_id`; fresh attestations land in `index=audit_evidence sourcetype=evidence:export` with `evidence_id`, `exported_at`, and `freshness_score` extracted at index-time. Optional normalisation uses Splunk Common Information Model Add-on ([Splunkbase 1621](https://splunkbase.splunk.com/app/1621)) when multiple teams push differently named timestamp fields into the same index.",
+  "app": "Splunk Enterprise 9.2+ search heads orchestrate `savedsearches.conf` schedules over CSV knowledge objects; Splunk Common Information Model Add-on ([Splunkbase 1621](https://splunkbase.splunk.com/app/1621)) is optional glue for consistent field aliases (`exported_at` → `_time`) when evidence exports originate from more than one TA.",
+  "premiumApps": [],
+  "spl": "| inputlookup nis2_obligation_matrix.csv\n| join type=left uc_id [\n    | inputlookup uc_implementation_status.csv\n]\n| join type=left uc_id [\n    search index=audit_evidence sourcetype=evidence:export earliest=-365d\n    | stats latest(_time) as evidence_export_ts latest(evidence_id) as latest_evidence_id max(freshness_score) as freshness_score by uc_id\n]\n| eval evidence_age_days=if(isnotnull(evidence_export_ts), round((now()-evidence_export_ts)/86400,2), 999)\n| eval review_epoch=if(isnotnull(last_reviewed) AND match(last_reviewed, \"^\\\\d{4}-\\\\d{2}-\\\\d{2}\"), strptime(last_reviewed, \"%Y-%m-%d\"), null())\n| eval review_lag_days=if(isnotnull(review_epoch), round((now()-review_epoch)/86400,2), 999)\n| eval maturity_score=case(\n    status=\"run\" AND evidence_age_days<=30 AND review_lag_days<=90, 95,\n    status=\"walk\" AND evidence_age_days<=45 AND review_lag_days<=120, 75,\n    status=\"crawl\" AND evidence_age_days<=60, 55,\n    true(), 35)\n| eval assurance_weight=case(lower(assurance)=\"high\", 1.15, lower(assurance)=\"medium\", 1.0, true(), 0.85)\n| eval weighted_maturity=round(maturity_score*assurance_weight,0)\n| eval next_best_control=case(\n    evidence_age_days>60 AND lower(assurance)=\"high\", \"Schedule fresh evidence export + owner attestation for \".uc_id,\n    weighted_maturity<50, \"Advance \".uc_id.\" implementation wave from \".wave.\" with measurable testing\",\n    review_lag_days>180, \"Force quarterly leadership review for \".clause,\n    true(), \"Maintain current maturity trajectory for \".owner)\n| eval benchmark_rank=weighted_maturity*(100/min(100,evidence_age_days))\n| sort - benchmark_rank\n| table clause, coverage, assurance, uc_id, status, wave, owner, evidence_age_days, review_lag_days, maturity_score, weighted_maturity, next_best_control, latest_evidence_id, freshness_score, benchmark_rank",
+  "description": "Materialises the obligation catalogue from `nis2_obligation_matrix.csv`, left-joins `uc_implementation_status.csv` for crawl/walk/run status and accountable `owner`, enriches each `uc_id` with the newest `evidence:export` payload from `index=audit_evidence`, derives `evidence_age_days` and `review_lag_days`, multiplies baseline maturity by an `assurance` weight, and ranks `next_best_control` remediation text so leadership sees which duties are slipping before external assurance interviews.",
+  "value": "Executives trade static compliance spreadsheets for a single prioritized queue that aligns scarce remediation capacity with the riskiest assurance gaps—preventing duplicate projects, shortening audit prep cycles, and showing year-over-year improvement narratives to stakeholders without manually re-scoring hundreds of controls each quarter.",
+  "implementation": "(1) Publish and version both CSV lookups via change control. (2) Land automated evidence exports on `index=audit_evidence`. (3) Schedule this SPL daily and push results to a Dashboard Studio JSON board for CISO staff review.",
+  "visualization": "Heat strip for `weighted_maturity`, bubble chart (`benchmark_rank` vs `assurance`), sortable table with drilldown to `latest_evidence_id`, owner filter tokens sourced from `uc_implementation_status.csv`.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Common Information Model Add-on on Splunkbase",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Splunk lookups — transforms.conf",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/ConfigureKVstorecollections",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
+    }
+  ],
+  "knownFalsePositives": "1) **CSV publication lag after a major control uplift weekend** — engineers finished remediations but the `uc_implementation_status.csv` export still shows `crawl`. Distinguish: Git commit timestamp on the lookup bundle in the deployment repo is newer than Splunk `_reload` time. Suppress: time-bound exception row in `nis2_exception_register.csv` keyed on `uc_id` until GRC republishes. 2) **Evidence exports paused during vault maintenance** — `evidence_age_days` spikes although manual PDFs were archived offline. Distinguish: ticketing flag `evidence_pipeline=paused` on `CHG` records. Suppress: join `index=itsm sourcetype=snow:change` and filter `where change_freeze=0`. 3) **Duplicate `uc_id` rows after catalogue reorganisation** two benchmarks appear for the same control family. Distinguish: `| inputlookup nis2_obligation_matrix.csv | stats dc(uc_id) by clause` >1. Suppress: deduplicate with `nis2_uc_duplicate_map.csv` lookup keeping canonical `uc_id`. 4) **Owner field lists a distribution list alias** distorting accountability narratives. Distinguish: `owner` contains `DL-` prefix or `@` mailing list domains. Suppress: lookup `nis2_owner_alias.csv` mapping lists to named individuals for reporting only. 5) **Assurance label typo (`High` vs `high`)** reduces weighting unpredictably. Distinguish: rogue casing in CSV. Suppress: normalize with `| eval assurance=lower(assurance)` in a macro or enforce validation during CSV ingest via Git pre-commit hook.",
+  "requiredFields": [
+    "clause",
+    "coverage",
+    "assurance",
+    "uc_id",
+    "status",
+    "wave",
+    "owner",
+    "evidence_age_days",
+    "review_lag_days",
+    "maturity_score",
+    "weighted_maturity",
+    "next_best_control",
+    "latest_evidence_id",
+    "benchmark_rank"
+  ],
+  "exclusions": "Does not auto-remediate controls, approve policy exceptions, or certify formal external audits; it only reflects curator-maintained CSVs and Splunk-stored evidence exports available to the search tier at run time.",
+  "evidence": "Saved search `UC-22.2.57 NIS2 Maturity Benchmark`, Dashboard Studio board `nis2-maturity-benchmark`, and nightly CSV snapshot archived to `index=audit_evidence sourcetype=evidence:saved_search` with RFC 3161 sealing.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "controlTest": {
+    "positiveScenario": "Fixture `sample-data/uc-22.2.57-fixture.json` sets `uc_id=22.2.57-DEMO` with `status=crawl`, `assurance=high`, `last_reviewed=2024-01-15`, and omits any `index=audit_evidence sourcetype=evidence:export` rows in the last 120 days so `evidence_age_days=999` and `next_best_control` recommends refreshing exports while `benchmark_rank` sorts near the top.",
+    "negativeScenario": "Same obligation row but `status=run`, `last_reviewed` within 30 days, and a fresh `evidence:export` event at `_time=now()-1d` carrying `evidence_id=EVID-778899` yields `weighted_maturity≥90`, causing the sort command to leave the row outside the leadership alert threshold window (top 10) used by the alerting macro.",
+    "fixtureRef": "sample-data/uc-22.2.57-fixture.json"
+  },
+  "status": "verified",
+  "lastReviewed": "2026-04-29",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@nis2-evidence-pack-maintainers",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud 9.2+ search head with RBAC roles that may run `inputlookup` against app-scoped knowledge objects and search `index=audit_evidence` without `fastdelete` privileges for analysts.\n• CSV files `nis2_obligation_matrix.csv` and `uc_implementation_status.csv` published under `$SPLUNK_HOME/etc/apps/SA-NIS2-compliance/lookups/` with matching `transforms.conf` stanzas so REST `_reload` picks up Git-managed updates within minutes.\n• Evidence pipeline writing JSON or CSV extracts into `index=audit_evidence sourcetype=evidence:export` using HTTP Event Collector (`inputs.conf` global stanza) or a scheduled scripted output; required extracted fields include `uc_id`, `evidence_id`, `exported_at`, and `freshness_score`.\n• Optional Splunk Common Information Model Add-on ([Splunkbase 1621](https://splunkbase.splunk.com/app/1621)) ≥5.3 to align timestamp fields when heterogeneous teams ingest exports.\n• Baseline understanding of how your organisation maps catalogue `uc_id` values to live monitoring use cases—this UC assumes IDs sync with the internal roadmap wiki.\n\nStep 1 — Configure data collection\n• Maintain `nis2_obligation_matrix.csv` with columns `clause`, `coverage`, `assurance`, `uc_id`, optional `domain`; validate UTF-8 and enforce lowercase assurance tokens via CI.\n• Maintain `uc_implementation_status.csv` with `uc_id`, `status`, `wave`, `last_reviewed` (`%Y-%m-%d`), and `owner`; schedule a weekly ServiceNow pull or Git commit that Splunk ingests by reloading lookups (`curl -k -u admin:**** https://sh:8089/servicesNS/nobody/SA-NIS2-compliance/data/lookup-table/refresh`).\n• Configure the evidence exporter (Python service or Ansible role) to POST to HEC with `sourcetype=evidence:export`, index `audit_evidence`, and batch size ≤512 KB every 15 minutes.\n• Expected volume: one export per UC per day (~5 KB) × 150 UCs = 750 KB/day—trivial for licensing but monitor aggregator lag.\n\nStep 2 — Create search\n• Paste the UC `spl` into Search; append `| where benchmark_rank>threshold` while tuning leadership alerts.\n• Understanding this SPL: dual `join` stages mimic SQL left joins—obligations without telemetry still appear, `evidence_age_days=999` forces prioritisation, `assurance_weight` differentiates high-risk clauses, `next_best_control` strings are audit-friendly action prompts, and `benchmark_rank` fuses maturity with freshness for stack-ranked remediation.\n• Save as `UC-22.2.57 NIS2 Maturity Benchmark`, schedule daily at `30 7 * * *`, and enable a secondary summary-index writer if you need year-over-year trending without replaying raw exports.\n\nStep 3 — Validate\n• Spot-check three random `uc_id` values: compare Splunk table output with the compliance wiki and the newest PDF stored in the document vault.\n• Run `| inputlookup uc_implementation_status.csv | eval delta=now()-strptime(last_reviewed,\"%Y-%m-%d\") | where delta>7776000` to catch stale curator inputs before they poison scoring.\n• Confirm `index=audit_evidence sourcetype=evidence:export | stats count by uc_id` aligns with expectation; empty counts explain inflated ages.\n\nStep 4 — Operationalize\n• Dashboard Studio layout: filters for `owner`, `wave`, and `assurance`; primary table sorted by `benchmark_rank`; sparklines fed from summary index `nis2_maturity_hist` if enabled.\n• Integrate with Microsoft Teams or Slack webhooks when `weighted_maturity<45` for any `assurance=high` row.\n• Archive rendered JSON definitions with change tickets for auditor replay.\n\nStep 5 — Troubleshooting\n• **`join` drops rows:** verify both CSVs share identical `uc_id` strings (watch trailing spaces).\n• **`review_lag_days` null:** `last_reviewed` used non-ISO dates; enforce `%Y-%m-%d` or extend `strptime` with `%d/%m/%Y`.\n• **Scores cluster artificially:** recalibrate `assurance_weight` factors annually with risk office.\n• **Macro alert always fires:** raise the alert threshold macro parameter or exclude sandbox `uc_id` values via `where NOT match(uc_id,\"^-DEMO\")`.\n• **Lookup reload failures:** check `splunkd.log` for permission errors after CI/CD pushes—ensure app has world-readable permissions or dedicated service user.",
+  "grandmaExplanation": "We turn a long list of cyber duties into a simple priority list—who owns each item, how current the proof is, and what to improve next—so leaders spend their limited time on what actually moves the needle.",
+  "dataModelAcceleration": "No CIM DMA required; if evidence exports are later routed through accelerated data models, add a tstats variant as `cimSpl` in a future revision."
+}

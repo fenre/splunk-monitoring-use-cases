@@ -1,0 +1,100 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.53",
+  "title": "NIS2 Art.21 business continuity, backup restore and physical-environmental resilience evidence",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IT Operations",
+  "controlFamily": "backup-restore-evidence",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(c)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.21(2)(c) receives partial assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.21(2)(c) using NIS2 Art.21 business continuity, backup restore and physical-environmental resilience evidence.",
+      "evidenceArtifact": "Saved search for NIS2 Art.21 business continuity, backup restore and physical-environmental resilience evidence, dashboard panel, and archived result export in index=audit_evidence for Art.21(2)(c).",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(c)",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=backup` `sourcetype=backup:job_status` with extracted fields `job_name`, `job_status`, `bytes_transferred`, `duration_sec`, `last_success_epoch`. `index=physical` `sourcetype=access_control:door` with `reader_id`, `badge_id`, `access_result`, `datacenter_zone`. `index=environmental` (`sourcetype=sensor:temperature` or `sourcetype=sensor:humidity`) with `site_id`, `reading`, `threshold_status`. `index=itsi_summary` service health summaries keyed to critical CIs. Splunk ITSI ([Splunkbase 1841](https://splunkbase.splunk.com/app/1841)), Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)). Lookup `critical_services.csv`: `service_id`, `service_name`, `owner`, `recovery_time_hours`, `recovery_point_hours`.",
+  "app": "Splunk IT Service Intelligence (Splunkbase 1841), Splunk Enterprise Security (Splunkbase 263)",
+  "spl": "| multisearch [\n    search index=backup sourcetype=backup:job_status earliest=-7d (job_status=\"Failed\" OR job_status=\"CompletedWithExceptions\" OR isnull(last_success_epoch))\n    | eval resilience_stream=\"backup_restore\"\n    | eval service_id=coalesce(service_tag, job_name, host, media_server)\n    | eval detail=printf(\"backup_job=%s status=%s\", job_name, job_status)\n    search index=physical sourcetype=access_control:door earliest=-7d (access_result IN (\"Denied\",\"Forced\",\"Tailgate\") OR match(lower(event_subtype),\"after_hours\"))\n    | eval resilience_stream=\"physical_security\"\n    | eval service_id=coalesce(critical_service_id, datacenter_zone, door_name)\n    | eval detail=printf(\"door=%s result=%s\", door_name, access_result)\n    search index=environmental (sourcetype=sensor:temperature OR sourcetype=sensor:humidity) earliest=-7d threshold_status IN (\"critical\",\"alarm\")\n    | eval resilience_stream=\"environmental\"\n    | eval service_id=coalesce(critical_service_id, site_id, rack_row)\n    | eval detail=printf(\"sensor=%s reading=%s\", sensor_id, reading)\n    search index=itsi_summary earliest=-7d (alert_value>threshold OR alert_color IN (\"red\",\"orange\"))\n    | eval resilience_stream=\"service_health\"\n    | eval service_id=serviceid\n    | eval detail=printf(\"kpi=%s severity=%s\", kpiid, alert_color)\n]\n| lookup critical_services.csv service_id OUTPUT service_name, owner, recovery_time_hours, recovery_point_hours\n| stats latest(_time) as last_signal values(resilience_stream) as streams values(detail) as details count by service_id owner recovery_point_hours\n| eval hours_since=round((now()-last_signal)/3600,2)\n| where hours_since>recovery_point_hours OR isnull(owner)\n| sort - hours_since",
+  "description": "Correlates failed or stale backup jobs, physical-access anomalies in sensitive zones, breached environmental thresholds, and ITSI service-health breaches against the business service catalog so resilience gaps surface as one evidence stream.",
+  "value": "Stops compliance discussions from resting on paper exercises alone by showing, in one place, whether recovery points, facility protections, and service health still look healthy enough to survive real outages.",
+  "implementation": "Normalize vendor backup exports into `backup:job_status`; send access-control and BACnet/BMS sensor streams to `physical` and `environmental` indexes; accelerate ITSI KPI summaries. Maintain `critical_services.csv` with owners and recovery targets. Install Splunkbase 1841 and 263 where licensed. Schedule the multisearch daily; archive positive rows to `index=audit_evidence`.",
+  "visualization": "Four-tile executive row (backup, physical, environmental, ITSI) plus a single merged table (service_key, streams, hours_since, owner); optional geomap if `site_id` carries coordinates.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Alerts where nodename=Alerts.All_Alerts by Alerts.dest, Alerts.signature | sort - count",
+  "references": [
+    {
+      "title": "Splunk IT Service Intelligence (Splunkbase 1841)",
+      "url": "https://splunkbase.splunk.com/app/1841"
+    },
+    {
+      "title": "Splunk Enterprise Security (Splunkbase 263)",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Splunk Documentation: multisearch command",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch"
+    }
+  ],
+  "knownFalsePositives": "• **Planned generator load-test trips HVAC alarms** — Distinguish: Facilities team raises temporary humidity excursion during controlled test. Suppress: `nis2_facility_exception_register.csv` time-bound exception with ticket id.\n• **Backup job \"CompletedWithExceptions\" for non-critical VM** — Distinguish: guest OS quiesce warning but chain still restorable. Suppress: filter SPL `where priority_tier=\"Tier1\"` after lookup adds tier from `critical_services.csv`.\n• **Contractor badge denied at exit reader twice** — Distinguish: benign mis-tap; no entry event. Suppress: require `access_result=\"Denied\"` paired with `direction=\"inbound\"` via `where` clause.\n• **ITSI orange KPI during sanctioned maintenance** — Distinguish: maintenance window suppresses automation in vendor UI. Suppress: join `maintenance_calendar.csv` on `service_id` and `_time` as time-bound exception lookup.\n• **Laggy itsi_summary replication in DR site** — Distinguish: events arrive **15 minutes** late but healthy in primary region. Suppress: raise `recovery_point_hours` threshold only for DR-specific `service_id` using a dedicated lookup column.",
+  "requiredFields": [
+    "service_id",
+    "resilience_stream",
+    "last_signal",
+    "hours_since",
+    "owner"
+  ],
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel or competent-authority review. Does not execute restore tests or validate backup encryption—only monitors ingested status and environmental telemetry.",
+  "evidence": "Daily saved search `UC-22.2.53` output, dashboard workbook, CSV export, and archive copy in `index=audit_evidence` with timestamped multisearch extracts.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "controlTest": {
+    "positiveScenario": "A Tier-1 database backup finishes jobs but `last_success_epoch` is older than the service’s `recovery_point_hours` while multisearch also shows a red ITSI KPI for the same `service_id`; the combined search returns a row listing backup_restore and service_health streams.",
+    "negativeScenario": "All Tier-1 backups succeed within the hour, door denials tie to guard drills with approved tickets, environmental sensors stay inside thresholds, and ITSI KPI tiles stay green—so the post-lookup filter yields zero rows when executed over the same test window.",
+    "fixtureRef": "sample-data/uc-22.2.53-fixture.json"
+  },
+  "status": "verified",
+  "lastReviewed": "2026-04-29",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk ITSI"
+  ],
+  "detailedImplementation": "Prerequisites\n• Service catalogue CSV `critical_services.csv` approved by BC lead; include `service_id`, `owner`, `recovery_time_hours`, `recovery_point_hours`.\n• Splunk ITSI ([Splunkbase 1841](https://splunkbase.splunk.com/app/1841)) with KPI base searches populated for Tier-1 services; Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)) optional for risk-based routing.\n• Indexes `backup`, `physical`, `environmental`, `itsi_summary` created with retention covering your longest audit lookback (often **2555 days** for regulated sectors—confirm with Legal).\n• RBAC roles: `bc_monitoring` role may search only these indexes, not `indexes = *`.\n• Network: backup vendor API or syslog reach Heavy Forwarders; access-control panels send LEEF/CEF to syslog or HEC on **8088/tcp**.\n\nStep 1 — Configure data collection\nMap backup software reports to `sourcetype=backup:job_status` with explicit `job_status`, `bytes_transferred`, `last_success_epoch`. Ingest badge systems to `index=physical` `sourcetype=access_control:door` with `reader_id`, `access_result`, `direction`. Stream BMS sensors to `index=environmental` with `sourcetype=sensor:temperature` or `sensor:humidity` and normalized `threshold_status`. For ITSI, confirm `itsi_summary` contains `serviceid`, `kpiid`, `alert_color` after **15-minute** rollup.\n\nStep 2 — Create the search and alert\nPaste the multisearch SPL; start with `earliest=-24h` during tuning. Save as `UC-22.2.53` scheduled daily at 07:00 local. For large estates, add `| fillnull value=\"unknown\" owner` then drop rows only when `owner` is truly blank per lookup. Use **Job Inspector** to verify each subsearch returns events before chaining.\n\n```spl\n| multisearch [\n    search index=backup sourcetype=backup:job_status earliest=-7d\n    | head 1\n]\n```\n\nUnderstanding this SPL: each branch tags `resilience_stream` so auditors see which Art.21(2)(c) sub-topic fired. The `lookup critical_services.csv` ties infrastructure events back to accountable owners and numeric recovery targets. Final `where` enforces stale-signal detection using hours since last telemetry versus `recovery_point_hours`.\n\nStep 3 — Validate\nPick a known good week: dashboard should be empty after filters. Inject lab failures (disable one backup job, trip a test door denied event, raise humidity threshold). Confirm four-stream visibility within **30 minutes**.\n\nStep 4 — Operationalize & Troubleshoot\nPublish dashboard «Resilience Posture — NIS2 Art.21(2)(c)». Wire alert to PagerDuty for Tier-1 only. Runbook: verify backup catalogue, dispatch facilities, open ITSI deep dive. Failure modes: **multisearch limit** — increase `limits.conf` subsearch only after capacity review; **blank `service_id`** — fix field aliasing at ingest; **itsi_summary lag** — compare `_indextime - _time`.\n\nStep 5 — Governance\nMonthly BC steering reviews the saved search CSV stored under `index=audit_evidence`. Update lookup rows when recovery targets change; never edit historical exports without a documented correction entry.",
+  "grandmaExplanation": "We bundle the boring-but-vital stuff—backups, building access, room climate, and whether key services are actually healthy—into one easy view. When any piece falls behind what leadership promised, we spot it early instead of discovering it mid-crisis.",
+  "dataModelAcceleration": "Accelerate Alerts only if you add ES notables; ITSI already relies on itsi_summary acceleration jobs—leave defaults unless Support advises."
+}

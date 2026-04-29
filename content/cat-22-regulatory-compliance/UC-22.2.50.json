@@ -1,0 +1,140 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.50",
+  "title": "NIS2 Art.21/22 — Critical supplier risk, SBOM exposure and vendor access monitoring",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Procurement",
+  "controlFamily": "third-party-activity",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(d)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.21(2)(d) receives partial assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.21(2)(d) using NIS2 Art.21/22 — Critical supplier risk, SBOM exposure and vendor access monitoring.",
+      "evidenceArtifact": "Saved search for NIS2 Art.21/22 — Critical supplier risk, SBOM exposure and vendor access monitoring, dashboard panel, and archived result export in index=audit_evidence for Art.21(2)(d).",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(d)",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(3)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.21(3) receives partial assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.21(3) using NIS2 Art.21/22 — Critical supplier risk, SBOM exposure and vendor access monitoring.",
+      "evidenceArtifact": "Saved search for NIS2 Art.21/22 — Critical supplier risk, SBOM exposure and vendor access monitoring, dashboard panel, and archived result export in index=audit_evidence for Art.21(3).",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(3)",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.22",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.22 receives partial assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.22 using NIS2 Art.21/22 — Critical supplier risk, SBOM exposure and vendor access monitoring.",
+      "evidenceArtifact": "Saved search for NIS2 Art.21/22 — Critical supplier risk, SBOM exposure and vendor access monitoring, dashboard panel, and archived result export in index=audit_evidence for Art.22.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.22",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=vuln` `sourcetype=qualys:hostdetection` (HOSTNAME, QID, CVE_ID, Severity, STATUS) via Splunk Add-on for Qualys ([Splunkbase 2964](https://splunkbase.splunk.com/app/2964)); `lookup=critical_suppliers.csv` (managed_asset, supplier_name, supplier_tier, jump_host); `index=sbom` `sourcetype=sbom:cyclonedx` or `sourcetype=spdx:json` with `component.name`, `component.version`; `index=pam` `sourcetype=cyberark:session` (user, target_host, duration_min) via Splunk Add-on for CyberArk ([Splunkbase 2891](https://splunkbase.splunk.com/app/2891)).",
+  "app": "Splunk Add-on for Qualys (Splunkbase 2964), Splunk Add-on for CyberArk (Splunkbase 2891), Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928); optional Splunk SOAR (Splunkbase 5165) for supplier playbooks.",
+  "spl": "index=vuln sourcetype=qualys:hostdetection earliest=-30d NOT (STATUS=Fixed OR lower(STATUS)=\"fixed\")\n| eval asset=lower(trim(coalesce(HOSTNAME, host, fqdn)))\n| lookup critical_suppliers.csv managed_asset AS asset OUTPUT supplier_name supplier_tier jump_host\n| where supplier_tier IN (\"critical\",\"tier1\")\n| eval severity_score=case(Severity=\"5\",5,Severity=\"4\",4,match(lower(coalesce(severity,\"\")),\"critical\"),5,match(lower(coalesce(severity,\"\")),\"high\"),4,0)\n| where severity_score>=4\n| stats dc(QID) as open_findings dc(CVE_ID) as distinct_cves dc(asset) as impacted_assets by supplier_name supplier_tier\n| where open_findings>5 OR impacted_assets>8\n| sort - open_findings\n| table supplier_name supplier_tier open_findings distinct_cves impacted_assets",
+  "description": "Correlates Qualys host findings that are still open and high severity against a `critical_suppliers.csv` inventory so only tier-one vendor estates with concentrated plugin counts appear, preparing companion SBOM and CyberArk panels.",
+  "value": "Board packs gain a single narrative—\"which indispensable supplier has the most serious unfixed exposures right now\"—without three separate meetings with procurement, SecOps, and engineering, and it plugs directly into Art.21(3)/22 governance discussions about dependency management and incident cooperation.",
+  "implementation": "(1) Ingest Qualys host detections into `index=vuln` with TA 2964 modular inputs hitting Qualys API **/api/3.0/fo/asset/host/vm/detection**. (2) Maintain `critical_suppliers.csv` under change control; columns must include managed_asset (FQDN lower-case) and supplier_tier. (3) Schedule this search daily; clone a second search for `index=sbom` CycloneDX joins on `component.version`. (4) Add CyberArk panel: `index=pam` stats on `target_host` where `jump_host` matches lookup. (5) Export composite PDF weekly to `index=audit_evidence`. (6) Optional: open ES (263) notable event when `open_findings>25`.",
+  "visualization": "Supplier risk table, SBOM component treemap (optional panel), CyberArk vendor duration heatmap, ES risk index line chart.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Alerts where nodename=Alerts.Alerts by Alerts.signature | head 20",
+  "references": [
+    {
+      "title": "Splunk Add-on for Qualys",
+      "url": "https://splunkbase.splunk.com/app/2964"
+    },
+    {
+      "title": "Splunk Add-on for CyberArk",
+      "url": "https://splunkbase.splunk.com/app/2891"
+    },
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
+    }
+  ],
+  "knownFalsePositives": "• **Qualys STATUS field inconsistent after scanner upgrade** — Distinguish: uppercase `FIXED` vs `Fixed`. Suppress: normalize with `eval st=lower(STATUS)` then `where st!=\"fixed\"`.\n• **Shared scanning appliance shows duplicate QIDs** — Distinguish: same CVE listed per interface. Suppress: `dedup QID asset` before `stats`.\n• **SBOM duplicates dev artifacts** — Distinguish: test images inflate component counts. Suppress: lookup `sbom_scope_exceptions.csv` marking `environment=prod_only`.\n• **CyberArk sessions during approved vendor cutover** — Distinguish: CHG record exists in ServiceNow. Suppress: time-bound exception register `supplier_access_window.csv`.\n• **critical_suppliers.csv stale after divestiture** — Distinguish: assets still flagged tier1 though business sold division. Suppress: nightly sync from ServiceNow CMDB via Splunk Add-on for ServiceNow REST input filtered with `u_active=true`.",
+  "requiredFields": [
+    "supplier_name",
+    "supplier_tier",
+    "open_findings",
+    "distinct_cves",
+    "impacted_assets"
+  ],
+  "mitreAttack": [
+    "T1195",
+    "T1078"
+  ],
+  "equipment": [
+    "qualys",
+    "cyberark",
+    "servicenow"
+  ],
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
+  "evidence": "Composite dashboard `UC-22.2.50`, Qualys export hash, `critical_suppliers.csv` revision ID, and weekly PDF archive row in `index=audit_evidence` referenced in the management body minutes.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "controlTest": {
+    "positiveScenario": "Seed Qualys events for two tier1 suppliers where open QID counts exceed the threshold and CVE severity maps to the high bucket; the saved search lists both supplier_name values with distinct asset counts and the auditor can open the drilldown to raw events.",
+    "negativeScenario": "Replay the same QID payloads after updating `critical_suppliers.csv` to mark those hosts as divested (`supplier_tier=exited`) so the lookup drops the rows and the saved search returns an empty statistic with a log entry confirming the suppressing lookup version.",
+    "fixtureRef": "sample-data/uc-22.2.50-fixture.json"
+  },
+  "status": "verified",
+  "lastReviewed": "2026-04-29",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "Prerequisites\n• Splunk Add-on for Qualys (Splunkbase 2964) with API user limited to **reader** rights; credentials in **passwords.conf** on heavy forwarder.\n• `critical_suppliers.csv` approved by legal/procurement; include `managed_asset`, `supplier_tier`, optional `jump_host` for PAM joins.\n• Search role `nis2_supply_chain` needs indexes `vuln`, `sbom`, `pam`, `audit_evidence`.\n• Network allow **443/tcp** outbound to Qualys API endpoints documented in TA README.\n\nStep 1 — Configure data collection\nEnable Qualys modular input with interval **3600 seconds** and index=`vuln`, sourcetype=`qualys:hostdetection`. Verify field names in **Settings → Fields** — HOSTNAME vs host varies by TA version; update `eval` coalesce list accordingly.\nIngest CycloneDX bundles to `index=sbom` via HEC (`/services/collector/event`) using sourcetype=`sbom:cyclonedx`; gzip payloads under **10 MB** recommended.\nCyberArk TA (2891) must populate `index=pam` `sourcetype=cyberark:session` with `target_host` normalized to lowercase FQDN for join parity.\nServiceNow (1928) optional pull of `cmdb_ci` updates nightly to refresh supplier ownership columns.\n\nStep 2 — Create the search and alert\nSave SPL as `UC-22.2.50_critical_supplier_exposure` scheduled **daily** at 06:15 UTC with **earliest=-30d@d** to smooth intermittent scan noise.\nClone search for SBOM use case: `index=sbom | mvexpand components{} | spath` — maintain as second panel to satisfy SBOM evidence requests without overloading primary alert.\nThird panel: `index=pam` with `stats sum(duration_min) by supplier_name` after lookup on `jump_host`.\nOptional ES correlation: use **correlation search** to raise risk score when `open_findings>25`.\n\nStep 3 — Validate\nPick supplier `ACME` known to host regulated workloads; compare Splunk `open_findings` vs Qualys **VM/VMDR** dashboard for same business unit filter.\nValidate lookup coverage: `| inputlookup critical_suppliers.csv | stats dc(managed_asset)` vs CMDB count — discrepancies indicate missing assets masking risk.\nFor SBOM, pick one CycloneDX file and confirm `component.name` matches engineering spreadsheet.\n\nStep 4 — Operationalize\nDashboard rows: supplier tier, open findings, CVE sample list, link to SOAR playbook **SupplierT1-VulnReview** if licensed (5165).\nEscalation: tier1 suppliers notify legal + CISO within **4 hours** per internal policy; document email archive ID in Splunk event annotation.\nWeekly export to **PDF** with RFC3161 timestamp via corporate vault.\n\nStep 5 — Troubleshooting\n• **No vuln events** — API rate limit exceeded; reduce poll frequency or widen retry in `inputs.conf`.\n• **lookup failure** — `managed_asset` mismatch case — enforce lowercase at ingest with **EVAL**.\n• **explosion of impacted_assets** — multi-interface hosts; dedup by underlying `asset_id` if TA provides it.\n• **SBOM panel empty** — HEC token wrong index; check `splunkd.log` HttpInputHandler.\n• **False PAM correlation** — jump_host field blank; enrich from CMDB `u_supplier_jump` custom column.",
+  "grandmaExplanation": "We compare the list of suppliers you cannot afford to lose with the latest serious security holes and the time outside technicians spend inside your systems, so leaders see one clear picture before they sign off on risk.",
+  "dataModelAcceleration": "Recommended where ES Alerts datamodel is accelerated for executive rollups; otherwise rely on raw `index=vuln` searches scoped to 30 days."
+}

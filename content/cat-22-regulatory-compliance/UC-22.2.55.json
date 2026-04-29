@@ -1,0 +1,120 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.55",
+  "title": "NIS2 Art.28-30 domain registration, DNS integrity and information-sharing evidence",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of Platform",
+  "controlFamily": "log-source-completeness",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.28",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.28 receives partial assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.28 using NIS2 Art.28-30 domain registration, DNS integrity and information-sharing evidence.",
+      "evidenceArtifact": "Saved search for NIS2 Art.28-30 domain registration, DNS integrity and information-sharing evidence, dashboard panel, and archived result export in index=audit_evidence for Art.28.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.28",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.29",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.29 receives partial assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.29 using NIS2 Art.28-30 domain registration, DNS integrity and information-sharing evidence.",
+      "evidenceArtifact": "Saved search for NIS2 Art.28-30 domain registration, DNS integrity and information-sharing evidence, dashboard panel, and archived result export in index=audit_evidence for Art.29.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.29",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.30",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.30 receives partial assurance because UC evidence proves the monitorable workflow or telemetry portion while legal approval and filings remain outside Splunk.",
+      "controlObjective": "Produces NIS2 evidence for Art.30 using NIS2 Art.28-30 domain registration, DNS integrity and information-sharing evidence.",
+      "evidenceArtifact": "Saved search for NIS2 Art.28-30 domain registration, DNS integrity and information-sharing evidence, dashboard panel, and archived result export in index=audit_evidence for Art.30.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.30",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=dns` `sourcetype=dns:query` or `sourcetype=infoblox:dns` with `query`, `answer`, `response_code`, `src_ip` from Splunk Add-on for Infoblox ([Splunkbase 2934](https://splunkbase.splunk.com/app/2934)); CIM **Network_Resolution** data model fields `dest`, `src`, `answer`; `lookup=domain_registry.csv` for approved nameservers and registrar IDs; `index=threat_intel` `sourcetype=stix`; optional `index=grc` `sourcetype=grc:sharing_arrangement`.",
+  "app": "Splunk Add-on for Infoblox ([Splunkbase 2934](https://splunkbase.splunk.com/app/2934)); Splunk CIM ([Splunkbase 1621](https://splunkbase.splunk.com/app/1621)); Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)) for intel workflow.",
+  "spl": "| inputlookup domain_registry.csv\n| rename fqdn as query\n| join query type=left [\n    search index=dns (sourcetype=dns:query OR sourcetype=infoblox:dns) earliest=-24h\n    | stats dc(answer) as answer_cardinality values(answer) as last_answers by query\n]\n| eval max_ans=coalesce(max_answers_allowed,5)\n| eval ns_drift=if(isnotnull(answer_cardinality) AND answer_cardinality>max_ans,1,0)\n| append [\n    search index=threat_intel sourcetype=stix earliest=-7d threat_type=domain\n    | stats dc(value) as observed_domains by feed_name\n    | where observed_domains<1\n]\n| lookup nis2_dns_kfp_exceptions query OUTPUT exception_until\n| where ns_drift=1 OR (isnotnull(feed_name) AND observed_domains<1)\n| where isnull(exception_until) OR now()>strptime(exception_until,\"%Y-%m-%d\")\n| table query, registrar_tag, answer_cardinality, last_answers, feed_name, observed_domains, ns_drift",
+  "description": "Correlates the approved domain registry lookup against live DNS answer diversity per fully qualified name and adds a lightweight STIX domain-feed health check so registrar data, resolution integrity, and cooperation telemetry stay aligned for digital infrastructure teams.",
+  "value": "Brand-protection and public-trust leaders can show regulators that name-resolution anomalies and stale information-sharing feeds are operationally monitored alongside the legal register, narrowing exposure during coordinated takedowns.",
+  "implementation": "(1) Deploy Splunkbase 2934 for Infoblox or map BIND logs to `dns:query`. (2) Populate `domain_registry.csv`. (3) Inhibit alert noise with `nis2_dns_kfp_exceptions`. (4) Integrate STIX feeds via ES. (5) Archive weekly PDF to `index=audit_evidence`.",
+  "visualization": "DNS answer cardinality heatmap, table of `query` vs expected nameservers, intel feed single values.",
+  "cimModels": [
+    "Network_Resolution"
+  ],
+  "references": [
+    {
+      "title": "Splunk Add-on for Infoblox (Splunkbase 2934)",
+      "url": "https://splunkbase.splunk.com/app/2934"
+    },
+    {
+      "title": "Splunk Common Information Model — Network Resolution",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkResolution"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
+    }
+  ],
+  "knownFalsePositives": "• **GeoDNS or load-balancing pools** — Distinguish: many legitimate `answer` values during rotation. Suppress: maintain `max_answers_allowed` column in `domain_registry.csv` and compare with `where answer_cardinality>max_answers_allowed`.\n• **Split-horizon internal views** — Distinguish: queries from `corp` resolvers differ. Suppress: filter `src_ip` with `cidrmatch` to exclude internal recursion.\n• **Intel feed maintenance blackout** — Distinguish: vendor publishes schedule. Suppress: time-bound exception register referencing vendor ticket.\n• **Wildcard marketing campaign DNS** — Distinguish: CNAME chains to third-party CDNs. Suppress: lookup `nis2_dns_kfp_exceptions` keyed by campaign id for 30 days.",
+  "requiredFields": [
+    "_time",
+    "owner",
+    "status",
+    "evidence_id",
+    "clause",
+    "affected_asset",
+    "affected_service"
+  ],
+  "exclusions": "Does not administer registrar portals, rotate DNSSEC keys, or attest contractual relationships with ISPs; cooperation evidence is technical telemetry only unless legal adopts the feed.",
+  "evidence": "Saved search `UC-22.2.55`, supporting `dns:query` / `infoblox:dns` slices, STIX feed statistics, registry lookup versions, and tamper-evident export in `index=audit_evidence`.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "controlTest": {
+    "positiveScenario": "Point a lab resolver at a test zone that returns five unexpected additional `answer` values for a production `fqdn` listed in `domain_registry.csv` with a low `max_answers_allowed`, then verify `ns_drift=1` appears in the panel within the 24-hour window.",
+    "negativeScenario": "When answers stay within the registry’s allowed cardinality and the STIX domain feed reports at least one fresh `value` per `feed_name` in the last week, the alert stays quiet across a replay test harness that excludes deliberate fault injection.",
+    "fixtureRef": "sample-data/uc-22.2.55-fixture.json"
+  },
+  "status": "verified",
+  "lastReviewed": "2026-04-29",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "cimSpl": "| tstats summariesonly=true count from datamodel=Network_Resolution where nodename=Network_Resolution.DNS by Network_Resolution.query span=1h",
+  "detailedImplementation": "Prerequisites\n• Infoblox Grid or open-source DNS logging capable of emitting query/answer pairs with millisecond timestamps; forwarder tier with 15-minute install of Splunk Add-on for Infoblox ([Splunkbase 2934](https://splunkbase.splunk.com/app/2934)).\n• Splunk CIM 5.x+ with Network_Resolution dataset accelerated for 30 days (`Settings` > `Data models`).\n• Lookup `domain_registry.csv` with columns `fqdn`, `registrar_tag`, `max_answers_allowed`, `expected_ns`.\n• Enterprise Security optional for TAXII domain collections landing in `index=threat_intel` `sourcetype=stix`.\n\nStep 1 — Configure data collection\nOn Infoblox Data Connector or syslog path, confirm events land in `index=dns` `sourcetype=infoblox:dns`. For BIND, use `dns:query` and `TRANSFORMS` to extract `query`, `answer`. Retention: 90 days hot, longer frozen for incident replay. Document peak EPS (often 50k+/s for large ISPs) — apply `queue` tuning in `outputs.conf` on forwarders.\n\nStep 2 — Create the search and alert\nSchedule hourly; use summary indexing if cardinality high.\n\n```spl\n| inputlookup domain_registry.csv\n| rename fqdn as query\n| eval max_ans=coalesce(max_answers_allowed,5)\n| join query type=left [\n    search index=dns sourcetype IN (\"dns:query\",\"infoblox:dns\") earliest=-24h\n    | stats dc(answer) as answer_cardinality values(answer) as last_answers by query\n]\n| eval ns_drift=if(isnotnull(answer_cardinality) AND answer_cardinality>max_ans,1,0)\n```\n\nAppend the domain-sharing subsearch, exception lookup, and filters exactly as in the saved search `spl` field.\n\nStep 3 — Validate\nChoose a stable marketing hostname; run `dig` from outside and inside; compare Splunk `answer_cardinality` with expected Anycast responses. Validate false-positive suppression using a dev subdomain with intentional GeoDNS.\n\nStep 4 — Operationalize\nDashboard: row 1 single value when intel feeds report zero new domain indicators; row 2 DNS drift table; row 3 map of resolver `src_ip`. Route alerts to DNS engineering Slack with runbook link to registrar portal.\n\nStep 5 — Troubleshooting\n• **No answer field** — props missing FIELDALGS; reload `splunkd` after updating `props.conf`.\n• **Join timeout** — reduce window to 6h or pre-aggregate with `tstats` from CIM.\n• **False zero-count intel downloads** — feed paused; check Enterprise Security download logs.\n• **Permission errors** — role lacks `threat_intel`; update `authorize.conf`.",
+  "grandmaExplanation": "We watch the internet’s address book for your public names and compare what the world sees with what you officially expect. We also keep an eye on automated feeds of bad-domain tips so a silent stop in those feeds does not go unnoticed.",
+  "dataModelAcceleration": "Accelerate the Network_Resolution data model (summary range 30 days) before relying on `tstats` variants during peak query volume."
+}

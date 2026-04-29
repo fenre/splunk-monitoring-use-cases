@@ -21,16 +21,17 @@
       "evidenceArtifact": "Saved search 'UC-22.2.16' running on index proxy and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(d)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "CIM Network_Traffic data model, `index=proxy` (web proxy logs), DNS logs, threat intelligence lookups, `index=cloud` (SaaS audit logs)",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876)",
+  "dataSources": "Accelerated CIM `Network_Traffic.All_Traffic` fed from `index=proxy` `sourcetype=bluecoat:proxystorage` or `sourcetype=zscaler:lss` with fields dest, bytes_out, src, app; `index=cloud` `sourcetype=aws:cloudtrail` (Splunk Add-on for AWS [Splunkbase 1876](https://splunkbase.splunk.com/app/1876)) for partner-shared buckets; Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)) provides `dest_category=supplier` tagging via Assets & Identities.",
+  "app": "Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)), Splunk Add-on for AWS ([Splunkbase 1876](https://splunkbase.splunk.com/app/1876)); optional Splunk Add-on for Cisco Umbrella for DNS enrichment.",
   "spl": "| tstats `summariesonly` sum(All_Traffic.bytes_out) as bytes_out dc(All_Traffic.src) as internal_sources\n  from datamodel=Network_Traffic.All_Traffic\n  where All_Traffic.dest_category=\"supplier\"\n  by All_Traffic.dest All_Traffic.app span=1d\n| rename All_Traffic.* as *\n| lookup supplier_risk_lookup dest OUTPUT supplier_name, risk_tier, last_assessment_date\n| eval days_since_assessment=round((now()-strptime(last_assessment_date,\"%Y-%m-%d\"))/86400, 0)\n| eval assessment_overdue=if(days_since_assessment > 365, 1, 0)\n| where bytes_out > 1073741824 OR assessment_overdue=1 OR internal_sources > 50\n| sort - bytes_out\n| table dest, supplier_name, risk_tier, bytes_out, internal_sources, days_since_assessment, assessment_overdue",
-  "description": "Beyond vendor session monitoring (UC-22.2.2), Article 21(2)(d) requires continuous security assessment of direct suppliers and service providers. This use case tracks third-party SaaS and API dependency health, monitors supplier security posture indicators, and detects anomalous data flows to supplier networks — providing broader supply chain risk visibility than PAM session monitoring alone.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes cloud, proxy. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Tag supplier destination IPs/domains in ES asset framework with `category=supplier`; (2) maintain `supplier_risk_lookup` with vendor names, risk tiers, and last assessment dates; (3) alert on large data transfers to suppliers (potential exfiltration vector); (4) flag suppliers with overdue security assessments; (5) correlate supplier domains with threat intelligence feeds; (6) report on supply chain risk posture for board-level NIS2 compliance evidence. Indexes required: `index=cloud`, `index=proxy`.",
-  "visualization": "Table (supplier risk overview), Bar chart (data transfer by supplier), Single value (overdue assessments), Heatmap (supplier access patterns). Key fields: `assessment_overdue`, `bytes_out`, `days_since_assessment`, `dest`, `internal_sources`, `risk_tier`.",
+  "description": "Uses accelerated network-traffic summaries tagged for supplier destinations to highlight oversized daily uploads, overdue third-party risk reviews, or an unusually wide set of internal clients talking to one supplier API.",
+  "value": "Risk committees see spikes in data movement toward a vendor before a news-driven audit question lands, and they get a calendar view of which supplier reassessments slipped past 12 months without paperwork.",
+  "implementation": "(1) In ES (263), assign `category=supplier` to third-party CIDRs/domains under **Configure → Data Enrichment → Asset Management**. (2) Build `supplier_risk_lookup` CSV with dest (IP or FQDN), supplier_name, risk_tier, last_assessment_date. (3) Enable **Network_Traffic** datamodel acceleration for **30 days** minimum. (4) Validate proxy field mapping to `All_Traffic.bytes_out`. (5) Add AWS CloudTrail (1876) panels if suppliers use cross-account roles.",
+  "visualization": "Table of supplier rows with bytes_out and assessment flags, bar chart of top destinations, single value count of overdue assessments.",
   "cimModels": [
     "Network_Traffic"
   ],
@@ -47,9 +48,24 @@
     {
       "title": "CIM: Network_Traffic",
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Supply chain alerts from new vendor onboarding, M&A integration, or scheduled risk reviews.",
+  "knownFalsePositives": "• **Large overnight backup to a supplier-managed SaaS region** — Distinguish: backup software User-Agent known from allow list. Suppress: lookup `backup_supplier_dest.csv` with dest,app tuple.\n• **Assessment date CSV stale while GRC tool holds truth** — Distinguish: `last_assessment_date` older than 400 days but Workday shows recent review. Suppress: sync automation from ServiceNow GRC; interim time-bound exception register.\n• **CDN front door shared by many suppliers** — Distinguish: single `dest` maps to generic edge IP. Suppress: refine Assets to use **Fully Qualified Domain Name** from TLS SNI via Stream Add-on.\n• **AWS cross-account telemetry mirrored into supplier category** — Distinguish: role assumption for telemetry, not data exfiltration. Suppress: `where All_Traffic.app!=\"sensor-forwarder\"` after validation.\n• **Seasonal e-invoicing traffic spike** — Distinguish: finance window predictable from calendar. Suppress: `where NOT (date_month=3 AND app=\"sap\")` macro during close.",
   "mitreAttack": [
     "T1078",
     "T1048"
@@ -66,11 +82,27 @@
   "equipment": [
     "aws"
   ],
-  "lastReviewed": "2026-04-22",
+  "lastReviewed": "2026-04-29",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876).\n• Ensure the following data sources are available: CIM Network_Traffic data model, `index=proxy` (web proxy logs), DNS logs, threat intelligence lookups, `index=cloud` (SaaS audit logs).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag supplier destination IPs/domains in ES asset framework with `category=supplier`; (2) maintain `supplier_risk_lookup` with vendor names, risk tiers, and last assessment dates; (3) alert on large data transfers to suppliers (potential exfiltration vector); (4) flag suppliers with overdue security assessments; (5) correlate supplier domains with threat intelligence feeds; (6) report on supply chain risk posture for board-level NIS2 compliance evidence.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| tstats `summariesonly` sum(All_Traffic.bytes_out) as bytes_out dc(All_Traffic.src) as internal_sources\n  from datamodel=Network_Traffic.All_Traffic\n  where All_Traffic.dest_category=\"supplier\"\n  by All_Traffic.dest All_Traffic.app span=1d\n| rename All_Traffic.* as *\n| lookup supplier_risk_lookup dest OUTPUT supplier_name, risk_tier, last_assessment_date\n| eval days_since_assessment=round((now()-strptime(last_assessment_date,\"%Y-%m-%d\"))/86400, 0)\n| eval assessment_overdue=if(days_since_assessment > 365, 1, 0)\n| where bytes_out > 1073741824 OR assessment_overdue=1 OR internal_sources > 50\n| sort - bytes_out\n| table dest, supplier_name, risk_tier, bytes_out, internal_sources, days_since_assessment, assessment_overdue\n```\n\nUnderstanding this SPL\n\n**NIS2 Supply Chain Third-Party Risk Continuous Monitoring (Art. 21(2)(d))** — Beyond vendor session monitoring (UC-22.2.2), Article 21(2)(d) requires continuous security assessment of direct suppliers and service providers. This use case tracks third-party SaaS and API dependency health, monitors supplier security posture indicators, and detects anomalous data flows to supplier networks — providing broader supply chain risk visibility than PAM session monitoring alone.\n\nDocumented **Data sources**: CIM Network_Traffic data model, `index=proxy` (web proxy logs), DNS logs, threat intelligence lookups, `index=cloud` (SaaS audit logs). **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Renames fields with `rename` for clarity or joins.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **days_since_assessment** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **assessment_overdue** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where bytes_out > 1073741824 OR assessment_overdue=1 OR internal_sources > 50` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nSee also the **CIM SPL** field in this use case; enable the matching data model acceleration if you run the tstats variant in production.\n\nOutput fields: assessment_overdue, bytes_out, days_since_assessment, dest, internal_sources, risk_tier, supplier_name.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (supplier risk overview), Bar chart (data transfer by supplier), Single value (overdue assessments), Heatmap (supplier access patterns).",
-  "grandmaExplanation": "We beyond vendor session monitoring (UC-22.2.2), Article 21(2)(d) requires continuous security assessment of direct suppliers and service providers.",
-  "dataModelAcceleration": "Enable for Network_Traffic"
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise Security (Splunkbase 263) with licensed Assets & Identities; analyst training on `dest_category` tagging workflows under **ES menu → Configure**.\n• Indexes feeding the CIM must include **Network_Traffic** tags — commonly `index=proxy` plus any **internal span** forwarders sending NetFlow via **Splunk Stream** (optional app 1809).\n• Search head cluster needs **8 GB** Java heap minimum per heavy user concurrency when running spanning `tstats` across 24h slices.\n• Splunk Add-on for AWS (Splunkbase 1876) if CloudTrail supplements on-prem proxy blind spots.\n\nStep 1 — Configure data collection\nNormalize proxy logs: confirm `dest`, `src`, `bytes_out`, `app` fields exist. Use **props.conf** on indexers to rename vendor keys.\nImport supplier inventory into ES assets with `category=supplier` and **priority** set so `All_Traffic.dest_category` resolves. Without ES, emulate with automatic lookup at search time (higher cost).\nSchedule nightly CSV refresh for `supplier_risk_lookup` from your GRC API extract saved to `lookups/` under change control.\n\nStep 2 — Create the search and alert\nRun the provided `tstats` with `span=1d` for last **7 days** first; watch job inspector for scanned buckets. Save as `UC-22.2.16_supplier_risk_daily`.\nSet alert when `bytes_out > 1073741824` **AND** `risk_tier=critical` for paging; use lower threshold for informational dashboards.\nOptional complement: clone search replacing `summariesonly=false` if acceleration warming incomplete — expect longer runtime.\n\nStep 3 — Validate\nPick supplier IP known from contract; run raw `index=proxy dest=x.x.x.x` verifying byte sums roughly equal `tstats` output for same day.\nCheck `strptime` on `last_assessment_date` handles timezone: use `%Y-%m-%dT%H:%M:%S` if ISO timestamps were exported.\nConfirm `internal_sources` interpretable — large SaaS front ends may inflate unique `src` due to NAT; cross-check with firewall logs.\n\nStep 4 — Operationalize\nDashboard layout: Row1 SLA tiles (overdue assessments, TB to suppliers), Row2 timeline `timechart avg(bytes_out) by supplier_name`, Row3 detail table.\nRoute critical alerts to `#third-party-risk` Slack via webhook; include deep link to Splunk drilldown prefilled with **earliest=-24h**.\nMonthly compliance pack: export PDF plus raw CSV stored into `index=audit_evidence` sourcetype=`nis2_supply_chain`.\n\nStep 5 — Troubleshooting\n• **tstats empty** — Network_Traffic model not accelerated within time window; visit **Settings → Data models**.\n• **dest_category always null** — asset merge failing; verify **asset key** format (CIDR vs IP).\n• **bytes_out zero** — vendor logs measure only sessions; map to `sent_bytes` via `eval` in props.\n• **Lookup missing rows** — dest formatted as FQDN but lookup lists IP — maintain dual columns `dest_ip` and `dest_fqdn`.\n• **False overdue** — clock skew on CSV export; regenerate using UTC normalized timestamps.",
+  "grandmaExplanation": "We keep an eye on how much information flows out to outside partners and whether anyone forgot to renew the formal safety review for those partners on time.",
+  "dataModelAcceleration": "Enable for Network_Traffic",
+  "owner": "Procurement",
+  "controlFamily": "third-party-activity",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
+  "evidence": "Saved search `UC-22.2.16` daily exports, ES asset snapshot IDs, and frozen bucket copies referenced in the third-party risk workpaper.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "crawl",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Load accelerated fixtures where `All_Traffic.dest_category=supplier`, `bytes_out` exceeds one gigabyte per day, and `supplier_risk_lookup` shows `last_assessment_date` older than 400 days; the alert fires listing dest and overdue flag 1.",
+    "negativeScenario": "Feed the same traffic volumes but provide an updated assessment date within 90 days and a documented marketing campaign exception row; the search returns no rows after applying the lookup filter and exception table.",
+    "fixtureRef": "sample-data/uc-22.2.16-fixture.json"
+  }
 }

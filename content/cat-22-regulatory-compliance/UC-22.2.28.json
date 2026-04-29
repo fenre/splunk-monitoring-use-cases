@@ -21,16 +21,17 @@
       "evidenceArtifact": "Saved search 'UC-22.2.28' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(g)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`WinEventLog:Security` (4624 with MFA claims where available), `OktaIM2:log`, `tenable:was` or agent posture, `nis2_asset_hygiene_expectations.csv`",
-  "app": "Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Okta Identity Cloud (Splunkbase 6553), Tenable Add-On for Splunk (Splunkbase 4060)",
-  "spl": "| inputlookup nis2_asset_hygiene_expectations.csv\n| join asset_fqdn [\n    search index=tenable sourcetype=\"tenable:sc:assets\" earliest=-1d\n    | eval mfa_ok=if(match(plugins_text,\"(?i)mfa|okta.verify\"),1,0)\n    | eval edr_ok=if(match(plugins_text,\"(?i)edr|defender|crowdstrike\"),1,0)\n    | stats latest(mfa_ok) as mfa_ok latest(edr_ok) as edr_ok by dns_name\n    | rename dns_name as asset_fqdn\n]\n| eval hygiene_failures=if(mfa_ok==0,1,0) + if(edr_ok==0,1,0)\n| where hygiene_failures > 0\n| table asset_fqdn, business_service, mfa_ok, edr_ok, hygiene_failures",
-  "description": "Basic cyber hygiene underpins all Article 21 measures. This use case scores endpoints and servers for MFA enrollment, disk encryption, EDR presence, and secure configuration baselines — rolling up to a hygiene scorecard per business service in NIS2 scope.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes tenable and sourcetypes tenable:sc:assets. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Define mandatory hygiene controls per asset class; (2) normalise hostnames between CMDB and Tenable; (3) weekly remediation campaigns for failing assets; (4) escalate chronic failures to service owners; (5) include scorecard in board security briefing. Indexes required: `index=tenable`; Sourcetypes: `sourcetype=tenable:sc:assets`; Lookups: `nis2_asset_hygiene_expectations`, `nis2_asset_hygiene_expectations.csv`.",
-  "visualization": "Bar chart (failures by control), Table (worst assets), Single value (% compliant fleet), Treemap (by department). Key fields: `asset_fqdn`, `business_service`, `edr_ok`, `hygiene_failures`, `mfa_ok`.",
+  "dataSources": "`index=tenable` `sourcetype=tenable:sc:assets` (fields dns_name, plugins_text, uuid) via Tenable Add-On for Splunk ([Splunkbase 4060](https://splunkbase.splunk.com/app/4060)); `index=windows` `sourcetype=WinEventLog:Security` for EventCode 4624 MFA claims when integrated with Windows Hello; `index=auth` `sourcetype=okta:log` from Splunk Add-on for Okta ([Splunkbase 6553](https://splunkbase.splunk.com/app/6553)); lookup `nis2_asset_hygiene_expectations.csv` listing `asset_fqdn`, `business_service`, mandatory controls.",
+  "app": "Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Okta Identity Cloud (Splunkbase 6553), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055)",
+  "spl": "| inputlookup nis2_asset_hygiene_expectations.csv\n| join asset_fqdn [\n    search index=tenable sourcetype=\"tenable:sc:assets\" earliest=-1d\n    | eval mfa_ok=if(match(plugins_text,\"(?i)mfa|okta|hello|yubi\"),1,0)\n    | eval edr_ok=if(match(plugins_text,\"(?i)edr|defender|crowdstrike|sentinel\"),1,0)\n    | stats latest(mfa_ok) as mfa_ok latest(edr_ok) as edr_ok by dns_name\n    | rename dns_name as asset_fqdn\n]\n| eval hygiene_failures=if(mfa_ok==0,1,0) + if(edr_ok==0,1,0)\n| where hygiene_failures > 0\n| table asset_fqdn, business_service, mfa_ok, edr_ok, hygiene_failures",
+  "description": "Scores each in-scope row from `nis2_asset_hygiene_expectations.csv` against Tenable.sc asset export fields to reveal missing multi-factor markers or endpoint protection plugins so hygiene backlogs surface before auditors ask for screenshots.",
+  "value": "Cyber hygiene is not a single patch Tuesday—it is an ongoing assurance that baseline protections exist on every system supporting essential services; rolling that proof into Splunk prevents the last-minute scramble of logging into Tenable manually for each subsidiary.",
+  "implementation": "(1) Keep `nis2_asset_hygiene_expectations.csv` aligned with CMDB owners. (2) Schedule Tenable import hourly. (3) Weekly remediation campaign emails via ServiceNow. (4) Escalate chronic failures to service director. (5) Board deck uses summarized `hygiene_failures`. (6) Sign exports with `evidenceSigning`.",
+  "visualization": "Treemap by business_service, bar of failure counts, single-value fleet compliance.",
   "cimModels": [
     "Vulnerabilities"
   ],
@@ -49,11 +50,26 @@
       "url": "https://splunkbase.splunk.com/app/4060"
     },
     {
-      "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "title": "CIM: Vulnerabilities",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Operational noise during large maintenance windows, controlled exercises, or scope changes to critical entity lists.",
+  "knownFalsePositives": "1) **Tenable agent offline >48h** so `plugins_text` stale lacks newest EDR string. *Distinguish:* `last_seen` epoch inside asset JSON. *Suppress:* `where last_seen>relative_time(now(),\"-2d\")`. 2) **Linux servers exempt from Windows Hello MFA** flagged by regex expecting Windows-only tokens. *Distinguish:* `business_service` tagged `linux_batch`. *Suppress:* lookup `nis2_os_exception.csv`. 3) **Containers sharing DNS with host** collide in join. *Distinguish:* asset type field from CMDB. *Suppress:* filter `where asset_type!=\"container\"`. 4) **Okta-only shops** where Windows events never show MFA text. *Distinguish:* `mfa_ok` sourced from `index=auth`. *Suppress:* append alternate subsearch `OR [ search index=auth ...]`. 5) **Merger integration duplicates** FQDN uppercase vs lowercase. *Distinguish:* case mismatch. *Suppress:* `eval asset_fqdn=lower(asset_fqdn)` pre-join.\n",
   "requiredFields": [
     "asset_fqdn",
     "business_service",
@@ -66,8 +82,21 @@
     "okta",
     "tenable"
   ],
-  "lastReviewed": "2026-04-22",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Okta Identity Cloud (Splunkbase 6553), Tenable Add-On for Splunk (Splunkbase 4060).\n• Ensure the following data sources are available: `WinEventLog:Security` (4624 with MFA claims where available), `OktaIM2:log`, `tenable:was` or agent posture, `nis2_asset_hygiene_expectations.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Define mandatory hygiene controls per asset class; (2) normalise hostnames between CMDB and Tenable; (3) weekly remediation campaigns for failing assets; (4) escalate chronic failures to service owners; (5) include scorecard in board security briefing.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup nis2_asset_hygiene_expectations.csv\n| join asset_fqdn [\n    search index=tenable sourcetype=\"tenable:sc:assets\" earliest=-1d\n    | eval mfa_ok=if(match(plugins_text,\"(?i)mfa|okta.verify\"),1,0)\n    | eval edr_ok=if(match(plugins_text,\"(?i)edr|defender|crowdstrike\"),1,0)\n    | stats latest(mfa_ok) as mfa_ok latest(edr_ok) as edr_ok by dns_name\n    | rename dns_name as asset_fqdn\n]\n| eval hygiene_failures=if(mfa_ok==0,1,0) + if(edr_ok==0,1,0)\n| where hygiene_failures > 0\n| table asset_fqdn, business_service, mfa_ok, edr_ok, hygiene_failures\n```\n\nUnderstanding this SPL\n\n**NIS2 Cyber Hygiene Practices — Baseline Control Compliance (Art. 21(2)(g))** — Basic cyber hygiene underpins all Article 21 measures. This use case scores endpoints and servers for MFA enrollment, disk encryption, EDR presence, and secure configuration baselines — rolling up to a hygiene scorecard per business service in NIS2 scope.\n\nDocumented **Data sources**: `WinEventLog:Security` (4624 with MFA claims where available), `OktaIM2:log`, `tenable:was` or agent posture, `nis2_asset_hygiene_expectations.csv`. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Okta Identity Cloud (Splunkbase 6553), Tenable Add-On for Splunk (Splunkbase 4060). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• `eval` defines or adjusts **hygiene_failures** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where hygiene_failures > 0` — typically the threshold or rule expression for this monitoring goal.\n\nSee also the **CIM SPL** field in this use case; enable the matching data model acceleration if you run the tstats variant in production.\n\nOutput fields: asset_fqdn, business_service, edr_ok, hygiene_failures, mfa_ok.\n\nStep 3 — Validate\nCompare with the vulnerability scanner console (Tenable, Qualys, or your standard tool) for the same asset and scan window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (failures by control), Table (worst assets), Single value (% compliant fleet), Treemap (by department).",
-  "grandmaExplanation": "We basic cyber hygiene underpins all Article 21 measures.",
-  "dataModelAcceleration": "Enable for Vulnerabilities"
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Tenable.sc ≥6.2 exporting `tenable:sc:assets` through Splunk Add-on ([Splunkbase 4060](https://splunkbase.splunk.com/app/4060)) using modular input interval **900 seconds** (balance API load).\n• Gold lookup `nis2_asset_hygiene_expectations.csv` with mandated controls per `business_service` vetted by CISO office quarterly.\n• Splunk Add-on for Windows ([Splunkbase 742](https://splunkbase.splunk.com/app/742)) only if supplementing MFA evidence from Event 4624 claims (optional).\n• Splunk Add-on for Okta ([Splunkbase 6553](https://splunkbase.splunk.com/app/6553)) for SaaS-only environments.\n• License estimate: 2 KB per asset per hour → ~1.5 GB/month for 25k assets.\n\nStep 1 — Configure data collection\n• **Tenable input**: configure credentials under **Apps → Tenable Add-on for Splunk → Configuration → Account** with API keys scoped `access:manage` read-only.\n• Map fields via `props.conf` `EXTRACT-plugins_text = plugins.+(?P<plugins_text>.+)` if JSON nested.\n• Maintain CSV in Git; Splunk Deployment Server pushes new file nightly.\n• Validate `dns_name` resolution matches CMDB `fqdn` using `| join dns_name [search index=cmdb ...]` smoke test.\n\nStep 2 — Create the search and alert\nUse `spl` field; add `| stats sum(hygiene_failures) as total_fails by business_service` for executive chart.\nSchedule alert if `total_fails>50`.\n\nStep 3 — Validate\n• Random five assets: open **Tenable.sc → Assets → Asset Details** and compare plugin text snippet to Splunk `_raw` excerpt.\n• Confirm join cardinality `| stats dc(asset_fqdn)` before/after equals expectation.\n• For Okta augmentation, ensure correlation ID between asset `owner_email` and Okta factor enrollment.\n\nStep 4 — Operationalize\n• ServiceNow integration: alert action calls `POST /api/now/import/u_hygiene_queue`.\n• Dashboard includes filter tokens for `business_service`.\n• Monthly narrative to risk committee references signed CSV (`evidenceSigning`).\n\nStep 5 — Troubleshooting\n• **join timeout** — precompute summary `summary_hygiene_nightly` via `collect`.\n• **False EDR_ok** — vendor renamed product string; update regex table `nis2_edr_markers.csv` external to SPL.\n• **CSV stale** — Git webhook failure; monitor `| inputlookup` freshness via `metadata`.\n• **Zero Tenable events** — API lockout; tail `ta_tenable.log`.\n",
+  "grandmaExplanation": "We keep a checklist of the basic safety gadgets each important computer should have—like a second login step and protective software—and compare it to what our scanning tools actually see. When something is missing, we list it clearly for the people who fix machines.",
+  "dataModelAcceleration": "Enable for Vulnerabilities if merging plugin CVE context",
+  "owner": "CISO",
+  "controlFamily": "break-glass-access",
+  "exclusions": "Does not approve compensating controls for offline OT assets, replace field audits of physical kiosks, or prove phishing simulation results (see UC-22.2.10) although both topics relate to hygiene.",
+  "evidence": "`UC-22.2.28` CSV export with `asset_fqdn` and failure bitmask, underlying `tenable:sc:assets` event samples for contested hosts, and timestamp token from `evidenceSigning` retained alongside quarterly hygiene steering minutes.",
+  "evidenceSigning": { "method": "rfc3161-tsa", "tsaUrl": "http://timestamp.digicert.com" },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "QA tenant drops five servers from EDR policy while lookup still marks them `business_service=customer_billing`; nightly run shows `hygiene_failures>=1` for each host and totals five rows on the fail dashboard tile.",
+    "negativeScenario": "After EDR agent reinstall, Tenable `plugins_text` regains vendor string, expectations CSV removes decommissioned assets, and seven-day rolling run returns zero failures while spot-check in **Tenable.sc → Asset lists → Compliance** remains green.",
+    "fixtureRef": "sample-data/uc-22.2.28-fixture.json"
+  }
 }

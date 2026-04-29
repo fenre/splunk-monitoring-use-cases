@@ -15,12 +15,13 @@
       "clause": "Art.32",
       "mode": "satisfies",
       "assurance": "contributing",
-      "assurance_rationale": "NIS2 Art.32 — Reviewed: SPL provides contributing evidence for this regulatory requirement. The search query directly addresses the monitoring objective specified by the clause.",
+      "assurance_rationale": "Art.32 is assigned contributing assurance because this UC provides concrete Splunk evidence for the observable control condition, while policy approval, legal interpretation, and official filings remain outside Splunk.",
       "controlObjective": "Evidence that NIS2 Art.32 is enforced — Splunk UC-22.2.35: NIS2 Supervisory Compliance Evidence Pack Readiness.",
       "evidenceArtifact": "Saved search 'UC-22.2.35' running on sourcetype scheduler and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.32",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     },
     {
       "regulation": "NIS2",
@@ -28,40 +29,71 @@
       "clause": "Art.33",
       "mode": "satisfies",
       "assurance": "contributing",
-      "assurance_rationale": "NIS2 Art.33 — Reviewed: SPL provides contributing evidence for this regulatory requirement. The search query directly addresses the monitoring objective specified by the clause.",
+      "assurance_rationale": "Art.33 is assigned contributing assurance because this UC provides concrete Splunk evidence for the observable control condition, while policy approval, legal interpretation, and official filings remain outside Splunk.",
       "controlObjective": "Evidence that NIS2 Art.33 is enforced — Splunk UC-22.2.35: NIS2 Supervisory Compliance Evidence Pack Readiness.",
       "evidenceArtifact": "Saved search 'UC-22.2.35' running on sourcetype scheduler and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.33",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=_internal` sourcetype=scheduler (skipped, failed), `index=_audit` (savedsearch actions), `nis2_evidence_report_catalog.csv`",
-  "app": "Splunk Enterprise / Splunk Cloud Platform (`index=_internal`, `index=_audit`)",
-  "spl": "| inputlookup nis2_evidence_report_catalog.csv\n| join savedsearch_name [\n    search index=_audit action=search earliest=-7d\n    | stats latest(total_run_time) as last_runtime latest(info) as result by savedsearch_name\n]\n| where isnull(last_runtime) OR match(result,\"(?i)fail|error|skipped\")\n| table savedsearch_name, owner, last_runtime, result",
-  "description": "Supervisory authorities may request evidence of measures taken. This use case checks that scheduled Splunk reports for risk, incidents, training, and testing have run successfully and that outputs landed in the evidence repository — a meta-governance view over compliance automation itself.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes _audit, _internal and sourcetypes scheduler. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) List all compliance-evidence saved searches in catalog; (2) alert owners when searches fail or skip due to disk/quota; (3) mirror PDF outputs to WORM storage via scripted output; (4) monthly attestation that catalog is current; (5) include in supervisory inspection runbooks. Indexes required: `index=_audit`, `index=_internal`; Sourcetypes: `sourcetype=scheduler`; Lookups: `nis2_evidence_report_catalog`, `nis2_evidence_report_catalog.csv`.",
-  "visualization": "Table (failed evidence jobs), Single value (failed jobs count), Timeline (success rate). Key fields: `last_runtime`, `owner`, `result`, `savedsearch_name`.",
+  "dataSources": "`index=_audit` and `index=_internal` with `sourcetype=scheduler` for skip/fail telemetry; `index=grc` `sourcetype=grc:audit_finding` (fields `finding_id`, `status`, `owner`, `due_date`); `index=itsm` `sourcetype=snow:sn_grc_policy` for policy/evidence tasks; optional export landing checks in `index=audit_evidence`. Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)) supplies normalized ServiceNow fields when ITSM/GRC tables are ingested.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform; Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)) for `snow:sn_grc_policy`-style feeds.",
+  "spl": "| inputlookup nis2_evidence_report_catalog.csv\n| join savedsearch_name type=left [\n    search index=_audit action=search earliest=-7d\n    | stats latest(total_run_time) as last_runtime latest(info) as result by savedsearch_name\n]\n| where isnull(last_runtime) OR match(result,\"(?i)fail|error|skipped\")\n| lookup nis2_evidence_kfp_exceptions savedsearch_name OUTPUT exception_until\n| where isnull(exception_until) OR now()>strptime(exception_until,\"%Y-%m-%d\")\n| table savedsearch_name, owner, last_runtime, result",
+  "description": "Flags scheduled Splunk saved searches that contribute to supervisory evidence packs when they did not run in the last week or finished with failure, skip, or error — the operational heartbeat for automated compliance artefacts before a regulator or internal audit requests them.",
+  "value": "Directors and operational risk teams get an early warning when the automation that produces inspection-ready material has broken, so legal and GRC can intervene before a deadline rather than explaining missing attachments after the fact.",
+  "implementation": "(1) Maintain `nis2_evidence_report_catalog.csv` with one row per evidence job (`savedsearch_name`, `owner`, product scope). (2) Ingest GRC/task correlation via Splunkbase 1928 if ServiceNow owns evidence workflows. (3) Schedule this search daily with a 7-day window. (4) Route alerts to the named owner and archive pass/fail snapshots to `index=audit_evidence`. (5) Optional: mirror PDF/CSV outputs with a scripted output that writes to WORM — see `outputs.conf` on the search head.",
+  "visualization": "Table of failing or stale jobs keyed on `savedsearch_name`, single value count of open gaps, timeline of `last_runtime` by owner.",
   "cimModels": [
     "N/A"
   ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "title": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "Splunk Docs — Monitor scheduler health (internal indexes)",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Troubleshooting/WhatSplunklogsaboutitself"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Reports may queue during major incidents while details are confirmed, or during initial 24h triage.",
+  "knownFalsePositives": "• **ServiceNow GRC rename drift** — Distinguish: `_audit` shows success but `grc:audit_finding` still references the old job label. Suppress: update `nis2_evidence_report_catalog.csv` under change control; use `lookup nis2_evidence_kfp_exceptions` with a 14-day time-bound exception for cutover.\n• **Planned indexer or search-head maintenance** — Distinguish: `index=_internal` `sourcetype=scheduler` shows skips tied to known hosts in a maintenance roster. Suppress: join a `maintenance_windows` lookup on `splunk_server` and add `where in_window=0` to the alert SPL.\n• **Legal hold pausing reports** — Distinguish: GRC ticket documents intentional pause. Suppress: maintain an exception register column `legal_hold` on the catalogue; filter with `where legal_hold!=\"true\"` until counsel closes the hold.\n• **Intentional throttle during a major incident** — Distinguish: incident commander record in ServiceNow points at disaster search head queue. Suppress: time-bound exception row in `nis2_evidence_kfp_exceptions.csv` reviewed every 48 hours.",
   "requiredFields": [
     "last_runtime",
     "owner",
     "result",
     "savedsearch_name"
   ],
-  "lastReviewed": "2026-04-22",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform (`index=_internal`, `index=_audit`).\n• Ensure the following data sources are available: `index=_internal` sourcetype=scheduler (skipped, failed), `index=_audit` (savedsearch actions), `nis2_evidence_report_catalog.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) List all compliance-evidence saved searches in catalog; (2) alert owners when searches fail or skip due to disk/quota; (3) mirror PDF outputs to WORM storage via scripted output; (4) monthly attestation that catalog is current; (5) include in supervisory inspection runbooks.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup nis2_evidence_report_catalog.csv\n| join savedsearch_name [\n    search index=_audit action=search earliest=-7d\n    | stats latest(total_run_time) as last_runtime latest(info) as result by savedsearch_name\n]\n| where isnull(last_runtime) OR match(result,\"(?i)fail|error|skipped\")\n| table savedsearch_name, owner, last_runtime, result\n```\n\nUnderstanding this SPL\n\n**NIS2 Supervisory Compliance Evidence Pack Readiness (Art. 32-33, national measures)** — Supervisory authorities may request evidence of measures taken. This use case checks that scheduled Splunk reports for risk, incidents, training, and testing have run successfully and that outputs landed in the evidence repository — a meta-governance view over compliance automation itself.\n\nDocumented **Data sources**: `index=_internal` sourcetype=scheduler (skipped, failed), `index=_audit` (savedsearch actions), `nis2_evidence_report_catalog.csv`. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform (`index=_internal`, `index=_audit`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• Filters the current rows with `where isnull(last_runtime) OR match(result,\"(?i)fail|error|skipped\")` — typically the threshold or rule expression for this monitoring goal.\n\nOutput fields: last_runtime, owner, result, savedsearch_name.\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed evidence jobs), Single value (failed jobs count), Timeline (success rate).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We supervisory authorities may request evidence of measures taken.",
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud roles: readers need `srchIndexesAllowed` covering `_audit`, `_internal`, `grc`, `itsm`, and `audit_evidence` where used.\n• Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)) on forwarders/search tier if `sourcetype=snow:sn_grc_policy` events are required for human workflow context.\n• CSV lookup `nis2_evidence_report_catalog.csv` in `lookups/` with fields at least `savedsearch_name`, `owner`; optional `legal_hold` for filtering.\n• Optional `nis2_evidence_kfp_exceptions.csv` with `savedsearch_name`, `exception_until` for time-bound suppressions (review every 7 days).\n• Clock skew under 60 seconds between search heads and indexers — otherwise `_audit` correlation lags `scheduler` events.\n\nStep 1 — Configure data collection\nIndex internal scheduler diagnostics: confirm `index=_internal` `sourcetype=scheduler` is retained ≥30 days on indexers handling saved-search coordination. Enable `_audit` trail for saved search executions (`action=search`). For ServiceNow-backed evidence tasks, enable the modular inputs or HEC feeds from the Splunkbase 1928 package so `index=itsm` receives `snow:sn_grc_policy` with extracted fields like `number`, `state`, `short_description`. Map `index=grc` `sourcetype=grc:audit_finding` with `finding_id`, `status`, `owner` if legal ties findings to specific jobs. Document the API/table path (for example REST `/api/now/table/sn_grc_policy`) in your integration guide so auditors can trace lineage.\n\nStep 2 — Create the search and alert\nRun interactively, then save as alert `UC-22.2.35` on a daily cron (recommended 06:00 local) over `earliest=-7d`.\n\n```spl\n| inputlookup nis2_evidence_report_catalog.csv\n| join savedsearch_name type=left [\n    search index=_audit action=search earliest=-7d\n    | stats latest(total_run_time) as last_runtime latest(info) as result by savedsearch_name\n]\n| where isnull(last_runtime) OR match(result,\"(?i)fail|error|skipped\")\n| lookup nis2_evidence_kfp_exceptions savedsearch_name OUTPUT exception_until\n| where isnull(exception_until) OR now()>strptime(exception_until,\"%Y-%m-%d\")\n| table savedsearch_name, owner, last_runtime, result\n```\n\nUnderstanding this SPL: the lookup lists every pack-critical job. The subsearch pulls latest `_audit` outcomes; null `last_runtime` means no successful search logged in-window. Post-filter removes approved exceptions. Throttle alerts by `savedsearch_name` for 24 hours to avoid noise during indexer restart storms.\n\nStep 3 — Validate\nPick three catalogue rows. For each, run `index=_audit action=search savedsearch_name=\"<name>\" earliest=-7d` and confirm `info` matches the panel. Cross-check `index=_internal` `sourcetype=scheduler` for skip reasons (`status` fields). If ServiceNow is in scope, open the same ticket IDs via the UI and compare state to `snow:sn_grc_policy` events. Spot-check that PDF exports (if any) landed in `index=audit_evidence` with matching `_time` buckets.\n\nStep 4 — Operationalize\nAdd a dashboard row: table of failing jobs, drilldown to Job Inspector (`Settings` > `Searches, reports, and alerts`). Wire alert actions to email plus webhook to the GRC queue. Archive each alert firing to `index=audit_evidence` using a summary indexing stream or export job. Document the runbook path in Confluence/SharePoint and assign a secondary owner for holiday coverage.\n\nStep 5 — Troubleshooting\n• **Empty `_audit` results** — search head audit trail disabled; enable in `audit.conf` / `Server Settings` > `Audit Logging`. RBAC must allow `_audit` reads.\n• **Everything shows success but pack files stale** — downstream `outputs.conf` action failing; inspect `$SPLUNK_HOME/var/log/splunk/python.log` for scripted output traceback.\n• **Join explosion** — duplicate rows in catalogue; enforce unique `savedsearch_name` in the lookup editor (`Settings` > `Lookups`).\n• **Persistent false positives after DR failover** — add 72-hour time-bound exceptions via `nis2_evidence_kfp_exceptions.csv` until DNS for deployment server stabilises.",
+  "grandmaExplanation": "We check whether the scheduled jobs that build your regulator-ready paperwork actually ran on time. If a job failed or never finished, we raise a hand so the right owner can fix it before anyone official asks for the files.",
   "cimSpl": "",
-  "dataModelAcceleration": "Not applicable"
+  "dataModelAcceleration": "Not applicable",
+  "owner": "HR",
+  "controlFamily": "training-effectiveness",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel or competent-authority review; does not attest to the legal sufficiency of pack contents.",
+  "evidence": "Saved search `UC-22.2.35`, dashboard drilldown to `_audit` events, optional `index=audit_evidence` export, and time-aligned `grc:audit_finding` records for supervisory traceability.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "For a catalogued job deliberately disabled for one business day, `_audit` lacks a successful `action=search` row within the 7-day window and the alert returns that `savedsearch_name`, empty `last_runtime`, and a null or failed `result` plus the configured owner from the lookup.",
+    "negativeScenario": "For a catalogued job that completed successfully each day, the joining `_audit` stats show a fresh `last_runtime` within SLA and `result=success`, so the row is excluded after the post-filter even when neighbouring jobs in the same app fail.",
+    "fixtureRef": "sample-data/uc-22.2.35-fixture.json"
+  }
 }

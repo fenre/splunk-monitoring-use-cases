@@ -14,7 +14,7 @@
 | Regulation | Tier | Jurisdiction | Version | Coverage | Priority-weighted | Pack |
 |---|---|---|---|---|---|---|
 | **GDPR** | Tier 1 | EU, EEA | `2016/679` | 100.0% | 100.0% | [`gdpr.md`](gdpr.md) |
-| **UK GDPR** | Tier 2 | UK | `post-Brexit` | 25.0% | 23.7% | [`uk-gdpr.md`](uk-gdpr.md) |
+| **UK GDPR** | Tier 2 | UK | `post-Brexit` | 75.0% | 76.3% | [`uk-gdpr.md`](uk-gdpr.md) |
 | **PCI DSS** | Tier 1 | GLOBAL | `v4.0` | 100.0% | 100.0% | [`pci-dss.md`](pci-dss.md) |
 | **HIPAA Security** | Tier 1 | US | `2013-final` | 100.0% | 100.0% | [`hipaa-security.md`](hipaa-security.md) |
 | **SOX ITGC** | Tier 1 | US | `PCAOB AS 2201` | 100.0% | 100.0% | [`sox-itgc.md`](sox-itgc.md) |
@@ -47,7 +47,7 @@ Every pack follows the same section layout so that an auditor or compliance offi
 
 ## Regeneration
 
-The packs are generated deterministically from [`data/regulations.json`](../../data/regulations.json), [`data/evidence-pack-extras.json`](../../data/evidence-pack-extras.json), the UC sidecars under [`use-cases/cat-*/`](../../use-cases), and the pre-computed coverage metrics under [`api/v1/compliance/regulations/`](../../api/v1/compliance/regulations/).
+The packs are generated deterministically from [`data/regulations.json`](../../data/regulations.json), [`data/evidence-pack-extras.json`](../../data/evidence-pack-extras.json), the UC sidecars under [`content/cat-*/`](../../content), and the pre-computed coverage metrics under [`api/v1/compliance/regulations/`](../../api/v1/compliance/regulations/).
 
 ```bash
 # Regenerate all packs (writes docs/evidence-packs/*.md
@@ -58,7 +58,7 @@ python3 scripts/generate_evidence_packs.py
 python3 scripts/generate_evidence_packs.py --check
 ```
 
-Last regenerated against catalogue version `7.1`.
+Last regenerated against catalogue version `7.2`.
 
 ## Related documentation
 

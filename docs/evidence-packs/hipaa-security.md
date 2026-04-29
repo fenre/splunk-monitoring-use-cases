@@ -6,7 +6,7 @@
 > **Authoritative source**: [https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C)
 > **Effective from**: 2013-09-23
 
-> This evidence pack is the auditor-facing view of the Splunk monitoring catalogue's coverage of the regulation. Every clause coverage claim is traceable to a specific UC sidecar JSON file (`use-cases/cat-*/uc-*.json`); every retention figure cites its legal basis; every URL resolves to an official regulator or standards-body source. The pack does **not** assert legal conclusions — it tabulates what the catalogue covers, names the authoritative source, and flags gaps. Interpretation stays with counsel.
+> This evidence pack is the auditor-facing view of the Splunk monitoring catalogue's coverage of the regulation. Every clause coverage claim is traceable to a specific UC sidecar JSON file (`content/cat-*/UC-*.json`); every retention figure cites its legal basis; every URL resolves to an official regulator or standards-body source. The pack does **not** assert legal conclusions — it tabulates what the catalogue covers, names the authoritative source, and flags gaps. Interpretation stays with counsel.
 
 > **Live views.** [Buyer narrative (`compliance-story.html?reg=hipaa-security`)](../../compliance-story.html?reg=hipaa-security) · [Auditor clause navigator (`clause-navigator.html#reg=hipaa-security`)](../../clause-navigator.html#reg=hipaa-security) · [JSON twin (`api/v1/compliance/story/hipaa-security.json`)](../../api/v1/compliance/story/hipaa-security.json)
 
@@ -71,11 +71,11 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 ### 4.1 Contributing UC detail
 
 <a id='uc-10-12-16'></a>
-- **UC-10.12.16** —
+- **UC-10.12.16** — ePHI Access Audit
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.12.16.json`](../../content/cat-10-security-infrastructure/UC-10.12.16.json)
 <a id='uc-22-10-1'></a>
 - **UC-22.10.1** —
   - Control family: `—`
@@ -119,11 +119,11 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-10-21'></a>
-- **UC-22.10.21** —
+- **UC-22.10.21** — Access Control — Role-Based Violations (Coder Accessing Medication Admin)
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.10.21.json`](../../content/cat-22-regulatory-compliance/UC-22.10.21.json)
 <a id='uc-22-10-22'></a>
 - **UC-22.10.22** —
   - Control family: `—`
@@ -278,20 +278,20 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-22.6.53** — ISO/IEC 27001:2022 Clause 7.2 — Competence evidence: role-based training completion
   - Control family: `training-effectiveness`
   - Owner: `HR`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.6.53.json`](../../use-cases/cat-22/uc-22.6.53.json)
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.6.53.json`](../../content/cat-22-regulatory-compliance/UC-22.6.53.json)
 <a id='uc-22-8-31'></a>
 - **UC-22.8.31** — SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary
   - Control family: `crypto-drift`
   - Owner: `CISO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.8.31.json`](../../use-cases/cat-22/uc-22.8.31.json)
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.8.31.json`](../../content/cat-22-regulatory-compliance/UC-22.8.31.json)
 <a id='uc-22-8-38'></a>
 - **UC-22.8.38** — SOC 2 C1.1 — Confidentiality: sensitive-data exposure at the egress boundary
   - Control family: `data-flow-cross-border`
   - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.8.38.json`](../../use-cases/cat-22/uc-22.8.38.json)
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.8.38.json`](../../content/cat-22-regulatory-compliance/UC-22.8.38.json)
 
 ## 5. Evidence collection
 
@@ -408,7 +408,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 
 - [`data/regulations.json`](../../data/regulations.json) — commonClauses, priority weights, authoritative URLs
 - [`data/evidence-pack-extras.json`](../../data/evidence-pack-extras.json) — retention, roles, authoritative guidance, penalty, testing approach
-- [`use-cases/cat-*/uc-*.json`](../../use-cases) — UC sidecars containing compliance[] entries, controlFamily, owner, evidence fields
+- [`content/cat-*/UC-*.json`](../../content) — UC sidecars containing compliance[] entries, controlFamily, owner, evidence fields
 - [`api/v1/compliance/regulations/hipaa-security@*.json`](../../api/v1/compliance/regulations/) — pre-computed coverage metrics (when present)
 
 - Generator: [`scripts/generate_evidence_packs.py`](../../scripts/generate_evidence_packs.py)
@@ -417,9 +417,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 7.1
+catalogue_version: 7.2
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     d182323bff36ebe11168f94776fbb9639b116f5b15f71d1bf7d161c41626f5bc
+inputs_sha256:     05d15d6f921fc6af3c7dbfacf931dcfd40d45bd1e8a91ef250232b39e24f110e
 ```
 
 To re-generate:

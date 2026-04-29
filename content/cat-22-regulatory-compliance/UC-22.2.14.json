@@ -21,20 +21,21 @@
       "evidenceArtifact": "Saved search 'UC-22.2.14' running on sourcetype WinEventLog:Security and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(i)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=windows` `sourcetype=\"WinEventLog:Security\"` (account disable/delete events), `index=itsm` (ServiceNow HR case records), HR system exports (CSV/HEC), `index=auth` (authentication after termination)",
-  "app": "Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Add-on for ServiceNow (Splunkbase 1928)",
+  "dataSources": "`index=hr` `sourcetype=hr:jml_events` via HEC (fields employee_id, event_type, termination_date, job_change_id); `index=auth` `sourcetype=azure:aad:signin` with Splunk Add-on for Microsoft Cloud Services ([Splunkbase 3110](https://splunkbase.splunk.com/app/3110)); `index=windows` `sourcetype=WinEventLog:Security`; `index=itsm` `sourcetype=snow:task` (deprovision tickets) via Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)).",
+  "app": "Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110)",
   "spl": "| inputlookup terminated_employees.csv\n| eval term_date=strptime(termination_date, \"%Y-%m-%d\")\n| eval days_since_term=round((now()-term_date)/86400, 0)\n| join type=left user [\n    search index=auth OR index=windows OR index=azure earliest=-30d\n    | eval user=coalesce(Account_Name, userPrincipalName, user)\n    | stats latest(_time) as last_auth count as auth_count by user\n]\n| where isnotnull(last_auth) AND last_auth > term_date\n| eval days_active_after_term=round((last_auth - term_date)/86400, 0)\n| sort - days_active_after_term\n| table user, termination_date, days_since_term, days_active_after_term, auth_count",
-  "description": "Article 21(2)(i) requires human resources security controls including lifecycle-managed access. This use case detects accounts that remain active after employee departure, identifies access rights that persist after role changes, and monitors onboarding completeness — providing evidence that joiner/mover/leaver (JML) processes are enforced and auditable.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes auth, azure, itsm and sourcetypes WinEventLog:Security. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Export HR termination data to `terminated_employees.csv` via scheduled integration or HEC; (2) run daily to detect orphaned accounts; (3) alert on any authentication activity after termination date; (4) escalate accounts active >3 days post-termination as potential compliance violations; (5) extend to movers by comparing current role vs granted access groups; (6) integrate with ServiceNow for automated deprovisioning ticket creation. Indexes required: `index=auth`, `index=azure`, `index=itsm`, `index=windows`; Sourcetypes: `sourcetype=WinEventLog:Security`.",
-  "visualization": "Table (active terminated accounts), Single value (orphaned accounts count), Bar chart (days active after termination), Timeline (post-termination activity). Key fields: `auth_count`, `days_active_after_term`, `days_since_term`, `last_auth`, `term_date`, `termination_date`.",
+  "description": "Joins authoritative HR termination dates from `terminated_employees.csv` (or HEC `hr:jml_events`) against subsequent authentication activity drawn from Entra ID, Windows, and shared auth indexes to spotlight accounts still authenticating after the leaver timestamp.",
+  "value": "Provisioning audits rarely fail on paper—they fail when old accounts keep logging in because a deletion script missed a shadow admin; giving the privacy officer and risk committee a dated trail of post-termination authentications closes that evidentiary gap ahead of regulator questions.",
+  "implementation": "(1) HR publishes `terminated_employees.csv` nightly with `user` UPN + `termination_date`. (2) Map `index=hr` feed for near-real-time events. (3) Alert if `days_active_after_term>0`. (4) Severity++ if >3 days. (5) Auto-task ServiceNow `RITM` via alert. (6) Store signed exports with `evidenceSigning`.",
+  "visualization": "Timeline of last_auth vs term_date, gauge of open violations, ServiceNow ticket drilldown.",
   "cimModels": [
-    "N/A"
+    "Authentication"
   ],
-  "cimSpl": "",
+  "cimSpl": "| tstats summariesonly=t min(_time) as first_seen max(_time) as last_seen from datamodel=Authentication.Authentication by Authentication.user",
   "references": [
     {
       "title": "Splunk Add-on for Microsoft Windows",
@@ -51,9 +52,24 @@
     {
       "title": "CIM: Authentication",
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Operational noise during large maintenance windows, controlled exercises, or scope changes to critical entity lists.",
+  "knownFalsePositives": "1) **Shared mailbox or role account renamed** so HR CSV still lists old `user` string while authentication uses new alias. *Distinguish:* Azure `userPrincipalName` change logs in **Entra ID > Audit**. *Suppress:* lookup `nis2_account_alias_map.csv`. 2) **Contractor extensions** recorded late in HRIS. *Distinguish:* `event_type=rehire_pending` in `hr:jml_events`. *Suppress:* time-bound exception register until HR closes ticket. 3) **Offline laptop logging cached credentials** days after term but never hits network until imaging. *Distinguish:* `last_auth` older than 72h yet after term. *Suppress:* optional `where days_active_after_term>3` for paging only. 4) **ServiceNow deprovision automation re-enabling SaaS sandbox accounts** for knowledge transfer. *Distinguish:* `RITM` contains `re_enable_for_kt`. *Suppress:* `lookup nis2_kt_exceptions user`. 5) **Timezone-aligned termination at midnight UTC vs local HR calendar**. *Distinguish:* HR provides `termination_timezone`. *Suppress:* adjust `term_date` with `strptime` + offset.\n",
   "mitreAttack": [
     "T1078",
     "T1098"
@@ -72,11 +88,24 @@
     "m365",
     "servicenow"
   ],
-  "lastReviewed": "2026-04-22",
+  "lastReviewed": "2026-04-29",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Add-on for ServiceNow (Splunkbase 1928).\n• Ensure the following data sources are available: `index=windows` `sourcetype=\"WinEventLog:Security\"` (account disable/delete events), `index=itsm` (ServiceNow HR case records), HR system exports (CSV/HEC), `index=auth` (authentication after termination).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Export HR termination data to `terminated_employees.csv` via scheduled integration or HEC; (2) run daily to detect orphaned accounts; (3) alert on any authentication activity after termination date; (4) escalate accounts active >3 days post-termination as potential compliance violations; (5) extend to movers by comparing current role vs granted access groups; (6) integrate with ServiceNow for automated deprovisioning ticket creation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup terminated_employees.csv\n| eval term_date=strptime(termination_date, \"%Y-%m-%d\")\n| eval days_since_term=round((now()-term_date)/86400, 0)\n| join type=left user [\n    search index=auth OR index=windows OR index=azure earliest=-30d\n    | eval user=coalesce(Account_Name, userPrincipalName, user)\n    | stats latest(_time) as last_auth count as auth_count by user\n]\n| where isnotnull(last_auth) AND last_auth > term_date\n| eval days_active_after_term=round((last_auth - term_date)/86400, 0)\n| sort - days_active_after_term\n| table user, termination_date, days_since_term, days_active_after_term, auth_count\n```\n\nUnderstanding this SPL\n\n**NIS2 Human Resources Security — Joiner/Mover/Leaver Process (Art. 21(2)(i))** — Article 21(2)(i) requires human resources security controls including lifecycle-managed access. This use case detects accounts that remain active after employee departure, identifies access rights that persist after role changes, and monitors onboarding completeness — providing evidence that joiner/mover/leaver (JML) processes are enforced and auditable.\n\nDocumented **Data sources**: `index=windows` `sourcetype=\"WinEventLog:Security\"` (account disable/delete events), `index=itsm` (ServiceNow HR case records), HR system exports (CSV/HEC), `index=auth` (authentication after termination). **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Add-on for ServiceNow (Splunkbase 1928). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• `eval` defines or adjusts **term_date** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• `eval` defines or adjusts **days_since_term** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• Filters the current rows with `where isnotnull(last_auth) AND last_auth > term_date` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **days_active_after_term** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nThis use case does not use a CIM tstats shortcut; the primary SPL above is the source of truth after field normalization in your environment.\n\nOutput fields: auth_count, days_active_after_term, days_since_term, last_auth, term_date, termination_date, user.\n\nStep 3 — Validate\nCompare with Azure Monitor, Microsoft Entra audit, or the Azure portal for the same subscription and time range.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (active terminated accounts), Single value (orphaned accounts count), Bar chart (days active after termination), Timeline (post-termination activity).",
-  "grandmaExplanation": "We stay on top of human resources security — joiner/mover/leaver process — so we can show we run security operations and reporting the way the cyber rules that apply to us require.",
-  "dataModelAcceleration": "Not applicable"
+  "detailedImplementation": "Prerequisites\n• Authoritative HR feed: either CSV (`terminated_employees.csv`) dropped into `lookups/` with ACL `hr_compliance` read-only, or HEC to `index=hr` `sourcetype=hr:jml_events` containing `termination_date`, `employee_id`, `user`, `event_type`.\n• Splunk Add-on for Microsoft Cloud Services ([Splunkbase 3110](https://splunkbase.splunk.com/app/3110)) ensuring Entra sign-ins include `userPrincipalName` for correlation.\n• Splunk Add-on for Windows ([Splunkbase 742](https://splunkbase.splunk.com/app/742)) for Domain Controller `WinEventLog:Security` success codes 4624/4768.\n• Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)) optional for validating `RITM` closure states.\n• Legal basis documented: DPIA stating Splunk processes HR identifiers under Art.6(1)(c) GDPR.\n\nStep 1 — Configure data collection\n• HR job writes CSV with columns `user,termination_date,reason_code` daily at 01:00 local; Splunk heavy forwarder rsync pulls to `lookups/` then `splunk reload lookup-table` via REST.\n• For HEC, props.conf sets `TIME_FORMAT=%Y-%m-%dT%H:%M:%S%z` on `hr:jml_events`.\n• Validate counts: `| inputlookup terminated_employees.csv | stats count` matches Workday export row totals.\n• ServiceNow TA: enable `snow:task` input filtering `short_description=*depropvision*` (tune query).\n\nStep 2 — Create the search and alert\nUse `spl` field; add `| where days_active_after_term>0` alert daily 06:00.\nAlternate streaming variant replacing CSV with `index=hr event_type=termination` generating identical fields via `rename`.\n\nStep 3 — Validate\n• For synthetic user, disable account in AD and confirm final Windows logon timestamp aligns (+/−5 min) with Splunk `last_auth`.\n• Cross-check Azure portal **Revoke sessions** action timestamps.\n• Legal sample: request random ex-employee folder — compare Splunk evidence CSV with HR PDF letter date.\n\nStep 4 — Operationalize\n• Dashboard with red/yellow thresholds (0 days = info, ≥3 days = critical).\n• Integrate SOAR to call **Microsoft Graph /users/{id}/invalidateAllRefreshTokens** (external runbook).\n• Quarterly evidence pack signer references `evidenceSigning` manifest.\n\nStep 5 — Troubleshooting\n• **join drops everything** — field case mismatch; enforce lower(`user`).\n• **Mass false positives after domain migration** — refresh CSV UPNs.\n• **subsearch limits** — switch to `| map` or summary index `summary_jml`.\n• **Azure misses last_auth** — verify `index=azure` alias; add `index=auth` to subsearch.\n",
+  "grandmaExplanation": "When someone stops working for us, we check the electronic keys still are not used afterward. If a former employee’s name still shows up logging in after their last day, we treat that as urgent housekeeping.",
+  "dataModelAcceleration": "Enable for Authentication (optional acceleration for 30d windows)",
+  "owner": "CISO",
+  "controlFamily": "access-review-cadence",
+  "exclusions": "Does not execute HR disciplinary processes, notify labor councils, decide rehire eligibility, or replace court-grade HRIS extracts when employment law mandates certified paper files.",
+  "evidence": "Saved search `UC-22.2.14` with hashed identifiers, companion `hr:jml_events` excerpts proving termination_date provenance, ServiceNow RITM closure IDs, and TSA countersign files per the corporate evidence-signing standard for timestamped archives.",
+  "evidenceSigning": { "method": "rfc3161-tsa", "tsaUrl": "http://timestamp.digicert.com" },
+  "status": "verified",
+  "wave": "crawl",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Controlled test user `jdoe@corp` receives `termination_date=yesterday` in `terminated_employees.csv` while a scripted Entra sign-in occurs today; the join surfaces `days_active_after_term=1` and nonzero `auth_count`, demonstrating detection of lingering access.",
+    "negativeScenario": "Same user after Global Admin runs `Revoke sessions` shows no `azure:aad:signin` or Windows success events for thirty days, HR adds `event_type=rehire_cancelled` row, and the search returns empty while HRIS attestation PDF is uploaded manually for auditors.",
+    "fixtureRef": "sample-data/uc-22.2.14-fixture.json"
+  }
 }

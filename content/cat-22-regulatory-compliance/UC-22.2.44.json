@@ -15,31 +15,46 @@
       "clause": "Art.14",
       "mode": "satisfies",
       "assurance": "contributing",
-      "assurance_rationale": "NIS2 Art.14 — Reviewed: SPL provides contributing evidence for this regulatory requirement. The search query directly addresses the monitoring objective specified by the clause.",
+      "assurance_rationale": "Art.14 is assigned contributing assurance because this UC provides concrete Splunk evidence for the observable control condition, while policy approval, legal interpretation, and official filings remain outside Splunk.",
       "controlObjective": "Evidence that NIS2 Art.14 is enforced — Splunk UC-22.2.44: NIS2 Cooperation Group and Sector Information Sharing Participation.",
       "evidenceArtifact": "Saved search 'UC-22.2.44' running on nis2_cooperation_group_register.csv, index=itsm (meeting tasks), STIX/TAXII ingest metrics (index=threat_intel), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.14",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`nis2_cooperation_group_register.csv`, `index=itsm` (meeting tasks), STIX/TAXII ingest metrics (`index=threat_intel`)",
-  "app": "HTTP Event Collector (HEC), Splunk Add-on for ServiceNow (Splunkbase 1928)",
-  "spl": "| inputlookup nis2_cooperation_group_register.csv\n| join group_id [\n    search index=itsm short_description=\"*ISAC*\" OR short_description=\"*cooperation group*\" earliest=-180d\n    | stats latest(state) as last_meeting_state latest(closed_at) as last_meeting_date by assignment_group\n    | rename assignment_group as group_id\n]\n| eval participation_gap=if(last_meeting_state!=\"Closed\" OR isnull(last_meeting_date),1,0)\n| join group_id [\n    search index=threat_intel earliest=-30d\n    | stats dc(indicator_id) as indicators_consumed by feed_name\n    | rename feed_name as group_id\n]\n| where participation_gap=1 OR indicators_consumed < 1000\n| table group_id, last_meeting_state, last_meeting_date, indicators_consumed, participation_gap",
-  "description": "Cooperation mechanisms and information sharing strengthen collective resilience. This use case logs participation in sector ISACs, national cooperation groups, and Splunk-fed threat intel exchanges — tracking attendance, indicator contributions, and action items.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes itsm, threat_intel. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Register each cooperation forum with expected meeting cadence; (2) track attendance via ServiceNow tasks; (3) measure threat feed health from Splunk intel indexes; (4) alert CISO when participation drops; (5) document confidentiality constraints on shared data. Indexes required: `index=itsm`, `index=threat_intel`; Lookups: `nis2_cooperation_group_register`, `nis2_cooperation_group_register.csv`.",
-  "visualization": "Table (gaps), Timeline (meetings), Single value (active feeds), Bar chart (indicators by feed). Key fields: `group_id`, `indicators_consumed`, `last_meeting_date`, `last_meeting_state`, `participation_gap`.",
+  "dataSources": "`nis2_cooperation_group_register.csv`; `index=itsm` tasks (`sourcetype=snow:task` or `snow:sn_grc_policy`) with `assignment_group`, `state`, `closed_at`; `index=threat_intel` `sourcetype=stix` events carrying `indicator_id`, `feed_name`; Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)) for intel pipeline health; Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)).",
+  "app": "Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)); Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)); HTTP Event Collector for supplemental STIX feeds.",
+  "spl": "| inputlookup nis2_cooperation_group_register.csv\n| lookup nis2_isac_kfp_thresholds group_id OUTPUT feed_floor_threshold exception_until\n| eval feed_floor_threshold=coalesce(feed_floor_threshold,1000)\n| join group_id type=left [\n    search index=itsm sourcetype=snow:task (short_description=\"*ISAC*\" OR short_description=\"*cooperation group*\") earliest=-180d\n    | stats latest(state) as last_meeting_state latest(closed_at) as last_meeting_date by assignment_group\n    | rename assignment_group as group_id\n]\n| eval participation_gap=if(last_meeting_state!=\"Closed\" OR isnull(last_meeting_date),1,0)\n| join group_id type=left [\n    search index=threat_intel sourcetype=stix earliest=-30d\n    | stats dc(indicator_id) as indicators_consumed by feed_name\n    | rename feed_name as group_id\n]\n| eval indicators_consumed=coalesce(indicators_consumed,0)\n| where participation_gap=1 OR indicators_consumed < feed_floor_threshold\n| where isnull(exception_until) OR now()>strptime(exception_until,\"%Y-%m-%d\")\n| table group_id, last_meeting_state, last_meeting_date, indicators_consumed, participation_gap, feed_floor_threshold",
+  "description": "Correlates the cooperation-forum register with closed ServiceNow meeting tasks and STIX indicator volume per named feed so lapses in sector ISAC participation or silent intel pipelines become visible.",
+  "value": "Public affairs and cyber leaders can demonstrate active collaboration and functioning information exchanges without maintaining separate spreadsheets, which matters when policymakers ask for proof of collective resilience investments.",
+  "implementation": "(1) Maintain `nis2_cooperation_group_register.csv` with `group_id` aligned to ServiceNow `assignment_group` and intel `feed_name`. (2) Ingest STIX via ES TAXII or HEC. (3) Tune `feed_floor` per forum. (4) Monthly CISO review. (5) Store exports in `index=audit_evidence`.",
+  "visualization": "Participation gap table, timeline of meetings, single value active STIX feeds.",
   "cimModels": [
     "N/A"
   ],
   "references": [
     {
-      "title": "Splunk Add-on for ServiceNow",
+      "title": "Splunk Enterprise Security (Splunkbase 263)",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
       "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Operational noise during large maintenance windows, controlled exercises, or scope changes to critical entity lists.",
+  "knownFalsePositives": "• **Summer holiday quorum gaps** — Distinguish: meeting task still `Work in Progress` but charter allows August pause. Suppress: `lookup nis2_isac_kfp_thresholds` lowering `feed_floor` or pausing alerts for 30 days.\n• **Intel feed renamed in TAXII server** — Distinguish: `feed_name` mismatch yields zero `indicators_consumed`. Suppress: update register CSV; time-bound exception register entry.\n• **Confidential side channel minutes** — Distinguish: official attendance kept outside ServiceNow. Suppress: manual attestation flag `alt_evidence=true` on register row with review ticket.\n• **Synthetic test STIX drop** — Distinguish: purple-team feed spikes then goes quiet. Suppress: filter `where feed_name!=\"purple_team_qa\"` or use exception lookup.",
   "requiredFields": [
     "group_id",
     "indicators_consumed",
@@ -51,9 +66,25 @@
     "exchange",
     "servicenow"
   ],
-  "lastReviewed": "2026-04-22",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HTTP Event Collector (HEC), Splunk Add-on for ServiceNow (Splunkbase 1928).\n• Ensure the following data sources are available: `nis2_cooperation_group_register.csv`, `index=itsm` (meeting tasks), STIX/TAXII ingest metrics (`index=threat_intel`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Register each cooperation forum with expected meeting cadence; (2) track attendance via ServiceNow tasks; (3) measure threat feed health from Splunk intel indexes; (4) alert CISO when participation drops; (5) document confidentiality constraints on shared data.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup nis2_cooperation_group_register.csv\n| join group_id [\n    search index=itsm short_description=\"*ISAC*\" OR short_description=\"*cooperation group*\" earliest=-180d\n    | stats latest(state) as last_meeting_state latest(closed_at) as last_meeting_date by assignment_group\n    | rename assignment_group as group_id\n]\n| eval participation_gap=if(last_meeting_state!=\"Closed\" OR isnull(last_meeting_date),1,0)\n| join group_id [\n    search index=threat_intel earliest=-30d\n    | stats dc(indicator_id) as indicators_consumed by feed_name\n    | rename feed_name as group_id\n]\n| where participation_gap=1 OR indicators_consumed < 1000\n| table group_id, last_meeting_state, last_meeting_date, indicators_consumed, participation_gap\n```\n\nUnderstanding this SPL\n\n**NIS2 Cooperation Group and Sector Information Sharing Participation (Art. 14)** — Cooperation mechanisms and information sharing strengthen collective resilience. This use case logs participation in sector ISACs, national cooperation groups, and Splunk-fed threat intel exchanges — tracking attendance, indicator contributions, and action items.\n\nDocumented **Data sources**: `nis2_cooperation_group_register.csv`, `index=itsm` (meeting tasks), STIX/TAXII ingest metrics (`index=threat_intel`). **App/TA** (typical add-on context): HTTP Event Collector (HEC), Splunk Add-on for ServiceNow (Splunkbase 1928). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• `eval` defines or adjusts **participation_gap** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Correlates data from a subsearch to enrich the primary result set with additional context.\n• Filters the current rows with `where participation_gap=1 OR indicators_consumed < 1000` — typically the threshold or rule expression for this monitoring goal.\n\nOutput fields: group_id, indicators_consumed, last_meeting_date, last_meeting_state, participation_gap.\n\nStep 3 — Validate\nCompare ticket and field counts with the ServiceNow ITSM or GRC console (same time range) and confirm synchronization fields and sourcetypes used by this search.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (gaps), Timeline (meetings), Single value (active feeds), Bar chart (indicators by feed).",
-  "grandmaExplanation": "We cooperation mechanisms and information sharing strengthen collective resilience.",
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise Security ([Splunkbase 263](https://splunkbase.splunk.com/app/263)) installed on search heads handling `index*=*threat*` lookups — confirm 12-month license for intel features.\n• Splunk Add-on for ServiceNow ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)) pulling task/incident tables with `assignment_group`, `short_description`, `closed_at` within 300-second poll default.\n• HEC token on heavy forwarder if a national CSIRT pushes STIX JSON directly; set `indexes = threat_intel` in `inputs.conf`.\n• Role includes `threat_intel`, `itsm` indexes; ES analysts need `ess_user`.\n\nStep 1 — Configure data collection\nMap each ISAC to both a ServiceNow group and intel `feed_name`. For ES TAXII, use Intelligence Downloads UI (`Enterprise Security` > `Intelligence` > `Downloads`) pointing at `/api/v1/taxii2/` endpoints — retain `sourcetype=stix`. For ServiceNow, validate REST path `/api/now/table/task` returns your cooperation templates. Document expected indicator volume (e.g., ≥1000 unique `indicator_id` per 30 days for high-trust feeds). Store `nis2_cooperation_group_register.csv` under change control.\n\nStep 2 — Create the search and alert\nRun daily with `earliest=-30d` on intel subsearch.\n\n```spl\n| inputlookup nis2_cooperation_group_register.csv\n| join group_id type=left [\n    search index=itsm sourcetype=snow:task (short_description=\"*ISAC*\" OR short_description=\"*cooperation group*\") earliest=-180d\n    | stats latest(state) as last_meeting_state latest(closed_at) as last_meeting_date by assignment_group\n    | rename assignment_group as group_id\n]\n| eval participation_gap=if(last_meeting_state!=\"Closed\" OR isnull(last_meeting_date),1,0)\n| join group_id type=left [\n    search index=threat_intel sourcetype=stix earliest=-30d\n    | stats dc(indicator_id) as indicators_consumed by feed_name\n    | rename feed_name as group_id\n]\n```\n\nThreshold `indicators_consumed` against per-forum floors from lookup. Alert when `participation_gap=1` OR intel floor breached 3 consecutive days.\n\nStep 3 — Validate\nPick one forum: verify latest meeting closure timestamp against ServiceNow UI. Compare `dc(indicator_id)` to ES Intelligence view for same `feed_name`. If divergent, check `_indextime - _time` lag >24h — often parser delay.\n\nStep 4 — Operationalize\nDashboard with map of forums to owners, Slack notification including `group_id`, monthly PDF archived to `index=audit_evidence`. Runbook cites NDA constraints when attaching raw indicators.\n\nStep 5 — Troubleshooting\n• **Null intel join** — wrong index name; some deployments use `threat_intel` vs `threat_activity` — align macros.\n• **ServiceNow API 429** — lower modular input interval or add retry in add-on.\n• **Indicator flood skews dc** — dedup noise via `where threat_actor!=\"unknown\"` after validating with threat lead.\n• **RBAC denied** — curator role missing `threat_intel`; update `authorize.conf`.",
+  "grandmaExplanation": "We watch both your meeting follow-through for industry cooperation groups and whether fresh safety tips are still flowing in from trusted partners. If meetings stall or the tip line goes quiet, we flag it so leaders can nudge the right people.",
   "cimSpl": "",
-  "dataModelAcceleration": "Not applicable"
+  "dataModelAcceleration": "Not applicable",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does not judge lawfulness of shared data, NDAs, or classification decisions; does not replace formal ENISA or national cooperation filings.",
+  "evidence": "Saved search `UC-22.2.44` results, associated `snow:task` references, summarized `stix` volume stats, and archived dashboard PDF in `index=audit_evidence`.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "walk",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Simulate a forum with `participation_gap=1` by closing the ServiceNow task in `Resolved` instead of `Closed` and confirm the search lists the forum; separately zero-out STIX events for a feed and verify the low `indicators_consumed` branch fires when under the configured floor.",
+    "negativeScenario": "When the latest task is `Closed` within cadence and thirty-day `stix` volume exceeds the forum-specific floor, the dashboard stays empty for that `group_id`, showing the negative path for healthy participation.",
+    "fixtureRef": "sample-data/uc-22.2.44-fixture.json"
+  }
 }

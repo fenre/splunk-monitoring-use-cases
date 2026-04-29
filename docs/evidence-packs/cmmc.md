@@ -6,7 +6,7 @@
 > **Authoritative source**: [https://dodcio.defense.gov/CMMC/](https://dodcio.defense.gov/CMMC/)
 > **Effective from**: 2024-12-16
 
-> This evidence pack is the auditor-facing view of the Splunk monitoring catalogue's coverage of the regulation. Every clause coverage claim is traceable to a specific UC sidecar JSON file (`use-cases/cat-*/uc-*.json`); every retention figure cites its legal basis; every URL resolves to an official regulator or standards-body source. The pack does **not** assert legal conclusions — it tabulates what the catalogue covers, names the authoritative source, and flags gaps. Interpretation stays with counsel.
+> This evidence pack is the auditor-facing view of the Splunk monitoring catalogue's coverage of the regulation. Every clause coverage claim is traceable to a specific UC sidecar JSON file (`content/cat-*/UC-*.json`); every retention figure cites its legal basis; every URL resolves to an official regulator or standards-body source. The pack does **not** assert legal conclusions — it tabulates what the catalogue covers, names the authoritative source, and flags gaps. Interpretation stays with counsel.
 
 > **Live views.** [Buyer narrative (`compliance-story.html?reg=cmmc`)](../../compliance-story.html?reg=cmmc) · [Auditor clause navigator (`clause-navigator.html#reg=cmmc`)](../../clause-navigator.html#reg=cmmc) · [JSON twin (`api/v1/compliance/story/cmmc.json`)](../../api/v1/compliance/story/cmmc.json)
 
@@ -65,161 +65,161 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 ### 4.1 Contributing UC detail
 
 <a id='uc-10-12-40'></a>
-- **UC-10.12.40** —
+- **UC-10.12.40** — CMMC Compliance Assessment
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-10-security-infrastructure/UC-10.12.40.json`](../../content/cat-10-security-infrastructure/UC-10.12.40.json)
 <a id='uc-22-20-1'></a>
-- **UC-22.20.1** —
+- **UC-22.20.1** — CMMC Level 2 practice evidence — CUI control area 1
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.1.json`](../../content/cat-22-regulatory-compliance/UC-22.20.1.json)
 <a id='uc-22-20-10'></a>
-- **UC-22.20.10** —
+- **UC-22.20.10** — CMMC Level 2 practice evidence — CUI control area 10
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.10.json`](../../content/cat-22-regulatory-compliance/UC-22.20.10.json)
 <a id='uc-22-20-11'></a>
-- **UC-22.20.11** —
+- **UC-22.20.11** — CMMC Level 3 enhanced practice — threat scenario 1
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.11.json`](../../content/cat-22-regulatory-compliance/UC-22.20.11.json)
 <a id='uc-22-20-12'></a>
-- **UC-22.20.12** —
+- **UC-22.20.12** — CMMC Level 3 enhanced practice — threat scenario 2
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.12.json`](../../content/cat-22-regulatory-compliance/UC-22.20.12.json)
 <a id='uc-22-20-13'></a>
-- **UC-22.20.13** —
+- **UC-22.20.13** — CMMC Level 3 enhanced practice — threat scenario 3
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.13.json`](../../content/cat-22-regulatory-compliance/UC-22.20.13.json)
 <a id='uc-22-20-14'></a>
-- **UC-22.20.14** —
+- **UC-22.20.14** — CMMC Level 3 enhanced practice — threat scenario 4
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.14.json`](../../content/cat-22-regulatory-compliance/UC-22.20.14.json)
 <a id='uc-22-20-15'></a>
-- **UC-22.20.15** —
+- **UC-22.20.15** — CMMC Level 3 enhanced practice — threat scenario 5
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.15.json`](../../content/cat-22-regulatory-compliance/UC-22.20.15.json)
 <a id='uc-22-20-16'></a>
-- **UC-22.20.16** —
+- **UC-22.20.16** — CMMC assessment readiness — artifact 1
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.16.json`](../../content/cat-22-regulatory-compliance/UC-22.20.16.json)
 <a id='uc-22-20-17'></a>
-- **UC-22.20.17** —
+- **UC-22.20.17** — CMMC assessment readiness — artifact 2
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.17.json`](../../content/cat-22-regulatory-compliance/UC-22.20.17.json)
 <a id='uc-22-20-18'></a>
-- **UC-22.20.18** —
+- **UC-22.20.18** — CMMC assessment readiness — artifact 3
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.18.json`](../../content/cat-22-regulatory-compliance/UC-22.20.18.json)
 <a id='uc-22-20-19'></a>
-- **UC-22.20.19** —
+- **UC-22.20.19** — CMMC assessment readiness — artifact 4
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.19.json`](../../content/cat-22-regulatory-compliance/UC-22.20.19.json)
 <a id='uc-22-20-2'></a>
-- **UC-22.20.2** —
+- **UC-22.20.2** — CMMC Level 2 practice evidence — CUI control area 2
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.2.json`](../../content/cat-22-regulatory-compliance/UC-22.20.2.json)
 <a id='uc-22-20-20'></a>
-- **UC-22.20.20** —
+- **UC-22.20.20** — CMMC assessment readiness — artifact 5
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.20.json`](../../content/cat-22-regulatory-compliance/UC-22.20.20.json)
 <a id='uc-22-20-3'></a>
-- **UC-22.20.3** —
+- **UC-22.20.3** — CMMC AU.L2-3.3.1 — Audit record creation verification on CUI systems
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.3.json`](../../content/cat-22-regulatory-compliance/UC-22.20.3.json)
 <a id='uc-22-20-4'></a>
-- **UC-22.20.4** —
+- **UC-22.20.4** — CMMC AU.L2-3.3.2 — User-to-action traceability on CUI systems
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.4.json`](../../content/cat-22-regulatory-compliance/UC-22.20.4.json)
 <a id='uc-22-20-5'></a>
-- **UC-22.20.5** —
+- **UC-22.20.5** — CMMC Level 2 practice evidence — CUI control area 5
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.5.json`](../../content/cat-22-regulatory-compliance/UC-22.20.5.json)
 <a id='uc-22-20-6'></a>
-- **UC-22.20.6** —
+- **UC-22.20.6** — CMMC CM.L2-3.4.1 — Baseline configuration drift detection on CUI systems
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.6.json`](../../content/cat-22-regulatory-compliance/UC-22.20.6.json)
 <a id='uc-22-20-7'></a>
-- **UC-22.20.7** —
+- **UC-22.20.7** — CMMC IR.L2-3.6.1 — Incident response lifecycle tracking for CUI incidents
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.7.json`](../../content/cat-22-regulatory-compliance/UC-22.20.7.json)
 <a id='uc-22-20-8'></a>
-- **UC-22.20.8** —
+- **UC-22.20.8** — CMMC SC.L2-3.13.8 — Cryptographic protection of CUI in transit
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.8.json`](../../content/cat-22-regulatory-compliance/UC-22.20.8.json)
 <a id='uc-22-20-9'></a>
-- **UC-22.20.9** —
+- **UC-22.20.9** — CMMC SI.L2-3.14.6 — Real-time attack monitoring on CUI systems
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.9.json`](../../content/cat-22-regulatory-compliance/UC-22.20.9.json)
 <a id='uc-22-32-17'></a>
-- **UC-22.32.17** —
+- **UC-22.32.17** — Controlled unclassified information access control
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.32.17.json`](../../content/cat-22-regulatory-compliance/UC-22.32.17.json)
 <a id='uc-22-32-18'></a>
-- **UC-22.32.18** —
+- **UC-22.32.18** — CMMC practice implementation evidence collection
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.32.18.json`](../../content/cat-22-regulatory-compliance/UC-22.32.18.json)
 <a id='uc-22-32-19'></a>
-- **UC-22.32.19** —
+- **UC-22.32.19** — CMMC assessment readiness scoring
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.32.19.json`](../../content/cat-22-regulatory-compliance/UC-22.32.19.json)
 <a id='uc-22-32-20'></a>
-- **UC-22.32.20** —
+- **UC-22.32.20** — CUI incident response evidence
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.32.20.json`](../../content/cat-22-regulatory-compliance/UC-22.32.20.json)
 <a id='uc-22-32-21'></a>
-- **UC-22.32.21** —
+- **UC-22.32.21** — Continuous monitoring for CMMC practice families
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.32.21.json`](../../content/cat-22-regulatory-compliance/UC-22.32.21.json)
 
 ## 5. Evidence collection
 
@@ -339,7 +339,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 
 - [`data/regulations.json`](../../data/regulations.json) — commonClauses, priority weights, authoritative URLs
 - [`data/evidence-pack-extras.json`](../../data/evidence-pack-extras.json) — retention, roles, authoritative guidance, penalty, testing approach
-- [`use-cases/cat-*/uc-*.json`](../../use-cases) — UC sidecars containing compliance[] entries, controlFamily, owner, evidence fields
+- [`content/cat-*/UC-*.json`](../../content) — UC sidecars containing compliance[] entries, controlFamily, owner, evidence fields
 - [`api/v1/compliance/regulations/cmmc@*.json`](../../api/v1/compliance/regulations/) — pre-computed coverage metrics (when present)
 
 - Generator: [`scripts/generate_evidence_packs.py`](../../scripts/generate_evidence_packs.py)
@@ -348,9 +348,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 7.1
+catalogue_version: 7.2
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     d182323bff36ebe11168f94776fbb9639b116f5b15f71d1bf7d161c41626f5bc
+inputs_sha256:     05d15d6f921fc6af3c7dbfacf931dcfd40d45bd1e8a91ef250232b39e24f110e
 ```
 
 To re-generate:

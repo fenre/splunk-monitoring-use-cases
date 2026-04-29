@@ -17,49 +17,82 @@
       "mode": "satisfies",
       "assurance": "partial",
       "assurance_rationale": "Uplifted from contributing: SPL directly addresses Art.21(2)(a) requirements with specific, actionable monitoring.",
-      "controlObjective": "Evidence that NIS2 Art.21(2)(a) (Risk analysis and information-system security policies) is enforced — Splunk UC-22.2.6: NIS2 Risk Analysis and Information System Security Policy Evidence.",
-      "evidenceArtifact": "Saved search 'UC-22.2.6' running on index=risk sourcetype=\"stash\" (risk_object, risk_object_type, risk_score, source), asset/identity lookups, _audit index, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
+      "controlObjective": "Links live GRC risk-register rows and infosec policy approvals to `nis2_is_security_policies` so overdue reviews, high open scores, and stale approvals surface in one queue.",
+      "evidenceArtifact": "`UC-22.2.6` saved search on `index=grc sourcetype=grc:risk` and `index=itsm sourcetype=snow:sn_grc_policy` with `lookup nis2_is_security_policies` (policy_id, policy_name, approval_status, last_approved, review_cycle_days); exports vaulted under RFC3161. SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(a)",
       "requires_sme_review": false,
-      "provenance": "maintainer"
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
-  "dataSources": "`index=risk` `sourcetype=\"stash\"` (risk_object, risk_object_type, risk_score, source), asset/identity lookups, `_audit` index",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621)",
-  "spl": "index=risk sourcetype=\"stash\" earliest=-30d@d\n| stats latest(risk_score) as current_risk, max(risk_score) as peak_risk, dc(source) as contributing_detections by risk_object, risk_object_type\n| lookup asset_lookup_by_str key AS risk_object OUTPUT category, priority, owner\n| fillnull value=\"UNASSIGNED\" owner category\n| where owner=\"UNASSIGNED\" OR current_risk > 50\n| sort - current_risk\n| table risk_object, risk_object_type, category, owner, current_risk, peak_risk, contributing_detections",
-  "description": "Article 21(2)(a) requires documented risk analysis and information security policies. This use case continuously validates that organisational risk posture is tracked, risk treatments are assigned owners, and security policy coverage aligns with critical asset inventory — producing auditable evidence that risk management is an operational process, not a one-time exercise.",
-  "value": "Gives the responsible team auditor-ready evidence for NIS2 compliance by automating regulatory compliance evidence using indexes risk and sourcetypes stash. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
-  "implementation": "(1) Populate ES asset and identity frameworks with NIS2-scoped systems; (2) ensure risk-generating correlation searches are active for all critical asset categories; (3) flag `UNASSIGNED` owners as governance gaps requiring remediation; (4) schedule weekly to generate evidence of continuous risk monitoring; (5) export as PDF for audit evidence pack. Indexes required: `index=risk`; Sourcetypes: `sourcetype=stash`; Lookups: `asset_lookup_by_str`.",
-  "visualization": "Table (risk objects without owners), Bar chart (risk by category), Single value (unassigned assets), Line chart (risk trend over 30 days).",
+  "dataSources": "`index=grc sourcetype=grc:risk` via HEC or scripted pull: `risk_id`, `risk_title`, `risk_score`, `risk_status`, `next_review_date`, `owner`. `index=itsm sourcetype=snow:sn_grc_policy` via Splunk Add-on for ServiceNow (Splunkbase 1928): `policy_number`, `approval_status`, `last_approved`, `u_framework`. Lookup `nis2_is_security_policies.csv` stores policy_id, policy_name, approval_status, last_approved, review_cycle_days.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928); optional Splunk Connect for Syslog container forwarding summarized risk rows before HEC indexing",
+  "spl": "(index=grc sourcetype=grc:risk earliest=-730d@d) OR (index=itsm sourcetype=snow:sn_grc_policy earliest=-730d@d)\n| eval record_key=coalesce(risk_id,policy_number,u_policy_id)\n| eval source_lane=if(index=\"grc\",\"risk_register\",\"policy_record\")\n| lookup nis2_is_security_policies policy_id AS record_key OUTPUT policy_name, approval_status, last_approved, review_cycle_days\n| eval approved_epoch=if(isnotnull(last_approved),strptime(last_approved,\"%Y-%m-%d\"),null())\n| eval days_since_approval=if(isnotnull(approved_epoch),round((now()-approved_epoch)/86400,1),null())\n| eval next_epoch=if(isnotnull(next_review_date),strptime(next_review_date,\"%Y-%m-%d\"),null())\n| eval review_breach=0\n| eval review_breach=if(source_lane=\"risk_register\" AND isnotnull(next_epoch) AND now()>next_epoch,1,review_breach)\n| eval review_breach=if(source_lane=\"risk_register\" AND risk_score>=75 AND match(lower(risk_status),\"open|new|assessing\"),1,review_breach)\n| eval review_breach=if(source_lane=\"policy_record\" AND match(lower(approval_status),\"draft|pending|rejected\"),1,review_breach)\n| eval review_breach=if(source_lane=\"policy_record\" AND isnotnull(days_since_approval) AND days_since_approval>review_cycle_days,1,review_breach)\n| where review_breach=1\n| stats latest(risk_score) as risk_score latest(approval_status) as approval_status latest(days_since_approval) as days_since_approved latest(policy_name) as policy_name by record_key source_lane\n| sort 0 - risk_score",
+  "description": "Joins normalized risk-register events and ServiceNow policy rows to a static policy and cadence table, so open high scores past due reviews, stale approvals, and non-approved policy drafts appear as one auditor-facing queue.",
+  "value": "Risk and policy teams spend less time reconciling three spreadsheets before board meetings because the same search proves reviews ran, documents who owns each line, and shows where acceptance or republishing slipped.",
+  "implementation": "(1) Land `grc:risk` via TA pull or HEC with stable `risk_id`. (2) Enable `snow:sn_grc_policy` input with RBAC scoped to the information security policy catalog. (3) Maintain `nis2_is_security_policies.csv` from your GRC tool of record. (4) Schedule weekly; route to the risk committee digest channel. (5) Sign exports per `evidenceSigning`.",
+  "visualization": "Dashboard Studio: matrix by source_lane; bar chart of aging `days_since_approved`; risk score trend via overlay `timechart` on `index=grc` subset only.",
   "cimModels": [
     "N/A"
   ],
   "references": [
     {
-      "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
+      "title": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+      "url": "https://splunkbase.splunk.com/app/1928"
     },
     {
-      "title": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621"
+      "title": "Splunk Connect for Syslog (documentation)",
+      "url": "https://docs.splunk.com/Documentation/sc4s"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2)",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "Operational noise during large maintenance windows, controlled exercises, or scope changes to critical entity lists.",
+  "knownFalsePositives": "**Quarterly risk workshop holds scores open on purpose:** Distinguish tickets tagged `workshop_hold` in the source system. Suppress with `lookup nis2_risk_exception_register risk_id OUTPUT suppress_until | where now()>suppress_until OR isnull(suppress_until)`.\n\n**Policy translations pending legal review:** Distinguish `approval_status=pending` with `u_locale` not equal to master language. Suppress via `where NOT (approval_status=\"pending\" AND u_locale!=\"en\")` until legal signs off.\n\n**ServiceNow clone noise:** Distinguish `sys_created_by=clone` or `instance=dev`. Suppress using `where instance=\"prod\"` after indexing `instance` from the TA configuration.\n\n**Lookup key drift after CMDB merge:** Distinguish blank `record_key` after merge events. Suppress nothing; fix CSV keys and use the exception register until remapped.\n\n**Duplicate backlog replays:** Distinguish `_cd` duplication during indexer recovery. Suppress with `| dedup record_key source_lane` in the alert-only variant.",
   "requiredFields": [
-    "category",
-    "contributing_detections",
-    "current_risk",
-    "owner",
-    "peak_risk",
-    "risk_object",
-    "risk_object_type"
+    "approval_status",
+    "days_since_approved",
+    "last_approved",
+    "next_review_date",
+    "policy_name",
+    "record_key",
+    "review_breach",
+    "review_cycle_days",
+    "risk_score",
+    "risk_status",
+    "source_lane"
   ],
-  "lastReviewed": "2026-04-22",
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).\n• Ensure the following data sources are available: `index=risk` `sourcetype=\"stash\"` (risk_object, risk_object_type, risk_score, source), asset/identity lookups, `_audit` index.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Populate ES asset and identity frameworks with NIS2-scoped systems; (2) ensure risk-generating correlation searches are active for all critical asset categories; (3) flag `UNASSIGNED` owners as governance gaps requiring remediation; (4) schedule weekly to generate evidence of continuous risk monitoring; (5) export as PDF for audit evidence pack.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=risk sourcetype=\"stash\" earliest=-30d@d\n| stats latest(risk_score) as current_risk, max(risk_score) as peak_risk, dc(source) as contributing_detections by risk_object, risk_object_type\n| lookup asset_lookup_by_str key AS risk_object OUTPUT category, priority, owner\n| fillnull value=\"UNASSIGNED\" owner category\n| where owner=\"UNASSIGNED\" OR current_risk > 50\n| sort - current_risk\n| table risk_object, risk_object_type, category, owner, current_risk, peak_risk, contributing_detections\n```\n\nUnderstanding this SPL\n\n**NIS2 Risk Analysis and Information System Security Policy Evidence (Art. 21(2)(a))** — Article 21(2)(a) requires documented risk analysis and information security policies. This use case continuously validates that organisational risk posture is tracked, risk treatments are assigned owners, and security policy coverage aligns with critical asset inventory — producing auditable evidence that risk management is an operational process, not a one-time exercise.\n\nDocumented **Data sources**: `index=risk` `sourcetype=\"stash\"` (risk_object, risk_object_type, risk_score, source), asset/identity lookups, `_audit` index. **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: risk; **sourcetype**: stash. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=risk, sourcetype=\"stash\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` aggregates events by **risk_object, risk_object_type**, producing one row per unique combination for trend analysis and threshold evaluation.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Fills null values with `fillnull`.\n• Filters the current rows with `where owner=\"UNASSIGNED\" OR current_risk > 50` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOutput fields: category, contributing_detections, current_risk, owner, peak_risk, risk_object, risk_object_type.\n\nStep 3 — Validate\nCompare with the ES Risk framework views (index=risk) and the ServiceNow GRC console for the same period so risk scores and asset fields line up.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (risk objects without owners), Bar chart (risk by category), Single value (unassigned assets), Line chart (risk trend over 30 days).",
-  "grandmaExplanation": "We stay on top of risk analysis and information system security policy evidence — so we can show we run security operations and reporting the way the cyber rules that apply to us require.",
+  "lastReviewed": "2026-04-29",
+  "detailedImplementation": "Prerequisites\n• Splunk Search Head with `index=grc` and `index=itsm` on `nis2_risk_policy_users` role plus `lookup` access to `nis2_is_security_policies`.\n• Splunk Add-on for ServiceNow (Splunkbase 1928) ≥8.x with OAuth client stored under **Settings → Account passwords**; enable REST modular inputs hitting `/api/now/table/sn_grc_policy` and risk register table endpoints you mapped to `grc:risk` (for example a `u_splunk_risk_export` table).\n• Optional Splunk Connect for Syslog forwarding summarized risk rows to HEC with `props.conf` on the receiver setting `sourcetype=grc:risk` and `TIME_FORMAT=%Y-%m-%dT%H:%M:%S%Z`.\n\nStep 1 — Configure data collection\nCreate `$SPLUNK_HOME/etc/apps/TA-nis2-grc/local/props.conf` FIELDALIAS entries so ServiceNow columns `u_risk_register_id` maps to `risk_id`, and `sn_grc_policy` fields map to `policy_number` / `approval_status`. Set `TRUNCATE` for large JSON blobs ≤10000 bytes. On the HEC side, generate a token restricted to `index=grc` on **Settings → Data inputs → HTTP Event Collector**. Poll interval 300 seconds minimum to stay within API rate caps documented for Splunkbase 1928.\n\nStep 2 — Create the search and evidence report\nPaste the UC SPL into Search, validate row counts against a ServiceNow filtered list (`/sn_grc_policy?sysparm_query=approval_statusINdraft,pending`) and the GRC overdue-review report. Save As → **Report** `UC-22.2.6-RiskPolicyGaps` and schedule Mondays 06:00 with action **Output to lookup** for executive summary if required. Add a post-process `| where source_lane=\"policy_record\"` to split dashboards. Tie threshold `risk_score>=75` to your enterprise risk appetite statement stored in the lookup notes column.\n\nStep 3 — Validate\nFor five known risks, compare `next_review_date` in Splunk vs the GRC UI. For two policies, confirm `days_since_approved` equals calendar math from `last_approved`. Run `| makeresults | eval record_key=\"POL-0001\" | lookup nis2_is_security_policies policy_id AS record_key OUTPUT *` to test transforms. Check `_indextime - _time < 3600` to ensure freshness.\n\nStep 4 — Operationalize & Troubleshoot\nDashboard rows: overdue risks, policies in draft >30 days, combined CSV export signed with `evidenceSigning`. Runbook: assign `record_key` to risk committee swim-lane in ServiceNow; link drilldown to `https://<instance>.service-now.com/sn_grc_policy.do?sysparm_query=number=`.\n\nStep 5 — Troubleshooting\n• **Empty grc index** — modular input disabled; restart input via **Settings → Data inputs**.\n• **All policies show breach** — `review_cycle_days` null in CSV; default with `| fillnull review_cycle_days=365` only after governance approval.\n• **Time zone skew** — `strptime` returns null; confirm `last_approved` format `%Y-%m-%d` vs `%d/%m/%Y` using `convert` command.\n• **False spikes after upgrade** — new `approval_status` enumeration; update `match()` list and document in `nis2_risk_exception_register`.\n\n",
+  "grandmaExplanation": "We keep an eye on your risk register and official security rulebooks so overdue reviews and half-finished approvals show up in one list. That way the people responsible can fix paperwork before it becomes a crisis.",
   "cimSpl": "",
-  "dataModelAcceleration": "Not applicable"
+  "dataModelAcceleration": "Not applicable",
+  "owner": "Board / Audit Committee",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does not perform the qualitative risk workshop, sign policy attestation on behalf of management, or replace statutory filings or external audit opinions.",
+  "evidence": "Scheduled `UC-22.2.6` compliance report, signed CSV/PDF bundle, and chain-of-custody log referencing the RFC3161 token for each quarterly submission to the board pack.",
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
+  "status": "verified",
+  "wave": "crawl",
+  "prerequisiteUseCases": [],
+  "controlTest": {
+    "positiveScenario": "Seed `index=grc` with `risk_id=RISK-9001`, `risk_score=80`, `risk_status=open`, `next_review_date` set three months in the past, and confirm the Monday schedule emails a row with `source_lane=risk_register`; seed `index=itsm sourcetype=snow:sn_grc_policy` with `approval_status=draft` for `policy_number=POL-5001` and verify it appears with `source_lane=policy_record` while approved policies with fresh `last_approved` remain absent.",
+    "negativeScenario": "Move every in-scope risk to `risk_status=treated` with a future `next_review_date`, flip all policies to `approval_status=approved` inside the CSV `review_cycle_days` window, reload the knowledge bundle, and rerun ad-hoc to get zero rows even though historical drill data still exists in the indexes for traceability.",
+    "fixtureRef": "sample-data/uc-22.2.6-fixture.json"
+  }
 }

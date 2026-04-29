@@ -35,7 +35,9 @@
       "controlObjective": "Evidence that NIS2 Art.21(2)(c) (Business continuity and crisis management) is enforced — Splunk UC-22.45.5: Business-continuity rehearsal evidence — BCP/DR exercise execution logged.",
       "evidenceArtifact": "Saved search 'UC-22.45.5' running on BCP rehearsal ticketing system, signed rehearsal attestations., archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
       "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(c)",
-      "requires_sme_review": false
+      "requires_sme_review": false,
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "provenance": "maintainer"
     },
     {
       "regulation": "NIST-800-53",
@@ -99,5 +101,7 @@
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: BCP rehearsal ticketing system, signed rehearsal attestations..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain business_units.csv with owner + cadence; (2) emit bcp_rehearsals.csv after each exercise with a signed_by; (3) run quarterly.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup business_units.csv\n| lookup bcp_rehearsals.csv bu_id OUTPUT last_rehearsal_at signed_by\n| eval days_since=round((now()-strptime(last_rehearsal_at,\"%Y-%m-%d\"))/86400,0)\n| where isnull(last_rehearsal_at) OR days_since>cadence_days\n| table bu_id owner last_rehearsal_at days_since cadence_days\n```\n\nUnderstanding this SPL\n\n**Business-continuity rehearsal evidence — BCP/DR exercise execution logged** — Converts a calendar item into evidence with a signed attestation per rehearsal.\n\nDocumented **Data sources**: BCP rehearsal ticketing system, signed rehearsal attestations. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **days_since** — applying business logic to classify, threshold, or derive compliance-relevant indicators.\n• Filters the current rows with `where isnull(last_rehearsal_at) OR days_since>cadence_days` — typically the threshold or rule expression for this monitoring goal.\n\nOutput fields: bu_id, cadence_days, days_since, last_rehearsal_at, owner.\n\nStep 3 — Validate\nCompare with backup, restore, or test evidence systems and compare with the GRC system so recovery proof matches the control narrative.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap of BU × days-since-rehearsal, table of at-risk BUs, single-value 'BUs within cadence'.",
   "grandmaExplanation": "We help you show backups were tested and restorable when regulators or disaster recovery need proof.",
   "subcategory": "22.45#1",
-  "dataModelAcceleration": "Not applicable"
+  "dataModelAcceleration": "Not applicable",
+  "wave": "walk",
+  "prerequisiteUseCases": []
 }
