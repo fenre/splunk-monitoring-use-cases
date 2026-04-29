@@ -668,8 +668,8 @@ function emptyState(msg) {
 }
 function browseToggleHtml() {
   return '<div class="browse-toggle">'
-    + '<button type="button" class="' + (currentBrowseMode === 'grid' ? 'active' : '') + '" onclick="setBrowseMode(\'grid\')" title="Card grid">' + si('table') + '</button>'
-    + '<button type="button" class="' + (currentBrowseMode === 'list' ? 'active' : '') + '" onclick="setBrowseMode(\'list\')" title="Compact list">' + si('list') + '</button>'
+    + '<button type="button" class="' + (currentBrowseMode === 'grid' ? 'active' : '') + '" onclick="setBrowseMode(\'grid\')" title="Card grid">' + si('gridView') + '</button>'
+    + '<button type="button" class="' + (currentBrowseMode === 'list' ? 'active' : '') + '" onclick="setBrowseMode(\'list\')" title="Compact list">' + si('listView') + '</button>'
     + '</div>';
 }
 function filterStrip() {
