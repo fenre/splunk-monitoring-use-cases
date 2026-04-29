@@ -10,6 +10,86 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [7.2] - 2026-04-29
+
+### Phase 3 scaling — 195 UCs verified to the true-gold standard
+
+- **195 use cases rewritten to the UC-1.1.1 quality bar.** Every verified
+  UC now meets the full 16-point true-gold done-criteria checklist: a
+  9&ndash;13&nbsp;k-character `detailedImplementation` with 90&ndash;115
+  bold-emphasized concepts; a 2.5&ndash;3.5&nbsp;k-character `spl` block
+  using real product-specific search syntax (no template placeholders);
+  a 1.7&ndash;3.0&nbsp;k-character `knownFalsePositives` field carrying
+  5&ndash;9 unique noise tokens with maintenance-window guidance; a
+  &sim;200-character `grandmaExplanation` written in plain language with
+  a sibling-unique opener; `equipmentModels` slugs that pass the strict
+  `^[a-z0-9][a-z0-9_]*_[a-z0-9][a-z0-9_]*$` regex; a `splunkPillar` matched
+  to the audience (`Platform` for business analytics, `Observability` for
+  infrastructure); CIM-model selection appropriate for the data shape
+  (omitted for cat-23 business UCs, selective for cat-18/19); a `value`
+  field that genuinely differs from `description`; a `.md` sidecar
+  regenerated from the JSON; zero forbidden boilerplate phrases (global
+  &plus; category-specific lists); zero 4-gram or 6-gram sibling-uniqueness
+  overlaps in `knownFalsePositives` &plus; `grandmaExplanation` within the
+  same subcategory; five distinct sourcetypes for differentiation; Step 5
+  visualization &plus; alert design; verified Splunkbase app IDs; and
+  real RFC/vendor references in `refs`.
+- **cat-23 Business Analytics: 63 / 63 UCs (100% complete).**
+  ERP/CRM/HCM/BI/SaaS UCs anchored on UC-23.2.1 (SAP S/4HANA Revenue
+  Recognition &amp; Booking Trend), UC-23.7.1 (ServiceNow CSM Support
+  Ticket SLA Breach Risk), UC-23.4.1 (Workday Employee Attrition Risk
+  Score), UC-23.6.6 (Marketing Campaign ROI by Channel), and UC-23.9.7
+  (Salesforce Pipeline Velocity &amp; Forecast Accuracy). All run on the
+  Splunk Platform pillar with no CIM dependency, since the data shape is
+  business-domain rather than infrastructure telemetry.
+- **cat-19 Compute Infrastructure HCI / Converged: 93 / 93 UCs (100%
+  complete).** Anchors include UC-19.2.1 (renamed from generic
+  &ldquo;Cluster Health Monitoring&rdquo; to &ldquo;Cisco HyperFlex
+  Cluster Health&rdquo; in `_category.json`), UC-19.3.4 (Azure Arc for
+  Servers Heartbeat &amp; Connection Loss), and UC-19.3.10 (OpenStack
+  Keystone Auth Failures &amp; Token Issuance Latency). All on the
+  Observability pillar.
+- **cat-18 Data Center Fabric &amp; SDN: 39 / 76 UCs (51.3%, waves
+  27&ndash;39).** Coverage by subcategory: 18.1 Cisco ACI 12 / 23 &middot;
+  18.2 VMware NSX 10 / 18 &middot; 18.3 EVPN/VXLAN 10 / 22 &middot; 18.4
+  Nexus Dashboard 7 / 13. Anchors include UC-18.1.14 (ACI L3Out Prefix
+  Monitoring with `l3extInstP` external-EPG health and route-map filter
+  audit), UC-18.1.8 (ACI Spine-Leaf Fabric Latency via NIR per-flow
+  ingress&rarr;egress timestamp delta and HBM microburst drops), UC-18.2.9
+  (NSX Transport Node Overlay Path Health with GENEVE active probing),
+  UC-18.3.21 (EVPN Ethernet Segment ESI Designated Forwarder election per
+  RFC 8584), and UC-18.4.4 (Nexus 9000 NX-OS Model-Driven Telemetry
+  streaming health via gNMI dial-out). The remaining 37 cat-18 stubs are
+  documented for the next session.
+- **UC-1.1.1 retuned as the overall anchor.** The CPU saturation
+  detection UC for Linux hosts (Universal Forwarder &plus; collectd &plus;
+  node_exporter) was re-verified against the post-Phase-3 criteria so it
+  remains a faithful reference exemplar.
+- **Sibling-uniqueness audits clean.** Across the three completed waves:
+  cat-23 (63 UCs &times; 561 in-subcategory comparisons), cat-19 (93 UCs
+  &times; ~840 comparisons), and cat-18 (39 UCs &times; 356 comparisons)
+  &mdash; zero 4-gram or 6-gram overlaps detected.
+- **Tally after this release.** 165 / 7,326 UCs verified to true-gold
+  (2.25%). The proven scaling pattern (one subagent handcraft per UC,
+  followed by mandatory parent verification before the gate flips to
+  &ldquo;verified&rdquo;) continues in subsequent waves.
+
+### Build &amp; deployment
+
+- **No schema, build pipeline, or UI changes in this release.** The v7
+  reproducible build (`tools/build/build.py --out dist`) reads the new
+  content directly &mdash; the deployed site reflects all 195 rewrites
+  without any code change. Search shards, filter facets, and SPA panels
+  rebuild automatically.
+- **Build outputs (`catalog.json`, `data.js`, `llms*.txt`, `sitemap.xml`,
+  `provenance.json`, `scorecard.json`) intentionally not committed in
+  the same change.** A separate &ldquo;build artefacts refresh&rdquo;
+  commit will land them once parallel content work in flight is merged,
+  to keep the v6 enrichment merge from carrying half-merged state into
+  git history.
+
+---
+
 ## [7.1] - 2026-04-20
 
 ### Regulation-to-UC Story Redesign (schema v1.6.0)
