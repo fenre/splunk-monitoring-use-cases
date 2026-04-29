@@ -1,8 +1,8 @@
 function _renderUC(uc) {
-  return (typeof currentBrowseMode !== 'undefined' && currentBrowseMode === 'list') ? renderUCListRow(uc) : renderUCCard(uc);
+  return currentBrowseMode === 'list' ? renderUCListRow(uc) : renderUCCard(uc);
 }
 function _ucContainerClass() {
-  return (typeof currentBrowseMode !== 'undefined' && currentBrowseMode === 'list') ? 'uc-list-container' : 'uc-grid';
+  return currentBrowseMode === 'list' ? 'uc-list-container' : 'uc-grid';
 }
 function renderUCListRow(uc) {
   var html = '<div class="uc-list-row" onclick="openUCById(\'' + esc(uc.i) + '\')">';
@@ -313,7 +313,7 @@ function renderOverview() {
       var g = byCat[cat.i];
       if (!g || !g.entries.length) return;
       var gid = 'uc-vgrid-' + vcGridIdx++;
-      vcStructure += '<div class="ov-section"><div class="subcat-header">' + esc(cat.i + '. ' + cat.n) + '<span class="subcat-count">(' + g.entries.length + ')</span></div><div class="uc-grid" id="' + gid + '"></div></div>';
+      vcStructure += '<div class="ov-section"><div class="subcat-header">' + esc(cat.i + '. ' + cat.n) + '<span class="subcat-count">(' + g.entries.length + ')</span></div><div class="' + _ucContainerClass() + '" id="' + gid + '"></div></div>';
       g.entries.forEach(function(e) {
         ucAllCardsHtml.push(_renderUC(e.uc));
         ucGridTargets.push(gid);
@@ -358,7 +358,7 @@ function renderOverview() {
       html += '<p style="padding:1rem;opacity:.6">No new use cases since the last build. Run <code>build.py</code> after adding content to populate this tab.</p>';
     }
     Object.values(byCatR).forEach(function(g) {
-      html += '<div class="ov-section"><div class="subcat-header">' + esc(g.cat.i + '. ' + g.cat.n) + '</div><div class="uc-grid">';
+      html += '<div class="ov-section"><div class="subcat-header">' + esc(g.cat.i + '. ' + g.cat.n) + '</div><div class="' + _ucContainerClass() + '">';
       g.entries.forEach(function(e) { html += _renderUC(e.uc); });
       html += '</div></div>';
     });
@@ -374,7 +374,7 @@ function renderOverview() {
     });
     html += '<div class="ov-section"><h3 class="ov-h3">' + esc(SITE.starterListLabel || 'Quick wins') + ' (' + qw.length + ')</h3>';
     Object.values(byCatQ).forEach(function(g) {
-      html += '<div class="ov-section"><div class="subcat-header">' + esc(g.cat.i + '. ' + g.cat.n) + '</div><div class="uc-grid">';
+      html += '<div class="ov-section"><div class="subcat-header">' + esc(g.cat.i + '. ' + g.cat.n) + '</div><div class="' + _ucContainerClass() + '">';
       g.entries.forEach(function(e) { html += _renderUC(e.uc); });
       html += '</div></div>';
     });
@@ -499,7 +499,7 @@ function renderSearchResults() {
   Object.keys(grouped).sort(function(a, b) { return a - b; }).forEach(function(k) {
     var g = grouped[k];
     html += '<div class="search-cat-block"><h3 class="subcat-header">' + esc(g.cat.i + '. ' + g.cat.n) + ' <span class="subcat-count">(' + g.rows.length + ')</span></h3>';
-    html += '<div class="uc-grid">';
+    html += '<div class="' + _ucContainerClass() + '">';
     g.rows.forEach(function(e) { html += _renderUC(e.uc); });
     html += '</div></div>';
   });
@@ -654,7 +654,7 @@ function renderCategory() {
   html += '</div>';
   if (currentSearch) {
     html += '<div class="c-search-heading">Filtered in category</div>';
-    html += '<div class="uc-grid">';
+    html += '<div class="' + _ucContainerClass() + '">';
     filtered.forEach(function(e) { html += _renderUC(e.uc); });
     html += '</div>';
   } else {
@@ -665,7 +665,7 @@ function renderCategory() {
       var sid = 'sc-' + String(sc.i).replace(/\./g, '_');
       var guideBtn = sc.g ? ' <a class="sc-guide-link" href="guide-reader.html?src=' + encodeURIComponent(sc.g) + '" title="Integration Guide">' + si('external') + ' Integration Guide</a>' : '';
       html += '<div class="c-subcat-group" id="' + sid + '"><div class="c-subcat-title">' + esc(sc.n) + ' (' + scUCs.length + ')' + guideBtn + '</div>';
-      html += '<div class="uc-grid">';
+      html += '<div class="' + _ucContainerClass() + '">';
       scUCs.forEach(function(e) { html += _renderUC(e.uc); });
       html += '</div></div>';
     });

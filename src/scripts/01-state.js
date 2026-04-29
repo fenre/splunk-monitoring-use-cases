@@ -75,18 +75,8 @@ function linkifyRefs(s) {
   return renderMd(s);
 }
 
-var currentBrowseMode = (function() {
-  try { return localStorage.getItem('browseMode') || 'grid'; } catch(e) { return 'grid'; }
-})();
-function setBrowseMode(mode) {
-  currentBrowseMode = mode;
-  try { localStorage.setItem('browseMode', mode); } catch(e) {}
-  if (typeof reRender === 'function') reRender();
-}
-function openUCById(id) {
-  var entry = DATA.find(function(e) { return e.uc && e.uc.i === id; });
-  if (entry) openDetail(entry);
-}
+var currentBrowseMode = 'grid';
+try { var _bm = localStorage.getItem('uc-browse-mode'); if (_bm === 'list' || _bm === 'grid') currentBrowseMode = _bm; } catch (e) {}
 
 var CRIT_ORDER = {critical:0, high:1, medium:2, low:3};
 var DIFF_ORDER = {beginner:0, intermediate:1, advanced:2, expert:3};

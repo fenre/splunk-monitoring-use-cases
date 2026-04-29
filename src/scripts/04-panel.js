@@ -1,8 +1,6 @@
 var detailOpen = false;
 var detailEntry = null;
 var _detailScrollPos = 0;
-var currentBrowseMode = 'grid';
-try { var _bm = localStorage.getItem('uc-browse-mode'); if (_bm === 'list' || _bm === 'grid') currentBrowseMode = _bm; } catch (e) {}
 
 function fillDetailPane(e) {
   var uc = e.uc;
