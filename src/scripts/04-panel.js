@@ -213,15 +213,58 @@ function fillDetailPane(e) {
 function renderCondensedList() {
   var list = document.getElementById('detail-list');
   if (!list) return;
-  var html = '<button type="button" class="dl-back" onclick="closeDetail()">← Back to catalog</button>';
+  var html = '<button type="button" class="dl-back" onclick="closeDetail()">\u2190 Back to catalog</button>';
+
+  var activeCatN = detailEntry ? detailEntry.cat.n : '';
+  var activeScN = detailEntry ? detailEntry.sc.n : '';
+
+  var cats = [];
+  var catMap = {};
   panelUCList.forEach(function(e, idx) {
-    var cls = 'dl-item' + (detailEntry && detailEntry.uc.i === e.uc.i ? ' active' : '');
-    html += '<div class="' + cls + '" data-idx="' + idx + '" onclick="openDetailByIdx(' + idx + ')">';
-    html += '<span class="uc-crit-dot c-' + esc(e.uc.c || 'low') + '"></span>';
-    html += '<span class="dl-item-id">UC-' + esc(e.uc.i) + '</span>';
-    html += '<span class="dl-item-name">' + esc(e.uc.n) + '</span>';
-    html += '</div>';
+    var cn = e.cat.n;
+    if (!catMap[cn]) {
+      catMap[cn] = { name: cn, icon: e.cat.icon, subs: [], subMap: {} };
+      cats.push(catMap[cn]);
+    }
+    var sn = e.sc.n;
+    if (!catMap[cn].subMap[sn]) {
+      catMap[cn].subMap[sn] = { name: sn, entries: [] };
+      catMap[cn].subs.push(catMap[cn].subMap[sn]);
+    }
+    catMap[cn].subMap[sn].entries.push({ e: e, idx: idx });
   });
+
+  cats.forEach(function(cat) {
+    var isCatActive = cat.name === activeCatN;
+    var catOpen = isCatActive ? ' open' : '';
+    html += '<div class="dl-cat' + catOpen + '">';
+    html += '<button type="button" class="dl-cat-hd" onclick="this.parentElement.classList.toggle(\'open\')">';
+    if (cat.icon) html += '<span class="dl-cat-icon">' + si(cat.icon) + '</span>';
+    html += '<span class="dl-cat-label">' + esc(cat.name) + '</span>';
+    html += '<span class="dl-cat-count">' + cat.subs.reduce(function(s, sc) { return s + sc.entries.length; }, 0) + '</span>';
+    html += '</button>';
+    html += '<div class="dl-cat-body">';
+    cat.subs.forEach(function(sc) {
+      var isScActive = isCatActive && sc.name === activeScN;
+      var scOpen = isScActive ? ' open' : '';
+      html += '<div class="dl-sc' + scOpen + '">';
+      html += '<button type="button" class="dl-sc-hd" onclick="this.parentElement.classList.toggle(\'open\')">';
+      html += '<span class="dl-sc-label">' + esc(sc.name) + '</span>';
+      html += '<span class="dl-sc-count">' + sc.entries.length + '</span>';
+      html += '</button>';
+      html += '<div class="dl-sc-body">';
+      sc.entries.forEach(function(item) {
+        var cls = 'dl-item' + (detailEntry && detailEntry.uc.i === item.e.uc.i ? ' active' : '');
+        html += '<div class="' + cls + '" data-idx="' + item.idx + '" onclick="openDetailByIdx(' + item.idx + ')">';
+        html += '<span class="uc-crit-dot c-' + esc(item.e.uc.c || 'low') + '"></span>';
+        html += '<span class="dl-item-name">' + esc(item.e.uc.n) + '</span>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    });
+    html += '</div></div>';
+  });
+
   list.innerHTML = html;
   var active = list.querySelector('.dl-item.active');
   if (active) active.scrollIntoView({ block: 'nearest' });

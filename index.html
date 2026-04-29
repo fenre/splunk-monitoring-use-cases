@@ -644,7 +644,7 @@ body.detail-open .site-footer { left: 0; }
 #detail-container {
   display: none; margin-left: var(--sidebar-w); min-height: calc(100vh - var(--header-h));
 }
-body.detail-open #detail-container { display: grid; grid-template-columns: 300px 1fr; }
+body.detail-open #detail-container { display: grid; grid-template-columns: 320px 1fr; }
 #detail-list {
   position: sticky; top: var(--header-h); height: calc(100vh - var(--header-h));
   overflow-y: auto; border-right: 1px solid var(--border-default);
@@ -664,6 +664,37 @@ body.detail-open #detail-container { display: grid; grid-template-columns: 300px
 .dl-item.active { background: var(--cisco-teal-muted); color: var(--cisco-blue); font-weight: 600; border-left-color: var(--cisco-teal); }
 .dl-item-id { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); flex-shrink: 0; min-width: 68px; }
 .dl-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Category / subcategory tree in detail list */
+.dl-cat-hd {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 10px 14px; border: none; background: transparent;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--text-tertiary); cursor: pointer; text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.dl-cat-hd:hover { background: var(--bg-hover); color: var(--text-primary); }
+.dl-cat-icon { display: flex; align-items: center; }
+.dl-cat-icon .si { width: 16px; height: 16px; fill: var(--text-tertiary); }
+.dl-cat.open .dl-cat-icon .si { fill: var(--cisco-blue); }
+.dl-cat-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-cat-count { font-size: 10px; font-weight: 500; padding: 1px 6px; border-radius: var(--radius-pill); background: var(--border-subtle); color: var(--text-tertiary); }
+.dl-cat-body { display: none; }
+.dl-cat.open .dl-cat-body { display: block; }
+.dl-cat.open .dl-cat-hd { color: var(--text-primary); background: var(--bg-elevated); }
+.dl-sc-hd {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  padding: 8px 14px 8px 24px; border: none; background: transparent;
+  font-size: 11px; font-weight: 600; color: var(--text-secondary);
+  cursor: pointer; text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.dl-sc-hd:hover { background: var(--bg-hover); }
+.dl-sc-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-sc-count { font-size: 10px; font-weight: 500; padding: 1px 5px; border-radius: var(--radius-pill); background: var(--border-subtle); color: var(--text-tertiary); }
+.dl-sc-body { display: none; }
+.dl-sc.open .dl-sc-body { display: block; }
+.dl-sc.open .dl-sc-hd { color: var(--cisco-blue); font-weight: 700; }
+.dl-cat .dl-item { padding-left: 32px; gap: 6px; }
 .dp-header { margin-bottom: 24px; }
 .dp-id { font-family: var(--font-mono); font-size: 12px; color: var(--text-tertiary); margin-bottom: 4px; }
 .dp-title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
@@ -5462,15 +5493,58 @@ function fillDetailPane(e) {
 function renderCondensedList() {
   var list = document.getElementById('detail-list');
   if (!list) return;
-  var html = '<button type="button" class="dl-back" onclick="closeDetail()">← Back to catalog</button>';
+  var html = '<button type="button" class="dl-back" onclick="closeDetail()">\u2190 Back to catalog</button>';
+
+  var activeCatN = detailEntry ? detailEntry.cat.n : '';
+  var activeScN = detailEntry ? detailEntry.sc.n : '';
+
+  var cats = [];
+  var catMap = {};
   panelUCList.forEach(function(e, idx) {
-    var cls = 'dl-item' + (detailEntry && detailEntry.uc.i === e.uc.i ? ' active' : '');
-    html += '<div class="' + cls + '" data-idx="' + idx + '" onclick="openDetailByIdx(' + idx + ')">';
-    html += '<span class="uc-crit-dot c-' + esc(e.uc.c || 'low') + '"></span>';
-    html += '<span class="dl-item-id">UC-' + esc(e.uc.i) + '</span>';
-    html += '<span class="dl-item-name">' + esc(e.uc.n) + '</span>';
-    html += '</div>';
+    var cn = e.cat.n;
+    if (!catMap[cn]) {
+      catMap[cn] = { name: cn, icon: e.cat.icon, subs: [], subMap: {} };
+      cats.push(catMap[cn]);
+    }
+    var sn = e.sc.n;
+    if (!catMap[cn].subMap[sn]) {
+      catMap[cn].subMap[sn] = { name: sn, entries: [] };
+      catMap[cn].subs.push(catMap[cn].subMap[sn]);
+    }
+    catMap[cn].subMap[sn].entries.push({ e: e, idx: idx });
   });
+
+  cats.forEach(function(cat) {
+    var isCatActive = cat.name === activeCatN;
+    var catOpen = isCatActive ? ' open' : '';
+    html += '<div class="dl-cat' + catOpen + '">';
+    html += '<button type="button" class="dl-cat-hd" onclick="this.parentElement.classList.toggle(\'open\')">';
+    if (cat.icon) html += '<span class="dl-cat-icon">' + si(cat.icon) + '</span>';
+    html += '<span class="dl-cat-label">' + esc(cat.name) + '</span>';
+    html += '<span class="dl-cat-count">' + cat.subs.reduce(function(s, sc) { return s + sc.entries.length; }, 0) + '</span>';
+    html += '</button>';
+    html += '<div class="dl-cat-body">';
+    cat.subs.forEach(function(sc) {
+      var isScActive = isCatActive && sc.name === activeScN;
+      var scOpen = isScActive ? ' open' : '';
+      html += '<div class="dl-sc' + scOpen + '">';
+      html += '<button type="button" class="dl-sc-hd" onclick="this.parentElement.classList.toggle(\'open\')">';
+      html += '<span class="dl-sc-label">' + esc(sc.name) + '</span>';
+      html += '<span class="dl-sc-count">' + sc.entries.length + '</span>';
+      html += '</button>';
+      html += '<div class="dl-sc-body">';
+      sc.entries.forEach(function(item) {
+        var cls = 'dl-item' + (detailEntry && detailEntry.uc.i === item.e.uc.i ? ' active' : '');
+        html += '<div class="' + cls + '" data-idx="' + item.idx + '" onclick="openDetailByIdx(' + item.idx + ')">';
+        html += '<span class="uc-crit-dot c-' + esc(item.e.uc.c || 'low') + '"></span>';
+        html += '<span class="dl-item-name">' + esc(item.e.uc.n) + '</span>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    });
+    html += '</div></div>';
+  });
+
   list.innerHTML = html;
   var active = list.querySelector('.dl-item.active');
   if (active) active.scrollIntoView({ block: 'nearest' });
