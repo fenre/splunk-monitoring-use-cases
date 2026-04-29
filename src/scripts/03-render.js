@@ -1,3 +1,17 @@
+function _renderUC(uc) {
+  return (typeof currentBrowseMode !== 'undefined' && currentBrowseMode === 'list') ? renderUCListRow(uc) : renderUCCard(uc);
+}
+function _ucContainerClass() {
+  return (typeof currentBrowseMode !== 'undefined' && currentBrowseMode === 'list') ? 'uc-list-container' : 'uc-grid';
+}
+function renderUCListRow(uc) {
+  var html = '<div class="uc-list-row" onclick="openUCById(\'' + esc(uc.i) + '\')">';
+  html += '<span class="uc-list-id"><span class="uc-crit-dot c-' + esc(uc.c || 'low') + '"></span> UC-' + esc(uc.i) + '</span>';
+  html += '<span class="uc-list-name">' + esc(uc.n) + '</span>';
+  html += critBadge(uc.c) + ' ' + diffBadge(uc.f);
+  html += '</div>';
+  return html;
+}
 function renderUCCard(uc) {
   var cbChecked = selectedUCIds.has(uc.i) ? ' checked' : '';
   var cb = '<label class="uc-select-cb" onclick="event.stopPropagation()" title="Select for data sizing estimate"><input type="checkbox"' + cbChecked + ' onchange="toggleUCSelection(\'' + esc(uc.i) + '\')"></label>';
@@ -301,7 +315,7 @@ function renderOverview() {
       var gid = 'uc-vgrid-' + vcGridIdx++;
       vcStructure += '<div class="ov-section"><div class="subcat-header">' + esc(cat.i + '. ' + cat.n) + '<span class="subcat-count">(' + g.entries.length + ')</span></div><div class="uc-grid" id="' + gid + '"></div></div>';
       g.entries.forEach(function(e) {
-        ucAllCardsHtml.push(renderUCCard(e.uc));
+        ucAllCardsHtml.push(_renderUC(e.uc));
         ucGridTargets.push(gid);
       });
     });
@@ -345,7 +359,7 @@ function renderOverview() {
     }
     Object.values(byCatR).forEach(function(g) {
       html += '<div class="ov-section"><div class="subcat-header">' + esc(g.cat.i + '. ' + g.cat.n) + '</div><div class="uc-grid">';
-      g.entries.forEach(function(e) { html += renderUCCard(e.uc); });
+      g.entries.forEach(function(e) { html += _renderUC(e.uc); });
       html += '</div></div>';
     });
     html += '</div>';
@@ -361,7 +375,7 @@ function renderOverview() {
     html += '<div class="ov-section"><h3 class="ov-h3">' + esc(SITE.starterListLabel || 'Quick wins') + ' (' + qw.length + ')</h3>';
     Object.values(byCatQ).forEach(function(g) {
       html += '<div class="ov-section"><div class="subcat-header">' + esc(g.cat.i + '. ' + g.cat.n) + '</div><div class="uc-grid">';
-      g.entries.forEach(function(e) { html += renderUCCard(e.uc); });
+      g.entries.forEach(function(e) { html += _renderUC(e.uc); });
       html += '</div></div>';
     });
     html += '</div>';
@@ -486,7 +500,7 @@ function renderSearchResults() {
     var g = grouped[k];
     html += '<div class="search-cat-block"><h3 class="subcat-header">' + esc(g.cat.i + '. ' + g.cat.n) + ' <span class="subcat-count">(' + g.rows.length + ')</span></h3>';
     html += '<div class="uc-grid">';
-    g.rows.forEach(function(e) { html += renderUCCard(e.uc); });
+    g.rows.forEach(function(e) { html += _renderUC(e.uc); });
     html += '</div></div>';
   });
   if (capped) {
@@ -641,7 +655,7 @@ function renderCategory() {
   if (currentSearch) {
     html += '<div class="c-search-heading">Filtered in category</div>';
     html += '<div class="uc-grid">';
-    filtered.forEach(function(e) { html += renderUCCard(e.uc); });
+    filtered.forEach(function(e) { html += _renderUC(e.uc); });
     html += '</div>';
   } else {
     html += renderCategoryRoadmap(cat.i);
@@ -652,7 +666,7 @@ function renderCategory() {
       var guideBtn = sc.g ? ' <a class="sc-guide-link" href="guide-reader.html?src=' + encodeURIComponent(sc.g) + '" title="Integration Guide">' + si('external') + ' Integration Guide</a>' : '';
       html += '<div class="c-subcat-group" id="' + sid + '"><div class="c-subcat-title">' + esc(sc.n) + ' (' + scUCs.length + ')' + guideBtn + '</div>';
       html += '<div class="uc-grid">';
-      scUCs.forEach(function(e) { html += renderUCCard(e.uc); });
+      scUCs.forEach(function(e) { html += _renderUC(e.uc); });
       html += '</div></div>';
     });
   }

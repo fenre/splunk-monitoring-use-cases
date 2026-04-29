@@ -363,30 +363,59 @@ function cimDocUrl(model) {
   return 'https://docs.splunk.com/Documentation/CIM/latest/User/' + encodeURIComponent(base);
 }
 
-function renderDetailBody(md) {
+function renderMd(md) {
   if (!md) return '';
   var fence = /^```(\w*)$/;
-  var lines = md.split('\n');
+  var lines = String(md).split('\n');
   var out = [];
   var inCode = false;
-  var codeLang = '';
   var codeLines = [];
+  var inList = false;
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
     var m = line.match(fence);
     if (m) {
-      if (!inCode) { inCode = true; codeLang = (m[1] || 'text').toLowerCase(); codeLines = []; }
-      else {
-        inCode = false;
-        out.push('<pre class="c-spl-block">' + esc(codeLines.join('\n')) + '</pre>');
-      }
+      if (inList) { out.push('</ul>'); inList = false; }
+      if (!inCode) { inCode = true; codeLines = []; }
+      else { inCode = false; out.push('<pre class="c-spl-block">' + esc(codeLines.join('\n')) + '</pre>'); }
       continue;
     }
-    if (inCode) codeLines.push(line);
-    else out.push(linkify(line) + '<br>');
+    if (inCode) { codeLines.push(line); continue; }
+    var trimmed = line.trim();
+    if (!trimmed) { if (inList) { out.push('</ul>'); inList = false; } out.push(''); continue; }
+    var hm = trimmed.match(/^(#{1,4})\s+(.+)$/);
+    if (hm) {
+      if (inList) { out.push('</ul>'); inList = false; }
+      var lvl = hm[1].length + 1;
+      out.push('<h' + lvl + ' class="md-h">' + _mdInline(hm[2]) + '</h' + lvl + '>');
+      continue;
+    }
+    var lm = trimmed.match(/^[-*]\s+(.+)$/);
+    if (lm) {
+      if (!inList) { out.push('<ul class="md-list">'); inList = true; }
+      out.push('<li>' + _mdInline(lm[1]) + '</li>');
+      continue;
+    }
+    var nm = trimmed.match(/^\d+\.\s+(.+)$/);
+    if (nm) {
+      if (!inList) { out.push('<ol class="md-list">'); inList = true; }
+      out.push('<li>' + _mdInline(nm[1]) + '</li>');
+      continue;
+    }
+    if (inList) { out.push('</ul>'); inList = false; }
+    out.push('<p>' + _mdInline(trimmed) + '</p>');
   }
   if (inCode && codeLines.length) out.push('<pre class="c-spl-block">' + esc(codeLines.join('\n')) + '</pre>');
-  return out.join('');
+  if (inList) out.push('</ul>');
+  return out.filter(Boolean).join('\n');
+}
+function _mdInline(s) {
+  var t = esc(s);
+  t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  t = t.replace(/(^|[\s(])(https?:\/\/[^\s)<]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
+  return t;
 }
 function setSort(val) {
   currentSort = val;
@@ -637,8 +666,14 @@ function emptyState(msg) {
     '<button onclick="goHome()">Back to overview</button>' +
     '</div></div>';
 }
+function browseToggleHtml() {
+  return '<div class="browse-toggle">'
+    + '<button type="button" class="' + (currentBrowseMode === 'grid' ? 'active' : '') + '" onclick="setBrowseMode(\'grid\')" title="Card grid">' + si('table') + '</button>'
+    + '<button type="button" class="' + (currentBrowseMode === 'list' ? 'active' : '') + '" onclick="setBrowseMode(\'list\')" title="Compact list">' + si('list') + '</button>'
+    + '</div>';
+}
 function filterStrip() {
-  var html = '<div class="filter-strip">';
+  var html = '<div class="filter-strip">' + browseToggleHtml();
   [['all','All'],['security','Security'],['observability','Observability']].forEach(function(p) {
     html += '<button type="button" class="c-chip' + (currentPillarFilter === p[0] ? ' active' : '') + '" onclick="setPillarFilter(\'' + p[0] + '\')">' + p[1] + '</button>';
   });

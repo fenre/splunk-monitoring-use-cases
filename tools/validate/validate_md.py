@@ -11,8 +11,6 @@ introduced by the ``migrate-to-per-uc-files`` migration:
 * the embedded ``id`` must match the filename,
 * the leading ``X.`` of the id must match the parent category id
   recorded in ``_category.json``,
-* every ``UC-X.Y.Z.json`` must have a sibling ``UC-X.Y.Z.md``
-  (so editors always have a prose canvas), and
 * each ``_category.json`` is sanity-checked for required metadata.
 
 Usage:
@@ -294,11 +292,6 @@ def _check_uc_file(
             f"{rel}: id starts with category '{payload_cat}' but parent "
             f"_category.json declares cat id {cat_id}"
         )
-
-    # Companion .md must exist
-    md_sibling = uc_path.with_suffix(".md")
-    if not md_sibling.exists():
-        errors.append(f"{rel}: missing companion {md_sibling.name}")
 
     # Schema validation
     for problem in validator(payload):

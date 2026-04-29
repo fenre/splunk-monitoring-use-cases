@@ -29,14 +29,16 @@ def render_md(uc: dict, json_filename: str) -> str:
     title = uc.get("title", "")
     criticality = uc.get("criticality", "")
     pillar = uc.get("splunkPillar", "")
+    status = uc.get("status", "")
 
     lines: list[str] = []
     lines.append(HEADER.format(filename=json_filename))
 
-    # Frontmatter
     lines.append("---")
     lines.append(f'id: "{uc_id}"')
     lines.append(f'title: "{title}"')
+    if status:
+        lines.append(f'status: "{status}"')
     if criticality:
         lines.append(f'criticality: "{criticality}"')
     if pillar:
@@ -44,11 +46,9 @@ def render_md(uc: dict, json_filename: str) -> str:
     lines.append("---")
     lines.append("")
 
-    # Title
     lines.append(f"# UC-{uc_id} \u00b7 {title}")
     lines.append("")
 
-    # Description
     desc = uc.get("description", "")
     if desc:
         lines.append("## Description")
@@ -56,7 +56,6 @@ def render_md(uc: dict, json_filename: str) -> str:
         lines.append(desc)
         lines.append("")
 
-    # Value
     value = uc.get("value", "")
     if value:
         lines.append("## Value")
@@ -64,7 +63,6 @@ def render_md(uc: dict, json_filename: str) -> str:
         lines.append(value)
         lines.append("")
 
-    # Implementation (short)
     impl = uc.get("implementation", "")
     if impl:
         lines.append("## Implementation")
@@ -72,7 +70,30 @@ def render_md(uc: dict, json_filename: str) -> str:
         lines.append(impl)
         lines.append("")
 
-    # Detailed Implementation
+    ev = uc.get("evidence", "")
+    if ev:
+        lines.append("## Evidence")
+        lines.append("")
+        lines.append(ev)
+        lines.append("")
+
+    ct = uc.get("controlTest") or {}
+    pos = ct.get("positiveScenario", "")
+    neg = ct.get("negativeScenario", "")
+    if pos or neg:
+        lines.append("## Control test")
+        lines.append("")
+        if pos:
+            lines.append("### Positive scenario")
+            lines.append("")
+            lines.append(pos)
+            lines.append("")
+        if neg:
+            lines.append("### Negative scenario")
+            lines.append("")
+            lines.append(neg)
+            lines.append("")
+
     detailed = uc.get("detailedImplementation", "")
     if detailed:
         lines.append("## Detailed Implementation")
@@ -80,7 +101,6 @@ def render_md(uc: dict, json_filename: str) -> str:
         lines.append(detailed)
         lines.append("")
 
-    # SPL
     spl = uc.get("spl", "")
     if spl:
         lines.append("## SPL")
@@ -90,7 +110,6 @@ def render_md(uc: dict, json_filename: str) -> str:
         lines.append("```")
         lines.append("")
 
-    # CIM SPL
     cim_spl = uc.get("cimSpl", "")
     if cim_spl:
         lines.append("## CIM SPL")
@@ -100,7 +119,6 @@ def render_md(uc: dict, json_filename: str) -> str:
         lines.append("```")
         lines.append("")
 
-    # Visualization
     viz = uc.get("visualization", "")
     if viz:
         lines.append("## Visualization")
@@ -108,7 +126,13 @@ def render_md(uc: dict, json_filename: str) -> str:
         lines.append(viz)
         lines.append("")
 
-    # References
+    kfp = uc.get("knownFalsePositives", "")
+    if kfp:
+        lines.append("## Known False Positives")
+        lines.append("")
+        lines.append(kfp)
+        lines.append("")
+
     refs = uc.get("references", [])
     if refs:
         lines.append("## References")

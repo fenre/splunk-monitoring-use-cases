@@ -48,7 +48,9 @@ var SI = {
   data: '<path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C7.58 2 4 3.79 4 6v12c0 2.21 3.58 4 8 4s8-1.79 8-4V6c0-2.21-3.58-4-8-4Zm6 4c0 .62-1.14 1.4-2.87 1.87A16.4 16.4 0 0 1 12 8.2c-1.11 0-2.17-.11-3.13-.33C7.14 7.4 6 6.62 6 6s1.14-1.4 2.87-1.87C9.83 3.8 10.89 3.68 12 3.68c1.11 0 2.17.11 3.13.33C16.86 4.6 18 5.38 18 6ZM6 8.65V12c0 .62 1.14 1.4 2.87 1.87.96.24 2.02.36 3.13.36s2.17-.12 3.13-.36C16.86 13.4 18 12.62 18 12V8.65c-.55.36-1.24.67-2.02.91A17.8 17.8 0 0 1 12 10.07c-1.44 0-2.81-.17-4-.51-.77-.24-1.46-.55-2-.91ZM6 18V14.65c.55.36 1.24.67 2.02.91 1.18.34 2.55.51 3.98.51s2.8-.17 3.98-.51c.78-.24 1.47-.55 2.02-.91V18c0 .62-1.14 1.4-2.87 1.87-.96.24-2.02.36-3.13.36s-2.17-.12-3.13-.36C7.14 19.4 6 18.62 6 18Z"/>',
   dollarMark: '<path d="M13 3a1 1 0 1 0-2 0v2.07a6.7 6.7 0 0 0-.7.11l-.12.03a4.5 4.5 0 0 0-1.44.62l-.13.09c-.32.21-.61.47-.85.78a3.5 3.5 0 0 0-.67 1.41l-.01.03c-.11.51-.1 1.03.03 1.53.17.66.54 1.26 1.06 1.7l.04.03c.22.19.47.36.73.49l.24.12c.36.18.74.31 1.13.41l.73.18 1.25.23.77.15V21a1 1 0 1 0 2 0v-2.03c.27-.03.54-.08.8-.15l.19-.05c.41-.11.8-.28 1.16-.5l.09-.06c.41-.25.77-.58 1.05-.97.37-.5.6-1.1.68-1.73V3Z"/>',
   chart: '<path d="M4 5a1 1 0 0 1 1 1v11h15a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/><path d="M7 13a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v3H7v-3Zm5-3a1 1 0 0 0-1 1v5h3v-5a1 1 0 0 0-1-1h-1Zm3 1a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v5h-3v-5Zm4-4a1 1 0 0 0-1-1h-1a1 1 0 0 0-1 1v2h3V7Z"/>',
-  download: '<path d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42L11 13.59V4a1 1 0 0 1 1-1Z"/><path d="M4 17a1 1 0 0 1 1 1v1h14v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/>'
+  download: '<path d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42L11 13.59V4a1 1 0 0 1 1-1Z"/><path d="M4 17a1 1 0 0 1 1 1v1h14v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/>',
+  table: '<path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5Zm2 0v4h6V5H5Zm8 0v4h6V5h-6Zm6 6h-6v3h6v-3Zm0 5h-6v3h6v-3Zm-8 3v-3H5v3h6Zm-6-5h6v-3H5v3Z"/>',
+  list: '<path d="M4 6a1 1 0 0 1 1-1h14a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1Zm0 6a1 1 0 0 1 1-1h14a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1Zm1 5a1 1 0 1 0 0 2h14a1 1 0 1 0 0-2H5Z"/>'
 };
 function si(name, cls) {
   return '<svg class="si' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (SI[name] || '') + '</svg>';
@@ -70,26 +72,20 @@ function linkify(s) {
 }
 function linkifyRefs(s) {
   if (!s) return '';
-  var t = String(s);
-  t = t.replace(/`([^`]+)`/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1');
-  var parts = t.split(/,\s*/);
-  var out = [];
-  parts.forEach(function (p) {
-    var m = p.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (m) {
-      var label = esc(m[1]), url = m[2];
-      if (/^docs\/guides\/[\w-]+\.md/i.test(url)) {
-        out.push('<a href="guide-reader.html?src=' + encodeURIComponent(url) + '">' + label + '</a>');
-      } else if (/^https?:\/\//i.test(url)) {
-        out.push('<a href="' + esc(url) + '" target="_blank" rel="noopener">' + label + '</a>');
-      } else {
-        out.push('<a href="' + esc(url) + '">' + label + '</a>');
-      }
-    } else {
-      out.push(esc(p));
-    }
-  });
-  return out.join(', ');
+  return renderMd(s);
+}
+
+var currentBrowseMode = (function() {
+  try { return localStorage.getItem('browseMode') || 'grid'; } catch(e) { return 'grid'; }
+})();
+function setBrowseMode(mode) {
+  currentBrowseMode = mode;
+  try { localStorage.setItem('browseMode', mode); } catch(e) {}
+  if (typeof reRender === 'function') reRender();
+}
+function openUCById(id) {
+  var entry = DATA.find(function(e) { return e.uc && e.uc.i === id; });
+  if (entry) openDetail(entry);
 }
 
 var CRIT_ORDER = {critical:0, high:1, medium:2, low:3};

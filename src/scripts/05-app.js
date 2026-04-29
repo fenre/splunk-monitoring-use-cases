@@ -477,6 +477,7 @@ function launchDSAFromInventory() {
 
 function updateHash(replace) {
   var hash = '#overview';
+  if (detailOpen) return;
   if (document.getElementById('panel-backdrop').classList.contains('open')) return;
   if (currentSearch) hash = '#search=' + encodeURIComponent(currentSearch);
   else if (currentCat != null) {
@@ -1057,10 +1058,15 @@ function initApp() {
       if (document.getElementById('src-overlay').classList.contains('open')) { closeSourceCatalog(); return; }
       if (document.getElementById('rn-overlay').classList.contains('open')) { closeReleaseNotes(); return; }
       if (document.activeElement === siEl && siEl.value) { siEl.value = ''; siEl.blur(); currentSearch = ''; selectCat(null); return; }
+      if (detailOpen) { closeDetail(); return; }
       if (document.getElementById('panel-backdrop').classList.contains('open')) { closePanel(); return; }
       if (document.getElementById('mitre-map-overlay').classList.contains('open')) { closeMitreMap(); return; }
       closeMobileSidebar();
       return;
+    }
+    if (detailOpen) {
+      if (e.key === 'ArrowLeft') navPanel(-1);
+      if (e.key === 'ArrowRight') navPanel(1);
     }
     if (document.getElementById('panel-backdrop').classList.contains('open')) {
       if (e.key === 'ArrowLeft') navPanel(-1);

@@ -1,16 +1,28 @@
-function fillPanelBody(e) {
+var detailOpen = false;
+var detailEntry = null;
+var _detailScrollPos = 0;
+var currentBrowseMode = 'grid';
+try { var _bm = localStorage.getItem('uc-browse-mode'); if (_bm === 'list' || _bm === 'grid') currentBrowseMode = _bm; } catch (e) {}
+
+function fillDetailPane(e) {
   var uc = e.uc;
-  var html = '<div class="c-panel-meta">';
+  var pane = document.getElementById('detail-pane');
+  if (!pane) return;
+
+  var html = '<div class="dp-header">';
+  html += '<div class="dp-id">UC-' + esc(uc.i) + ' · ' + esc(e.cat.n) + ' · ' + esc(e.sc.n) + '</div>';
+  html += '<div class="dp-title">' + esc(uc.n) + '</div>';
+  html += '<div class="c-panel-meta">';
   html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Criticality</div>' + critBadge(uc.c) + '</div>';
   html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Difficulty</div>' + diffBadge(uc.f) + '</div>';
   if (uc.wv && WAVE_LABELS[uc.wv]) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Wave</div>' + waveBadge(uc.wv) + '</div>';
   if (uc.mtype && uc.mtype.length) html += '<div class="c-panel-meta-item full"><div class="c-panel-meta-label">Monitoring type</div><div>' + esc(uc.mtype.join(', ')) + '</div></div>';
   if (uc.pillar) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Pillar</div><div>' + esc(uc.pillar) + '</div></div>';
   if (uc.status) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Status</div><div><span class="uc-card-status ' + esc(uc.status) + '">' + esc(uc.status) + '</span></div></div>';
-  var panelProvCode = (window.PROVENANCE && window.PROVENANCE[uc.i]) || null;
-  if (panelProvCode) {
-    var panelProvLabel = (window.PROVENANCE_LABELS && window.PROVENANCE_LABELS[panelProvCode]) || 'Source';
-    html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Source</div><div><span class="uc-card-prov prov-' + esc(panelProvCode) + '" title="Source classification">' + esc(panelProvLabel) + '</span></div></div>';
+  var dpProvCode = (window.PROVENANCE && window.PROVENANCE[uc.i]) || null;
+  if (dpProvCode) {
+    var dpProvLabel = (window.PROVENANCE_LABELS && window.PROVENANCE_LABELS[dpProvCode]) || 'Source';
+    html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Source</div><div><span class="uc-card-prov prov-' + esc(dpProvCode) + '">' + esc(dpProvLabel) + '</span></div></div>';
   }
   if (uc.reviewed) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Last reviewed</div><div>' + esc(uc.reviewed) + ' ' + freshChipHtml(uc.reviewed) + '</div></div>';
   if (uc.sver) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Splunk versions</div><div>' + esc(uc.sver) + '</div></div>';
@@ -23,6 +35,17 @@ function fillPanelBody(e) {
     html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Content depth</div><div><span class="uc-card-depth depth-' + esc(uc._qt) + '">' + esc(tierLabel) + '</span> <span style="color:var(--text-secondary);font-size:12px">' + (uc._qs || 0) + '/100</span></div></div>';
   }
   html += '</div>';
+  html += '<a class="dp-link" href="uc/UC-' + esc(uc.i) + '/" target="_blank" rel="noopener">' + si('external') + ' Open full page</a>';
+  html += '</div>';
+
+  if (uc.ge) {
+    html += '<div class="dp-ge"><div class="dp-ge-label">In plain language</div><div class="dp-ge-body">' + renderMd(uc.ge) + '</div></div>';
+  }
+
+  var isThin = !uc._qt || uc._qt === 'none' || uc._qt === 'bronze';
+  if (isThin && !uc.md && !uc.q) {
+    html += '<div class="dp-thin"><div class="dp-thin-title">This use case needs more detail</div><p>Help improve it — <a href="' + esc(githubIssueUrlForEntry(e)) + '" target="_blank" rel="noopener">suggest edits on GitHub</a>.</p></div>';
+  }
 
   if (uc._qg && uc._qg.length) {
     html += '<div class="c-panel-section quality-callout"><div class="c-panel-section-title">Quality gaps</div><div class="c-panel-section-body"><ul>';
@@ -32,80 +55,55 @@ function fillPanelBody(e) {
 
   html += renderImplementationOrdering(uc);
 
+  if (uc.v) html += '<div class="dp-section"><div class="dp-section-title">Value</div><div class="dp-section-body">' + renderMd(uc.v) + '</div></div>';
+
   if (uc.mitre && uc.mitre.length) {
-    html += '<div class="c-panel-section"><div class="c-panel-section-title">MITRE ATT&CK</div><div class="c-panel-section-body">';
+    html += '<div class="dp-section"><div class="dp-section-title">MITRE ATT&CK</div><div class="dp-section-body">';
     uc.mitre.forEach(function(tid) {
       html += '<button type="button" class="linkish" onclick="filterByMitreId(\'' + esc(tid) + '\')">' + esc(tid) + '</button> ';
     });
     html += '</div></div>';
   }
+
   if (uc.regs && uc.regs.length) {
-    html += '<div class="c-panel-section"><div class="c-panel-section-title">Regulations</div><div class="c-panel-section-body">';
+    html += '<div class="dp-section"><div class="dp-section-title">Regulations</div><div class="dp-section-body">';
     uc.regs.forEach(function(r) {
       html += '<button type="button" class="linkish" onclick="filterByRegEnc(\'' + encodeURIComponent(r).replace(/'/g, '%27') + '\')">' + esc(r) + '</button> ';
     });
     html += '</div></div>';
   }
-  // Phase 3a — clause-level compliance table. Renders the structured
-  // ``uc.cmp[]`` projection when the UC sidecar has one (v1.6.0 schema,
-  // ~1,395 UCs at the time of writing). Columns reflect the three
-  // audiences the redesign targets:
-  //   * Clause  — what the regulator asks for (auditor/buyer anchor)
-  //   * Mode    — satisfies / detects-violation-of / assists-with
-  //   * Assurance — full / partial / contributing
-  //   * Control objective — implementer-facing "what this UC actually does"
-  //   * Evidence artefact — auditor-facing "what you can hand to the audit"
-  // UCs with a flat ``regs[]`` but no ``cmp[]`` continue to show only
-  // the flat chip list above, so no regression for pre-Phase-1 UCs.
+
   if (Array.isArray(uc.cmp) && uc.cmp.length) {
-    html += '<div class="c-panel-section"><div class="c-panel-section-title">Compliance clauses</div><div class="c-panel-section-body">';
+    html += '<div class="dp-section"><div class="dp-section-title">Compliance clauses</div><div class="dp-section-body">';
     html += '<div class="uc-compliance-table-wrap"><table class="uc-compliance-table">';
-    html += '<thead><tr>';
-    html += '<th scope="col">Regulation</th>';
-    html += '<th scope="col">Clause</th>';
-    html += '<th scope="col">Mode</th>';
-    html += '<th scope="col">Assurance</th>';
-    html += '<th scope="col">Control objective</th>';
-    html += '<th scope="col">Evidence artefact</th>';
-    html += '</tr></thead><tbody>';
+    html += '<thead><tr><th>Regulation</th><th>Clause</th><th>Mode</th><th>Assurance</th><th>Control objective</th><th>Evidence artefact</th></tr></thead><tbody>';
     uc.cmp.forEach(function(row) {
       if (!row) return;
       var canonical = (row.v || '') + '#' + (row.cl || '');
       var regEnc = encodeURIComponent(row.r || '').replace(/'/g, '%27');
       var clauseEnc = encodeURIComponent(canonical).replace(/'/g, '%27');
       var clauseCell = esc(row.cl || '');
-      if (row.u) {
-        // Deep-link to the regulator's own clause page when the sidecar
-        // provided one. External links always open in a new tab with
-        // noopener/noreferrer per OWASP link guidance — the catalogue
-        // is hosted on GitHub Pages and must not leak referrer data.
-        clauseCell = '<a href="' + esc(row.u) + '" target="_blank" rel="noopener noreferrer" title="Open in new tab">' + clauseCell + '</a>';
-      }
+      if (row.u) clauseCell = '<a href="' + esc(row.u) + '" target="_blank" rel="noopener noreferrer">' + clauseCell + '</a>';
       if (row.v) clauseCell += ' <span class="uc-compliance-ver">(' + esc(row.v) + ')</span>';
       html += '<tr>';
       html += '<td><button type="button" class="linkish" onclick="filterByRegEnc(\'' + regEnc + '\')">' + esc(row.r || '') + '</button></td>';
-      html += '<td>' + clauseCell + ' <button type="button" class="linkish uc-compliance-filter-clause" title="Filter catalogue by this clause" onclick="filterByClauseEnc(\'' + regEnc + '\',\'' + clauseEnc + '\')">filter</button></td>';
+      html += '<td>' + clauseCell + ' <button type="button" class="linkish uc-compliance-filter-clause" onclick="filterByClauseEnc(\'' + regEnc + '\',\'' + clauseEnc + '\')">filter</button></td>';
       html += '<td>' + (row.m ? '<span class="uc-compliance-mode mode-' + esc(row.m) + '">' + esc(row.m) + '</span>' : '') + '</td>';
       html += '<td>' + (row.a ? '<span class="uc-compliance-assurance assurance-' + esc(row.a) + '">' + esc(row.a) + '</span>' : '') + '</td>';
       html += '<td>' + (row.co ? esc(row.co) : '<span class="uc-compliance-missing">—</span>') + '</td>';
       html += '<td>' + (row.ea ? esc(row.ea) : '<span class="uc-compliance-missing">—</span>') + '</td>';
       html += '</tr>';
     });
-    html += '</tbody></table></div>';
-    html += '<div class="uc-compliance-footnote">Clauses without a control objective or evidence artefact are flagged for SME review (Phase 4 migration).</div>';
-    html += '</div></div>';
+    html += '</tbody></table></div></div></div>';
   }
-  if (uc.a && uc.a.length) {
-    html += '<div class="c-panel-section"><div class="c-panel-section-title">CIM models</div><div class="c-panel-section-body">';
-    uc.a.forEach(function(m) {
-      var u = cimDocUrl(m);
-      html += '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(m) + '</a> ';
-    });
-    html += '</div></div>';
-  }
-  if (uc.v) html += '<div class="c-panel-section"><div class="c-panel-section-title">Value</div><div class="c-panel-section-body">' + esc(stripMd(uc.v)) + '</div></div>';
 
-  html += '<div class="c-panel-section"><div class="c-panel-section-title">App / TA</div><div class="c-panel-section-body">';
+  if (uc.a && uc.a.length) {
+    html += '<div class="dp-section"><div class="dp-section-title">CIM models</div><div class="dp-section-body">';
+    uc.a.forEach(function(m) { html += '<a href="' + esc(cimDocUrl(m)) + '" target="_blank" rel="noopener">' + esc(m) + '</a> '; });
+    html += '</div></div>';
+  }
+
+  html += '<div class="dp-section"><div class="dp-section-title">App / TA</div><div class="dp-section-body">';
   var taText = uc.t ? stripMd(uc.t) : '';
   if (uc.ta_link && uc.ta_link.url) {
     html += '<a href="' + esc(uc.ta_link.url) + '" target="_blank" rel="noopener" class="splunk-app-link ta-card">';
@@ -115,8 +113,7 @@ function fillPanelBody(e) {
     if (taText && uc.ta_link.name) html += '<span class="splunk-app-desc">' + esc(taText) + '</span>';
     html += '</span><span class="splunk-app-arrow">' + si('external') + '</span></a>';
   } else if (taText) {
-    html += '<div class="splunk-ta-card">';
-    html += '<span class="splunk-ta-icon">' + si('data') + '</span>';
+    html += '<div class="splunk-ta-card"><span class="splunk-ta-icon">' + si('data') + '</span>';
     html += '<span class="splunk-ta-info"><span class="splunk-ta-label">Data Input / Add-on</span>';
     html += '<strong>' + esc(taText) + '</strong></span></div>';
   }
@@ -140,42 +137,43 @@ function fillPanelBody(e) {
           var pName = typeof p === 'object' && p.name ? p.name : String(p);
           html += '<a href="' + esc(pUrl) + '" target="_blank" rel="noopener">' + esc(pName) + '</a>';
         });
-        html += ' (archived on Splunkbase). The underlying TA/Add-on still works for data collection.</div>';
+        html += ' (archived on Splunkbase).</div>';
       }
     });
   }
   html += '</div></div>';
 
-  if (uc.d) html += '<div class="c-panel-section"><div class="c-panel-section-title">Data sources</div><div class="c-panel-section-body"><code>' + esc(stripMd(uc.d)) + '</code></div></div>';
+  if (uc.d) html += '<div class="dp-section"><div class="dp-section-title">Data sources</div><div class="dp-section-body"><code>' + esc(stripMd(uc.d)) + '</code></div></div>';
   if (uc.e && uc.e.length) {
-    html += '<div class="c-panel-section"><div class="c-panel-section-title">Equipment</div><div class="c-panel-section-body">';
+    html += '<div class="dp-section"><div class="dp-section-title">Equipment</div><div class="dp-section-body">';
     uc.e.forEach(function(eid) { var eq = _eqById[eid]; html += esc(eq ? eq.label : eid) + '<br>'; });
     html += '</div></div>';
   }
   if (uc.em && uc.em.length) {
-    html += '<div class="c-panel-section"><div class="c-panel-section-title">Equipment models</div><div class="c-panel-section-body">';
+    html += '<div class="dp-section"><div class="dp-section-title">Equipment models</div><div class="dp-section-body">';
     uc.em.forEach(function(mid) { html += esc(mid) + '<br>'; });
     html += '</div></div>';
   }
-  if (uc.premium) html += '<div class="c-panel-section"><div class="c-panel-section-title">Premium Apps</div><div class="c-panel-section-body">' + esc(uc.premium) + '</div></div>';
-  if (uc.reqf) html += '<div class="c-panel-section"><div class="c-panel-section-title">Required fields</div><div class="c-panel-section-body"><code>' + esc(uc.reqf) + '</code></div></div>';
-  if (uc.schema) html += '<div class="c-panel-section"><div class="c-panel-section-title">Schema</div><div class="c-panel-section-body"><code>' + esc(uc.schema) + '</code></div></div>';
+  if (uc.premium) html += '<div class="dp-section"><div class="dp-section-title">Premium Apps</div><div class="dp-section-body">' + esc(uc.premium) + '</div></div>';
+  if (uc.reqf) html += '<div class="dp-section"><div class="dp-section-title">Required fields</div><div class="dp-section-body"><code>' + esc(uc.reqf) + '</code></div></div>';
+  if (uc.schema) html += '<div class="dp-section"><div class="dp-section-title">Schema</div><div class="dp-section-body"><code>' + esc(uc.schema) + '</code></div></div>';
 
   function copyBlock(label, text, id) {
     if (!text) return '';
-    return '<div class="c-panel-section"><div class="c-panel-section-title">' + label + '</div><div class="code-wrap"><pre class="c-spl-block" id="' + id + '">' + esc(text) + '</pre><button type="button" class="copy-btn" onclick="copyCode(this)">Copy</button></div></div>';
+    return '<div class="dp-section"><div class="dp-section-title">' + label + '</div><div class="code-wrap"><pre class="c-spl-block" id="' + id + '">' + esc(text) + '</pre><button type="button" class="copy-btn" onclick="copyCode(this)">Copy</button></div></div>';
   }
   html += copyBlock('SPL query', uc.q, 'copy-q');
   html += copyBlock('tstats query', uc.qs, 'copy-qs');
   html += copyBlock('Script example', uc.script, 'copy-script');
 
-  if (uc.m) html += '<div class="c-panel-section"><div class="c-panel-section-title">Implementation</div><div class="c-panel-section-body">' + esc(stripMd(uc.m)) + '</div></div>';
-  if (uc.md) html += '<details class="c-panel-details"><summary>Detailed implementation</summary><div class="c-panel-section-body">' + renderDetailBody(uc.md) + '</div></details>';
-  if (uc.kfp) html += '<div class="c-panel-section"><div class="c-panel-section-title">Known false positives</div><div class="c-panel-section-body">' + esc(stripMd(uc.kfp)) + '</div></div>';
-  if (uc.refs) html += '<div class="c-panel-section"><div class="c-panel-section-title">References</div><div class="c-panel-section-body">' + linkifyRefs(uc.refs) + '</div></div>';
-  if (uc.dma) html += '<div class="c-panel-section"><div class="c-panel-section-title">Data model acceleration</div><div class="c-panel-section-body">' + esc(stripMd(uc.dma)) + '</div></div>';
+  if (uc.m) html += '<div class="dp-section"><div class="dp-section-title">Implementation</div><div class="dp-section-body">' + renderMd(uc.m) + '</div></div>';
+  if (uc.md) html += '<div class="dp-section"><div class="dp-section-title">Detailed implementation</div><div class="dp-section-body">' + renderMd(uc.md) + '</div></div>';
+  if (uc.kfp) html += '<div class="dp-section"><div class="dp-section-title">Known false positives</div><div class="dp-section-body">' + renderMd(uc.kfp) + '</div></div>';
+  if (uc.refs) html += '<div class="dp-section"><div class="dp-section-title">References</div><div class="dp-section-body">' + renderMd(uc.refs) + '</div></div>';
+  if (uc.dma) html += '<div class="dp-section"><div class="dp-section-title">Data model acceleration</div><div class="dp-section-body">' + renderMd(uc.dma) + '</div></div>';
+
   if (uc.z) {
-    html += '<div class="c-panel-section"><div class="c-panel-section-title">Visualization</div><div class="c-panel-section-body">' + esc(stripMd(uc.z)) + '</div>';
+    html += '<div class="dp-section"><div class="dp-section-title">Visualization</div><div class="dp-section-body">' + renderMd(uc.z) + '</div>';
     var hasScreenshots = false;
     if (Array.isArray(uc.sapp) && uc.sapp.length) {
       var allScreenshots = [];
@@ -186,79 +184,118 @@ function fillPanelBody(e) {
       });
       if (allScreenshots.length) {
         hasScreenshots = true;
-        html += '<div class="app-screenshots-section">';
-        html += '<div class="app-screenshots-title">App Dashboard Examples</div>';
-        html += '<div class="app-screenshots-grid">';
+        html += '<div class="app-screenshots-section"><div class="app-screenshots-title">App Dashboard Examples</div><div class="app-screenshots-grid">';
         allScreenshots.forEach(function(s) {
-          html += '<a href="' + esc(s.url) + '" target="_blank" rel="noopener" class="app-screenshot-card" title="' + esc(s.app) + ' — View on Splunkbase">';
-          html += '<img src="' + esc(s.src) + '" alt="' + esc(s.app) + ' dashboard screenshot" loading="lazy">';
+          html += '<a href="' + esc(s.url) + '" target="_blank" rel="noopener" class="app-screenshot-card" title="' + esc(s.app) + '">';
+          html += '<img src="' + esc(s.src) + '" alt="' + esc(s.app) + ' dashboard" loading="lazy">';
           html += '<span class="app-screenshot-label">' + esc(s.app) + '</span></a>';
         });
         html += '</div></div>';
       }
     }
     if (!hasScreenshots && typeof ntVizMockups === 'function') {
-      html += '<div class="app-screenshots-section">';
-      html += '<div class="app-screenshots-title">Example Dashboard Layout</div>';
-      html += ntVizMockups(uc.z);
-      html += '</div>';
+      html += '<div class="app-screenshots-section"><div class="app-screenshots-title">Example Dashboard Layout</div>' + ntVizMockups(uc.z) + '</div>';
     }
     html += '</div>';
   }
-  if (uc.tuc) html += '<div class="c-panel-section"><div class="c-panel-section-title">Telco use case</div><div class="c-panel-section-body">' + esc(stripMd(uc.tuc)) + '</div></div>';
+  if (uc.tuc) html += '<div class="dp-section"><div class="dp-section-title">Telco use case</div><div class="dp-section-body">' + renderMd(uc.tuc) + '</div></div>';
 
   var ucDocs = typeof UC_DOC_MAP !== 'undefined' && UC_DOC_MAP[uc.i];
   if (ucDocs && ucDocs.length) {
-    html += '<div class="c-panel-section"><div class="c-panel-label">Related Documentation</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
-    ucDocs.forEach(function(d) { html += '<a class="c-doc-chip" href="guide-reader.html?src=' + esc(d.path) + '" title="' + esc(d.title) + '">' + esc(d.title) + '</a>'; });
+    html += '<div class="dp-section"><div class="dp-section-title">Related Documentation</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+    ucDocs.forEach(function(d) { html += '<a class="c-doc-chip" href="guide-reader.html?src=' + esc(d.path) + '">' + esc(d.title) + '</a>'; });
     html += '</div></div>';
   }
 
   html += '<div class="c-panel-gh"><a class="c-btn c-btn-secondary" href="' + esc(githubIssueUrlForEntry(e)) + '" target="_blank" rel="noopener">Report issue on GitHub</a></div>';
-  document.getElementById('panel-body').innerHTML = html;
+  pane.innerHTML = html;
+  pane.scrollTop = 0;
+}
+
+function renderCondensedList() {
+  var list = document.getElementById('detail-list');
+  if (!list) return;
+  var html = '<button type="button" class="dl-back" onclick="closeDetail()">← Back to catalog</button>';
+  panelUCList.forEach(function(e, idx) {
+    var cls = 'dl-item' + (detailEntry && detailEntry.uc.i === e.uc.i ? ' active' : '');
+    html += '<div class="' + cls + '" data-idx="' + idx + '" onclick="openDetailByIdx(' + idx + ')">';
+    html += '<span class="uc-crit-dot c-' + esc(e.uc.c || 'low') + '"></span>';
+    html += '<span class="dl-item-id">UC-' + esc(e.uc.i) + '</span>';
+    html += '<span class="dl-item-name">' + esc(e.uc.n) + '</span>';
+    html += '</div>';
+  });
+  list.innerHTML = html;
+  var active = list.querySelector('.dl-item.active');
+  if (active) active.scrollIntoView({ block: 'nearest' });
+}
+
+function openDetail(entry) {
+  if (window.innerWidth < 768) {
+    window.location.href = 'uc/UC-' + entry.uc.i + '/';
+    return;
+  }
+  _detailScrollPos = window.scrollY;
+  detailEntry = entry;
+  detailOpen = true;
+  panelOpen = true;
+  document.body.classList.add('detail-open');
+  fillDetailPane(entry);
+  renderCondensedList();
+  history.pushState({ uc: entry.uc.i }, '', '#uc-' + entry.uc.i);
+  if (typeof window.__ensureFullUC === 'function') {
+    var ucIdAtOpen = entry.uc.i;
+    window.__ensureFullUC(entry.uc.i).then(function() {
+      if (!detailOpen || !detailEntry || detailEntry.uc.i !== ucIdAtOpen) return;
+      fillDetailPane(detailEntry);
+    }).catch(function() {});
+  }
+}
+
+function openDetailByIdx(idx) {
+  var e = panelUCList[idx];
+  if (!e) return;
+  panelIdx = idx;
+  detailEntry = e;
+  fillDetailPane(e);
+  renderCondensedList();
+  history.pushState({ uc: e.uc.i }, '', '#uc-' + e.uc.i);
+  var pane = document.getElementById('detail-pane');
+  if (pane) pane.scrollTop = 0;
+  if (typeof window.__ensureFullUC === 'function') {
+    var ucIdAtOpen = e.uc.i;
+    window.__ensureFullUC(e.uc.i).then(function() {
+      if (!detailOpen || !detailEntry || detailEntry.uc.i !== ucIdAtOpen) return;
+      fillDetailPane(detailEntry);
+    }).catch(function() {});
+  }
+}
+
+function closeDetail() {
+  detailOpen = false;
+  panelOpen = false;
+  detailEntry = null;
+  document.body.classList.remove('detail-open');
+  window.scrollTo(0, _detailScrollPos);
+  updateHash(true);
 }
 
 function openPanel(idx) {
   panelIdx = idx;
   var e = panelUCList[idx];
   if (!e) return;
-  panelOpen = true;
-  document.getElementById('panel-id').textContent = 'UC-' + e.uc.i + ' · ' + e.cat.n + ' · ' + e.sc.n;
-  document.getElementById('panel-title').textContent = e.uc.n;
-
-  // Render whatever stub data we have immediately so the panel feels
-  // responsive, then lazy-fetch the per-category JSON to merge in heavy
-  // fields (full SPL, narrative, references, screenshots) and re-render.
-  fillPanelBody(e);
-  var pos = document.getElementById('panel-pos');
-  if (pos) pos.textContent = (idx + 1) + ' / ' + panelUCList.length;
-  document.getElementById('panel-backdrop').classList.add('open');
-  document.body.classList.add('panel-open');
-  buildSidebar();
-  history.replaceState(null, '', '#uc-' + e.uc.i);
-
-  if (typeof window.__ensureFullUC === 'function') {
-    var ucIdAtOpen = e.uc.i;
-    window.__ensureFullUC(e.uc.i).then(function() {
-      // Bail if the user navigated away before the fetch resolved.
-      if (!panelOpen || panelIdx !== idx) return;
-      var current = panelUCList[panelIdx];
-      if (!current || current.uc.i !== ucIdAtOpen) return;
-      fillPanelBody(current);
-    }).catch(function() { /* loader already logged */ });
-  }
+  openDetail(e);
 }
 
 function closePanel() {
-  document.getElementById('panel-backdrop').classList.remove('open');
-  document.body.classList.remove('panel-open');
-  panelOpen = false;
-  updateHash(true);
+  closeDetail();
 }
 
 function navPanel(dir) {
   var n = panelIdx + dir;
-  if (n >= 0 && n < panelUCList.length) openPanel(n);
+  if (n >= 0 && n < panelUCList.length) {
+    panelIdx = n;
+    openDetailByIdx(n);
+  }
 }
 
 function copyCode(btn) {
@@ -281,7 +318,7 @@ function _fallbackCopy(text, btn) {
 }
 
 function filterByMitreId(id) {
-  closePanel();
+  closeDetail();
   currentMitreFilter = id;
   currentMitreTacticFilter = '';
   currentCat = null;
@@ -292,7 +329,7 @@ function filterByMitreId(id) {
 }
 
 function filterByReg(r) {
-  closePanel();
+  closeDetail();
   currentRegulationFilter = r;
   currentClauseFilter = 'all';
   currentCat = null;
@@ -307,15 +344,7 @@ function filterByRegEnc(enc) {
 }
 
 function filterByClause(reg, clauseCanonical) {
-  // Jumps straight into the catalogue filtered by one specific
-  // (regulation, version, clause) tuple. Used by the clause-filter
-  // button on the UC detail panel's compliance table so an auditor
-  // reading "UC-X covers GDPR Art.5" can click through and see
-  // every other UC that also covers GDPR Art.5 without manually
-  // re-selecting both dropdowns. The regulation dropdown's
-  // ``onchange`` normally clears the clause filter, so we set
-  // regulation first and clause second.
-  closePanel();
+  closeDetail();
   currentRegulationFilter = reg;
   currentClauseFilter = clauseCanonical || 'all';
   currentCat = null;
@@ -339,7 +368,8 @@ function openUCById(id) {
     panelUCList = allUCs;
     idx = entry.flatIdx;
   }
-  openPanel(idx);
+  panelIdx = idx;
+  openDetail(panelUCList[idx]);
 }
 
 function openMitreMap() {
@@ -393,4 +423,10 @@ function mapSelectTech(id) {
   currentMitreTacticFilter = '';
   reRender();
   updateHash(false);
+}
+
+function setBrowseMode(mode) {
+  currentBrowseMode = mode;
+  try { localStorage.setItem('uc-browse-mode', mode); } catch (e) {}
+  reRender();
 }
