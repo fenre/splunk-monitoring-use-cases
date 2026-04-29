@@ -615,6 +615,13 @@ function renderSubcategoryView() {
 }
 
 function goToSubcat(catId, scId) {
+  if (detailOpen) {
+    currentCat = catId;
+    currentSubcat = scId;
+    switchDetailSubcat(catId, scId);
+    updateHash(false);
+    return;
+  }
   currentCat = catId;
   currentSubcat = scId;
   catShowAllUCs = true;

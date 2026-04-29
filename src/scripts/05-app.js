@@ -582,6 +582,7 @@ function restoreFromHash() {
 }
 
 function goHome() {
+  if (detailOpen) closeDetail();
   currentCat = null; currentSubcat = null; catShowAllUCs = false; currentSearch = '';
   ovHeroGroupFilter = null; ovGroupFilter = 'all';
   document.getElementById('search-input').value = '';
@@ -606,6 +607,15 @@ function goHome() {
 }
 
 function selectCat(id, skipHash) {
+  if (id == null) {
+    if (detailOpen) closeDetail();
+  } else if (detailOpen) {
+    currentCat = id;
+    currentSubcat = null;
+    switchDetailCategory(id);
+    if (!skipHash) updateHash(false);
+    return;
+  }
   sidebarManualToggle = false;
   currentCat = id;
   currentSubcat = null;

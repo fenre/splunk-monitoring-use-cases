@@ -213,61 +213,46 @@ function fillDetailPane(e) {
 function renderCondensedList() {
   var list = document.getElementById('detail-list');
   if (!list) return;
-  var html = '<button type="button" class="dl-back" onclick="closeDetail()">\u2190 Back to catalog</button>';
 
-  var activeCatN = detailEntry ? detailEntry.cat.n : '';
-  var activeScN = detailEntry ? detailEntry.sc.n : '';
+  var catName = detailEntry ? detailEntry.cat.n : '';
+  var scName = detailEntry ? detailEntry.sc.n : '';
+  var html = '<div class="dl-heading">';
+  html += '<div class="dl-heading-cat">' + esc(catName) + '</div>';
+  if (scName) html += '<div class="dl-heading-sc">' + esc(scName) + '</div>';
+  html += '</div>';
 
-  var cats = [];
-  var catMap = {};
+  var lastSc = '';
   panelUCList.forEach(function(e, idx) {
-    var cn = e.cat.n;
-    if (!catMap[cn]) {
-      catMap[cn] = { name: cn, icon: e.cat.icon, subs: [], subMap: {} };
-      cats.push(catMap[cn]);
+    if (e.sc.n !== lastSc) {
+      lastSc = e.sc.n;
+      html += '<div class="dl-sc-divider">' + esc(e.sc.n) + '</div>';
     }
-    var sn = e.sc.n;
-    if (!catMap[cn].subMap[sn]) {
-      catMap[cn].subMap[sn] = { name: sn, entries: [] };
-      catMap[cn].subs.push(catMap[cn].subMap[sn]);
-    }
-    catMap[cn].subMap[sn].entries.push({ e: e, idx: idx });
-  });
-
-  cats.forEach(function(cat) {
-    var isCatActive = cat.name === activeCatN;
-    var catOpen = isCatActive ? ' open' : '';
-    html += '<div class="dl-cat' + catOpen + '">';
-    html += '<button type="button" class="dl-cat-hd" onclick="this.parentElement.classList.toggle(\'open\')">';
-    if (cat.icon) html += '<span class="dl-cat-icon">' + si(cat.icon) + '</span>';
-    html += '<span class="dl-cat-label">' + esc(cat.name) + '</span>';
-    html += '<span class="dl-cat-count">' + cat.subs.reduce(function(s, sc) { return s + sc.entries.length; }, 0) + '</span>';
-    html += '</button>';
-    html += '<div class="dl-cat-body">';
-    cat.subs.forEach(function(sc) {
-      var isScActive = isCatActive && sc.name === activeScN;
-      var scOpen = isScActive ? ' open' : '';
-      html += '<div class="dl-sc' + scOpen + '">';
-      html += '<button type="button" class="dl-sc-hd" onclick="this.parentElement.classList.toggle(\'open\')">';
-      html += '<span class="dl-sc-label">' + esc(sc.name) + '</span>';
-      html += '<span class="dl-sc-count">' + sc.entries.length + '</span>';
-      html += '</button>';
-      html += '<div class="dl-sc-body">';
-      sc.entries.forEach(function(item) {
-        var cls = 'dl-item' + (detailEntry && detailEntry.uc.i === item.e.uc.i ? ' active' : '');
-        html += '<div class="' + cls + '" data-idx="' + item.idx + '" onclick="openDetailByIdx(' + item.idx + ')">';
-        html += '<span class="uc-crit-dot c-' + esc(item.e.uc.c || 'low') + '"></span>';
-        html += '<span class="dl-item-name">' + esc(item.e.uc.n) + '</span>';
-        html += '</div>';
-      });
-      html += '</div></div>';
-    });
-    html += '</div></div>';
+    var cls = 'dl-item' + (detailEntry && detailEntry.uc.i === e.uc.i ? ' active' : '');
+    html += '<div class="' + cls + '" data-idx="' + idx + '" onclick="openDetailByIdx(' + idx + ')">';
+    html += '<span class="uc-crit-dot c-' + esc(e.uc.c || 'low') + '"></span>';
+    html += '<span class="dl-item-name">' + esc(e.uc.n) + '</span>';
+    html += '</div>';
   });
 
   list.innerHTML = html;
   var active = list.querySelector('.dl-item.active');
   if (active) active.scrollIntoView({ block: 'nearest' });
+}
+
+function _scopeListToCategory(entry) {
+  var cat = getCatById(entry.cat.i);
+  if (!cat) return;
+  var entries = [];
+  var newIdx = 0;
+  cat.s.forEach(function(sc) {
+    sc.u.forEach(function(uc) {
+      if (uc.i === entry.uc.i) newIdx = entries.length;
+      entries.push({ uc: uc, cat: cat, sc: sc });
+    });
+  });
+  panelUCList = entries;
+  currentDisplayedList = entries;
+  panelIdx = newIdx;
 }
 
 function openDetail(entry) {
@@ -279,9 +264,13 @@ function openDetail(entry) {
   detailEntry = entry;
   detailOpen = true;
   panelOpen = true;
+  currentCat = entry.cat.i;
+  currentSubcat = null;
+  _scopeListToCategory(entry);
   document.body.classList.add('detail-open');
   fillDetailPane(entry);
   renderCondensedList();
+  buildSidebar();
   history.pushState({ uc: entry.uc.i }, '', '#uc-' + entry.uc.i);
   if (typeof window.__ensureFullUC === 'function') {
     var ucIdAtOpen = entry.uc.i;
@@ -398,6 +387,49 @@ function filterByClause(reg, clauseCanonical) {
 
 function filterByClauseEnc(regEnc, clauseEnc) {
   try { filterByClause(decodeURIComponent(regEnc), decodeURIComponent(clauseEnc)); } catch (e) {}
+}
+
+function _applyDetailList(entries) {
+  if (!entries.length) return;
+  panelUCList = entries;
+  currentDisplayedList = entries;
+  panelIdx = 0;
+  detailEntry = entries[0];
+  fillDetailPane(detailEntry);
+  renderCondensedList();
+  history.pushState({ uc: detailEntry.uc.i }, '', '#uc-' + detailEntry.uc.i);
+  var pane = document.getElementById('detail-pane');
+  if (pane) pane.scrollTop = 0;
+  buildSidebar();
+  if (typeof window.__ensureFullUC === 'function') {
+    var ucIdAtOpen = detailEntry.uc.i;
+    window.__ensureFullUC(detailEntry.uc.i).then(function() {
+      if (!detailOpen || !detailEntry || detailEntry.uc.i !== ucIdAtOpen) return;
+      fillDetailPane(detailEntry);
+    }).catch(function() {});
+  }
+}
+
+function switchDetailCategory(catId) {
+  var cat = getCatById(catId);
+  if (!cat) return;
+  var entries = [];
+  cat.s.forEach(function(sc) {
+    sc.u.forEach(function(uc) { entries.push({ uc: uc, cat: cat, sc: sc }); });
+  });
+  _applyDetailList(entries);
+}
+
+function switchDetailSubcat(catId, scId) {
+  var cat = getCatById(catId);
+  if (!cat) return;
+  var entries = [];
+  cat.s.forEach(function(sc) {
+    if (String(sc.i) !== String(scId)) return;
+    sc.u.forEach(function(uc) { entries.push({ uc: uc, cat: cat, sc: sc }); });
+  });
+  if (!entries.length) { switchDetailCategory(catId); return; }
+  _applyDetailList(entries);
 }
 
 function openUCById(id) {
