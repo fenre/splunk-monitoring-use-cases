@@ -1,3 +1,9 @@
+var DOMAIN_GUIDE = {1:'infrastructure-monitoring',2:'infrastructure-monitoring',5:'infrastructure-monitoring',6:'infrastructure-monitoring',15:'infrastructure-monitoring',18:'infrastructure-monitoring',19:'infrastructure-monitoring',9:'security-monitoring',10:'security-monitoring',17:'security-monitoring',3:'cloud-monitoring',4:'cloud-monitoring',20:'cloud-monitoring',7:'application-monitoring',8:'application-monitoring',12:'application-monitoring',13:'application-monitoring',16:'application-monitoring',11:'collaboration-iot-monitoring',14:'collaboration-iot-monitoring',21:'industry-verticals',22:'compliance-business',23:'compliance-business'};
+function domainGuideLink(catId, label) {
+  var g = DOMAIN_GUIDE[catId];
+  if (!g) return '';
+  return '<a class="sc-guide-link" href="guide-reader.html?src=docs/guides/' + g + '.md" onclick="event.stopPropagation()" title="Domain guide — vendor best practices, implementation guidance">' + si('external') + ' ' + (label || 'Domain Guide') + '</a>';
+}
 function _renderUC(uc) {
   return currentBrowseMode === 'list' ? renderUCListRow(uc) : renderUCCard(uc);
 }
@@ -441,6 +447,7 @@ function renderOverview() {
       html += '<div class="c-cat-card-footer">';
       cat.s.slice(0, 3).forEach(function(sc) { html += '<span class="c-cat-card-badge">' + esc(sc.n) + '</span>'; });
       if (cat.s.length > 3) html += '<span class="c-cat-card-badge">+' + (cat.s.length - 3) + '</span>';
+      html += domainGuideLink(cat.i, 'Guide');
       html += '</div></div>';
     });
     html += '</div>';
@@ -530,7 +537,7 @@ function renderSubcategoryView() {
   });
 
   var html = breadcrumb(cat) + filterStrip() + activeFilterTags();
-  html += '<div class="c-section-header"><div class="c-section-title">' + esc(cat.n) + '</div>';
+  html += '<div class="c-section-header"><div class="c-section-title">' + esc(cat.n) + ' ' + domainGuideLink(cat.i) + '</div>';
   html += '<div class="c-section-desc">' + esc(stripMd(meta.desc || '')) + '</div>';
   html += '<div style="margin-top:6px;font-size:12px;color:var(--text-tertiary)">' + cat.s.length + ' subcategories · ' + catFiltered.length + ' / ' + totalCount + ' use cases</div>';
   var catDeepCount = 0, catSolidCount = 0, catDepthSum = 0, catDepthN = 0;
@@ -654,7 +661,7 @@ function renderCategory() {
   currentDisplayedList = filtered;
   var meta = CAT_META[cat.i] || {};
   var html = breadcrumb(cat) + filterStrip() + activeFilterTags();
-  html += '<div class="c-section-header"><div class="c-section-title">' + esc(cat.n) + '</div><div class="c-section-desc">' + esc(stripMd(meta.desc || '')) + '</div>';
+  html += '<div class="c-section-header"><div class="c-section-title">' + esc(cat.n) + ' ' + domainGuideLink(cat.i) + '</div><div class="c-section-desc">' + esc(stripMd(meta.desc || '')) + '</div>';
   var cDeep = 0, cSolid = 0, cDSum = 0, cDN = 0;
   cat.s.forEach(function(sc) { sc.u.forEach(function(u) { if (u._qt === 'gold') cDeep++; else if (u._qt === 'silver') cSolid++; if (typeof u._qs === 'number') { cDSum += u._qs; cDN++; } }); });
   if (cDN) html += '<div class="cat-quality-summary">' + cDeep + ' deep · ' + cSolid + ' solid · avg depth ' + Math.round(cDSum / cDN) + '/100</div>';
