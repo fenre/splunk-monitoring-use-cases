@@ -7,7 +7,7 @@ Usage:
 
 Reads:
     use-cases/cat-*.md          — use case content (all data including CIM)
-    use-cases/INDEX.md          — category metadata (icons, descriptions, starters)
+    content/INDEX.md            — category metadata (icons, descriptions, starters)
 
 Writes:
     data.js                     — const DATA, CAT_META, CAT_GROUPS, EQUIPMENT
@@ -29,6 +29,7 @@ from datetime import datetime
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 UC_DIR = os.path.join(SCRIPT_DIR, "use-cases")
+CONTENT_DIR = os.path.join(SCRIPT_DIR, "content")
 OUTPUT = os.path.join(SCRIPT_DIR, "data.js")
 OUTPUT_CATALOG_JSON = os.path.join(SCRIPT_DIR, "catalog.json")
 OUTPUT_API_DIR = os.path.join(SCRIPT_DIR, "api")
@@ -2682,7 +2683,7 @@ def parse_category_file(filepath):
 
 def parse_index_metadata():
     """Parse INDEX.md for CAT_META (icons, descriptions) and CAT_STARTERS."""
-    index_path = os.path.join(UC_DIR, "INDEX.md")
+    index_path = os.path.join(CONTENT_DIR, "INDEX.md")
     if not os.path.exists(index_path):
         print("  WARNING: INDEX.md not found — no CAT_META or CAT_STARTERS")
         return {}, {}
@@ -3124,7 +3125,7 @@ def write_llms_txt(data, cat_meta, files, total_uc):
         "(structured data with abbreviated field keys; includes inline _field_map)".format(base=SITE_BASE_URL),
         "- [Catalog Schema]({base}/docs/catalog-schema.md): Field reference for catalog.json — "
         "explains every key and how to query the data".format(base=SITE_BASE_URL),
-        "- [Category Index]({base}/use-cases/INDEX.md): Category overview with descriptions, "
+        "- [Category Index]({base}/content/INDEX.md): Category overview with descriptions, "
         "icons, and quick-start picks".format(base=SITE_BASE_URL),
         "- [Implementation Guide]({base}/docs/implementation-guide.md): How to deploy use cases — "
         "apps, inputs.conf, indexes".format(base=SITE_BASE_URL),
@@ -4012,7 +4013,7 @@ def main():
         f"{SITE_BASE_URL}/scorecard.json",
         f"{SITE_BASE_URL}/reports/compliance-coverage.json",
         f"{SITE_BASE_URL}/reports/compliance-gaps.json",
-        f"{SITE_BASE_URL}/use-cases/INDEX.md",
+        f"{SITE_BASE_URL}/content/INDEX.md",
     ]
     for cat in data:
         cat_file = _cat_file_for_id(cat["i"], files)

@@ -15,7 +15,7 @@ content/
 Populated by `tools/build/migrate_to_per_uc.py`. The v7 `parse_content`
 loader reads from `content/` when per-UC files are present; otherwise it
 falls back to the v6 `use-cases/` monolithic markdown files. The
-canonical category index is `use-cases/INDEX.md` (not duplicated here).
+canonical category index is `content/INDEX.md` (this file).
 
 Why per-UC files? Pull-request diffs become reviewable, per-UC history
 is preserved by `git mv`, and parallel authoring stops causing merge

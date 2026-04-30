@@ -93,7 +93,7 @@ Each element of `u` is a **use case**. The **UC-ID** is the use case’s `i` and
 
 ## CAT_META
 
-Maps category ID (as string) to metadata from `use-cases/INDEX.md`:
+Maps category ID (as string) to metadata from `content/INDEX.md`:
 
 ```json
 {
@@ -238,5 +238,5 @@ cat_names = [
 ## Versioning and build
 
 - `catalog.json` is generated; do not edit it by hand.
-- Re-run `python3 build.py` after changing `use-cases/*.md` or `use-cases/INDEX.md`.
+- Re-run `python3 build.py` after changing `use-cases/*.md` or `content/INDEX.md`.
 - The schema may gain new optional use case fields as the use case markdown format is extended; existing keys remain backward compatible.

@@ -26,7 +26,7 @@ Pipeline
    references). Authors edit this file when they want narrative that
    doesn't fit a structured field.
 4. Build ``_category.json`` per category with metadata harvested from
-   ``use-cases/INDEX.md`` (icon, description, quickTip, quickStart) plus
+   ``content/INDEX.md`` (icon, description, quickTip, quickStart) plus
    each subcategory's "Primary App/TA" preamble line where present.
 
 Run with no arguments from the repo root:
@@ -50,7 +50,7 @@ from typing import Any, Iterable, Optional
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 USE_CASES_DIR = REPO_ROOT / "use-cases"
 CONTENT_DIR = REPO_ROOT / "content"
-INDEX_MD = USE_CASES_DIR / "INDEX.md"
+INDEX_MD = CONTENT_DIR / "INDEX.md"
 SCHEMA_REL = "../../schemas/uc.schema.json"
 
 # Categories the v6 build actively skips.
@@ -807,11 +807,13 @@ def _emit_category(
 
 
 def _emit_index() -> None:
-    """Copy use-cases/INDEX.md → content/INDEX.md verbatim."""
-    if not INDEX_MD.exists():
-        return
+    """Ensure ``content/INDEX.md`` exists (canonical). Copy from legacy path if missing."""
     target = CONTENT_DIR / "INDEX.md"
-    target.write_text(INDEX_MD.read_text(encoding="utf-8"), encoding="utf-8")
+    if target.exists():
+        return
+    legacy = USE_CASES_DIR / "INDEX.md"
+    if legacy.exists():
+        target.write_text(legacy.read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def main(argv: Iterable[str] | None = None) -> int:

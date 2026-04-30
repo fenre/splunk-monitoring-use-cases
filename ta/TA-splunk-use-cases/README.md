@@ -73,7 +73,7 @@ Because all saved searches live in `default/`, your customizations in
 ## Regenerating TA content
 
 The `default/*.conf` files are **generated** from `catalog.json` and
-`use-cases/INDEX.md`.  Re-generate them with:
+`content/INDEX.md`.  Re-generate them with:
 
     python3 scripts/build_ta.py
 

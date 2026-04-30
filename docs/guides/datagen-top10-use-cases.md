@@ -12,7 +12,7 @@ This guide shows how to simulate **realistic, searchable** events for ten high-v
 | [scripts/parse_uc_catalog.py](../../scripts/parse_uc_catalog.py) | Full-catalog UC list → `manifest-all.json` |
 | [config/uc_to_log_family.json](../../config/uc_to_log_family.json) | Category → default `log_family` for automation |
 
-Use cases were chosen for **domain coverage**, alignment with [use-cases/INDEX.md](../../use-cases/INDEX.md) quick-start themes, and **datagen feasibility** (syslog, JSON, web, cloud, K8s-style, metrics, OT, compliance).
+Use cases were chosen for **domain coverage**, alignment with [content/INDEX.md](../../content/INDEX.md) quick-start themes, and **datagen feasibility** (syslog, JSON, web, cloud, K8s-style, metrics, OT, compliance).
 
 ---
 

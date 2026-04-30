@@ -279,7 +279,7 @@ The full curator rubric, legal syntax, and downstream surfaces are documented in
 ### 6.1 Inputs
 
 - All files under `use-cases/` matching `cat-*.md` (category content).
-- `use-cases/INDEX.md` (icons, per-category descriptions, quick-start UC lists).
+- `content/INDEX.md` (icons, per-category descriptions, quick-start UC lists).
 - `non-technical-view.js` (plain-language outcomes per category; read for validation, not emitted).
 - `mitre_techniques.json` (technique-id enrichment).
 - `config/uc_to_log_family.json` (log-family hints for eventgen mapping).
@@ -304,7 +304,7 @@ The full curator rubric, legal syntax, and downstream surfaces are documented in
 ```mermaid
 flowchart LR
     in1["use-cases/cat-*.md"]
-    in2["use-cases/INDEX.md"]
+    in2["content/INDEX.md"]
     in3["non-technical-view.js"]
     stage1["parse_category_file()<br/>headings + fields"]
     stage2["parse_index_metadata()<br/>icons + descriptions"]

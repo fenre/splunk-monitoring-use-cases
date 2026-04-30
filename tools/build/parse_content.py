@@ -47,6 +47,60 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+try:
+    import jsonschema
+    from jsonschema import ValidationError as _SchemaValidationError
+except ImportError:
+    jsonschema = None  # type: ignore[assignment]
+    _SchemaValidationError = Exception  # type: ignore[assignment,misc]
+
+
+# ---------------------------------------------------------------------------
+# JSON Schema validation helpers
+# ---------------------------------------------------------------------------
+
+_UC_SCHEMA: dict[str, Any] | None = None
+_UC_SCHEMA_LOADED = False
+
+
+def _get_uc_schema(project_root: Path) -> dict[str, Any] | None:
+    """Lazy-load and cache the UC JSON schema from schemas/uc.schema.json."""
+    global _UC_SCHEMA, _UC_SCHEMA_LOADED
+    if _UC_SCHEMA_LOADED:
+        return _UC_SCHEMA
+    _UC_SCHEMA_LOADED = True
+    schema_path = project_root / "schemas" / "uc.schema.json"
+    if not schema_path.exists():
+        print(f"WARNING: UC schema not found at {schema_path}; "
+              f"skipping validation", file=sys.stderr)
+        return None
+    try:
+        with schema_path.open(encoding="utf-8") as f:
+            _UC_SCHEMA = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"WARNING: could not load UC schema {schema_path}: {exc}; "
+              f"skipping validation", file=sys.stderr)
+    return _UC_SCHEMA
+
+
+def _validate_uc_json(
+    canonical: dict[str, Any],
+    uc_path: Path,
+    schema: dict[str, Any],
+) -> list[str]:
+    """Validate a canonical UC dict against the JSON schema.
+
+    Returns a list of human-readable error messages (empty if valid).
+    """
+    if jsonschema is None:
+        return []
+    errors: list[str] = []
+    validator = jsonschema.Draft202012Validator(schema)
+    for err in sorted(validator.iter_errors(canonical), key=lambda e: list(e.path)):
+        path = ".".join(str(p) for p in err.absolute_path) or "(root)"
+        errors.append(f"  {uc_path}: {path}: {err.message}")
+    return errors
+
 
 # ---------------------------------------------------------------------------
 # Loader selection

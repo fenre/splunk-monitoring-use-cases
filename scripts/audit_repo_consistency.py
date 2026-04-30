@@ -15,7 +15,7 @@ import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UC_DIR = os.path.join(REPO_ROOT, "use-cases")
-INDEX_PATH = os.path.join(UC_DIR, "INDEX.md")
+INDEX_PATH = os.path.join(REPO_ROOT, "content", "INDEX.md")
 INDEX_HTML = os.path.join(REPO_ROOT, "index.html")
 BUILD_PATH = os.path.join(REPO_ROOT, "build.py")
 
