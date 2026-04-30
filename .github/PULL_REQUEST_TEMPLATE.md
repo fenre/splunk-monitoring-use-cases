@@ -29,8 +29,10 @@ Please fill in the sections below. Delete anything that doesn't apply.
 
 <!-- Confirm the things that automated CI cannot. -->
 
-- [ ] Ran `python3 build.py` locally and committed all regenerated artefacts
-      (`data.js`, `catalog.json`, `llms.txt`, `llms-full.txt`, `sitemap.xml`).
+- [ ] Ran `make build` locally and committed regenerated artefacts as required by CI
+      (`dist/` mirror files if your branch tracks them, plus any root-level
+      `catalog.json`, `api/*.json`, `llms*.txt`, `sitemap.xml`, etc., listed in
+      `.github/workflows/validate.yml`).
 - [ ] Ran `python3 scripts/audit_uc_structure.py --full`.
 - [ ] SPL examples have been eyeballed for syntax errors.
 - [ ] If adding a new **Splunkbase app reference**, the `Splunkbase #NNNN`
@@ -50,7 +52,7 @@ Please fill in the sections below. Delete anything that doesn't apply.
 Every PR that touches compliance content (cat-22, schemas/uc.schema.json,
 data/regulations.json, docs/regulatory-primer.md, docs/evidence-packs/**,
 tests/golden/compliance-mappings.yaml, or any UC sidecar under
-use-cases/cat-*/uc-*.json) MUST be peer-reviewed against this checklist
+`content/cat-*/UC-*.json`) MUST be peer-reviewed against this checklist
 and recorded in `data/provenance/peer-review-signoffs.json` before merge.
 Non-compliance PRs may delete this section.
 Detailed rubric: `docs/peer-review-guide.md`.

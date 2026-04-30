@@ -1,43 +1,43 @@
 # Contributing
 
-Practical notes for the Splunk monitoring use case catalog (`content/` JSON → `build.py` → `data.js` / `catalog.json`).
+The **v7** catalog pipeline is the only supported path: `content/cat-*/UC-*.json` → `tools/build/build.py` → `dist/`.
 
 ## Getting started
 
 ```bash
 git clone https://github.com/fenre/splunk-monitoring-use-cases.git
 cd splunk-monitoring-use-cases
-python3 build.py
+make build
 ```
 
-Open `index.html` in a browser (file:// or any static server). The site reads generated `data.js`.
+Open `dist/index.html` in a browser (via `make serve`, or any static server rooted at `dist/`). The site loads data from the API endpoints in `dist/api/`.
 
 ## Adding use cases
 
 ### Files and IDs
 
-- **Category files:** `use-cases/cat-XX-descriptive-name.md` where `XX` is the two-digit category (must match `content/INDEX.md` and `cat-XX-*.md` glob).
-- **UC headers:** `### UC-X.Y.Z · Title` — category `X`, subcategory `Y`, use case `Z`.
-- **ID rules (`scripts/audit_uc_ids.py`):** `X` must match the file’s `cat-XX-`. Within each subcategory `(X.Y)`, `Z` values must be **strictly increasing with no gaps** (e.g. …2 then …4 is invalid). IDs must be unique repo-wide.
+- **Category directories:** `content/cat-XX-descriptive-name/` containing `UC-X.Y.Z.json` files, where `XX` is the two-digit category.
+- **UC files:** `UC-X.Y.Z.json` with `id` (`X.Y.Z`) and `title` fields — category `X`, subcategory `Y`, use case `Z`.
+- **ID rules (`scripts/audit_uc_ids.py`):** `X` must match the directory’s `cat-XX-`. Within each subcategory `(X.Y)`, `Z` values must be **strictly increasing with no gaps** (e.g. …2 then …4 is invalid). The `id` values (and thus `UC-X.Y.Z`) must be unique repo-wide.
 
 ### Required UC fields (CI)
 
-Each UC block is parsed from the `### UC-…` header until the next UC or EOF. `scripts/audit_uc_structure.py` requires these bullet fields (non-empty), plus a fenced SPL block after `- **SPL:**`:
+Structure and enums are enforced against [`schemas/uc.schema.json`](schemas/uc.schema.json). `scripts/audit_uc_structure.py` and the build treat that schema (plus CI rules) as the contract. The table below lists JSON properties commonly required for catalog UCs; see the schema for the full required/optional set and valid `monitoringType` values.
 
-| Field | Notes |
+| JSON property | Notes |
 |--------|--------|
-| **Criticality:** | One of: `🔴 Critical`, `🟠 High`, `🟡 Medium`, `🟢 Low` |
-| **Difficulty:** | One of: `🟢 Beginner`, `🔵 Intermediate`, `🟠 Advanced`, `🔴 Expert` |
-| **Monitoring type:** | e.g. Security, Performance, … |
-| **Value:** | Why this matters |
-| **App/TA:** | Splunk app or add-on id (backticks ok) — this is the catalog “primary app” field |
-| **Data Sources:** | What feeds the detection |
-| **SPL:** | Immediately followed by a ```spl fenced block |
-| **Implementation:** | Deployment / tuning guidance |
-| **Visualization:** | Suggested views |
-| **CIM Models:** | Model name(s) or `N/A` |
+| `criticality` | One of: `critical`, `high`, `medium`, `low` |
+| `difficulty` | One of: `beginner`, `intermediate`, `advanced`, `expert` |
+| `monitoringType` | Non-empty array; values must match the schema enum (e.g. `Security`, `Performance`, …) |
+| `value` | Why this matters |
+| `app` | Splunk app or add-on id — catalog “primary app” |
+| `dataSources` | What feeds the detection |
+| `spl` | Primary SPL string (plain text in JSON, no markdown fencing) |
+| `implementation` | Deployment / tuning guidance |
+| `visualization` | Suggested views |
+| `cimModels` | Model name(s); omit or use `[]` / entries as appropriate per schema |
 
-Common optional lines (not enforced by structure audit): **MITRE ATT&CK**, **CIM SPL** (see below), **References**, **Wave**, **Prerequisite UCs**.
+Common optional properties (not all enforced on every UC): `mitreAttack`, `cimSpl`, `references`, `wave`, `prerequisiteUseCases`, and other fields documented in the schema.
 
 ### Implementation ordering (optional)
 
@@ -45,8 +45,8 @@ Curators can mark each UC with an **implementation wave** and list **UCs that mu
 
 | Field | Values / format | Notes |
 |--------|------------------|-------|
-| **Wave:** | `🐢 crawl`, `🚶 walk`, `🏃 run` (emojis optional) | `crawl` = foundation (platform + data sources + primary TAs); `walk` = extends or correlates foundation data; `run` = cross-source correlation, ML, or multi-UC orchestration. |
-| **Prerequisite UCs:** | Comma-separated `UC-X.Y.Z` ids | UCs that must be implemented first (data sources, macros, lookups, upstream detections). Validated by `build.py` — unknown ids, self-references, and dependency cycles fail the build. |
+| `wave` | `crawl`, `walk`, `run` | `crawl` = foundation (platform + data sources + primary TAs); `walk` = extends or correlates foundation data; `run` = cross-source correlation, ML, or multi-UC orchestration. |
+| `prerequisiteUseCases` | Array of `UC-X.Y.Z` strings | UCs that must be implemented first (data sources, macros, lookups, upstream detections). Validated at build time — unknown ids, self-references, and dependency cycles fail the build. |
 
 See [`docs/use-case-fields.md#implementation-ordering-optional-v14`](docs/use-case-fields.md#implementation-ordering-optional-v14) for display details.
 
@@ -54,45 +54,34 @@ See [`docs/use-case-fields.md#implementation-ordering-optional-v14`](docs/use-ca
 
 Copy verbatim shape; replace placeholders.
 
-````markdown
----
-
-### UC-X.Y.Z · Short descriptive title
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Wave:** 🚶 walk
-- **Prerequisite UCs:** UC-1.1.1, UC-13.1.1
-- **Monitoring type:** Security
-- **Value:** One or two sentences on impact.
-- **App/TA:** `Your_TA_id`
-- **Data Sources:** Sourcetypes / APIs / logs.
-- **SPL:**
-```spl
-index=... 
-| ...
+```json
+{
+  "id": "X.Y.Z",
+  "title": "Short descriptive title",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "wave": "walk",
+  "prerequisiteUseCases": ["UC-1.1.1", "UC-13.1.1"],
+  "monitoringType": ["Security"],
+  "value": "One or two sentences on impact.",
+  "app": "Your_TA_id",
+  "dataSources": "Sourcetypes / APIs / logs.",
+  "spl": "index=... | ...",
+  "implementation": "How to roll it out and tune it.",
+  "visualization": "Table, single value, etc.",
+  "cimModels": ["Authentication"],
+  "references": [{"url": "https://...", "title": "Vendor docs"}]
+}
 ```
-- **Implementation:** How to roll it out and tune it.
-- **Visualization:** Table, single value, etc.
-- **CIM Models:** Authentication
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count from datamodel=Authentication.Authentication ...
-```
-- **References:** Splunk Docs / vendor links (optional but encouraged)
-
----
-````
-
-If there is **no** sensible CIM datamodel for the UC, use `- **CIM Models:** N/A` and **omit** the **CIM SPL:** line and its fence entirely.
 
 ## CIM SPL guidelines
 
-- CIM SPL must **match the UC title and intent** (same entities, actions, and time scope as the main SPL). Do **not** paste generic `tstats` snippets from other UCs.
-- If **CIM Models: N/A**, do not include a CIM SPL block.
+- `cimSpl` must **match the UC title and intent** (same entities, actions, and time scope as the main `spl`). Do **not** paste generic `tstats` snippets from other UCs.
+- If there is **no** sensible CIM datamodel for the UC, omit `cimSpl` (and avoid claiming CIM models that do not apply).
 
 ## Non-technical view
 
-When you add a **new category** or **subcategory** (`## X.Y` in markdown), add a matching entry in `non-technical-view.js` (`window.NON_TECHNICAL`). Each `areas[]` item needs `name`, `description`, and **exactly three** `ucs` objects `{ id: "X.Y.Z", why: "..." }` that reference real `### UC-X.Y.Z` headers. Run:
+When you add a **new category** or **subcategory**, add a matching entry in `non-technical-view.js` (`window.NON_TECHNICAL`). Each `areas[]` item needs `name`, `description`, and **exactly three** `ucs` objects `{ id: "X.Y.Z", why: "..." }` that reference real UC ids present in `content/`. Run:
 
 ```bash
 node -e "const window={}; eval(require('fs').readFileSync('non-technical-view.js','utf8')); console.log(Object.keys(window.NON_TECHNICAL).length+' categories OK');"
@@ -119,7 +108,7 @@ Verify with:
 node -e "eval(require('fs').readFileSync('docs-uc-map.js','utf8')); console.log(Object.keys(DOC_UC_MAP).length + ' docs OK');"
 ```
 
-CI runs a syntax check on every PR and `build.py` validates that all referenced UC IDs exist in the catalog.
+CI runs a syntax check on every PR and the build validates that all referenced UC IDs exist in the catalog.
 
 ## Version management
 
@@ -171,7 +160,7 @@ with tuning guidance. See the template guide for detailed merge/keep criteria.
 
 ## Audits (`scripts/`)
 
-Run locally before opening a PR:
+Run locally before opening a PR (validates UC JSON under **`content/cat-*/UC-*.json`**):
 
 ```bash
 python3 scripts/audit_uc_ids.py && python3 scripts/audit_uc_structure.py --full
@@ -179,11 +168,11 @@ python3 scripts/audit_uc_ids.py && python3 scripts/audit_uc_structure.py --full
 
 | Script | What it checks |
 |--------|----------------|
-| `audit_uc_ids.py` | Duplicate UC IDs; `X` vs filename; per-subcategory `Z` order and no gaps |
-| `audit_uc_structure.py` | Required fields, criticality/difficulty enums, SPL fenced block |
-| `audit_non_technical_sync.py` | `non-technical-view.js` UC ids exist in markdown; every `cat-NN` category and `## X.Y` subcategory has JS coverage |
-| `audit_changelog_uc_refs.py` | `CHANGELOG.md` version headers (shape, dates, ordering, duplicates); `UC-*` references in markdown point to real headers |
-| `audit_repo_consistency.py` | `INDEX.md` vs `cat-NN-*.md`, icons vs `index.html` `SI_PATHS`, Quick Start UCs, `build.py` `CAT_GROUPS` / `SPLUNK_APPS` |
+| `audit_uc_ids.py` | Duplicate UC IDs; `X` vs `cat-XX` directory; per-subcategory `Z` order and no gaps |
+| `audit_uc_structure.py` | Required JSON fields, criticality/difficulty enums, and structure per CI/schema |
+| `audit_non_technical_sync.py` | `non-technical-view.js` UC ids exist in content; every `cat-NN` category and subcategory has JS coverage |
+| `audit_changelog_uc_refs.py` | `CHANGELOG.md` version headers (shape, dates, ordering, duplicates); `UC-*` references point to real UC ids |
+| `audit_repo_consistency.py` | `INDEX.md` vs `content/cat-*` tree, icons vs `index.html` `SI_PATHS`, Quick Start UCs, `tools/build/enrichment.py` (`CAT_GROUPS`, `SPLUNK_APPS`) |
 | `audit_catalog_schema.py` | `catalog.json` schema validation: category/subcategory/UC structure, required fields, enum values, optional `wv` (wave) / `pre` (prerequisite UC) fields, and the top-level `implementationRoadmap` block |
 | `generate_grandma_explanations.py --check` | Every UC sidecar has a non-empty, in-bounds `grandmaExplanation` (20–400 chars); also runs as a dedicated CI step |
 | `audit_gold_profile.py` | Gold Standard depth audit — measures operational completeness, detects shallow boilerplate, flags consolidation candidates |
@@ -193,7 +182,7 @@ Other `scripts/*` files are generators or one-off tools, not part of the default
 
 ## CI (`.github/workflows/validate.yml`)
 
-On pull requests (when paths under use-cases, `build.py`, `non-technical-view.js`, `scripts/`, `CHANGELOG.md`, `index.html`, `VERSION`, etc. change), CI runs all audits above, Node eval on `non-technical-view.js`, **version triple consistency**, then **`python3 build.py`** and fails if `data.js` or `catalog.json` would change (stale generated files).
+On pull requests (when paths under `content/`, `tools/build/`, `non-technical-view.js`, `scripts/`, `CHANGELOG.md`, `index.html`, `VERSION`, etc. change), CI runs all audits above, Node eval on `non-technical-view.js`, **version triple consistency**, then **`python3 tools/build/build.py --out dist`** and fails if tracked generated output (under `dist/` and related artefacts) would change without matching commits.
 
 ## UC test harness secrets (`.github/workflows/uc-tests.yml`)
 
@@ -210,10 +199,10 @@ When the password secret is missing, the `precheck` job in `uc-tests.yml` short-
 
 ## Build workflow
 
-After **any** catalog content or parser change:
+After **any** catalog content or build-input change:
 
 ```bash
-python3 build.py
+make build
 ```
 
-The build regenerates tracked artefacts (`data.js`, `catalog.json`, `llms.txt`, etc.). Commit the changed files in the same PR as the source edits.
+The build regenerates the full site into `dist/` (API endpoints, search index, catalog, etc.). Commit the changed generated files in the same PR as the source edits.

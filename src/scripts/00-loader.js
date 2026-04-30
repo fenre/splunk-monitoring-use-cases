@@ -1,17 +1,7 @@
 /* Cisco UI catalog — chunk 0: lazy-bootstrap loader.
  *
- * Runs FIRST in the concatenated bundle. Two modes:
- *
- *   1) Legacy mode — `data.js` was loaded as a separate <script> tag, so
- *      window.DATA, window.EQUIPMENT, window.CAT_META, window.CAT_GROUPS,
- *      window.FILTER_FACETS, window.RECENTLY_ADDED already exist.
- *      The loader resolves immediately, calls __bootstrapCatalogState(),
- *      and dispatches the "catalog:ready" event synchronously.
- *
- *   2) Lazy mode (production) — data.js is NOT loaded. window.DATA is
- *      empty. The loader fetches /api/catalog-index.json (~5 MB JSON,
- *      ~750 KB gzipped), reconstructs the legacy globals from the
- *      lightweight UC stubs, then runs the bootstrap.
+ * Fetches /api/catalog-index.json, reconstructs the catalog globals from
+ * lightweight UC stubs, then runs __bootstrapCatalogState().
  *
  * Heavy per-UC fields (full SPL, narrative, references, screenshots)
  * are NOT in the index. The detail panel lazy-fetches them from
@@ -21,7 +11,7 @@
  *   window.__catalogReady   — Promise<void>; resolves when DATA + globals
  *                             are populated and __bootstrapCatalogState()
  *                             has run. initApp() must `await` this.
- *   window.__catalogIndex   — the parsed catalog-index.json (lazy mode only).
+ *   window.__catalogIndex   — the parsed catalog-index.json.
  *   window.__ensureFullUC(uc_id) — returns Promise<void> that resolves when
  *                             the UC's heavy fields are merged into DATA.
  *                             Cheap if already loaded.
@@ -40,35 +30,11 @@
   var CATALOG_INDEX_URL = API_BASE + "/catalog-index.json";
   var CATEGORY_URL = function(catId) { return API_BASE + "/cat-" + catId + ".json"; };
 
-  var legacyMode =
-    Array.isArray(window.DATA) &&
-    window.DATA.length > 0 &&
-    window.DATA[0] &&
-    Array.isArray(window.DATA[0].s);
-
   var dispatchedReady = false;
   var fullCatPromises = {};
   var fullUCPromises = {};
 
   window.__catalogReady = new Promise(function(resolve, reject) {
-    if (legacyMode) {
-      // Defer to a microtask so __bootstrapCatalogState (defined later in
-      // the bundle) is available when we call it.
-      Promise.resolve().then(function() {
-        try {
-          if (typeof __bootstrapCatalogState === "function") {
-            __bootstrapCatalogState();
-          }
-          _dispatchReady();
-          resolve();
-        } catch (err) {
-          console.error("[loader] legacy bootstrap failed:", err);
-          reject(err);
-        }
-      });
-      return;
-    }
-
     fetch(CATALOG_INDEX_URL, { credentials: "same-origin" })
       .then(function(res) {
         if (!res.ok) {
@@ -160,7 +126,6 @@
   /** Fetch /api/cat-{catId}.json once and merge heavy fields into the
    *  matching UC stubs in window.DATA. Returns a Promise<void>. */
   window.__ensureFullCategory = function(catId) {
-    if (legacyMode) return Promise.resolve();
     var key = String(catId);
     if (fullCatPromises[key]) return fullCatPromises[key];
 

@@ -9,7 +9,7 @@
  *  computed automatically.  Not every doc needs UC associations — architecture,
  *  governance, and process docs are listed without `ucs`.
  *
- *  Validation:  python3 build.py  (runs validate_docs_uc_map)
+ *  Validation:  make build  (runs validate_docs_uc_map)
  *  Quick check: node -e "eval(require('fs').readFileSync('docs-uc-map.js','utf8')); \
  *    console.log(Object.keys(DOC_UC_MAP).length+' docs, '+Object.keys(UC_DOC_MAP).length+' UCs OK');"
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -126,6 +126,26 @@ var DOC_UC_MAP = {
   "docs/legal-review-guide.md": {
     title: "Legal Review Guide"
   },
+  "docs/nis2-monitoring-methodology.md": {
+    title: "NIS2 Monitoring Methodology",
+    ucs: ["22.2.1", "22.2.2", "22.2.3"]
+  },
+  "docs/nis2-external-review-pack.md": {
+    title: "NIS2 External Review Pack",
+    ucs: ["22.2.1", "22.2.2", "22.2.3"]
+  },
+  "docs/nis2-maturity-benchmark.md": {
+    title: "NIS2 Maturity Benchmark",
+    ucs: ["22.2.1", "22.2.2", "22.2.3"]
+  },
+  "docs/nis2-self-validation.md": {
+    title: "NIS2 Self-Validation Record",
+    ucs: ["22.2.1", "22.2.2", "22.2.3"]
+  },
+  "docs/research/nis2-source-map.md": {
+    title: "NIS2 Source Map",
+    ucs: ["22.2.1", "22.2.2", "22.2.3"]
+  },
 
   /* ── Evidence Packs ──────────────────────────────────────────────────── */
   "docs/evidence-packs/README.md": {
@@ -210,6 +230,56 @@ var DOC_UC_MAP = {
       "17.1.2", "17.1.3", "17.1.8", "17.1.12", "17.2.2", "17.2.3", "17.2.8", "17.2.14", "17.3.1", "17.3.3", "17.3.8"
     ]
   },
+  "docs/guides/cloud-monitoring.md": {
+    title: "Cloud & Containers Monitoring Domain Guide",
+    ucs: [
+      "3.1.1", "3.1.2", "3.1.13", "3.1.25", "3.2.1", "3.2.7", "3.2.8", "3.3.1", "3.4.1", "3.5.1",
+      "4.1.2", "4.1.4", "4.1.7", "4.1.8", "4.1.9", "4.1.22", "4.1.30", "4.1.51",
+      "4.2.4", "4.2.7", "4.2.9", "4.3.2", "4.3.30", "4.5.2",
+      "20.1.1", "20.1.2", "20.1.4", "20.1.5", "20.1.13", "20.2.1", "20.2.2", "20.2.24"
+    ]
+  },
+  "docs/guides/application-monitoring.md": {
+    title: "Application & Service Monitoring Domain Guide",
+    ucs: [
+      "7.1.1", "7.1.2", "7.1.3", "7.1.5", "7.1.12", "7.1.15", "7.1.17", "7.1.19", "7.2.1",
+      "8.1.1", "8.1.5", "8.1.14", "8.1.15", "8.1.32", "8.2.1", "8.3.1", "8.3.3",
+      "12.1.1", "12.1.2", "12.1.4", "12.1.10", "12.2.5", "12.2.8", "12.3.2",
+      "13.1.1", "13.1.3", "13.1.10", "13.1.11", "13.2.1", "13.2.6",
+      "16.1.1", "16.1.2", "16.1.3", "16.1.4", "16.1.9", "16.1.14", "16.2.1"
+    ]
+  },
+  "docs/guides/collaboration-iot-monitoring.md": {
+    title: "Collaboration & IoT/OT Monitoring Domain Guide",
+    ucs: [
+      "11.1.1", "11.1.8", "11.2.4", "11.3.16", "11.3.20", "11.4.1", "11.5.5", "11.5.9",
+      "14.1.10", "14.1.18", "14.1.40", "14.2.1", "14.2.2", "14.2.3", "14.3.1",
+      "14.9.1", "14.9.6", "14.9.12", "14.9.13", "14.9.15", "14.9.19", "14.9.23", "14.9.24", "14.9.25"
+    ]
+  },
+  "docs/guides/industry-verticals.md": {
+    title: "Industry Verticals Monitoring Domain Guide",
+    ucs: [
+      "21.1.1", "21.1.2", "21.1.7", "21.1.13",
+      "21.2.3", "21.2.5", "21.2.8", "21.2.12", "21.2.14",
+      "21.3.1", "21.3.14", "21.3.15", "21.3.19",
+      "21.4.2", "21.4.3", "21.4.11",
+      "21.5.6", "21.5.7", "21.5.10",
+      "21.6.2",
+      "21.7.6", "21.7.7",
+      "21.8.2", "21.8.3",
+      "21.9.6", "21.9.7",
+      "21.10.1", "21.10.2", "21.10.3", "21.10.5", "21.10.6", "21.10.8"
+    ]
+  },
+  "docs/guides/compliance-business.md": {
+    title: "Compliance & Business Analytics Domain Guide",
+    ucs: [
+      "22.1.1", "22.2.1", "22.3.1", "22.4.1", "22.6.1", "22.7.1", "22.8.1",
+      "22.10.1", "22.11.1", "22.12.1", "22.13.11", "22.14.1", "22.15.1", "22.16.1", "22.20.1", "22.21.4",
+      "23.1.1", "23.2.1", "23.2.2", "23.2.3", "23.3.1", "23.4.1", "23.5.1", "23.6.1", "23.7.1", "23.8.1", "23.9.1"
+    ]
+  },
   "docs/guides/datagen-top10-use-cases.md": {
     title: "Data Generator \u2014 Top 10 Use Cases",
     ucs: ["1.1.1", "1.1.2", "5.1.1", "10.1.1"]
@@ -267,6 +337,12 @@ var DOC_UC_MAP = {
   "docs/sme-review-guide.md": {
     title: "SME Review Guide"
   },
+  "docs/gold-standard-authoring-playbook.md": {
+    title: "Gold Standard Authoring Playbook"
+  },
+  "docs/uc-quality-mandate.md": {
+    title: "Use Case Quality Mandate"
+  },
 
   /* ── Replication ─────────────────────────────────────────────────────── */
   "docs/replication-guide.md": {
@@ -285,6 +361,14 @@ var DOC_UC_MAP = {
   },
   "docs/auditor-research/findings-template.md": {
     title: "Auditor Findings Template"
+  },
+
+  /* ── Product Overview ───────────────────────────────────────────────── */
+  "docs/PITCH.md": {
+    title: "Product Pitch"
+  },
+  "docs/implementation-brief-v7.1.md": {
+    title: "Implementation Brief v7.1"
   },
 
   /* ── Migration & Release Reports ─────────────────────────────────────── */

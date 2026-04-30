@@ -250,8 +250,7 @@ findings, **five** SPL warnings (all legitimate `dbxquery` callouts).
 ## What makes the moat work
 
 Every claim on this page is reproducible. Clone the repo. Run
-`python3 build.py`. Run `python3 -m http.server 8080`. Open the
-dashboard. All the numbers match.
+`make build`. Run `make serve`. Open the dashboard. All the numbers match.
 
 **Audit-gated content.** Every pull request passes automated checks for
 UC-ID uniqueness, structural completeness, schema conformance, link

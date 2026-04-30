@@ -26,3 +26,13 @@ The repository compliance section exposes the same maturity view inside the cano
 - Annex sector overlays.
 - Supervision and enforcement readiness.
 - Directive context and legal boundaries.
+
+## Key NIS2 use cases
+
+The maturity model anchors against the following catalog use cases:
+
+- UC-22.2.1 — NIS2 Art.23(4)(a): 24-Hour Early-Warning Notification Readiness (crawl-stage anchor)
+- UC-22.2.2 — NIS2 Art.21(2)(a): Risk Analysis Policy Evidence (walk-stage anchor)
+- UC-22.2.3 — NIS2 Art.21(2)(b): Incident Handling Workflow Compliance
+
+Related documentation: [NIS2 Monitoring Methodology](nis2-monitoring-methodology.md), [NIS2 External Review Pack](nis2-external-review-pack.md), [Evidence Pack — NIS2](evidence-packs/nis2.md).

@@ -12,7 +12,7 @@ Last reviewed: 2026-04-20 (catalogue v7.1)
 
 > **What changed since the v3.20 review (2026-03-20):** the catalogue
 > grew from 4,625 UCs / 22 categories / 122 subcategories to
-> **6,447 UCs / 23 categories / 189 subcategories**. The regulatory
+> **7,364 UCs / 23 categories / 189 subcategories**. The regulatory
 > corpus was rebuilt on top of `data/regulations.json` (66 frameworks
 > across three tiers), every tier-1 regulation is now covered by a
 > deep `commonClauses[]` matrix with `obligationText`, and the
@@ -307,7 +307,7 @@ published obligation texts.
 | `compliance/story/{regulationId}.json` | `scripts/generate_story_payload.py` | ✅ USED | Unified buyer/auditor/implementer narrative; 67 payloads shipped |
 | `compliance/story/index.json` | `scripts/generate_story_payload.py` | ✅ USED | Story-landing rollup |
 | `compliance/ucs/index.json` | `scripts/generate_api_surface.py` | ✅ USED | Compact list of compliance-tagged UCs |
-| `compliance/ucs/{ucId}.json` | `scripts/generate_api_surface.py` | ✅ USED | Full UC sidecar (canonical form) &mdash; 6,447 per-UC files under `api/v1/` |
+| `compliance/ucs/{ucId}.json` | `scripts/generate_api_surface.py` | ✅ USED | Full UC sidecar (canonical form) &mdash; **7,364** per-UC JSON exports under `api/v1/` |
 | `oscal/` catalogues + components | `scripts/generate_api_surface.py` | ✅ USED | OSCAL-flavoured exports for GRC tooling ingestion |
 
 ### Audience surfaces (HTML pages served next to `index.html`)
@@ -462,22 +462,22 @@ Sources to check on a regular cadence for updates:
 
 ---
 
-## 8. Coverage Statistics (as of 2026-04-20, catalogue v7.1)
+## 8. Coverage Statistics (as of 2026-04-30, catalogue head)
 
 | Metric | Value |
 |---|---|
-| Total UCs in catalogue | **6,447** (+1,822 since 2026-03-20) |
+| Total UCs in catalogue | **7,364** (+2,739 since 2026-03-20 baseline of 4,625) |
 | Categories | **23** (+1 since 2026-03-20: Cat 22 regulatory-compliance split into 49 subcategories) |
 | Subcategories | **189** (+67 since 2026-03-20) |
 | Unique TAs / Apps referenced | **~2,635** (+~935 since 2026-03-20) |
-| Security pillar UCs | 4,451 (69.0%) |
-| Observability pillar UCs | 1,981 (30.7%) |
-| Cat 10 (Security Infrastructure) share | 2,402 (37.3%) &mdash; dominance reduced from 51% as Cat 22 grew |
-| Cat 22 (Regulatory Compliance) share | 1,310 (20.3%) |
-| Cat 14 (OT/IoT) share | 230 (3.6%) |
-| ESCU-derived UCs | ~2,068 (unchanged) |
+| Security pillar UCs | 4,451 (60.4%) |
+| Observability pillar UCs | 1,981 (26.9%) |
+| Cat 10 (Security Infrastructure) share | 2,402 (32.6%) &mdash; dominance reduced from 51% as Cat 22 grew |
+| Cat 22 (Regulatory Compliance) share | 1,310 (17.8%) |
+| Cat 14 (OT/IoT) share | 230 (3.1%) |
+| ESCU-derived UCs | ~2,068 (28.1%) |
 | Regulations tracked in `data/regulations.json` | **66** (11 tier-1, 54 tier-2, 1 tier-3) |
-| UCs with at least one `compliance[]` entry | 1,395 (21.6% of catalogue) |
+| UCs with at least one `compliance[]` entry | 1,395 (18.9% of catalogue) |
 | Total compliance entries (UC &times; clause pairs) | 1,964 |
 | Unique clauses in `api/v1/compliance/clauses/index.json` | 946 |
 | Story payloads (`api/v1/compliance/story/*.json`) | 67 |

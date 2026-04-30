@@ -253,7 +253,7 @@ function getReversePrereqIndex() {
 // Render an inline UC chip that opens the target UC in the side panel when
 // clicked. Falls back to a plain id when the referenced UC is missing from
 // the catalogue (defensive — validate_prerequisites() should already have
-// failed the build, but the SPA must not crash on stale cached data.js).
+// failed the build, but the SPA must not crash on stale cached data).
 function renderUCChip(ucFullId) {
   if (typeof ucFullId !== 'string' || !ucFullId.indexOf) return '';
   var bareId = ucFullId.replace(/^UC-/, '');

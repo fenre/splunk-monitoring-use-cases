@@ -7,7 +7,7 @@ both speak to "what ships to the end user":
 1. **Performance budget.**  The repo ships a static site that is often
    loaded under flaky conference Wi-Fi by auditors, privacy officers
    and regulators on mobile devices.  Runaway file-size regressions
-   (a developer accidentally inlines catalog.json into data.js, a
+   (a developer accidentally inlines a large payload, a
    merge conflict duplicates a script block, someone checks in a huge
    SVG) break that experience silently.  Each critical asset has a
    hard-coded byte budget; any file over budget hard-fails CI.  Budget
@@ -147,23 +147,12 @@ _PERF_BUDGETS: list[PerfBudget] = [
         ),
     },
     {
-        "file": "data.js",
-        "budget_bytes": 52_428_800,  # 50 MiB
-        "tier": "generated-data",
-        "note": (
-            "Full catalogue payload loaded by index.html.  Budget "
-            "sized for 800+ UCs; tightening requires renegotiating "
-            "the build.py canonical serialiser."
-        ),
-    },
-    {
         "file": "catalog.json",
         "budget_bytes": 58_720_256,  # 56 MiB
         "tier": "generated-data",
         "note": (
-            "Raw JSON twin of data.js for AI agents / scripted "
-            "consumers.  Slightly larger budget than data.js because "
-            "the JSON form is unminified."
+            "Full JSON catalogue for AI agents / scripted consumers. "
+            "Budget sized for 7,000+ UCs."
         ),
     },
     {

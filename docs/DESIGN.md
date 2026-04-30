@@ -4,14 +4,7 @@
 **Owner:** Repository maintainers. See [GOVERNANCE.md](../GOVERNANCE.md).
 **Last reviewed:** 2026-04-20
 
-> **v7 transition note:** This document primarily describes the v6 build pipeline
-> (root `build.py` reading `use-cases/cat-*.md`). The v7 pipeline
-> (`tools/build/build.py` reading `content/`) is documented in
-> [`docs/architecture.md`](architecture.md). Both pipelines coexist during the
-> transition; `validate.yml` gates the v6 pipeline while `pages.yml` runs the v7
-> pipeline with `--legacy` fallback.
-
-This document describes the full product: what it is, how it is organised, how it is built, how it runs, how it is governed, and — critically — how to replicate it on a different platform, for a different vendor, or for a different content domain.
+This document describes the full product (v7 build and runtime), with the layered system contract detailed in [`docs/architecture.md`](architecture.md). It covers what the product is, how it is organised, how it is built, how it runs, how it is governed, and — critically — how to replicate it on a different platform, for a different vendor, or for a different content domain.
 
 Every architectural claim in this document is linked to a concrete file in the repository so the document remains auditable against the implementation. When a claim and the code diverge, the bug is in the document.
 
@@ -57,7 +50,7 @@ The scope explicitly excludes:
 
 ### Goals
 
-- **Single source of truth for authoring** — one markdown file per category, plain-text friendly, reviewable in a pull request.
+- **Single source of truth for authoring** — per-UC JSON under `content/cat-*/UC-*.json` (plus optional companion prose), reviewable in a pull request.
 - **Multiple machine-readable projections** — JSON for programmatic access, Splunk conf for direct deployment, LLM text for AI agents, Simple XML for dashboards.
 - **Zero build-time external dependencies** — a fresh clone can build the entire site with a stock Python 3 interpreter and a browser. No npm, no pip, no database.
 - **Static hosting** — the entire dashboard runs on GitHub Pages, S3+CloudFront, or any static host. No server-side rendering, no API gateway, no login.
@@ -104,7 +97,7 @@ The catalog is a three-level tree: **Category → Subcategory → Use Case**. Ev
 
 ### 4.2 Identifiers
 
-- **Category ID `X`** — integer `1..N`. File name `use-cases/cat-XX-slug.md` must match (with `XX` zero-padded).
+- **Category ID `X`** — integer `1..N`. Authoring lives under `content/cat-XX-slug/` with `_category.json` and UC files `UC-X.Y.Z.json`.
 - **Subcategory ID `X.Y`** — dotted pair. Within a category, `Y` starts at `1` and increments.
 - **Use Case ID `X.Y.Z`** — dotted triple. Within a subcategory, `Z` starts at `1` and increments without gaps.
 - **Full UC-ID** is `UC-X.Y.Z` (with the `UC-` prefix) whenever the ID is rendered for humans; the `UC-` prefix is dropped in JSON keys.
@@ -118,13 +111,13 @@ Every UC carries a set of typed fields. Fields fall into four classes:
 - **Required** — must be present and non-empty on every UC. Enforced by [`scripts/audit_uc_structure.py`](../scripts/audit_uc_structure.py).
 - **Optional catalogued** — appear on some UCs, parsed into the JSON schema, surfaced in the dashboard.
 - **Optional quality** — references, false positives, MITRE, detection type, reviewer, last-reviewed date. Target coverage tracked in [§8 Quality system](#8-quality-system).
-- **Derived** — auto-assigned by [`build.py`](../build.py): equipment IDs, pillar, premium-app inference, regulation mapping.
+- **Derived** — auto-assigned during catalog load in [`tools/build/parse_content.py`](../tools/build/parse_content.py) (equipment IDs, pillar, premium-app inference, regulation merge, and related post-processing).
 
-The authoritative list of parsed field names lives in [`build.py:parse_category_file()`](../build.py). The human-readable list is [docs/use-case-fields.md](use-case-fields.md).
+The authoritative machine-readable shape is [schemas/uc.schema.json](../schemas/uc.schema.json). The human-readable list is [docs/use-case-fields.md](use-case-fields.md).
 
 ### 4.4 Category groups
 
-Categories are grouped for dashboard navigation by the `CAT_GROUPS` map in [`build.py`](../build.py):
+Categories are grouped for dashboard navigation by `CAT_GROUPS`, loaded into the build catalog (see [`tools/build/parse_content.py`](../tools/build/parse_content.py) `_load_cat_groups`):
 
 | Group | Categories |
 |---|---|
@@ -140,9 +133,9 @@ Groups are a UI-only convenience; they are not reflected in UC IDs. Renumbering 
 
 ### 4.5 Equipment tagging
 
-Equipment is a filter axis derived from the `App/TA:` field. The `EQUIPMENT` list in [`build.py`](../build.py) maps vendor slugs (e.g. `cisco`, `vmware`, `paloalto`) to lists of substring patterns. At build time [`equipment_ids_for_ta_string()`](../build.py) does case-insensitive substring matching against the UC's `t` field and populates the UC's `e` (equipment IDs) and `em` (model IDs) arrays.
+Equipment is a filter axis derived from the TA / app string on each UC. Vendor slug → pattern lists are loaded with the catalog (`_load_equipment` in [`tools/build/parse_content.py`](../tools/build/parse_content.py)); matching populates the UC's `e` (equipment IDs) and `em` (model IDs) fields during post-processing.
 
-Equipment is derived, not authored. Adding a new vendor means editing `EQUIPMENT` in `build.py`; no markdown changes are needed.
+Equipment is derived, not authored in each UC file. Adding a new vendor updates that shared equipment metadata (consumed by the parser); individual UC JSON does not need a one-off edit for the map itself.
 
 ---
 
@@ -152,20 +145,21 @@ Equipment is derived, not authored. Adding a new vendor means editing `EQUIPMENT
 
 ```
 content/
-└── INDEX.md                # category metadata: icon, description, quick starters
-use-cases/
-├── cat-00-preamble.md      # legend only, not parsed as a category
-├── cat-01-server-compute.md
-├── cat-02-virtualization.md
-├── ...
-└── cat-23-business-analytics.md
+├── INDEX.md                         # repo-level pointers / narrative (optional)
+└── cat-NN-slug/                     # one directory per category
+    ├── _category.json               # id, name, subcategories, icons, quick tips
+    └── UC-X.Y.Z.json                # canonical structured UC (required)
 ```
 
-File names follow the pattern `cat-XX-slug.md` where `XX` is the zero-padded category ID and `slug` is a kebab-case descriptor. [`scripts/audit_uc_ids.py`](../scripts/audit_uc_ids.py) enforces that UC headings inside the file match the `XX` in the filename.
+Optional long-form markdown companions may exist alongside specific UCs where curators split prose from JSON. UC IDs in filenames and `_category.json` must stay in sync; [`scripts/audit_uc_ids.py`](../scripts/audit_uc_ids.py) enforces uniqueness and ordering rules across all `content/cat-*/UC-*.json` files.
 
-### 5.2 Markdown template
+### 5.2 Authoring shape
 
-A minimal UC:
+Each `UC-X.Y.Z.json` validates against [`schemas/uc.schema.json`](../schemas/uc.schema.json). The build maps canonical keys to the compact legacy-style keys used by API and UI renderers (see [`tools/build/parse_content.py`](../tools/build/parse_content.py)). Optional companion markdown (where present) holds long-form narrative; structured fields (SPL, CIM, compliance, wave, prerequisites, etc.) live in JSON.
+
+For human-readable field names and curation guidance, use [docs/use-case-fields.md](use-case-fields.md) and [docs/implementation-ordering.md](implementation-ordering.md).
+
+Legacy markdown block template (for migration reference only):
 
 ````markdown
 ---
@@ -197,7 +191,7 @@ If there is no sensible CIM data model, use `- **CIM Models:** N/A` and omit the
 
 ### 5.3 Required fields
 
-`scripts/audit_uc_structure.py --full` (the CI structure check) requires these bullet fields to be present and non-empty, plus a fenced SPL block immediately after `- **SPL:**`:
+`scripts/audit_uc_structure.py --full` checks markdown sources where still present; canonical **`content/cat-*/UC-*.json`** files are validated primarily by `schemas/uc.schema.json` during `tools/build/build.py` parse. The bullets below remain the human authoring checklist (mirrored in JSON properties):
 
 | Field | Allowed values |
 |---|---|
@@ -216,7 +210,7 @@ If there is no sensible CIM data model, use `- **CIM Models:** N/A` and omit the
 
 | Field | Catalog key |
 |---|---|
-| `Detailed implementation:` | `md` (else `build.py` generates it) |
+| `Detailed implementation:` | `md` (else generated at build) |
 | `Script example:` | `script` (expects a fenced block next) |
 | `Premium Apps:` | `premium` |
 | `Equipment Models:` | `hw` |
@@ -256,19 +250,18 @@ Schema v1.4.0+ introduces two optional per-UC fields that let authors declare *w
   - `run` = advanced UC (depends on multiple crawls/walks, often cross-category; treat as the last thing an operator turns on).
 - **`Prerequisite UCs:`** — a comma-separated list of `UC-X.Y.Z` ids that must be implemented first (shared lookups, macros, summary indexes, ITSI services, baselines). Not a soft "related reading" list — this is a **hard technical dependency**. See the [curator rubric](implementation-ordering.md#3-prerequisite-rubric) for the disambiguation test.
 
-The full curator rubric, legal syntax, and downstream surfaces are documented in [docs/implementation-ordering.md](implementation-ordering.md). The schema is defined in [`schemas/uc.schema.json`](../schemas/uc.schema.json) (fields `wave` and `prerequisiteUseCases`); the compact keys in `catalog.json` / `data.js` are `wv` and `pre` respectively.
+The full curator rubric, legal syntax, and downstream surfaces are documented in [docs/implementation-ordering.md](implementation-ordering.md). The schema is defined in [`schemas/uc.schema.json`](../schemas/uc.schema.json) (fields `wave` and `prerequisiteUseCases`); the compact keys in API payloads and `catalog.json` are `wv` and `pre` respectively.
 
 **Validation & enforcement.** Three independent gates guard the graph:
 
-1. [`build.py::validate_prerequisites`](../build.py) — warns on wave monotonicity (earlier-wave UCs that depend on later-wave UCs) and hard-fails on unknown ids, self-references, duplicates, and cycles (Kahn's topological sort). Prints a deterministic `Waves:` summary on every build.
+1. Catalog build (`make build` / [`tools/build/build.py`](../tools/build/build.py)) — runs prerequisite validation over the assembled catalog (unknown ids, cycles, wave monotonicity); prints a deterministic `Waves:` summary.
 2. [`scripts/audit_catalog_schema.py`](../scripts/audit_catalog_schema.py) — per-UC shape checks against the committed `catalog.json` (`wv ∈ {crawl, walk, run}`, `pre[]` entries match the `UC-X.Y.Z` grammar, no self-references, no duplicates).
 3. [`scripts/audit_prerequisites.py`](../scripts/audit_prerequisites.py) — standalone graph audit: re-runs every invariant against the committed `catalog.json`, emits a deterministic JSON report at `reports/prerequisites-audit.json`, and `--check` diffs the regenerated report against the committed file. This is the **artefact-diffable CI gate** — reviewers can download the report as an action artefact and inspect the full forward/reverse graph without re-running Python locally. `--strict` promotes wave-monotonicity warnings to hard errors (used by `release.yml`).
 
 **Runtime surfaces.** The fields are projected into:
 
 - `index.html` — wave badge on the UC panel, `Implement first` + `Enables` chip lists, and a per-category `Crawl → Walk → Run` roadmap band above the UC list (renders only when the category has at least one UC tagged with a wave).
-- `catalog.json` — compact `wv` and `pre` per UC plus the top-level `implementationRoadmap` object keyed by category id → wave bucket.
-- `data.js` — the same payload as `ROADMAP` for the SPA.
+- `catalog.json` (when emitted) and `/api/v1/*` — compact `wv` and `pre` per UC plus the top-level `implementationRoadmap` object keyed by category id → wave bucket.
 - `/api/v1/uc-thin.json`, `/api/v1/compliance/*.json`, and the JSON-LD context surface the same fields for agents.
 - The MCP server's `search_use_cases` accepts a `wave` filter; `get_use_case` returns `wave`, `prerequisiteUseCases`, and the reverse `enables` list.
 - The static per-UC HTML pages rendered by [`tools/build/templates/uc.py`](../tools/build/templates/uc.py) render the wave badge, the clickable prerequisite chips, and the reverse-lookup "Enables" list.
@@ -279,60 +272,66 @@ The full curator rubric, legal syntax, and downstream surfaces are documented in
 
 ### 6.1 Inputs
 
-- All files under `use-cases/` matching `cat-*.md` (category content).
-- `content/INDEX.md` (icons, per-category descriptions, quick-start UC lists).
-- `non-technical-view.js` (plain-language outcomes per category; read for validation, not emitted).
-- `mitre_techniques.json` (technique-id enrichment).
-- `config/uc_to_log_family.json` (log-family hints for eventgen mapping).
+- `content/cat-*/UC-*.json` and `content/cat-*/_category.json` (canonical UC + category metadata).
+- `content/INDEX.md` where present (supplementary metadata).
+- `non-technical-view.js` (plain-language outcomes per category; validated, not always emitted inline).
+- `data/` (regulations, crosswalks, inventory, provenance, etc.).
+- `schemas/` (JSON Schema for UCs and emitted artefacts).
+- `src/` (styles, scripts, partials, pages) and `public/` (static assets copied verbatim).
+- `mitre_techniques.json` and other enrichment inputs referenced by the pipeline.
 
-### 6.2 Outputs
+### 6.2 Outputs (`dist/`)
+
+All generated site files are written under `dist/` (see [docs/architecture.md](architecture.md)). Representative paths:
 
 | Path | Consumer | Content |
 |---|---|---|
-| `data.js` | [`index.html`](../index.html) | `const DATA`, `CAT_META`, `CAT_GROUPS`, `EQUIPMENT`, `RECENTLY_ADDED` |
-| `catalog.json` | external scripts, integrations | same as `data.js` in JSON form, pretty-printed |
-| `api/index.json` | HTTP consumers | summary of categories with UC counts |
-| `api/cat-N.json` | HTTP consumers | per-category slice of the catalog |
-| `llms.txt`, `llm.txt` | AI agents (llms.txt convention) | concise catalog index |
-| `llms-full.txt` | AI agents | every UC title, one per line |
-| `sitemap.xml` | search engines | canonical URLs per UC |
-| `index.html` | web browsers | release notes section only — HTML body is hand-authored, release notes are regenerated from `CHANGELOG.md` |
-| `api/v1/*.json` (v5.1+) | HTTP consumers + MCP server | Phase 1.7 static API: compliance, recommender, equipment, manifest, JSON-LD context |
-| `mcp/` (v6.1 Unreleased) | MCP-capable AI agents (Cursor, Claude Desktop, Claude Code) | Phase 6 Model Context Protocol server wrapping `api/v1/*.json`; see [§9.4](#94-mcp-server-phase-6) |
+| `dist/api/catalog-index.json` | `/browse/` SPA | Stub index for bootstrap + globals (`catMeta`, `catGroups`, `equipment`, stubs for 7,364+ UCs) |
+| `dist/api/cat-N.json` | SPA + integrations | Full category slice (lazy-loaded) |
+| `dist/api/v1/*.json` | HTTP clients + MCP | Versioned catalog, compliance, manifest, recommender, JSON-LD |
+| `dist/browse/`, `dist/uc/`, `dist/category/` | Browsers | Static HTML + paired JSON |
+| `dist/catalog.json` | Bulk consumers | Full catalog tree (when enabled for release) |
+| `dist/llms.txt`, `dist/llms-full.txt` | AI agents | llms.txt convention exports |
+| `dist/sitemap*.xml` | Crawlers | Canonical URLs |
+| `dist/assets/*.css`, `dist/assets/*.js` | Browsers | Fingerprinted bundles (loader fetches API; no checked-in `data.js`) |
+| `dist/exports/*` | Integrators | CSV, JSON, OSCAL, STIX, ZIP |
+| `dist/integrity.json`, `dist/BUILD-INFO.json` | Supply chain | Per-file hashes + build metadata |
 
 ### 6.3 Stages
 
 ```mermaid
 flowchart LR
-    in1["use-cases/cat-*.md"]
-    in2["content/INDEX.md"]
-    in3["non-technical-view.js"]
-    stage1["parse_category_file()<br/>headings + fields"]
-    stage2["parse_index_metadata()<br/>icons + descriptions"]
-    stage3["generate_detailed_impl()<br/>auto-fill md if empty"]
-    stage4["equipment_ids_for_ta_string()<br/>auto-tag equipment"]
-    stage5["assign_pillar() / assign_premium()<br/>/ assign_regulations()"]
-    stage6["write_data_js() +<br/>write catalog.json +<br/>write api/*.json +<br/>write llms*.txt +<br/>write sitemap.xml +<br/>sync_release_notes()"]
+    in1["content/cat-*/UC-*.json"]
+    in2["content/cat-*/_category.json"]
+    in3["data/ + schemas/ + src/ + public/"]
+    stage1["parse_content.load()"]
+    stage2["render_assets"]
+    stage3["render_pages"]
+    stage4["render_api + render_search"]
+    stage5["render_exports + render_meta"]
+    stage6["integrity + BUILD-INFO"]
+    dist["dist/"]
 
     in1 --> stage1
-    in2 --> stage2
+    in2 --> stage1
     in3 --> stage1
-    stage1 --> stage3 --> stage4 --> stage5 --> stage6
-    stage2 --> stage6
+    stage1 --> stage2 --> stage3 --> stage4 --> stage5 --> stage6 --> dist
 ```
 
-All stages live in a single file, [`build.py`](../build.py). Function boundaries are documented by docstrings in that file. The build is deterministic: given identical inputs it produces byte-identical outputs, enforced by CI (see [§10.3](#103-ci-freshness-gate)).
+Orchestration lives in [`tools/build/build.py`](../tools/build/build.py) (`make build` wraps the same command). Stages are modular Python modules under [`tools/build/`](../tools/build/); CI may run them sequentially or shard them with `--only`. Output is reproducible with `--reproducible` (see [docs/architecture.md](architecture.md)).
 
 ### 6.4 Auto-tagging rules
 
-- **Equipment** — substring match of the UC's `App/TA:` string against [`EQUIPMENT[].tas`](../build.py).
-- **Pillar** — `security` if category is one of `{9, 10, 17}` OR if the UC title contains any term in [`PILLAR_SECURITY_WORDS`](../build.py); `observability` if `Monitoring type:` is one of `{performance, availability, capacity, fault, configuration}`; `both` when both conditions trigger.
-- **Premium** — [`assign_premium()`](../build.py) inspects the UC's title, `App/TA:`, and SPL for keywords indicating Enterprise Security (`| tstats ... from datamodel=Risk`), ITSI (`KPI`, `service health`), or SOAR (`playbook`, `action`).
-- **Regulations** — [`assign_regulations()`](../build.py) applies category+subcategory → regulation-list rules (e.g. everything under `22.3` is tagged `NIS2`).
+During `_post_process_category` in [`tools/build/parse_content.py`](../tools/build/parse_content.py), the same enrichment rules apply as the historic single-file builder:
+
+- **Equipment** — substring match of the UC's TA string (`t`) against vendor pattern lists from shared equipment metadata.
+- **Pillar** — security if category ∈ `{9, 10, 17}` or title matches security terms; observability when monitoring type matches performance/availability/capacity/fault/configuration; `both` when both fire.
+- **Premium** — keyword scan of title, TA string, and SPL for ES / ITSI / SOAR signals.
+- **Regulations** — merge of authored `regs` / `compliance` with category+subcategory auto rules.
 
 ### 6.5 Release notes generation
 
-The `<div class="rn-overlay">` block in [`index.html`](../index.html) is regenerated from [`CHANGELOG.md`](../CHANGELOG.md) by [`sync_release_notes()`](../build.py) on every build. **Do not edit the release notes HTML by hand.** Edit `CHANGELOG.md` and re-run `build.py`.
+Release notes in repo-root [`index.html`](../index.html) stay in sync with [`CHANGELOG.md`](../CHANGELOG.md) via the HTML note sync step in the maintained workflows. **Do not edit the release notes block by hand** — update `CHANGELOG.md` and regenerate via the normal build/publish flow (`make build` and commit any tracked HTML deltas required by the project).
 
 ---
 
@@ -343,15 +342,15 @@ The `<div class="rn-overlay">` block in [`index.html`](../index.html) is regener
 ```mermaid
 flowchart LR
     repo["GitHub repo"]
-    pages["GitHub Pages<br/>static hosting"]
+    pages["GitHub Pages<br/>dist/"]
     browser["Browser"]
     bot["LLM / bot"]
     integrator["Integrator<br/>script"]
-    mcp["splunk-uc-mcp<br/>(Phase 6, local stdio)"]
+    mcp["splunk-uc-mcp<br/>(local stdio)"]
     agent["MCP-capable agent<br/>(Cursor / Claude)"]
 
     repo -- "on push (pages.yml)" --> pages
-    pages -- "index.html + data.js" --> browser
+    pages -- "/browse/ + /api/catalog-index.json" --> browser
     pages -- "llms.txt / llms-full.txt" --> bot
     pages -- "catalog.json / api/v1/*.json" --> integrator
     pages -- "api/v1/*.json (HTTPS fallback)" --> mcp
@@ -359,23 +358,22 @@ flowchart LR
     mcp -- "JSON-RPC stdio" --> agent
 ```
 
-The production site is **GitHub Pages** fronting the `main` branch root; the deployed content is byte-identical to what is committed. There is no CDN cache layer beyond GitHub's default. There is no back-end. The MCP server runs **client-side**, alongside the agent, and reads `api/v1/*.json` either from a local clone (preferred) or the Pages mirror (HTTPS fallback).
+The production site is **GitHub Pages** serving the contents of `dist/` from `main`. There is no application back-end. The MCP server runs **client-side**, alongside the agent, and reads `api/v1/*.json` either from a local checkout of `dist/` (preferred) or the Pages mirror (HTTPS fallback).
 
 ### 7.2 Dashboard architecture
 
-[`index.html`](../index.html) is a single HTML file containing:
+The interactive catalog browser (`dist/browse/`) ships as static HTML plus fingerprinted JavaScript. At runtime the bundled loader (`src/scripts/00-loader.js`) fetches `/api/catalog-index.json`, reconstructs the in-memory catalog graph (`DATA`, `CAT_META`, `CAT_GROUPS`, `EQUIPMENT`, …), and lazy-loads `/api/cat-N.json` (and richer `/api/v1/*` surfaces) when a user opens a category or UC. **There is no monolithic `data.js` in the v7 deployment.**
 
-- Inline CSS (no external stylesheets; theme variables for light/dark).
-- Inline JS that consumes the globals exposed by [`data.js`](../data.js): `DATA`, `CAT_META`, `CAT_GROUPS`, `EQUIPMENT`, `RECENTLY_ADDED`, the optional `ROADMAP` (per-category crawl/walk/run rollout emitted when any UC declares a `wave`; see [`catalog-schema.md`](catalog-schema.md#implementationroadmap)), and the LLM-safe `NON_TECHNICAL` loaded from [`non-technical-view.js`](../non-technical-view.js).
+Renders also include:
+
 - A filter strip (pillar / criticality / difficulty / monitoring type / regulation / sort).
-- A virtualised list that only renders visible UCs — required because the catalog is ≥6,000 items.
-- A deep-link hash router: `#uc-10.1.5`, `#c-10`, `#s-10.1`, `#q=ransomware`.
-- A side-loaded release-notes modal populated by `build.py` from `CHANGELOG.md`.
-- A side-loaded non-technical / executive view driven by `window.NON_TECHNICAL`.
+- A virtualised list — required because the catalog is **7,364** use cases.
+- A deep-link router: `#uc-10.1.5`, `#c-10`, `#s-10.1`, `#q=ransomware`.
+- Release-notes and non-technical / executive views driven by the same static bundle + injected scripts (`custom-text.js`, `non-technical-view.js` where applicable).
 
 ### 7.3 Customisation points without forking
 
-- [`custom-text.js`](../custom-text.js) — hero copy, footer, chip labels, roadmap text. Never overwritten by `build.py`.
+- [`custom-text.js`](../custom-text.js) — hero copy, footer, chip labels, roadmap text. Not overwritten by `make build`.
 - `window.SITE_CUSTOM.siteRepoUrl` — override in `index.html` so forks point "Report issue" links at their own GitHub.
 - `window.SITE_CUSTOM.extraFooterLinks` — add external links (e.g. your internal documentation).
 
@@ -404,7 +402,7 @@ All audits are pure Python (stdlib) and live under [`scripts/`](../scripts/). Ea
 | [`audit_prerequisites.py`](../scripts/audit_prerequisites.py) (v6.1+) | UC implementation-ordering graph: rejects unknown prereq ids, self-references, duplicates, and cycles (iterative DFS); warns on wave monotonicity; emits a deterministic graph audit report at `reports/prerequisites-audit.json` that CI diffs under `--check`. See [implementation-ordering.md](implementation-ordering.md). |
 | [`audit_non_technical_sync.py`](../scripts/audit_non_technical_sync.py) | Every category+subcategory in markdown has a `non-technical-view.js` entry with exactly 3 UC refs; referenced UC IDs exist |
 | [`audit_changelog_uc_refs.py`](../scripts/audit_changelog_uc_refs.py) | CHANGELOG version headers (shape, dates, ordering, uniqueness); UC references in markdown point at real UCs |
-| [`audit_repo_consistency.py`](../scripts/audit_repo_consistency.py) | `INDEX.md` vs `cat-*.md`; icons vs `index.html` `SI` paths; Quick Start entries; build.py `CAT_GROUPS` |
+| [`audit_repo_consistency.py`](../scripts/audit_repo_consistency.py) | `INDEX.md` / `content/` vs HTML; icons; Quick Start entries; `CAT_GROUPS` coverage |
 | [`audit_spl_hallucinations.py`](../scripts/audit_spl_hallucinations.py) | SPL commands, eval functions, `tstats` datamodel paths, unknown commands, `IN` wildcard misuse |
 | [`audit_splunkbase_ids.py`](../scripts/audit_splunkbase_ids.py) | Splunkbase app ID references cross-checked for consistent app naming |
 | [`audit_links.py`](../scripts/audit_links.py) | HTTP HEAD every external URL; report broken |
@@ -414,28 +412,29 @@ All audits are pure Python (stdlib) and live under [`scripts/`](../scripts/). Ea
 
 ### 8.2 CI enforcement
 
-The PR workflow [`.github/workflows/validate.yml`](../.github/workflows/validate.yml) runs on pull requests touching any of `use-cases/**`, `build.py`, `non-technical-view.js`, `scripts/**`, `CHANGELOG.md`, `index.html`, `VERSION`, `custom-text.js`, `tools/**`.
+The PR workflow [`.github/workflows/validate.yml`](../.github/workflows/validate.yml) runs on pull requests touching catalog sources (`content/**`, `data/**`, `schemas/**`, `src/**`, `tools/**`, `scripts/**`, and related paths—see the workflow `paths` filter).
 
-Steps:
+Representative steps (order may evolve—read the workflow for truth):
 
 1. UC ID audit (`audit_uc_ids.py`)
 2. UC structure audit (`audit_uc_structure.py --full`)
 3. Non-technical view sync (`audit_non_technical_sync.py`)
 4. CHANGELOG and cross-references (`audit_changelog_uc_refs.py`)
 5. Repository consistency (`audit_repo_consistency.py`)
-6. Catalog schema (`audit_catalog_schema.py`)
-7. Prerequisite graph audit (`audit_prerequisites.py --check`) — v6.1+
-8. Quality metadata coverage (`audit_quality_metadata.py` — warning mode from v5.1, hard gate from v5.2)
-9. Non-technical JS syntax (Node one-liner)
-10. Version triple consistency (VERSION ↔ CHANGELOG top ↔ release-notes top)
-11. Build freshness — runs `python3 build.py` and fails if `data.js`, `catalog.json`, `llms*.txt`, `sitemap.xml`, or `api/*.json` would change
-12. Prerequisite graph post-build drift (`audit_prerequisites.py --check` after `build.py`) — v6.1+
+6. Catalog / schema audits (`audit_catalog_schema.py`, `tools/audits/*` as wired)
+7. Prerequisite graph audit (`audit_prerequisites.py --check`)
+8. Quality metadata coverage (`audit_quality_metadata.py`)
+9. Design / regulatory primer freshness guards
+10. Build reproducibility + budgets + Lighthouse / axe (per [docs/architecture.md](architecture.md))
+11. Build freshness — `make build` / `python3 tools/build/build.py --out dist` must match committed generated artefacts enumerated in `.github/workflows/validate.yml` (catalog mirrors, API shards, LLM exports, sitemaps, scorecard outputs, etc.).
+
+Post-merge, `pages.yml` publishes `dist/` to GitHub Pages.
 
 ### 8.3 Other workflows
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
-| `pages.yml` | push to main | Deploy the static site to GitHub Pages |
+| `pages.yml` | push to main | Build `dist/` and deploy GitHub Pages |
 | `traffic.yml` | daily cron | Persist GitHub traffic stats for long-term analysis |
 | `uc-manifest.yml` | push to main | Rebuild the UC summary manifest for internal consumers |
 | `link-check.yml` (v5.1+) | weekly cron | Run `audit_links.py`; open an Issue on new breakage |
@@ -471,7 +470,7 @@ All four are generated from `catalog.json` by scripts under [`scripts/`](../scri
 
 - **HTTP GET `api/cat-N.json`** — small payloads (tens of KB) per category; suitable for on-demand fetching.
 - **HTTP GET `catalog.json`** — full catalog (~40 MB). Suitable for bulk offline processing; cache aggressively.
-- **`git clone` + `python3 build.py`** — for integrators who need to modify the pipeline (add a field, change auto-tagging).
+- **`git clone` + `make build`** — reproduce `dist/` locally; use when changing parsers, renderers, or emitted APIs.
 - **`git clone` + `pip install openapi-generator-cli` + codegen** — the OpenAPI 3.1 spec at `openapi.yaml` (rendered at [`/api-docs.html`](../api-docs.html)) means typed client code is a single `openapi-generator-cli generate -i openapi.yaml -g <lang>` away.
 - **`pip install -e mcp/` + MCP-capable client** — the Phase 6 Model Context Protocol server at [`mcp/`](../mcp/) wraps `api/v1/*.json` in an LLM-addressable surface (eight tools + four URI schemes) for Cursor, Claude Desktop, Claude Code, and any other MCP-compatible agent.
 
@@ -485,7 +484,7 @@ installable Python package at [`mcp/`](../mcp/) built on the official
 **Transport.** Stdio (JSON-RPC over stdin/stdout). No HTTP listener,
 no authentication surface, no DNS-rebinding risk. Stdio is the
 recommended MCP transport per the CoSAI MCP Security guidance; HTTP
-streaming is on the v6.x backlog for opt-in remote single-tenant
+streaming is on the backlog for opt-in remote single-tenant
 deployments.
 
 **Data source.** The server resolves catalogue paths with a
@@ -545,7 +544,7 @@ Maintainers always ask the user/PM before bumping. Never pick a version autonomo
 
 ### 10.3 CI freshness gate
 
-On every PR, CI runs `python3 build.py` and fails if any of `data.js`, `catalog.json`, `llms.txt`, `llm.txt`, `llms-full.txt`, `sitemap.xml`, or `api/*.json` would change. This guarantees that the committed generated files always match the source. The remediation is always "run `build.py` locally and commit the result."
+On every PR, CI runs the catalog build and fails if tracked generated files drift. The remediation is `make build` (or `python3 tools/build/build.py --out dist`), then commit the regenerated outputs the workflow lists.
 
 ---
 
@@ -565,8 +564,8 @@ On every PR, CI runs `python3 build.py` and fails if any of `data.js`, `catalog.
 ```mermaid
 flowchart LR
     fork["Fork / branch"]
-    edit["Edit use-cases/cat-*.md"]
-    build["Run python3 build.py"]
+    edit["Edit content/cat-*/UC-*.json"]
+    build["Run make build"]
     audit["Run scripts/audit_*.py locally"]
     pr["Open PR"]
     ci["CI runs validate.yml"]
@@ -595,9 +594,9 @@ Non-trivial architectural changes are captured as ADRs under [`docs/adr/`](adr/)
 
 ### 12.2 Performance
 
-- Static site, cold page-load dominated by `data.js` size (currently ~37 MB).
-- **Virtualised list** renders only visible UCs; list of 6,400+ items remains responsive.
-- Search index is built once on page load and kept in memory; typing is O(n) over ~6,400 short strings (tens of ms).
+- Cold loads fetch `catalog-index.json` (~hundreds of KB gzipped) plus sharded search JSON — not a single 30+ MB script.
+- **Virtualised list** keeps interactive browsing responsive across **7,364** UCs.
+- Full-text search uses MiniSearch shards loaded from `/assets/search-shard-*.json`; merge cost scales with shard count, not a monolithic dump.
 - `api/cat-N.json` shards limit payload size for programmatic consumers who only need one category.
 
 ### 12.3 SEO
@@ -629,8 +628,8 @@ Localisation is not on the current roadmap; the surface is documented so replica
 
 | Layer | Implementation | Rationale |
 |---|---|---|
-| Authoring | Plain markdown in `use-cases/*.md` | Reviewable in PRs; trivial to edit; no build to preview |
-| Build | [`build.py`](../build.py), Python 3 stdlib only | Zero dependencies; works on any Python 3.8+; no `pip install` step |
+| Authoring | `content/cat-*/UC-*.json` + `_category.json` | Small PR diffs; schema-validated JSON |
+| Build | [`tools/build/build.py`](../tools/build/build.py) (`make build`), Python 3.12 stdlib | Reproducible `dist/`; modular `parse_content` / `render_*` stages |
 | Validation | Python stdlib under [`scripts/`](../scripts/); one Node eval for JS syntax check | Same reasoning |
 | Runtime | Static HTML + JS; no bundler; no framework | Forkability; editor can open `index.html` directly |
 | Hosting | GitHub Pages | Free, native for GitHub repos, integrates with CI |
@@ -649,25 +648,25 @@ This section shows how to stand up the same product for a different content doma
 
 To replicate for **Microsoft Sentinel analytic rules** (KQL):
 
-1. Keep the markdown template. Rename `SPL:` to `KQL:` and update the regex in `parse_category_file()` to match the fenced block language (` ```kql ` instead of ` ```spl `).
-2. Replace the `EQUIPMENT` map in `build.py` with Sentinel connectors (Azure AD, M365 Defender, AWS S3, etc.).
-3. Replace `CIM Models:` with Sentinel's normalized schemas (ASIM).
-4. Replace the Splunk TA generator in v5.2 with an **Azure Sentinel solution package** generator (`azuresentinel/Solutions/<name>/`).
+1. Keep the JSON schema fields. Swap `splQuery` (or equivalent) payloads from SPL to KQL in each `UC-*.json`.
+2. Replace equipment / connector maps in the shared metadata the parser loads so tags reflect Sentinel data sources.
+3. Replace CIM-oriented fields with ASIM (or your normalised schema) in the schema + templates.
+4. Replace the Splunk TA generator with an **Azure Sentinel solution package** generator (`azuresentinel/Solutions/<name>/`).
 
-Everything else — the ID scheme, the audits, the dashboard, the OpenAPI spec, the `llms.txt` convention — remains unchanged.
+Everything else — the ID scheme, the audits, the static site, the OpenAPI spec, the `llms.txt` convention — remains structurally the same.
 
 ### 14.2 Swap the query language
 
 For **Datadog monitors** (DQL):
 
-1. Change ` ```spl ` to ` ```dql `.
-2. Drop CIM; add a `- **Datadog metric namespace:**` optional field.
+1. Change stored query language field(s) in `UC-*.json` from SPL blocks to ` ```dql ` fenced prose in long-form markdown companions (or a first-class JSON field, after you extend the schema).
+2. Drop CIM fields; add Datadog-specific metadata the schema allows.
 3. Replace the Splunk TA generator with a Terraform module generator that emits `datadog_monitor` resources.
 
 For **Google Chronicle** (YARA-L):
 
-1. Change ` ```spl ` to ` ```yaral `.
-2. Add a `- **Chronicle UDM mapping:**` field.
+1. Store rules as YARA-L in JSON (extend schema + templates accordingly).
+2. Add Chronicle UDM mapping fields.
 3. Replace the Splunk TA generator with a Chronicle rules pack (JSON array of rule objects).
 
 ### 14.3 Swap the host
@@ -676,7 +675,7 @@ GitHub Pages is the default. The site is pure static assets, so any static host 
 
 | Host | Adjustments |
 |---|---|
-| AWS S3 + CloudFront | Upload the repo root (except `use-cases/`, `scripts/`, `.github/`). Point CloudFront at the bucket. |
+| AWS S3 + CloudFront | Upload `dist/` (and any mandatory repo-root assets your host expects). Omit authoring-only trees (`content/`, `tools/`, `.github/`) from the bucket if desired. |
 | Netlify | Drop a `netlify.toml` with `publish = "."` and no `build.command` (the repo ships pre-built). |
 | Vercel | Configure as a static project; no framework preset. |
 | Internal GitLab Pages | `.gitlab-ci.yml` with a single `pages` job that copies the repo contents to `public/`. |
@@ -687,13 +686,13 @@ The CI freshness gate ensures whichever host you choose always serves the exact 
 
 When you fork this project:
 
-1. Replace `SITE_BASE_URL` and `RAW_GITHUB_URL` in `build.py` with your deployed URLs.
+1. Replace `SITE_BASE_URL` / deployment constants in [`tools/build/`](../tools/build/) (and any remaining root HTML templates) with your URLs.
 2. Replace `fenre/splunk-monitoring-use-cases` in `README.md` and `CONTRIBUTING.md`.
-3. Update `window.SITE_CUSTOM.siteRepoUrl` in `index.html`.
-4. Replace `CAT_META` in `INDEX.md` with your category metadata.
-5. Replace `EQUIPMENT` in `build.py` with your vendor map.
-6. Rewrite your content inside `use-cases/cat-*.md`; keep the ID scheme.
-7. Keep `VERSION`, `CHANGELOG.md`, and release-notes HTML in sync.
+3. Update `window.SITE_CUSTOM.siteRepoUrl` (or equivalent in `custom-text.js` / bundled site config).
+4. Replace category metadata in `content/cat-*/_category.json` + [`content/INDEX.md`](../content/INDEX.md) as needed.
+5. Replace vendor/equipment metadata loaded by the parser (see `_load_equipment` in [`tools/build/parse_content.py`](../tools/build/parse_content.py)).
+6. Maintain your catalog under `content/cat-*/UC-*.json`; keep the ID scheme gap-free within subcategories (this repository ships **7,364** UCs).
+7. Keep `VERSION`, `CHANGELOG.md`, and release notes HTML in sync.
 
 ---
 
@@ -738,14 +737,14 @@ The product is designed to be extended without forking the parser. These are the
 
 | Extension | Where | How |
 |---|---|---|
-| Add a new UC field | `build.py:parse_category_file()` | Add a new `elif field_name == "..."` branch; update [docs/catalog-schema.md](catalog-schema.md) and `audit_uc_structure.py` |
-| Add a new audit | `scripts/audit_*.py` + `.github/workflows/validate.yml` | New Python script that exits non-zero on failure; add a step to validate.yml |
-| Add a new equipment vendor | `build.py:EQUIPMENT` | Append a new entry; no markdown changes needed |
-| Add a new category group | `build.py:CAT_GROUPS` | Append a new key; update the UI filter strip in `index.html` |
-| Add a new generated output | `build.py:main()` + generator function | New `write_*()` call at the end of `main()`; add the output path to the CI freshness gate |
-| Replace the query language | `build.py` fence detection | Change ` ```spl ` to ` ```<lang> `; add `audit_<lang>_hallucinations.py`; keep everything else |
-| Replace the runtime UI | `index.html` + `data.js` | `data.js` is a stable contract; any UI that consumes those globals works |
-| Add an MCP tool | [`mcp/src/splunk_uc_mcp/tools/`](../mcp/src/splunk_uc_mcp/tools/) | Declare `TOOL_DEF`, `INPUT_SCHEMA`, `OUTPUT_SCHEMA`, and a handler; register in `server.py`; add unit tests in `mcp/tests/`; the drift guard then auto-validates the output against live `api/v1/*.json` |
+| Add a new UC field | `schemas/uc.schema.json` + [`tools/build/parse_content.py`](../tools/build/parse_content.py) canonical→legacy mapping | Extend schema, conversion, and audits |
+| Add a new audit | `scripts/audit_*.py` or `tools/audits/*` + `.github/workflows/validate.yml` | New script exiting non-zero on failure; wire a workflow step |
+| Add a new equipment vendor | Equipment metadata consumed by `_load_equipment` / post-processing | Append patterns; no per-UC JSON edits required for the map itself |
+| Add a new category group | `CAT_GROUPS` source used by `parse_content` | Extend group map; update browse filters |
+| Add a new generated output | New `render_*` module + [`tools/build/build.py`](../tools/build/build.py) stage list | Register stage; add integrity coverage |
+| Replace the query language | UC JSON + templates + SPL audits | Swap validators and field names; keep URLs stable |
+| Replace the runtime UI | `src/` pages + scripts | Keep `/api/*` contracts stable for integrators |
+| Add an MCP tool | [`mcp/src/splunk_uc_mcp/tools/`](../mcp/src/splunk_uc_mcp/tools/) | Declare `TOOL_DEF`, schemas, handler; register in `server.py`; extend drift guard tests |
 | Add an MCP URI scheme | [`mcp/src/splunk_uc_mcp/resources/`](../mcp/src/splunk_uc_mcp/resources/) | Add slug regex + resolver; register in `server.py`; add tests. Keep read-only and path-traversal-safe. |
 
 This list is exhaustive for the purpose of adding content, automations, or exports. Anything beyond it needs an ADR.

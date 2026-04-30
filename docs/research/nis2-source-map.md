@@ -51,3 +51,11 @@
 - Retrieved: 2026-04-29
 - Use in this implementation: Practical national interpretation signal for RMM-style evidence, used only where consistent with official EU sources.
 
+## Key NIS2 use cases sourced from these authorities
+
+- UC-22.2.1 — NIS2 Art.23(4)(a): 24-Hour Early-Warning Notification Readiness
+- UC-22.2.2 — NIS2 Art.21(2)(a): Risk Analysis Policy Evidence
+- UC-22.2.3 — NIS2 Art.21(2)(b): Incident Handling Workflow Compliance
+
+Related documentation: [NIS2 Monitoring Methodology](../nis2-monitoring-methodology.md), [Evidence Pack — NIS2](../evidence-packs/nis2.md).
+

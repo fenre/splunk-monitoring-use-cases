@@ -1,9 +1,11 @@
 # Migration build parity
 
-This document explains why the new `content/`-tree loader (`SPLUNK_UC_LOADER=content`)
+> **Note:** This document is **historical**. The v6→v7 migration is complete. The only build pipeline is **`tools/build/build.py`** (and **`make build`**). See [`AGENTS.md`](../AGENTS.md) for current build commands.
+
+This document explains why the `content/` tree loader
 does **not** produce a byte-identical build to the legacy
 monolithic-markdown loader (`SPLUNK_UC_LOADER=legacy`), and why every
-remaining diff is an *intentional content improvement*, not a regression.
+remaining diff was an *intentional content improvement*, not a regression.
 
 It is the closing artifact for the `migrate-step-4-build-parity`
 sub-task of the `migrate-to-per-uc-files` migration.
@@ -148,13 +150,6 @@ was written:
 After all five fixes, the only remaining diffs are the content
 enrichments documented in the table above.
 
-## When to delete the legacy loader
+## Historical note: legacy loader removal
 
-The `legacy` branch of `_resolve_loader_kind()` will be removed as
-part of the `cleanup-and-docs` task, alongside the deletion of the
-monolithic `use-cases/cat-NN-*.md` files. Until then, the legacy
-loader stays in the tree as an emergency fallback in case a
-content-tree-only regression is discovered post-merge.
-
-The legacy branch is opt-in (env-var-gated) and never selected by
-default, so the v7 release ships exclusively from the content tree.
+The `legacy` branch of `_resolve_loader_kind()` and the monolithic `use-cases/cat-NN-*.md` sources were removed as part of post-v7 cleanup. **Current builds always load canonical JSON from `content/cat-*/UC-*.json`.** The commands below remain useful when reading this document for archaeology or reproducing the migration-era diff.

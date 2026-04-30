@@ -38,3 +38,13 @@ python3 scripts/audit_splunk_cloud_compat.py
 ## Revalidation Triggers
 
 Re-run this validation after changes to NIS2 source metadata, the no-gap matrix, any NIS2 UC JSON file, evidence-pack generation, compliance reports, or web story payloads.
+
+## Validated NIS2 use cases
+
+The following anchor use cases pass gold-profile audit and are validated against the no-gap matrix:
+
+- UC-22.2.1 — NIS2 Art.23(4)(a): 24-Hour Early-Warning Notification Readiness
+- UC-22.2.2 — NIS2 Art.21(2)(a): Risk Analysis Policy Evidence
+- UC-22.2.3 — NIS2 Art.21(2)(b): Incident Handling Workflow Compliance
+
+Related documentation: [NIS2 Monitoring Methodology](nis2-monitoring-methodology.md), [NIS2 External Review Pack](nis2-external-review-pack.md), [NIS2 Maturity Benchmark](nis2-maturity-benchmark.md).

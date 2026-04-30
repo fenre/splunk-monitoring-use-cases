@@ -3087,7 +3087,7 @@ https://raw.githubusercontent.com/fenre/splunk-monitoring-use-cases/main/use-cas
           <h3 class="help-section-title">Build your own fork of a pack</h3>
 <pre><code>git clone https://github.com/fenre/splunk-monitoring-use-cases
 cd splunk-monitoring-use-cases
-python3 build.py                    # rebuild catalog.json
+make build                          # rebuild catalog + site
 scripts/package_ta.sh   dist/       # TA with saved searches
 scripts/package_itsi.sh dist/       # ITSI KPI/service templates
 scripts/package_es.sh   dist/       # ES correlation searches</code></pre>
@@ -3190,7 +3190,6 @@ scripts/package_es.sh   dist/       # ES correlation searches</code></pre>
   </div>
 </footer>
 
-<script src="data.js"></script>
 <script src="custom-text.js"></script>
 <script src="non-technical-view.js"></script>
 <script src="provenance.js"></script>
@@ -3199,18 +3198,8 @@ scripts/package_es.sh   dist/       # ES correlation searches</code></pre>
 <script>
 /* Cisco UI catalog — chunk 0: lazy-bootstrap loader.
  *
- * Runs FIRST in the concatenated bundle. Two modes:
- *
- *   1) Legacy mode — `data.js` was loaded as a separate <script> tag, so
- *      window.DATA, window.EQUIPMENT, window.CAT_META, window.CAT_GROUPS,
- *      window.FILTER_FACETS, window.RECENTLY_ADDED already exist.
- *      The loader resolves immediately, calls __bootstrapCatalogState(),
- *      and dispatches the "catalog:ready" event synchronously.
- *
- *   2) Lazy mode (production) — data.js is NOT loaded. window.DATA is
- *      empty. The loader fetches /api/catalog-index.json (~5 MB JSON,
- *      ~750 KB gzipped), reconstructs the legacy globals from the
- *      lightweight UC stubs, then runs the bootstrap.
+ * Fetches /api/catalog-index.json, reconstructs the catalog globals from
+ * lightweight UC stubs, then runs __bootstrapCatalogState().
  *
  * Heavy per-UC fields (full SPL, narrative, references, screenshots)
  * are NOT in the index. The detail panel lazy-fetches them from
@@ -3220,7 +3209,7 @@ scripts/package_es.sh   dist/       # ES correlation searches</code></pre>
  *   window.__catalogReady   — Promise<void>; resolves when DATA + globals
  *                             are populated and __bootstrapCatalogState()
  *                             has run. initApp() must `await` this.
- *   window.__catalogIndex   — the parsed catalog-index.json (lazy mode only).
+ *   window.__catalogIndex   — the parsed catalog-index.json.
  *   window.__ensureFullUC(uc_id) — returns Promise<void> that resolves when
  *                             the UC's heavy fields are merged into DATA.
  *                             Cheap if already loaded.
@@ -3230,8 +3219,6 @@ scripts/package_es.sh   dist/       # ES correlation searches</code></pre>
 (function() {
   if (typeof window === "undefined") return;
 
-  // Root-absolute so the SPA works from any depth (e.g. /browse/, /embed/...).
-  // Override via window.__CATALOG_API_BASE if hosting under a non-root prefix.
   var API_BASE = (typeof window.__CATALOG_API_BASE === "string" && window.__CATALOG_API_BASE)
     ? window.__CATALOG_API_BASE.replace(/\/+$/, "")
     : "/api";
@@ -3239,35 +3226,11 @@ scripts/package_es.sh   dist/       # ES correlation searches</code></pre>
   var CATALOG_INDEX_URL = API_BASE + "/catalog-index.json";
   var CATEGORY_URL = function(catId) { return API_BASE + "/cat-" + catId + ".json"; };
 
-  var legacyMode =
-    Array.isArray(window.DATA) &&
-    window.DATA.length > 0 &&
-    window.DATA[0] &&
-    Array.isArray(window.DATA[0].s);
-
   var dispatchedReady = false;
   var fullCatPromises = {};
   var fullUCPromises = {};
 
   window.__catalogReady = new Promise(function(resolve, reject) {
-    if (legacyMode) {
-      // Defer to a microtask so __bootstrapCatalogState (defined later in
-      // the bundle) is available when we call it.
-      Promise.resolve().then(function() {
-        try {
-          if (typeof __bootstrapCatalogState === "function") {
-            __bootstrapCatalogState();
-          }
-          _dispatchReady();
-          resolve();
-        } catch (err) {
-          console.error("[loader] legacy bootstrap failed:", err);
-          reject(err);
-        }
-      });
-      return;
-    }
-
     fetch(CATALOG_INDEX_URL, { credentials: "same-origin" })
       .then(function(res) {
         if (!res.ok) {
@@ -3359,7 +3322,6 @@ scripts/package_es.sh   dist/       # ES correlation searches</code></pre>
   /** Fetch /api/cat-{catId}.json once and merge heavy fields into the
    *  matching UC stubs in window.DATA. Returns a Promise<void>. */
   window.__ensureFullCategory = function(catId) {
-    if (legacyMode) return Promise.resolve();
     var key = String(catId);
     if (fullCatPromises[key]) return fullCatPromises[key];
 

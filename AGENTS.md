@@ -32,18 +32,10 @@ against a live Splunk instance.
 
 ## Content layout
 
-### v6 pipeline (current default)
+Source of truth: `content/cat-NN-slug/UC-X.Y.Z.json` (one directory per category, one JSON file per UC).
+Build: `make build` (or `python3 tools/build/build.py --out dist`) → `dist/` (static site + API + exports).
 
-Source of truth: `use-cases/cat-NN-slug.md` (one file per category, all UCs inline).
-Build: `python3 build.py` → `data.js`, `catalog.json`, `llms*.txt`, `sitemap.xml`, `api/*.json`.
-
-### v7 pipeline (parallel, per-UC files)
-
-Source of truth: `content/cat-NN-slug/UC-X.Y.Z.{md,json}` (one directory per category, one file pair per UC).
-Build: `python3 tools/build/build.py --out dist` → `dist/` (static site + API + exports).
-
-Both pipelines coexist. The v6 pipeline is gated by `validate.yml`; the v7
-pipeline is gated by `pages.yml`. Read [`docs/DESIGN.md`](docs/DESIGN.md) §6
+There is one build pipeline. Read [`docs/DESIGN.md`](docs/DESIGN.md) §6
 for the build stages.
 
 ## Identity scheme
@@ -72,9 +64,9 @@ for the build stages.
 
 1. **Schema:** Every UC JSON sidecar must validate against `schemas/uc.schema.json`.
 2. **Quality tiers:** Gold / Silver / Bronze — see `.cursor/rules/gold-standard-authoring.mdc` and `docs/gold-standard-template.md`.
-3. **Required fields (markdown):** Criticality, Difficulty, Monitoring type, Value, App/TA, Data Sources, SPL (fenced block), Implementation, Visualization, CIM Models.
+3. **Required fields (JSON):** `id`, `title`, `criticality`, `difficulty`, `monitoringType`, `value`, `app`, `dataSources`, `spl`, `implementation`, `visualization`, `cimModels`.
 4. **grandmaExplanation:** Every UC carries a plain-language `ge` field; generate with `scripts/generate_grandma_explanations.py`.
-5. **Validation:** Run `python3 scripts/audit_uc_structure.py --full` and `python3 build.py` before committing.
+5. **Validation:** Run `make audit` (or `python3 scripts/audit_uc_structure.py --full`) and `make build` before committing.
 
 ## MCP tools available
 
@@ -117,11 +109,12 @@ All audits are in `.github/workflows/validate.yml`. Key steps:
 ## Quick commands
 
 ```bash
-python3 build.py                                    # rebuild catalog + all outputs
-python3 scripts/audit_uc_structure.py --full        # validate markdown structure
+make build                                          # rebuild full site into dist/
+make audit                                          # run core audit checks
+make audit-full                                     # run ALL audit checks
+make test                                           # unit tests + build validation
 python3 scripts/generate_grandma_explanations.py    # fill missing plain-language fields
 python3 scripts/splunk_fortune.py                   # random UC "fortune cookie"
-python3 scripts/generate_api_surface.py             # regenerate api/v1/
 python3 scripts/audit_prerequisites.py --check      # validate implementation ordering
 ```
 

@@ -58,12 +58,12 @@ We will:
 **In scope:**
 
 - All SPL saved searches, macros, eventtypes, and correlation searches shipped
-  in `ta/`, `splunk-apps/`, `use-cases/`, and `catalog.json`
-- Python scripts under `scripts/` and `build.py`
+  in `ta/`, `splunk-apps/`, `content/`, and `catalog.json`
+- Python scripts under `scripts/`, `tools/build/`, and `tools/audits/`
 - The MCP server source under `mcp/src/splunk_uc_mcp/` (the JSON-RPC
   request/response handlers, the schema-validated tool surface, and the
   resource URI parsers)
-- The static dashboard (`index.html`, `data.js`, `custom-text.js`,
+- The static dashboard (`index.html`, shipped `dist/` pages, `custom-text.js`,
   `non-technical-view.js`, `regulatory-primer.html`, `scorecard.html`)
 - The Data Sizing Assessment tool (`tools/data-sizing/index.html` + JS)
 - Swagger UI assets in `vendor/swagger-ui/` (we pin checksums; tampered

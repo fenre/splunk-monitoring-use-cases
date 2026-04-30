@@ -1,10 +1,10 @@
 # Replication Guide
 
-This guide shows how to use this project as a template for a new catalog — for a different vendor, a different query language, or a different content domain. The output is a working static dashboard plus JSON API, built by one Python stdlib script, hosted on any static host.
+This guide shows how to use this project as a template for a new catalog — for a different vendor, a different query language, or a different content domain. The output is a working static dashboard plus JSON API, built by **`make build` / `tools/build/build.py`**, hosted on any static host.
 
-**Prerequisites:** Python 3.8+, a GitHub account (or any static host), a text editor.
+**Prerequisites:** Python 3.12+, a GitHub account (or any static host), a text editor.
 
-**Time to a working fork:** ~30 minutes for the starter template; ~1 day to migrate 20 real use cases; ~1 week to reach production quality.
+**Time to a working fork:** ~30 minutes for the starter template; ~1 day to migrate 20 real use cases; A full catalog like this repo ships **7,364** UCs; allow ~1 week to reach production quality at that scale.
 
 A minimal, runnable starter lives under [`templates/replication-starter/`](../templates/replication-starter/). Everything in this guide is demonstrated there.
 
@@ -46,34 +46,34 @@ Do **not** replicate if you need:
 
 ```mermaid
 flowchart LR
-    md["Markdown sources<br/>use-cases/cat-*.md"]
-    build["build.py<br/>(Python stdlib only)"]
-    out["Generated outputs<br/>catalog.json, data.js,<br/>api/cat-N.json, llms*.txt"]
-    ui["Static HTML<br/>index.html + data.js"]
+    content["Canonical JSON + prose<br/>content/cat-*/UC-*.{json,md}"]
+    build["tools/build/build.py<br/>(or make build)"]
+    out["Generated outputs<br/>dist/, catalog.json,<br/>api/cat-N.json, llms*.txt"]
+    ui["Static site<br/>dist/index.html + assets"]
 
-    md --> build --> out --> ui
+    content --> build --> out --> ui
 ```
 
 Only three parts matter. Everything else is audits, exports, and dashboards layered on top.
 
-- **Content** — one markdown file per category, a fixed heading + bulleted-field schema.
-- **Build** — a single Python stdlib script that parses markdown and emits JSON/JS/text.
-- **Runtime** — a single HTML file that reads the generated `data.js` and renders the dashboard.
+- **Content** — per-UC JSON under `content/` (and optional companion markdown), validated against `schemas/uc.schema.json`.
+- **Build** — `tools/build/build.py` (stdlib-first) loads content, runs enrichment, and emits the static site plus machine exports.
+- **Runtime** — the fingerprinted SPA under `dist/` plus lazy-loaded `/api/*.json` shards.
 
-Swap any of the three without touching the other two.
+Swap any of the three without touching the other two *(in a toy fork you might keep a tiny `build.py` parser instead — see the starter template)*.
 
 ---
 
 ## 3. Starter template walkthrough
 
-The starter under [`templates/replication-starter/`](../templates/replication-starter/) is a **minimum viable fork**: one category, one use case, a ~30-line build script, a ~50-line dashboard.
+The starter under [`templates/replication-starter/`](../templates/replication-starter/) is a **minimum viable fork**: one category, one use case, a ~30-line local `build.py`, a ~50-line dashboard **(the production repo uses `tools/build/build.py` + `content/` instead)**.
 
 ```
 templates/replication-starter/
 ├── README.md                       # quick-start
-├── build.py                        # ~30 LOC
+├── build.py                        # ~30 LOC (demo only; parent uses tools/build/build.py)
 ├── use-cases/
-│   └── cat-01-example.md           # 1 category, 1 UC
+│   └── cat-01-example.md           # 1 category, example UCs (markdown demo)
 ├── index.html                      # ~50 LOC
 └── catalog.schema.json             # JSON shape
 ```
@@ -87,9 +87,7 @@ python3 -m http.server 8080
 # open http://localhost:8080/
 ```
 
-You will see a single card rendered from the markdown. Edit `use-cases/cat-01-example.md`, rerun `build.py`, refresh the browser.
-
-The starter intentionally has no audits, no API shards, no LLM output, no exports. It exists to show the minimum moving parts.
+You will see cards rendered from the markdown. Edit `use-cases/cat-01-example.md`, rerun `build.py`, refresh the browser. **Production forks** replace this with **`content/cat-*/UC-*.json`** and **`make build`** — see [`templates/replication-starter/README.md`](../templates/replication-starter/README.md).
 
 ---
 
@@ -99,7 +97,7 @@ Five edits take you from this repo to a fork for a different domain. In each cas
 
 ### 4.1 Rename the query language fence
 
-**Where:** [`build.py:parse_category_file()`](../build.py)
+**Where:** `tools/build/parse_content.py` (or your starter `build.py` fence matcher)
 
 ```python
 # was:
@@ -108,7 +106,7 @@ if stripped.startswith("```spl") or stripped.startswith("```SPL"):
 if stripped.startswith("```kql") or stripped.startswith("```KQL"):
 ```
 
-And update your markdown `- **SPL:**` field label to `- **KQL:**` (or `DQL:`, `YARA-L:`, etc.). Rename the `q` key if you want; stability matters more than purity.
+And update your markdown `- **SPL:**` field label to `- **KQL:**` (or `DQL:`, `YARA-L:`, etc.) **or** the equivalent string fields in **`content/cat-*/UC-*.json`**. Rename the `q` key if you want; stability matters more than purity.
 
 ### 4.2 Replace the schema / data-model vocabulary
 
@@ -118,15 +116,15 @@ For Sentinel → `- **ASIM Schemas:**` and `- **ASIM KQL:**`. For Datadog → dr
 
 ### 4.3 Rewrite the equipment/connector map
 
-**Where:** `EQUIPMENT` in [`build.py`](../build.py) (L85–L1300 in the reference).
+**Where:** `EQUIPMENT` in [`tools/build/enrichment.py`](../tools/build/enrichment.py) (large constant near the top of the file).
 
 This is the largest edit. The reference repo's map covers ~150 Splunk TAs and ~400 equipment models. A Sentinel fork replaces this with ~200 Sentinel connectors. A Datadog fork replaces it with ~500 Datadog integrations. A Chronicle fork replaces it with the Chronicle source list.
 
 ### 4.4 Rewrite the auto-assignment rules
 
-**Where:** [`build.py`](../build.py) — `assign_pillar()`, `assign_premium()`, `assign_regulations()`.
+**Where:** enrichment/post-process steps in **`tools/build/enrichment.py`** / **`tools/build/parse_content.py`** — e.g. pillar assignment, premium-app tagging, regulation routing.
 
-These functions embed Splunk-specific taxonomy (Security vs Observability pillar; ES / ITSI / SOAR premium apps). Rewrite them for your platform or delete them — auto-tagging is optional.
+These steps embed Splunk-specific taxonomy (Security vs Observability pillar; ES / ITSI / SOAR premium apps). Rewrite them for your platform or delete them — auto-tagging is optional.
 
 ### 4.5 Rewrite the exports
 
@@ -289,12 +287,12 @@ rule suspicious_ps_downloadstring {
 3. Settings → Pages → Source: `Deploy from a branch`, branch `main`, folder `/ (root)`.
 4. Your site is live at `https://<user>.github.io/<repo>/`.
 
-Update `SITE_BASE_URL` and `RAW_GITHUB_URL` in your `build.py` to match.
+Update `SITE_BASE_URL` and `RAW_GITHUB_URL` in **`tools/build/build.py`** (or your site-config module) to match.
 
 ### 8.2 AWS S3 + CloudFront
 
 1. Create an S3 bucket configured for static hosting.
-2. Copy the repo root (excluding `use-cases/`, `scripts/`, `.github/`, `docs/` unless you want them served).
+2. Copy the **`dist/`** site (or whatever folder `make build` publishes), excluding scratch paths like `scripts/`, `.github/`, raw `docs/` unless you want them served.
 3. Point CloudFront at the bucket with an Origin Access Identity.
 4. Add a CI step that runs `aws s3 sync . s3://your-bucket --exclude='...' --delete` on push to `main`.
 
@@ -304,15 +302,15 @@ Drop a `netlify.toml` at repo root:
 
 ```toml
 [build]
-  publish = "."
-  command = "python3 build.py"
+  publish = "dist"
+  command = "make build"
 ```
 
-Netlify will run `build.py` on every push and serve the result.
+Netlify will run `make build` on every push and serve **`dist/`**.
 
 ### 8.4 Vercel
 
-Similar. Configure as a static project with no framework preset; set the build command to `python3 build.py`.
+Similar. Configure as a static project with no framework preset; set the build command to `make build` and publish **`dist/`**.
 
 ### 8.5 Internal GitLab Pages
 
@@ -322,9 +320,9 @@ Similar. Configure as a static project with no framework preset; set the build c
 pages:
   image: python:3
   script:
-    - python3 build.py
+    - make build
     - mkdir -p public
-    - cp -R . public/ || true
+    - cp -R dist/. public/
   artifacts:
     paths:
       - public
@@ -338,7 +336,7 @@ pages:
 
 The single biggest long-term risk for a replicated fork is **drift between the design document and the code**. The upstream repo mitigates this with:
 
-- A CI gate that runs `build.py` and fails if any generated file would change. Your fork should inherit this.
+- A CI gate that runs `make build` and fails if any generated file would change. Your fork should inherit this.
 - `scripts/audit_design_doc_freshness.py` (optional, non-gating) that checks `DESIGN.md` section headings against a canonical list and verifies every linked file resolves.
 - An ADR workflow that requires a new ADR for any change that contradicts an existing ADR.
 - A single `VERSION` file as the source of truth, with CI enforcing triple-sync (`VERSION` ↔ top `CHANGELOG.md` entry ↔ top release-notes block).

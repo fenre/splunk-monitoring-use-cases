@@ -2,13 +2,15 @@
 
 A step-by-step guide to get the Infrastructure Monitoring Use Case Dashboard running on GitHub Pages — free, no server required.
 
+The published site is produced by **`make build`** / **`python3 tools/build/build.py --out dist`** (see [`AGENTS.md`](../AGENTS.md)). Deploy the **`dist/`** output (and any repo-root artefacts your workflow copies), not a hand-picked list of legacy v6 files.
+
 ---
 
 ## Prerequisites
 
 - A GitHub account ([github.com](https://github.com))
 - Git installed on your machine (`git --version` to check)
-- The repository files: `index.html`, `data.js`, and `custom-text.js`
+- Python 3.12+ and the repo dependencies needed to run the build
 
 ---
 
@@ -22,25 +24,20 @@ A step-by-step guide to get the Infrastructure Monitoring Use Case Dashboard run
 
 ---
 
-## Step 2: Push the Dashboard Files
+## Step 2: Push the built site
+
+From a clone of this repository:
 
 ```bash
-# Clone your new repo
-git clone https://github.com/YOUR_USERNAME/infra-monitoring-use-cases.git
-cd infra-monitoring-use-cases
+make build
+# dist/ now contains index.html, api/, assets/, uc/, etc.
 
-# Copy the required files
-cp /path/to/repo/index.html .
-cp /path/to/repo/data.js .
-cp /path/to/repo/custom-text.js .
-
-# Push to GitHub
-git add index.html data.js custom-text.js
-git commit -m "Add use case dashboard"
+git add dist/
+git commit -m "Publish catalog site"
 git push origin main
 ```
 
-Or use the GitHub Web UI: click **"Add file"** → **"Upload files"** and upload the three files.
+If your Pages workflow uploads only `dist/`, point GitHub Pages at that folder (or merge `dist/` contents into `gh-pages` per your CI).
 
 ---
 
@@ -49,8 +46,8 @@ Or use the GitHub Web UI: click **"Add file"** → **"Upload files"** and upload
 1. In your repo, go to **Settings** (gear icon, top menu bar)
 2. In the left sidebar, click **Pages** (under "Code and automation")
 3. Under **"Build and deployment"**:
-   - **Source:** Select **"Deploy from a branch"**
-   - **Branch:** Select **`main`** and folder **`/ (root)`**
+   - **Source:** Select **"Deploy from a branch"** (or **GitHub Actions** if you use a workflow that uploads artefacts)
+   - **Branch:** Select the branch and folder that contains **`dist/`** output (often **`main`** and **`/dist`** or a dedicated **`gh-pages`** branch)
 4. Click **Save**
 
 ---
@@ -71,10 +68,10 @@ https://YOUR_USERNAME.github.io/infra-monitoring-use-cases/
 
 ## Updating the Dashboard
 
-When use case content changes:
+When use case content under `content/` changes:
 
-1. Run `python3 build.py` to regenerate `data.js` from `use-cases/*.md`
-2. Commit and push `data.js`
+1. Run **`make build`** or **`python3 tools/build/build.py --out dist`**
+2. Commit and push the updated **`dist/`** (and any tracked generated artefacts per your workflow)
 3. GitHub Pages auto-redeploys within ~60 seconds
 
 ---
@@ -94,7 +91,7 @@ If you want a cleaner URL like `usecases.yourdomain.com`:
 
 | Issue | Fix |
 |-------|-----|
-| 404 error | Make sure the file is named `index.html` |
+| 404 error | Make sure the site root contains `index.html` from **`dist/`** |
 | Page not loading | Check Settings → Pages shows a green "Your site is live" message |
 | Old version showing | Hard refresh with `Ctrl+Shift+R` (or `Cmd+Shift+R` on Mac) |
 | Private repo, no Pages | GitHub Pages on private repos requires GitHub Pro or Enterprise |

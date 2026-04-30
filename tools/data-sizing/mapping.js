@@ -2,7 +2,7 @@
  * DSA Mapping Tables — shared between the main catalog and the DSA tool.
  *
  * EQUIPMENT_GROUPS:   UI grouping for the equipment inventory, shared by both tools.
- * DSA_EQUIPMENT_MAP:  equipment_id (from EQUIPMENT in data.js) → [dsa_source_ids]
+ * DSA_EQUIPMENT_MAP:  equipment_id (from EQUIPMENT in catalog) → [dsa_source_ids]
  * DSA_UC_MAP:         use_case_id (e.g. "5.2.1") → [dsa_source_ids]
  *
  * These are derived from ot-data-sources.js and should be updated when

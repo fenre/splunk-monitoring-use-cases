@@ -32,3 +32,13 @@ This repository implements a best-in-class Splunk-based NIS2 monitoring and evid
 - Are HR, training, customer notification, supplier, and background-check fields privacy-minimised for the entity's jurisdiction?
 - Are evidence exports retained in a tamper-evident store with access controls, retention, and deletion rules approved by the organisation?
 - Are Splunk product dependencies, CIM accelerations, SOAR playbooks, ITSI services, and external source-of-record integrations present in the target environment?
+
+## Key NIS2 use cases
+
+Start the review with the anchor use cases that operationalise the core NIS2 obligations:
+
+- UC-22.2.1 — NIS2 Art.23(4)(a): 24-Hour Early-Warning Notification Readiness
+- UC-22.2.2 — NIS2 Art.21(2)(a): Risk Analysis Policy Evidence
+- UC-22.2.3 — NIS2 Art.21(2)(b): Incident Handling Workflow Compliance
+
+Related documentation: [NIS2 Monitoring Methodology](nis2-monitoring-methodology.md), [NIS2 Maturity Benchmark](nis2-maturity-benchmark.md), [Evidence Pack — NIS2](evidence-packs/nis2.md).

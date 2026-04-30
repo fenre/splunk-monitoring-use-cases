@@ -2,6 +2,8 @@
 
 Use cases in this repo support the following optional fields. All are optional unless noted.
 
+> **Source of truth:** Per-use-case **JSON** under `content/cat-*/UC-*.json` is authoritative for structured fields. This page is a human-readable authoring contract (including markdown-oriented labels where they still apply). The canonical machine definition is [`schemas/uc.schema.json`](../schemas/uc.schema.json).
+
 ## Core fields (existing)
 
 | Field | Markdown key | Description |
@@ -14,7 +16,7 @@ Use cases in this repo support the following optional fields. All are optional u
 | Data Sources | **Data Sources:** | Log/metric sources. |
 | SPL | **SPL:** | Splunk search (in a ```spl block). |
 | Implementation | **Implementation:** | How to deploy and operate (short summary). |
-| Detailed implementation | **Detailed implementation:** | Optional. Multi-line step-by-step instructions; shown in the dashboard as “View more detailed instructions”. If omitted, build.py generates a standard set from the other fields. |
+| Detailed implementation | **Detailed implementation:** | Optional. Multi-line step-by-step instructions; shown in the dashboard as “View more detailed instructions”. If omitted, `tools/build/build.py` generates a standard set from the other fields. |
 | Script example | **Script example:** | Optional. For scripted-input use cases: add a code block after this line with the script. Shown in the modal and in detailed instructions. See [Implementation guide](implementation-guide.md). |
 | Visualization | **Visualization:** | Suggested dashboards/charts. |
 | CIM Models | **CIM Models:** | Splunk CIM data model names the use case relies on (comma-separated, e.g. `Performance`, `Network_Traffic`, `Change`). See [CIM and data models](cim-and-data-models.md). |
@@ -89,7 +91,7 @@ Authors can mark each UC with a **wave** (crawl / walk / run) and list **prerequ
 
 ### Validation
 
-`build.py` validates the graph after parsing:
+`tools/build/build.py` validates the graph after parsing:
 
 - Unknown UC IDs are errors.
 - Self-references (`UC-1.1.1` listing itself) are errors.

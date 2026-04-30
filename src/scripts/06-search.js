@@ -1,8 +1,7 @@
 /* Cisco UI catalog — chunk 6: lazy-loaded sharded search index.
  *
- * Replaces the in-memory ``_searchBlob`` linear scan over the legacy 39 MB
- * data.js payload with a static, sharded inverted index built at build
- * time and served from /assets/.
+ * Static, sharded inverted index built at build time and served from
+ * /assets/. Loaded on first keystroke for fast full-text search.
  *
  * Wire-up
  * -------

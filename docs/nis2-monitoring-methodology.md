@@ -51,3 +51,13 @@ This repository may describe the result as a best-in-class Splunk-based NIS2 mon
 3. Open `compliance-story.html?reg=nis2` (or fetch `api/v1/compliance/story/nis2.json`) to inspect repository UC coverage, matrix summaries, source-authority rollups, and legal-boundary rows in the same surface used for every other regulation.
 4. Use `sample-data/uc-22.2.*-fixture.json` with the control-test scenarios in each UC to validate representative positive and negative outcomes.
 5. Re-run the validation commands in `docs/nis2-self-validation.md` after any matrix, UC, generator, or source-map change.
+
+## Key NIS2 use cases in this catalog
+
+The following use cases implement the core NIS2 monitoring obligations covered by this methodology:
+
+- UC-22.2.1 — NIS2 Art.23(4)(a): 24-Hour Early-Warning Notification Readiness
+- UC-22.2.2 — NIS2 Art.21(2)(a): Risk Analysis Policy Evidence
+- UC-22.2.3 — NIS2 Art.21(2)(b): Incident Handling Workflow Compliance
+
+See also the [Evidence Pack — NIS2](evidence-packs/nis2.md), the [NIS2 Maturity Benchmark](nis2-maturity-benchmark.md), and the [Compliance & Business Analytics Domain Guide](guides/compliance-business.md) for broader regulatory context.

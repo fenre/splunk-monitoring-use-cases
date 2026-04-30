@@ -7,7 +7,7 @@
 ## Background
 
 This project is a Splunk monitoring use case catalog — a web-based reference
-library of ~1,400 use cases for Splunk deployments. It's hosted on GitHub Pages.
+library of **7,364** use cases for Splunk deployments *(this brief originally referred to ~1,400 UCs at the v7.1 planning stage; the catalog has since grown)*. It's hosted on GitHub Pages.
 The content lives in JSON files under `content/cat-*/UC-*.json`. A Python build
 system (`tools/build/build.py`) generates a static site in `dist/`.
 
@@ -61,8 +61,8 @@ images, blockquotes, or nested lists.
 The `content/cat-*/UC-*.md` files are generated from JSON by
 `scripts/generate_md_from_json.py`. They are NOT read by the build — the build
 reads JSON directly. They caused a staleness bug where the panel showed garbage
-because the `.md` was stale while the JSON was gold-standard. Delete all ~1,400
-of them and retire the generation script.
+because the `.md` was stale while the JSON was gold-standard. Delete all companion
+`.md` files that are no longer needed for authoring and retire the generation script.
 
 ### 4. Add a list/grid toggle
 
@@ -91,7 +91,7 @@ or are replaced.
 ### 8. Version bump
 
 Minor version bump (→ 7.1) after implementation. Major bump reserved for when
-all ~1,400 UCs reach gold standard.
+all **~7,364** UCs reach gold standard *(planning doc originally said ~1,400)*.
 
 ## Architecture
 
@@ -150,7 +150,7 @@ unchanged.
 
 ### Files to delete
 - `index2.html`
-- `content/cat-*/UC-*.md` (all ~1,400 companion files)
+- `content/cat-*/UC-*.md` (companion markdown files targeted for deletion in this plan)
 - `scripts/generate_md_from_json.py` (or move to `scripts/_archived/`)
 
 ### Files to modify

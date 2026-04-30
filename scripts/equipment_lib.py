@@ -119,7 +119,7 @@ def match_equipment(
     Returns:
         (equipment_ids, compound_model_ids)
         where compound_model_ids are formatted '<equipmentId>_<modelId>'
-        to match how the UI and data.js consume them.
+        to match how the UI and catalog consume them.
 
     ``min_pattern_len`` suppresses false positives from ultra-short patterns
     (e.g., a 2-char vendor slug that appears incidentally in other words).

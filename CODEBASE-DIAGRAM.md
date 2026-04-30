@@ -1,6 +1,6 @@
 # Splunk Monitoring Use Cases — Codebase Diagram
 
-This document visualizes the repository structure, build pipeline, and data flow.
+This document visualizes the repository structure, **v7** build pipeline, and data flow (**7,364** use cases).
 
 ---
 
@@ -8,152 +8,130 @@ This document visualizes the repository structure, build pipeline, and data flow
 
 ```mermaid
 flowchart LR
-    subgraph sources["Source (Markdown)"]
-        INDEX["INDEX.md\ncategory metadata\nicons, starters"]
-        CAT["cat-01 … cat-23\nuse case content\nSPL, CIM, TAs"]
+    subgraph sources["Source"]
+        CAT["content/cat-*/<br/>_category.json"]
+        UC["content/cat-*/<br/>UC-*.json"]
+        DATA["data/ regulations,<br/>crosswalks, …"]
+        SRC["src/ styles, scripts,<br/>pages, partials"]
+        PUB["public/ static"]
     end
 
     subgraph build["Build"]
-        PY["build.py\nparse & emit JS"]
+        PY["tools/build/build.py<br/>parse + render_*"]
     end
 
-    subgraph output["Output"]
-        DATA["data.js\nDATA, CAT_META\nCAT_GROUPS, EQUIPMENT"]
+    subgraph output["Output (dist/)"]
+        API["api/<br/>catalog-index.json<br/>cat-N.json, v1/…"]
+        SITE["browse/, uc/, category/<br/>HTML + JSON twins"]
+        ASSET["assets/<br/>fingerprinted JS/CSS<br/>search shards"]
     end
 
-    subgraph app["App"]
-        HTML["index.html\ndashboard UI"]
-        CUSTOM["custom-text.js\nsite text overrides"]
+    subgraph app["Runtime"]
+        BROW["/browse/ SPA"]
+        LOADER["Loader fetches API"]
     end
 
-    INDEX --> PY
     CAT --> PY
-    PY --> DATA
-    DATA --> HTML
-    CUSTOM --> HTML
+    UC --> PY
+    DATA --> PY
+    SRC --> PY
+    PUB --> PY
+    PY --> API
+    PY --> SITE
+    PY --> ASSET
+    API --> LOADER
+    ASSET --> BROW
+    LOADER --> BROW
 ```
 
 ---
 
-## 2. Repository structure
+## 2. Repository structure (simplified)
 
 ```mermaid
 flowchart TB
     subgraph root["splunk-monitoring-use-cases/"]
-        build["build.py"]
-        validate["validate_md.py"]
-        data["data.js (generated)"]
-        catalog["catalog.json (generated)"]
-        index["index.html"]
-        custom["custom-text.js"]
+        makefile["Makefile<br/>make build"]
+        toolsb["tools/build/build.py"]
+        content["content/cat-NN-slug/<br/>_category.json, UC-*.json"]
         readme["README.md"]
         diagram["CODEBASE-DIAGRAM.md"]
 
-        subgraph usecases["use-cases/"]
-            preamble["cat-00-preamble.md"]
-            index_md["INDEX.md"]
-            cat1["cat-01-server-compute.md"]
-            cat2["cat-02-virtualization.md"]
-            catN["… cat-03 … cat-23"]
+        subgraph docs["docs/"]
+            D0["architecture.md"]
+            D1["DESIGN.md"]
+            D2["use-case-fields.md"]
         end
 
-        subgraph docs["docs/"]
-            D1["use-case-fields.md"]
-            D2["implementation-guide.md"]
-            D3["cim-and-data-models.md"]
-            D4["equipment-table.md"]
-            D5["category-files-and-names.md"]
-            D6["github-pages-setup.md"]
-            D7["splunk-apps-use-cases-comparison.md"]
-            D8["catalog-schema.md"]
+        subgraph tools["tools/build/"]
+            T1["parse_content.py"]
+            T2["render_pages.py"]
+            T3["render_api.py"]
+            T4["render_search.py"]
+            T5["render_meta.py"]
+        end
+
+        subgraph distg["dist/ (gitignored output)"]
+            dx["api/, browse/, uc/<br/>assets/, exports/"]
         end
     end
 
-    usecases --> build
-    build --> data
-    build --> catalog
-    data --> index
-    custom --> index
+    content --> toolsb
+    toolsb --> distg
+    makefile --> toolsb
 ```
 
 ---
 
-## 3. Build pipeline (data flow)
+## 3. Build pipeline (v7 data flow)
 
 ```mermaid
 flowchart LR
     subgraph inputs["Inputs"]
-        A["cat-*.md\n(23 files)"]
-        B["INDEX.md"]
+        A["content/cat-*/UC-*.json"]
+        B["content/cat-*/_category.json"]
+        C["data/ · schemas/<br/>src/ · public/"]
     end
 
-    subgraph build_steps["build.py"]
-        P1["Parse headings\nUC-x.y.z, ## 1.1 …"]
-        P2["Parse fields\nCriticality, SPL, CIM…"]
-        P3["Parse INDEX.md\nicons, descriptions\nquick starters"]
-        P4["Auto-tag equipment\nfrom App/TA patterns"]
-        P5["Emit data.js\n+ catalog.json"]
+    subgraph pipeline["tools/build/build.py"]
+        P1["parse_content"]
+        P2["render_assets"]
+        P3["render_pages"]
+        P4["render_api +<br/>render_search"]
+        P5["render_exports"]
+        P6["render_meta"]
+        P7["integrity + BUILD-INFO"]
     end
 
-    subgraph js["data.js"]
-        D["DATA\ncategories → subs → UCs"]
-        M["CAT_META\nicon, description per cat"]
-        G["CAT_GROUPS\ninfra, security, cloud, app, industry, compliance, business"]
-        E["EQUIPMENT\nvendor → model mapping"]
+    subgraph out["dist/"]
+        O1["api/catalog-index.json<br/>api/cat-N.json"]
+        O2["browse/, sitemaps,<br/>llms*.txt"]
+        O3["assets/app.*.js<br/>search-shard-*.json"]
     end
 
     A --> P1
-    B --> P3
-    P1 --> P2
-    P2 --> P4
-    P4 --> P5
-    P3 --> P5
-    P5 --> D
-    P5 --> M
-    P5 --> G
-    P5 --> E
+    B --> P1
+    C --> P1
+    P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7
+    P7 --> O1
+    P7 --> O2
+    P7 --> O3
 ```
 
 ---
 
-## 4. Use case document structure
+## 4. Use case on disk (v7)
 
-Each `cat-XX-*.md` file follows this structure; `build.py` extracts the bolded fields and SPL blocks.
+Each canonical use case is **`content/cat-NN-slug/UC-X.Y.Z.json`** validated against `schemas/uc.schema.json`. Optional long-form markdown may sit beside the JSON for prose-heavy UCs.
 
 ```mermaid
 flowchart TB
-    subgraph file["cat-XX-*.md"]
-        H1["# N. Category Name"]
-        H2["## N.1 Subcategory"]
-        UC["### UC-N.1.K · Use Case Title"]
-        F1["**Criticality** critical/high/medium/low"]
-        F2["**Difficulty** beginner/intermediate/advanced/expert"]
-        F3["**Monitoring type** Performance/Availability/…"]
-        F4["**Value** (why it matters)"]
-        F5["**App/TA** (Splunk add-on)"]
-        F6["**Data Sources** (index, sourcetype)"]
-        F7["**SPL** (code block)"]
-        F8["**CIM Models** (or N/A)"]
-        F9["**CIM SPL** (optional code block)"]
-        F10["**Implementation**"]
-        F11["**Visualization**"]
-        F12["**Equipment Models** (optional)"]
+    subgraph file["UC-X.Y.Z.json (conceptual)"]
+        ID["id, title, criticality,<br/>difficulty, monitoringType"]
+        TA["app / TA references,<br/>data sources"]
+        SPL["splQuery + CIM /<br/>compliance blocks"]
+        META["wave, prerequisites,<br/>MITRE, references, …"]
     end
-
-    H1 --> H2
-    H2 --> UC
-    UC --> F1
-    F1 --> F2
-    F2 --> F3
-    F3 --> F4
-    F4 --> F5
-    F5 --> F6
-    F6 --> F7
-    F7 --> F8
-    F8 --> F9
-    F9 --> F10
-    F10 --> F11
-    F11 --> F12
 ```
 
 ---
@@ -162,14 +140,14 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    subgraph groups["CAT_GROUPS (build.py)"]
-        infra["infra\n1,2,5,6,15,18,19"]
-        security["security\n9,10,17"]
-        cloud["cloud\n3,4,20"]
-        app["app\n7,8,11,12,13,14,16"]
-        industry["industry\n21"]
-        compliance["compliance\n22"]
-        business["business\n23"]
+    subgraph groups["CAT_GROUPS (catalog-index)"]
+        infra["infra<br/>1,2,5,6,15,18,19"]
+        security["security<br/>9,10,17"]
+        cloud["cloud<br/>3,4,20"]
+        app["app<br/>7,8,11,12,13,14,16"]
+        industry["industry<br/>21"]
+        compliance["compliance<br/>22"]
+        business["business<br/>23"]
     end
 
     subgraph examples["Category examples"]
@@ -200,19 +178,17 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     participant Author
-    participant MD as use-cases/*.md
-    participant Build as build.py
-    participant JS as data.js
+    participant JSON as content/cat-*/UC-*.json
+    participant Build as tools/build/build.py
+    participant Dist as dist/api/*.json
     participant User
-    participant HTML as index.html
+    participant SPA as /browse/
 
-    Author->>MD: Edit use cases & INDEX.md
-    Author->>Build: Run python3 build.py
-    Build->>Build: Parse markdown, INDEX, auto-tag equipment
-    Build->>JS: Write DATA, CAT_META, CAT_GROUPS, EQUIPMENT
-    User->>HTML: Open in browser
-    HTML->>JS: Load script
-    JS->>HTML: Expose globals
-    HTML->>User: Render filters, cards, search
+    Author->>JSON: Edit UC JSON + category metadata
+    Author->>Build: Run make build
+    Build->>Dist: Emit catalog-index, cat slices, pages
+    User->>SPA: Open site
+    SPA->>Dist: GET catalog-index.json
+    SPA->>Dist: Lazy GET cat-N.json / v1 APIs
+    SPA->>User: Filters, cards, search (7,364+ UCs)
 ```
-

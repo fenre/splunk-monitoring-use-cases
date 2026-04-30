@@ -1090,9 +1090,8 @@ function closeMobileSidebar() {
 }
 
 // initApp depends on window.DATA / window.EQUIPMENT / window.CAT_META
-// being populated, which the loader handles asynchronously in production
-// (lazy mode) and synchronously in legacy mode (when data.js was loaded
-// as a separate <script> tag). Wait for the catalog:ready handshake.
+// being populated, which the loader handles asynchronously (fetching
+// catalog-index.json). Wait for the catalog:ready handshake.
 if (window.__catalogReady && typeof window.__catalogReady.then === 'function') {
   window.__catalogReady.then(function() {
     try { initApp(); } catch (err) { console.error('[app] initApp failed:', err); }

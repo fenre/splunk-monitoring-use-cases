@@ -2,8 +2,8 @@
 /**
  * Phase 3a headless smoke test.
  *
- * Stands up a minimal window/document shim, loads the real data.js
- * plus the Phase-3a-touched src/scripts/01-state.js,
+ * Stands up a minimal window/document shim, loads catalog.json for
+ * globals, then loads src/scripts/01-state.js,
  * src/scripts/02-filters.js and src/scripts/04-panel.js in the same
  * order as index.html concatenates them, then exercises the three
  * behaviours Phase 3a introduced:
@@ -108,12 +108,25 @@ sandbox.globalThis = sandbox;
 
 vm.createContext(sandbox);
 
-// Load data.js first (window.DATA, window.EQUIPMENT, …), then the
-// five script chunks in bundle order. We skip chunks that pull in
+// Populate window globals from catalog.json (same structure as the
+// API loader builds at runtime from catalog-index.json).
+const catalogPath = path.join(ROOT, "catalog.json");
+const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
+sandbox.DATA = catalog.DATA || [];
+sandbox.window.DATA = sandbox.DATA;
+sandbox.EQUIPMENT = catalog.EQUIPMENT || [];
+sandbox.window.EQUIPMENT = sandbox.EQUIPMENT;
+sandbox.CAT_META = catalog.CAT_META || {};
+sandbox.window.CAT_META = sandbox.CAT_META;
+sandbox.CAT_GROUPS = catalog.CAT_GROUPS || {};
+sandbox.window.CAT_GROUPS = sandbox.CAT_GROUPS;
+sandbox.FILTER_FACETS = catalog.FILTER_FACETS || {};
+sandbox.window.FILTER_FACETS = sandbox.FILTER_FACETS;
+
+// Load SPA script chunks in bundle order. We skip chunks that pull in
 // non-trivial DOM APIs we haven't stubbed — for Phase 3a only the
 // state/filters/panel chunks matter.
 const scripts = [
-  "data.js",
   "src/scripts/01-state.js",
   "src/scripts/02-filters.js",
   "src/scripts/04-panel.js",
@@ -125,39 +138,11 @@ for (const rel of scripts) {
     vm.runInContext(src, sandbox, { filename: rel });
   } catch (err) {
     console.error("Failed to load " + rel + ":", err.message);
-    // Some scripts may reference functions defined in chunks we
-    // skipped (e.g. esc/stripMd live in 01-state.js, called by
-    // 04-panel.js at eval time — they shouldn't, everything is in
-    // function bodies — but if any top-level throw slips through,
-    // fail loud rather than silently masking a regression.
     process.exit(1);
-  }
-  // data.js ships ``const DATA = [...]``. Classic-script ``const``
-  // bindings create a Script Record entry, NOT a property on the
-  // global object — so ``window.DATA`` stays undefined even though
-  // the bare identifier ``DATA`` is visible to the next script.
-  // 01-state.js's bootstrap reads ``window.DATA``, which works in
-  // production because the 00-loader.js lazy path copies the parsed
-  // catalog onto ``window.DATA = cats``. In this VM harness we skip
-  // the loader, so bridge the bare ``DATA`` binding onto
-  // ``window.DATA`` ourselves immediately after data.js loads.
-  if (rel === "data.js") {
-    try {
-      vm.runInContext(
-        "if (typeof DATA !== 'undefined' && !Array.isArray(window.DATA)) { window.DATA = DATA; }",
-        sandbox,
-        { filename: "_phase3a_smoke.bridge" },
-      );
-    } catch (err) {
-      console.error("Failed to bridge DATA → window.DATA:", err.message);
-      process.exit(1);
-    }
   }
 }
 
-// __bootstrapCatalogState runs inside 00-loader in production. We
-// didn't load 00-loader (it async-awaits fetch), so call the
-// bootstrap directly — window.DATA is already populated by data.js.
+// __bootstrapCatalogState runs inside 00-loader in production.
 assert(
   typeof sandbox.__bootstrapCatalogState === "function",
   "01-state.js exports __bootstrapCatalogState()",

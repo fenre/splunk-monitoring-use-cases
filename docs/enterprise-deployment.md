@@ -68,7 +68,7 @@ If you build from source instead, run:
 ```bash
 git clone https://github.com/fenre/splunk-monitoring-use-cases
 cd splunk-monitoring-use-cases
-python3 build.py
+make build
 scripts/package_ta.sh dist/
 scripts/package_itsi.sh dist/
 scripts/package_es.sh dist/

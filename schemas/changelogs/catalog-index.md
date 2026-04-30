@@ -4,7 +4,7 @@ Per-schema lifecycle log. Contract: see [`docs/schema-versioning.md`](../../docs
 
 | Version | Released | Stability | Notes                                                                                                                                                                                                                                            |
 |---------|----------|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 2.0.0   | v7.0     | preview   | Initial release. Lightweight bootstrap payload served at `/api/catalog-index.json`; ships per-UC stubs (`i`, `n`, `c`, `d`, `cat`, `sub`, `mtype`, `regs`, `searchBlob`) plus the small dictionaries (categories, subcategories, regulations, sources, apps) the SPA needs before opening a category. Replaces the legacy `data.js` blob and unblocks lazy fetches against `/api/cat-N.json`. |
+| 2.0.0   | v7.0     | preview   | Initial release. Lightweight bootstrap payload served at `/api/catalog-index.json`; ships per-UC stubs (`i`, `n`, `c`, `d`, `cat`, `sub`, `mtype`, `regs`, `searchBlob`) plus the small dictionaries (categories, subcategories, regulations, sources, apps) the SPA needs before opening a category. Replaces the legacy v6-era `data.js` monolith and unblocks lazy fetches against `/api/cat-N.json`. |
 
 ## Stability commitment
 

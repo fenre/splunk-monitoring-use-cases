@@ -157,7 +157,7 @@ Budgets are enforced in CI by `tools/audits/budgets.py` reading
   ergonomic features (copy-SPL buttons, dark-mode toggle, search-on-this-page).
 * **Catalog index for `/browse/`.** The interactive browser bootstraps from
   `/api/catalog-index.json` (UC stub: `{i, n, c, d, cat, sub, mtype, regs,
-  search_blob}`), which gzips to ~600 KB at current scale and ~4 MB at 60 K UCs.
+  search_blob}`), on the order of **~750 KB gzipped** at the current **7,364** UC scale and ~4 MB at 60 K UCs.
 * **Per-category lazy load.** Opening a category fetches `/api/cat-N.json` (cached in
   memory and Service Worker).
 * **Sharded search.** Full-text search uses MiniSearch shards
@@ -206,16 +206,16 @@ CI wall-clock target: ≤4 min for a full release build.
 | Build output | `--reproducible` produces byte-identical artefacts from the same SHA. CI re-builds and diffs. |
 | Provenance | `dist/integrity.json` + `dist/BUILD-INFO.json` Sigstore-signed via `actions/attest-build-provenance@v1`. |
 
-## Scalability targets (10× headroom)
+## Scalability (current + headroom)
 
-| Dimension | Today (v6.x) | Target (v7+) |
+| Dimension | Current (v7) | Target (10× growth) |
 |---|---|---|
-| UC count | ~6,400 | 60,000 |
-| Build wall-clock | ~30 s (manual) | ≤90 s in CI |
-| `catalog-index.json` gzipped | n/a (no index) | ≤4 MB at 60 K UCs |
-| Search shard size | n/a (linear scan over 39 MB) | 16–32 shards × ≤120 KB |
-| Sitemap shards | 1 file | auto-shards once URLs > 50 K |
-| PR diff size | thousands of lines (monolithic markdown) | ≤200 lines (per-UC files) |
+| UC count | 7,364 | 60,000 |
+| Build wall-clock | ≤90 s in CI (budget) | ≤90 s at 60 K UCs |
+| `catalog-index.json` gzipped | ~750 KB – ~1 MB | ≤4 MB at 60 K UCs |
+| Search | 16–32 MiniSearch shards (~100 KB each) | same pattern, larger shard count if needed |
+| Sitemap | sharded as URL count grows | auto-shards once URLs > 50 K |
+| PR diff size | ≤200 lines typical (per-UC JSON) | same |
 
 ## Quality gates (CI-enforced, blocking)
 

@@ -32,7 +32,7 @@ listeners. **Do not reorder.**
   legacy inline script.
 * Loaded via `<script defer src="…">`: the bundle downloads in
   parallel with HTML parsing but executes after the DOM is parsed
-  and after the legacy data-layer scripts (`data.js`,
+  and after the data-layer scripts (`custom-text.js`,
   `non-technical-view.js`, …) have finished. Order with respect to
   those legacy scripts is preserved by source position in
   `dist/index.html`.
@@ -48,8 +48,8 @@ listeners. **Do not reorder.**
 2. **No `import`/`export`** — until the build pipeline ships an ES
    module bundler, every symbol is a top-level `var` or `function`.
 3. **No external runtime dependencies** — zero npm packages, zero
-   CDN scripts. The legacy data layer (`data.js`, `provenance.js`,
-   `tools/data-sizing/mapping.js`) is loaded via separate
+   CDN scripts. Supporting scripts (`provenance.js`,
+   `tools/data-sizing/mapping.js`) are loaded via separate
    parser-blocking `<script src="…">` tags in the HTML.
 4. **Add new module sections via numeric prefix** — e.g.
    `06-search-shards.js` for the lazy MiniSearch loader landing in

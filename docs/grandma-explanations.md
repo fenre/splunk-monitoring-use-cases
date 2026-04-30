@@ -4,7 +4,7 @@
 
 Every use case in the catalogue carries a short, jargon-free "explain it
 to my grandma" sentence in the sidecar field `grandmaExplanation`
-(short key `ge` in `catalog.json` / `data.js`). This is the **primary
+(short key `ge` in `catalog.json`). This is the **primary
 text rendered throughout the non-technical view** — UC cards, search
 results, subcategory lists, recently-added, and the very top of the UC
 detail panel.
@@ -78,8 +78,8 @@ the existing curated copy and then curator-polishable.
    }
    ```
 
-2. **`catalog.json` / `data.js`** — emitted under the short key `ge`
-   by `build.py`. Markdown-only UCs (no sidecar yet) receive a
+2. **`catalog.json`** — emitted under the short key `ge`
+   by the build pipeline. UCs without an explicit `grandmaExplanation` receive a
    runtime fallback composed from `title` / `value` / `description` so
    the UI never shows an empty non-technical card.
 
@@ -195,6 +195,6 @@ schema bump note.
 ## Further reading
 
 - [`docs/use-case-fields.md`](use-case-fields.md) — full UC field reference (markdown keys)
-- [`docs/catalog-schema.md`](catalog-schema.md) — `catalog.json` / `data.js` short keys
+- [`docs/catalog-schema.md`](catalog-schema.md) — `catalog.json` short keys
 - [`docs/v7.1-release-report.md`](v7.1-release-report.md) — full narrative release report
 - [`.cursor/rules/non-technical-sync.mdc`](../.cursor/rules/non-technical-sync.mdc) — content synchronization contract for the non-technical view

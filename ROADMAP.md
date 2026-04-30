@@ -30,7 +30,7 @@ behind a single disclosure.
   prefer the per-UC `ge` over curated `why` copy
 - CI guard: `scripts/generate_grandma_explanations.py --check` runs on
   every PR and blocks merge if any UC sidecar is missing the field
-- Runtime fallback in `build.py` for markdown-only UCs so the UI never
+- Runtime fallback in `tools/build/build.py` for markdown-only UCs so the UI never
   shows an empty plain-language card even before a UC sidecar lands
 - Authoring and maintenance guide at [`docs/grandma-explanations.md`](docs/grandma-explanations.md);
   full narrative in [`docs/v7.1-release-report.md`](docs/v7.1-release-report.md)
@@ -55,9 +55,8 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full v7.1 release notes.
 
 Theme: **"every use case is its own file, every build is reproducible,
 every URL is permanent."**  v7.0 replaced the monolithic per-category
-markdown files with individually authored per-UC file pairs and
-introduced a Python stdlib-only build pipeline that generates the
-entire site from source.
+markdown sources with individually authored per-UC file pairs and
+introduced the current Python stdlib-only build pipeline (`tools/build/build.py`, `make build`).
 
 - 23 monolithic `cat-*.md` files exploded into 6,449 individual
   `content/cat-NN-slug/UC-X.Y.Z.md` prose files paired with 6,470
@@ -67,13 +66,17 @@ entire site from source.
 - Extracted source assets (`src/styles/`, `src/scripts/`) with content-hash
   fingerprinting and immutable cache headers
 - Sharded full-text search (16 MiniSearch shards, ~100 KB each) replacing
-  the 39 MB linear scan over `data.js`
+  the legacy linear scan over a single giant `data.js` payload
 - CI quality gates (`tools/audits/`) — asset drift, bundle budgets,
   schema-diff, schema-meta, URL-freeze
 - New schemas (`schemas/v2/`) — `catalog-index` and `search-index`
 - Architecture contract (`docs/architecture.md`), URL scheme
   (`docs/url-scheme.md`), schema versioning (`docs/schema-versioning.md`)
-- 6,447 UCs across 23 categories
+- The catalog now counts **7,364** UCs across 23 categories *(see [`CHANGELOG.md`](CHANGELOG.md) for the count at v7.0 ship)*
+
+### v6.x — monolithic markdown pipeline *(historical)*
+
+The v6 line used per-category markdown under `use-cases/` and the root `build.py` workflow. It is **retired** in favour of **`content/` + `tools/build/build.py`** above.
 
 **v6.1 — Verifiable Compliance Coverage** *(shipped 2026-04-16)*
 
@@ -161,7 +164,7 @@ Infrastructure shipped:
 - **Scorecard integration** — content depth is now a 20% weighted dimension
   in `generate_scorecard.py`
 - **Markdown generation** (`scripts/generate_md_from_json.py`) — JSON is the
-  single source of truth; .md files are build artifacts
+  single source of truth; companion `.md` under `content/`, when present, is optional
 
 ### Content uplift workflow
 

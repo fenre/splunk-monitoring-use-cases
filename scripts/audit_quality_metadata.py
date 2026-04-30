@@ -56,7 +56,7 @@ FIELD_LABEL: Dict[str, str] = {
 
 def load_catalog() -> dict:
     if not os.path.exists(CATALOG):
-        print(f"FAIL: {CATALOG} not found. Run python3 build.py first.", file=sys.stderr)
+        print(f"FAIL: {CATALOG} not found. Run 'make build' first.", file=sys.stderr)
         sys.exit(2)
     with open(CATALOG, "r", encoding="utf-8") as f:
         return json.load(f)
