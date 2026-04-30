@@ -31,6 +31,40 @@ WAVE_ORDER = {"crawl": 0, "walk": 1, "run": 2}
 
 STATUS_LABELS = {"verified": "Verified", "draft": "Draft", "community": "Community"}
 
+# Splunk's IT Operations pillar (ITSI) is a service-management layer that
+# consumes signals from nearly every infrastructure, application, network,
+# and security monitoring use case.  The per-UC `splunkPillar` field records
+# which Splunk *product SKU* the UC is primarily delivered through — but ITSI
+# aggregates KPIs from all pillars for service health, event correlation, and
+# incident management.  The relevance weights below capture this: every
+# category whose UCs produce operational signals is relevant to IT Ops.
+# Weight 1.0 = core IT Ops domain; 0.0 = not relevant.
+_ITOPS_RELEVANCE = {
+    1:  0.9,   # Server & Compute — core ops
+    2:  0.9,   # Virtualization — core ops
+    3:  0.8,   # Containers & Orchestration
+    4:  0.8,   # Cloud Infrastructure
+    5:  0.9,   # Network Infrastructure — core ops
+    6:  0.9,   # Storage & Backup — core ops
+    7:  0.8,   # Database & Data Platforms
+    8:  0.9,   # Application Infrastructure — core ops
+    9:  0.3,   # Identity & Access Management (mostly Security)
+    10: 0.15,  # Security Infrastructure (mostly Security; IT Ops manages avail.)
+    11: 0.7,   # Email & Collaboration
+    12: 0.7,   # DevOps & CI/CD
+    13: 0.8,   # Observability & Monitoring Stack (meta-monitoring)
+    14: 0.6,   # IoT & OT
+    15: 0.9,   # Data Center Physical Infrastructure — core ops
+    16: 1.0,   # Service Management & ITSM — ITSI's home domain
+    17: 0.15,  # Network Security & Zero Trust (mostly Security)
+    18: 0.8,   # Data Center Fabric & SDN
+    19: 0.9,   # Compute Infrastructure (HCI & Converged) — core ops
+    20: 0.9,   # Cost & Capacity Management — capacity planning
+    21: 0.5,   # Industry Verticals
+    22: 0.3,   # Regulatory and Compliance Frameworks
+    23: 0.1,   # Business Analytics & Executive Intelligence
+}
+
 
 def load_categories():
     cats = {}
@@ -170,6 +204,23 @@ def build_graph(categories, ucs):
                 "type": "belongs-to",
                 "weight": pcount,
             })
+
+        # IT Operations relevance: ITSI consumes signals from all pillars
+        # for service health KPIs, event correlation, and incident mgmt.
+        # Add an edge if the category has operational relevance beyond what
+        # the per-UC splunkPillar tagging already captured.
+        itops_existing = cat_pillar[cat_id].get("IT Operations", 0)
+        relevance = _ITOPS_RELEVANCE.get(cat_id, 0)
+        if relevance > 0:
+            itops_weight = max(int(uc_count * relevance), 1)
+            if itops_weight > itops_existing:
+                extra = itops_weight - itops_existing
+                edges.append({
+                    "source": nid,
+                    "target": "pillar-IT Operations",
+                    "type": "relevant-to",
+                    "weight": extra,
+                })
 
     # --- Equipment nodes (top 80 by total usage) ---
     top_equipment = [eq for eq, _ in equipment_total.most_common(80)]
