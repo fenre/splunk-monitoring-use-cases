@@ -163,12 +163,13 @@ def build_graph(categories, ucs):
         })
         node_ids.add(nid)
 
-        edges.append({
-            "source": nid,
-            "target": f"pillar-{pillar_name}",
-            "type": "belongs-to",
-            "weight": 1,
-        })
+        for pname, pcount in cat_pillar[cat_id].items():
+            edges.append({
+                "source": nid,
+                "target": f"pillar-{pname}",
+                "type": "belongs-to",
+                "weight": pcount,
+            })
 
     # --- Equipment nodes (top 80 by total usage) ---
     top_equipment = [eq for eq, _ in equipment_total.most_common(80)]
