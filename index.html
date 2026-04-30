@@ -3219,6 +3219,8 @@ scripts/package_es.sh   dist/       # ES correlation searches</code></pre>
 (function() {
   if (typeof window === "undefined") return;
 
+  // Root-absolute so the SPA works from any depth (e.g. /browse/, /embed/...).
+  // Override via window.__CATALOG_API_BASE if hosting under a non-root prefix.
   var API_BASE = (typeof window.__CATALOG_API_BASE === "string" && window.__CATALOG_API_BASE)
     ? window.__CATALOG_API_BASE.replace(/\/+$/, "")
     : "/api";
@@ -3874,7 +3876,7 @@ function getReversePrereqIndex() {
 // Render an inline UC chip that opens the target UC in the side panel when
 // clicked. Falls back to a plain id when the referenced UC is missing from
 // the catalogue (defensive — validate_prerequisites() should already have
-// failed the build, but the SPA must not crash on stale cached data.js).
+// failed the build, but the SPA must not crash on stale cached data).
 function renderUCChip(ucFullId) {
   if (typeof ucFullId !== 'string' || !ucFullId.indexOf) return '';
   var bareId = ucFullId.replace(/^UC-/, '');
@@ -6818,9 +6820,8 @@ function closeMobileSidebar() {
 }
 
 // initApp depends on window.DATA / window.EQUIPMENT / window.CAT_META
-// being populated, which the loader handles asynchronously in production
-// (lazy mode) and synchronously in legacy mode (when data.js was loaded
-// as a separate <script> tag). Wait for the catalog:ready handshake.
+// being populated, which the loader handles asynchronously (fetching
+// catalog-index.json). Wait for the catalog:ready handshake.
 if (window.__catalogReady && typeof window.__catalogReady.then === 'function') {
   window.__catalogReady.then(function() {
     try { initApp(); } catch (err) { console.error('[app] initApp failed:', err); }
@@ -6832,9 +6833,8 @@ if (window.__catalogReady && typeof window.__catalogReady.then === 'function') {
 }
 /* Cisco UI catalog — chunk 6: lazy-loaded sharded search index.
  *
- * Replaces the in-memory ``_searchBlob`` linear scan over the legacy 39 MB
- * data.js payload with a static, sharded inverted index built at build
- * time and served from /assets/.
+ * Static, sharded inverted index built at build time and served from
+ * /assets/. Loaded on first keystroke for fast full-text search.
  *
  * Wire-up
  * -------

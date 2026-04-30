@@ -77,7 +77,8 @@ var DOC_UC_MAP = {
     ucs: ["1.1.1", "1.1.2", "5.1.1", "13.1.1"]
   },
   "docs/content-gap-analysis.md": {
-    title: "Content Gap Analysis"
+    title: "Content Gap Analysis",
+    ucs: ["22.9.1", "22.9.2", "22.9.3", "22.9.4", "22.9.5"]
   },
 
   /* ── Catalog & API ───────────────────────────────────────────────────── */
@@ -124,7 +125,8 @@ var DOC_UC_MAP = {
     title: "Regulatory Change Watch"
   },
   "docs/legal-review-guide.md": {
-    title: "Legal Review Guide"
+    title: "Legal Review Guide",
+    ucs: ["22.14.3"]
   },
   "docs/nis2-monitoring-methodology.md": {
     title: "NIS2 Monitoring Methodology",
@@ -213,7 +215,8 @@ var DOC_UC_MAP = {
     title: "Splunk Apps vs Use Cases Comparison"
   },
   "docs/splunk-cloud-compat.md": {
-    title: "Splunk Cloud Compatibility"
+    title: "Splunk Cloud Compatibility",
+    ucs: ["7.1.16", "7.1.17", "7.1.18", "7.1.19", "22.50.5"]
   },
 
   /* ── Integration Guides ──────────────────────────────────────────────── */
@@ -310,7 +313,8 @@ var DOC_UC_MAP = {
     ucs: ["5.1.1", "14.1.1", "14.2.1"]
   },
   "docs/samples-coverage.md": {
-    title: "Sample Data Coverage"
+    title: "Sample Data Coverage",
+    ucs: ["1.1.1", "1.1.8", "1.2.4", "1.2.6", "1.2.29", "5.1.1", "5.13.1", "9.1.1", "10.1.1", "13.1.1", "14.1.1", "14.2.1", "22.1.1", "22.2.1", "22.4.1"]
   },
 
   /* ── AI & Automation ─────────────────────────────────────────────────── */
@@ -335,10 +339,12 @@ var DOC_UC_MAP = {
     title: "Peer Review Guide"
   },
   "docs/sme-review-guide.md": {
-    title: "SME Review Guide"
+    title: "SME Review Guide",
+    ucs: ["22.14.3", "22.14.41"]
   },
   "docs/gold-standard-authoring-playbook.md": {
-    title: "Gold Standard Authoring Playbook"
+    title: "Gold Standard Authoring Playbook",
+    ucs: ["5.13.1", "1.1.1", "22.2.12", "22.2.17", "22.2.49"]
   },
   "docs/uc-quality-mandate.md": {
     title: "Use Case Quality Mandate"
@@ -354,13 +360,15 @@ var DOC_UC_MAP = {
     title: "Auditor Survey"
   },
   "docs/auditor-research/interview-guide.md": {
-    title: "Auditor Interview Guide"
+    title: "Auditor Interview Guide",
+    ucs: ["22.35.1"]
   },
   "docs/auditor-research/recruitment.md": {
     title: "Auditor Recruitment"
   },
   "docs/auditor-research/findings-template.md": {
-    title: "Auditor Findings Template"
+    title: "Auditor Findings Template",
+    ucs: ["22.35.1"]
   },
 
   /* ── Product Overview ───────────────────────────────────────────────── */
@@ -368,7 +376,8 @@ var DOC_UC_MAP = {
     title: "Product Pitch"
   },
   "docs/implementation-brief-v7.1.md": {
-    title: "Implementation Brief v7.1"
+    title: "Implementation Brief v7.1",
+    ucs: ["1.1.1", "1.1.2", "1.1.3", "22.2.1", "22.2.48"]
   },
 
   /* ── Migration & Release Reports ─────────────────────────────────────── */
@@ -385,10 +394,12 @@ var DOC_UC_MAP = {
     title: "v7.1 Release Report"
   },
   "docs/checkpoint-phase0.md": {
-    title: "Phase 0 Checkpoint"
+    title: "Phase 0 Checkpoint",
+    ucs: ["22.9.1", "22.9.5"]
   },
   "docs/feasibility-spike-results.md": {
-    title: "Feasibility Spike Results"
+    title: "Feasibility Spike Results",
+    ucs: ["22.35.1"]
   }
 };
 
