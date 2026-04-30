@@ -410,6 +410,11 @@ def _mirror_legacy_root_into_dist(out: Path, opts: BuildOptions, *, preserve_roo
             browse_dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(legacy_src, browse_dst)
 
+    # Files in api/ that render_api.py now owns — the v7 build writes
+    # these from the content-directory Catalog (which includes JSON
+    # sidecars), so the legacy versions must not overwrite them.
+    _v7_owned_api_patterns = re.compile(r"^api/cat-\d+\.json$|^api/catalog-index\.json$")
+
     for dname in LEGACY_TOP_DIRS:
         src = PROJECT_ROOT / dname
         if not src.exists() or not src.is_dir():
@@ -424,6 +429,8 @@ def _mirror_legacy_root_into_dist(out: Path, opts: BuildOptions, *, preserve_roo
             if path.suffix in skip_extensions:
                 continue
             rel = path.relative_to(PROJECT_ROOT)
+            if _v7_owned_api_patterns.match(str(rel)):
+                continue
             dst = out / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, dst)

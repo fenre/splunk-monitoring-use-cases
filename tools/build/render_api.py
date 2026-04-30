@@ -118,8 +118,39 @@ def render(catalog: Catalog, out_dir: Path, *, reproducible: bool = False) -> No
     api_dir = out_dir / "api"
     api_dir.mkdir(parents=True, exist_ok=True)
     _write_catalog_index(catalog, api_dir, reproducible=reproducible)
+    _write_category_shards(catalog, api_dir, reproducible=reproducible)
     _write_path_manifest(catalog, api_dir, reproducible=reproducible)
     _write_shortlinks_placeholder(api_dir, reproducible=reproducible)
+
+
+# ---------------------------------------------------------------------------
+# cat-N.json — per-category lazy-load shards
+# ---------------------------------------------------------------------------
+
+def _write_category_shards(catalog: Catalog, api_dir: Path, *, reproducible: bool) -> None:
+    """Emit ``dist/api/cat-N.json`` for every category in the Catalog.
+
+    These files are the heavy-field payloads lazy-loaded by the SPA's
+    ``__ensureFullCategory(catId)`` in ``00-loader.js``. The legacy
+    ``build.py`` also writes these from the v6 markdown, but this v7
+    pass **overwrites** the legacy version with the content-directory
+    data, ensuring that UCs added as JSON sidecars (without a
+    corresponding markdown entry) appear in the SPA detail panel.
+
+    The shape matches the legacy format exactly: ``{i, n, s: [{i, n,
+    u: [{...full UC fields...}]}], src}`` — the ``_mergeCategoryFull``
+    function in ``00-loader.js`` merges ``s[].u[]`` heavy fields onto
+    the stub objects already in ``window.DATA``.
+    """
+    for cat in sorted(catalog.categories, key=lambda c: c.get("i", 0)):
+        cat_id = cat.get("i")
+        if cat_id is None:
+            continue
+        out_path = api_dir / f"cat-{cat_id}.json"
+        out_path.write_text(
+            json.dumps(cat, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
 
 
 # ---------------------------------------------------------------------------
