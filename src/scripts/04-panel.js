@@ -10,29 +10,31 @@ function fillDetailPane(e) {
   var html = '<div class="dp-header">';
   html += '<div class="dp-id">UC-' + esc(uc.i) + ' · ' + esc(e.cat.n) + ' · ' + esc(e.sc.n) + '</div>';
   html += '<div class="dp-title">' + esc(uc.n) + '</div>';
-  html += '<div class="c-panel-meta">';
-  html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Criticality</div>' + critBadge(uc.c) + '</div>';
-  html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Difficulty</div>' + diffBadge(uc.f) + '</div>';
-  if (uc.wv && WAVE_LABELS[uc.wv]) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Wave</div>' + waveBadge(uc.wv) + '</div>';
-  if (uc.mtype && uc.mtype.length) html += '<div class="c-panel-meta-item full"><div class="c-panel-meta-label">Monitoring type</div><div>' + esc(uc.mtype.join(', ')) + '</div></div>';
-  if (uc.pillar) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Pillar</div><div>' + esc(uc.pillar) + '</div></div>';
-  if (uc.status) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Status</div><div><span class="uc-card-status ' + esc(uc.status) + '">' + esc(uc.status) + '</span></div></div>';
+  html += '<div class="dp-badges">';
+  html += critBadge(uc.c) + ' ' + diffBadge(uc.f);
+  if (uc.wv && WAVE_LABELS[uc.wv]) html += ' ' + waveBadge(uc.wv);
+  if (uc._qt) {
+    var tierLabel = uc._qt === 'gold' ? 'Deep' : uc._qt === 'silver' ? 'Solid' : uc._qt === 'bronze' ? 'Basic' : 'Stub';
+    html += ' <span class="uc-card-depth depth-' + esc(uc._qt) + '">' + esc(tierLabel) + '</span>';
+  }
+  if (uc.status) html += ' <span class="uc-card-status ' + esc(uc.status) + '">' + esc(uc.status) + '</span>';
   var dpProvCode = (window.PROVENANCE && window.PROVENANCE[uc.i]) || null;
   if (dpProvCode) {
     var dpProvLabel = (window.PROVENANCE_LABELS && window.PROVENANCE_LABELS[dpProvCode]) || 'Source';
-    html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Source</div><div><span class="uc-card-prov prov-' + esc(dpProvCode) + '">' + esc(dpProvLabel) + '</span></div></div>';
-  }
-  if (uc.reviewed) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Last reviewed</div><div>' + esc(uc.reviewed) + ' ' + freshChipHtml(uc.reviewed) + '</div></div>';
-  if (uc.sver) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Splunk versions</div><div>' + esc(uc.sver) + '</div></div>';
-  if (uc.rby) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Reviewer</div><div>' + esc(uc.rby) + '</div></div>';
-  if (uc.ind) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Industry</div><div>' + esc(uc.ind) + '</div></div>';
-  if (uc.sdomain) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Security domain</div><div>' + esc(uc.sdomain) + '</div></div>';
-  if (uc.dtype) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Detection type</div><div>' + esc(uc.dtype) + '</div></div>';
-  if (uc._qt) {
-    var tierLabel = uc._qt === 'gold' ? 'Deep' : uc._qt === 'silver' ? 'Solid' : uc._qt === 'bronze' ? 'Basic' : 'Stub';
-    html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Content depth</div><div><span class="uc-card-depth depth-' + esc(uc._qt) + '">' + esc(tierLabel) + '</span> <span style="color:var(--text-secondary);font-size:12px">' + (uc._qs || 0) + '/100</span></div></div>';
+    html += ' <span class="uc-card-prov prov-' + esc(dpProvCode) + '">' + esc(dpProvLabel) + '</span>';
   }
   html += '</div>';
+  var metaParts = [];
+  if (uc.mtype && uc.mtype.length) metaParts.push(esc(uc.mtype.join(', ')));
+  if (uc.pillar) metaParts.push(esc(uc.pillar));
+  if (uc.sver) metaParts.push(esc(uc.sver));
+  if (uc.reviewed) metaParts.push(esc(uc.reviewed) + ' ' + freshChipHtml(uc.reviewed));
+  if (uc.rby) metaParts.push('by ' + esc(uc.rby));
+  if (uc.ind) metaParts.push(esc(uc.ind));
+  if (uc.sdomain) metaParts.push(esc(uc.sdomain));
+  if (uc.dtype) metaParts.push(esc(uc.dtype));
+  if (uc._qt && uc._qs) metaParts.push(uc._qs + '/100');
+  if (metaParts.length) html += '<div class="dp-meta-line">' + metaParts.join(' · ') + '</div>';
   html += '<a class="dp-link" href="uc/UC-' + esc(uc.i) + '/" target="_blank" rel="noopener">' + si('external') + ' Open full page</a>';
   html += '</div>';
 
