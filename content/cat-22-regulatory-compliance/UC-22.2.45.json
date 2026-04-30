@@ -5,8 +5,14 @@
   "criticality": "high",
   "difficulty": "intermediate",
   "wave": "walk",
-  "prerequisiteUseCases": ["UC-22.2.1"],
-  "monitoringType": ["Compliance", "Security", "Availability"],
+  "prerequisiteUseCases": [
+    "UC-22.2.1"
+  ],
+  "monitoringType": [
+    "Compliance",
+    "Security",
+    "Availability"
+  ],
   "splunkPillar": "Security",
   "industry": "All sectors in NIS2 Annex I and II",
   "owner": "Head of IR",
@@ -29,32 +35,73 @@
   ],
   "dataSources": "`index=network sourcetype=http_probe url=*csirt* OR url=*melicertes*` for synthetic monitoring probes (typically run by Splunk Synthetic Monitoring or a custom HTTP scripted input); `index=email sourcetype=sendmail OR sourcetype=exchange:messagetracking` for email relay health to CSIRT-registered domains; `index=pki sourcetype=stream:tls dest=*csirt*` for TLS certificate validity of CSIRT portals; lookup `nis2_csirt_directory.csv` for the channels to monitor.",
   "app": "Splunk Enterprise Security (Splunkbase 263) ≥7.0 for correlation; Splunk Add-on for Stream (Splunkbase 1809) ≥8.0 for TLS metadata; Splunk Add-on for Microsoft Exchange (Splunkbase 742) for message-tracking logs; or Splunk Synthetic Monitoring for HTTP probes.",
-  "premiumApps": ["Splunk Enterprise Security"],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
   "spl": "| inputlookup nis2_csirt_directory.csv\n| eval channel_type = case(\n    match(notification_channel, \"(?i)melicertes|portal\"), \"portal\",\n    match(notification_channel, \"(?i)email|pgp\"), \"email\",\n    1==1, \"other\")\n| join type=left country_code [\n    search index=network sourcetype=http_probe url=*csirt* OR url=*melicertes* earliest=-7d\n    | eval country_code = upper(substr(mvindex(split(url, \".\"), -1), 1, 2))\n    | stats latest(response_code) as last_http_code, latest(_time) as last_probe_time, avg(response_time_ms) as avg_response_ms by country_code\n  ]\n| join type=left country_code [\n    search index=pki sourcetype=stream:tls dest=*csirt* earliest=-7d\n    | eval country_code = upper(substr(mvindex(split(ssl_subject, \".\"), -1), 1, 2))\n    | stats min(ssl_validity_days) as cert_days_remaining by country_code\n  ]\n| join type=left country_code [\n    search index=email sourcetype IN (\"sendmail\",\"exchange:messagetracking\") recipient_domain=*csirt* earliest=-7d\n    | eval country_code = upper(substr(mvindex(split(recipient_domain, \".\"), -1), 1, 2))\n    | stats latest(delivery_status) as last_email_status, latest(_time) as last_email_time by country_code\n  ]\n| eval channel_health = case(\n    channel_type = \"portal\" AND (isnull(last_http_code) OR last_http_code != 200), \"UNREACHABLE\",\n    channel_type = \"portal\" AND avg_response_ms > 10000, \"SLOW\",\n    channel_type = \"portal\" AND isnotnull(cert_days_remaining) AND cert_days_remaining < 14, \"CERT_EXPIRING\",\n    channel_type = \"email\" AND (isnull(last_email_status) OR last_email_status != \"Delivered\"), \"EMAIL_FAIL\",\n    channel_type = \"email\" AND (now() - last_email_time) > 7*86400, \"EMAIL_STALE\",\n    1==1, \"HEALTHY\")\n| where channel_health != \"HEALTHY\"\n| eval evidence_id = sha256(country_code . notification_channel . now())\n| table country_code, csirt_name, notification_channel, channel_type, channel_health, last_http_code, avg_response_ms, cert_days_remaining, last_email_status, last_email_time, evidence_id\n| sort channel_health, country_code",
   "cimSpl": "| tstats summariesonly=true latest(Web.status) as last_status, avg(Web.response_time) as avg_rt from datamodel=Web.Web where Web.url=\"*csirt*\" by Web.url, Web.dest\n| rename Web.* as *\n| where last_status != 200",
   "description": "Proactively monitors the health of CSIRT notification channels (web portals, MeliCERTes, email relays, TLS certificate validity) that the operator depends on for Art.23 reporting. Surfaces unreachable portals, slow response, expiring certificates, and failed email delivery before an actual incident needs the channel.",
   "value": "If the CSIRT notification channel is down during a real significant incident, the operator risks missing the 24h deadline through no fault of the IR process. This UC provides 'we tested the channel and it was healthy' evidence for auditors — and pages the IR team when a channel goes unhealthy so they can switch to the backup before a real incident arrives.",
   "implementation": "(1) Deploy HTTP synthetic probes (scripted input or Splunk Synthetic Monitoring) that hit each CSIRT portal in `nis2_csirt_directory.csv` daily. (2) Configure Splunk Stream to capture TLS metadata for CSIRT portal domains. (3) Confirm email relay sends test messages to CSIRT-registered domains weekly. (4) Schedule the SPL daily at 06:00. (5) Page CSIRT liaison on `UNREACHABLE` or `CERT_EXPIRING` findings.",
   "visualization": "Traffic-light geo-map: per-country channel health (green=HEALTHY, amber=SLOW/CERT_EXPIRING, red=UNREACHABLE/EMAIL_FAIL). Sortable table. Single value: unhealthy channels count. 30-day trend: channel health over time.",
-  "cimModels": ["Web", "Certificates"],
+  "cimModels": [
+    "Web",
+    "Certificates"
+  ],
   "schema": "CIM",
   "dataModelAcceleration": "Enable `Web` and `Certificates` DMA for the HTTP probe and TLS metadata sources.",
   "references": [
-    { "title": "Splunk Enterprise Security on Splunkbase", "url": "https://splunkbase.splunk.com/app/263" },
-    { "title": "Splunk Add-on for Stream on Splunkbase", "url": "https://splunkbase.splunk.com/app/1809" },
-    { "title": "Splunk Synthetic Monitoring documentation", "url": "https://docs.splunk.com/Documentation/Synthetics/current" },
-    { "title": "Directive (EU) 2022/2555 (NIS2) — Art.23 reporting channels", "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj", "retrieved": "2026-04-29" },
-    { "title": "ENISA CSIRTs Network — MeliCERTes platform", "url": "https://www.enisa.europa.eu/topics/csirts-in-europe", "retrieved": "2026-04-29" },
-    { "title": "ENISA NIS2 Technical Implementation Guidance", "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance", "retrieved": "2026-04-29" }
+    {
+      "title": "Splunk Enterprise Security on Splunkbase",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for Stream on Splunkbase",
+      "url": "https://splunkbase.splunk.com/app/1809"
+    },
+    {
+      "title": "Splunk Synthetic Monitoring documentation",
+      "url": "https://docs.splunk.com/Documentation/Synthetics/current"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2) — Art.23 reporting channels",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA CSIRTs Network — MeliCERTes platform",
+      "url": "https://www.enisa.europa.eu/topics/csirts-in-europe",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
+    }
   ],
   "knownFalsePositives": "1) **Scheduled CSIRT portal maintenance** — a portal returns 503 during its maintenance window. Distinguish: check the CSIRT's status page or mailing-list announcement. Suppress: time-bound exception in `nis2_exception_register.csv` keyed on `country_code` for the maintenance window. 2) **DNS resolution failure on the synthetic-probe host** — not a channel problem but an infrastructure problem. Distinguish: `index=network sourcetype=http_probe | search response_code=\"DNS_ERROR\"`. Suppress: fix DNS on the probe host; do not suppress the finding until DNS is restored. 3) **Email relay logs not ingested** — the channel may be healthy but the SPL shows `EMAIL_STALE` because the last email event is >7 days old. Distinguish: check `index=_internal source=*exchange* | stats count` for the relay. Suppress: fix the email log ingestion; re-evaluate the finding after the next poll. 4) **Self-signed certificate on a national portal in testing mode** — cert_days_remaining is meaningless because the portal uses a non-public CA. Distinguish: `ssl_issuer` does not match any well-known public CA. Suppress: add the portal to `nis2_self_signed_portals.csv` and filter. 5) **Geo-based CDN routing** — the synthetic probe hits a CDN edge that returns a cached 200, not the actual portal backend. Distinguish: response body does not contain expected portal markers (e.g. `MeliCERTes` string). Suppress: update the probe to validate response body, not just HTTP status code.",
-  "mitreAttack": [],
+  "mitreAttack": [
+    "N/A (compliance notification channel health)"
+  ],
   "detectionType": "Baseline",
   "securityDomain": "soc_operations",
-  "requiredFields": ["country_code", "csirt_name", "notification_channel", "channel_type", "channel_health", "last_http_code", "avg_response_ms", "cert_days_remaining", "evidence_id"],
+  "requiredFields": [
+    "country_code",
+    "csirt_name",
+    "notification_channel",
+    "channel_type",
+    "channel_health",
+    "last_http_code",
+    "avg_response_ms",
+    "cert_days_remaining",
+    "evidence_id"
+  ],
   "exclusions": "Does not send notifications, does not validate that the operator's credentials for the portal are current (only that the portal is reachable), and does not determine whether a channel failure caused a missed deadline.",
   "evidence": "Saved search `UC-22.2.45` row-per-channel output, `index=audit_evidence sourcetype=evidence:saved_search` archive (7-year retention, RFC 3161 TSA-signed), `NIS2 Art.23 — Channel health` panel.",
-  "evidenceSigning": { "method": "rfc3161-tsa", "tsaUrl": "http://timestamp.digicert.com" },
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
   "controlTest": {
     "positiveScenario": "Fixture `sample-data/uc-22.2.45-fixture.json` injects an HTTP probe result for `country_code=DE` with `response_code=503` at `_time=now()-2h`, and a TLS metadata event for `country_code=FR` with `ssl_validity_days=7`. The search returns 2 rows: DE `channel_health=UNREACHABLE`, FR `channel_health=CERT_EXPIRING`.",
     "negativeScenario": "Same fixture but DE returns `response_code=200` and FR has `ssl_validity_days=90`. The search returns 0 rows.",
@@ -62,7 +109,10 @@
   },
   "status": "verified",
   "lastReviewed": "2026-04-29",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@nis2-evidence-pack-maintainers",
   "detailedImplementation": "Prerequisites\n• Splunk Enterprise Security (Splunkbase 263) ≥7.0; Splunk Add-on for Stream (Splunkbase 1809) ≥8.0 for TLS metadata capture.\n• Synthetic monitoring infrastructure: either Splunk Synthetic Monitoring (SaaS, recommended) or a custom scripted input on a UF that runs `curl` against each CSIRT portal and outputs JSON to `index=network sourcetype=http_probe`. Example input stanza:\n\n```ini\n[script://./bin/csirt_probe.sh]\ndisabled = 0\ninterval = 86400\nsourcetype = http_probe\nindex = network\n```\n\n• Email relay logs: `index=email sourcetype=sendmail` (Linux Sendmail) or `sourcetype=exchange:messagetracking` (Microsoft Exchange). The operator must have sent at least one test email to each CSIRT-registered domain in the last 7 days for the EMAIL probe to have data.\n• Splunk Stream configured to capture TLS handshake metadata on the SPAN port or tap that sees traffic to CSIRT portal IPs.\n• Lookup `nis2_csirt_directory.csv` with columns: `country_code`, `csirt_name`, `notification_channel`, `portal_url`, `email_domain`, `ack_sla_hours`, `last_verified`.\n• Roles: `read` on `index=network`, `index=email`, `index=pki`, `index=audit_evidence`.\n• Network: the synthetic probe host must have outbound HTTPS to all portal URLs in `nis2_csirt_directory.csv`. DNS resolution from the probe host must work (no split-DNS blocking public domains).\n• License: HTTP probe events ~500 bytes each × 27 countries × daily = ~14 KB/day. TLS metadata ~1 KB per handshake × sporadic. Email tracking ~500 bytes per message. Negligible.\n• Baseline knowledge: which notification channel the operator uses per country (portal vs email); the backup channel if the primary fails.\n\nStep 1 — Configure data collection\n• Deploy the synthetic probe. For scripted input:\n\n```bash\n#!/bin/bash\nwhile IFS=, read -r country url; do\n  start=$(date +%s%N)\n  code=$(curl -s -o /dev/null -w \"%{http_code}\" --connect-timeout 10 \"$url\" 2>/dev/null || echo \"CONN_FAIL\")\n  end=$(date +%s%N)\n  ms=$(( (end - start) / 1000000 ))\n  echo \"{\\\"url\\\": \\\"$url\\\", \\\"country_code\\\": \\\"$country\\\", \\\"response_code\\\": \\\"$code\\\", \\\"response_time_ms\\\": $ms}\"\ndone < \"$SPLUNK_HOME/etc/apps/SA-NIS2/lookups/csirt_probe_urls.csv\"\n```\n\n• Confirm HTTP probe events arriving: `index=network sourcetype=http_probe | head 5 | table _time url response_code response_time_ms`.\n• Configure Splunk Stream TLS capture for CSIRT portal domains: Splunk Stream > Configuration > Stream Sources > TLS > Filter by destination IP or domain matching `*csirt*` or `*melicertes*`.\n• Confirm TLS events: `index=pki sourcetype=stream:tls dest=*csirt* | head 5 | table _time ssl_subject ssl_validity_days ssl_issuer`.\n• Configure weekly test emails to each CSIRT-registered email domain. For Sendmail: a cron job that sends `echo \"NIS2 channel test\" | mail -s \"Test\" csirt-inbox@csirt-XX.eu` per country. Confirm delivery tracking: `index=email sourcetype=sendmail recipient_domain=*csirt* | head 5 | table _time recipient_domain delivery_status`.\n• Expected event volume: 27 HTTP probe events/day + sporadic TLS events + 27 email tracking events/week. Total ~5 KB/day.\n\nStep 2 — Create the search and alert\nUse the `spl` field above. Save as scheduled search `UC-22.2.45 NIS2 CSIRT Channel Health`.\n\nUnderstanding this SPL — design choices:\n• **Lookup-driven** rather than event-driven: the search starts from `nis2_csirt_directory.csv` and left-joins against the three probe sources. This means a country with NO probe data at all shows up as `UNREACHABLE` — which is the safest default.\n• **Three join sources** (HTTP, TLS, email) because different countries use different channels; the SPL checks whichever data is relevant via the `channel_type` classification.\n• **`channel_health` case() classification** uses thresholds tuned for CSIRT portals: 200 OK for portals, response_time < 10s, cert > 14 days, email Delivered within 7 days.\n• **Country-code extraction from URL/domain** is a heuristic (last TLD segment). It works for most European CSIRTs (cert.at, cert.be, bsi.bund.de → DE). For CSIRTs whose domain doesn't follow this pattern, add an explicit `country_code` field to the probe script.\n• **`where channel_health != \"HEALTHY\"`** so only problematic channels are surfaced.\n\nSchedule and alert action:\n• Cron: `0 6 * * *` (daily 06:00). Time range `-7d to now`.\n• Alert action: `Number of results > 0`. Throttle by `country_code` for 24 hours.\n• Notification: PagerDuty severity `warning` for `UNREACHABLE` or `CERT_EXPIRING`; email digest to CSIRT liaison for `SLOW` or `EMAIL_STALE`.\n• Summary indexing: write findings to `index=audit_evidence sourcetype=evidence:saved_search`.\n\nStep 3 — Validate\n• Compare the probe results to a manual `curl` from the same host: `curl -v https://cert.at/ 2>&1 | head 20`. The response code and timing should match the Splunk probe event.\n• Spot-check TLS certificate: `openssl s_client -connect cert.at:443 2>/dev/null | openssl x509 -noout -dates` and compare `ssl_validity_days` in Splunk.\n• Spot-check email: send a manual test email to a CSIRT domain; verify the Exchange message-tracking log shows `Delivered`.\n• Confirm all 27 countries are covered: `| inputlookup nis2_csirt_directory.csv | stats count` should be 27. Missing countries = blind spots.\n• Confirm no false UNREACHABLE: for a country that shows UNREACHABLE, `curl` from the probe host. If it returns 200, the probe script has a bug (timeout too low, DNS issue).\n\nStep 4 — Operationalize\nDashboard `compliance/nis2-art23-posture.xml` (Channel health tab):\n• **Row 1 — Tiles:** Unhealthy channels count, Countries with expiring certs, Stale email channels.\n• **Row 2 — Geo-map:** Traffic-light per country (green/amber/red).\n• **Row 3 — Sortable table:** country_code, csirt_name, channel_type, channel_health, last_http_code, cert_days_remaining, drilldown to probe details.\n• **Row 4 — 30-day trend:** Per-country channel health sparklines.\n• **Time picker:** Default `Last 7 days` (operations); `Last 30 days` (review).\n• **Access:** `csirt_liaison`, `head_of_ir`, `nis2_evidence_reader`.\n\nRunbook (owner: CSIRT Liaison):\n1. Daily check: review the dashboard for any non-HEALTHY channels.\n2. UNREACHABLE: confirm via manual curl. If confirmed, switch to the backup channel (email if portal is down; phone + email if both are down). Log the switch in ServiceNow with a time-bound exception.\n3. CERT_EXPIRING: notify the CSIRT operator (they likely know, but the operator should document the awareness). If the cert expires before the CSIRT renews, switch to the backup channel.\n4. EMAIL_FAIL: investigate the relay. Common cause: SPF/DKIM/DMARC rejection at the CSIRT's email gateway. Contact the CSIRT's admin to allowlist the operator's sending domain.\n5. Monthly review: `| stats count by channel_health | sort - count` to identify systemic channel reliability issues.\n\nStep 5 — Troubleshooting\n• **All channels show UNREACHABLE.** The synthetic probe host has no outbound internet. Fix DNS and firewall egress.\n• **`response_code` is always `CONN_FAIL`.** The probe script's `curl` connect-timeout is too low (10s default may be insufficient for some national portals behind DDoS protection). Increase to 30s.\n• **`cert_days_remaining` is null for all portals.** Splunk Stream TLS capture is not configured or the tap/SPAN port does not see traffic to those destinations. Configure a dedicated Splunk Stream forwarder on the probe host.\n• **Country-code extraction is wrong** (e.g. `bsi.bund.de` extracts `DE` from the TLD, but `ncsc.gov.uk` extracts `UK`). Fix: maintain a `csirt_probe_urls.csv` with explicit `(country_code, url)` pairs and use the probe script's output instead of heuristic extraction.\n• **Email relay sends test messages but `delivery_status` is never `Delivered`.** The CSIRT's email gateway is silently quarantining. Request SPF/DKIM alignment guidance from the CSIRT.\n• **Probe runs but events don't appear in Splunk.** Probe script's `sourcetype` or `index` doesn't match the SPL's. Verify with `splunk btool inputs list --debug | grep csirt_probe`.",
   "grandmaExplanation": "Before a cyber emergency hits, we want to know that the phone lines to the regulator actually work. This watch tests the communication channels to each country's cybersecurity team every day, so we find out about a broken line now — not when we desperately need to make that call."

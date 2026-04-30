@@ -48,16 +48,7 @@ from dataclasses import asdict, dataclass
 from typing import Iterable, List, Optional, Tuple
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-USE_CASES = os.path.join(REPO_ROOT, "use-cases", "cat-*.md")
-
-RE_UC_HEAD = re.compile(r"^###\s+(UC-\d+\.\d+\.\d+)\s*·\s*(.*)$", re.MULTILINE)
-RE_MITRE_LINE = re.compile(
-    # Only horizontal whitespace (not \n) between label and body —
-    # `\s*` would let the capture hop to the next field's line whenever
-    # the MITRE value is blank.
-    r"^-[ \t]*\*\*MITRE ATT&CK:\*\*[ \t]*(?P<body>[^\n]*)$",
-    re.MULTILINE,
-)
+CONTENT_DIR = os.path.join(REPO_ROOT, "content")
 
 # Canonical MITRE tokens accepted verbatim.
 RE_VALID_TOKEN = re.compile(
@@ -87,15 +78,6 @@ class Finding:
         if self.snippet:
             s += f"\n        snippet: {self.snippet.strip()[:200]}"
         return s
-
-
-def _iter_uc_blocks(text: str) -> Iterable[Tuple[str, str, int, int]]:
-    matches = list(RE_UC_HEAD.finditer(text))
-    for i, m in enumerate(matches):
-        uc_id = m.group(1)
-        start = m.start()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        yield uc_id, text[start:end], start, end
 
 
 def _tokenize_mitre_body(body: str) -> List[str]:
@@ -241,20 +223,40 @@ def _check_mitre_line(uc_id: str, file: str, body_text: str) -> List[Finding]:
     return findings
 
 
-def audit_file(path: str) -> List[Finding]:
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
+def audit_uc_json(path: str, data: dict) -> List[Finding]:
+    """Audit a single UC JSON file's mitreAttack array."""
     findings: List[Finding] = []
-    for uc_id, body, _s, _e in _iter_uc_blocks(text):
-        m = RE_MITRE_LINE.search(body)
-        if not m:
-            continue
-        findings.extend(_check_mitre_line(uc_id, path, m.group("body")))
+    uc_id = f"UC-{data.get('id', '?')}"
+    mitre = data.get("mitreAttack")
+    if mitre is None:
+        return findings
+    if not isinstance(mitre, list):
+        return findings
+    body_text = ", ".join(str(t) for t in mitre)
+    if not mitre:
+        findings.append(
+            Finding(
+                file=path,
+                uc_id=uc_id,
+                severity="LOW",
+                category="mitre-empty",
+                message=(
+                    "`mitreAttack` is present but has no technique entries. "
+                    "Either provide technique IDs or include "
+                    "`N/A (<brief reason>)` for meta-detections."
+                ),
+                snippet=body_text[:200],
+            )
+        )
+        return findings
+    findings.extend(_check_mitre_line(uc_id, path, body_text))
     return findings
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
+    ap = argparse.ArgumentParser(
+        description="Audit mitreAttack arrays in content/cat-*/UC-*.json"
+    )
     ap.add_argument("--check", action="store_true", help="Exit 1 if any HIGH finding")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument(
@@ -265,18 +267,23 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     args = ap.parse_args(argv)
 
-    paths = sorted(glob.glob(USE_CASES))
+    uc_files = sorted(glob.glob(os.path.join(CONTENT_DIR, "cat-*", "UC-*.json")))
     all_findings: List[Finding] = []
-    for p in paths:
-        all_findings.extend(audit_file(p))
+    for p in uc_files:
+        try:
+            with open(p, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        all_findings.extend(audit_uc_json(p, data))
 
     if args.json:
         print(json.dumps([asdict(f) for f in all_findings], indent=2))
     else:
         print("=" * 72)
-        print("MITRE ATT&CK taxonomy audit (use-cases/cat-*.md)")
+        print("MITRE ATT&CK taxonomy audit (content/cat-*/UC-*.json)")
         print("=" * 72)
-        print(f"Files scanned: {len(paths)}")
+        print(f"Files scanned: {len(uc_files)}")
         counts: dict[str, int] = {}
         for f in all_findings:
             counts[f.severity] = counts.get(f.severity, 0) + 1

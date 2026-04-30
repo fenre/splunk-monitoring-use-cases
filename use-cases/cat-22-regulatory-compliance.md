@@ -4604,6 +4604,7 @@ index=web sourcetype="access_combined" earliest=-24h
 - **Data Sources:** `index=o365` `sourcetype="ms:o365:management"` (Workload, Operation, PolicyName, UserPrincipalName, SensitiveInfoType, Severity)
 - **SPL:**
 ```spl
+# Shared SPL: intentional — see UC-22.8.3
 index=o365 sourcetype="ms:o365:management" Workload="Dlp"
 | stats count by PolicyName, UserPrincipalName, SensitiveInfoType, Severity, Operation
 | sort - count
@@ -8716,6 +8717,7 @@ index=itsi_summary is_service_in_maintenance=0 is_entity_in_maintenance=0
 - **Data Sources:** `index=o365` `sourcetype="ms:o365:management"` (Workload, PolicyName, UserPrincipalName, SensitiveInfoType, Severity, Operation)
 - **SPL:**
 ```spl
+# Shared SPL: intentional — see UC-22.4.3
 index=o365 sourcetype="ms:o365:management" Workload="Dlp"
 | stats count by PolicyName, UserPrincipalName, SensitiveInfoType, Severity, Operation
 | sort - count

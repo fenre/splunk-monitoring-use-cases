@@ -151,8 +151,9 @@ Equipment is derived, not authored. Adding a new vendor means editing `EQUIPMENT
 ### 5.1 File layout
 
 ```
+content/
+└── INDEX.md                # category metadata: icon, description, quick starters
 use-cases/
-├── INDEX.md                # category metadata: icon, description, quick starters
 ├── cat-00-preamble.md      # legend only, not parsed as a category
 ├── cat-01-server-compute.md
 ├── cat-02-virtualization.md

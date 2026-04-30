@@ -16,7 +16,7 @@ Open `index.html` in a browser (file:// or any static server). The site reads ge
 
 ### Files and IDs
 
-- **Category files:** `use-cases/cat-XX-descriptive-name.md` where `XX` is the two-digit category (must match `INDEX.md` and `cat-XX-*.md` glob).
+- **Category files:** `use-cases/cat-XX-descriptive-name.md` where `XX` is the two-digit category (must match `content/INDEX.md` and `cat-XX-*.md` glob).
 - **UC headers:** `### UC-X.Y.Z · Title` — category `X`, subcategory `Y`, use case `Z`.
 - **ID rules (`scripts/audit_uc_ids.py`):** `X` must match the file’s `cat-XX-`. Within each subcategory `(X.Y)`, `Z` values must be **strictly increasing with no gaps** (e.g. …2 then …4 is invalid). IDs must be unique repo-wide.
 

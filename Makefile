@@ -1,4 +1,7 @@
-.PHONY: build serve clean audit audit-structure audit-cim audit-links audit-consistency audit-perf inventory manifest test help
+.PHONY: build serve clean audit audit-full audit-structure audit-cim audit-links \
+       audit-consistency audit-perf audit-placeholders audit-mitre audit-gold \
+       audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type \
+       inventory manifest test test-unit help
 
 PYTHON ?= python3
 BUILD  := $(PYTHON) tools/build/build.py --out dist
@@ -17,9 +20,13 @@ serve: build ## Build then serve locally on port 8000
 clean: ## Remove dist/ and build artefacts
 	rm -rf $(DIST)
 
-# --- Audits ---
+# --- Audits (quick) ---
 
-audit: audit-structure audit-cim audit-consistency ## Run all audit checks
+audit: audit-structure audit-cim audit-consistency ## Run core audit checks
+
+# --- Audits (comprehensive) ---
+
+audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(PYTHON) scripts/audit_uc_structure.py --full
@@ -35,6 +42,27 @@ audit-consistency: ## Audit repo consistency (enrichment, INDEX, HTML)
 
 audit-perf: ## Performance + accessibility budget check
 	$(PYTHON) scripts/audit_perf_a11y.py
+
+audit-placeholders: ## Detect placeholder/scaffolded content
+	$(PYTHON) scripts/audit_placeholders.py
+
+audit-mitre: ## Validate MITRE ATT&CK taxonomy
+	$(PYTHON) scripts/audit_mitre_taxonomy.py
+
+audit-gold: ## Gold standard quality profile audit
+	$(PYTHON) scripts/audit_gold_profile.py
+
+audit-spl-duplicates: ## Find duplicate SPL queries across UCs
+	$(PYTHON) scripts/audit_spl_duplicates.py
+
+audit-spl-grammar: ## Check SPL grammar issues
+	$(PYTHON) scripts/audit_spl_grammar.py
+
+audit-ids: ## Validate UC IDs (duplicates, ordering, category match)
+	$(PYTHON) scripts/audit_uc_ids.py
+
+audit-monitoring-type: ## Validate monitoringType values and MITRE consistency
+	$(PYTHON) scripts/audit_monitoring_type.py
 
 # --- Data generation ---
 
