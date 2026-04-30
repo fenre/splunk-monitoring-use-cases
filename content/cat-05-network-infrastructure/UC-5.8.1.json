@@ -8,30 +8,35 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Cisco Catalyst Center / legacy DNA Center Intent API: `cisco:dnac:issue` and related; optional syslog from controllers",
+  "dataSources": "`index=catalyst sourcetype=cisco:dnac:issue`. from the `issue` modular input in the Cisco Catalyst Add-on (Splunkbase 7538) polling `GET /dna/intent/api/v1/issues`. Default poll interval: 900s (15m). Volume: ~1 event per active issue per poll. RBAC: NETWORK-ADMIN-ROLE. Key fields: `priority` (string), `category` (string), `name` (string), `status` (string), `deviceName` (string).",
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
-  "spl": "index=network sourcetype=\"cisco:dnac:issue\"\n| stats count by priority, category, name | sort -priority -count",
-  "description": "DNA Center provides AI/ML-driven network issue detection. Centralizing in Splunk enables cross-domain correlation.",
-  "value": "DNA Center provides AI/ML-driven network issue detection. Centralizing in Splunk enables cross-domain correlation.",
-  "implementation": "Configure DNA Center API integration in Splunk TA. Poll for issues and client health. Alert on P1/P2 issues.",
-  "visualization": "Table (issue, priority, category), Bar chart, Single value.",
-  "cimModels": [
-    "N/A"
-  ],
+  "spl": "index=catalyst sourcetype=\"cisco:dnac:issue\"\n| stats count by priority, category, name | sort -priority -count",
+  "description": "Centralises Catalyst Center Assurance issue alerts in Splunk, providing a prioritised summary of AI/ML-detected network issues by priority, category, and issue name.",
+  "value": "Network operations teams gain cross-domain visibility by correlating Catalyst Center Assurance alerts with syslog, SNMP, and other Splunk data sources, reducing mean time to detect and resolve infrastructure problems.",
+  "implementation": "Install the Cisco Catalyst Add-on for Splunk (Splunkbase 7538) and configure a Catalyst Center account. Enable the `issue` input pointing to `index=catalyst`. The TA polls `GET /dna/intent/api/v1/issues` every 15 minutes by default. Key fields include `priority`, `category`, `name`, `status`, and `deviceName`.",
+  "visualization": "Table (issue name, priority, category, count), Bar chart (issue count by priority), Single value panels (P1/P2 open count).",
   "references": [
     {
       "title": "Splunkbase app 7538",
       "url": "https://splunkbase.splunk.com/app/7538"
+    },
+    {
+      "title": "Catalyst Center API docs",
+      "url": "https://developer.cisco.com/docs/catalyst-center/"
+    },
+    {
+      "title": "Catalyst Center Integration Guide",
+      "url": "docs/guides/catalyst-center.md"
     }
   ],
+  "knownFalsePositives": "Planned Assurance recalibrations, lab controllers, and polling delays after upgrades can look like new issues. Compare any spike to the Catalyst Center Assurance / Issues UI before you page someone.",
   "equipment": [
     "cisco"
   ],
   "equipmentModels": [
     "cisco_catalyst_center"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).\n• Ensure the following data sources are available: DNA Center API (issues, events).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure DNA Center API integration in Splunk TA. Poll for issues and client health. Alert on P1/P2 issues.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"cisco:dnac:issue\"\n| stats count by priority, category, name | sort -priority -count\n```\n\nUnderstanding this SPL\n\n**DNA Center Assurance Alerts (Cisco Catalyst Center)** — DNA Center provides AI/ML-driven network issue detection. Centralizing in Splunk enables cross-domain correlation.\n\nDocumented **Data sources**: DNA Center API (issues, events). **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:dnac:issues. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"cisco:dnac:issue\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by priority, category, name** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nOpen Cisco Catalyst Center (Assurance / Issues) for the same window and match priority, category, and issue name counts to the Splunk table. If numbers drift, re-check the TA’s Intent API input, token rotation, and index routing.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (issue, priority, category), Bar chart, Single value.",
-  "grandmaExplanation": "We help you see when Cisco’s management system flags real problems and priorities on the network, so you can act before the trouble spreads to the apps and phones we all use.",
-  "wave": "crawl",
-  "knownFalsePositives": "Planned Assurance recalibrations, lab controllers, and polling delays after upgrades can look like new issues. Compare any spike to the Catalyst Center Assurance / Issues UI before you page someone."
+  "detailedImplementation": "Prerequisites\n• Install the **Cisco Catalyst Add-on for Splunk** (Splunkbase 7538) on a search head or heavy forwarder.\n• Configure a Catalyst Center account in the TA with a service account that has **NETWORK-ADMIN-ROLE** or **SUPER-ADMIN-ROLE**.\n• Catalyst Center **2.3.5+** recommended for consistent Assurance issue data.\n• For app install paths and modular input layout, see `docs/implementation-guide.md`.\n\nStep 1 — Configure data collection\n• **TA input name:** `issue`; **sourcetype:** `cisco:dnac:issue`; **index:** `catalyst`.\n• **API polled:** `GET /dna/intent/api/v1/issues` (Intent API, paginated).\n• **Default interval:** 900s (15 minutes). Shorter intervals improve detection latency but increase API load.\n• **Volume:** ~1 event per active issue per poll. Busy networks with many open issues will generate more events.\n• **Key fields to validate:** `priority` (P1/P2/P3/P4), `category` (e.g. Onboarding, Connected, Availability), `name` (issue title), `status`, `deviceName`.\n\nStep 2 — Create the search and alert\n```spl\nindex=catalyst sourcetype=\"cisco:dnac:issue\"\n| stats count by priority, category, name | sort -priority -count\n```\n\nUnderstanding this SPL:\n• **`stats count by priority, category, name`**: Aggregates issue events by their priority level, category, and specific issue name to produce a frequency table.\n• **`sort -priority -count`**: Surfaces the highest-priority, most-frequent issues first for triage.\n• **Tuning:** filter by `priority=\"P1\" OR priority=\"P2\"` for critical-only alerting; add `by deviceName` to identify which devices generate the most issues.\n\nStep 3 — Validate\n• **Vendor UI parity:** open **Catalyst Center > Assurance > Issues** for the same time window and compare the issue count by priority. Minor count differences are normal due to poll timing.\n• Pick two specific issues visible in the Catalyst Center UI and verify they appear in the Splunk results with matching priority and category.\n• Run `| timechart count` over 24 hours to verify a steady event stream with no silent gaps.\n\nStep 4 — Operationalize\n• **Dashboard:** Use as a top-level summary panel on a Network Management dashboard. Pair with single-value panels for open P1 and P2 counts.\n• **Alert:** Schedule hourly; trigger on `priority=\"P1\" | stats count | where count > 0` for immediate NOC notification.\n• **Drilldown:** Link from issue rows to **Catalyst Center > Assurance > Issues** for the specific issue detail.\n\nStep 5 — Troubleshooting\n• **No `cisco:dnac:issue` events:** if data is not arriving, check that the `issue` input is enabled in the TA, verify the Catalyst Center account credentials, and look for HTTP errors in `index=_internal sourcetype=splunkd component=ExecProcessor \"TA_cisco_catalyst\"`.\n• **Fewer issues than the Catalyst Center UI shows:** confirm the service account has the correct RBAC role and virtual domain scope. The API returns only active issues by default.\n• **Stale data or timeout errors:** check NTP synchronization between the collection host and Catalyst Center; verify the poll interval has not been inadvertently set too long.\n",
+  "grandmaExplanation": "We help you see when Cisco's management system flags real problems and priorities on the network, so you can act before the trouble spreads to the apps and phones we all use.",
+  "wave": "crawl"
 }
