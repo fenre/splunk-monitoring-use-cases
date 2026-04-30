@@ -10,6 +10,30 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [7.3] - 2026-04-30
+
+### Interactive knowledge graph
+
+- **New `graph.html` page.** An interactive knowledge graph built with
+  Sigma.js and graphology that visualises the full catalog structure:
+  23 categories, 80 top equipment types, 37 CIM data models, and 4 Splunk
+  pillars as nodes; 446 weighted edges showing which categories use which
+  equipment and CIM models. Click any node to filter to its neighbourhood,
+  view a detail panel with connection counts, and navigate to related nodes
+  or the main catalog. Supports dark mode, search, layer toggles, and
+  keyboard navigation (Escape to deselect).
+- **`tools/build-graph-data.py` generator.** Reads all 7,364 UC JSON files
+  and produces a compact `graph-data.json` (53 KB) with nodes and weighted
+  edges. Run `python3 tools/build-graph-data.py` to regenerate.
+- **Navigation wired site-wide.** "Graph" link added to the header nav of
+  `index.html`, `docs.html`, `scorecard.html`, `clause-navigator.html`,
+  `compliance-story.html`, and `guide-reader.html`; tool card added to the
+  docs hub; footer link added to `index.html`.
+- **Build pipeline updated.** `graph.html` and `graph-data.json` added to
+  `tools/build/build.py` static file lists (`legacy_extras` and
+  `_PROJECT_STATIC_FILES`) so they are mirrored into `dist/` for GitHub
+  Pages deployment. CI paths in `validate.yml` updated.
+
 ## [7.2] - 2026-04-29
 
 ### Phase 3 scaling — 195 UCs verified to the true-gold standard
