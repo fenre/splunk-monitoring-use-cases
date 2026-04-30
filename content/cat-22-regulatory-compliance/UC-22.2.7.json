@@ -5,8 +5,13 @@
   "criticality": "critical",
   "difficulty": "advanced",
   "wave": "walk",
-  "prerequisiteUseCases": ["UC-22.2.1"],
-  "monitoringType": ["Compliance", "Security"],
+  "prerequisiteUseCases": [
+    "UC-22.2.1"
+  ],
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
   "splunkPillar": "Security",
   "industry": "All sectors in NIS2 Annex I and II",
   "owner": "Head of IR",
@@ -29,32 +34,75 @@
   ],
   "dataSources": "ES `notable` macro for high/critical urgency notables; `index=audit_evidence sourcetype=evidence:nis2_artifact stage=early_warning` for tracking the 24h artefact submission timestamp; `index=phantom sourcetype=phantom:container label=nis2_significant_incident` for SOAR case linkage. Lookup `nis2_significant_incident_thresholds.csv` for tier classification; `nis2_exception_register.csv` for time-bound exceptions.",
   "app": "Splunk Enterprise Security (Splunkbase 263) ≥7.0; Splunk Add-on for Phantom (Splunkbase 3411) ≥3.0; Splunk Common Information Model Add-on (Splunkbase 1621) ≥5.3.",
-  "premiumApps": ["Splunk Enterprise Security", "Splunk SOAR"],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
   "spl": "`notable` urgency IN (\"high\",\"critical\") earliest=-5d\n| eval hours_since_detection = round((now() - _time) / 3600, 2)\n| lookup nis2_significant_incident_thresholds.csv rule_name OUTPUT nis2_tier nis2_significant\n| where coalesce(nis2_significant, \"unclassified\") != \"no\" AND status != \"Closed\" AND hours_since_detection >= 60\n| eval clock_state = case(\n    hours_since_detection >= 72, \"BREACH\",\n    hours_since_detection >= 68, \"WARN_T_MINUS_4H\",\n    hours_since_detection >= 60, \"NOTICE_T_MINUS_12H\",\n    1==1, \"OK\")\n| join type=left rule_name event_id [\n    search index=audit_evidence sourcetype=evidence:nis2_artifact stage=early_warning earliest=-5d\n    | stats latest(_time) as early_warning_filed_time by rule_name event_id\n  ]\n| eval early_warning_status = if(isnotnull(early_warning_filed_time), \"FILED\", \"MISSING\")\n| join type=left rule_name event_id [\n    search index=audit_evidence sourcetype=evidence:nis2_artifact stage=72h_notification earliest=-5d\n    | stats latest(_time) as notification_filed_time by rule_name event_id\n  ]\n| eval notification_status = if(isnotnull(notification_filed_time), \"FILED\", \"PENDING\")\n| where notification_status = \"PENDING\"\n| lookup nis2_exception_register.csv rule_name OUTPUT exception_valid_until\n| where isnull(exception_valid_until) OR strptime(exception_valid_until, \"%Y-%m-%dT%H:%M:%S\") < now()\n| eval evidence_id = sha256(rule_name . event_id . _time . \"72h\")\n| table _time, rule_name, urgency, nis2_tier, status, owner, hours_since_detection, clock_state, early_warning_status, notification_status, evidence_id\n| sort - hours_since_detection",
   "cimSpl": "| tstats summariesonly=true count from datamodel=Alerts.Alerts where Alerts.severity IN (\"high\",\"critical\") AND Alerts.status!=\"closed\" AND _time >= relative_time(now(), \"-5d\") by Alerts.signature, Alerts.owner, Alerts._time\n| rename Alerts.* as *\n| eval hours_since_detection = round((now() - _time) / 3600, 2)\n| where hours_since_detection >= 60",
   "description": "Detects significant incidents that have crossed the 60-hour mark since detection, where the 24h early-warning is on file but the 72h Art.23(4)(b) notification has not yet been logged as submitted. Surfaces a T-12h notice, T-4h warning, and T+0 breach state.",
   "value": "The 72-hour notification carries the initial impact assessment that the competent authority uses to decide whether to escalate. Missing the deadline pushes the operator into Art.32(4) inquiry territory; this UC gives the IR lead and CSIRT liaison a deadline-clock so the notification is drafted from running incident telemetry, not reconstructed under deadline pressure.",
   "implementation": "(1) Schedule every 30 minutes over 5 days. (2) Configure SOAR or the IR portal to write a `stage=early_warning` and `stage=72h_notification` artefact event into `index=audit_evidence sourcetype=evidence:nis2_artifact` keyed on `rule_name` and `event_id`. (3) PagerDuty page on `WARN_T_MINUS_4H`, escalate IR lead + CSIRT liaison on `BREACH`. (4) Throttle by `rule_name` for 8 hours.",
   "visualization": "Single value: incidents in 72h-clock window. Timeline: aging vs three threshold bands. Sortable table with deep links. Trellis: 14-day breach trend by `nis2_tier`.",
-  "cimModels": ["Alerts"],
+  "cimModels": [
+    "Alerts"
+  ],
   "schema": "CIM",
   "dataModelAcceleration": "Enable acceleration on the `Alerts` data model with 14-day retention. The cimSpl variant excludes the 24h-artefact join because that join requires the raw `audit_evidence` index — keep the cimSpl as a fast pre-filter and only run the full SPL on the surviving rows.",
   "references": [
-    { "title": "Splunk Enterprise Security on Splunkbase", "url": "https://splunkbase.splunk.com/app/263" },
-    { "title": "Splunk Add-on for Phantom on Splunkbase", "url": "https://splunkbase.splunk.com/app/3411" },
-    { "title": "CIM Alerts data model reference", "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts" },
-    { "title": "Directive (EU) 2022/2555 (NIS2) — Art.23 reporting obligations", "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj", "retrieved": "2026-04-29" },
-    { "title": "Commission Implementing Regulation (EU) 2024/2690 — significance thresholds", "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj", "retrieved": "2026-04-29" },
-    { "title": "ENISA NIS2 Technical Implementation Guidance — incident notification", "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance", "retrieved": "2026-04-29" }
+    {
+      "title": "Splunk Enterprise Security on Splunkbase",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for Phantom on Splunkbase",
+      "url": "https://splunkbase.splunk.com/app/3411"
+    },
+    {
+      "title": "CIM Alerts data model reference",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2) — Art.23 reporting obligations",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "Commission Implementing Regulation (EU) 2024/2690 — significance thresholds",
+      "url": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance — incident notification",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
+    }
   ],
   "knownFalsePositives": "1) **Active major incident with extension granted by competent authority** — some member-state CSIRTs grant a deadline extension for declared critical infrastructure events. Distinguish: a `csirt_extension_granted_until` field set on the early-warning artefact in `index=audit_evidence`. Suppress: time-bound exception in `nis2_exception_register.csv` keyed on `event_id` until `csirt_extension_granted_until`. 2) **Cross-border duplicate detection — same incident raised in two member states** with parallel notification flows. Distinguish: same `parent_incident_id` across two `event_id` rows with different `csirt_authority` tags. Suppress: nominate one event_id as primary in `nis2_crossborder_primary.csv`; filter the search to `where event_id NOT IN (secondary_event_ids)`. 3) **CSIRT acknowledged the early-warning verbally but the artefact log was not updated** by the IR team. Distinguish: `early_warning_status=MISSING` but the IR team's chat channel (Slack/Teams `#incident-room`) has a CSIRT acknowledgement message. Suppress: do NOT — page the IR team to update the artefact register; the missing artefact is itself a finding under Art.21(5) record-keeping. 4) **SOAR playbook write-back to `audit_evidence` failed silently** — common after a SOAR upgrade. Distinguish: `index=phantom sourcetype=phantom:action_run action=write_evidence status=failed`. Suppress: do NOT — fix the SOAR action and backfill the missing artefacts; do not exclude the rule. 5) **Rule re-tuning back-dated existing notables** — the correlation search was edited to lower the urgency threshold and existing notables now appear with the new urgency. Distinguish: `lastModified` on the rule is recent AND the notable's `_indextime > _time`. Suppress: 7-day time-bound exception in `nis2_exception_register.csv` while the IR team re-classifies the back-dated notables. 6) **Notable closed and re-opened — clock should restart from re-open time, not original detection.** Distinguish: `\\`notable\\` | search rule_name=<rule> | streamstats current=f last(status) as prev_status by event_id | where prev_status=\"Closed\" AND status!=\"Closed\"`. Suppress: derive `_time` from the most recent re-open event in the audit log; do not suppress the row.",
-  "mitreAttack": ["T1562.008"],
+  "mitreAttack": [
+    "T1562.008"
+  ],
   "detectionType": "Correlation",
   "securityDomain": "soc_operations",
-  "requiredFields": ["_time", "rule_name", "urgency", "nis2_tier", "status", "owner", "hours_since_detection", "clock_state", "early_warning_status", "notification_status", "evidence_id"],
+  "requiredFields": [
+    "_time",
+    "rule_name",
+    "urgency",
+    "nis2_tier",
+    "status",
+    "owner",
+    "hours_since_detection",
+    "clock_state",
+    "early_warning_status",
+    "notification_status",
+    "evidence_id"
+  ],
   "exclusions": "Does not draft the Art.23(4)(b) notification text, does not classify the incident's significance under Art.23(1), does not submit the notification to the CSIRT or competent authority, and does not establish whether a member-state CSIRT has granted a deadline extension. Where an extension is granted out of band, the operator must record it in `nis2_exception_register.csv` for the UC to honour it.",
   "evidence": "Saved search `UC-22.2.7` row-per-finding output, `index=audit_evidence sourcetype=evidence:saved_search` archive (7-year retention, RFC 3161 TSA-signed), and the `NIS2 Art.23 — 72h clock` panel on dashboard `compliance/nis2-art23-posture.xml`.",
-  "evidenceSigning": { "method": "rfc3161-tsa", "tsaUrl": "http://timestamp.digicert.com" },
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
   "controlTest": {
     "positiveScenario": "Fixture `sample-data/uc-22.2.7-fixture.json` injects a high-urgency notable at `_time=now()-69h` with `nis2_significant=\"yes\"` and a corresponding `evidence:nis2_artifact stage=early_warning` event at `now()-44h`, but no `stage=72h_notification` artefact. The search returns one row with `clock_state=\"WARN_T_MINUS_4H\"`, `early_warning_status=\"FILED\"`, `notification_status=\"PENDING\"`.",
     "negativeScenario": "Same fixture but with a `stage=72h_notification` artefact present at `now()-1h`. The search returns 0 rows. Verifies that filed notifications correctly suppress.",
@@ -63,8 +111,20 @@
   },
   "status": "verified",
   "lastReviewed": "2026-04-29",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@nis2-evidence-pack-maintainers",
   "detailedImplementation": "Prerequisites\n• UC-22.2.1 (24h early-warning) is implemented and writing `stage=early_warning` artefact events to `index=audit_evidence sourcetype=evidence:nis2_artifact`. Without those artefacts, the join against the early-warning history returns null and the search defaults the early_warning_status to MISSING — which is itself a finding but not the finding this UC measures.\n• Splunk Enterprise Security (Splunkbase 263) ≥7.0; Splunk Add-on for Phantom (Splunkbase 3411) ≥3.0 if SOAR is in the path; Splunk Common Information Model Add-on (Splunkbase 1621) ≥5.3.\n• Roles: `read` on `index=notable`, the `incident_review` KV-store collection, and `index=audit_evidence`. The role should NOT have `write` on `audit_evidence` (only the SOAR or the artefact-publishing service account does).\n• A populated `nis2_significant_incident_thresholds.csv` lookup (the same one UC-22.2.1 depends on) and a populated `nis2_exception_register.csv`.\n• A SOAR playbook (or equivalent IR-portal automation) that writes `stage=early_warning` and `stage=72h_notification` artefact events to `index=audit_evidence sourcetype=evidence:nis2_artifact` whenever the IR team logs the corresponding submission. The artefact event must contain at minimum `rule_name`, `event_id`, `stage`, `submitted_to_authority`, `submitted_by`, `nis2_clause`.\n• Network: SH must reach `index=audit_evidence`; this is typically same-cluster.\n• License: ~5 KB per finding row written to `audit_evidence`. Steady-state ~10–30 rows/day at 30-minute schedule.\n\nStep 1 — Configure data collection\n• Confirm UC-22.2.1's artefact-write hook is functioning: `index=audit_evidence sourcetype=evidence:nis2_artifact stage=early_warning earliest=-7d | stats count by rule_name`. Should equal the count of significant incidents that crossed the 24h boundary in the same period (roughly).\n• Confirm `index=audit_evidence` has `evidence:nis2_artifact` parsing — the artefact is JSON with fields `rule_name`, `event_id`, `stage`, `submitted_to_authority`, `submitted_by`, `nis2_clause`, `_time`. Verify with `index=audit_evidence sourcetype=evidence:nis2_artifact | head 1 | spath`.\n• If the 72h-notification artefact is written by a different system (e.g. a regulatory-reporting portal that POSTs to HEC), confirm the HEC token and source are correctly typed: `index=audit_evidence sourcetype=evidence:nis2_artifact stage=72h_notification | head 5 | table _time submitted_to_authority submitted_by nis2_clause`.\n• Expected event volume: 1 artefact event per significant incident per Art.23 stage. Steady state: 1–10 artefact events/day across all stages.\n\nStep 2 — Create the search and alert\nUse the `spl` field above. Save as scheduled search `UC-22.2.7 NIS2 Art.23 72h Clock`.\n\nUnderstanding this SPL — design choices:\n• **5-day window** so the search captures the full 24h+72h+buffer for one incident lifecycle without re-checking ancient notables.\n• **Hours_since_detection ≥ 60** is a pre-filter so the search ignores everything still inside the 24h-clock window — UC-22.2.1 already handles those.\n• **Three threshold bands (60h, 68h, 72h)** match the 24h-window structure: T-12h notice, T-4h warning, T+0 breach. The thresholds derive from operational SLA, not the directive (the directive specifies T+72h only).\n• **Left-join against `evidence:nis2_artifact stage=early_warning`** so the search can report whether the prerequisite (24h early-warning) was actually filed. Missing 24h artefact while the 72h clock is also missing is a critical finding — the IR team failed both deadlines.\n• **`notification_status = PENDING` filter** so only outstanding rows are surfaced; once the IR team logs the 72h notification artefact the row drops out automatically.\n• **`event_id` in the artefact join key** because two notables with the same `rule_name` can be raised on different days; the early-warning artefact must be matched to the specific incident, not the rule.\n\nCIM-accelerated variant: use as a pre-filter to reduce the rows that go through the artefact join. The artefact join cannot run against the Alerts DMA because `audit_evidence` is not a CIM source.\n\nSchedule and alert action:\n• Cron: `*/30 * * * *`. Time range `-5d to now`.\n• Alert action: `Number of results > 0`. Throttle by `rule_name` for 8 hours.\n• Notification: PagerDuty severity `warning` for `WARN_T_MINUS_4H`, `critical` for `BREACH`. Annotate with `evidence_id`, `early_warning_status`, and a deep link to the SOAR case (`index=phantom sourcetype=phantom:container source_data_identifier=<event_id>`).\n• Summary indexing: write findings to `index=audit_evidence sourcetype=evidence:saved_search`.\n\nStep 3 — Validate\n• Compare SPL output to the IR team's incident workspace (typically a structured form in ServiceNow GRC or a custom portal). The set of `(rule_name, event_id)` pairs returned by this search should equal the set of incidents the IR team is currently drafting 72h notifications for.\n• Spot-check two recent significant incidents: pick two from the IR portal where the 24h artefact was filed within the last 4 days; confirm `early_warning_status=FILED` for both in the SPL output.\n• Run a 7-day `timechart count` of `clock_state` values to see the IR team's deadline-compliance trend: `<base SPL> | timechart span=1d count by clock_state`. A rising `BREACH` line indicates either a tooling problem (artefact write-back failing) or an IR-process problem (team not drafting notifications in time).\n• Validate the artefact-write hook end-to-end: trigger a test SOAR playbook that writes a `stage=early_warning` event for a synthetic notable; confirm the artefact appears in `index=audit_evidence` within 30 seconds and the SPL's `early_warning_status` flips from `MISSING` to `FILED`.\n• Confirm `evidence_id` uniqueness: `<base SPL> | stats count by evidence_id | where count > 1` should return 0 rows.\n\nStep 4 — Operationalize\nDashboard `compliance/nis2-art23-posture.xml` (extends UC-22.2.1's dashboard):\n• **Row 1 — Headline tiles:** Single-value `Significant incidents in 72h-clock window`, Single-value `Pending 72h notifications`, Single-value `Missing 24h prerequisite`.\n• **Row 2 — Aging timeline:** As UC-22.2.1, but the threshold bands are 60h/68h/72h.\n• **Row 3 — Cross-stage table:** rule_name, event_id, owner, hours_since_detection, early_warning_status, notification_status, drilldown to the SOAR case.\n• **Time picker:** Default `Last 24 hours` for IR shift handover; `Last 14 days` for the weekly review.\n• **Access:** restrict to roles `nis2_evidence_reader`, `ir_analyst`, `head_of_ir`, `csirt_liaison`.\n\nRunbook (owner: Head of IR, escalates to CSIRT Liaison):\n1. PagerDuty page on `WARN_T_MINUS_4H`. Open the SOAR case via the deep-link.\n2. Confirm the early-warning artefact was filed (`early_warning_status=FILED`); if MISSING, escalate to the IR shift lead immediately — the operator missed the 24h deadline AND is about to miss the 72h.\n3. Open the 72h notification draft in the IR portal. Required content per Art.23(4)(b): incident category, sectors affected, suspected causes, initial impact assessment, indicators of compromise.\n4. CSIRT liaison submits the notification via the secure channel (varies by member state — typically MeliCERTes / national portal).\n5. The submitting system writes a `stage=72h_notification` artefact event to `audit_evidence`; the next scheduled SPL run drops the row.\n6. Capacity-review monthly: `| where _time>=relative_time(now(),\"-30d\") | stats count by clock_state, early_warning_status` to spot procedural gaps.\n\nStep 5 — Troubleshooting\n• **Search returns nothing for a known significant incident.** Either the 24h artefact has not been filed (in which case `early_warning_status=MISSING` and the row should still appear), OR the `_time` filter excluded it. Drop the `hours_since_detection >= 60` predicate and re-run; if the row appears with `hours_since_detection < 60`, the incident is still in the 24h-window stage.\n• **`early_warning_status=MISSING` for every row even though UC-22.2.1 is firing pages.** The artefact-write hook (SOAR playbook or IR-portal automation) is not running. Check `index=phantom sourcetype=phantom:action_run action=write_nis2_artefact | head 20` for `status=failed`. Common cause: the SOAR playbook's HEC credential expired.\n• **`notification_status=FILED` but the SPL still returns the row.** Two possible causes: (a) the artefact's `stage` field is mis-typed (`72h-notification` with hyphen vs `72h_notification` with underscore); (b) the artefact was written under a different `rule_name` (e.g. the IR team renamed the rule between detection and submission). Diagnose with `index=audit_evidence sourcetype=evidence:nis2_artifact stage=*notification* | stats count by stage rule_name`.\n• **PagerDuty pages fire 1–2 hours late.** Schedule cron is `0 */1 * * *`; switch to `*/30 * * * *` so the 4h warning window doesn't get bisected by the schedule.\n• **`hours_since_detection` is in the 60–72 band but `clock_state=OK`.** Computational drift in the case() expression — likely a Splunk Cloud cron-vs-now() race during scheduled runs that finish minutes before the case boundary. Add a 1-minute buffer: `case(hours_since_detection >= 71.95, \"BREACH\", ...)`.\n• **One `event_id` produces multiple rows after the artefact join.** The artefact-write hook is creating multiple `stage=early_warning` events for one incident (e.g. a SOAR playbook that re-runs after a code change). Dedupe in the artefact subsearch with `| stats max(_time) as early_warning_filed_time by rule_name event_id` (already in the SPL). If duplicates persist, the SOAR playbook's write step needs an idempotency key.\n• **Cross-border duplicate `event_id` from federated correlation.** Same incident detected in two CSIRT regions with two `event_id` values. Use `nis2_crossborder_primary.csv` to pick a primary; filter `| where NOT (event_id IN ($secondary_event_ids$))`.",
-  "grandmaExplanation": "After we tell the regulator about a serious cyber incident in the first 24 hours, we have only three days total to send a more detailed update. This watch alerts us before that 72-hour window is about to close, so the more detailed update goes in on time."
+  "grandmaExplanation": "After we tell the regulator about a serious cyber incident in the first 24 hours, we have only three days total to send a more detailed update. This watch alerts us before that 72-hour window is about to close, so the more detailed update goes in on time.",
+  "equipment": [
+    "splunk_es",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, incident investigation and notable events)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, incident tracking and change management)",
+    "Splunk SOAR 6.x (Splunkbase 3411, 72-hour notification automation)"
+  ]
 }

@@ -5,8 +5,13 @@
   "criticality": "high",
   "difficulty": "advanced",
   "wave": "walk",
-  "prerequisiteUseCases": ["UC-22.2.1"],
-  "monitoringType": ["Compliance", "Security"],
+  "prerequisiteUseCases": [
+    "UC-22.2.1"
+  ],
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
   "splunkPillar": "Security",
   "industry": "All sectors in NIS2 Annex I and II",
   "owner": "Head of IR",
@@ -29,32 +34,74 @@
   ],
   "dataSources": "ES `notable` macro for high/critical urgency notables; `index=phantom sourcetype=phantom:container label=nis2_significant_incident` for SOAR cases; `index=phantom sourcetype=phantom:playbook_run` for playbook execution records; `index=phantom sourcetype=phantom:action_run` for individual SOAR action results. Lookup `nis2_playbook_mandate.csv` mapping (urgency, nis2_tier) to mandated playbook name; `nis2_significant_incident_thresholds.csv`.",
   "app": "Splunk Enterprise Security (Splunkbase 263) ≥7.0; Splunk Add-on for Phantom (Splunkbase 3411) ≥3.0; Splunk Common Information Model Add-on (Splunkbase 1621) ≥5.3.",
-  "premiumApps": ["Splunk Enterprise Security", "Splunk SOAR"],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
   "spl": "`notable` urgency IN (\"high\",\"critical\") earliest=-3d\n| lookup nis2_significant_incident_thresholds.csv rule_name OUTPUT nis2_tier nis2_significant\n| where coalesce(nis2_significant, \"unclassified\") != \"no\"\n| lookup nis2_playbook_mandate.csv urgency nis2_tier OUTPUT mandated_playbook mandated_steps_count\n| join type=left event_id [\n    search index=phantom sourcetype=phantom:container label=nis2_significant_incident earliest=-3d\n    | rename source_data_identifier as event_id\n    | stats latest(container_id) as container_id, latest(_time) as soar_open_time by event_id\n  ]\n| join type=left container_id [\n    search index=phantom sourcetype=phantom:playbook_run earliest=-3d\n    | stats latest(playbook_name) as executed_playbook, latest(status) as playbook_status, latest(_time) as playbook_completed_time, count(eval(action_status=\"success\")) as steps_succeeded by container_id\n  ]\n| eval playbook_status = coalesce(playbook_status, \"NOT_STARTED\")\n| eval playbook_match = if(executed_playbook = mandated_playbook, \"MATCH\", \"MISMATCH\")\n| eval steps_completion_pct = round(100 * coalesce(steps_succeeded, 0) / mandated_steps_count, 1)\n| eval finding = case(\n    playbook_status = \"NOT_STARTED\", \"NO_PLAYBOOK\",\n    playbook_match = \"MISMATCH\", \"WRONG_PLAYBOOK\",\n    playbook_status = \"running\" AND (now() - soar_open_time) > 7200, \"STALLED\",\n    steps_completion_pct < 80 AND playbook_status = \"completed\", \"INCOMPLETE\",\n    1==1, \"OK\")\n| where finding != \"OK\"\n| eval evidence_id = sha256(rule_name . event_id . _time . \"playbook\")\n| table _time, rule_name, urgency, nis2_tier, owner, mandated_playbook, executed_playbook, playbook_status, steps_completion_pct, finding, evidence_id\n| sort - _time",
   "cimSpl": "| tstats summariesonly=true count from datamodel=Alerts.Alerts where Alerts.severity IN (\"high\",\"critical\") AND _time >= relative_time(now(), \"-3d\") by Alerts.signature, Alerts._time, Alerts.signature_id\n| rename Alerts.* as *",
   "description": "Detects significant incidents where the mandated SOAR playbook for the urgency tier did not start, an unexpected playbook ran instead, the playbook stalled (>2h running), or completed with <80% of mandated steps succeeding. Each finding is annotated with the specific failure mode.",
   "value": "Auditors challenge 'we have an IR playbook' with 'show me where it actually ran for the last incident'. Without execution evidence, the operator's Art.21(2)(b) IR claim collapses. This UC ties each significant notable to the SOAR playbook that should have run and surfaces every gap before the next audit cycle.",
   "implementation": "(1) Build and maintain `nis2_playbook_mandate.csv` with one row per (urgency, nis2_tier) tuple naming the mandated playbook. (2) Schedule every 1 hour. (3) PagerDuty page on `finding=NO_PLAYBOOK`; email digest on `WRONG_PLAYBOOK`/`STALLED`/`INCOMPLETE`. (4) Throttle by `event_id` for 4 hours.",
   "visualization": "Single value: incidents without correct playbook. Pie chart: finding type breakdown. Sortable table with deep-link drilldown to SOAR. Trellis: 30-day playbook-adherence trend.",
-  "cimModels": ["Alerts"],
+  "cimModels": [
+    "Alerts"
+  ],
   "schema": "CIM",
   "dataModelAcceleration": "Enable `Alerts` acceleration; `Change` acceleration if you want to extend to non-incident SOAR playbooks.",
   "references": [
-    { "title": "Splunk Enterprise Security on Splunkbase", "url": "https://splunkbase.splunk.com/app/263" },
-    { "title": "Splunk Add-on for Phantom on Splunkbase", "url": "https://splunkbase.splunk.com/app/3411" },
-    { "title": "Splunk SOAR Playbook documentation", "url": "https://docs.splunk.com/Documentation/SOAR/current/PlaybookAPI/Overview" },
-    { "title": "CIM Alerts data model reference", "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts" },
-    { "title": "Directive (EU) 2022/2555 (NIS2) — Art.21(2)(b) IR", "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj", "retrieved": "2026-04-29" },
-    { "title": "ENISA NIS2 Technical Implementation Guidance — IR processes", "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance", "retrieved": "2026-04-29" }
+    {
+      "title": "Splunk Enterprise Security on Splunkbase",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for Phantom on Splunkbase",
+      "url": "https://splunkbase.splunk.com/app/3411"
+    },
+    {
+      "title": "Splunk SOAR Playbook documentation",
+      "url": "https://docs.splunk.com/Documentation/SOAR/current/PlaybookAPI/Overview"
+    },
+    {
+      "title": "CIM Alerts data model reference",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts"
+    },
+    {
+      "title": "Directive (EU) 2022/2555 (NIS2) — Art.21(2)(b) IR",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-29"
+    },
+    {
+      "title": "ENISA NIS2 Technical Implementation Guidance — IR processes",
+      "url": "https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance",
+      "retrieved": "2026-04-29"
+    }
   ],
   "knownFalsePositives": "1) **Mandated playbook updated mid-incident** — the IR team renamed or replaced the playbook, and the existing run is against the old name. Distinguish: `nis2_playbook_mandate.csv` `last_modified` is recent AND the executed_playbook name is the previous version. Suppress: maintain a `playbook_alias.csv` mapping deprecated names to current ones; lookup the alias before the match. 2) **Manual override by IR lead** — the lead deliberately ran a different playbook because the situation required it (e.g. high-severity incident running a lower-tier playbook because the data isn't ingested for the higher-tier). Distinguish: SOAR case has an `override_reason` field populated. Suppress: time-bound exception in `nis2_exception_register.csv` keyed on `event_id` + `executed_playbook`. 3) **Playbook is a 'parent' that calls 'child' playbooks** — the parent's `playbook_run` shows complete; the child's individual runs show partial. Distinguish: `playbook_metadata.parent_playbook_run_id` is non-null. Suppress: in the SPL, dedupe by parent playbook run; sum child action counts into the parent. 4) **SOAR action timeout for an external integration** (e.g. ServiceNow API down) leaves an action in 'pending' which is counted as not-succeeded. Distinguish: `action_run | search status=pending action=create_ticket | stats count by container_id`. Suppress: in the SPL, treat `pending` separately from `failed`; only `failed` counts as a step gap. 5) **Re-run after code change** — analyst re-ran the playbook to test a fix; the new run replaces the old run's status. Distinguish: `playbook_run | stats count by container_id, playbook_name | where count > 1`. Suppress: take `latest(_time) by container_id, playbook_name` (already in SPL). 6) **Containers stuck in 'New' because auto-assign disabled during maintenance** — the playbook never ran, but for an operational reason. Distinguish: SOAR auto-assign playbook last_run_time is older than the container's create_time. Suppress: time-bound exception during the maintenance window.",
-  "mitreAttack": ["T1562.008"],
+  "mitreAttack": [
+    "T1562.008"
+  ],
   "detectionType": "Correlation",
   "securityDomain": "soc_operations",
-  "requiredFields": ["_time", "rule_name", "urgency", "nis2_tier", "owner", "mandated_playbook", "executed_playbook", "playbook_status", "steps_completion_pct", "finding", "evidence_id"],
+  "requiredFields": [
+    "_time",
+    "rule_name",
+    "urgency",
+    "nis2_tier",
+    "owner",
+    "mandated_playbook",
+    "executed_playbook",
+    "playbook_status",
+    "steps_completion_pct",
+    "finding",
+    "evidence_id"
+  ],
   "exclusions": "Does not assess whether the mandated playbook itself adequately addresses Art.21(2)(b) — that's a design decision for the IR lead, governed by the playbook-review cadence. Does not evaluate whether the IR team's manual interventions were correct. Does not measure response quality (only execution presence and completeness).",
   "evidence": "Saved search `UC-22.2.23` row-per-finding output, `index=audit_evidence sourcetype=evidence:saved_search` archive (7-year retention, RFC 3161 TSA-signed), `NIS2 Art.21(2)(b) — Playbook adherence` panel, per-incident playbook traces archived to `evidence:soar_playbook_run`.",
-  "evidenceSigning": { "method": "rfc3161-tsa", "tsaUrl": "http://timestamp.digicert.com" },
+  "evidenceSigning": {
+    "method": "rfc3161-tsa",
+    "tsaUrl": "http://timestamp.digicert.com"
+  },
   "controlTest": {
     "positiveScenario": "Fixture `sample-data/uc-22.2.23-fixture.json` injects a high-urgency notable with `nis2_significant=\"yes\"` and `urgency=\"critical\"` mapped to mandated_playbook `\"nis2_critical_response\"` in `nis2_playbook_mandate.csv`. The corresponding SOAR container has playbook_run with executed_playbook=`\"basic_triage\"` (different from mandated). The search returns `finding=\"WRONG_PLAYBOOK\"`.",
     "negativeScenario": "Same fixture but the SOAR container has playbook_run with executed_playbook=`\"nis2_critical_response\"`, status=`\"completed\"`, steps_succeeded=`mandated_steps_count`. The search returns 0 rows.",
@@ -63,8 +110,20 @@
   },
   "status": "verified",
   "lastReviewed": "2026-04-29",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@nis2-evidence-pack-maintainers",
   "detailedImplementation": "Prerequisites\n• Splunk Enterprise Security (Splunkbase 263) ≥7.0 with significant-incident correlation searches in production.\n• Splunk SOAR ≥6.2 with the Splunk Add-on for Phantom (Splunkbase 3411) ≥3.0 ingesting playbook and action data into Splunk.\n• Splunk Common Information Model Add-on (Splunkbase 1621) ≥5.3.\n• A documented set of NIS2 IR playbooks deployed in SOAR, named consistently and aligned to the (urgency, nis2_tier) tuple.\n• Lookup `nis2_playbook_mandate.csv` with one row per (urgency, nis2_tier) tuple and columns: `urgency`, `nis2_tier`, `mandated_playbook`, `mandated_steps_count`, `last_modified`, `approver`. Maintained by the IR lead; reviewed quarterly.\n• Lookup `playbook_alias.csv` for deprecated playbook names mapping to current names (used to handle renames without false positives).\n• Lookup `nis2_significant_incident_thresholds.csv` (shared with UC-22.2.1).\n• Roles: `read` on `index=notable`, `incident_review` KV-store, `index=phantom`, `index=audit_evidence`.\n• Network: SH must reach `index=phantom` (typically same cluster).\n• License: ~6 KB per finding row. Steady state ~5–30 rows/day.\n• Baseline knowledge: which SOAR playbook each correlation rule should trigger; the IR team's policy on manual overrides.\n\nStep 1 — Configure data collection\n• Confirm Phantom Add-on ingest: `index=phantom sourcetype=phantom:container | head 5 | table _time container_id label source_data_identifier`. Should show recent SOC tickets with their ES `event_id` in `source_data_identifier`.\n• Confirm playbook-run ingest: `index=phantom sourcetype=phantom:playbook_run | head 5 | table _time container_id playbook_name status`.\n• Confirm action-run ingest: `index=phantom sourcetype=phantom:action_run | head 5 | table _time container_id action action_status`.\n• Configure SOAR playbooks to set `label=nis2_significant_incident` on containers raised from significant notables (typically done in the playbook's first step).\n• Build and deploy `nis2_playbook_mandate.csv`. Example rows: (`high`, `essential`, `nis2_essential_high_response`, 12), (`critical`, `essential`, `nis2_critical_response`, 18), (`high`, `important`, `nis2_important_high_response`, 8).\n• Expected event volume: 1 finding row per significant notable per scheduled run that fails the adherence check. Steady state 5–30/day.\n\nStep 2 — Create the search and alert\nUse the `spl` field above. Save as scheduled search `UC-22.2.23 NIS2 Playbook Adherence`.\n\nUnderstanding this SPL — design choices:\n• **3-day window** captures the typical incident lifecycle (most playbooks complete within 24h; allow 3d for stalled cases).\n• **Mandated lookup keyed on (urgency, nis2_tier)** so the same correlation rule can trigger different playbooks depending on the entity's NIS2 tier (essential vs important).\n• **Two left-joins** (container by event_id, then playbook_run by container_id) so the SPL surfaces both SOAR-not-engaged and SOAR-engaged-but-wrong scenarios.\n• **Five-way `case` on `finding`** so each row is annotated with the specific failure mode — runbook responses differ.\n• **`now() - soar_open_time > 7200` for STALLED** (2h threshold) because most NIS2 playbooks should complete in 60–90 min; a 2h overrun indicates either an external API down or analyst-input-pending.\n• **80% steps_completion_pct threshold for INCOMPLETE** because some playbook steps are conditional (run only if certain artefacts present); a strict 100% threshold would generate false INCOMPLETE findings.\n\nSchedule and alert action:\n• Cron: `0 * * * *` (hourly). Time range `-3d to now`.\n• Alert action: `Number of results > 0`. Throttle by `event_id` for 4 hours.\n• Notification: PagerDuty severity `critical` for `NO_PLAYBOOK` (significant incident with no SOAR engagement); severity `warning` for `WRONG_PLAYBOOK`/`STALLED`/`INCOMPLETE`.\n• Summary indexing: write findings to `index=audit_evidence sourcetype=evidence:saved_search`.\n\nStep 3 — Validate\n• Compare counts to the SOAR > Investigation queue: `| stats count by finding` totals should reconcile with the SOAR queue's filter for `nis2_significant_incident` containers with playbook anomalies.\n• Spot-check two recent significant incidents: pick two from ES Incident Review where SOAR was engaged; confirm the SPL's `executed_playbook` and `steps_completion_pct` match what SOAR's UI shows.\n• Validate playbook mandate completeness: `\\`notable\\` urgency IN (\"high\",\"critical\") earliest=-7d | lookup nis2_significant_incident_thresholds.csv rule_name OUTPUT nis2_tier nis2_significant | where nis2_significant != \"no\" | lookup nis2_playbook_mandate.csv urgency nis2_tier OUTPUT mandated_playbook | where isnull(mandated_playbook) | stats count by urgency nis2_tier`. Returns rows means there are significant-incident urgency/tier tuples without a mandated playbook — surface to IR lead.\n• Validate the alias mapping: `\\`notable\\` ... | lookup nis2_playbook_mandate.csv urgency nis2_tier OUTPUT mandated_playbook | join type=left event_id [...] | lookup playbook_alias.csv executed_playbook OUTPUT canonical_executed_playbook | eval executed_playbook = coalesce(canonical_executed_playbook, executed_playbook)` should reduce WRONG_PLAYBOOK count after a recent rename.\n• Confirm SOAR audit-evidence completeness: each `evidence:soar_playbook_run` artefact should have `playbook_name`, `container_id`, `actions[]` array. `index=audit_evidence sourcetype=evidence:soar_playbook_run | head 5 | spath actions | stats count`.\n\nStep 4 — Operationalize\nDashboard `compliance/nis2-art21-posture.xml` (Playbook adherence tab):\n• **Row 1 — Tiles:** NO_PLAYBOOK count, WRONG_PLAYBOOK count, STALLED count, INCOMPLETE count, Average steps_completion_pct.\n• **Row 2 — Pie chart:** finding type breakdown, last 24h.\n• **Row 3 — Sortable table:** rule_name, urgency, nis2_tier, mandated_playbook, executed_playbook, finding, drilldown to SOAR investigation page.\n• **Row 4 — 30-day trend:** Stacked bar by `finding` over time. A rising NO_PLAYBOOK line is a SOAR routing problem; a rising WRONG_PLAYBOOK line is a playbook-mandate-update problem.\n• **Time picker:** `Last 24 hours` (operations); `Last 30 days` (review).\n• **Access:** `nis2_evidence_reader`, `ir_analyst`, `head_of_ir`, `soar_admin`.\n\nRunbook (owner: SOAR Admin / IR Lead):\n1. PagerDuty page on `NO_PLAYBOOK`. Open the ES notable; check whether SOAR ingestion received the event (`index=phantom sourcetype=phantom:container source_data_identifier=<event_id>`). If absent: SOAR ingest is broken — escalate to SOAR admin.\n2. If SOAR has the container but no playbook ran: check the SOAR container's auto-assign playbook (Settings > Automation). Confirm it's enabled and that the `label=nis2_significant_incident` selector matches.\n3. WRONG_PLAYBOOK: open SOAR investigation; check if the analyst manually overrode. If yes, populate `override_reason` on the container; the next SPL run drops the row.\n4. STALLED: identify which playbook step is hanging (`index=phantom sourcetype=phantom:action_run container_id=<id> | sort _time | tail 5`). Common causes: ServiceNow API timeout, manual approval pending.\n5. INCOMPLETE: identify which steps did not succeed; assess whether the gap is acceptable (e.g. step that requires data not present for the incident's source). If accepted, document in the playbook's design notes.\n6. Capacity-review monthly: `| stats count by finding, mandated_playbook | sort - count` to identify which playbooks need re-design.\n\nStep 5 — Troubleshooting\n• **`mandated_playbook` is null for many findings.** `nis2_playbook_mandate.csv` does not have an entry for that (urgency, nis2_tier) combination. Surface to IR lead.\n• **`executed_playbook` is null even though SOAR ran a playbook.** The Phantom Add-on is not ingesting `phantom:playbook_run` events; check `index=phantom sourcetype=phantom:playbook_run earliest=-1h | stats count`.\n• **`steps_completion_pct > 100`.** The SOAR playbook called child playbooks whose action counts add to the parent's; the SPL's count(eval(action_status='success')) double-counts. Filter parent runs with `playbook_metadata.parent_playbook_run_id=null`.\n• **PagerDuty page fires for an incident the IR team knows is fine.** The override path isn't implemented. Add an `override_reason` field to the SOAR container; teach the SPL to filter rows where `override_reason` is non-null.\n• **`finding=NO_PLAYBOOK` for incidents older than 3 days.** The SOAR container was created but the playbook ran more than 3 days ago. Either expand the search window OR add an exclusion for very old incidents (assume the IR team handled them).\n• **Phantom Add-on token expired.** `index=_internal source=*phantom* | search 401`. Refresh the API token in Phantom Add-on Settings; the playbook_run feed will resume.\n• **SOAR container has `label=nis2_significant_incident` but `event_id` is missing.** SOAR auto-assign rule isn't passing the ES event_id; add an explicit `source_data_identifier=<event_id>` step in the auto-assign playbook.\n• **SOAR multi-tenancy** — playbook runs from another tenant appearing in the search. The Phantom Add-on token is cross-tenant; restrict the search by `index=phantom tenant=primary` OR scope the API token to a single tenant.",
-  "grandmaExplanation": "We don't just have a written playbook for handling cyber incidents — we check that the right one actually ran for every serious incident. If a step was skipped or the wrong recipe was used, this watch tells us in time to fix it before the auditor asks."
+  "grandmaExplanation": "We don't just have a written playbook for handling cyber incidents — we check that the right one actually ran for every serious incident. If a step was skipped or the wrong recipe was used, this watch tells us in time to fix it before the auditor asks.",
+  "equipment": [
+    "splunk_es",
+    "splunk_soar"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, correlation searches and notable events)",
+    "Splunk SOAR 6.x (Splunkbase 3411, playbook execution and task automation)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, incident response task tracking)"
+  ]
 }
