@@ -1,0 +1,182 @@
+<!-- AUTO-GENERATED from UC-5.13.25.json — DO NOT EDIT -->
+
+---
+id: "5.13.25"
+title: "Top Recurring Issues (Repeat Offenders)"
+status: "verified"
+criticality: "high"
+splunkPillar: "Observability"
+---
+
+# UC-5.13.25 · Top Recurring Issues (Repeat Offenders)
+
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational &middot; **Wave:** Walk &middot; **Status:** Verified
+
+*We find the network problems that have been sitting unresolved for days or weeks — the chronic issues that everyone has gotten used to ignoring. By ranking them by how long they have been a problem and how many devices they affect, we give your team a clear list of what to fix next, with the data to justify the investment in a permanent solution rather than just fighting fires.*
+
+---
+
+## Description
+
+Identifies the longest-running and most persistent unresolved Assurance issues — the chronic 'repeat offenders' that have been active for days or weeks without resolution, consuming NOC attention and degrading the network without triggering urgent alerts because they're P3/P4 or because the team has grown accustomed to ignoring them.
+
+## Value
+
+The most expensive network problems aren't the P1 outages — those get fixed in hours. It's the P3 issue that's been active for 6 weeks, affecting a building's wireless coverage, generating 3 help-desk tickets per week, that nobody owns because it's 'not critical enough.' This UC surfaces those chronic issues by age and persistence, turning them into Problem Management candidates with data to justify the investment. The device list per issue shows the blast radius, and the age shows how long the organisation has been accepting the degradation. A P3 issue active for 45 days is 45 days of user pain that your operations metrics don't show — until now.
+
+## Implementation
+
+Same `issue` input as UC-5.13.21. Schedule as a weekly report for the Problem Management or operations review meeting. Focus on the top 20 oldest active issues.
+
+## Detailed Implementation
+
+### Prerequisites
+- UC-5.13.21 (Issue Summary) must be operational — same `issue` data feed.
+- Retain **30+ days** of issue data so that chronic issues are visible in the age calculation. Longer retention (90+ days) enables quarter-over-quarter comparison.
+- This UC serves a **Problem Management** function, not incident response. The audience is the weekly operations review meeting, not the real-time NOC. The distinction is important: recurring issues need root-cause investigation and permanent fixes, not repeated incident responses.
+- For effective use, maintain two lookups:
+  - `catalyst_known_issues`: maps `name` to `bug_id`, `workaround_url`, `planned_fix_version` — for acknowledged issues with known Cisco bugs.
+  - `catalyst_excluded_devices`: maps `deviceName` to `exclusion_reason` — for lab/test equipment that should not appear in operational reports.
+
+### Step 1 — Configure data collection
+Same `issue` input as UC-5.13.21. No additional configuration.
+
+Confirm chronic issues exist in the data:
+```spl
+index=catalyst sourcetype="cisco:dnac:issue" status!="RESOLVED" earliest=-30d
+| stats earliest(_time) as first_seen by issueId
+| eval age_days=round((now()-first_seen)/86400,1)
+| where age_days > 7
+| stats count as chronic_issues
+```
+If `chronic_issues = 0`, either the team is excellent at resolving issues promptly or the TA hasn't been running long enough.
+
+### Step 2 — Create the search and report
+```spl
+index=catalyst sourcetype="cisco:dnac:issue" status!="RESOLVED"
+| stats count as poll_count earliest(_time) as first_seen latest(_time) as last_seen values(deviceName) as devices by issueId, name, priority, category
+| eval age_days=round((now()-first_seen)/86400,1)
+| sort -age_days
+| head 20
+```
+
+Why `count as poll_count`: shows how many times the issue appeared across poll cycles. A 7-day-old issue with `poll_count = 672` (= 7 × 96 polls/day) has been continuously active — it never resolved and re-opened. A 7-day-old issue with `poll_count = 48` was intermittent (appearing in only ~50% of polls) — different root cause, different investigation approach.
+
+Why `values(deviceName) as devices`: shows which devices are affected. An issue affecting 1 device is a device-level problem (hardware, configuration). An issue affecting 20 devices of the same type is a fleet-level problem (firmware bug, design issue). An issue affecting 20 devices of mixed types at the same site is a site-level problem (power, cooling, upstream).
+
+Why `age_days = round((now()-first_seen)/86400,1)`: converts the issue's first appearance in Splunk to a human-readable age. This is the "how long have we been living with this" metric that makes the business case for investment self-evident. "This AP has been reporting 'Client Onboarding Failure' for 23 days" is a sentence that gets budget for investigation.
+
+Why `head 20`: focuses the operations review on the top 20 worst offenders. For the full chronic backlog, remove `| head 20` and export as CSV for the Problem Management team.
+
+For a weekly comparison (is the chronic backlog growing or shrinking?):
+```spl
+index=catalyst sourcetype="cisco:dnac:issue" status!="RESOLVED"
+| stats earliest(_time) as first_seen by issueId
+| eval age_days=round((now()-first_seen)/86400,1)
+| stats count(eval(age_days>7)) as chronic_7d count(eval(age_days>30)) as chronic_30d count as total_active
+```
+Track `chronic_7d` and `chronic_30d` week-over-week. Growing counts = backlog accumulating. Shrinking counts = remediation working.
+
+For known-issue classification:
+```spl
+<base search>
+| lookup catalyst_known_issues name OUTPUT bug_id, workaround_url, planned_fix_version
+| eval classification=if(isnotnull(bug_id), "Known bug: ".bug_id, "Unclassified — investigate")
+| sort classification, -age_days
+```
+
+For blast-radius prioritisation (alternative to age-based sorting):
+```spl
+<base search>
+| eval device_count=mvcount(devices)
+| eval impact_score=device_count * age_days
+| sort -impact_score
+| head 20
+```
+The `impact_score` combines blast radius (device count) with duration (age), ranking issues that affect many devices for a long time at the top.
+
+Schedule as Report: weekly (cron `0 7 * * 1`), output to PDF for the operations review meeting. Additionally: monthly CSV export for the Problem Management team's backlog tracker.
+
+### Step 3 — Validate
+(a) Run the search and pick the oldest issue. Open **Catalyst Center > Assurance > Issues** and search for that issue by name or ID. Verify it's still active and that the age calculation aligns with when you first saw it in the Catalyst Center GUI.
+
+(b) Cross-reference with your ITSM: do these chronic issues have open tickets? If not, they're slipping through the cracks — which is exactly what this UC is designed to catch. Each chronic issue should have a problem ticket.
+
+(c) Check that `devices` shows the correct affected devices by comparing with the Catalyst Center issue detail page for each issue.
+
+(d) Verify the `head 20` captures the most impactful issues. An issue affecting 30 devices but only 5 days old may warrant more attention than a 30-day issue affecting 1 device. Consider the blast-radius variant from Step 2 as an alternative ranking.
+
+(e) Check the `poll_count` vs `age_days` ratio. A continuous issue has `poll_count ≈ age_days × 96`. A significantly lower ratio indicates the issue is intermittent — it appears and disappears, which changes the investigation approach.
+
+(f) Vendor UI parity: compare the chronic issue list with **Catalyst Center > Assurance > Issues** sorted by "Oldest first" or filtered to issues created more than 7 days ago.
+
+### Step 4 — Operationalize
+Dashboard placement (dedicated "Problem Management" dashboard or as a panel on the Operations Review dashboard):
+- Table: name | priority | category | age_days | poll_count | devices — sorted by age. Colour-code rows: > 30 days red, 14–30 days orange, 7–14 days yellow.
+- Single value: "Issues active > 7 days" (the chronic backlog size).
+- Trend: track `chronic_7d` count week-over-week. Goal: reduce by 10% per month.
+- Classification column: join with `catalyst_known_issues` to separate known bugs from new investigations.
+
+Weekly operations review:
+1. Review the top 20 repeat offenders.
+2. For each: does it have an owner? Is there a remediation plan? What's the estimated cost of inaction (help-desk tickets, user impact, SLA risk)?
+3. Assign owners to unowned chronic issues. Set target resolution dates.
+4. Track the chronic backlog count week-over-week. Target: 10% reduction per month.
+5. Celebrate issues that dropped off the list (resolved). Track the team's Problem Management throughput.
+
+Monthly Problem Management review:
+- Export the full chronic issue list as CSV.
+- For each issue > 30 days: escalate to the responsible team lead.
+- For known bugs: track Cisco's fix release date and plan an upgrade campaign.
+- For unclassified issues: assign an investigator with a 2-week deadline for root-cause analysis.
+
+### Step 5 — Troubleshooting
+
+- **Same issues appear every week with growing age** — these genuinely haven't been resolved. This is the intended signal — the value is making them visible and tracking accountability, not suppressing them.
+
+- **Issue appears in Splunk but not in Catalyst Center** — the issue may have been resolved after the last Splunk poll but before you checked the GUI. Verify `status` in the most recent raw event: `| search issueId="<id>" | head 1 | table status`.
+
+- **`devices` field shows hundreds of devices** — a correlated issue (upstream failure) affecting an entire site. The root cause is likely a single device or service, not the listed devices. Investigate the upstream (UC-5.13.1 sorted by health) rather than the individual downstream devices.
+
+- **Age seems too long** — the `first_seen` timestamp reflects when the issue first appeared in Splunk, which may predate when the team became aware. The gap between `first_seen` and the first-ticket-created date is itself a useful metric: detection-to-awareness delay.
+
+- **Known-bug issues dominate the list** — expected in fleets with deferred firmware upgrades. Use the `catalyst_known_issues` lookup to tag them as 'acknowledged' and display in a separate section. This separates 'known problems awaiting planned remediation' from 'unknown problems needing investigation.'
+
+- **Issue age resets after TA restart** — if the TA stops and restarts, `earliest(_time)` for an ongoing issue resets to the restart time. For persistent tracking, store issue first-seen timestamps in a summary index: schedule daily `| stats earliest(_time) as first_seen by issueId | collect index=catalyst_summary sourcetype=issue_first_seen`.
+
+- **Too many issues to review in a weekly meeting** — if > 50 chronic issues exist, prioritise by the blast-radius `impact_score` variant rather than age alone. Focus the meeting on the top 10 by impact.
+
+- **No chronic issues found** — either the team is excellent at resolving issues promptly, or the TA is filtering resolved issues and not showing long-running active ones. Verify with `| stats count by status` that ACTIVE issues are present in the data.
+
+- **Issue oscillates between ACTIVE and RESOLVED** — an intermittent problem (flapping link, unstable PoE) causes the issue to resolve and re-open. These have high `poll_count` relative to their `age_days`. They need root-cause investigation of the flapping condition, not just incident response each time they re-open.
+
+## SPL
+
+```spl
+index=catalyst sourcetype="cisco:dnac:issue" status!="RESOLVED"
+| stats count as poll_count earliest(_time) as first_seen latest(_time) as last_seen values(deviceName) as devices by issueId, name, priority, category
+| eval age_days=round((now()-first_seen)/86400,1)
+| sort -age_days
+| head 20
+```
+
+## Visualization
+
+(1) Table: name, priority, category, age_days, poll_count, devices — sorted by age descending (oldest first). (2) Bar chart: top 10 by age_days. (3) Single value: count of issues active > 7 days (yellow ≥ 5, red ≥ 20). (4) Drilldown: click an issue → show its timeline from UC-5.13.22 filtered to that `name`.
+
+## Known False Positives
+
+**Known-bug issues with published workarounds.** Some Assurance issue types correspond to Catalyst Center or IOS-XE bugs that have workarounds but require a firmware upgrade to fix permanently. These are legitimate chronic issues — they shouldn't be suppressed, but they should be tracked in a `catalyst_known_issues` lookup with `name`, `bug_id`, `workaround_url`, and `planned_fix_version`, and displayed as 'acknowledged' rather than 'unresolved.'
+
+**Lab or staging devices generating persistent issues.** Non-production equipment may have intentional configuration deviations that trigger persistent Assurance issues. Distinguish by checking `deviceName` against lab naming conventions. Suppress with a `catalyst_excluded_devices` lookup.
+
+**Issues that Catalyst Center cannot auto-resolve by design.** Some issue types (e.g., 'Device running non-compliant firmware') remain ACTIVE until manual remediation. They're not 'recurring' — they're 'awaiting action.' Distinguish by checking the issue `category` — firmware/compliance issues are action items, not incidents. Present them in a separate 'Awaiting Action' table.
+
+**Virtual domain scope showing issues for devices the NOC cannot act on.** If the TA service account has broader virtual domain access than the NOC team, the repeat-offender list may include devices the NOC has no authority to fix. Distinguish by checking `siteId` against the NOC's site scope. Suppress by filtering to NOC-owned sites.
+
+## References
+
+- [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
+- [Catalyst Center Intent API — Issues endpoint](https://developer.cisco.com/docs/catalyst-center/#!issues)
+- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
+- [ITIL Problem Management — Recurring Incident Analysis](https://www.atlassian.com/itsm/problem-management)

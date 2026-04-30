@@ -1,0 +1,376 @@
+<!-- AUTO-GENERATED from UC-3.3.6.json — DO NOT EDIT -->
+
+---
+id: "3.3.6"
+title: "OpenShift ClusterOperator Health and Component Reconciliation Failure Detection"
+status: "verified"
+criticality: "high"
+splunkPillar: "Observability"
+---
+
+# UC-3.3.6 · OpenShift ClusterOperator Health and Component Reconciliation Failure Detection
+
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Reliability, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
+
+*We watch the small set of OpenShift system controllers that keep the cluster version, networking, sign-in, and monitoring working. When one reports it is stuck or broken for too long, we raise a clear signal so teams fix the platform before customer applications notice.*
+
+---
+
+## Description
+
+Detects OpenShift ClusterOperator reconciliation failures using the platform ClusterOperator custom resource condition model: Available, Progressing, Degraded, and Upgradeable across roughly thirty operators including kube-apiserver, network, ingress, monitoring, authentication, image-registry, console, dns, etcd, machine-config, and cloud-controller-manager. The analytic tracks operators stuck in Progressing=True beyond dwell thresholds, operators flagged Degraded=True, Upgradeable=False gates during maintenance freezes, stale lastTransitionTime heartbeats that suggest the Cluster Version Operator or operand controllers stopped advancing, and corroborating cluster_operator_conditions Degraded signals from cluster-monitoring-operator Prometheus scrapes plus ocp_events and ocp_audit context for operator namespaces.
+
+## Value
+
+Platform leaders shorten mean time to innocence when partial control-plane failures hide inside a still-responsive console: one Degraded ingress or authentication operator can strand administrators while nodes look fine, and long-lived Progressing=True rows on dns or monitoring operators starve observability just when incident response needs metrics most. Splunk preserves a reconciliation ledger that ties API snapshots, Prometheus operator gauges, Kubernetes events, and privileged audit narratives into one row per cluster and operator so executives see continuous stewardship of the CVO-driven platform, not ad hoc oc get co during outages. FinOps and risk teams gain defensible evidence that upgrade gates, operator rollouts, and break-glass oc adm actions leave a searchable trail alongside condition timelines.
+
+## Implementation
+
+Land ocp_clusteroperator snapshots, prometheus:cluster_operator_up or prometheus:metrics operator series, ocp_events, and ocp_audit into ocp_metrics and ocp_audit indexes with consistent cluster labels; normalize condition fields in props; save openshift_uc_3_3_6_clusteroperator_health on a fifteen minute cadence over earliest=-6h@h; route page and warn severities to platform on-call with Splunk OpenShift App dashboards or ITSI episodes; archive weekly CSV exports for platform governance reviews.
+
+## Evidence
+
+Saved search openshift_uc_3_3_6_clusteroperator_health with fifteen minute schedule; dashboard drilldowns on ocp_clusteroperator, prometheus operator lines, ocp_events, and ocp_audit; alert stanza with platform routing keys; weekly CSV exports to a restricted evidence index.
+
+## Control test
+
+### Positive scenario
+
+In a lab OpenShift cluster, ingest ocp_clusteroperator snapshots where monitoring or ingress shows Degraded=True with message text referencing operand failures, add matching cluster_operator_conditions Degraded samples in prometheus:cluster_operator_up or prometheus:metrics, and confirm openshift_uc_3_3_6_clusteroperator_health returns page or warn with non-null recommended_action within fifteen minutes.
+
+### Negative scenario
+
+After recovery when oc get clusteroperator shows Available=True, Progressing=False, Degraded=False for the tested operator and metrics return cluster_operator_up=1 without Degraded condition positives, confirm severities return to info and the alert wrapper emits zero rows when filtering to page and warn only.
+
+## Detailed Implementation
+
+### Step 1 — Prerequisites
+
+Head of Platform owns this control with the OpenShift platform engineering lead, the cluster lifecycle team that operates the Cluster Version Operator and platform operators, and the observability engineers who steward Splunk HTTP Event Collector tokens plus OpenTelemetry Collector agents that federate in-cluster Prometheus from OpenShift Monitoring. This use case isolates the OpenShift ClusterOperator custom resource plane: roughly thirty platform operators such as kube-apiserver, network, ingress, monitoring, authentication, image-registry, console, dns, etcd, machine-config, cloud-controller-manager, storage, kube-controller-manager, kube-scheduler, openshift-apiserver, openshift-controller-manager, operator-lifecycle-manager packages, and the cluster-version operator itself. Each ClusterOperator publishes a standard condition tuple on status.conditions: Available, Progressing, Degraded, and Upgradeable, with reason and message fields that explain the latest reconciliation narrative from the owning operator. The Cluster Version Operator drives desired version and image pull specs while individual operators reconcile their operands; a silent or stuck operator manifests first as Progressing=True with an aging lastTransitionTime, then often as Degraded=True while the API server may still answer probes. UC-3.3.17 remains the MachineConfigPool ledger on the Machine Configuration Operator axis with CRI-O and Ignition apply semantics. UC-3.3.20 remains operator-managed internal PKI horizons and ClusterOperator hints that explicitly reference certificate, signer, or trust bundle exhaustion. UC-3.3.8 remains customer Route edge TLS and HAProxy-presented hostnames. UC-3.2.7 remains vanilla kube-apiserver, etcd, kube-scheduler, and kube-controller-manager scrape synthesis without interpreting OpenShift ClusterOperator conditions. UC-3.2.8 remains etcd raft, WAL fsync, and member health forensics beneath the datastore, not operator-level Available versus Degraded storytelling. Splunk becomes the tamper-resistant ledger that fuses periodic oc get clusteroperator exports, Prometheus cluster_operator_conditions and cluster_operator_up series scraped through cluster-monitoring-operator targets, Kubernetes style events that cite ClusterOperator or operator Deployments, and audit JSON for oc adm style administrative verbs in openshift-* operator namespaces.
+
+Index and permission design land before field extraction. Designate index=ocp_metrics for structured ClusterOperator snapshots with sourcetype=ocp_clusteroperator, federated Prometheus lines with sourcetype=prometheus:cluster_operator_up when your collector splits that scrape family, and sourcetype=prometheus:metrics when you retain a unified OpenShift Monitoring stream. Designate index=ocp_events for platform events with sourcetype=ocp_events. Designate index=ocp_audit for Kubernetes API audit or OpenShift audit-equivalent JSON with sourcetype=ocp_audit. Issue distinct HEC tokens per index with least privilege: platform SRE roles may search all four sourcetypes; application teams receive filtered views that redact requestObject bodies when counsel requires minimization. Retention should cover at least fourteen days hot for incident replay on stuck Progressing windows, thirty days for post-upgrade forensic review, and align cold storage with enterprise observability policy. Legal review should confirm node names, internal service DNS names, and certificate subjects referenced in operator messages are acceptable in Splunk.
+
+RBAC and safety: the exporter that runs oc get clusteroperator -o json or watches config.openshift.io ClusterOperator objects must use a dedicated ServiceAccount with get and list on clusteroperator objects, not cluster-admin on employee laptops. Run collectors from a hardened management host or CI worker with short-lived kubeconfigs. When you supplement with prometheus federation from in-cluster monitoring, use a read-only bearer token bound to a metrics scraper identity rather than kubeadmin.
+
+Field normalization expectations: flatten metadata.name into operator_name or name, map status.conditions[type=Available].status into available_flag, Progressing into progressing_flag, Degraded into degraded_flag, Upgradeable into upgradeable_flag, preserve lastTransitionTime per condition type as ltt_available, ltt_progressing, ltt_degraded, ltt_upgradeable, and concatenate condition.message into co_message with stable ordering. If you ingest raw JSON without KV extraction, add props.conf INDEXED_EXTRACTIONS=json and FIELDALIAS rules so coalesce() ladders in the saved search still resolve. Cluster identity must appear on every event as cluster, openshift_cluster, or cluster_name drawn from management-cluster context or external_labels on Prometheus scrapes.
+
+Risk briefing: Progressing=True is normal during minor upgrades, certificate rotations, and machine-config rollouts; alerts must measure dwell time and heartbeat age rather than treating every Progressing flip as an incident. Degraded=True on monitoring or authentication operators can starve downstream analytics and lock administrators out even when worker nodes look healthy. Stale lastTransitionTime while versions or generations advance elsewhere suggests the reporting controller stopped reconciling or the watch connection is partitioned. The cluster-version operator Progressing=True during patch reconciliation is often cluster-wide noise unless it exceeds vendor guidance duration. Network or DNS operators may flap during control-plane load balancer maintenance; pair Splunk rows with provider change tickets before executive escalation.
+
+Differentiation recap: OpenShift ClusterOperator condition semantics and CVO-driven reconciliation, not vanilla Kubernetes control-plane scrape synthesis alone, not MachineConfigPool counts, not internal PKI notAfter inventory, not Route edge TLS, not deep etcd performance analytics.
+
+Operational posture note: align telemetry with your change board by stamping change_ticket_id onto HEC events when maintenance touches ClusterVersion or ClusterOperator objects. When Splunk shows Progressing=True but your GitOps repository shows no drift, suspect out-of-band oc patch operations or emergency hotfixes that bypassed the pipeline. Capture those incidents in a lookup table keyed on cluster so future searches can suppress short-lived noise tied to approved break-glass work. Correlate image mirror outages with registry operator messages before blaming SDN pods. Pair authentication operator degradation with corporate IdP health dashboards so external SAML latency does not masquerade as cluster-internal faults.
+
+### Step 2 — Configure data collection
+
+Stand up four complementary lanes that Splunk multisearch can fuse: periodic ClusterOperator API snapshots, Prometheus operator metrics from OpenShift Monitoring, platform events involving operator objects, and audit narratives for administrative changes to clusteroperator or clusterversion resources.
+
+ClusterOperator snapshot lane: schedule a Python or Go utility every five minutes from a management host with kubeconfig authentication. The utility should run oc get clusteroperator -o json, iterate items[], expand status.conditions into per-condition fields or emit one HEC JSON event per operator with parallel arrays preserved for Splunk parsing teams who prefer JSON arrays. Include generation, observedGeneration when present, and related versions maps when your OpenShift minor exposes them. Set sourcetype=ocp_clusteroperator and source=oc_get_clusteroperator. Include a sha256 hash of the canonical JSON body without volatile resourceVersion if you want tamper-evident auditing in regulated environments.
+
+Prometheus lane: enable platform monitoring federation per OpenShift documentation, scrape targets that expose cluster_operator_up and cluster_operator_conditions including labels such as name and condition type, and forward lines into index=ocp_metrics. When your OpenTelemetry prometheus receiver stamps a dedicated sourcetype for openshift-state-metrics style operator scrapes, use sourcetype=prometheus:cluster_operator_up; otherwise land in sourcetype=prometheus:metrics and rely on __name__ filters in SPL. Preserve labels that identify operator and condition type. Validate instant queries in the OpenShift console monitoring UI for cluster_operator_conditions before Splunk paging goes live.
+
+Events lane: forward Kubernetes events to Splunk with sourcetype=ocp_events using the Splunk Add-on for Kubernetes event collection patterns or an OpenTelemetry Collector k8s_events receiver. Retain involvedObject.kind and involvedObject.name when they reference ClusterOperator, Deployment, or DaemonSet objects in openshift-* namespaces. Increase retention on this sourcetype when you expect noisy operator loops during upgrades.
+
+Audit lane: ship Kubernetes apiserver audit logs into index=ocp_audit with sourcetype=ocp_audit. Ensure verbs, users, userGroups, objectRef.resource, objectRef.namespace, and objectRef.name are extracted. Retain RequestResponse level only where policy mandates; many teams use Metadata for high-volume resources and RequestResponse for cluster-scoped clusteroperator and clusterversion patches.
+
+Example jq excerpt operators can run during design reviews to list operators with Degraded=True:
+
+```bash
+oc get clusteroperator -o json | jq -r '.items[] | select(.status.conditions[]? | select(.type=="Degraded" and .status=="True")) | .metadata.name'
+```
+
+Example oc adm correlation: administrative certificate rotations and forced reconciles often appear as user-executed oc adm certificate or oc patch clusteroperator verbs; align audit filters to those strings without indexing full Secret bodies.
+
+props.conf guidance: TRUNCATE sufficiently large for JSON, TIMESTAMP_FIELDS respected when HEC time is authoritative, LINE_BREAKER rules for prometheus exposition when multiplexed with syslog headers.
+
+Pre-save validation: index=ocp_metrics sourcetype=ocp_clusteroperator earliest=-1h must return non-zero event counts after the first five minute interval; prometheus lines must include cluster_operator_conditions after scrape begins; ocp_events should show operator-related messages during intentional test rollouts; ocp_audit should show cluster-scoped mutations during controlled change windows.
+
+Collector hardening: run forwarders with TLS to Splunk, rotate HEC tokens quarterly, and document which management cluster forwards dev versus prod to prevent label collisions. When multiple regions share one Splunk tenant, include region and cloud_account on every HEC event.
+
+Dashboards: the Splunk OpenShift App or an equivalent operations dashboard should host a matrix visualization keyed on operator_name with color thresholds driven by severity from this saved search, plus drilldowns to raw ocp_clusteroperator JSON, prometheus lines, event text, and audit rows. ITSI users should bind the same search to a multi-KPI service where each golden signal corresponds to critical operators like kube-apiserver, etcd, authentication, ingress, monitoring, and dns.
+
+### Step 3 — Create the search and alert
+
+Save the SPL as openshift_uc_3_3_6_clusteroperator_health with a fifteen minute schedule, dispatch earliest=-6h@h, dispatch latest=now, and alert when severity is page or warn. Throttle duplicate cluster, operator_name rows for thirty minutes unless severity escalates from warn to page. Include recommended_action, prog_dwell_min, and degraded_metric_hint in pager descriptions so incident commanders open the correct runbook section without re-running ad hoc searches.
+
+Pipeline narrative for operators: multisearch fans ClusterOperator snapshots, Prometheus operator metrics, correlated events, and audit activity so a silent metrics outage does not hide a genuinely Degraded API status. coalesce() absorbs field naming drift between exporters. streamstats measures short-term progression dwell time by operator. eventstats adds cluster-level context such as count of degraded operators and ninety-th percentile progressing dwell across the fleet. case() maps critical operators, long Progressing dwell, Degraded flags, cluster_operator_conditions Degraded metrics, low cluster_operator_up samples, and stale heartbeats into page versus warn versus info tiers. recommended_action encodes the next mechanical step without pretending Splunk replaces oc describe clusteroperator.
+
+Fenced SPL must match the spl JSON field exactly:
+
+```spl
+`comment("UC-3.3.6 OpenShift ClusterOperator health — ocp_clusteroperator + prometheus:cluster_operator_up + ocp_events + ocp_audit. Tunables: prog_page_min=120 prog_warn_min=45 stale_hr=6 earliest=-6h@h latest=now")`
+| multisearch
+    [ search index=ocp_metrics sourcetype=ocp_clusteroperator earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval operator_name=lower(trim(toString(coalesce(name, operator, clusteroperator_name, metadata_name, co_name, ""))))
+      | eval av=lower(trim(toString(coalesce(available, conditions_available, available_status, ""))))
+      | eval pr=lower(trim(toString(coalesce(progressing, conditions_progressing, progressing_status, ""))))
+      | eval dg=lower(trim(toString(coalesce(degraded, conditions_degraded, degraded_status, ""))))
+      | eval ug=lower(trim(toString(coalesce(upgradeable, conditions_upgradeable, upgradeable_status, ""))))
+      | eval avail_f=if(match(av,"true|1"),1,0)
+      | eval prog_f=if(match(pr,"true|1"),1,0)
+      | eval deg_f=if(match(dg,"true|1"),1,0)
+      | eval upg_warn=if(match(ug,"false|0"),1,0)
+      | eval ltt_p=trim(toString(coalesce(ltt_progressing, last_transition_progressing, lastTransitionTime_progressing, coalesce_ltt_prog, "")))
+      | eval ltt_d=trim(toString(coalesce(ltt_degraded, last_transition_degraded, lastTransitionTime_degraded, "")))
+      | eval ltt_epoch=coalesce(
+          if(len(ltt_p)>0 AND match(ltt_p,"^[0-9]{4}-"), strptime(ltt_p, "%Y-%m-%dT%H:%M:%SZ"), null()),
+          if(len(ltt_d)>0 AND match(ltt_d,"^[0-9]{4}-"), strptime(ltt_d, "%Y-%m-%dT%H:%M:%SZ"), null()),
+          if(len(trim(toString(coalesce(lastTransitionTime, last_transition_time, ""))))>0, strptime(trim(toString(coalesce(lastTransitionTime, last_transition_time, ""))), "%Y-%m-%dT%H:%M:%SZ"), null()) )
+      | eval cond_msg=trim(toString(coalesce(message, reason, status_message, condition_message, co_message, "")))
+      | sort 0 + cluster + operator_name - _time
+      | streamstats window=2 current=t global=f last(_time) AS prev_ts last(prog_f) AS prev_prog BY cluster operator_name
+      | eval prog_dwell_min=if(prog_f==1 AND prev_prog==1 AND isnotnull(prev_ts), round((_time - prev_ts)/60, 2), if(prog_f==1, round((now()-_time)/60, 2), 0))
+      | eval lane="co_snap"
+      | fields _time cluster operator_name avail_f prog_f deg_f upg_warn ltt_epoch cond_msg lane prog_dwell_min ]
+    [ search index=ocp_metrics (sourcetype=prometheus:cluster_operator_up OR sourcetype="prometheus:metrics") earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=lower(trim(toString(coalesce(__name__, metric_name, name, ""))))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "")), 10)
+      | where match(mn,"cluster_operator_up|cluster_operator_conditions")
+      | eval operator_name=lower(trim(toString(coalesce(name, clusteroperator, exported_clusteroperator, ""))))
+      | eval ctype=lower(trim(toString(coalesce(type, condition, cond, ""))))
+      | eval lane="co_prom"
+      | stats latest(_time) AS last_prom_t max(mv) AS prom_peak latest(ctype) AS prom_type latest(mn) AS prom_name BY cluster operator_name lane ]
+    [ search index=ocp_events sourcetype=ocp_events earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, ""))))
+      | eval ik=lower(trim(toString(coalesce(involvedObject_kind, involved_kind, object_kind, ""))))
+      | eval operator_name=lower(trim(toString(coalesce(involvedObject_name, object_name, ""))))
+      | where (match(ik,"clusteroperator|deployment|daemonset") OR match(lower(_raw),"clusteroperator|operator.openshift.io"))
+      | eval evt_msg=trim(toString(coalesce(message, Message, reason, "")))
+      | eval lane="co_evt"
+      | stats latest(_time) AS last_evt_t latest(evt_msg) AS evt_msg max(eval(if(match(lower(evt_msg),"fail|error|backoff|degraded"),1,0))) AS evt_fail_hint BY cluster operator_name lane ]
+    [ search index=ocp_audit sourcetype=ocp_audit earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, ""))))
+      | eval res=lower(trim(toString(coalesce(objectRef_resource, resource, ""))))
+      | eval verb=lower(trim(toString(coalesce(verb, request_verb, ""))))
+      | eval operator_name=lower(trim(toString(coalesce(objectRef_name, object_name, ""))))
+      | where match(res,"clusteroperators|clusterversions|clusteroperator") OR match(operator_name,"kube-apiserver|etcd|network|ingress|dns|monitoring|authentication|openshift-apiserver|machine-config|cluster-version")
+      | eval actor=trim(toString(coalesce(user_username, user, requestUser_username, "")))
+      | eval lane="co_aud"
+      | stats latest(_time) AS last_aud_t values(verb) AS audit_verbs latest(actor) AS audit_actor BY cluster operator_name lane ]
+| eval operator_name=lower(trim(coalesce(operator_name, "unknown_operator")))
+| stats max(_time) AS last_seen max(avail_f) AS avail_f max(prog_f) AS prog_f max(deg_f) AS deg_f max(upg_warn) AS upg_warn max(prog_dwell_min) AS prog_dwell_min max(last_prom_t) AS last_prom_t max(prom_peak) AS prom_peak first(prom_type) AS prom_type first(prom_name) AS prom_name max(last_evt_t) AS last_evt_t first(evt_msg) AS evt_msg max(evt_fail_hint) AS evt_fail_hint max(last_aud_t) AS last_aud_t first(audit_verbs) AS audit_verbs first(audit_actor) AS audit_actor values(cond_msg) AS cmv max(ltt_epoch) AS ltt_epoch BY cluster operator_name
+| eval cond_msg=trim(toString(mvindex(mvdedup(cmv),0)))
+| eval heartbeat_age_h=if(isnotnull(ltt_epoch) AND ltt_epoch>0, round((now()-ltt_epoch)/3600, 3), null())
+| eval degraded_metric_hint=if(isnotnull(prom_name) AND match(lower(prom_name),"cluster_operator_conditions") AND match(lower(prom_type),"degraded") AND isnotnull(prom_peak) AND prom_peak>=1, 1, if(isnotnull(prom_name) AND match(lower(prom_name),"cluster_operator_up") AND isnotnull(prom_peak) AND prom_peak<1, 1, 0))
+| eventstats sum(deg_f) AS cluster_deg_cnt sum(eval(if(prog_f==1,1,0))) AS cluster_prog_cnt BY cluster
+| eventstats perc90(prog_dwell_min) AS fleet_prog_p90 BY cluster
+| eval severity=case(
+    deg_f==1 AND match(operator_name,"kube-apiserver|etcd|authentication|network|ingress|dns|openshift-apiserver|monitoring|cluster-version"), "page",
+    deg_f==1, "warn",
+    degraded_metric_hint==1 AND match(operator_name,"kube-apiserver|etcd|authentication|network|ingress|openshift-apiserver|monitoring"), "page",
+    degraded_metric_hint==1, "warn",
+    prog_f==1 AND prog_dwell_min>=120, "page",
+    prog_f==1 AND prog_dwell_min>=45, "warn",
+    coalesce(heartbeat_age_h,0)>=6 AND prog_f==1, "warn",
+    upg_warn==1 AND cluster_deg_cnt>=1, "warn",
+    true(), "info")
+| eval recommended_action=case(
+    deg_f==1 AND match(operator_name,"monitoring"), "describe_clusteroperator_monitoring_then_check_thanos_prometheus_pods",
+    deg_f==1 AND match(operator_name,"authentication"), "describe_clusteroperator_authentication_then_check_oauth_pods",
+    deg_f==1 AND match(operator_name,"ingress"), "describe_clusteroperator_ingress_then_check_router_and_dns",
+    deg_f==1 AND match(operator_name,"network"), "gather_network_operator_logs_and_check_sdn_ovn_pods",
+    deg_f==1 AND match(operator_name,"kube-apiserver|openshift-apiserver"), "must_gather_apiserver_operator_and_check_static_pods",
+    deg_f==1 AND match(operator_name,"etcd"), "verify_etcd_operator_and_member_health_before_storage_changes",
+    deg_f==1 AND match(operator_name,"dns"), "check_core_dns_and_operator_deployments",
+    prog_f==1 AND prog_dwell_min>=120, "inspect_operator_deployment_rollout_and_cvo_events",
+    degraded_metric_hint==1, "correlate_prometheus_cluster_operator_series_with_oc_describe",
+    upg_warn==1, "review_cluster_upgradeable_false_message_and_z_stream_gates",
+    true(), "refresh_oc_get_clusteroperator_snapshot_and_telemetry")
+| join type=left max=0 cluster
+    [| inputlookup openshift_cluster_inventory.csv
+     | fields cluster, cluster_tier, owner_team, environment]
+| eval cluster_tier=coalesce(cluster_tier, "unrated"),
+       owner_team=coalesce(owner_team, "unowned"),
+       environment=coalesce(environment, "unknown")
+| table cluster operator_name avail_f prog_f deg_f upg_warn prog_dwell_min heartbeat_age_h cluster_deg_cnt fleet_prog_p90 degraded_metric_hint evt_msg audit_actor severity recommended_action last_seen prom_name cluster_tier owner_team environment
+```
+
+savedsearches.conf sketch:
+
+```ini
+[openshift_uc_3_3_6_clusteroperator_health_alert]
+cron_schedule = */15 * * * *
+dispatch.earliest_time = -6h@h
+dispatch.latest_time = now
+enableSched = 1
+action.email = 1
+action.email.to = openshift-platform@example.com
+action.email.subject = OCP ClusterOperator $result.severity$ $result.cluster$ $result.operator_name$
+counttype = number of events
+relation = greater than
+quantity = 0
+search = | savedsearch openshift_uc_3_3_6_clusteroperator_health | where severity IN ("page","warn")
+```
+
+Performance: if Job Inspector shows multisearch queue time above your SLA, materialize ocp_clusteroperator snapshots hourly into a summary index keyed on cluster and operator_name, widen alert searches to earliest=-2h@h on the summary, and keep this full search for investigations.
+
+For Splunk ITSI optional deployments, bind KPIs to cluster_deg_cnt and to the maximum prog_dwell_min per cluster, attaching episode policies when two consecutive windows stay non-info for mission-tier entities.
+
+### Step 4 — Validate
+
+Ground truth always starts on-cluster. Run oc get clusteroperator -o wide and compare AVAILABLE, PROGRESSING, DEGRADED, and VERSION columns to the Splunk row for the same cluster and operator inside the last snapshot window. When statuses disagree, first verify resourceVersion freshness and indexer clock skew before blaming Splunk parsing.
+
+Deep dive with oc describe clusteroperator <name> to read condition messages, related objects, and version entries. Splunk should mirror Degraded=True and Progressing=True transitions within one collection interval; if not, tighten scripted input frequency or fix token expiration on the management host.
+
+Prometheus cross-check: in the OpenShift console monitoring stack or via oc get --raw against metrics endpoints, validate cluster_operator_up and cluster_operator_conditions series for the same operator labels Splunk indexes. When metrics show Degraded type value positive while API snapshots look healthy, suspect stale snapshots or dual-cluster label collisions; reconcile external_labels on scrapers.
+
+Event correlation: during validation, tail openshift events for the operator namespace and confirm Splunk evt_msg fields capture the same warning text you see in oc get events.
+
+Audit correlation: replay a controlled oc patch clusteroperator or oc adm certificate activity in lab and confirm ocp_audit rows include verbs, actors, and object names without indexing sensitive request bodies beyond policy.
+
+Synthetic validation: in a lab cluster, simulate a failing operand by scaling a non-production operator Deployment to zero only under vendor-guided drills, observe Degraded or Progressing transitions, and confirm openshift_uc_3_3_6_clusteroperator_health surfaces warn or page with non-null recommended_action. Roll back, watch recovery, and confirm severity returns to info.
+
+Negative test: on a healthy cluster after upgrade completion with all operators Available and Progressing false, confirm the alert wrapper returns zero rows for page and warn filters.
+
+Runbook linkage: document expected dwell times during z-stream upgrades and patch reconciliations so validators do not open false defects against the saved search when ClusterVersion history shows an active update. Compare Splunk cluster labels to kube-system ConfigMap uid or infrastructure CR identifiers when multiple labs share one Splunk tenant.
+
+### Step 5 — Operationalize & Troubleshoot
+
+Case 1 — Degraded monitoring operator with Thanos sidecar errors: follow cluster-monitoring-operator runbooks, verify prometheus and alertmanager pods, check PVC or object storage reachability, and confirm user-workload monitoring separation when only platform monitoring is impaired.
+
+Case 2 — Degraded authentication operator during identity provider outages: validate OAuth routes, openshift-authentication pods, and IdP endpoint health; distinguish external IdP failures from in-cluster secret rotation faults using condition messages.
+
+Case 3 — Ingress or DNS operator flapping after load balancer maintenance: confirm control-plane API VIP health, verify wildcard DNS records for apps domain, and correlate provider tickets before deep cluster surgery.
+
+Case 4 — kube-apiserver or openshift-apiserver operator degraded with static pod restarts: gather must-gather, review kube-apiserver-operator logs, and check etcd quorum before changing API flags.
+
+Case 5 — etcd operator degraded while etcdctl member list still healthy: reconcile operator-managed revision drift versus member health probes; engage storage teams when WAL latency spikes coincide per UC-3.2.8 sibling analytics without duplicating etcd drill metrics here.
+
+Case 6 — image-registry operator degraded with pulls failing cluster-wide: verify PVC or object storage backend, route health to the integrated registry, and check image pruner jobs blocking writes.
+
+Case 7 — console operator degraded blocking web UI: validate console pods, oauth integration, and downloads route; keep CLI access paths documented when UI is down.
+
+Case 8 — machine-config operator stuck Progressing with sibling UC-3.3.17 showing healthy pools: investigate operator-level operands versus MCP ledger divergence; oc describe may cite render delays not yet reflected in pool counts.
+
+Case 9 — cluster-version operator Progressing long after upgrade completion: check ClusterVersion status history, verify signature config maps, and confirm reachable release image mirrors.
+
+Case 10 — Stale lastTransitionTime with operator reporting Available: suspect watch stalls or exporter lag; restart collection jobs under change control and compare Prometheus scrape timestamps.
+
+Case 11 — Audit trail shows break-glass oc patch during degradation: pair human changes with condition timelines before blaming autonomous reconciliation.
+
+Case 12 — Fleet-wide healthy operators with info severities only: use as a control test that telemetry, parsers, and tokens work; spot-check weekly that Splunk rows still match oc get clusteroperator for every production cluster.
+
+Closing checklist: multisearch lists four lanes; coalesce normalizes cluster and operator fields; streamstats and eventstats quantify dwell and fleet context; case() implements severity tiers; closing table includes cluster, operator_name, avail_f, prog_f, deg_f, upg_warn, prog_dwell_min, heartbeat_age_h, cluster_deg_cnt, fleet_prog_p90, degraded_metric_hint, evt_msg, audit_actor, severity, recommended_action, last_seen, prom_name for seventeen analyst-visible columns.
+
+## SPL
+
+```spl
+`comment("UC-3.3.6 OpenShift ClusterOperator health — ocp_clusteroperator + prometheus:cluster_operator_up + ocp_events + ocp_audit. Tunables: prog_page_min=120 prog_warn_min=45 stale_hr=6 earliest=-6h@h latest=now")`
+| multisearch
+    [ search index=ocp_metrics sourcetype=ocp_clusteroperator earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval operator_name=lower(trim(toString(coalesce(name, operator, clusteroperator_name, metadata_name, co_name, ""))))
+      | eval av=lower(trim(toString(coalesce(available, conditions_available, available_status, ""))))
+      | eval pr=lower(trim(toString(coalesce(progressing, conditions_progressing, progressing_status, ""))))
+      | eval dg=lower(trim(toString(coalesce(degraded, conditions_degraded, degraded_status, ""))))
+      | eval ug=lower(trim(toString(coalesce(upgradeable, conditions_upgradeable, upgradeable_status, ""))))
+      | eval avail_f=if(match(av,"true|1"),1,0)
+      | eval prog_f=if(match(pr,"true|1"),1,0)
+      | eval deg_f=if(match(dg,"true|1"),1,0)
+      | eval upg_warn=if(match(ug,"false|0"),1,0)
+      | eval ltt_p=trim(toString(coalesce(ltt_progressing, last_transition_progressing, lastTransitionTime_progressing, coalesce_ltt_prog, "")))
+      | eval ltt_d=trim(toString(coalesce(ltt_degraded, last_transition_degraded, lastTransitionTime_degraded, "")))
+      | eval ltt_epoch=coalesce(
+          if(len(ltt_p)>0 AND match(ltt_p,"^[0-9]{4}-"), strptime(ltt_p, "%Y-%m-%dT%H:%M:%SZ"), null()),
+          if(len(ltt_d)>0 AND match(ltt_d,"^[0-9]{4}-"), strptime(ltt_d, "%Y-%m-%dT%H:%M:%SZ"), null()),
+          if(len(trim(toString(coalesce(lastTransitionTime, last_transition_time, ""))))>0, strptime(trim(toString(coalesce(lastTransitionTime, last_transition_time, ""))), "%Y-%m-%dT%H:%M:%SZ"), null()) )
+      | eval cond_msg=trim(toString(coalesce(message, reason, status_message, condition_message, co_message, "")))
+      | sort 0 + cluster + operator_name - _time
+      | streamstats window=2 current=t global=f last(_time) AS prev_ts last(prog_f) AS prev_prog BY cluster operator_name
+      | eval prog_dwell_min=if(prog_f==1 AND prev_prog==1 AND isnotnull(prev_ts), round((_time - prev_ts)/60, 2), if(prog_f==1, round((now()-_time)/60, 2), 0))
+      | eval lane="co_snap"
+      | fields _time cluster operator_name avail_f prog_f deg_f upg_warn ltt_epoch cond_msg lane prog_dwell_min ]
+    [ search index=ocp_metrics (sourcetype=prometheus:cluster_operator_up OR sourcetype="prometheus:metrics") earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=lower(trim(toString(coalesce(__name__, metric_name, name, ""))))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "")), 10)
+      | where match(mn,"cluster_operator_up|cluster_operator_conditions")
+      | eval operator_name=lower(trim(toString(coalesce(name, clusteroperator, exported_clusteroperator, ""))))
+      | eval ctype=lower(trim(toString(coalesce(type, condition, cond, ""))))
+      | eval lane="co_prom"
+      | stats latest(_time) AS last_prom_t max(mv) AS prom_peak latest(ctype) AS prom_type latest(mn) AS prom_name BY cluster operator_name lane ]
+    [ search index=ocp_events sourcetype=ocp_events earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, ""))))
+      | eval ik=lower(trim(toString(coalesce(involvedObject_kind, involved_kind, object_kind, ""))))
+      | eval operator_name=lower(trim(toString(coalesce(involvedObject_name, object_name, ""))))
+      | where (match(ik,"clusteroperator|deployment|daemonset") OR match(lower(_raw),"clusteroperator|operator.openshift.io"))
+      | eval evt_msg=trim(toString(coalesce(message, Message, reason, "")))
+      | eval lane="co_evt"
+      | stats latest(_time) AS last_evt_t latest(evt_msg) AS evt_msg max(eval(if(match(lower(evt_msg),"fail|error|backoff|degraded"),1,0))) AS evt_fail_hint BY cluster operator_name lane ]
+    [ search index=ocp_audit sourcetype=ocp_audit earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, ""))))
+      | eval res=lower(trim(toString(coalesce(objectRef_resource, resource, ""))))
+      | eval verb=lower(trim(toString(coalesce(verb, request_verb, ""))))
+      | eval operator_name=lower(trim(toString(coalesce(objectRef_name, object_name, ""))))
+      | where match(res,"clusteroperators|clusterversions|clusteroperator") OR match(operator_name,"kube-apiserver|etcd|network|ingress|dns|monitoring|authentication|openshift-apiserver|machine-config|cluster-version")
+      | eval actor=trim(toString(coalesce(user_username, user, requestUser_username, "")))
+      | eval lane="co_aud"
+      | stats latest(_time) AS last_aud_t values(verb) AS audit_verbs latest(actor) AS audit_actor BY cluster operator_name lane ]
+| eval operator_name=lower(trim(coalesce(operator_name, "unknown_operator")))
+| stats max(_time) AS last_seen max(avail_f) AS avail_f max(prog_f) AS prog_f max(deg_f) AS deg_f max(upg_warn) AS upg_warn max(prog_dwell_min) AS prog_dwell_min max(last_prom_t) AS last_prom_t max(prom_peak) AS prom_peak first(prom_type) AS prom_type first(prom_name) AS prom_name max(last_evt_t) AS last_evt_t first(evt_msg) AS evt_msg max(evt_fail_hint) AS evt_fail_hint max(last_aud_t) AS last_aud_t first(audit_verbs) AS audit_verbs first(audit_actor) AS audit_actor values(cond_msg) AS cmv max(ltt_epoch) AS ltt_epoch BY cluster operator_name
+| eval cond_msg=trim(toString(mvindex(mvdedup(cmv),0)))
+| eval heartbeat_age_h=if(isnotnull(ltt_epoch) AND ltt_epoch>0, round((now()-ltt_epoch)/3600, 3), null())
+| eval degraded_metric_hint=if(isnotnull(prom_name) AND match(lower(prom_name),"cluster_operator_conditions") AND match(lower(prom_type),"degraded") AND isnotnull(prom_peak) AND prom_peak>=1, 1, if(isnotnull(prom_name) AND match(lower(prom_name),"cluster_operator_up") AND isnotnull(prom_peak) AND prom_peak<1, 1, 0))
+| eventstats sum(deg_f) AS cluster_deg_cnt sum(eval(if(prog_f==1,1,0))) AS cluster_prog_cnt BY cluster
+| eventstats perc90(prog_dwell_min) AS fleet_prog_p90 BY cluster
+| eval severity=case(
+    deg_f==1 AND match(operator_name,"kube-apiserver|etcd|authentication|network|ingress|dns|openshift-apiserver|monitoring|cluster-version"), "page",
+    deg_f==1, "warn",
+    degraded_metric_hint==1 AND match(operator_name,"kube-apiserver|etcd|authentication|network|ingress|openshift-apiserver|monitoring"), "page",
+    degraded_metric_hint==1, "warn",
+    prog_f==1 AND prog_dwell_min>=120, "page",
+    prog_f==1 AND prog_dwell_min>=45, "warn",
+    coalesce(heartbeat_age_h,0)>=6 AND prog_f==1, "warn",
+    upg_warn==1 AND cluster_deg_cnt>=1, "warn",
+    true(), "info")
+| eval recommended_action=case(
+    deg_f==1 AND match(operator_name,"monitoring"), "describe_clusteroperator_monitoring_then_check_thanos_prometheus_pods",
+    deg_f==1 AND match(operator_name,"authentication"), "describe_clusteroperator_authentication_then_check_oauth_pods",
+    deg_f==1 AND match(operator_name,"ingress"), "describe_clusteroperator_ingress_then_check_router_and_dns",
+    deg_f==1 AND match(operator_name,"network"), "gather_network_operator_logs_and_check_sdn_ovn_pods",
+    deg_f==1 AND match(operator_name,"kube-apiserver|openshift-apiserver"), "must_gather_apiserver_operator_and_check_static_pods",
+    deg_f==1 AND match(operator_name,"etcd"), "verify_etcd_operator_and_member_health_before_storage_changes",
+    deg_f==1 AND match(operator_name,"dns"), "check_core_dns_and_operator_deployments",
+    prog_f==1 AND prog_dwell_min>=120, "inspect_operator_deployment_rollout_and_cvo_events",
+    degraded_metric_hint==1, "correlate_prometheus_cluster_operator_series_with_oc_describe",
+    upg_warn==1, "review_cluster_upgradeable_false_message_and_z_stream_gates",
+    true(), "refresh_oc_get_clusteroperator_snapshot_and_telemetry")
+| join type=left max=0 cluster
+    [| inputlookup openshift_cluster_inventory.csv
+     | fields cluster, cluster_tier, owner_team, environment]
+| eval cluster_tier=coalesce(cluster_tier, "unrated"),
+       owner_team=coalesce(owner_team, "unowned"),
+       environment=coalesce(environment, "unknown")
+| table cluster operator_name avail_f prog_f deg_f upg_warn prog_dwell_min heartbeat_age_h cluster_deg_cnt fleet_prog_p90 degraded_metric_hint evt_msg audit_actor severity recommended_action last_seen prom_name cluster_tier owner_team environment
+```
+
+## CIM SPL
+
+```spl
+| tstats summariesonly=true latest(Change.action) AS change_action latest(Change.object) AS change_object latest(Change.user) AS change_user FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.dest
+| rename Change.dest AS cim_dest
+| join type=left max=0 cim_dest
+    [| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
+     | rename Application_State.dest AS cim_dest ]
+| where like(lower(change_object), "%clusteroperator%") OR like(lower(app_info), "%openshift%operator%")
+| table cim_dest change_action change_object change_user app_state app_info
+```
+
+## Visualization
+
+Severity-colored table by cluster and operator_name with drilldowns to raw ocp_clusteroperator JSON, prometheus operator lines, ocp_events text, and ocp_audit rows; single-value tiles for cluster_deg_cnt; timeline of prog_dwell_min for critical operators; matrix panel mirroring oc get co wide output.
+
+## Known False Positives
+
+Transient Progressing=True windows are expected during minor-version upgrades, certificate rotations, and machine-config rollouts; require dwell thresholds in the saved search before paging platform leadership. The cluster-version operator routinely reports Progressing=True while patches reconcile release image pulls and operator payloads; treat short windows as normal unless duration exceeds vendor guidance or pairs with Degraded=True on peer operators. Brief network flaps to the in-cluster registry can flip image-registry or samples operators without sustained user impact; corroborate with route and storage health before executive escalation. Admission webhook timeouts during heavy apply storms can surface as Degraded messages on openshift-apiserver or kube-apiserver operators; pair with admission webhook latency analytics rather than assuming etcd failure. Scheduled maintenance that sets Upgradeable=False via cluster version gates or documented upgradeableTo constraints is intentional; join alerts to change calendars or suppress when maintenance_authorized metadata is present on HEC events. Prometheus scrape gaps from Thanos receive outages can drop cluster_operator_conditions samples while API snapshots remain healthy; combine lanes before muting metrics entirely. Duplicate HEC submissions from redundant collectors can double operator rows; dedupe on cluster, operator_name, and snapshot_generation in summary indexes when cost matters. Lab clusters that constantly churn test operators will page unless routed to non-production indexes; mark them in a lookup to downgrade severity. Stale Splunk parsers after an OpenShift minor upgrade can mis-map condition fields until FIELDALIAS updates ship; validate extractor tests quarterly.
+
+## References
+
+- [OpenShift Documentation — Cluster operators reference](https://docs.openshift.com/container-platform/latest/operators/operator-reference.html)
+- [OpenShift Documentation — Understanding OpenShift updates](https://docs.openshift.com/container-platform/latest/updating/understanding_updates/intro-to-updates.html)
+- [OpenShift REST API Reference — ClusterOperator](https://docs.openshift.com/container-platform/latest/rest_api/operator_apis/clusteroperator-config-openshift-io-v1.html)
+- [Kubernetes API Conventions — Typical status properties (conditions)](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties)
+- [OpenShift Documentation — Troubleshooting Operator issues](https://docs.openshift.com/container-platform/latest/operators/admin/olm-troubleshooting.html)
+- [OpenShift Documentation — Configuring the monitoring stack](https://docs.openshift.com/container-platform/latest/monitoring/configuring-the-monitoring-stack.html)
+- [OpenShift Documentation — Gathering data about your cluster](https://docs.openshift.com/container-platform/latest/support/gathering-cluster-data.html)

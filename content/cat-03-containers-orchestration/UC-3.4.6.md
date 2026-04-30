@@ -10,6 +10,12 @@ splunkPillar: "Observability"
 
 # UC-3.4.6 · Registry Replication Lag and Consistency
 
+> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Availability, Fault, Performance &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*When our software library has copies in different buildings, we track how long it takes for new items to arrive at each copy and flag when any building falls behind or misses a delivery.*
+
+---
+
 ## Description
 
 Monitors Harbor registry replication execution duration, failure rates, and artifact lag across sites by polling the **Replication Executions API** and scraping **Harbor metrics**, then classifies replication health as CRITICAL, HIGH, MEDIUM, or LOW based on duration thresholds and failure percentages — enabling multi-site container platform teams to detect degraded replication before image pull failures cascade across clusters.
@@ -24,17 +30,17 @@ Poll Harbor's /api/v2.0/replication/executions endpoint via Splunk REST API Modu
 
 ## Detailed Implementation
 
-Prerequisites
-• **Harbor** 2.5+ registry deployment with at least one **replication policy** configured — replication policies define the source registry, destination registry, resource filter (repositories, tags), trigger mode (manual, scheduled, event-based), and bandwidth limit. Each execution of a policy produces a record accessible via the **Replication Executions API**.
-• **Splunk REST API Modular Input** (`rest_ta`) configured to poll **`/api/v2.0/replication/executions`** every 5 minutes. The endpoint returns paginated JSON containing `id`, `policy_id`, `status` (InProgress, Succeed, Failed, Stopped), `trigger` (manual, schedule, event_based), `start_time`, `end_time`, `total`, `failed`, `succeed`, and `in_progress` counts.
-• For **per-task detail**, configure a second input polling **`/api/v2.0/replication/executions/{id}/tasks`** — this provides artifact-level status, error messages (e.g., **"denied: requested access to the resource is denied"**), and individual task duration. Use a scripted input or the **Splunk Add-on Builder** to paginate and correlate tasks with their parent execution.
-• **Harbor metrics** endpoint (`/metrics`) exposed and scraped by the **Splunk OpenTelemetry Collector** with the **Prometheus receiver**. Key metrics: `harbor_replication_status` (gauge per policy), `harbor_task_queue_latency` (histogram), and custom replication timing metrics if configured.
-• **Splunk HEC** token for **`index=containers`** with **`sourcetype=harbor:replication`** as default; secondary tokens for **`sourcetype=harbor:metrics`** and **`sourcetype=kube:container:logs`**.
-• **Network requirements**: the Splunk collector needs HTTPS access to both the **source** and **target** Harbor instances' API endpoints. If registries span data centers, ensure the **cross-site network link** bandwidth and latency are monitored (via **`sourcetype=otel:metrics`** infrastructure metrics) to correlate replication lag with network conditions.
-• **Harbor RBAC**: the API user needs the **ProjectAdmin** role or a custom role with `list` permission on **replication executions** and **replication policies**. Store credentials in the Splunk **credential store** via `rest_ta` configuration.
-• **License estimate**: a registry with 10 replication policies executing hourly generates approximately 240 execution records/day (~100 KB) plus per-task details (~500 KB/day for 50 artifacts/execution).
+### Prerequisites
+- **Harbor** 2.5+ registry deployment with at least one **replication policy** configured — replication policies define the source registry, destination registry, resource filter (repositories, tags), trigger mode (manual, scheduled, event-based), and bandwidth limit. Each execution of a policy produces a record accessible via the **Replication Executions API**.
+- **Splunk REST API Modular Input** (`rest_ta`) configured to poll **`/api/v2.0/replication/executions`** every 5 minutes. The endpoint returns paginated JSON containing `id`, `policy_id`, `status` (InProgress, Succeed, Failed, Stopped), `trigger` (manual, schedule, event_based), `start_time`, `end_time`, `total`, `failed`, `succeed`, and `in_progress` counts.
+- For **per-task detail**, configure a second input polling **`/api/v2.0/replication/executions/{id}/tasks`** — this provides artifact-level status, error messages (e.g., **"denied: requested access to the resource is denied"**), and individual task duration. Use a scripted input or the **Splunk Add-on Builder** to paginate and correlate tasks with their parent execution.
+- **Harbor metrics** endpoint (`/metrics`) exposed and scraped by the **Splunk OpenTelemetry Collector** with the **Prometheus receiver**. Key metrics: `harbor_replication_status` (gauge per policy), `harbor_task_queue_latency` (histogram), and custom replication timing metrics if configured.
+- **Splunk HEC** token for **`index=containers`** with **`sourcetype=harbor:replication`** as default; secondary tokens for **`sourcetype=harbor:metrics`** and **`sourcetype=kube:container:logs`**.
+- **Network requirements**: the Splunk collector needs HTTPS access to both the **source** and **target** Harbor instances' API endpoints. If registries span data centers, ensure the **cross-site network link** bandwidth and latency are monitored (via **`sourcetype=otel:metrics`** infrastructure metrics) to correlate replication lag with network conditions.
+- **Harbor RBAC**: the API user needs the **ProjectAdmin** role or a custom role with `list` permission on **replication executions** and **replication policies**. Store credentials in the Splunk **credential store** via `rest_ta` configuration.
+- **License estimate**: a registry with 10 replication policies executing hourly generates approximately 240 execution records/day (~100 KB) plus per-task details (~500 KB/day for 50 artifacts/execution).
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **REST API polling**: configure the `rest_ta` input with the following settings:
 — **URL**: `https://<harbor-host>/api/v2.0/replication/executions?page_size=50&sort=-start_time`
 — **Interval**: 300 seconds (5 minutes)
@@ -51,7 +57,7 @@ Step 1 — Configure data collection
 
 (5) **Infrastructure metrics for correlation**: collect **cross-site network metrics** (latency, bandwidth, packet loss) via the **OTel Collector's hostmetrics receiver** or a network monitoring tool. Replication lag often correlates directly with **WAN link degradation** — this correlation is essential for distinguishing Harbor-side issues from network-side issues.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL processes **execution records** to compute hourly statistics per replication policy. The **`lag_severity`** classification:
 — **CRITICAL**: the execution status is **Failed** — no artifacts were replicated
 — **HIGH**: execution duration exceeds **30 minutes** AND has partial failures (failed_pct > 0) — some artifacts were replicated but with errors
@@ -67,28 +73,28 @@ Key **field normalization** considerations:
 
 Schedule the hourly monitoring search every **15 minutes** over **`-2h`** (overlapping to catch delayed execution records). Alert when `has_critical=1` or `avg_fail_pct > 20`. Schedule the 7-day trend search daily at **06:00**.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Trigger a **manual replication** in Harbor UI: Administration → Replications → select a policy → **Replicate**. Within 5 minutes, verify: `index=containers sourcetype="harbor:replication" status="Succeed" earliest=-10m`.
 (b) Create a **failure scenario**: configure a replication policy to a non-existent or unreachable target registry. Trigger it manually. Verify: `index=containers sourcetype="harbor:replication" status="Failed" earliest=-10m`.
 (c) Verify **duration calculation**: compare the `duration_sec` computed by the SPL with the actual execution duration shown in the Harbor UI. Account for timezone differences between Harbor's `start_time`/`end_time` (UTC) and Splunk's `_time`.
 (d) Validate the **lookup**: `| inputlookup harbor_replication_policies.csv | table policy_id policy_name src_registry dest_registry`. Should return all configured policies.
 (e) Confirm the **severity classification**: create test events with known durations and failure rates to verify the `case()` logic produces correct severity levels.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **single-value tiles** — total policies monitored, policies in CRITICAL, max lag (seconds), average failure rate (%), last successful full replication timestamp.
-• Row B: **line chart** of average and maximum replication duration per policy over 7 days with **SMA overlay** — identifies chronic lag versus transient spikes.
-• Row C: **stacked bar chart** of execution status (Succeed, Failed, InProgress, Stopped) per policy per day — shows the ratio of failures over time.
-• Row D: **severity-colored table** — policy_name, src_registry, dest_registry, last_status, last_duration, avg_duration, fail_rate, severity. Red rows for CRITICAL, orange for HIGH.
-• **Alerting**: CRITICAL execution → Slack `#platform-ops` + PagerDuty P2; HIGH severity sustained for 2+ hours → P3; SPIKE in trend → Slack notification; failure rate > 20% for any policy → daily digest email.
-• **Runbook** (owner: platform registry team): (1) check Harbor jobservice worker pool: `kubectl logs -n harbor deploy/harbor-jobservice --tail=100 | grep replication`, (2) verify **network connectivity** between registries: `curl -v https://<target-registry>/v2/`, (3) check **storage** at target registry: disk space, I/O latency, (4) review per-task errors for specific artifact failures, (5) for **"blob unknown"** errors: trigger garbage collection at the source registry before retrying.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **single-value tiles** — total policies monitored, policies in CRITICAL, max lag (seconds), average failure rate (%), last successful full replication timestamp.
+- Row B: **line chart** of average and maximum replication duration per policy over 7 days with **SMA overlay** — identifies chronic lag versus transient spikes.
+- Row C: **stacked bar chart** of execution status (Succeed, Failed, InProgress, Stopped) per policy per day — shows the ratio of failures over time.
+- Row D: **severity-colored table** — policy_name, src_registry, dest_registry, last_status, last_duration, avg_duration, fail_rate, severity. Red rows for CRITICAL, orange for HIGH.
+- **Alerting**: CRITICAL execution → Slack `#platform-ops` + PagerDuty P2; HIGH severity sustained for 2+ hours → P3; SPIKE in trend → Slack notification; failure rate > 20% for any policy → daily digest email.
+- **Runbook** (owner: platform registry team): (1) check Harbor jobservice worker pool: `kubectl logs -n harbor deploy/harbor-jobservice --tail=100 | grep replication`, (2) verify **network connectivity** between registries: `curl -v https://<target-registry>/v2/`, (3) check **storage** at target registry: disk space, I/O latency, (4) review per-task errors for specific artifact failures, (5) for **"blob unknown"** errors: trigger garbage collection at the source registry before retrying.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **Sankey diagram** or flow visualization showing the replication flow from source registry → policy → target registry with color-coded paths (green for healthy, red for failing) — this quickly identifies which cross-site links are degraded.
-• **Alert design**: include `policy_name`, `src_registry`, `dest_registry`, `execution_status`, `duration_sec`, `failed_count`, `total_count`, and `lag_severity` in the alert payload. For trend alerts include the `deviation_pct` and `trend_flag`.
-• **Execution records missing** — the `rest_ta` may not paginate correctly if `page_size` is too small for high-volume replication. Increase `page_size` to 100 and verify all executions appear.
-• **Duration always shows as in-progress** — if `end_time` is consistently null, the execution may be stuck. Check Harbor jobservice for **deadlocked workers**: `kubectl logs deploy/harbor-jobservice | grep -i "timeout\|deadlock"`.
-• **Lag spikes correlate with specific times** — scheduled replication policies that overlap create **resource contention** in the jobservice worker pool. Stagger replication schedules to distribute load.
-• **Replication succeeds but images unavailable at target** — Harbor marks execution as Succeed when artifacts are pushed, but the target registry may need time to index them. Add a **validation delay** (5–10 minutes after execution completes) before alerting on missing images.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **Sankey diagram** or flow visualization showing the replication flow from source registry → policy → target registry with color-coded paths (green for healthy, red for failing) — this quickly identifies which cross-site links are degraded.
+- **Alert design**: include `policy_name`, `src_registry`, `dest_registry`, `execution_status`, `duration_sec`, `failed_count`, `total_count`, and `lag_severity` in the alert payload. For trend alerts include the `deviation_pct` and `trend_flag`.
+- **Execution records missing** — the `rest_ta` may not paginate correctly if `page_size` is too small for high-volume replication. Increase `page_size` to 100 and verify all executions appear.
+- **Duration always shows as in-progress** — if `end_time` is consistently null, the execution may be stuck. Check Harbor jobservice for **deadlocked workers**: `kubectl logs deploy/harbor-jobservice | grep -i "timeout\|deadlock"`.
+- **Lag spikes correlate with specific times** — scheduled replication policies that overlap create **resource contention** in the jobservice worker pool. Stagger replication schedules to distribute load.
+- **Replication succeeds but images unavailable at target** — Harbor marks execution as Succeed when artifacts are pushed, but the target registry may need time to index them. Add a **validation delay** (5–10 minutes after execution completes) before alerting on missing images.
 
 ## SPL
 

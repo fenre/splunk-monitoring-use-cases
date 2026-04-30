@@ -1,7 +1,7 @@
-.PHONY: build serve clean audit audit-full audit-structure audit-cim audit-links \
-       audit-consistency audit-perf audit-placeholders audit-mitre audit-gold \
-       audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type \
-       inventory manifest test test-unit help
+.PHONY: build serve clean audit audit-full audit-ntv audit-all audit-structure \
+       audit-cim audit-links audit-consistency audit-perf audit-placeholders \
+       audit-mitre audit-gold audit-spl-duplicates audit-spl-grammar audit-ids \
+       audit-monitoring-type inventory manifest test test-unit help
 
 PYTHON ?= python3
 BUILD  := $(PYTHON) tools/build/build.py --out dist
@@ -51,6 +51,12 @@ audit-mitre: ## Validate MITRE ATT&CK taxonomy
 
 audit-gold: ## Gold standard quality profile audit
 	$(PYTHON) scripts/audit_gold_profile.py
+
+audit-ntv:
+	$(PYTHON) scripts/audit_non_technical_sync.py
+
+audit-all: audit audit-ntv audit-gold
+	@echo "All audit checks passed"
 
 audit-spl-duplicates: ## Find duplicate SPL queries across UCs
 	$(PYTHON) scripts/audit_spl_duplicates.py

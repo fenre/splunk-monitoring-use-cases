@@ -1,0 +1,369 @@
+<!-- AUTO-GENERATED from UC-3.3.24.json — DO NOT EDIT -->
+
+---
+id: "3.3.24"
+title: "OpenShift MachineHealthCheck Remediation Lifecycle: Unhealthy-Condition Detection, Remediation Storms, MachineSet Replica Drift, and Cluster API Capacity Watermark Risks"
+status: "verified"
+criticality: "high"
+splunkPillar: "Observability"
+---
+
+# UC-3.3.24 · OpenShift MachineHealthCheck Remediation Lifecycle: Unhealthy-Condition Detection, Remediation Storms, MachineSet Replica Drift, and Cluster API Capacity Watermark Risks
+
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Reliability, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
+
+*We watch when the platform automatically replaces unhealthy machines, when too many replacements bunch together, and when replacement runs into account size limits. We treat control-plane rotation as more serious than worker churn because those machines anchor the whole cluster.*
+
+---
+
+## Description
+
+Detects OpenShift installer-provisioned infrastructure remediation risk when MachineHealthCheck automation drives delete-and-recreate churn faster than cloud quotas, autoscaler ceilings, or governance budgets allow, including stuck Machine deletions, MachineSet replica drift after remediation, ControlPlaneMachineSet unavailable counters, and machine-api-operator degradation context.
+
+## Value
+
+OpenShift MachineHealthCheck storms, capacity watermarks, and control-plane replacement risk at a glance
+
+## Implementation
+
+Land openshift:machinehealthcheck, openshift:machine, openshift:machineset, openshift:controlplanemachineset, and openshift:event into index=openshift with cluster labels; publish ocp_mhc_cluster_capacity_hints.csv; normalize machine.openshift.io fields in props; save openshift_uc_3_3_24_mhc_remediation_lifecycle every fifteen minutes over earliest=-6h@h; route page and warn to platform on-call; archive weekly CSV exports.
+
+## Evidence
+
+Saved search openshift_uc_3_3_24_mhc_remediation_lifecycle with fifteen minute schedule; dashboard drilldowns on openshift machine-api sourcetypes; versioned ocp_mhc_cluster_capacity_hints.csv; weekly CSV exports archived to a restricted evidence index.
+
+## Control test
+
+### Positive scenario
+
+In a lab OpenShift cluster, ingest openshift:machinehealthcheck snapshots where currentHealthy falls below expectedMachines, add openshift:machine rows showing prolonged Deleting phases with deletionTimestamp aging, add openshift:controlplanemachineset rows with unavailable counters above zero when the feature is enabled, and confirm openshift_uc_3_3_24_mhc_remediation_lifecycle returns page or warn with non-null recommended_action within the scheduled window.
+
+### Negative scenario
+
+After recovery when oc get machinehealthcheck shows aligned healthy counts, Machines are not stuck deleting, MachineSet replicas match spec, and ControlPlaneMachineSet unavailable counters are zero, confirm severities return to info and the alert wrapper emits zero rows when filtering to page and warn only.
+
+## Detailed Implementation
+
+### Step 1 — Prerequisites
+
+Head of Platform owns this control with the OpenShift platform engineering lead, the cluster lifecycle team that operates installer-provisioned infrastructure and the machine-api-operator plane, the cloud capacity owners who govern account quotas and cluster autoscaler ceilings, and the observability engineers who operate Splunk HTTP Event Collector tokens plus OpenTelemetry Collector agents on management clusters. This use case isolates the Cluster API surface on OpenShift 4 where the machine-api-operator reconciles Machine, MachineSet, and MachineHealthCheck custom resources in openshift-machine-api and related API groups, including provider-specific infrastructure references such as AWSMachine, AzureMachine, GCPMachine, or VSphereMachine objects that ultimately bind provider IDs to Kubernetes Node identities. UC-3.3.6 remains the ClusterOperator condition ledger across the full platform operator fleet including high-level machine-api Degraded or Progressing signals without the per-Machine and per-MachineHealthCheck lifecycle math this document prescribes. UC-3.3.17 remains MachineConfigPool convergence on the Machine Configuration Operator axis when rendered Ignition blocks nodes from becoming Ready even though Machine phases look healthy. UC-3.2.3 remains generic kubelet-driven Node NotReady semantics without Machine remediation timelines. UC-3.2.44 remains managed cloud auto-repair signatures on AWS, Google Cloud, or Azure audit planes rather than OpenShift IPI MachineHealthCheck orchestration. Splunk becomes the tamper-resistant ledger that fuses periodic API snapshots of MachineHealthCheck status fields such as currentHealthy, expectedMachines, and remediationsAllowed, Machine phase and deletion timestamps, MachineSet replica readiness gaps, optional ControlPlaneMachineSet unavailable counters, correlated Kubernetes events on Machine objects, optional cluster-autoscaler operator context forwarded as metrics or logs, and lookup-enriched capacity hints so responders see remediation velocity against hard ceilings.
+
+MachineHealthCheck semantics on OpenShift inherit Cluster API patterns while the machine-api-operator enforces OpenShift-specific wiring between Nodes and Machines. The unhealthyConditions stanza encodes how long Ready=False or Ready=Unknown may persist before remediation, and nodeStartupTimeout governs Machines whose backing instance joins the API but never produces a Ready Node within policy. status.currentHealthy below status.expectedMachines is the executive-readable drift signal that complements raw Node conditions. status.remediationsAllowed interacts with spec.maxUnhealthy: when the controller refuses new remediations because the unhealthy budget is exhausted, Splunk must still show the gap so operators know nodes remain sick while automation is gated. Treat remediationsAllowed at zero paired with positive drift as a capacity and policy stress signal, not as an all-clear.
+
+Provider InfrastructureRef objects explain many stuck phases. AWSMachine failures often correlate with IAM instance profiles, security groups, or subnet routing that prevents the instance from bootstrapping. AzureMachine failures may cite disk encryption sets, marketplace image plans, or capacity reservations. GCPMachine failures may surface service account scopes, GPU quotas, or shielded VM policy mismatches. VSphereMachine failures frequently trace to datastore clusters, distributed port groups, tag-based placement, or stale templates after a vCenter upgrade. When Machines sit in Provisioning while provider machines report running, compare Node registration, Ignition fetch logs, and registry authentication before assuming only network data plane faults.
+
+Machine remediation storms appear when many Machines traverse Deleting, Provisioning, Provisioned, and Running in a compressed window. Velocity matters: a burst that exceeds your maxUnhealthy percentage can trip short-circuit rules and stall healthy replacements, leaving the cluster half-upgraded. Finalizers such as machine.cluster.x-k8s.io or node.cluster.x-k8s.io uninitialized markers can keep Machines in Deleting while cloud instances are gone, which elevates severity because etcd and workload controllers still see ghosts in object graphs. Pair Splunk phase timelines with openshift:event reasons for FailedDelete or FailedCreate to distinguish API admission problems from cloud provider throttling.
+
+MachineSet replica drift after remediation is the lag between spec.replicas and status.readyReplicas or status.availableReplicas. Cloud quota exceeded, missing base images, Ignition bundle fetch failures, or autoscaler maxSize conflicts all produce the want N have N-K pattern. unavailableReplicas climbing while readyReplicas stalls often precedes customer-visible Pending pods. When cluster autoscaler scales out to replace Machines deleted by MachineHealthCheck, watch for watermark collisions against MachineSet maxSize and against cluster-wide max-nodes-total style limits from the cluster autoscaler configuration; Splunk lookup hints exist to make those ceilings visible beside live drift.
+
+ControlPlaneMachineSet introduces rolling replacement semantics for control plane Machines with higher blast radius than workers. status.unavailableMachines and status.unavailableReplicas deserve default escalation because etcd and API stability ride on careful sequencing. A worker storm is painful; a control-plane storm is existential. Always correlate CPMS signals with UC-3.3.15 etcd readiness when symptoms overlap, without merging the analytics into one saved search.
+
+machine-api ClusterOperator degradation from UC-3.3.6 is a sibling signal: when the operator reports Degraded=True, Machine reconciliation may stall cluster-wide even if individual Machine objects look superficially healthy. Admission webhook timeouts, stale certificates on the operator Service, or etcd write latency can starve the machine-api reconciliation loop. This UC keeps machine-api operator context in narrative and cross-links rather than duplicating the full ClusterOperator multisearch.
+
+MachineConfigPool blocking Ready is the UC-3.3.17 angle: a Machine can report Running while the Node never flips Ready because the machine-config-daemon has not finished applying rendered configs. Splunk rows that show healthy Machine phases but escalating MCP degradation elsewhere should route responders to MCO runbooks first to avoid fruitless provider escalations.
+
+RBAC and safety land before parsers. Collectors that run oc get machinehealthcheck, oc get machineset, oc get machine, and oc get controlplanemachineset across openshift-machine-api must use a dedicated ServiceAccount with get and list on machine.openshift.io and infrastructure cluster resources your governance standards expect, not long-lived kubeadmin credentials on administrator laptops. Forwarders should run from hardened management hosts or CI workers with short-lived kubeconfigs. Legal review should confirm internal node names, cloud instance identifiers, and failure messages referencing account identifiers are acceptable in Splunk retention tiers.
+
+Index design: designate index=openshift for structured API snapshots with sourcetype=openshift:machinehealthcheck, openshift:machine, openshift:machineset, openshift:controlplanemachineset or openshift:cpms when your exporter splits types, plus sourcetype=openshift:event or openshift:kube_events for Kubernetes events where involvedObject.kind is Machine or MachineSet. Optional index=ocp_metrics carries prometheus lines for cluster-autoscaler or machine-api-operator metrics when federated through OpenShift Monitoring. Retention should cover at least fourteen days hot for remediation replay, thirty days for post-incident review, and cold storage aligned to observability policy.
+
+Field normalization expectations: flatten MachineHealthCheck metadata.name into name or mhc_name, map status.currentHealthy and status.expectedMachines into parallel numeric fields, map status.remediationsAllowed into a numeric gate, preserve spec.selector and spec.unhealthyConditions when exporters embed YAML fragments as JSON strings for later forensic search. For Machine objects, map status.phase into phase, preserve deletionTimestamp when Machines linger in Deleting, map labels that tie Machines to MachineSets such as machine.openshift.io/cluster-api-machineset, and preserve providerStatus fragments when safe. For MachineSet objects, map spec.replicas and status.readyReplicas, status.availableReplicas, and status.unavailableReplicas consistently. For ControlPlaneMachineSet, map status.unavailableMachines and status.unavailableReplicas when your OpenShift minor exposes them. Cluster identity must appear on every event as cluster, openshift_cluster, or cluster_name drawn from management-cluster context or external_labels on Prometheus scrapes.
+
+Risk briefing: MachineHealthCheck remediation is intentional automation; short bursts after single-node faults are healthy behavior. Alerts must compare drift magnitude, deletion dwell time, concurrent Machine churn, and control-plane unavailable counters before paging executive leadership. maxUnhealthy and remediationsAllowed gates can pause remediation during widespread failures; treating paused remediation as silence is dangerous when nodes remain unhealthy, while treating gates as incidents during provider-wide outages can spam operators who already know quota is exhausted. Cluster autoscaler scale-out can mask MHC deletions temporarily; combine MachineSet replica math with autoscaler max nodes totals. Control plane replacement is higher severity than worker churn; never downgrade ControlPlaneMachineSet unavailable signals to worker-tier response models.
+
+Differentiation recap: OpenShift IPI MachineHealthCheck and Machine lifecycle analytics with MachineSet and ControlPlaneMachineSet readiness context, not generic ClusterOperator-only storytelling, not MCP-only degradation, not vanilla Node NotReady without Machine objects, not managed cloud recycle audit semantics.
+
+Publish a lookup table ocp_mhc_cluster_capacity_hints.csv in the Splunk search app with columns cluster, max_nodes_hint, region_hint, and escalation_tier so the join arm can annotate watermarks without hard-coding tenant-specific autoscaler limits. Refresh the lookup when finance or cloud governance changes reserved instance pools or max node totals.
+
+Operational posture: stamp change_ticket_id onto HTTP Event Collector payloads when maintenance touches MachineSets, MachineHealthCheck objects, or cluster autoscaler configuration. When Splunk shows replica drift but the cloud console shows quota exceeded, pair remediation with FinOps before widening MachineHealthCheck budgets. When infrastructureRef errors cite provider objects, escalate with provider-specific machine logs rather than assuming kubelet failure alone.
+
+Closing prerequisites checklist: machine.openshift.io RBAC is least privilege, indexes and sourcetypes are named consistently, cluster labels are stable across arms, lookup ownership is documented, and legal retention tiers cover cloud identifiers in messages.
+
+### Step 2 — Configure data collection
+
+Stand up five complementary lanes Splunk multisearch can fuse: periodic MachineHealthCheck snapshots, periodic Machine snapshots with phase and deletion timestamps, periodic MachineSet replica snapshots, periodic ControlPlaneMachineSet snapshots, and Kubernetes events involving Machine or MachineSet objects.
+
+MachineHealthCheck snapshot lane: schedule a Python or Go utility every three to five minutes from a management host with kubeconfig authentication. The utility should run oc get machinehealthcheck -n openshift-machine-api -o json, iterate items[], flatten status.currentHealthy, status.expectedMachines, status.remediationsAllowed, and condition messages when present, and emit HTTP Event Collector JSON with sourcetype=openshift:machinehealthcheck. Include metadata.name, namespace, cluster label, and a sha256 hash of canonical JSON without volatile resourceVersion when regulated customers require tamper evidence.
+
+Machine snapshot lane: extend the utility to run oc get machine -n openshift-machine-api -o json on the same cadence, flatten status.phase, metadata.deletionTimestamp, owner references to MachineSet names when exporters flatten them, and infrastructureRef.kind hints such as AWSMachine without persisting secrets. Use sourcetype=openshift:machine. When watches are available, prefer bounded watch streams with reconnect logic over full list storms on very large fleets.
+
+MachineSet snapshot lane: run oc get machineset -n openshift-machine-api -o json, flatten spec.replicas and status.readyReplicas, status.availableReplicas, and status.unavailableReplicas, preserve labels that identify worker roles, and emit sourcetype=openshift:machineset.
+
+ControlPlaneMachineSet snapshot lane: on clusters where control plane machine management is enabled, run oc get controlplanemachineset -n openshift-machine-api -o json, flatten status.unavailableMachines and status.unavailableReplicas, and emit sourcetype=openshift:controlplanemachineset or openshift:cpms consistent with props.conf routing.
+
+Events lane: forward Kubernetes events with sourcetype=openshift:event using Splunk Add-on for Kubernetes patterns or an OpenTelemetry Collector k8s_events receiver. Retain involvedObject.kind, involvedObject.name, reason, message, and count fields. Ensure reasons such as FailedCreate, FailedDelete, Deleted, and operator-specific remediation markers on Machine objects are not dropped at forwarder filters.
+
+Optional metrics lane: federate OpenShift Monitoring targets that expose cluster-autoscaler or machine-api-operator signals into index=ocp_metrics with sourcetype=prometheus:metrics when your governance model permits. Preserve labels that identify namespace and pod for correlation during investigations. When user-workload monitoring is isolated, document which scrape jobs are permitted to leave the cluster so firewall teams expect outbound TLS.
+
+Example oc helpers operators run during design reviews:
+
+```bash
+oc -n openshift-machine-api get machinehealthcheck -o wide
+oc -n openshift-machine-api get machineset -o wide
+oc -n openshift-machine-api get machine -o wide
+oc -n openshift-machine-api get controlplanemachineset -o wide
+oc get clusteroperator machine-api -o wide
+```
+
+props.conf guidance: TRUNCATE sufficiently large for JSON, TIMESTAMP_FIELDS respected when HTTP Event Collector time is authoritative, FIELDALIAS maps from dotted API paths to underscore fields used in SPL coalesce ladders.
+
+Pre-save validation: index=openshift sourcetype=openshift:machinehealthcheck earliest=-1h must return events after the first interval; openshift:machine should list Machines with coherent phases during normal operations; openshift:machineset should mirror oc get machineset columns; openshift:controlplanemachineset should appear only where the feature is enabled and must not break searches when absent if you guard with OR patterns in broader dashboards.
+
+Dashboards: host a severity-colored cluster table fed by this saved search with drilldowns to raw JSON events, Machine timelines, and optional Cluster Autoscaler operator metrics. Splunk ITSI users may bind KPIs to mhc_gap and mac_phase_evt for platform service entities.
+
+Collector hardening: run forwarders with TLS to Splunk, rotate HEC tokens quarterly, and document which management cluster forwards dev versus prod to prevent label collisions. When multiple regions share one Splunk tenant, include region and cloud_account on every HTTP Event Collector event.
+
+Ingest guardrails: deduplicate snapshot replays when CI jobs rerun the same oc export twice in a minute; include snapshot_sequence or content hash fields if you need idempotent indexing. Redact kubeconfig blobs and cloud credentials from any debug events operators attach to tickets.
+
+### Step 3 — Create the search and alert
+
+Save the SPL as openshift_uc_3_3_24_mhc_remediation_lifecycle with a fifteen minute schedule during steady-state production, dispatch earliest=-6h@h, dispatch latest=now, and alert when severity is page or warn. Throttle duplicate cluster rows for thirty minutes unless severity escalates from warn to page. Include recommended_action, mhc_gap, mac_del_age, and cpms_unavail_m in pager descriptions so incident commanders open machine-api runbooks without rerunning ad hoc searches.
+
+Pipeline narrative for reviewers: multisearch fans MachineHealthCheck, Machine phase, MachineSet replica, and ControlPlaneMachineSet arms so a silent single sourcetype outage does not hide genuine remediation storms. coalesce() ladders absorb field naming drift across exporters. streamstats measures short-window phase churn bursts per Machine before aggregation. eventstats adds fleet percentile context for MachineSet gaps and phase event rates. case() maps control-plane unavailable counters, stuck Deleting dwell, exhausted remediationsAllowed with healthy drift, high phase event velocity, and sustained replica gaps into page versus warn versus info tiers. The join subsearch enriches clusters with max_nodes_hint and escalation tier from ocp_mhc_cluster_capacity_hints.csv for watermark storytelling. recommended_action encodes describe and log collection verbs for MachineHealthCheck, Machine, MachineSet, cluster-autoscaler, and ControlPlaneMachineSet without pretending Splunk replaces oc or must-gather.
+
+Fenced SPL must match the spl JSON field exactly:
+
+```spl
+`comment("UC-3.3.24 OpenShift IPI MachineHealthCheck lifecycle, Machine remediation storms, MachineSet replica drift, ControlPlaneMachineSet. Tunables: earliest=-6h@h latest=now storm_phase_evt=10 stuck_del_min=45")`
+| multisearch
+    [ search index=openshift sourcetype="openshift:machinehealthcheck" earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval cur_h=tonumber(tostring(coalesce(currentHealthy, current_healthy, status_currentHealthy, "0")),10)
+      | eval exp_m=tonumber(tostring(coalesce(expectedMachines, expected_machines, status_expectedMachines, "0")),10)
+      | eval rem_al=tonumber(tostring(coalesce(remediationsAllowed, remediations_allowed, status_remediationsAllowed, "999")),10)
+      | eval mhc_gap=if(isnotnull(cur_h) AND isnotnull(exp_m) AND exp_m>cur_h, exp_m-cur_h, 0)
+      | stats latest(_time) AS last_seen max(mhc_gap) AS mhc_gap max(cur_h) AS mhc_cur max(exp_m) AS mhc_exp min(rem_al) AS mhc_rem_al BY cluster ]
+    [ search index=openshift sourcetype="openshift:machine" earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval mn=lower(trim(toString(coalesce(name, metadata_name, machine_name, ""))))
+      | eval ph=lower(trim(toString(coalesce(phase, status_phase, ""))))
+      | eval del_ts=strptime(trim(toString(coalesce(deletionTimestamp, deletion_timestamp, ""))), "%Y-%m-%dT%H:%M:%SZ")
+      | eval del_age_min=if(isnotnull(del_ts) AND del_ts>0 AND like(ph,"%delet%"), round((now()-del_ts)/60,2), null())
+      | eval stuck_del=if(like(ph,"%delet%") AND coalesce(del_age_min,0)>45,1,0)
+      | eval phase_tick=if(like(ph,"%delet%") OR like(ph,"%provision%") OR like(ph,"%runn%"),1,0)
+      | sort 0 cluster mn - _time
+      | streamstats window=4 current=t global=f sum(phase_tick) AS phase_burst BY cluster mn
+      | stats latest(_time) AS last_seen max(stuck_del) AS mac_stuck max(del_age_min) AS mac_del_age max(phase_burst) AS mac_phase_burst sum(phase_tick) AS mac_phase_evt BY cluster ]
+    [ search index=openshift sourcetype="openshift:machineset" earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval ms=lower(trim(toString(coalesce(name, metadata_name, machineset_name, ""))))
+      | eval spec_r=tonumber(tostring(coalesce(spec_replicas, specReplicas, replicas, "0")),10)
+      | eval ready_r=tonumber(tostring(coalesce(readyReplicas, ready_replicas, status_readyReplicas, "0")),10)
+      | eval avail_r=tonumber(tostring(coalesce(availableReplicas, available_replicas, status_availableReplicas, "0")),10)
+      | eval unavail_r=tonumber(tostring(coalesce(unavailableReplicas, unavailable_replicas, status_unavailableReplicas, "0")),10)
+      | eval ms_gap=spec_r-coalesce(ready_r,0)
+      | stats latest(_time) AS last_seen max(ms_gap) AS ms_gap max(spec_r) AS ms_spec max(ready_r) AS ms_ready max(avail_r) AS ms_avail max(unavail_r) AS ms_unavail BY cluster ]
+    [ search index=openshift (sourcetype="openshift:controlplanemachineset" OR sourcetype="openshift:cpms") earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval cpms_u=tonumber(tostring(coalesce(unavailableMachines, unavailable_machines, status_unavailableMachines, "0")),10)
+      | eval cpms_ur=tonumber(tostring(coalesce(unavailableReplicas, unavailable_replicas, status_unavailableReplicas, "0")),10)
+      | stats latest(_time) AS last_seen max(cpms_u) AS cpms_unavail_m max(cpms_ur) AS cpms_unavail_rep BY cluster ]
+| stats max(last_seen) AS last_seen max(mhc_gap) AS mhc_gap max(mhc_cur) AS mhc_cur max(mhc_exp) AS mhc_exp min(mhc_rem_al) AS mhc_rem_al max(mac_stuck) AS mac_stuck max(mac_del_age) AS mac_del_age max(mac_phase_burst) AS mac_phase_burst max(mac_phase_evt) AS mac_phase_evt max(ms_gap) AS ms_gap max(ms_spec) AS ms_spec max(ms_ready) AS ms_ready max(ms_avail) AS ms_avail max(ms_unavail) AS ms_unavail max(cpms_unavail_m) AS cpms_unavail_m max(cpms_unavail_rep) AS cpms_unavail_rep BY cluster
+| sort 0 cluster - last_seen
+| streamstats window=3 current=t global=f last(mhc_gap) AS prev_mhc_gap BY cluster
+| eval mhc_gap_delta=abs(mhc_gap-coalesce(prev_mhc_gap,0))
+| eventstats perc90(ms_gap) AS fleet_ms_gap_p90 perc90(mac_phase_evt) AS fleet_mac_phase_p90
+| join type=left cluster
+    [ | inputlookup ocp_mhc_cluster_capacity_hints.csv
+      | eval cluster=lower(trim(toString(cluster)))
+      | eval max_nodes_hint=tonumber(tostring(coalesce(max_nodes_hint, max_machine_watermark, "0")),10)
+      | fields cluster max_nodes_hint region_hint escalation_tier ]
+| fillnull value=0 max_nodes_hint
+| eval severity=case(
+    cpms_unavail_m>=1 OR cpms_unavail_rep>=1, "page",
+    mac_stuck>=1 AND mac_del_age>=45, "page",
+    mhc_gap>=1 AND mhc_rem_al<=0, "page",
+    mac_phase_evt>=10 OR coalesce(mac_phase_burst,0)>=4, "warn",
+    ms_gap>=2 OR ms_unavail>=2, "warn",
+    mhc_gap>=1 OR mhc_gap_delta>=1, "warn",
+    coalesce(ms_gap,0)>=1 AND fleet_ms_gap_p90>=1, "warn",
+    true(), "info")
+| eval recommended_action=case(
+    cpms_unavail_m>=1 OR cpms_unavail_rep>=1, "escalate_cpms_describe_cluster_and_review_control_plane_rollout",
+    mac_stuck>=1, "inspect_machine_finalizers_and_machine_controller_logs_for_stuck_delete",
+    mhc_gap>=1 AND mhc_rem_al<=0, "review_mhc_maxunhealthy_and_remediationsallowed_budget_then_correlate_events",
+    mac_phase_evt>=10, "throttle_remediation_storm_check_cloud_quota_image_pull_and_mao_health",
+    ms_gap>=2, "correlate_machineset_events_with_clusterautoscaler_and_provider_failures",
+    mhc_gap>=1, "describe_machinehealthcheck_and_node_conditions_for_unhealthy_window",
+    true(), "refresh_machine_api_snapshots_and_replay_validation_window")
+| table cluster mhc_gap mhc_cur mhc_exp mhc_rem_al mac_stuck mac_del_age mac_phase_evt ms_gap ms_spec ms_ready ms_avail ms_unavail cpms_unavail_m cpms_unavail_rep fleet_ms_gap_p90 fleet_mac_phase_p90 max_nodes_hint region_hint severity recommended_action last_seen mhc_gap_delta escalation_tier
+```
+
+
+savedsearches.conf sketch:
+
+```ini
+[openshift_uc_3_3_24_mhc_remediation_lifecycle_alert]
+cron_schedule = */15 * * * *
+dispatch.earliest_time = -6h@h
+dispatch.latest_time = now
+enableSched = 1
+action.email = 1
+action.email.to = openshift-platform@example.com
+action.email.subject = OCP MHC lifecycle $result.severity$ $result.cluster$
+counttype = number of events
+relation = greater than
+quantity = 0
+search = | savedsearch openshift_uc_3_3_24_mhc_remediation_lifecycle | where severity IN ("page","warn")
+```
+
+Performance: if Job Inspector shows multisearch queue time above internal service level objectives, materialize openshift:machinehealthcheck and openshift:machine snapshots hourly into a summary index keyed on cluster, widen alert searches to earliest=-2h@h on the summary, and retain this full search for investigations.
+
+### Step 4 — Validate
+
+Ground truth always starts on-cluster. Run oc -n openshift-machine-api get machinehealthcheck -o wide and compare currentHealthy and expectedMachines columns to Splunk mhc_cur and mhc_exp hints inside the last snapshot window. When numbers disagree, verify resourceVersion freshness, indexer clock skew, and duplicate cluster labels across regions before blaming parsers.
+
+Deep dive with oc describe machinehealthcheck for each named object to read unhealthyConditions, maxUnhealthy, and nodeStartupTimeout semantics. Splunk should mirror transitions within one collection interval; if not, tighten scripted input frequency or fix kubeconfig expiration on the management host.
+
+Machine correlation: pick a cluster with non-zero mhc_gap, run oc -n openshift-machine-api get machine -o wide, and confirm phase columns align with exporter timelines. For stuck Deleting Machines, oc describe machine should cite finalizers such as machine.cluster.x-k8s.io or node.cluster.x-k8s.io style annotations per your platform version vocabulary; pair with openshift:event text.
+
+MachineSet correlation: run oc -n openshift-machine-api get machineset -o wide and compare READY versus DESIRED columns to Splunk ms_ready and ms_spec hints. When cloud quota is exhausted, provider events often appear before Splunk replica math stabilizes.
+
+ControlPlaneMachineSet correlation: where enabled, oc describe controlplanemachineset should explain rolling replacement strategy and unavailable counters. Treat any sustained unavailable Machines as executive-visible risk even when worker pools look healthy.
+
+Lookup validation: confirm ocp_mhc_cluster_capacity_hints.csv keys match lowercased cluster labels present on HTTP Event Collector events. When join results show null region_hint for production clusters, fix the lookup before tuning severities.
+
+Synthetic validation: in a lab cluster under vendor guidance, simulate a brief MachineHealthCheck threshold breach or observe a single-node remediation after intentional test fault injection where policy permits, confirm openshift_uc_3_3_24_mhc_remediation_lifecycle returns warn or page with non-null recommended_action, then observe recovery returning severity toward info.
+
+Negative test: on a steady cluster with aligned currentHealthy and expectedMachines, quiet Machine phases, aligned MachineSet replicas, and zero ControlPlaneMachineSet unavailable counters, confirm the alert wrapper returns zero rows when filtering to page and warn only.
+
+Runbook linkage: document expected remediation bursts during hardware refresh programs so validators do not file false defects against the saved search when change calendars show an approved node recycling campaign.
+
+### Step 5 — Operationalize & Troubleshoot
+
+Case 1 — ControlPlaneMachineSet shows unavailable machines or replicas
+When it triggers: Splunk sets cpms_unavail_m or cpms_unavail_rep to one or greater for the cluster window. What to investigate: OpenShift console or oc describe controlplanemachineset for rolling update strategy, per-Machine phases on control plane nodes, and etcd quorum stability indicators outside this search. Who to involve: platform control-plane lead, site reliability engineering on-call for the cluster, and Red Hat support if must-gather is already in flight. How to remediate: follow vendor documentation for control plane machine management replacement, pause only under explicit change procedures, and capture machine-api-operator logs plus cluster version history. How to validate the fix: oc get controlplanemachineset shows zero unavailable counters for two consecutive exporter intervals, Splunk severity returns to info, and administrative actions succeed without API timeouts.
+
+Case 2 — Machine stuck Deleting beyond dwell threshold
+When it triggers: mac_stuck is one and mac_del_age meets or exceeds the stuck delete minute guard. What to investigate: oc describe machine for finalizers, node objects that refuse deletion, and cloud instance teardown errors in provider consoles. Who to involve: Kubernetes platform engineer with node delete privileges, cloud network engineer if security groups block termination, and storage engineer if volume detach stalls. How to remediate: resolve finalizer deadlocks per runbook, ensure the node object is not blocked by workloads that recreated dependencies, and coordinate cloud-side force termination only under break-glass policy. How to validate the fix: Machine object disappears or reaches Running on replacement, events show successful delete completion, and Splunk mac_stuck returns to zero.
+
+Case 3 — MachineHealthCheck healthy drift with remediationsAllowed at zero
+When it triggers: mhc_gap is positive while mhc_rem_al is zero in the same window. What to investigate: MachineHealthCheck maxUnhealthy percentage or integer caps, concurrent unhealthy Machines, and whether a provider outage raised unhealthy counts beyond budget. Who to involve: platform owner for machine health policy, cloud capacity owner, and incident commander if blast radius crosses multiple MachineSets. How to remediate: widen budget only after risk acceptance, address root unhealthy node conditions first, or temporarily pause remediation under change control with explicit human monitoring. How to validate the fix: remediationsAllowed returns above zero in API snapshots, currentHealthy converges toward expectedMachines, and Splunk clears the page tier.
+
+Case 4 — Remediation storm velocity on worker Machines
+When it triggers: mac_phase_evt or mac_phase_burst crosses the storm thresholds in the saved search. What to investigate: correlated cloud quota errors, image pull failures for new Machines, subnet IP exhaustion, and autoscaler logs scaling out to compensate. Who to involve: cloud foundation team, image registry owners, and network team for IPAM. How to remediate: raise quota or free addresses, fix registry authentication or image tags, and stabilize subnets before allowing MachineHealthCheck to continue churn. How to validate the fix: Machine creation rate falls to baseline, phase histogram stabilizes, and Splunk storm hints disappear for two intervals.
+
+Case 5 — MachineSet replica gap with ready below spec
+When it triggers: ms_gap is two or greater or ms_unavail is elevated with sustained windows. What to investigate: oc describe machineset messages, new Machine failures in provider events, ignition fetch errors, and autoscaler maxSize conflicts. Who to involve: platform engineer for machine-api, cloud engineer for instance provisioning, and identity engineer if bootstrap secrets expired. How to remediate: fix provider-side failures, adjust MachineSet or autoscaler limits coherently, and clear pending Machines blocking readiness. How to validate the fix: readyReplicas matches spec.replicas, unavailableReplicas trends to zero, and Splunk ms_gap returns below warn thresholds.
+
+Case 6 — Cluster autoscaler watermark pressure during MachineHealthCheck churn
+When it triggers: warn severity combines positive ms_gap with lookup max_nodes_hint suggesting proximity to ceiling, or sibling metrics show scale-out refusals in optional dashboards. What to investigate: clusterautoscaler clusteroperator status, max-nodes-total configuration, and MachineSet maxSize alignment. Who to involve: capacity governance lead, FinOps partner, and platform engineer. How to remediate: raise governed ceilings, shift workloads, or add MachineSets in alternate zones after architecture review. How to validate the fix: new Machines transition to Running, pending pods clear, and autoscaler events show successful scale decisions.
+
+Case 7 — Provider infrastructure reference never binds provider ID
+When it triggers: Machine remains Provisioning with describe messages citing AWSMachine, AzureMachine, GCPMachine, or VSphereMachine failures mirrored in events. What to investigate: provider-specific machine objects, IAM or service principal permissions, vSphere tags or segment reachability, and GPU or specialized instance stock. Who to involve: cloud SME for the provider, network engineer, and vendor support with must-gather. How to remediate: fix credentials or placement policies, correct instance types, and requeue Machines after provider stabilization. How to validate the fix: Machine reaches Running, Node registers provider ID, and Splunk phase noise drops.
+
+Case 8 — Node never Ready because MachineConfigPool still applying
+When it triggers: Machine reports Running while sibling UC-3.3.17 analytics or oc get machineconfigpool shows Updating or Degraded on the same node cohort. What to investigate: machine-config-daemon logs, rendered configs, and kernel arguments mismatch. Who to involve: platform engineer for MCO and machine-api jointly. How to remediate: follow MCP remediation runbooks, roll back bad MachineConfigs, or cordon problematic nodes while protecting quorum. How to validate the fix: Node Ready condition stabilizes, MCP counts converge, and cross-UC signals clear.
+
+Case 9 — machine-api ClusterOperator degraded
+When it triggers: UC-3.3.6 shows machine-api Degraded=True while this search also shows remediation anomalies. What to investigate: clusteroperator machine-api messages, machine-api-operator pod health, and validating admission webhooks blocking machine.openshift.io writes. Who to involve: platform on-call and OpenShift support if operator logs show internal errors. How to remediate: restart operator pods only per vendor guidance, fix webhook timeouts, and restore etcd or API stability if writes fail broadly. How to validate the fix: ClusterOperator Available=True without Degraded, Machine writes succeed, and Splunk multisearch arms resume fresh timestamps.
+
+Case 10 — False positive during intentional maintenance or scale-in
+When it triggers: page or warn fires during approved node replacement or autoscaler scale-in windows. What to investigate: change calendar entries, GitOps commits touching MachineSets, and pause annotations on MachineHealthCheck objects. Who to involve: change manager and platform engineer who approved the window. How to remediate: attach maintenance metadata to HTTP Event Collector events, use alert suppressions keyed on change_ticket_id, or lower severity for labeled lab clusters via lookup escalation_tier. How to validate the fix: alerts silence only for the approved interval, resume normal paging after maintenance, and post-review confirms clusters returned to steady replica counts.
+
+Case 11 — Lookup join misses or stale watermark hints
+When it triggers: region_hint or max_nodes_hint appears empty while clusters are production-grade. What to investigate: ocp_mhc_cluster_capacity_hints.csv spelling versus telemetry cluster labels, app permissions for lookup files, and case sensitivity. Who to involve: Splunk admin and platform architect maintaining the lookup. How to remediate: normalize cluster keys to lowercase, redeploy lookup to the correct app context, and document ownership. How to validate the fix: join subsearch returns non-null hints in Job Inspector, table shows expected watermark columns, and severities align with governance intent.
+
+Case 12 — Fleet appears healthy yet exporter lag hides drift
+When it triggers: oc commands show drift while Splunk rows look stale or info-only. What to investigate: scripted input failures, kubeconfig expiration, HTTP Event Collector token revocation, and indexer ingestion delay. Who to involve: observability engineer and platform engineer jointly. How to remediate: restore collectors, fix authentication, replay missed windows, and backfill summary indexes if policy allows. How to validate the fix: Splunk last_seen aligns within one collection interval of wall clock, all four multisearch arms emit events, and spot checks match oc for multiple clusters.
+
+Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matches the spl field exactly; multisearch lists four API snapshot arms; coalesce, streamstats, eventstats, and case appear; join wraps inputlookup; closing table includes twenty-four analyst-visible columns for cluster, gap, replica, storm, control-plane, fleet context, lookup hints, severity, recommended_action, timing, and escalation.
+
+
+## SPL
+
+```spl
+`comment("UC-3.3.24 OpenShift IPI MachineHealthCheck lifecycle, Machine remediation storms, MachineSet replica drift, ControlPlaneMachineSet. Tunables: earliest=-6h@h latest=now storm_phase_evt=10 stuck_del_min=45")`
+| multisearch
+    [ search index=openshift sourcetype="openshift:machinehealthcheck" earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval cur_h=tonumber(tostring(coalesce(currentHealthy, current_healthy, status_currentHealthy, "0")),10)
+      | eval exp_m=tonumber(tostring(coalesce(expectedMachines, expected_machines, status_expectedMachines, "0")),10)
+      | eval rem_al=tonumber(tostring(coalesce(remediationsAllowed, remediations_allowed, status_remediationsAllowed, "999")),10)
+      | eval mhc_gap=if(isnotnull(cur_h) AND isnotnull(exp_m) AND exp_m>cur_h, exp_m-cur_h, 0)
+      | stats latest(_time) AS last_seen max(mhc_gap) AS mhc_gap max(cur_h) AS mhc_cur max(exp_m) AS mhc_exp min(rem_al) AS mhc_rem_al BY cluster ]
+    [ search index=openshift sourcetype="openshift:machine" earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval mn=lower(trim(toString(coalesce(name, metadata_name, machine_name, ""))))
+      | eval ph=lower(trim(toString(coalesce(phase, status_phase, ""))))
+      | eval del_ts=strptime(trim(toString(coalesce(deletionTimestamp, deletion_timestamp, ""))), "%Y-%m-%dT%H:%M:%SZ")
+      | eval del_age_min=if(isnotnull(del_ts) AND del_ts>0 AND like(ph,"%delet%"), round((now()-del_ts)/60,2), null())
+      | eval stuck_del=if(like(ph,"%delet%") AND coalesce(del_age_min,0)>45,1,0)
+      | eval phase_tick=if(like(ph,"%delet%") OR like(ph,"%provision%") OR like(ph,"%runn%"),1,0)
+      | sort 0 cluster mn - _time
+      | streamstats window=4 current=t global=f sum(phase_tick) AS phase_burst BY cluster mn
+      | stats latest(_time) AS last_seen max(stuck_del) AS mac_stuck max(del_age_min) AS mac_del_age max(phase_burst) AS mac_phase_burst sum(phase_tick) AS mac_phase_evt BY cluster ]
+    [ search index=openshift sourcetype="openshift:machineset" earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval ms=lower(trim(toString(coalesce(name, metadata_name, machineset_name, ""))))
+      | eval spec_r=tonumber(tostring(coalesce(spec_replicas, specReplicas, replicas, "0")),10)
+      | eval ready_r=tonumber(tostring(coalesce(readyReplicas, ready_replicas, status_readyReplicas, "0")),10)
+      | eval avail_r=tonumber(tostring(coalesce(availableReplicas, available_replicas, status_availableReplicas, "0")),10)
+      | eval unavail_r=tonumber(tostring(coalesce(unavailableReplicas, unavailable_replicas, status_unavailableReplicas, "0")),10)
+      | eval ms_gap=spec_r-coalesce(ready_r,0)
+      | stats latest(_time) AS last_seen max(ms_gap) AS ms_gap max(spec_r) AS ms_spec max(ready_r) AS ms_ready max(avail_r) AS ms_avail max(unavail_r) AS ms_unavail BY cluster ]
+    [ search index=openshift (sourcetype="openshift:controlplanemachineset" OR sourcetype="openshift:cpms") earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval cpms_u=tonumber(tostring(coalesce(unavailableMachines, unavailable_machines, status_unavailableMachines, "0")),10)
+      | eval cpms_ur=tonumber(tostring(coalesce(unavailableReplicas, unavailable_replicas, status_unavailableReplicas, "0")),10)
+      | stats latest(_time) AS last_seen max(cpms_u) AS cpms_unavail_m max(cpms_ur) AS cpms_unavail_rep BY cluster ]
+| stats max(last_seen) AS last_seen max(mhc_gap) AS mhc_gap max(mhc_cur) AS mhc_cur max(mhc_exp) AS mhc_exp min(mhc_rem_al) AS mhc_rem_al max(mac_stuck) AS mac_stuck max(mac_del_age) AS mac_del_age max(mac_phase_burst) AS mac_phase_burst max(mac_phase_evt) AS mac_phase_evt max(ms_gap) AS ms_gap max(ms_spec) AS ms_spec max(ms_ready) AS ms_ready max(ms_avail) AS ms_avail max(ms_unavail) AS ms_unavail max(cpms_unavail_m) AS cpms_unavail_m max(cpms_unavail_rep) AS cpms_unavail_rep BY cluster
+| sort 0 cluster - last_seen
+| streamstats window=3 current=t global=f last(mhc_gap) AS prev_mhc_gap BY cluster
+| eval mhc_gap_delta=abs(mhc_gap-coalesce(prev_mhc_gap,0))
+| eventstats perc90(ms_gap) AS fleet_ms_gap_p90 perc90(mac_phase_evt) AS fleet_mac_phase_p90
+| join type=left cluster
+    [ | inputlookup ocp_mhc_cluster_capacity_hints.csv
+      | eval cluster=lower(trim(toString(cluster)))
+      | eval max_nodes_hint=tonumber(tostring(coalesce(max_nodes_hint, max_machine_watermark, "0")),10)
+      | fields cluster max_nodes_hint region_hint escalation_tier ]
+| fillnull value=0 max_nodes_hint
+| eval severity=case(
+    cpms_unavail_m>=1 OR cpms_unavail_rep>=1, "page",
+    mac_stuck>=1 AND mac_del_age>=45, "page",
+    mhc_gap>=1 AND mhc_rem_al<=0, "page",
+    mac_phase_evt>=10 OR coalesce(mac_phase_burst,0)>=4, "warn",
+    ms_gap>=2 OR ms_unavail>=2, "warn",
+    mhc_gap>=1 OR mhc_gap_delta>=1, "warn",
+    coalesce(ms_gap,0)>=1 AND fleet_ms_gap_p90>=1, "warn",
+    true(), "info")
+| eval recommended_action=case(
+    cpms_unavail_m>=1 OR cpms_unavail_rep>=1, "escalate_cpms_describe_cluster_and_review_control_plane_rollout",
+    mac_stuck>=1, "inspect_machine_finalizers_and_machine_controller_logs_for_stuck_delete",
+    mhc_gap>=1 AND mhc_rem_al<=0, "review_mhc_maxunhealthy_and_remediationsallowed_budget_then_correlate_events",
+    mac_phase_evt>=10, "throttle_remediation_storm_check_cloud_quota_image_pull_and_mao_health",
+    ms_gap>=2, "correlate_machineset_events_with_clusterautoscaler_and_provider_failures",
+    mhc_gap>=1, "describe_machinehealthcheck_and_node_conditions_for_unhealthy_window",
+    true(), "refresh_machine_api_snapshots_and_replay_validation_window")
+| table cluster mhc_gap mhc_cur mhc_exp mhc_rem_al mac_stuck mac_del_age mac_phase_evt ms_gap ms_spec ms_ready ms_avail ms_unavail cpms_unavail_m cpms_unavail_rep fleet_ms_gap_p90 fleet_mac_phase_p90 max_nodes_hint region_hint severity recommended_action last_seen mhc_gap_delta escalation_tier
+```
+
+## CIM SPL
+
+```spl
+| tstats summariesonly=true latest(Inventory.vendor_product) AS vendor_product latest(Inventory.version) AS inv_version FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
+| rename Inventory.dest AS inv_dest
+| join type=left max=0 inv_dest
+    [| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
+     | rename Application_State.dest AS inv_dest ]
+| where like(lower(vendor_product), "%openshift%") OR like(lower(app_info), "%machine%") OR like(lower(app_info), "%openshift%")
+| table inv_dest vendor_product inv_version app_state app_info
+```
+
+## Visualization
+
+Severity-colored table by cluster with drilldowns to openshift:machinehealthcheck, openshift:machine, openshift:machineset, openshift:controlplanemachineset, openshift:event rows, optional prometheus metrics, and lookup watermark columns; timeline of mhc_gap and mac_phase_evt; single-value tiles for cpms_unavail_m.
+
+## Known False Positives
+
+Single-node remediation after hardware faults produces short bursts of Machine phase churn that self-resolve once replacement joins; require storm thresholds and concurrent event counts before paging leadership. Approved cluster upgrades or machine-os image bumps can temporarily elevate phase events across MachineSets; correlate with ClusterVersion history and change tickets before treating as incident. maxUnhealthy gates that pause remediation during widespread provider outages are intentional protective behavior; pair with cloud status pages rather than assuming Splunk silence means health. Lab clusters that constantly recycle Machines for pipeline tests will trigger velocity hints unless non-production clusters are marked down in escalation_tier lookups. Duplicate HTTP Event Collector submissions from redundant collectors can double phase event counts until dedupe logic lands in summary indexes. Stale ocp_mhc_cluster_capacity_hints.csv rows can mislabel watermark risk; refresh lookups when autoscaler max nodes or MachineSet maxSize changes. Brief ControlPlaneMachineSet rolling updates may show transient unavailable counters; compare dwell time to vendor guidance before executive escalation. Prometheus federation gaps can hide autoscaler corroboration while API snapshots remain authoritative; repair metrics pipelines before muting replica drift alerts. Nodes blocked by MachineConfigPool apply storms mirror UC-3.3.17; cross-reference before blaming machine-api alone.
+
+## References
+
+- [OpenShift Documentation — Deploying machine health checks](https://docs.openshift.com/container-platform/latest/machine_management/deploying-machine-health-checks.html)
+- [Red Hat Documentation — Machine management (OpenShift Container Platform 4.16)](https://docs.redhat.com/en/documentation/openshift_container_platform/4.16/html/machine_management/index)
+- [OpenShift Documentation — Manually scaling a MachineSet](https://docs.openshift.com/container-platform/latest/machine_management/manually-scaling-machineset.html)
+- [Cluster API Book — Configure a MachineHealthCheck](https://main.cluster-api.sigs.k8s.io/tasks/automated-machine-management/healthchecking.html)
+- [GitHub — openshift/machine-api-operator](https://github.com/openshift/machine-api-operator/)
+- [GitHub — openshift/cluster-control-plane-machine-set-operator](https://github.com/openshift/cluster-control-plane-machine-set-operator)
+- [Red Hat Blog — A guide to the OpenShift cluster autoscaler with MAPI bare metal](https://www.redhat.com/en/blog/a-guide-to-the-openshift-cluster-autoscaler-with-mapi-baremetal)
+- [Red Hat Blog — Introducing control plane machine management and one-click scaling](https://www.redhat.com/en/blog/introducing-control-plane-machine-management-and-1-click-scaling)

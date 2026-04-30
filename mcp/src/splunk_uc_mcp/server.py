@@ -96,7 +96,7 @@ SERVER_INSTRUCTIONS = (
     "uncovered: `find_compliance_gap` for a regulation-level roll-up, "
     "`get_clause_coverage` for a single clause's covering UCs / "
     "assurance posture, and `list_uncovered_clauses` for a priority-"
-    "sorted worklist of not-authored clauses across one or more "
+    "sorted worklist of uncovered clauses across one or more "
     "regulations. The URI families `uc://`, `reg://`, `equipment://`, "
     "and `ledger://` expose the same data as resources for agents that "
     "prefer a pull-based model."
@@ -174,13 +174,16 @@ def _register_tools(server: Server, catalog: Catalog) -> None:
         name: str, arguments: dict[str, Any] | None
     ) -> dict[str, Any] | CallToolResult:
         handler = dispatch.get(name)
-        if handler is None:
-            raise ValueError(f"Unknown tool: {name!r}")
         args = arguments or {}
         LOG.debug(
             "tool=%s args_hash=%s", name, _hash_args(args),
         )
         try:
+            if handler is None:
+                return _error_result(
+                    "unknown_tool",
+                    f"Unknown tool: {name!r}",
+                )
             payload = handler(args)
         except (ValueError, CatalogValidationError) as exc:
             return _error_result("invalid_input", str(exc))
@@ -291,7 +294,7 @@ def _tool_definitions() -> list[Tool]:
                 "Return the clause-first coverage entry for one "
                 "regulator clause (regulation_id + clause, with optional "
                 "version). Reports coverageState (covered-full / -partial"
-                " / -contributing / not-authored), the covering UC IDs, "
+                " / -contributing / uncovered), the covering UC IDs, "
                 "assurance breakdown, and a deep-link into the clause "
                 "navigator. Use this when an auditor asks 'which UCs "
                 "cover GDPR Art.5?'."
@@ -302,7 +305,7 @@ def _tool_definitions() -> list[Tool]:
         Tool(
             name="list_uncovered_clauses",
             description=(
-                "List clauses whose coverageState is 'not-authored' for "
+                "List clauses whose coverageState is 'uncovered' for "
                 "one or more regulations, sorted by descending priority "
                 "weight. Pass regulations=['*'] to sweep every "
                 "framework. Optional tier filter and common-clauses-only "

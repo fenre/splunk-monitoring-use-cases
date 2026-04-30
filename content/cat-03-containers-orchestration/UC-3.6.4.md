@@ -10,6 +10,12 @@ splunkPillar: "Observability"
 
 # UC-3.6.4 · Resource Request vs Limit Utilization Trending
 
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Capacity, Performance, Cost &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*We compare how much computer power each program was promised versus how much it actually uses, spotting those that waste resources by hoarding too much or risk crashing by using more than their share.*
+
+---
+
 ## Description
 
 Compares actual **CPU** and **memory** utilization against Kubernetes **resource requests** and **limits** for every container, computing request utilization percentages, waste scores, and OOM-risk tiers — revealing over-provisioned workloads burning budget and under-provisioned workloads approaching throttling or OOMKill.
@@ -24,16 +30,16 @@ Deploy the Splunk OTel Collector to scrape kubelet cAdvisor (container_cpu_usage
 
 ## Detailed Implementation
 
-Prerequisites
-• **kube-state-metrics** 2.8+ exposing **`kube_pod_container_resource_requests`** and **`kube_pod_container_resource_limits`** gauges labeled by `namespace`, `pod`, `container`, and `resource` (cpu/memory). These metrics report the **declared** request and limit values from each container's **pod spec**.
-• **kubelet cAdvisor** metrics enabled (default on all **Kubernetes** distributions) exposing **`container_cpu_usage_seconds_total`** (CPU usage counter) and **`container_memory_working_set_bytes`** (memory usage gauge, preferred over `container_memory_usage_bytes` because it excludes filesystem cache that the kernel can reclaim).
-• **Splunk OpenTelemetry Collector** deployed as a **DaemonSet** with the **Prometheus receiver** scraping both **kube-state-metrics** (service port, typically 8080) and **kubelet cAdvisor** (HTTPS port 10250 with **bearer token** auth). The chart's default configuration enables both.
-• **Splunk HEC** token for **`index=containers`** with **`sourcetype=otel:metrics`**; secondary stream for **`sourcetype=kube:events`** (**OOMKill**ed, Evicted, CPUThrottling events).
-• **Kubernetes RBAC**: **OTel Collector** **ServiceAccount** needs `get`, `list`, `watch` on pods and nodes, plus **kubelet** API access via the `system:node-proxy` **ClusterRole** binding.
-• Splunk RBAC: users running resource searches need **`srchIndexesAllowed`** including `containers`; assign via a custom role (**`platform_capacity_analyst`**).
-• **License estimate**: resource metrics produce ~500 bytes per container per scrape; a 500-container cluster at 30s intervals generates ~20–40 MB/day.
+### Prerequisites
+- **kube-state-metrics** 2.8+ exposing **`kube_pod_container_resource_requests`** and **`kube_pod_container_resource_limits`** gauges labeled by `namespace`, `pod`, `container`, and `resource` (cpu/memory). These metrics report the **declared** request and limit values from each container's **pod spec**.
+- **kubelet cAdvisor** metrics enabled (default on all **Kubernetes** distributions) exposing **`container_cpu_usage_seconds_total`** (CPU usage counter) and **`container_memory_working_set_bytes`** (memory usage gauge, preferred over `container_memory_usage_bytes` because it excludes filesystem cache that the kernel can reclaim).
+- **Splunk OpenTelemetry Collector** deployed as a **DaemonSet** with the **Prometheus receiver** scraping both **kube-state-metrics** (service port, typically 8080) and **kubelet cAdvisor** (HTTPS port 10250 with **bearer token** auth). The chart's default configuration enables both.
+- **Splunk HEC** token for **`index=containers`** with **`sourcetype=otel:metrics`**; secondary stream for **`sourcetype=kube:events`** (**OOMKill**ed, Evicted, CPUThrottling events).
+- **Kubernetes RBAC**: **OTel Collector** **ServiceAccount** needs `get`, `list`, `watch` on pods and nodes, plus **kubelet** API access via the `system:node-proxy` **ClusterRole** binding.
+- Splunk RBAC: users running resource searches need **`srchIndexesAllowed`** including `containers`; assign via a custom role (**`platform_capacity_analyst`**).
+- **License estimate**: resource metrics produce ~500 bytes per container per scrape; a 500-container cluster at 30s intervals generates ~20–40 MB/day.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **kube-state-metrics scraping**: verify the **Prometheus receiver** includes the **kube-state-metrics** scrape target. Key metrics:
 — **`kube_pod_container_resource_requests{resource="cpu"}`** (gauge: CPU request in cores)
 — **`kube_pod_container_resource_requests{resource="memory"}`** (gauge: memory request in bytes)
@@ -52,7 +58,7 @@ Important: use `container_memory_working_set_bytes` not `container_memory_usage_
 
 (5) **Namespace ownership lookup**: reference the **`namespace_owners.csv`** lookup (from UC-3.6.3) to route **waste report**s and OOM alerts to the owning team.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The CPU variant computes **`request_util_pct`** — the ratio of actual CPU usage to the declared CPU request. This measures how efficiently the container uses its guaranteed resources. The **`sizing`** classification:
 — **OVER_PROVISIONED**: using less than 20% of its request — the container is holding 80%+ of its guaranteed resources idle
 — **RIGHT_SIZED**: using 20–90% of its request — normal operating range
@@ -65,28 +71,28 @@ The memory variant focuses on **limit utilization** because memory limits are th
 
 Schedule the CPU waste search **daily at 08:00** over **`-24h`** and generate a weekly report for platform and finance teams. Schedule the memory **OOM-risk search** every **15 minutes** over **`-15m`** and alert on any container at CRITICAL risk.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Cross-check with `kubectl top`: `kubectl top pods -n <ns> --sort-by=cpu` and compare CPU usage values with the SPL output. Values should agree within 10% (differences from scrape timing and aggregation).
 (b) Test **over-provisioning detection**: deploy a container with 2 CPU cores requested but `stress --cpu 1` running (using ~50% of request). The search should classify it as RIGHT_SIZED. Reduce the workload to idle and verify it shifts to OVER_PROVISIONED.
 (c) Test **OOM risk detection**: deploy a container with 128Mi memory limit and `stress --vm 1 --vm-bytes 120M` — using ~94% of limit. The search should show `oom_risk=CRITICAL`.
 (d) Verify **waste score calculation**: pick a namespace and manually compute `avg(actual_cpu / request_cpu)` from `kubectl top pods` versus pod spec requests. Compare with the SPL `waste_score`.
 (e) Correlate with **OOMKill events**: `index=containers sourcetype="kube:events" reason="OOMKilling" earliest=-24h | stats count by namespace, pod`. Pods in this list should also appear in the CRITICAL OOM risk tier.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **bar chart** of `waste_score` by namespace — sorted descending, color-coded (red > 80%, orange 50–80%, green < 50%) — immediately shows which namespaces waste the most capacity.
-• Row B: **single-value tiles** — cluster-wide average waste %, containers at CRITICAL OOM risk, OOMKill events today, total CPU cores requested vs. used, estimated monthly cost savings from **right-sizing** (if cloud cost data is available).
-• Row C: **scatter plot** of CPU request utilization (X-axis) vs. memory limit utilization (Y-axis) per container — containers in the top-right are efficiently sized, top-left are CPU-over/memory-right, bottom-right are CPU-right/memory-over.
-• Row D: **OOM risk table** — ns, pod_name, container_name, mem_usage_mb, mem_limit_mb, limit_util_pct, oom_risk. Red rows for CRITICAL/HIGH.
-• **Alerting**: CRITICAL OOM risk → **PagerDuty** P2 with pod name and memory usage; namespace waste > 80% → weekly email digest to team leads with specific right-sizing recommendations; OOMKill event → Slack `#platform-ops` with pod details.
-• **Runbook** (owner: platform engineering): (1) for OVER_PROVISIONED: reduce request to 1.5× average peak usage, (2) for AT_RISK: increase request to cover peak + 20% headroom, (3) for CRITICAL OOM: increase memory limit immediately, then investigate whether the workload has a memory leak, (4) for cluster-wide waste: identify the top 5 namespaces and schedule right-sizing reviews.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **bar chart** of `waste_score` by namespace — sorted descending, color-coded (red > 80%, orange 50–80%, green < 50%) — immediately shows which namespaces waste the most capacity.
+- Row B: **single-value tiles** — cluster-wide average waste %, containers at CRITICAL OOM risk, OOMKill events today, total CPU cores requested vs. used, estimated monthly cost savings from **right-sizing** (if cloud cost data is available).
+- Row C: **scatter plot** of CPU request utilization (X-axis) vs. memory limit utilization (Y-axis) per container — containers in the top-right are efficiently sized, top-left are CPU-over/memory-right, bottom-right are CPU-right/memory-over.
+- Row D: **OOM risk table** — ns, pod_name, container_name, mem_usage_mb, mem_limit_mb, limit_util_pct, oom_risk. Red rows for CRITICAL/HIGH.
+- **Alerting**: CRITICAL OOM risk → **PagerDuty** P2 with pod name and memory usage; namespace waste > 80% → weekly email digest to team leads with specific right-sizing recommendations; OOMKill event → Slack `#platform-ops` with pod details.
+- **Runbook** (owner: platform engineering): (1) for OVER_PROVISIONED: reduce request to 1.5× average peak usage, (2) for AT_RISK: increase request to cover peak + 20% headroom, (3) for CRITICAL OOM: increase memory limit immediately, then investigate whether the workload has a memory leak, (4) for cluster-wide waste: identify the top 5 namespaces and schedule right-sizing reviews.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **right-sizing recommendation table** that computes `suggested_request = round(avg_usage * 1.3, 2)` and `suggested_limit = round(peak_usage * 1.5, 2)` for each container — gives engineers specific values to apply; pair with a **30-day trend chart** of namespace-level waste scores to show whether right-sizing efforts are reducing waste over time; add a **cost impact column** if **cloud billing** data is available.
-• **Alert design**: include `ns`, `pod_name`, `container_name`, `cpu_usage_cores`, `cpu_request_cores`, `request_util_pct`, `sizing`, `waste_score` for CPU alerts; for OOM alerts include `mem_usage_mb`, `mem_limit_mb`, `limit_util_pct`, `oom_risk`; include right-sizing recommendations in the alert body.
-• **CPU usage always shows 0** — `container_cpu_usage_seconds_total` is a counter that must be rated; if the SPL uses `latest(value)` instead of rate calculation, it shows cumulative seconds, not cores. For point-in-time snapshots, use `container_cpu_usage_seconds_total` delta over the scrape interval or use the pre-computed `container_cpu_cfs_periods_total` ratio.
-• **Memory shows higher than limit** — `container_memory_usage_bytes` includes kernel page cache; switch to **`container_memory_working_set_bytes`** which excludes reclaimable cache and accurately represents OOMKill-triggering memory.
-• **Request/limit metrics show null** — containers without explicit resource requests or limits in their pod spec do not report `kube_pod_container_resource_requests/limits` metrics. The `where isnotnull(cpu_request_cores)` filter excludes these. Add a separate panel listing containers without requests for governance.
-• **Waste score is misleading for batch workloads** — batch jobs have bursty CPU patterns with long idle periods between runs. Average utilization understates their peak needs. Use `max` or `p95` utilization instead of `avg` for **batch workloads**.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **right-sizing recommendation table** that computes `suggested_request = round(avg_usage * 1.3, 2)` and `suggested_limit = round(peak_usage * 1.5, 2)` for each container — gives engineers specific values to apply; pair with a **30-day trend chart** of namespace-level waste scores to show whether right-sizing efforts are reducing waste over time; add a **cost impact column** if **cloud billing** data is available.
+- **Alert design**: include `ns`, `pod_name`, `container_name`, `cpu_usage_cores`, `cpu_request_cores`, `request_util_pct`, `sizing`, `waste_score` for CPU alerts; for OOM alerts include `mem_usage_mb`, `mem_limit_mb`, `limit_util_pct`, `oom_risk`; include right-sizing recommendations in the alert body.
+- **CPU usage always shows 0** — `container_cpu_usage_seconds_total` is a counter that must be rated; if the SPL uses `latest(value)` instead of rate calculation, it shows cumulative seconds, not cores. For point-in-time snapshots, use `container_cpu_usage_seconds_total` delta over the scrape interval or use the pre-computed `container_cpu_cfs_periods_total` ratio.
+- **Memory shows higher than limit** — `container_memory_usage_bytes` includes kernel page cache; switch to **`container_memory_working_set_bytes`** which excludes reclaimable cache and accurately represents OOMKill-triggering memory.
+- **Request/limit metrics show null** — containers without explicit resource requests or limits in their pod spec do not report `kube_pod_container_resource_requests/limits` metrics. The `where isnotnull(cpu_request_cores)` filter excludes these. Add a separate panel listing containers without requests for governance.
+- **Waste score is misleading for batch workloads** — batch jobs have bursty CPU patterns with long idle periods between runs. Average utilization understates their peak needs. Use `max` or `p95` utilization instead of `avg` for **batch workloads**.
 
 ## SPL
 

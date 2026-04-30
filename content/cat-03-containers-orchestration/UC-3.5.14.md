@@ -10,6 +10,12 @@ splunkPillar: "Security"
 
 # UC-3.5.14 · eBPF Process-Level Security Observability (Tetragon)
 
+> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Compliance &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*We place invisible sensors inside each program container that detect when something unusual happens — like an unauthorized person trying to open a locked filing cabinet or running tools they should not have — and immediately alert the security team.*
+
+---
+
 ## Description
 
 Ingests Cilium **Tetragon** eBPF runtime security events to detect **suspicious process executions** (reverse shells, reconnaissance tools, package managers in production), **sensitive file access** (/etc/shadow, SSH keys, kubeconfig), and **privilege escalation syscalls** (ptrace, mount, unshare) inside containers — classifying events by severity (CRITICAL/HIGH/MEDIUM) and correlating with Kubernetes pod identity for immediate incident response.
@@ -24,21 +30,21 @@ Deploy Tetragon as a DaemonSet with TracingPolicy resources defining monitored s
 
 ## Detailed Implementation
 
-Prerequisites
-• **Tetragon** 1.0+ deployed as a **DaemonSet** in the cluster. Tetragon installs **eBPF programs** into the Linux kernel that intercept **process execution**, **file operations**, **network connections**, and configurable **kernel functions** (**kprobes**/**tracepoints**) — providing ****kernel-level** runtime security observability** without modifying application code or **container images**.
-• **TracingPolicy** custom resources defining what to monitor. Tetragon ships with default policies for common **security events**, but production deployments should define explicit policies:
+### Prerequisites
+- **Tetragon** 1.0+ deployed as a **DaemonSet** in the cluster. Tetragon installs **eBPF programs** into the Linux kernel that intercept **process execution**, **file operations**, **network connections**, and configurable **kernel functions** (**kprobes**/**tracepoints**) — providing ****kernel-level** runtime security observability** without modifying application code or **container images**.
+- **TracingPolicy** custom resources defining what to monitor. Tetragon ships with default policies for common **security events**, but production deployments should define explicit policies:
   — **Process execution monitoring**: capture all `execve` **syscalls** with binary path, arguments, UID, and parent process lineage
   — **Sensitive **file access****: monitor reads/writes to `/etc/shadow`, `/etc/passwd`, `~/.ssh/`, `~/.kube/config`, `/proc/*/mem`
   — **Privilege escalation syscalls**: monitor `ptrace`, `mount`, `unshare`, `setuid`, `setgid`, `capset`
   — **Network connection monitoring**: capture `connect` and `bind` syscalls with destination IP/port
-• **Event export configuration**: Tetragon exports events as JSON via its **export API** (`/var/run/tetragon/tetragon.log` by default). Configure the OTel Collector's **filelog receiver** to tail this file and send events to **Splunk HEC** as **`sourcetype=tetragon:events`**.
-• **Splunk HEC** token for **`index=containers`** with sourcetype routing for Tetragon events, policies, and Kubernetes context.
-• **Kubernetes **security context****: Tetragon runs as a **privileged DaemonSet** with **host PID** namespace access. The Tetragon agent's **ServiceAccount** needs RBAC permissions to read pod metadata for Kubernetes identity enrichment.
-• **Performance impact**: Tetragon's eBPF programs are JIT-compiled by the kernel and execute in microseconds per event. The overhead is typically **<1% CPU** on monitored nodes. Event export volume depends on policy breadth — a policy monitoring all **process executions** generates more data than one monitoring only sensitive file access.
-• **License estimate**: event volume varies significantly by policy breadth and workload activity. A 20-node cluster with standard security policies generates approximately **10–100 MB/day** of Tetragon events. High-activity clusters with broad kprobe policies may generate 500 MB+/day.
-• Splunk RBAC: assign a **`security_analyst`** role with **`srchIndexesAllowed`** including `containers`.
+- **Event export configuration**: Tetragon exports events as JSON via its **export API** (`/var/run/tetragon/tetragon.log` by default). Configure the OTel Collector's **filelog receiver** to tail this file and send events to **Splunk HEC** as **`sourcetype=tetragon:events`**.
+- **Splunk HEC** token for **`index=containers`** with sourcetype routing for Tetragon events, policies, and Kubernetes context.
+- **Kubernetes **security context****: Tetragon runs as a **privileged DaemonSet** with **host PID** namespace access. The Tetragon agent's **ServiceAccount** needs RBAC permissions to read pod metadata for Kubernetes identity enrichment.
+- **Performance impact**: Tetragon's eBPF programs are JIT-compiled by the kernel and execute in microseconds per event. The overhead is typically **<1% CPU** on monitored nodes. Event export volume depends on policy breadth — a policy monitoring all **process executions** generates more data than one monitoring only sensitive file access.
+- **License estimate**: event volume varies significantly by policy breadth and workload activity. A 20-node cluster with standard security policies generates approximately **10–100 MB/day** of Tetragon events. High-activity clusters with broad kprobe policies may generate 500 MB+/day.
+- Splunk RBAC: assign a **`security_analyst`** role with **`srchIndexesAllowed`** including `containers`.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **TracingPolicy for sensitive file access**: create a TracingPolicy that monitors file open operations on sensitive paths:
 ```yaml
 apiVersion: cilium.io/v1alpha1
@@ -87,7 +93,7 @@ spec:
 
 (5) **Event volume control**: use TracingPolicy **selectors** to filter events at the kernel level rather than in Splunk. For example, exclude events from known system processes (**PID 1**, **container entrypoints**) or from specific namespaces (monitoring, kube-system) where certain activities are expected.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL classifies Tetragon events by severity based on the binary, file path, and syscall involved:
 — **CRITICAL**: access to credential files (/etc/shadow, SSH keys, kubeconfig) OR execution of known **attack tools** (nc, nmap, curl, wget, python, perl) as **root** (UID 0). These require **immediate investigation**.
 — **HIGH**: **kprobe** events for privilege escalation syscalls (ptrace, mount, unshare) OR **root shell** execution (bash, sh as UID 0). These are strong indicators of container compromise.
@@ -97,27 +103,27 @@ The new-binary detection variant identifies process executions where the binary 
 
 Schedule the **severity classification** search every **5 minutes** and alert on CRITICAL events immediately (PagerDuty P1) and HIGH events within 15 minutes (P2). Schedule the new-binary detection every **hour** and alert on any new binaries in production namespaces.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Verify Tetragon event collection: `index=containers sourcetype="tetragon:events" earliest=-1h | stats count by event_type`. Should show PROCESS_EXEC and other event types.
 (b) Test sensitive file detection: `kubectl exec <test-pod> -- cat /etc/shadow`. Verify a CRITICAL event appears: `index=containers sourcetype="tetragon:events" filepath="/etc/shadow" earliest=-5m`.
 (c) Test suspicious binary detection: `kubectl exec <test-pod> -- apt-get update`. Verify a MEDIUM event for apt-get appears.
 (d) Verify Kubernetes enrichment: `index=containers sourcetype="tetragon:events" earliest=-1h | table k8s_ns k8s_pod binary`. All events should have namespace and pod information.
 (e) Test new-binary detection: copy a unique binary into a container and execute it. Verify it appears in the new-binary search within the next hour.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **single-value tiles** — CRITICAL events (last 1h, red if > 0), HIGH events (last 1h), affected namespaces, new binaries detected, Tetragon agent coverage (nodes with agent vs total nodes).
-• Row B: **event timeline** colored by severity over 24h — shows temporal patterns of security events.
-• Row C: **security event table** — k8s_ns, event_type, severity, binaries, files, events, affected_pods. Red rows for CRITICAL.
-• Row D: **new binary table** — binary, k8s_ns, first_seen, hours_old, exec_count. Any entry is suspicious.
-• **Alerting**: CRITICAL event → PagerDuty P1 + Slack `#security-incident` (potential active compromise); HIGH event → PagerDuty P2; MEDIUM event in production namespace → Slack `#security-ops`; new binary in production → Slack `#security-ops`.
-• **Runbook** (owner: security operations): (1) for CRITICAL/HIGH: identify the pod and namespace, (2) collect additional context: `kubectl describe pod <pod> -n <ns>`, (3) check if the activity was authorized (maintenance, debugging), (4) if unauthorized: isolate the pod via network policy, preserve evidence, escalate to **incident response**.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **single-value tiles** — CRITICAL events (last 1h, red if > 0), HIGH events (last 1h), affected namespaces, new binaries detected, Tetragon agent coverage (nodes with agent vs total nodes).
+- Row B: **event timeline** colored by severity over 24h — shows temporal patterns of security events.
+- Row C: **security event table** — k8s_ns, event_type, severity, binaries, files, events, affected_pods. Red rows for CRITICAL.
+- Row D: **new binary table** — binary, k8s_ns, first_seen, hours_old, exec_count. Any entry is suspicious.
+- **Alerting**: CRITICAL event → PagerDuty P1 + Slack `#security-incident` (potential active compromise); HIGH event → PagerDuty P2; MEDIUM event in production namespace → Slack `#security-ops`; new binary in production → Slack `#security-ops`.
+- **Runbook** (owner: security operations): (1) for CRITICAL/HIGH: identify the pod and namespace, (2) collect additional context: `kubectl describe pod <pod> -n <ns>`, (3) check if the activity was authorized (maintenance, debugging), (4) if unauthorized: isolate the pod via network policy, preserve evidence, escalate to **incident response**.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **process tree** visualization showing parent-child process relationships within a container — this reveals the **attack chain** from initial execution to privilege escalation. Pair with a **binary frequency histogram** per namespace showing the distribution of executed binaries.
-• **Alert design**: include `k8s_ns`, `k8s_pod`, `event_type`, `severity`, `binary`, `args`, `filepath`, `uid`, and `parent_binary` in the alert payload.
-• **No events appearing** — Tetragon may not be deployed or the export file may not be readable by the OTel Collector. Verify: `kubectl get pods -n kube-system -l app.kubernetes.io/name=tetragon` and `kubectl logs -n kube-system <tetragon-pod> --tail=10`.
-• **High event volume from system processes** — Tetragon monitors all processes including container entrypoints and **health check** scripts. Use TracingPolicy selectors to exclude known system binaries or use the severity classification to filter low-severity events.
-• **Kubernetes metadata missing** — Tetragon needs access to the Kubernetes API for identity enrichment. Verify the Tetragon ServiceAccount has the required RBAC permissions and that the API server is reachable from the agent pods.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **process tree** visualization showing parent-child process relationships within a container — this reveals the **attack chain** from initial execution to privilege escalation. Pair with a **binary frequency histogram** per namespace showing the distribution of executed binaries.
+- **Alert design**: include `k8s_ns`, `k8s_pod`, `event_type`, `severity`, `binary`, `args`, `filepath`, `uid`, and `parent_binary` in the alert payload.
+- **No events appearing** — Tetragon may not be deployed or the export file may not be readable by the OTel Collector. Verify: `kubectl get pods -n kube-system -l app.kubernetes.io/name=tetragon` and `kubectl logs -n kube-system <tetragon-pod> --tail=10`.
+- **High event volume from system processes** — Tetragon monitors all processes including container entrypoints and **health check** scripts. Use TracingPolicy selectors to exclude known system binaries or use the severity classification to filter low-severity events.
+- **Kubernetes metadata missing** — Tetragon needs access to the Kubernetes API for identity enrichment. Verify the Tetragon ServiceAccount has the required RBAC permissions and that the API server is reachable from the agent pods.
 
 ## SPL
 

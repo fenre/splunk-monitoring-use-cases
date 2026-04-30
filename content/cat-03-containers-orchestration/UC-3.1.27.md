@@ -1,0 +1,344 @@
+<!-- AUTO-GENERATED from UC-3.1.27.json — DO NOT EDIT -->
+
+---
+id: "3.1.27"
+title: "Docker Prune Automation Audit and Reclaim Verification"
+status: "verified"
+criticality: "high"
+splunkPillar: "Observability"
+---
+
+# UC-3.1.27 · Docker Prune Automation Audit and Reclaim Verification
+
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Configuration, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
+
+*We log every automated and manual Docker cleanup like a signed receipt: who ran it, what flags they used, how much space actually came back, and whether the schedule we promised was kept. That way a scary midnight cleanup and a broken weekly job look completely different in the evidence folder.*
+
+---
+
+## Description
+
+Governance-oriented observability over Docker prune automation that correlates delete-class docker events, auditd argv for docker prune invocations, pre and post docker system df JSON reclaim snapshots, and per-host schedule SLAs from prune_schedule_sla.csv to surface unsafe flag combinations, reclaim prediction mismatches, missed automation windows, and break-glass manual wide prunes without duplicating UC-3.1.7 sprawl scoring.
+
+## Value
+
+Platform and audit teams gain timestamped proof that reclaim automation executed on cadence, stayed inside argv policy, and produced measurable disk recovery, which shortens investigations when image pulls fail after aggressive cleanup, explains why reclaimable totals stalled despite scripts, and satisfies log-management evidence expectations by tying operators and service accounts to concrete prune actions.
+
+## Implementation
+
+Ingest docker:events delete-class actions, docker:system_df JSON with prune_phase pre and post markers, and auditd:execve for docker prune argv into index=oti_containers via Splunk_TA_docker and the Linux TA (or an equivalent HEC pipeline). Publish lookups/prune_schedule_sla.csv. Save container_uc_3_1_27_docker_prune_automation_audit on earliest=-24h@h latest=@h. Route UNSAFE-FLAG-COMBO and RECLAIM-MISMATCH to platform governance. Archive weekly CSV evidence with lookup commit hashes.
+
+## Evidence
+
+Saved search container_uc_3_1_27_docker_prune_automation_audit; lookup prune_schedule_sla.csv versioned in git with weekly commit hashes; weekly CSV exports to a restricted evidence index; dashboard drilldowns to raw docker:events, auditd:execve, and docker:system_df JSON rows.
+
+## Control test
+
+### Positive scenario
+
+On a lab Linux host ingest docker:events with image:delete after a prune, auditd:execve showing docker image prune argv, and paired docker:system_df rows with dropping reclaimable_total_bytes; execute container_uc_3_1_27_docker_prune_automation_audit and expect a non-null reclaim_actual_gb or a severity row of UNSAFE-FLAG-COMBO when argv omits until under test policy.
+
+### Negative scenario
+
+Run only docker system df snapshots without any delete-class docker events or auditd prune lines for twenty-four hours; expect OK or CRON-MISSED based on SLA lookup but no UNSAFE-FLAG-COMBO attributable to argv when no cli-prune rows exist.
+
+## Detailed Implementation
+
+### Step 1 — Prerequisites
+
+Head of Platform owns this control together with the Linux fleet SRE who signs docker.sock access patterns, the automation engineer who maintains prune cron or systemd timer units, and the internal auditor who samples change evidence quarterly. UC-3.1.27 is the prune automation governance and reclaim verification axis: it answers who invoked docker image prune, docker container prune, docker volume prune, docker builder prune, or docker system prune on each host, which argv flags were present including force, all, until filters, and dry-run, whether the invocation was scheduled automation versus interactive break-glass, how measured reclaim from paired docker system df JSON snapshots compares to dry-run or exporter predictions, and whether the last successful prune cycle stayed inside the per-host SLA encoded in lookups/prune_schedule_sla.csv. UC-3.1.7 inventories dead containers, dangling images, orphan volumes, and reclaimable totals for sprawl scoring across the fleet; this UC deliberately does not re-score sprawl or fleet reclaim percentiles. Instead it observes the cleanup action itself so operations can prove automation ran, stayed within policy, and did not delete production-necessary layers without an auditable filter chain.
+
+Boundary contract: Docker Engine emits docker events stream actions such as image:delete, container:destroy, volume:destroy, network:remove, and builder:prune when pruning removes objects. Those events carry timestamps and attributes that identify the engine host but not always the full CLI argv; host-side auditd execve rules on /usr/bin/docker close that gap by capturing argv strings for docker prune invocations. Pair exporter snapshots from docker system df or docker system df -v JSON with explicit prune_phase=pre and prune_phase=post markers emitted by the same modular input that wraps the automation script so Splunk can compute reclaim_actual as the delta of reclaimable bytes before and after a bounded window. Scheduled compliance compares the timestamp of the last automation-owned prune event or last df post snapshot against expected_cadence_hours and last_run_threshold_hours in prune_schedule_sla.csv.
+
+Risk briefing: aggressive docker image prune -a --force without until= scoping on hosts that still run production-tagged workloads can remove shared layers and cause later container starts to fail image pulls or manifest resolves even when registries are healthy. Silent automation failure leaves reclaimable bytes climbing while UC-3.1.7 still pages sprawl; this UC explains whether the pruner never ran, ran partially, or ran but ingest dropped. Governance teams need a single correlation that shows argv, uid, parent process ancestry when auditd exposes it, and measured reclaim so FinOps numbers reconcile to operator stories.
+
+Differentiation recap: UC-3.1.7 measures what accumulates. UC-3.1.16 trends active named volume usage slopes. UC-3.1.24 audits docker exec sessions. UC-3.1.8 classifies dockerd errors. UC-3.1.27 alone covers prune lifecycle observability, argv safety, schedule SLA, and reclaim delta verification.
+
+Collector prerequisites: confirm docker events subscription uses json format and does not filter out delete-class actions. Confirm auditd rules include execve watches for docker binaries in both /usr/bin and /usr/local/bin when developers install static binaries. Confirm universal forwarder clocks stay within thirty seconds of dockerd to keep transaction pairing trustworthy.
+
+Licensing and retention: argv fields may contain internal image names; restrict roles on index=oti_containers and redact when counsel requires. Prune telemetry is low volume relative to full docker:events streams but spikes during CI storms; size search windows responsibly.
+
+Extended readiness review: before production enablement, walk the docker events API reference with the runtime vendor support contact and record which delete-class actions appear for image versus layer versus manifest removals in your Engine build. Capture a five-minute docker events --format json sample during a maintenance window and archive it beside the first successful Splunk row so auditors can replay byte-identical structure. Document whether Swarm managers emit additional metadata in Actor.Attributes that your props transforms should flatten. Where Podman compatibility shims masquerade as docker, validate that action strings remain identical or add a parallel sourcetype with a normalized action_lc field in transforms.conf.
+
+Governance linkage: map each fleet segment in prune_schedule_sla.csv to a named owner_team column used by paging bridges even when the SPL defaults owner to platform-oncall. Require CAB records for any change to expected_cadence_hours that tightens below weekly on production-adjacent pools. Pair this UC with change tickets that track automation version bumps for the prune wrapper script so RECLAIM-MISMATCH investigations can diff script behavior across releases.
+
+### Step 2 — Configure data collection
+
+On every Linux worker that runs Docker Engine under governance, enable four complementary feeds into index=oti_containers.
+
+First, docker:events from docker events --format json or the Splunk Add-on for Docker modular input streaming unix:///var/run/docker.sock. Preserve Action or Type fields verbatim so image:delete, container:destroy, volume:destroy, network:remove, and builder:prune remain detectable. Do not apply client-side filters that drop delete events.
+
+Second, auditd:execve via Splunk Add-on for Unix and Linux with rules such as -a always,exit -F arch=b64 -F path=/usr/bin/docker -S execve -k docker_prune plus a parallel rule for /usr/local/bin/docker when present. Validate with augenrules --load, systemctl restart auditd, then docker image prune --dry-run on a lab host and confirm a single execve line lands in Splunk with comm=docker and a prune substring in the argv fragment.
+
+Third, docker:system_df JSON snapshots from a privileged scripted input that runs docker system df --format json or an equivalent parser for docker system df -v when json is unavailable. Extend the wrapper so automation emits two events per cycle when prune jobs fire: one labeled prune_phase=pre immediately before deletion commands and one labeled prune_phase=post immediately after, each carrying reclaimable_total_bytes and total_used_bytes style fields normalized in props.conf. When dual snapshots are impossible, emit post-only snapshots every five minutes and pair reclaim deltas against the nearest auditd prune timestamp within a fifteen-minute window using a secondary saved search.
+
+Fourth, schedule evidence from syslog or systemd journal units that run the prune automation. Tag sourcetype=syslog lines from CRON or tag journald units such as docker-prune.service and docker-prune.timer with host, unit, and exit status when exporters forward structured JSON. Ansible Tower, AWX, Salt job returns, or GitHub Actions self-hosted runner logs may be ingested as sourcetype=docker:audit:prune_log when operators wrap playbooks with a final HEC event that records playbook_run_id, host, and prune exit code.
+
+Normalize host_id to lowercase short hostnames consistent with CMDB keys. Document whether Kubernetes node names or cloud instance ids appear in host versus host_id and align prune_schedule_sla.csv keys the same way.
+
+Security hygiene: docker.sock access remains highly sensitive; store service account tokens in vault, rotate HEC tokens quarterly, and scope TA roles to platform engineering. Where rootless Docker is used, verify auditd still captures the correct uid map for the docker CLI.
+
+Pre-save validation queries: index=oti_containers sourcetype=docker:events earliest=-30m Action="image:delete" OR Action="container:destroy" | head 20 must return samples on busy hosts after intentional lab pruning. index=oti_containers sourcetype=auditd:execve earliest=-30m prune | head 20 must show argv fragments. index=oti_containers sourcetype=docker:system_df earliest=-30m | stats count by prune_phase should show pre and post when automation is wired.
+
+Expected analyst-facing fields after extraction: host_id, prune_event_id, prune_kind, issuer_uid, argv_full, flags_compact, flag_unsafe, reclaim_predicted_gb, reclaim_actual_gb, scheduled, time_since_last_scheduled, expected_cadence_hours, last_run_threshold_hours, prune_roll_recent, severity, owner, action_required.
+
+Ingest architecture notes: when a single universal forwarder hosts both the docker events modular input and the df scripted input, align source and sourcetype naming so searches do not double-charge license through duplicate raw copies. For air-gapped sites, document how offline image imports influence reclaim math so RECLAIM-MISMATCH does not fire solely because pre-snapshot inventories included tar-loaded layers. When using Docker Enterprise or Mirantis builds, confirm whether builder:prune appears with different casing and add props aliases before altering SPL.
+
+Operator runbook hooks: publish a short wiki table listing the exact systemd unit names per OS image family so syslog filters stay accurate across minor upgrades. Maintain a versioned example of prune_schedule_sla.csv checked into git with sample rows for dev, staging, and production segments even when production rows are restricted in higher environments.
+
+### Step 3 — Create the search and alert
+
+Save the SPL as saved search container_uc_3_1_27_docker_prune_automation_audit with schedule every five minutes on business-critical pools and every fifteen minutes elsewhere, time range earliest=-24h@h latest=@h so streamstats can see paired df snapshots when collectors run at least hourly. Throttle duplicate UNSAFE-FLAG-COMBO rows per host_id for sixty minutes unless argv changes. Route CRON-MISSED to the automation on-call with links to systemd timer status and syslog archives. Route RECLAIM-MISMATCH to storage platform partners with both dry-run excerpts and df JSON pairs attached.
+
+Pipeline narrative: the comment macro lists indexes, sourcetypes, lookup name, and tunable thresholds so engineers adjust without opening this document. multisearch fans docker:events delete-class actions, auditd execve lines that contain prune, and docker:system_df JSON snapshots with explicit phase markers. coalesce lists absorb camelCase and snake_case field variance across Engine versions. argv_lc drives regex detections for force, all, until, and dry-run tokens. flag_unsafe encodes a conservative pattern where force plus all without until filter on non-scheduled cli-prune rows signals policy review. streamstats pairs consecutive reclaim_b measurements per host for df_json rows to approximate reclaim_actual_gb as the byte delta converted to gibibytes. join type=left max=0 wraps prune_schedule_sla.csv for expected_cadence_hours and last_run_threshold_hours. eventstats lifts last_prune_ts from audit_cli and docker_evt lanes so time_since_last_scheduled measures hours since the last destructive-class signal. severity orders UNSAFE-FLAG-COMBO, RECLAIM-MISMATCH, CRON-MISSED, LARGE-MANUAL-PRUNE, and OK. The closing table lists twelve columns for runbook clarity.
+
+Alert actions: include argv_full excerpts, flags_compact, and measured reclaim deltas in tickets. For OK rows destined for dashboards only, lower priority and archive weekly CSV snapshots to a restricted evidence index.
+
+Fenced SPL for runbooks must match the spl JSON field byte-for-byte:
+
+```spl
+`comment("UC-3.1.27 Docker Prune Automation Audit and Reclaim Verification. Governance: prune invocations, argv flags, pre/post docker system df reclaim delta, schedule SLA vs prune_schedule_sla.csv. Tunables: index=oti_containers; sourcetypes docker:events auditd:execve docker:system_df; optional sourcetype=syslog OR systemd:journald for cron/timer units; lookup prune_schedule_sla.csv; earliest=-24h@h latest=@h; reclaim_mismatch_gb=5; manual_wide_gb=50")`
+| multisearch
+    [ search index=oti_containers sourcetype="docker:events" earliest=-24h@h latest=@h
+      | eval host_id=lower(toString(coalesce(host, Host, hostname, host_id, dest, "")))
+      | eval action_lc=lower(toString(coalesce(Action, action, Type, type, "")))
+      | where match(action_lc,"image:delete|container:destroy|volume:destroy|builder:prune")
+      | eval lane="docker_evt"
+      | eval argv=substr(_raw,1,620)
+      | eval issuer_uid="engine_event"
+      | eval scheduled=0
+      | eval prune_kind=case(match(action_lc,"image:delete"),"image-prune",match(action_lc,"container:destroy"),"container-prune",match(action_lc,"volume:destroy"),"volume-prune",true(),"builder-prune")
+      | eval prune_event_id=strcat(host_id,"|",tostring(round(_time,0)),"|evt")
+      | eval reclaim_b=null()
+      | eval total_b=null()
+      | fields _time host_id lane argv issuer_uid scheduled prune_kind prune_event_id reclaim_b total_b ]
+    [ search index=oti_containers sourcetype="auditd:execve" earliest=-24h@h latest=@h
+      | eval host_id=lower(toString(coalesce(host, Host, hostname, host_id, dest, "")))
+      | eval lr=lower(_raw)
+      | where (match(lr,"comm=\\\"docker\\\"") OR match(lr,"exe=.*/docker")) AND match(lr,"prune")
+      | eval lane="audit_cli"
+      | eval argv=substr(_raw,1,900)
+      | eval issuer_uid=toString(coalesce(audit_uid, auid, AUID, "auid_unknown"))
+      | eval scheduled=if(match(lr,"cron|ansible-playbook|salt-minion|runner"),1,0)
+      | eval prune_kind="cli-prune"
+      | eval prune_event_id=strcat(host_id,"|",tostring(round(_time,0)),"|cli")
+      | eval reclaim_b=null()
+      | eval total_b=null()
+      | fields _time host_id lane argv issuer_uid scheduled prune_kind prune_event_id reclaim_b total_b ]
+    [ search index=oti_containers sourcetype="docker:system_df" earliest=-24h@h latest=@h
+      | eval host_id=lower(toString(coalesce(host, Host, hostname, host_id, dest, "")))
+      | eval phase=lower(toString(coalesce(prune_phase, df_snapshot_phase, snapshot_phase, "post")))
+      | eval reclaim_b=tonumber(tostring(coalesce(reclaimable_total_bytes, reclaimable_bytes, ReclaimableBytes, "")),10)
+      | eval total_b=tonumber(tostring(coalesce(total_used_bytes, total_bytes, UsedBytes, "")),10)
+      | eval lane="df_json"
+      | eval argv=phase
+      | eval issuer_uid="df_exporter"
+      | eval scheduled=1
+      | eval prune_kind="system-df-snapshot"
+      | eval prune_event_id=strcat(host_id,"|",tostring(round(_time,0)),"|df_",phase)
+      | fields _time host_id lane argv issuer_uid scheduled prune_kind prune_event_id reclaim_b total_b phase ]
+| eval argv_full=coalesce(argv,"")
+| eval argv_lc=lower(argv_full)
+| eval flag_force=if(match(argv_lc,"(?i)--force|\\s-f\\s"),1,0)
+| eval flag_all=if(match(argv_lc,"(?i)\\s-a\\s|--all\\b"),1,0)
+| eval flag_until=if(match(argv_lc,"(?i)until="),1,0)
+| eval flag_dry=if(match(argv_lc,"(?i)--dry-run"),1,0)
+| eval flag_unsafe=if(flag_force==1 AND flag_all==1 AND flag_until==0 AND scheduled==0 AND prune_kind=="cli-prune",1,0)
+| eval reclaim_predicted_gb=if(flag_dry==1 AND isnotnull(reclaim_b),round(reclaim_b/1073741824,2),null())
+| sort 0 host_id _time
+| streamstats window=2 current=t global=f last(reclaim_b) AS prev_reclaim BY host_id
+| eval reclaim_actual_gb=if(isnotnull(reclaim_b) AND isnotnull(prev_reclaim) AND lane=="df_json",round((prev_reclaim-reclaim_b)/1073741824,3),null())
+| streamstats window=200 current=f global=f count AS prune_roll_recent BY host_id
+| join type=left max=0 host_id [
+    | inputlookup prune_schedule_sla.csv
+    | eval host_id=lower(trim(toString(coalesce(host_id, host, Host, hostname, ""))))
+    | eval expected_cadence_hours=tonumber(tostring(coalesce(expected_cadence_hours, cadence_hours, "168")),10)
+    | eval last_run_threshold_hours=tonumber(tostring(coalesce(last_run_threshold_hours, miss_after_hours, "192")),10)
+    | fields host_id expected_cadence_hours last_run_threshold_hours
+  ]
+| fillnull value=168 expected_cadence_hours
+| fillnull value=192 last_run_threshold_hours
+| eventstats max(eval(if(lane=="audit_cli" OR lane=="docker_evt",_time,null()))) AS last_prune_ts BY host_id
+| eval time_since_last_scheduled=if(isnotnull(last_prune_ts),round((now()-last_prune_ts)/3600,2),9999)
+| eval reclaim_mismatch=if(isnotnull(reclaim_predicted_gb) AND isnotnull(reclaim_actual_gb) AND abs(reclaim_predicted_gb-reclaim_actual_gb)>5,1,0)
+| eval severity=case(flag_unsafe==1,"UNSAFE-FLAG-COMBO",reclaim_mismatch==1,"RECLAIM-MISMATCH",time_since_last_scheduled>last_run_threshold_hours,"CRON-MISSED",flag_force==1 AND flag_all==1 AND scheduled==0 AND isnotnull(reclaim_actual_gb) AND reclaim_actual_gb>50,"LARGE-MANUAL-PRUNE",true(),"OK")
+| eval action_required=case(severity=="UNSAFE-FLAG-COMBO","require scoped filters before force-all image prune",severity=="CRON-MISSED","repair automation schedule or log shipping",severity=="RECLAIM-MISMATCH","reconcile dry-run text with df JSON pair",severity=="LARGE-MANUAL-PRUNE","attach break-glass record to change ticket",true(),"no immediate action")
+| eval owner=toString(coalesce(platform_owner, fleet_owner,"platform-oncall"))
+| eval flags_compact=strcat(if(flag_force==1,"force|",""),if(flag_all==1,"all|",""),if(flag_until==1,"until|",""),if(flag_dry==1,"dry|",""))
+| table host_id prune_event_id prune_kind issuer_uid argv_full flags_compact flag_unsafe reclaim_predicted_gb reclaim_actual_gb scheduled time_since_last_scheduled expected_cadence_hours last_run_threshold_hours prune_roll_recent severity owner action_required
+| sort - flag_unsafe severity host_id _time
+```
+
+Operational notes: when docker:system_df lacks paired pre and post rows, reclaim_actual_gb may remain null while auditd still proves invocation; treat null reclaim as a data-quality follow-up, not as proof of zero reclaim. When image:delete volume spikes without matching auditd lines, suspect remote API clients that bypass the local docker binary; add API audit if policy requires.
+
+Drilldown guidance: link dashboard panels to raw events with drilldown searches filtered by prune_event_id and host_id. Keep a secondary panel listing hosts where lane=="df_json" never appears so data owners can open CMDB tickets for missing collectors before governance deadlines.
+
+### Step 4 — Validate
+
+Positive path A — lab argv capture: on a disposable host run docker image prune --dry-run, confirm auditd:execve shows prune and docker:events may remain quiet; verify scheduled=0 and flag_dry surfaces in flags_compact when argv is present on synthetic docker:audit:prune_log tests.
+
+Positive path B — destructive prune with snapshots: emit docker:system_df pre row, run docker image prune --force with an until filter, emit post row, ingest both, execute the saved search, and expect non-null reclaim_actual_gb when prev_reclaim exceeds post reclaim_b.
+
+Positive path C — unsafe pattern: run docker image prune -a --force without until from an interactive shell on a non-production lab host with scheduled=0, confirm UNSAFE-FLAG-COMBO when policy marks that host as governed.
+
+Positive path D — SLA miss: pause automation beyond last_run_threshold_hours while keeping ingest healthy, confirm CRON-MISSED with elevated time_since_last_scheduled.
+
+Positive path E — reclaim mismatch: fabricate dry-run predicted reclaim in a test index field and df deltas that disagree by more than five gibibytes, confirm RECLAIM-MISMATCH.
+
+Negative path — automation-owned run: run the same prune via systemd timer where auditd argv shows wrapper and scheduled=1, expect suppression of UNSAFE-FLAG-COMBO when until filters appear even if force is present per local policy adjustments you document in the lookup notes.
+
+Field sanity: rename docker:events Action to camelCase-only in a sandbox forwarder and verify action_lc still matches via coalesce list. RBAC: readers without index=oti_containers must see zero rows. Performance: if multisearch cost exceeds Job Inspector budgets, split df_json and audit_cli into a summary index keyed on host_id and prune_event_id.
+
+Correlation: when severity is OK but image pull errors spike on UC-3.1.26 style searches, review whether a wide manual prune removed a shared layer; this UC supplies the argv and timestamp to confirm or deny that story.
+
+### Step 5 — Operationalize & Troubleshoot
+
+Case 1 — docker:events stream drops delete actions after a daemon restart: resubscribe collectors, verify unix socket permissions, and compare local docker events output to Splunk for five minutes after dockerd comes back.
+
+Case 2 — auditd sees /usr/bin/docker but operators call a static binary elsewhere: extend audit rules to the actual path found with readlink -f $(which docker) on each gold image.
+
+Case 3 — pre and post docker:system_df snapshots arrive out of order because of forwarder buffering: tighten _time extraction to use the collector clock, or switch to indexer time only after documenting the trade-off for compliance samples.
+
+Case 4 — prune_schedule_sla.csv stale keys after cloud autoscale replaces instances: publish host_id as cloud instance id or kubernetes node name consistently in both CMDB export and Splunk host fields.
+
+Case 5 — CI builders emit hundreds of legitimate small prunes per hour: segment builder pools into a separate index or add expected_cadence_hours overrides per pool to avoid CRON-MISSED noise when cadence is intentionally hourly.
+
+Case 6 — Ansible playbook prunes show scheduled=0 because argv lacks ansible string: adjust scheduled detection regex to match tower username patterns or rely on sourcetype=docker:audit:prune_log for a definitive automation bit.
+
+Case 7 — reclaim_actual_gb null on hosts that only publish post snapshots: enable dual-phase wrapper or join against a fifteen-minute transaction window in a follow-on saved search dedicated to df pairing.
+
+Case 8 — LARGE-MANUAL-PRUNE fires during an approved disk-full incident: attach the incident ticket id in a lookup column exempt_manual_prune until cleared.
+
+Case 9 — builder:prune events flood during BuildKit upgrades: temporarily raise multisearch cost allowance or filter builder:prune to builder SKUs only at search time.
+
+Case 10 — streamstats pairing picks unrelated reclaim rows after unrelated docker pulls: constrain streamstats with where lane=="df_json" in a subsearch refactor when engineers observe cross-talk.
+
+Case 11 — journald unit names change after OS major upgrade: update syslog filters to match new docker-prune.service spelling.
+
+Case 12 — duplicate telemetry from OpenTelemetry and legacy TA double-count prune_event_id: deduplicate at ingest with explicit source keys before SLA math trusts counts.
+
+Dashboard layout: timeline of prune_event_id colored by severity, heatmap of time_since_last_scheduled by fleet segment, table of argv excerpts for UNSAFE-FLAG-COMBO, and line chart of reclaim_actual_gb sums per day.
+
+Evidence retention: weekly CSV exports of the closing table with prune_schedule_sla.csv commit hashes support internal audits alongside NIST SP 800-92 log management expectations.
+
+Governance: quarterly replay one historical disk incident through the SPL after Docker Engine upgrades; update the comment macro when indexes move.
+
+Training: teach incident commanders that CRON-MISSED explains automation health while UC-3.1.7 explains inventory mass; both can fire together.
+
+FinOps: translate reclaim_actual_gb sums into currency using internal storage rates only after confirming df JSON fields include the same scope as finance dashboards.
+
+Security: scrub customer image names from tickets when argv carries registry paths under confidentiality rules.
+
+Performance: shift schedules off peak when Job Inspector shows multisearch queueing behind heavier container searches.
+
+Reliability: document fallback behavior when docker.sock permissions break; expect sparse arms rather than silent zeros.
+
+Documentation: keep exporter version pins beside prune_schedule_sla.csv in git.
+
+Escalation: if RECLAIM-MISMATCH persists after two intervals, pivot to filesystem and graph driver investigations before repeating prune.
+
+Closing: Step 5 lists twelve numbered troubleshooting cases covering stream gaps, audit path drift, snapshot ordering, lookup key drift, CI noise, automation attribution, df pairing limits, approved manual prunes, builder event storms, streamstats cross-talk, journald renames, duplicate telemetry, and long-term governance cadence for container_uc_3_1_27_docker_prune_automation_audit.
+
+
+## SPL
+
+```spl
+`comment("UC-3.1.27 Docker Prune Automation Audit and Reclaim Verification. Governance: prune invocations, argv flags, pre/post docker system df reclaim delta, schedule SLA vs prune_schedule_sla.csv. Tunables: index=oti_containers; sourcetypes docker:events auditd:execve docker:system_df; optional sourcetype=syslog OR systemd:journald for cron/timer units; lookup prune_schedule_sla.csv; earliest=-24h@h latest=@h; reclaim_mismatch_gb=5; manual_wide_gb=50")`
+| multisearch
+    [ search index=oti_containers sourcetype="docker:events" earliest=-24h@h latest=@h
+      | eval host_id=lower(toString(coalesce(host, Host, hostname, host_id, dest, "")))
+      | eval action_lc=lower(toString(coalesce(Action, action, Type, type, "")))
+      | where match(action_lc,"image:delete|container:destroy|volume:destroy|builder:prune")
+      | eval lane="docker_evt"
+      | eval argv=substr(_raw,1,620)
+      | eval issuer_uid="engine_event"
+      | eval scheduled=0
+      | eval prune_kind=case(match(action_lc,"image:delete"),"image-prune",match(action_lc,"container:destroy"),"container-prune",match(action_lc,"volume:destroy"),"volume-prune",true(),"builder-prune")
+      | eval prune_event_id=strcat(host_id,"|",tostring(round(_time,0)),"|evt")
+      | eval reclaim_b=null()
+      | eval total_b=null()
+      | fields _time host_id lane argv issuer_uid scheduled prune_kind prune_event_id reclaim_b total_b ]
+    [ search index=oti_containers sourcetype="auditd:execve" earliest=-24h@h latest=@h
+      | eval host_id=lower(toString(coalesce(host, Host, hostname, host_id, dest, "")))
+      | eval lr=lower(_raw)
+      | where (match(lr,"comm=\\\"docker\\\"") OR match(lr,"exe=.*/docker")) AND match(lr,"prune")
+      | eval lane="audit_cli"
+      | eval argv=substr(_raw,1,900)
+      | eval issuer_uid=toString(coalesce(audit_uid, auid, AUID, "auid_unknown"))
+      | eval scheduled=if(match(lr,"cron|ansible-playbook|salt-minion|runner"),1,0)
+      | eval prune_kind="cli-prune"
+      | eval prune_event_id=strcat(host_id,"|",tostring(round(_time,0)),"|cli")
+      | eval reclaim_b=null()
+      | eval total_b=null()
+      | fields _time host_id lane argv issuer_uid scheduled prune_kind prune_event_id reclaim_b total_b ]
+    [ search index=oti_containers sourcetype="docker:system_df" earliest=-24h@h latest=@h
+      | eval host_id=lower(toString(coalesce(host, Host, hostname, host_id, dest, "")))
+      | eval phase=lower(toString(coalesce(prune_phase, df_snapshot_phase, snapshot_phase, "post")))
+      | eval reclaim_b=tonumber(tostring(coalesce(reclaimable_total_bytes, reclaimable_bytes, ReclaimableBytes, "")),10)
+      | eval total_b=tonumber(tostring(coalesce(total_used_bytes, total_bytes, UsedBytes, "")),10)
+      | eval lane="df_json"
+      | eval argv=phase
+      | eval issuer_uid="df_exporter"
+      | eval scheduled=1
+      | eval prune_kind="system-df-snapshot"
+      | eval prune_event_id=strcat(host_id,"|",tostring(round(_time,0)),"|df_",phase)
+      | fields _time host_id lane argv issuer_uid scheduled prune_kind prune_event_id reclaim_b total_b phase ]
+| eval argv_full=coalesce(argv,"")
+| eval argv_lc=lower(argv_full)
+| eval flag_force=if(match(argv_lc,"(?i)--force|\\s-f\\s"),1,0)
+| eval flag_all=if(match(argv_lc,"(?i)\\s-a\\s|--all\\b"),1,0)
+| eval flag_until=if(match(argv_lc,"(?i)until="),1,0)
+| eval flag_dry=if(match(argv_lc,"(?i)--dry-run"),1,0)
+| eval flag_unsafe=if(flag_force==1 AND flag_all==1 AND flag_until==0 AND scheduled==0 AND prune_kind=="cli-prune",1,0)
+| eval reclaim_predicted_gb=if(flag_dry==1 AND isnotnull(reclaim_b),round(reclaim_b/1073741824,2),null())
+| sort 0 host_id _time
+| streamstats window=2 current=t global=f last(reclaim_b) AS prev_reclaim BY host_id
+| eval reclaim_actual_gb=if(isnotnull(reclaim_b) AND isnotnull(prev_reclaim) AND lane=="df_json",round((prev_reclaim-reclaim_b)/1073741824,3),null())
+| streamstats window=200 current=f global=f count AS prune_roll_recent BY host_id
+| join type=left max=0 host_id [
+    | inputlookup prune_schedule_sla.csv
+    | eval host_id=lower(trim(toString(coalesce(host_id, host, Host, hostname, ""))))
+    | eval expected_cadence_hours=tonumber(tostring(coalesce(expected_cadence_hours, cadence_hours, "168")),10)
+    | eval last_run_threshold_hours=tonumber(tostring(coalesce(last_run_threshold_hours, miss_after_hours, "192")),10)
+    | fields host_id expected_cadence_hours last_run_threshold_hours
+  ]
+| fillnull value=168 expected_cadence_hours
+| fillnull value=192 last_run_threshold_hours
+| eventstats max(eval(if(lane=="audit_cli" OR lane=="docker_evt",_time,null()))) AS last_prune_ts BY host_id
+| eval time_since_last_scheduled=if(isnotnull(last_prune_ts),round((now()-last_prune_ts)/3600,2),9999)
+| eval reclaim_mismatch=if(isnotnull(reclaim_predicted_gb) AND isnotnull(reclaim_actual_gb) AND abs(reclaim_predicted_gb-reclaim_actual_gb)>5,1,0)
+| eval severity=case(flag_unsafe==1,"UNSAFE-FLAG-COMBO",reclaim_mismatch==1,"RECLAIM-MISMATCH",time_since_last_scheduled>last_run_threshold_hours,"CRON-MISSED",flag_force==1 AND flag_all==1 AND scheduled==0 AND isnotnull(reclaim_actual_gb) AND reclaim_actual_gb>50,"LARGE-MANUAL-PRUNE",true(),"OK")
+| eval action_required=case(severity=="UNSAFE-FLAG-COMBO","require scoped filters before force-all image prune",severity=="CRON-MISSED","repair automation schedule or log shipping",severity=="RECLAIM-MISMATCH","reconcile dry-run text with df JSON pair",severity=="LARGE-MANUAL-PRUNE","attach break-glass record to change ticket",true(),"no immediate action")
+| eval owner=toString(coalesce(platform_owner, fleet_owner,"platform-oncall"))
+| eval flags_compact=strcat(if(flag_force==1,"force|",""),if(flag_all==1,"all|",""),if(flag_until==1,"until|",""),if(flag_dry==1,"dry|",""))
+| table host_id prune_event_id prune_kind issuer_uid argv_full flags_compact flag_unsafe reclaim_predicted_gb reclaim_actual_gb scheduled time_since_last_scheduled expected_cadence_hours last_run_threshold_hours prune_roll_recent severity owner action_required
+| sort - flag_unsafe severity host_id _time
+```
+
+## CIM SPL
+
+```spl
+| tstats summariesonly=true count FROM datamodel=Change WHERE nodename=Change.All_Changes Change.vendor_product="Docker" earliest=-24h latest=now BY Change.dest Change.user Change.command
+| rename Change.dest AS host_id Change.user AS change_user Change.command AS change_cmd
+| where like(lower(change_cmd), "%prune%")
+| appendcols maxout=200 [
+| tstats summariesonly=true latest(Inventory.os) AS inventory_os latest(Inventory.version) AS inventory_version FROM datamodel=Inventory WHERE nodename=Inventory.OperatingSystem earliest=-24h latest=now BY Inventory.dest
+| rename Inventory.dest AS host_id ]
+```
+
+## Visualization
+
+Timeline of prune_event_id colored by severity; heatmap of time_since_last_scheduled by fleet; table of argv excerpts for UNSAFE-FLAG-COMBO; line chart of daily sums of reclaim_actual_gb; pie of severity tiers; drilldown to raw multisearch arms.
+
+## Known False Positives
+
+Emergency disk-full response teams often run wide manual prunes under incident command; annotate those hosts in prune_schedule_sla.csv with a temporary exempt_manual_prune window so LARGE-MANUAL-PRUNE rows carry ticket context instead of silent suppression. Scheduled maintenance that pauses systemd timers or cron drops CRON-MISSED until automation resumes; pair timer pause records with the change calendar before paging. CI runner fleets legitimately issue many small prunes per pipeline stage; segment those hosts with shorter expected_cadence_hours or a dedicated index so rolling counts do not look like sprawl-response chaos. Multi-stage cleanup steps in build scripts can emit bursts of builder:prune and image:delete events within seconds; treat bursts as one logical run when playbook ids are present in docker:audit:prune_log. Compliance hold dismissals sometimes require deliberate docker image prune -a --force after legal approval; document the approval id beside argv samples so UNSAFE-FLAG-COMBO reviews close quickly. Edge-cluster nodes that manage their own prune cycles outside central automation will show ad-hoc argv patterns; encode those nodes with self_managed_prune=1 in the lookup to expect manual cadence drift without assuming central cron failure.
+
+## References
+
+- [Splunk Documentation — Splunk Add-on for Docker overview](https://docs.splunk.com/Documentation/AddOns/released/Docker/About)
+- [Docker Docs — docker events CLI reference](https://docs.docker.com/reference/cli/docker/system/events/)
+- [Docker Docs — docker system prune](https://docs.docker.com/reference/cli/docker/system/prune/)
+- [Docker Docs — docker image prune](https://docs.docker.com/reference/cli/docker/image/prune/)
+- [Red Hat Enterprise Linux — Security Hardening (auditd overview)](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/security_hardening/using-the-audit-system-for-security-hardening)
+- [NIST SP 800-92 — Guide to Computer Security Log Management](https://csrc.nist.gov/publications/detail/sp/800-92/final)

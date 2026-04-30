@@ -47,7 +47,7 @@ def live_catalog(repo_root: Path) -> Iterator[Catalog]:
 
     Use this whenever a test simply wants to call a tool against the
     genuine API surface. Session-scoped so every test reuses the same
-    LRU-warmed loader.
+    ``Catalog`` instance.
     """
 
     with Catalog(catalog_root=repo_root) as cat:
@@ -407,13 +407,11 @@ def synthetic_catalog(synthetic_catalog_root: Path) -> Iterator[Catalog]:
 
 @pytest.fixture(autouse=True)
 def _isolate_default_catalog_cache() -> Iterator[None]:
-    """Clear the ``default_catalog()`` LRU cache between tests.
+    """No-op placeholder: there is no process-global ``Catalog`` LRU cache today.
 
-    Ensures that one test's catalogue state doesn't bleed into another
-    (e.g. a synthetic-root test followed by a real-root test). Older
-    builds of the catalog module exposed the cache as
-    ``default_catalog``; the guard keeps the fixture resilient if the
-    helper is renamed or removed.
+    If a future ``default_catalog`` (or similar) helper wraps a cached loader,
+    clear it here so synthetic- vs live-root tests cannot share stale state.
+    Until then, ``getattr(..., "default_catalog", None)`` is always absent.
     """
 
     from splunk_uc_mcp import catalog as catalog_module

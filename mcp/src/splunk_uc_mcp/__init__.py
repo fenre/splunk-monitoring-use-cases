@@ -1,7 +1,7 @@
 """Splunk Monitoring Use Cases — Model Context Protocol server.
 
-Exposes the static catalogue (6,424 use cases, 60 regulations, 105 equipment
-slugs, and the signed provenance ledger) to LLM agents via JSON-RPC over
+Exposes the full Splunk monitoring use case catalogue (including equipment
+slugs and the signed provenance ledger) to LLM agents via JSON-RPC over
 stdio. Serves compliance officers and detection engineers equally: every tool
 is read-only, purely introspects pre-built ``api/v1/*.json`` endpoints, and
 degrades from a local clone to the hosted GitHub Pages mirror when the local

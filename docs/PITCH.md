@@ -4,7 +4,7 @@
 
 ---
 
-> **6,304 production-grade use cases.
+> **7,300+ production-grade use cases.
 > 23 technology domains.
 > 3 Splunkbase-ready content packs.
 > One browser tab. Zero license cost.**
@@ -39,7 +39,7 @@ and we're open about exactly how we got here.
 
 ## The solution in one paragraph
 
-An open-source catalog of **6,304 infrastructure and security use cases**,
+An open-source catalog of **7,300+ infrastructure and security use cases**,
 each written in a strict authoring contract, each producing **ready-to-run
 SPL**, each automatically graded on six quality dimensions, each audited
 for **Splunk Cloud compatibility** on every commit, each traceable to its
@@ -59,11 +59,11 @@ free forever.
 
 | Metric | Value |
 |---|---|
-| Use cases | **6,304** |
+| Use cases | **7,300+** |
 | Categories | **23** (infrastructure · security · cloud · application · industry · compliance · business) |
 | Subcategories | **173** |
 | Lines of curated markdown | **~169,000** |
-| Ready-to-run SPL queries | **6,304** |
+| Ready-to-run SPL queries | **7,300+** |
 | Industry verticals covered | Energy, manufacturing, healthcare, telecom, transportation, retail, aviation, insurance |
 | Compliance frameworks | **9** — GDPR, NIS2, DORA, CCPA, MiFID II, ISO 27001, NIST CSF, SOC 2, PCI DSS |
 | Equipment vendors tagged | **206+** — Cisco, Palo Alto, Fortinet, F5, VMware, Microsoft, AWS, Azure, GCP, Nutanix, Dell, HPE, … |
@@ -121,7 +121,7 @@ A single static HTML file — open `index.html`, that's it — with:
 - Grouped sidebar navigation across 6 collapsible pillars
 - Full-text search (`Cmd/Ctrl+K`), deep-linkable URLs
 - Equipment filter ("show me everything for Cisco ASA")
-- Virtual scrolling for 6,300+ cards
+- Virtual scrolling for 7,300+ cards
 - Light / dark mode, mobile-first, print-optimised
 - Non-technical "outcomes" view for executive audiences
 - Colour-coded provenance badge on every card — **instantly see if this came from Splunk docs or a random blog**
@@ -235,7 +235,7 @@ findings, **five** SPL warnings (all legitimate `dbxquery` callouts).
 ### vs. "just write your own"
 
 - **10,323 lines of automation** so you don't have to. Ours.
-- **6,400+ UCs of curated content.** Would take a team of four three
+- **7,300+ UCs of curated content.** Would take a team of four three
   years to write from scratch.
 - **Zero runtime dependencies.** It'll still build in 2035.
 
@@ -331,13 +331,12 @@ into your Splunk instance and click install.
 
 ## The one-line pitch (memorable version)
 
-> **We're the Wikipedia of Splunk detections — 6,304 articles, every
+> **We're the Wikipedia of Splunk detections — 7,300+ articles, every
 > one cited, graded, and runnable.**
 
 ---
 
 *Project stats, release notes and full architecture document:
 [`CHANGELOG.md`](../CHANGELOG.md) · [`docs/DESIGN.md`](DESIGN.md) ·
-[`ROADMAP.md`](../ROADMAP.md). Current release: **v6.0 — Verifiable
-Quality** (shipped 2026-04-16). MIT licensed. Hosted on GitHub Pages.
+[`ROADMAP.md`](../ROADMAP.md). Current release: **v7.3**. MIT licensed. Hosted on GitHub Pages.
 No backend, no login, no telemetry.*

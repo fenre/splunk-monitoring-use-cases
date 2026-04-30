@@ -1,0 +1,94 @@
+<!-- AUTO-GENERATED from UC-9.1.24.json — DO NOT EDIT -->
+
+---
+id: "9.1.24"
+title: "Stale Computer Account Cleanup"
+criticality: "medium"
+splunkPillar: "Security"
+---
+
+# UC-9.1.24 · Stale Computer Account Cleanup
+
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security, Compliance
+
+*We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — Stale Computer Account Cleanup*
+
+---
+
+## Description
+
+Stale computer objects enable rogue domain joins and clutter access reviews. Tracking supports automated disable/delete workflows.
+
+## Value
+
+Stale computer objects enable rogue domain joins and clutter access reviews. Tracking supports automated disable/delete workflows.
+
+## Implementation
+
+Export computer inventory weekly. Join with DHCP/DNS for false positives. Feed cleanup automation; exclude known appliance OUs via lookup.
+
+## Detailed Implementation
+
+### Prerequisites
+- Install and configure the required add-on or app: Scripted input (PowerShell `Get-ADComputer`).
+- Ensure the following data sources are available: AD computer attributes (`lastLogonTimestamp`, `pwdLastSet`, `whenCreated`).
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+### Step 1 — Configure data collection
+Export computer inventory weekly. Join with DHCP/DNS for false positives. Feed cleanup automation; exclude known appliance OUs via lookup.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+index=ad sourcetype="ad:computers"
+| eval days_stale=round((now()-lastLogonTimestamp)/86400)
+| where days_stale > 90 AND Enabled="True"
+| table samAccountName, operatingSystem, days_stale, distinguishedName
+| sort -days_stale
+```
+
+#### Understanding this SPL
+
+**Stale Computer Account Cleanup** — Stale computer objects enable rogue domain joins and clutter access reviews. Tracking supports automated disable/delete workflows.
+
+Documented **Data sources**: AD computer attributes (`lastLogonTimestamp`, `pwdLastSet`, `whenCreated`). **App/TA** (typical add-on context): Scripted input (PowerShell `Get-ADComputer`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: ad; **sourcetype**: ad:computers. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=ad, sourcetype="ad:computers". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `eval` defines or adjusts **days_stale** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where days_stale > 90 AND Enabled="True"` — typically the threshold or rule expression for this monitoring goal.
+- Pipeline stage (see **Stale Computer Account Cleanup**): table samAccountName, operatingSystem, days_stale, distinguishedName
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+
+### Step 3 — Validate
+Compare results with the authoritative identity source (directory, IdP, or PAM) for the same time range and with known change or maintenance tickets.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (stale computers), Bar chart (stale count by OU), Single value (candidates for cleanup).
+
+## SPL
+
+```spl
+index=ad sourcetype="ad:computers"
+| eval days_stale=round((now()-lastLogonTimestamp)/86400)
+| where days_stale > 90 AND Enabled="True"
+| table samAccountName, operatingSystem, days_stale, distinguishedName
+| sort -days_stale
+```
+
+## Visualization
+
+Table (stale computers), Bar chart (stale count by OU), Single value (candidates for cleanup).
+
+## Known False Positives
+
+Planned change windows, maintenance, approved automation, and known good service accounts; correlate with change tickets and identity team communication.
+
+## References
+
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

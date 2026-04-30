@@ -1,0 +1,550 @@
+<!-- AUTO-GENERATED from UC-3.2.20.json — DO NOT EDIT -->
+
+---
+id: "3.2.20"
+title: "Kubernetes Job and CronJob Failures (Batch Workload Reliability)"
+status: "verified"
+criticality: "high"
+splunkPillar: "Observability"
+---
+
+# UC-3.2.20 · Kubernetes Job and CronJob Failures (Batch Workload Reliability)
+
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Reliability, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
+
+*We watch the timed chores and one-off tasks that keep our computer cluster healthy—things like nightly cleanup or certificate checks. When those tasks fail or stop running on schedule, important housekeeping quietly stops, so we raise a clear signal before the backlog hurts anyone.*
+
+---
+
+## Description
+
+Detects batch-controller failures that do not reduce to Deployment rollouts, CrashLoopBackOff on long-running pods, or image pull stalls. The analytic joins kube-state-metrics Job and CronJob gauges—failed versus succeeded completions, last schedule timestamps, active child Jobs, starting deadline budgets, suspend bits, and cron info labels—with Kubernetes API events such as JobFailed, BackoffLimitExceeded, MissingJob, and MissedSchedule, then enriches must-run schedules from critical_cronjobs.csv. Severity tiers separate stuck one-shot Jobs from silently stale CronJobs, wrongful suspensions, concurrency policy drift versus governance, and event-backed controller narratives so reporting, cleanup, ETL, certificate rotation, and snapshot automation gaps surface before data pipelines go dark.
+
+## Value
+
+Batch workloads succeed once, respect deadlines, honor parallelism and history retention, and rely on CronJob cadence in ways Deployments never do. When kube_job_status_failed stays positive, when last_schedule_time ages beyond a governed multiple of expected cadence, when starting deadlines are violated, when backoff limits exhaust and events say so, or when concurrencyPolicy=Forbid legitimately or illegitimately skips work, finance and customer teams suffer silent backlog—not another pod restart story. This use case gives platform and application responders one row that names cluster, namespace, workload class, metric truth, event reasons, schedule age, suspend state, lookup owner, tier, and severity without conflating UC-3.2.6 rollout conditions or UC-3.2.10 kubelet backoff loops.
+
+## Implementation
+
+Ingest kube-state-metrics Job and CronJob series into k8s_metrics, ship kube:events for Job and CronJob reasons into k8s, publish critical_cronjobs.csv with cadence and ownership, save uc_3_2_20_kube_job_cronjob_batch_reliability every five minutes with earliest=-6h@m, route critical and high rows per savedsearches.conf, and validate with a failing Job plus a deliberately stalled CronJob in a lab namespace.
+
+## Evidence
+
+Saved search uc_3_2_20_kube_job_cronjob_batch_reliability with five-minute schedule; critical_cronjobs.csv versioned in git; weekly CSV export of the closing table to a restricted evidence index with kube-state-metrics chart version and collector digest.
+
+## Control test
+
+### Positive scenario
+
+In namespace qa-batch-uc3220 create a Job whose container exits non-zero with backoffLimit zero or one so kube_job_status_failed becomes greater than zero in kube-state-metrics and kube:events eventually show JobFailed or BackoffLimitExceeded; execute uc_3_2_20_kube_job_cronjob_batch_reliability and expect a Job row with severity at least high when tier marks production in critical_cronjobs.csv or parallel tier governance.
+
+### Negative scenario
+
+Run a CronJob every minute in the same lab with a thirty-second Job duration, healthy completions, and should_be_running=1; confirm last_schedule_age_min stays well below the stale threshold for thirty minutes and no row appears unless an intentional failure inject is present.
+
+## Detailed Implementation
+
+### Step 1 — Prerequisites
+
+Head of Platform owns this control with Kubernetes platform site reliability engineers, batch data owners, and observability engineers who operate Splunk OpenTelemetry Collector plus kube-state-metrics across production, pre-production, and regulated partitions. This use case isolates the batch reliability plane for Kubernetes Job and CronJob objects: succeed-once semantics, completion deadlines, parallelism and completions, backoff limits, CronJob history retention, startingDeadlineSeconds, lastScheduleTime staleness versus declared cadence, lastSuccessfulTime gaps when you mirror them from custom metrics, concurrencyPolicy effects including Forbid skips, and wrongful suspension when governance still expects runs. UC-3.2.6 remains the Deployment rollout pipeline with Progressing and Available conditions. UC-3.2.10 remains kubelet CrashLoopBackOff waiting_reason analytics for long-lived pods. UC-3.2.14 remains ImagePullBackOff and ErrImagePull supply-chain stalls before containers run. UC-3.2.46 remains Cluster Autoscaler and Karpenter refusal to add nodes while pods stay Pending. None of those siblings answer whether a nightly ETL CronJob silently stopped firing, whether a certificate rotation Job exhausted backoff, or whether a cleanup Job left kube_job_status_failed positive after a controller patch.
+
+Splunk index layout mirrors other category three gold controls: index=k8s_metrics for Prometheus text or normalized scrape events from kube-state-metrics and in-cluster Prometheus, index=k8s for kube:events including Job and CronJob involvedObject narratives, and index=k8s_audit when you must attribute kubectl apply or GitOps merges that suspended a CronJob or changed startingDeadlineSeconds. HEC tokens stay in vaults with quarterly rotation. RBAC for collectors must list watches on Jobs, CronJobs, Pods owned by Jobs, and Events without granting Secret read unless policy demands it.
+
+kube-state-metrics must expose kube_job_status_failed and kube_job_status_succeeded gauges labeled with namespace and job_name, kube_cronjob_status_last_schedule_time as a seconds-since-epoch timestamp, kube_cronjob_status_active for concurrent child Jobs, kube_cronjob_info for stable identity labels, kube_cronjob_spec_starting_deadline_seconds for the budget the controller gives a late start, kube_cronjob_spec_suspend for freeze signals, and optionally concurrency policy labels on info series depending on chart version. Confirm your chart semver against upstream job-metrics and cronjob-metrics documentation because label names occasionally shift. Scrapes every fifteen to thirty seconds are typical; shorter intervals improve schedule skew fidelity at license cost.
+
+Governance lookup critical_cronjobs.csv must carry cluster, namespace, cronjob_name, expected_cadence_minutes, owner_team, tier or workload_tier, should_be_running as one or zero, and expected_concurrency_policy when you want drift detection against live metrics. Refresh the CSV when new CronJobs onboard, when finance close freezes suspend automation, or when SLO contracts change. Optional columns such as pager_suppress, change_window_id, and notes help auditors replay why a suspend bit was expected.
+
+CIM mapping uses Application_State because batch workloads are first-class application objects whose completion and schedule health describe service reliability, not merely CPU curves. Performance joins in cimSpl provide a correlation anchor when batch failures coincide with node saturation during parallel Job waves. Change-oriented narratives still belong in audit or GitOps timelines; this UC keeps kube controller metrics and events primary.
+
+Risk briefing for executives: a silent CronJob miss looks like a flat dashboard until invoices are wrong or snapshots pile up. A stuck Job with positive kube_job_status_failed means downstream consumers may read partial transforms. Starting deadline breaches mean the control plane intentionally skipped risky late starts, which is correct behavior that still requires human confirmation when finance expected a run.
+
+Licensing note: high-cardinality job_name labels from Helm release hashes can explode series counts; use recording rules or allow-list labels only after FinOps review. Privacy note: event messages can echo volume handles; restrict dashboard ACLs.
+
+Training: teach responders to read kube_job_status_failed alongside kube_job_status_succeeded for the same job_name, to compare last_schedule_age_min against expected_cadence_minutes from the lookup rather than guessing from memory, and to treat concurrencyPolicy=Forbid skips as schedule-level semantics rather than pod restarts.
+
+Review cadence: quarterly replay one historical missed CronJob incident after kube-state-metrics upgrades because regex arms drift when exporters rename metrics.
+
+Differentiation recap: batch controllers and schedule skew are the axis; Deployment conditions, CrashLoopBackOff, image pulls, and node scale-out refusals are explicitly out of scope as primary detectors.
+
+Escalation alignment: tier-one rows with critical severity should page both the owner_team column from critical_cronjobs.csv and the platform bridge when kube_cronjob_spec_suspend disagrees with should_be_running.
+
+Telemetry hygiene: deduplicate overlapping Prometheus and OpenTelemetry scrapes without stable dedup keys only after you understand double-counting risk.
+
+FinOps alignment: failed Jobs that retry on expensive GPU nodes still burn budget; pair this UC with chargeback reviews when parallelism raises concurrent failure storms.
+
+Security alignment: suspend bits without change tickets may indicate break-glass abuse; correlate k8s_audit when available.
+
+Hardware scope: Amazon EKS, Google GKE, Microsoft AKS, Azure Red Hat OpenShift on Azure, Red Hat OpenShift, VMware Tanzu, and self-managed clusters where kube-state-metrics RBAC can list Jobs and CronJobs cluster-wide; Arm and x86 worker fleets are in scope when metric text lines remain Prometheus compatible.
+
+OpenShift note: CronJob objects are first-class; map project to namespace consistently in the lookup. GKE Autopilot may enforce stricter CronJob defaults; document provider overrides beside each row.
+
+Splunk Enterprise or Splunk Cloud 9.2 plus is assumed for scheduled searches, drilldowns, and optional accelerated models referenced in cimSpl.
+
+Platform onboarding checklist for new clusters: verify kube-state-metrics version exposes required Job and CronJob families, verify kubernetes events receiver delivers JobFailed and MissedSchedule reasons, verify critical_cronjobs.csv includes every production CronJob that touches money or customer data, verify alert throttles per namespace, verify runbook links for kubectl describe cronjob and kubectl logs job, verify JobSet users have a documented fork if they rely on alternate controllers.
+
+Additional platform depth for large estates: when GitOps controllers reconcile CronJob objects from many repositories, normalize cluster naming in critical_cronjobs.csv to the same strings your prometheus relabel rules emit, including region and environment suffixes, so joins never miss due to casing or hyphenation drift. When teams use Helm release names as CronJob name prefixes, decide whether the lookup keys on the Kubernetes object name only or on the fully qualified cronjob label from kube_cronjob_info; document the decision in the runbook to avoid duplicate governance rows. When finance teams require evidence of continuous control, archive not only alert rows but also the kube-state-metrics chart version and collector image digest in the same weekly export bundle.
+
+Closing prerequisites checklist: indexes named, kube-state-metrics metric families enumerated, critical_cronjobs.csv schema documented, boundaries versus UC-3.2.6, UC-3.2.10, UC-3.2.14, and UC-3.2.46 restated, CIM Application_State plus Performance rationale captured for reviewers who ask why the analytic touches those models.
+
+### Step 2 — Configure data collection
+
+Deploy kube-state-metrics with cluster-scoped RBAC that can list Jobs, CronJobs, Pods, and related owner references. Point Splunk OpenTelemetry Collector prometheus receiver or prometheus_simple scrape jobs at the kube-state-metrics Service on port 8080 or 8443 depending on your chart, preserve namespace, job_name, cronjob, and cluster labels through relabel_config blocks, and export to HEC into index=k8s_metrics with sourcetype prometheus:scrape:metrics. Mirror UC-3.2.14 collector hygiene: bearer_token_file for kubelet scrapes is separate from in-cluster kube-state-metrics HTTP scraping.
+
+Concrete ServiceMonitor style reference:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-state-metrics-batch
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics
+  endpoints:
+    - port: http-metrics
+      interval: 30s
+      path: /metrics
+```
+
+OpenTelemetry Collector fragment showing prometheus scrape plus kubernetes events export:
+
+```yaml
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: kube-state-metrics
+          kubernetes_sd_configs:
+            - role: endpoints
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_service_name]
+              action: keep
+              regex: kube-state-metrics
+  k8s_events:
+    auth_type: serviceAccount
+    namespaces: []
+exporters:
+  splunk_hec/metrics:
+    token: ${SPLUNK_HEC_TOKEN}
+    endpoint: https://splunk.example.com:8088/services/collector
+    index: k8s_metrics
+    sourcetype: prometheus:scrape:metrics
+  splunk_hec/events:
+    token: ${SPLUNK_HEC_TOKEN}
+    endpoint: https://splunk.example.com:8088/services/collector
+    index: k8s
+    sourcetype: kube:events
+service:
+  pipelines:
+    metrics:
+      receivers: [prometheus]
+      exporters: [splunk_hec/metrics]
+    logs/events:
+      receivers: [k8s_events]
+      exporters: [splunk_hec/events]
+```
+
+critical_cronjobs.csv sample schema:
+
+```csv
+cluster,namespace,cronjob_name,expected_cadence_minutes,owner_team,tier,should_be_running,expected_concurrency_policy
+prod-eks-us-east-1,finance-etl,nightly-rollup,1440,finance-data,prod,1,forbid
+prod-eks-us-east-1,platform-security,cert-rotate-hourly,60,platform-security,prod,1,forbid
+lab-gke-west,qa-batch,smoke-cron,15,qa,dev,1,allow
+```
+
+Validate raw signal presence before alerts: index=k8s_metrics kube_job_status_failed earliest=-30m, index=k8s_metrics kube_cronjob_status_last_schedule_time earliest=-30m, index=k8s sourcetype=kube:events MissedSchedule earliest=-24h. Skew between scrapes and API events must stay under sixty seconds for meaningful joins.
+
+props.conf guidance: normalize __name__, value, namespace, job_name, and cronjob fields onto indexed extractions where volume warrants; keep coalesce ladders in SPL until extractions stabilize.
+
+Security: redact internal volume handles from collector debug logs. Restrict k8s_audit to roles that need attribution.
+
+Cloud control planes: on EKS verify security groups still allow node to cluster IP reachability for metrics after landing-zone changes; on GKE verify managed Prometheus if you offloaded scrapes; on AKS verify managed Grafana agent label mapping still populates cronjob.
+
+Frequency: scrape interval, alert interval, and expected_cadence_minutes must align mathematically; a fifteen-minute cadence with five-minute scrapes and a five-minute alert schedule is the minimum sane pairing for tier-one batch SLO reviews.
+
+Back-pressure: if kube-apiserver event watch disconnects, collector buffers should not grow unbounded; set retry and drop policies per vendor guidance.
+
+Version pinning: record kube-state-metrics chart version in evidence packs quarterly.
+
+Integration with kubectl: operators should still run kubectl describe cronjob for instantaneous truth; Splunk carries history and correlation that kubectl alone lacks across clusters.
+
+Dashboard seeds: single value of fleet_job_failed_peak from a clone search, timechart of last_schedule_age_min for governed CronJobs, and table of this UC output for executive summaries.
+
+Summary index optional: materialize five-minute snapshots of kube_job_status_failed and last_schedule_epoch into k8s_batch_summary when raw k8s_metrics scan costs dominate.
+
+Extended validation note for multi-team platforms: before promoting alerts, run a one-hour soak where you compare kube_cronjob_status_last_schedule_time against kubectl get cronjob JSON lastScheduleTime for three representative namespaces; mismatches usually mean label extraction drift or dual scrape duplication, not true missed schedules.
+
+Closing data collection checklist: ServiceMonitor or scrape job live, events pipeline live, CSV published, validation searches green, collector TLS verified, deduplication story documented when dual agents scrape the same targets.
+
+### Step 3 — Create the search and alert
+
+Save the SPL as uc_3_2_20_kube_job_cronjob_batch_reliability with five-minute schedule, dispatch earliest=-6h@m, dispatch latest=now, and throttle duplicate cluster, namespace, and workload_name rows for thirty minutes unless severity escalates from high to critical. Attach drilldown searches to kube:events for the same involvedObject and to companion UCs only after you confirm the failure mode is not a Deployment, pull, or node scale-out story.
+
+Understanding the pipeline: the opening comment macro lists tunables so on-call engineers retune without opening this document. The tstats join against Performance provides a correlation tick required by the CIM overlay narrative and keeps the search honest in estates that disable unused datamodel limbs—the join is intentionally left as a type=left stub you can expand. multisearch fans two metric arms so a silent Job arm does not hide an entire CronJob outage and vice versa. Each arm ends with stats latest by cluster, namespace, and workload identity so rows collapse before outer coalesce ladders run. coalesce normalizes null metrics to zero only after distinct workload_kind logic prevents accidental cross-contamination between Jobs and CronJobs.
+
+The critical_cronjobs inputlookup join adds expected_cadence_minutes, owner_team, tier, should_be_running, and expected_concurrency_policy for governance-aware severity. The kube:events join fuses JobFailed, BackoffLimitExceeded, MissingJob, and MissedSchedule reasons plus message fallbacks when controllers emit variant text. stale_schedule_multiplier defaults to 2.2 so a nightly job may absorb one missed window plus scrape jitter before paging. eventstats max(job_failed_signal) by cluster surfaces fleet peaks for executive dashboards. streamstats compares successive last_schedule_age_min samples per workload to expose sudden skew jumps during daylight-saving transitions or clock repairs.
+
+case implements severity: production tier escalates failed Jobs and stale CronSchedules to critical, wrongful suspends to critical in tier-one namespaces, event-heavy narratives to high or medium, and concurrency drift to medium for governance visibility. The closing table lists fourteen analyst columns: cluster, namespace, workload_kind, workload_name, kube_job_status_failed, kube_job_status_succeeded, last_schedule_age_min, kube_cronjob_status_active, kube_cronjob_spec_starting_deadline_seconds, kube_cronjob_spec_suspend, event_signals, severity, owner_team, expected_cadence_minutes, fleet_job_failed_peak, signal_summary.
+
+cimSpl in the JSON field mirrors Application_State and Performance tstats usage for environments that map Kubernetes nodes into Performance.host; adapt nodename filters to your Common Information Model implementation.
+
+Paste-and-run SPL for alerts and dashboards must match the spl JSON field exactly:
+
+```spl
+`comment("UC-3.2.20 Kubernetes Job and CronJob batch workload reliability. Tunables: indexes k8s_metrics k8s; sourcetypes prometheus:scrape:metrics kube:objects:metrics kube:events; lookup critical_cronjobs.csv; stale_schedule_multiplier=2.2; earliest=-6h@m latest=now")`
+| eval join_key="uc3220"
+| join type=left join_key [
+| tstats count AS perf_correlation_tick FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-6h@h latest=now
+| eval join_key="uc3220"
+]
+| fields - join_key perf_correlation_tick
+| eval stale_schedule_multiplier=2.2
+| multisearch [
+    [ search ((index=k8s_metrics OR index=k8s) (sourcetype="prometheus:scrape:metrics" OR sourcetype="kube:objects:metrics")) earliest=-6h@m latest=now
+      | eval cluster=trim(toString(coalesce(cluster, cluster_name, k8s_cluster_name, eks_cluster_name, gke_cluster_name, aks_cluster_name, "")))
+      | eval mn=lower(trim(toString(coalesce(metric_name, __name__, name, MetricName, ""))))
+      | rex field=_raw "namespace=\\\"(?<namespace>[^\\\"]+)\\\""
+      | rex field=_raw "job_name=\\\"(?<job_name>[^\\\"]+)\\\""
+      | where like(mn, "%kube_job_status_failed%") OR like(mn, "%kube_job_status_succeeded%") OR like(_raw, "kube_job_status_failed") OR like(_raw, "kube_job_status_succeeded")
+      | rex field=_raw "\\s(?<mval>[0-9.eE+-]+)\\s*$"
+      | eval mv=tonumber(mval, 10)
+      | eval kube_job_status_failed=if(like(mn, "%kube_job_status_failed%"), mv, null())
+      | eval kube_job_status_succeeded=if(like(mn, "%kube_job_status_succeeded%"), mv, null())
+      | stats latest(_time) AS metric_time latest(kube_job_status_failed) AS kube_job_status_failed latest(kube_job_status_succeeded) AS kube_job_status_succeeded BY cluster namespace job_name
+      | eval workload_kind="Job"
+      | rename job_name AS workload_name ]
+    [ search ((index=k8s_metrics OR index=k8s) (sourcetype="prometheus:scrape:metrics" OR sourcetype="kube:objects:metrics")) earliest=-6h@m latest=now
+      | eval cluster=trim(toString(coalesce(cluster, cluster_name, k8s_cluster_name, eks_cluster_name, gke_cluster_name, aks_cluster_name, "")))
+      | eval mn=lower(trim(toString(coalesce(metric_name, __name__, name, MetricName, ""))))
+      | rex field=_raw "namespace=\\\"(?<namespace>[^\\\"]+)\\\""
+      | rex field=_raw "cronjob=\\\"(?<cronjob>[^\\\"]+)\\\""
+      | rex field=_raw "concurrency_policy=\\\"(?<concurrency_policy>[^\\\"]+)\\\""
+      | where like(mn, "%kube_cronjob_status_last_schedule_time%") OR like(mn, "%kube_cronjob_status_active%") OR like(mn, "%kube_cronjob_spec_starting_deadline_seconds%") OR like(mn, "%kube_cronjob_spec_suspend%") OR like(mn, "%kube_cronjob_info%")
+      | rex field=_raw "\\s(?<mval>[0-9.eE+-]+)\\s*$"
+      | eval mv=tonumber(mval, 10)
+      | eval last_schedule_epoch=if(like(mn, "%kube_cronjob_status_last_schedule_time%"), mv, null())
+      | eval kube_cronjob_status_active=if(like(mn, "%kube_cronjob_status_active%"), mv, null())
+      | eval kube_cronjob_spec_starting_deadline_seconds=if(like(mn, "%kube_cronjob_spec_starting_deadline_seconds%"), mv, null())
+      | eval kube_cronjob_spec_suspend=if(like(mn, "%kube_cronjob_spec_suspend%"), mv, null())
+      | eval kube_cronjob_info=if(like(mn, "%kube_cronjob_info%"), mv, null())
+      | stats latest(_time) AS metric_time latest(last_schedule_epoch) AS last_schedule_epoch latest(kube_cronjob_status_active) AS kube_cronjob_status_active latest(kube_cronjob_spec_starting_deadline_seconds) AS kube_cronjob_spec_starting_deadline_seconds latest(kube_cronjob_spec_suspend) AS kube_cronjob_spec_suspend latest(kube_cronjob_info) AS kube_cronjob_info latest(concurrency_policy) AS concurrency_policy BY cluster namespace cronjob
+      | eval workload_kind="CronJob"
+      | rename cronjob AS workload_name ]
+| eval cluster=coalesce(nullif(trim(cluster), ""), "unknown-cluster")
+| eval namespace=coalesce(nullif(trim(namespace), ""), "unknown-namespace")
+| eval workload_name=coalesce(nullif(trim(workload_name), ""), "unknown-workload")
+| eval workload_kind=coalesce(workload_kind, "Unknown")
+| eval kube_job_status_failed=coalesce(kube_job_status_failed, 0)
+| eval kube_job_status_succeeded=coalesce(kube_job_status_succeeded, 0)
+| eval last_schedule_epoch=coalesce(last_schedule_epoch, 0)
+| eval kube_cronjob_status_active=coalesce(kube_cronjob_status_active, 0)
+| eval kube_cronjob_spec_starting_deadline_seconds=coalesce(kube_cronjob_spec_starting_deadline_seconds, 0)
+| eval kube_cronjob_spec_suspend=coalesce(kube_cronjob_spec_suspend, 0)
+| eval kube_cronjob_info=coalesce(kube_cronjob_info, 0)
+| eval now_wall=now()
+| eval last_schedule_age_min=if(workload_kind="CronJob" AND last_schedule_epoch>1, round((now_wall-last_schedule_epoch)/60, 3), null())
+| join type=left max=0 cluster namespace workload_name [
+    | inputlookup critical_cronjobs.csv
+    | eval cluster=trim(toString(coalesce(cluster, k8s_cluster, "")))
+    | eval namespace=trim(toString(namespace))
+    | eval workload_name=trim(toString(coalesce(cronjob_name, cronjob, name, "")))
+    | eval expected_cadence_minutes=tonumber(trim(toString(coalesce(expected_cadence_minutes, schedule_minutes, cadence_min, "1440"))), 10)
+    | eval owner_team=trim(toString(coalesce(owner_team, squad, pagerduty_service, "")))
+    | eval tier=lower(trim(toString(coalesce(tier, workload_tier, env_tier, "dev"))))
+    | eval should_be_running=tonumber(trim(toString(coalesce(should_be_running, active_expected, "1"))), 10)
+    | eval expected_concurrency_policy=lower(trim(toString(coalesce(expected_concurrency_policy, concurrency_expect, ""))))
+    | fields cluster namespace workload_name expected_cadence_minutes owner_team tier should_be_running expected_concurrency_policy ]
+| fillnull value=1440 expected_cadence_minutes
+| fillnull value=1 should_be_running
+| fillnull value="unassigned" owner_team
+| fillnull value="dev" tier
+| join type=left max=0 cluster namespace workload_name [
+    search index=k8s sourcetype="kube:events" earliest=-6h@m latest=now
+      | eval cluster=trim(toString(coalesce(cluster, cluster_name, k8s_cluster_name, "")))
+      | eval k=trim(toString(coalesce(involvedObject.kind, `involvedObject.kind`, "")))
+      | eval workload_name=trim(toString(coalesce(involvedObject.name, involvedObject_name, "")))
+      | eval namespace=trim(toString(coalesce(metadata.namespace, namespace, "")))
+      | eval rs=trim(toString(coalesce(reason, Reason, "")))
+      | eval msg=lower(toString(coalesce(message, Message, "")))
+      | where k IN ("Job", "CronJob", "JobSet")
+      | where rs IN ("JobFailed", "BackoffLimitExceeded", "MissingJob", "MissedSchedule") OR match(msg, "backoff limit") OR match(msg, "missed schedule") OR match(msg, "job failed")
+      | stats latest(_time) AS last_event_time values(rs) AS reasons_dc values(message) AS msg_dc BY cluster namespace workload_name
+      | eval event_signals=mvjoin(mvdedup(reasons_dc), " | ")
+      | eval event_signals=if(len(event_signals)<1, mvjoin(mvdedup(msg_dc), " | "), event_signals)
+      | fields cluster namespace workload_name event_signals last_event_time ]
+| eval stale_after_min=expected_cadence_minutes*stale_schedule_multiplier
+| eval schedule_stale=if(workload_kind="CronJob" AND should_be_running=1 AND isnotnull(last_schedule_age_min) AND last_schedule_age_min>stale_after_min, 1, 0)
+| eval job_failed_signal=if(workload_kind="Job" AND kube_job_status_failed>0, 1, 0)
+| eval bad_suspend=if(workload_kind="CronJob" AND kube_cronjob_spec_suspend=1 AND should_be_running=1, 1, 0)
+| eval concurrency_drift=if(workload_kind="CronJob" AND len(expected_concurrency_policy)>0 AND len(concurrency_policy)>0 AND expected_concurrency_policy!=lower(concurrency_policy), 1, 0)
+| eval event_hot=if(match(event_signals, "JobFailed|BackoffLimitExceeded|MissedSchedule|MissingJob"), 1, 0)
+| eventstats max(job_failed_signal) AS fleet_job_failed_peak BY cluster
+| sort 0 cluster namespace workload_name metric_time
+| streamstats current=f last(last_schedule_age_min) AS prev_schedule_age BY cluster namespace workload_name
+| eval schedule_jump_min=if(isnotnull(last_schedule_age_min) AND isnotnull(prev_schedule_age), round(abs(last_schedule_age_min-prev_schedule_age), 3), null())
+| eval severity=case(
+    job_failed_signal=1 AND (tier="prod" OR tier="production" OR tier="gold"), "critical",
+    job_failed_signal=1, "high",
+    schedule_stale=1 AND (tier="prod" OR tier="production" OR tier="gold"), "critical",
+    schedule_stale=1, "high",
+    bad_suspend=1 AND (tier="prod" OR tier="production" OR tier="gold"), "critical",
+    bad_suspend=1, "high",
+    event_hot=1 AND (tier="prod" OR tier="production" OR tier="gold"), "high",
+    event_hot=1, "medium",
+    concurrency_drift=1, "medium",
+    true(), "low")
+| where job_failed_signal=1 OR schedule_stale=1 OR bad_suspend=1 OR event_hot=1 OR concurrency_drift=1 OR match(severity, "critical|high")
+| eval signal_summary=printf("job_failed=%u stale=%u suspend=%u events=%s", job_failed_signal, schedule_stale, bad_suspend, coalesce(event_signals, "none"))
+| table cluster namespace workload_kind workload_name kube_job_status_failed kube_job_status_succeeded last_schedule_age_min kube_cronjob_status_active kube_cronjob_spec_starting_deadline_seconds kube_cronjob_spec_suspend event_signals severity owner_team expected_cadence_minutes fleet_job_failed_peak signal_summary
+```
+
+
+Alert actions should include cluster, namespace, workload_kind, workload_name, severity, owner_team, signal_summary, and event_signals in email or ITSI notable bodies. Provide a drilldown that runs index=k8s sourcetype=kube:events involvedObject.name=$workload_name$ earliest=-6h. Provide a secondary drilldown for kubectl audit when index=k8s_audit is populated.
+
+Performance: if Job Inspector warns on multisearch cost, split fleet dashboards into per-region saved searches or materialize kube_job_status_failed snapshots hourly.
+
+Reliability: during kube-state-metrics upgrades expect brief gaps; require two consecutive intervals of stale schedule before paging scrape outages unless kube:events still show MissedSchedule.
+
+Governance: weekly CSV export of alert rows with lookup commit hash satisfies internal platform evidence when paired with kube-state-metrics version stamps.
+
+savedsearches.conf quantity thresholds should align with row counts from the table command; use alert.track=1 and suppress keys on cluster namespace workload_name.
+
+Closing Step 3 checklist: fenced SPL present, matches spl field, references critical_cronjobs.csv, explains tstats join purpose, documents multisearch arms, clarifies stale schedule math, and names notification fields.
+
+### Step 4 — Validate
+
+Synthetic Job failure: in lab namespace qa-batch-uc3220 create a Job whose container exits non-zero with backoffLimit zero or one, wait for kube_job_status_failed to become greater than zero in index=k8s_metrics, confirm kube:events show JobFailed or BackoffLimitExceeded, execute uc_3_2_20_kube_job_cronjob_batch_reliability, and expect a Job row with severity at least high when governance marks the namespace as production in critical_cronjobs.csv or a parallel tier lookup.
+
+Synthetic CronJob skew: pause cluster clock simulation only in disposable lab environments or extend expected_cadence_minutes artificially low in the lookup for a test row, confirm last_schedule_age_min crosses stale_after_min, and expect schedule_stale to become one with severity at least medium.
+
+Synthetic suspend mismatch: kubectl patch a governed CronJob to spec.suspend true while should_be_running remains one in the CSV, confirm bad_suspend becomes one in the search output, then revert the patch and confirm rows clear.
+
+Negative test: run a healthy minutely CronJob with short Jobs and should_be_running=1; confirm last_schedule_age_min stays below the stale gate for thirty minutes and no qualifying rows appear without intentional injects.
+
+Field sanity: rename a forwarder field to camelCase-only in a sandbox and verify coalesce still resolves namespace labels.
+
+RBAC: readers without k8s_metrics access must see zero rows.
+
+Correlation: compare Splunk timestamps to kubectl describe job and kubectl describe cronjob for the same minute.
+
+Validation SPL for raw metrics presence:
+
+| multisearch [
+    [ search index=k8s_metrics earliest=-30m latest=now kube_job_status_failed | stats count ]
+    [ search index=k8s_metrics earliest=-30m latest=now kube_cronjob_status_last_schedule_time | stats count ]
+  ]
+| stats sum(count) AS samples
+
+Tear-down: delete lab Jobs and CronJobs, revert patches, and confirm saved search result counts return to zero.
+
+Audit drill: index=k8s_audit sourcetype=kube:audit objectRef.resource=cronjobs OR objectRef.resource=jobs verb=patch OR verb=update earliest=-2h to recover actors for suspend or deadline changes.
+
+Clock skew: verify NTP alignment between nodes, kube-apiserver, and Splunk indexers; skew beyond ninety seconds invalidates last_schedule_age_min comparisons.
+
+Documentation: attach kubectl describe excerpts to the evidence ticket without exposing Secret material.
+
+Closing Step 4 checklist: positive Job failure scenario, positive CronJob skew scenario, negative healthy cron scenario, metrics presence multisearch, audit correlation note, tear-down verified, clock skew warning documented.
+
+### Step 5 — Operationalize & Troubleshoot
+
+Case 1 — kube_job_status_failed positive with JobFailed events
+Treat as a hard batch failure; inspect Job pods with kubectl logs, confirm backoffLimit and pod failure policy, fix application exit codes or resource limits, then delete failed Job pods if the controller is stuck finalizing.
+
+Case 2 — BackoffLimitExceeded without sustained customer impact in dev
+Downgrade using tier from critical_cronjobs.csv or parallel governance; require owner acknowledgement before muting production namespaces.
+
+Case 3 — MissedSchedule on a CronJob with Forbid concurrency
+Verify kube_cronjob_status_active; if a child Job still runs, the skip may be legitimate; if active is zero and skew persists, inspect controller manager health and CronJob spec time zone.
+
+Case 4 — startingDeadlineSeconds causing intentional skip storms
+Compare kube_cronjob_spec_starting_deadline_seconds against observed schedule skew; adjust deadlines only after platform architecture review, not only to silence alerts.
+
+Case 5 — Wrongful suspend during undeclared freeze
+Correlate GitOps commits and k8s_audit subjects; restore spec.suspend false under change control, document should_be_running expectations in the lookup.
+
+Case 6 — kube_job_status_succeeded never increments for a Job that should finish
+Pair with Pod phase metrics or kubectl get pods to catch ImagePullBackOff or Pending scheduling; pivot to UC-3.2.14 or UC-3.2.46 when those axes explain the stall.
+
+Case 7 — Manual Job recreates with new names each run
+Extend critical_cronjobs.csv with job_name_prefix governance or shift monitoring to ownerReferences from kube_job_owner metrics in a future enhancement macro.
+
+Case 8 — Duplicate prometheus scrapes double metrics
+Dedup at ingest or divide by two only after proving duplication; prefer honor_labels discipline instead of arithmetic hacks.
+
+Case 9 — Finance close windows
+Set should_be_running=0 for governed rows and publish the change ticket id in weekly evidence exports.
+
+Case 10 — Parallelism greater than one causing partial successes
+Read Kubernetes Job completions semantics; kube_job_status_succeeded may lag until all completions succeed; tune alert dwell using streamstats schedule_jump_min.
+
+Case 11 — CronJob history limits hiding old failures
+History limits are UX-only for kubectl; metrics still reflect last schedule; if confusion persists, mirror lastSuccessfulTime via a custom exporter for executive dashboards.
+
+Case 12 — Multi-cluster name collisions in CSV
+Enforce fully qualified cluster cells in critical_cronjobs.csv and reject rows without region suffixes during CI validation of the lookup.
+
+Dashboard hygiene: keep a panel for kube_cronjob_status_active by namespace and overlay UC-3.2.46 pending backlog only when batch pods cannot schedule.
+
+Evidence retention: archive weekly CSV exports with kube-state-metrics chart version, collector digest, and Splunk search head cluster name.
+
+Training replay: twice-yearly game day that combines Job failure plus CronJob skew to prove operators open this UC before reopening UC-3.2.6 tickets.
+
+Cloud nuances: Fargate-style compute without DaemonSet assumptions still exposes kube-state-metrics the same way; verify scrape paths when cloud networking policies change.
+
+Governance: when legal requests preservation, include hashed CronJob manifests rather than raw Secret-laden YAML in tickets.
+
+Performance note: if inputlookup critical_cronjobs.csv grows beyond ten thousand rows, migrate to KV Store with automatic filter on cluster before join.
+
+Fleet operations note: publish a clone saved search that inserts severity IN ("critical","high") before the table command for paging while keeping the fleet dashboard unfiltered.
+
+Executive storytelling note: translate signal_summary into customer impact language; executives rarely parse Prometheus label semantics on first read.
+
+Operator wellbeing note: pair this alert with shift handoff templates so secondary responders inherit schedule skew deltas without re-running full SPL manually.
+
+Closing Step 5 checklist: twelve cases present with exact Case N — formatting, cross-links to related UCs by number where troubleshooting pivots, dashboard and evidence notes for long-term operations, and explicit reminder that Deployment rollouts and CrashLoopBackOff are out of scope as primary explanations.
+
+
+## SPL
+
+```spl
+`comment("UC-3.2.20 Kubernetes Job and CronJob batch workload reliability. Tunables: indexes k8s_metrics k8s; sourcetypes prometheus:scrape:metrics kube:objects:metrics kube:events; lookup critical_cronjobs.csv; stale_schedule_multiplier=2.2; earliest=-6h@m latest=now")`
+| eval join_key="uc3220"
+| join type=left join_key [
+| tstats count AS perf_correlation_tick FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-6h@h latest=now
+| eval join_key="uc3220"
+]
+| fields - join_key perf_correlation_tick
+| eval stale_schedule_multiplier=2.2
+| multisearch [
+    [ search ((index=k8s_metrics OR index=k8s) (sourcetype="prometheus:scrape:metrics" OR sourcetype="kube:objects:metrics")) earliest=-6h@m latest=now
+      | eval cluster=trim(toString(coalesce(cluster, cluster_name, k8s_cluster_name, eks_cluster_name, gke_cluster_name, aks_cluster_name, "")))
+      | eval mn=lower(trim(toString(coalesce(metric_name, __name__, name, MetricName, ""))))
+      | rex field=_raw "namespace=\\\"(?<namespace>[^\\\"]+)\\\""
+      | rex field=_raw "job_name=\\\"(?<job_name>[^\\\"]+)\\\""
+      | where like(mn, "%kube_job_status_failed%") OR like(mn, "%kube_job_status_succeeded%") OR like(_raw, "kube_job_status_failed") OR like(_raw, "kube_job_status_succeeded")
+      | rex field=_raw "\\s(?<mval>[0-9.eE+-]+)\\s*$"
+      | eval mv=tonumber(mval, 10)
+      | eval kube_job_status_failed=if(like(mn, "%kube_job_status_failed%"), mv, null())
+      | eval kube_job_status_succeeded=if(like(mn, "%kube_job_status_succeeded%"), mv, null())
+      | stats latest(_time) AS metric_time latest(kube_job_status_failed) AS kube_job_status_failed latest(kube_job_status_succeeded) AS kube_job_status_succeeded BY cluster namespace job_name
+      | eval workload_kind="Job"
+      | rename job_name AS workload_name ]
+    [ search ((index=k8s_metrics OR index=k8s) (sourcetype="prometheus:scrape:metrics" OR sourcetype="kube:objects:metrics")) earliest=-6h@m latest=now
+      | eval cluster=trim(toString(coalesce(cluster, cluster_name, k8s_cluster_name, eks_cluster_name, gke_cluster_name, aks_cluster_name, "")))
+      | eval mn=lower(trim(toString(coalesce(metric_name, __name__, name, MetricName, ""))))
+      | rex field=_raw "namespace=\\\"(?<namespace>[^\\\"]+)\\\""
+      | rex field=_raw "cronjob=\\\"(?<cronjob>[^\\\"]+)\\\""
+      | rex field=_raw "concurrency_policy=\\\"(?<concurrency_policy>[^\\\"]+)\\\""
+      | where like(mn, "%kube_cronjob_status_last_schedule_time%") OR like(mn, "%kube_cronjob_status_active%") OR like(mn, "%kube_cronjob_spec_starting_deadline_seconds%") OR like(mn, "%kube_cronjob_spec_suspend%") OR like(mn, "%kube_cronjob_info%")
+      | rex field=_raw "\\s(?<mval>[0-9.eE+-]+)\\s*$"
+      | eval mv=tonumber(mval, 10)
+      | eval last_schedule_epoch=if(like(mn, "%kube_cronjob_status_last_schedule_time%"), mv, null())
+      | eval kube_cronjob_status_active=if(like(mn, "%kube_cronjob_status_active%"), mv, null())
+      | eval kube_cronjob_spec_starting_deadline_seconds=if(like(mn, "%kube_cronjob_spec_starting_deadline_seconds%"), mv, null())
+      | eval kube_cronjob_spec_suspend=if(like(mn, "%kube_cronjob_spec_suspend%"), mv, null())
+      | eval kube_cronjob_info=if(like(mn, "%kube_cronjob_info%"), mv, null())
+      | stats latest(_time) AS metric_time latest(last_schedule_epoch) AS last_schedule_epoch latest(kube_cronjob_status_active) AS kube_cronjob_status_active latest(kube_cronjob_spec_starting_deadline_seconds) AS kube_cronjob_spec_starting_deadline_seconds latest(kube_cronjob_spec_suspend) AS kube_cronjob_spec_suspend latest(kube_cronjob_info) AS kube_cronjob_info latest(concurrency_policy) AS concurrency_policy BY cluster namespace cronjob
+      | eval workload_kind="CronJob"
+      | rename cronjob AS workload_name ]
+| eval cluster=coalesce(nullif(trim(cluster), ""), "unknown-cluster")
+| eval namespace=coalesce(nullif(trim(namespace), ""), "unknown-namespace")
+| eval workload_name=coalesce(nullif(trim(workload_name), ""), "unknown-workload")
+| eval workload_kind=coalesce(workload_kind, "Unknown")
+| eval kube_job_status_failed=coalesce(kube_job_status_failed, 0)
+| eval kube_job_status_succeeded=coalesce(kube_job_status_succeeded, 0)
+| eval last_schedule_epoch=coalesce(last_schedule_epoch, 0)
+| eval kube_cronjob_status_active=coalesce(kube_cronjob_status_active, 0)
+| eval kube_cronjob_spec_starting_deadline_seconds=coalesce(kube_cronjob_spec_starting_deadline_seconds, 0)
+| eval kube_cronjob_spec_suspend=coalesce(kube_cronjob_spec_suspend, 0)
+| eval kube_cronjob_info=coalesce(kube_cronjob_info, 0)
+| eval now_wall=now()
+| eval last_schedule_age_min=if(workload_kind="CronJob" AND last_schedule_epoch>1, round((now_wall-last_schedule_epoch)/60, 3), null())
+| join type=left max=0 cluster namespace workload_name [
+    | inputlookup critical_cronjobs.csv
+    | eval cluster=trim(toString(coalesce(cluster, k8s_cluster, "")))
+    | eval namespace=trim(toString(namespace))
+    | eval workload_name=trim(toString(coalesce(cronjob_name, cronjob, name, "")))
+    | eval expected_cadence_minutes=tonumber(trim(toString(coalesce(expected_cadence_minutes, schedule_minutes, cadence_min, "1440"))), 10)
+    | eval owner_team=trim(toString(coalesce(owner_team, squad, pagerduty_service, "")))
+    | eval tier=lower(trim(toString(coalesce(tier, workload_tier, env_tier, "dev"))))
+    | eval should_be_running=tonumber(trim(toString(coalesce(should_be_running, active_expected, "1"))), 10)
+    | eval expected_concurrency_policy=lower(trim(toString(coalesce(expected_concurrency_policy, concurrency_expect, ""))))
+    | fields cluster namespace workload_name expected_cadence_minutes owner_team tier should_be_running expected_concurrency_policy ]
+| fillnull value=1440 expected_cadence_minutes
+| fillnull value=1 should_be_running
+| fillnull value="unassigned" owner_team
+| fillnull value="dev" tier
+| join type=left max=0 cluster namespace workload_name [
+    search index=k8s sourcetype="kube:events" earliest=-6h@m latest=now
+      | eval cluster=trim(toString(coalesce(cluster, cluster_name, k8s_cluster_name, "")))
+      | eval k=trim(toString(coalesce(involvedObject.kind, `involvedObject.kind`, "")))
+      | eval workload_name=trim(toString(coalesce(involvedObject.name, involvedObject_name, "")))
+      | eval namespace=trim(toString(coalesce(metadata.namespace, namespace, "")))
+      | eval rs=trim(toString(coalesce(reason, Reason, "")))
+      | eval msg=lower(toString(coalesce(message, Message, "")))
+      | where k IN ("Job", "CronJob", "JobSet")
+      | where rs IN ("JobFailed", "BackoffLimitExceeded", "MissingJob", "MissedSchedule") OR match(msg, "backoff limit") OR match(msg, "missed schedule") OR match(msg, "job failed")
+      | stats latest(_time) AS last_event_time values(rs) AS reasons_dc values(message) AS msg_dc BY cluster namespace workload_name
+      | eval event_signals=mvjoin(mvdedup(reasons_dc), " | ")
+      | eval event_signals=if(len(event_signals)<1, mvjoin(mvdedup(msg_dc), " | "), event_signals)
+      | fields cluster namespace workload_name event_signals last_event_time ]
+| eval stale_after_min=expected_cadence_minutes*stale_schedule_multiplier
+| eval schedule_stale=if(workload_kind="CronJob" AND should_be_running=1 AND isnotnull(last_schedule_age_min) AND last_schedule_age_min>stale_after_min, 1, 0)
+| eval job_failed_signal=if(workload_kind="Job" AND kube_job_status_failed>0, 1, 0)
+| eval bad_suspend=if(workload_kind="CronJob" AND kube_cronjob_spec_suspend=1 AND should_be_running=1, 1, 0)
+| eval concurrency_drift=if(workload_kind="CronJob" AND len(expected_concurrency_policy)>0 AND len(concurrency_policy)>0 AND expected_concurrency_policy!=lower(concurrency_policy), 1, 0)
+| eval event_hot=if(match(event_signals, "JobFailed|BackoffLimitExceeded|MissedSchedule|MissingJob"), 1, 0)
+| eventstats max(job_failed_signal) AS fleet_job_failed_peak BY cluster
+| sort 0 cluster namespace workload_name metric_time
+| streamstats current=f last(last_schedule_age_min) AS prev_schedule_age BY cluster namespace workload_name
+| eval schedule_jump_min=if(isnotnull(last_schedule_age_min) AND isnotnull(prev_schedule_age), round(abs(last_schedule_age_min-prev_schedule_age), 3), null())
+| eval severity=case(
+    job_failed_signal=1 AND (tier="prod" OR tier="production" OR tier="gold"), "critical",
+    job_failed_signal=1, "high",
+    schedule_stale=1 AND (tier="prod" OR tier="production" OR tier="gold"), "critical",
+    schedule_stale=1, "high",
+    bad_suspend=1 AND (tier="prod" OR tier="production" OR tier="gold"), "critical",
+    bad_suspend=1, "high",
+    event_hot=1 AND (tier="prod" OR tier="production" OR tier="gold"), "high",
+    event_hot=1, "medium",
+    concurrency_drift=1, "medium",
+    true(), "low")
+| where job_failed_signal=1 OR schedule_stale=1 OR bad_suspend=1 OR event_hot=1 OR concurrency_drift=1 OR match(severity, "critical|high")
+| eval signal_summary=printf("job_failed=%u stale=%u suspend=%u events=%s", job_failed_signal, schedule_stale, bad_suspend, coalesce(event_signals, "none"))
+| table cluster namespace workload_kind workload_name kube_job_status_failed kube_job_status_succeeded last_schedule_age_min kube_cronjob_status_active kube_cronjob_spec_starting_deadline_seconds kube_cronjob_spec_suspend event_signals severity owner_team expected_cadence_minutes fleet_job_failed_peak signal_summary
+```
+
+## CIM SPL
+
+```spl
+| tstats summariesonly=true latest(Application_State.state) AS app_state count AS state_rows FROM datamodel=Application_State WHERE nodename=Application_State earliest=-6h@h latest=@h BY Application_State.dest Application_State.app
+| rename Application_State.dest AS correl_host Application_State.app AS correl_app
+| join type=left max=0 correl_host [
+| tstats summariesonly=true avg(Performance.cpu_load_percent) AS avg_cpu latest(Performance.mem_used_percent) AS mem_used FROM datamodel=Performance WHERE nodename=Performance.CPU OR nodename=Performance.Memory earliest=-6h@h latest=@h BY Performance.host
+| rename Performance.host AS correl_host ]
+| where len(correl_host)>0
+| table correl_host correl_app app_state avg_cpu mem_used state_rows
+```
+
+## Visualization
+
+Primary table mirroring the closing SPL projection; timechart of last_schedule_age_min for governed CronJobs; single value of fleet_job_failed_peak by cluster; histogram of severity; drilldown from event_signals to raw kube:events and Job controller logs.
+
+## Known False Positives
+
+Deliberately suspended CronJobs during approved winter holiday freezes or finance close windows should be annotated with should_be_running=0 in critical_cronjobs.csv so suspend bits do not page. One-shot data-migration Jobs that intentionally exit non-zero once and leave kube_job_status_failed elevated until TTL cleanup may look alarming; mark those namespaces with migration_job=1 in the lookup or exclude their job_name prefixes. Jobs that implement retry-then-quit semantics with low backoffLimit can emit BackoffLimitExceeded during normal boundary testing; require sustained kube_job_status_failed with no succeeded counter movement across two alert intervals before paging production. Developer lab clusters run ad-hoc Jobs that fail constantly; keep tier=dev in the lookup and route only informational digests. CronJobs with concurrencyPolicy=Forbid legitimately skip overlapping windows when the previous Job still runs; pair alerts with kube_cronjob_status_active and last_schedule_age so benign skips during long ETL do not look like missed cadence. Manual batch backfills executed under a different namespace or disposable Job name will not match critical_cronjobs expectations; document alternate workload_name rows or suppress known backfill prefixes. Expired snapshot pruning Jobs that are intentionally not re-run after a storage freeze should set should_be_running=0 until operations re-enables them. Brief kube-state-metrics scrape gaps after upgrades can make last_schedule_time look stale for a single interval; demand two consecutive evaluations or corroborating MissedSchedule events before executive escalation. GitOps controllers that temporarily suspend CronJobs during cluster migration may flip kube_cronjob_spec_suspend without incident; align suspension windows to change tickets. Forbid policy skips that coincide with legitimate maintenance where CronJobs were paused cluster-wide should inherit a global suppression macro keyed off maintenance annotations mirrored into Splunk.
+
+## References
+
+- [Kubernetes — Jobs](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
+- [Kubernetes — CronJob](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/)
+- [Kubernetes — Job pod failure policy and backoffLimit](https://kubernetes.io/docs/concepts/workloads/controllers/job/#pod-failure-policy)
+- [kube-state-metrics — Job metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/job-metrics.md)
+- [kube-state-metrics — CronJob metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/cronjob-metrics.md)
+- [Google Cloud — Run Jobs on GKE](https://cloud.google.com/kubernetes-engine/docs/how-to/jobs)
+- [Amazon EKS — Batch and job workloads](https://docs.aws.amazon.com/eks/latest/userguide/batch-jobs.html)
+- [Microsoft Learn — Run CronJobs on Azure Kubernetes Service](https://learn.microsoft.com/en-us/azure/aks/cronjobs)
+- [Red Hat Documentation — Jobs and CronJobs (OpenShift / ARO)](https://docs.openshift.com/container-platform/4.15/nodes/jobs/nodes-nodes-jobs.html)

@@ -10,6 +10,12 @@ splunkPillar: "Observability"
 
 # UC-3.5.2 · Sidecar Proxy Health
 
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Fault, Availability, Performance &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*Every small program in our system has a helper that manages its network traffic — we monitor whether each helper is alive and working, so a broken one does not silently disrupt the whole system.*
+
+---
+
 ## Description
 
 Monitors **Envoy** sidecar proxy health across every pod in the **Istio** mesh by tracking `envoy_server_live`, `envoy_server_state`, and `envoy_server_uptime` metrics, correlating unhealthy or draining proxies with Kubernetes restart events, and analyzing Envoy response flags (UF, UH, UC, LR) from access logs to pinpoint proxy-level failures before they cascade into service-wide outages.
@@ -24,16 +30,16 @@ Deploy the Splunk OTel Collector with Prometheus receiver scraping Envoy sidecar
 
 ## Detailed Implementation
 
-Prerequisites
-• **Istio** 1.18+ with **Envoy** **sidecar** injection enabled across target namespaces; verify injection: `kubectl get namespace -L istio-injection` — namespaces should show `enabled`.
-• **Splunk OpenTelemetry Collector** deployed as a **DaemonSet** via the `splunk-otel-collector-chart` **Helm chart** with the **Prometheus receiver** scraping **Envoy** sidecar stats on port **15090** (`/stats/prometheus`); the default chart discovers sidecars via **pod annotations** `prometheus.io/port: "15090"`.
-• **Splunk HEC** token for **`index=containers`** with default **`sourcetype=otel:metrics`**; secondary stream for **`sourcetype=kube:events`** via Splunk Connect for **Kubernetes**; third stream for **`sourcetype=istio:accesslog`** from Envoy stdout.
-• **kube-state-metrics** deployed to expose **`kube_pod_container_status_ready`** and **`kube_pod_container_status_restarts_total`** for the `istio-proxy` container specifically — the sidecar restart search in Step 2 depends on these counters.
-• **Kubernetes RBAC**: **OTel Collector** **ServiceAccount** needs `get`, `list`, `watch` on pods, events, and nodes.
-• Splunk RBAC: users running sidecar health searches need **`srchIndexesAllowed`** including `containers`; assign via a custom role (`mesh_observer`).
-• **License estimate**: Envoy sidecar stats produce ~1–3 KB per pod per scrape; a 200-pod mesh at 15s intervals generates ~30–80 MB/day of sidecar metrics; **access logs** add ~2 KB per request.
+### Prerequisites
+- **Istio** 1.18+ with **Envoy** **sidecar** injection enabled across target namespaces; verify injection: `kubectl get namespace -L istio-injection` — namespaces should show `enabled`.
+- **Splunk OpenTelemetry Collector** deployed as a **DaemonSet** via the `splunk-otel-collector-chart` **Helm chart** with the **Prometheus receiver** scraping **Envoy** sidecar stats on port **15090** (`/stats/prometheus`); the default chart discovers sidecars via **pod annotations** `prometheus.io/port: "15090"`.
+- **Splunk HEC** token for **`index=containers`** with default **`sourcetype=otel:metrics`**; secondary stream for **`sourcetype=kube:events`** via Splunk Connect for **Kubernetes**; third stream for **`sourcetype=istio:accesslog`** from Envoy stdout.
+- **kube-state-metrics** deployed to expose **`kube_pod_container_status_ready`** and **`kube_pod_container_status_restarts_total`** for the `istio-proxy` container specifically — the sidecar restart search in Step 2 depends on these counters.
+- **Kubernetes RBAC**: **OTel Collector** **ServiceAccount** needs `get`, `list`, `watch` on pods, events, and nodes.
+- Splunk RBAC: users running sidecar health searches need **`srchIndexesAllowed`** including `containers`; assign via a custom role (`mesh_observer`).
+- **License estimate**: Envoy sidecar stats produce ~1–3 KB per pod per scrape; a 200-pod mesh at 15s intervals generates ~30–80 MB/day of sidecar metrics; **access logs** add ~2 KB per request.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **Envoy sidecar scraping**: the key metrics to validate in the scrape are:
 — **`envoy_server_live`** (gauge: 1 = live, 0 = not live — the most fundamental health indicator)
 — **`envoy_server_state`** (gauge: 0 = LIVE, 1 = DRAINING, 2 = PRE_INITIALIZING, 3 = INITIALIZING — maps to Envoy's **server lifecycle states**)
@@ -52,7 +58,7 @@ Collect as **`sourcetype=istio:accesslog`** via the OTel **`filelog`** receiver 
 
 (4) **Kubernetes events**: ensure **`sourcetype=kube:events`** captures events with reasons `BackOff`, `Killing`, `Unhealthy`, `FailedMount`, and `Created` for the `istio-proxy` container — these correlate sidecar restarts with Kubernetes-level lifecycle actions.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL tracks four **Envoy server metrics** to classify each sidecar's health. The `server_state` gauge maps numerically to Envoy's lifecycle: 0 = LIVE (healthy, serving traffic), 1 = DRAINING (graceful shutdown, rejecting new connections), 2–3 = initializing (starting up). Combined with `server_live` and uptime, this produces a precise health classification.
 
 The **`staleness_min`** field detects sidecars that have stopped reporting metrics entirely — a common failure mode when the sidecar crashes or the scrape target becomes unreachable. Any sidecar with > 10 minutes of staleness gets flagged as `STALE`.
@@ -63,30 +69,30 @@ The **response-flag variant** analyzes Envoy access logs to quantify proxy-level
 
 Schedule the sidecar health search every **5 minutes** over **`-5m@m`**; alert on any sidecar in UNHEALTHY or STALE state for more than **2 consecutive runs**. Schedule the **response-flag** search every **15 minutes** over **`-15m`** and alert when any flag exceeds **50 occurrences**.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Verify metrics: `index=containers sourcetype=otel:metrics metric_name=envoy_**server_live** earliest=-5m | stats dc(pod) as sidecars`. Should match the count of sidecar-injected pods: `kubectl get pods --all-namespaces -l security.istio.io/tlsMode=istio -o name | wc -l`.
 (b) Test an unhealthy sidecar: scale a deployment to zero and back to trigger a sidecar restart; verify the search surfaces the pod with `RECENTLY_RESTARTED` status.
 (c) Verify response flags: `index=containers sourcetype="istio:accesslog" response_flags!="-" earliest=-1h | stats count by response_flags`. Should return rows if any proxy-level errors occurred.
 (d) Cross-check with Istio: `istioctl proxy-status` shows sidecar sync state; compare the count of **SYNCED** proxies with the count of HEALTHY sidecars in the Splunk search.
 (e) Confirm event correlation: `index=containers sourcetype="kube:events" earliest=-1h | search "istio-proxy" | stats count by reason`. Should capture sidecar-specific events.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **single-value tiles** — healthy sidecar % (green > 99%, yellow > 95%, red ≤ 95%), unhealthy count, stale count, recently restarted count.
-• Row B: **sortable table** of unhealthy sidecars — columns: pod_name, ns, cluster_name, status_flag, state_label, uptime_hours, **staleness_min**. Drilldown opens pod detail.
-• Row C: **timechart** of sidecar restarts by namespace over 4 hours to spot namespace-level patterns.
-• Row D: **bar chart** of response flags by destination service from the access-log variant — immediately shows which services have proxy-level reachability problems.
-• **Alerting**: sidecar UNHEALTHY/STALE > 2 consecutive checks → **PagerDuty** P2 with pod name and namespace; response flag spike (UF/UH > 50 in 15m) → Slack `#sre-mesh`; sidecar healthy% < 95% cluster-wide → PagerDuty P1.
-• **Runbook** (owner: SRE mesh on-call): (1) check if the pod's application container is also unhealthy: `kubectl describe pod <pod> -n <ns>`, (2) check Envoy admin: `kubectl exec <pod> -c istio-proxy -- curl -s localhost:15000/server_info`, (3) check for injection issues: `istioctl analyze -n <ns>`, (4) for UF/UH flags: verify the destination service exists and has healthy endpoints.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **single-value tiles** — healthy sidecar % (green > 99%, yellow > 95%, red ≤ 95%), unhealthy count, stale count, recently restarted count.
+- Row B: **sortable table** of unhealthy sidecars — columns: pod_name, ns, cluster_name, status_flag, state_label, uptime_hours, **staleness_min**. Drilldown opens pod detail.
+- Row C: **timechart** of sidecar restarts by namespace over 4 hours to spot namespace-level patterns.
+- Row D: **bar chart** of response flags by destination service from the access-log variant — immediately shows which services have proxy-level reachability problems.
+- **Alerting**: sidecar UNHEALTHY/STALE > 2 consecutive checks → **PagerDuty** P2 with pod name and namespace; response flag spike (UF/UH > 50 in 15m) → Slack `#sre-mesh`; sidecar healthy% < 95% cluster-wide → PagerDuty P1.
+- **Runbook** (owner: SRE mesh on-call): (1) check if the pod's application container is also unhealthy: `kubectl describe pod <pod> -n <ns>`, (2) check Envoy admin: `kubectl exec <pod> -c istio-proxy -- curl -s localhost:15000/server_info`, (3) check for injection issues: `istioctl analyze -n <ns>`, (4) for UF/UH flags: verify the destination service exists and has healthy endpoints.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **status grid** (**Dashboard Studio** colored tiles) showing each pod's sidecar health as green/yellow/red squares organized by namespace — gives an instant mesh-health overview; pair with a **response-flag heatmap** showing flag type × destination service × time to reveal temporal patterns.
-• **Alert design**: include `pod_name`, `ns`, `cluster_name`, `status_flag`, `state_label`, `uptime_hours`, `staleness_min`, and for response-flag alerts include `flag_meaning`, `dest_svc`, and `flag_count`; add a deep-link to the pod-detail dashboard.
-• **All sidecars show STALE** — the OTel Collector may have lost connectivity to the metrics backend or the **Prometheus receiver** **scrape config** is misconfigured; check collector logs: `kubectl logs -n splunk-otel -l app=splunk-otel-collector -c otel-collector | grep -i error`.
-• **Sidecar shows DRAINING but pod is Running** — normal during **rolling deployments** or when Istio is being upgraded; the old sidecar drains before the new one takes over. Suppress DRAINING alerts for 5 minutes after deployment events.
-• **Response flags show UH for a service that is healthy** — the Envoy sidecar may have stale endpoints; check `istioctl proxy-config endpoint <pod> --cluster <service>` for the endpoint list. An empty list means the sidecar has not received the endpoint update from **istiod**.
-• **`envoy_server_concurrency` is 0** — the sidecar is in the process of shutting down or has not finished initializing; correlate with `envoy_server_state` to confirm.
-• **Sidecar version mismatch** — after an **Istio control-plane upgrade**, sidecars running the old proxy version may exhibit degraded health until the workload is restarted with the new sidecar image; check `istioctl proxy-status` for version column discrepancies.
-• **High restart count but no Kubernetes events** — events may have aged out of the Kubernetes API (default 1h TTL); increase the event collector's poll frequency or check the **kubelet** logs on the node directly.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **status grid** (**Dashboard Studio** colored tiles) showing each pod's sidecar health as green/yellow/red squares organized by namespace — gives an instant mesh-health overview; pair with a **response-flag heatmap** showing flag type × destination service × time to reveal temporal patterns.
+- **Alert design**: include `pod_name`, `ns`, `cluster_name`, `status_flag`, `state_label`, `uptime_hours`, `staleness_min`, and for response-flag alerts include `flag_meaning`, `dest_svc`, and `flag_count`; add a deep-link to the pod-detail dashboard.
+- **All sidecars show STALE** — the OTel Collector may have lost connectivity to the metrics backend or the **Prometheus receiver** **scrape config** is misconfigured; check collector logs: `kubectl logs -n splunk-otel -l app=splunk-otel-collector -c otel-collector | grep -i error`.
+- **Sidecar shows DRAINING but pod is Running** — normal during **rolling deployments** or when Istio is being upgraded; the old sidecar drains before the new one takes over. Suppress DRAINING alerts for 5 minutes after deployment events.
+- **Response flags show UH for a service that is healthy** — the Envoy sidecar may have stale endpoints; check `istioctl proxy-config endpoint <pod> --cluster <service>` for the endpoint list. An empty list means the sidecar has not received the endpoint update from **istiod**.
+- **`envoy_server_concurrency` is 0** — the sidecar is in the process of shutting down or has not finished initializing; correlate with `envoy_server_state` to confirm.
+- **Sidecar version mismatch** — after an **Istio control-plane upgrade**, sidecars running the old proxy version may exhibit degraded health until the workload is restarted with the new sidecar image; check `istioctl proxy-status` for version column discrepancies.
+- **High restart count but no Kubernetes events** — events may have aged out of the Kubernetes API (default 1h TTL); increase the event collector's poll frequency or check the **kubelet** logs on the node directly.
 
 ## SPL
 

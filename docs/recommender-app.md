@@ -338,7 +338,7 @@ runs `python3 scripts/generate_api_surface.py --check` to reject drift.
 The companion TA does add a Python modular input. It uses the Splunk
 session key provided on stdin, talks only to `https://localhost:8089`,
 and writes back to the primary app's KV store. Source is at
-[`splunk-apps/splunk-uc-recommender-ta/bin/deep_scan.py`](../splunk-apps/splunk-uc-recommender-ta/bin/deep_scan.py).
+[`splunk-apps/splunk-uc-recommender-ta/bin/uc_recommender_deep_scan.py`](../splunk-apps/splunk-uc-recommender-ta/bin/uc_recommender_deep_scan.py).
 
 ## Developer guide
 

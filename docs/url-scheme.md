@@ -48,7 +48,7 @@ URL). All paths below are relative to that origin.
 | `/browse/` | HTML+JS | Interactive SPA. Bootstraps from `/api/catalog-index.json`. URL hash carries filter state, e.g. `/browse/#cat=10&pillar=security&q=okta`. |
 | `/about/` | HTML | Project mission, governance link. |
 | `/changelog/` | HTML | Mirror of `CHANGELOG.md`. |
-| `/governance/` | HTML | Mirror of `docs/governance.md`. |
+| `/governance/` | HTML | Mirror of `GOVERNANCE.md` (repo root). |
 
 ### Content pages (the contract)
 
@@ -110,7 +110,7 @@ published in `dist/api/manifest.json` for tooling.
 /embed/embed.js                      auto-resize + postMessage theming helper (≤3 KB)
 ```
 
-Documented with copy-paste snippets in [`docs/embedding.md`](embedding.md).
+Copy-paste snippets for embeds are *planned* (`docs/embedding.md` TBD).
 
 ### Discovery
 
@@ -198,7 +198,7 @@ fallbacks (GitHub Pages) for the most-trafficked v6.x URLs:
 | `/api-docs.html` | `/openapi.yaml` |
 
 After v7.0.0, **no further URL breaks are permitted**. Any future change goes through
-the RFC process in [`governance.md`](governance.md), with a minimum 12-month parallel
+the RFC process in [`GOVERNANCE.md`](../GOVERNANCE.md), with a minimum 12-month parallel
 support window matching the API deprecation policy.
 
 ## Why this layout

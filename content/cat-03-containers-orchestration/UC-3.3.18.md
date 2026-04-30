@@ -1,0 +1,430 @@
+<!-- AUTO-GENERATED from UC-3.3.18.json — DO NOT EDIT -->
+
+---
+id: "3.3.18"
+title: "OpenShift cluster-etcd Leader Election Storm and Control-Plane Disk Bottleneck Correlation"
+status: "verified"
+criticality: "high"
+splunkPillar: "Observability"
+---
+
+# UC-3.3.18 · OpenShift cluster-etcd Leader Election Storm and Control-Plane Disk Bottleneck Correlation
+
+> **Criticality:** High &middot; **Difficulty:** Expert &middot; **Pillar:** Observability &middot; **Type:** Reliability, Availability &middot; **Wave:** Run &middot; **Status:** Verified
+
+*We watch the tiny database that runs the whole cluster. When it keeps picking new leaders while disks respond too slowly, we raise a clear signal so engineers fix the hardware or network before things freeze up.*
+
+---
+
+## Description
+
+Surfaces unstable OpenShift etcd leadership together with slow WAL or backend commits so teams fix control-plane disk and network issues before API latency and proposal failures spread.
+
+## Value
+
+OpenShift etcd leader-election storm with disk-IO tail latency and CEO condition correlation
+
+## Implementation
+
+Federate OpenShift etcd Prometheus metrics, openshift-etcd events, Etcd CR snapshots, and etcd ClusterOperator rows into ocp_metrics and ocp_events with stable cluster labels; publish ocp_control_plane_maintenance_suppression lookup; normalize quantile fields; deploy saved search openshift_uc_3_3_18_etcd_leader_storm_disk_io on a fifteen-minute schedule with earliest=-6h@h; route page and warn severities to platform etcd on-call; tune WAL and backend thresholds after hardware baselines; archive weekly CSV snapshots for reliability governance.
+
+## Evidence
+
+Saved search openshift_uc_3_3_18_etcd_leader_storm_disk_io with fifteen minute schedule; dashboard drilldowns on ocp_metrics etcd series, ocp_events, ocp_etcd_cr, ocp_clusteroperator etcd; weekly CSV to restricted index with change_ticket correlation.
+
+## Control test
+
+### Positive scenario
+
+In lab, ingest prometheus:metrics where etcd_server_leader_changes_seen_total rises by at least three increments within fifteen minutes on a member while etcd_disk_wal_fsync_duration_seconds quantiles exceed fifty milliseconds or backend commit quantiles exceed twenty-five milliseconds, add matching ocp_etcd_cr degraded hints or etcd ClusterOperator Degraded snapshots, and confirm openshift_uc_3_3_18_etcd_leader_storm_disk_io returns page with correlate=1.
+
+### Negative scenario
+
+After recovery when leader increments stabilize below the storm threshold for thirty minutes and WAL or backend quantiles fall under thresholds with clean Etcd conditions and etcd ClusterOperator Available, confirm severity returns to info and the alert wrapper shows zero page or warn rows.
+
+## Detailed Implementation
+
+### Step 1 — Prerequisites
+
+Head of Platform owns this control with the OpenShift control-plane reliability lead, the storage team accountable for control-plane node volumes backing etcd, and the observability engineers who operate Splunk HTTP Event Collector tokens plus OpenTelemetry Collector agents that federate OpenShift Monitoring Prometheus targets into Splunk. This use case narrows intentionally on a compound failure mode that is distinct from adjacent catalogue entries. UC-3.3.15 documents cluster-etcd-operator disaster-recovery readiness: Etcd custom resource conditions, EtcdBackup schedules, member replacement ceremony signals, and backup-age governance. Do not duplicate that backup-first story here; this analytic assumes backups may be healthy while etcd still flaps leaders because of latency spikes on one control-plane disk or asymmetric peer round-trip time. UC-3.2.26 remains the vanilla Kubernetes etcd quorum and raft membership risk ledger without interpreting OpenShift Etcd CR semantics or CEO-reported installer degradation hints. UC-3.2.8 remains deep etcd performance histogram forensics, WAL depth, and apply client pressure treated as a performance engineering workbench rather than a paging correlation tuned to CEO conditions plus Kubernetes events. UC-3.3.6 remains the broad ClusterOperator matrix; here the etcd ClusterOperator row is only a corroborating lane when EtcdMembersDegraded or CEO Degraded amplify a metrics-only story.
+
+Operational scope covers OpenShift 4 clusters where openshift-etcd static pods expose Prometheus metrics scraped by in-cluster monitoring, cluster-etcd-operator publishes Etcd API conditions, and etcd leader change counters remain visible per member instance. Legal and privacy reviews should approve retention of internal DNS names appearing in metric labels and event messages. RBAC for auxiliary exporters that poll oc get etcd cluster -o json must use dedicated ServiceAccounts with get and list on Etcd objects, not long-lived personal kubeconfigs on workstations.
+
+Index naming remains a local convention. Teams typically land federated Prometheus lines on index=ocp_metrics with sourcetype=prometheus:metrics or sourcetype=prometheus:ocp, while some environments normalize etcd member scrapes to sourcetype=etcd:metrics. Kubernetes events land on index=ocp_events with sourcetype=ocp_events or sourcetype=k8s_events. Periodic API snapshots of Etcd status flatten into sourcetype=ocp_etcd_cr. Filtered ClusterOperator exports for name etcd use sourcetype=ocp_clusteroperator. Map every field ladder in SPL through coalesce() because label relabeling rules differ between management-cluster federation and in-cluster remote-write paths.
+
+Risk briefing: leader elections are not automatically incidents. Small counts during upgrades, certificate rotations, or single-member replacements can be expected. This control pages when rapid leader churn on at least one member within a fifteen-minute rolling window coincides with disk tail latency breaching conservative etcd guardrails, because that combination historically precedes API slowness and proposal failures even while quorum holds. Tune thresholds per hardware generation after observing baseline noise.
+
+Field hygiene matters because etcd metrics are high cardinality at the instance label. Standardize lowercase cluster identifiers drawn from management-cluster context, infrastructure CR names, or external_labels on Prometheus scrapes. When dual stacks or IPv6 literals appear in instance labels, normalize or hash consistently so streamstats partitions do not fragment across format variants. Clock skew between scrapers and etcd pods can distort one-minute buckets; enforce NTP discipline on control-plane nodes and monitoring pods before trusting narrow windows.
+
+Capacity planning for this analytic should assume burst ingest during etcd incidents when WAL sync latency histograms emit more frequently or when federation catches up after outages. Reserve search concurrency for the saved search and dependent dashboards. Document which teams may run ad hoc variants with wider earliest windows so platform SREs do not starve shared search heads during emergencies.
+
+Differentiation recap: rolling-window leader churn plus WAL or backend commit tail latency, proposal failure deltas, peer round-trip regression, openshift-etcd event context, Etcd CR degradation including NodeInstallerDegraded style fields when your exporter surfaces them, etcd ClusterOperator Degraded corroboration, coarse histogram bucket hints when quantile series are absent, and maintenance suppression via lookup—not operator backup schedules as the primary plot, not vanilla raft quorum math in isolation, not exhaustive histogram tuning exercises without paging semantics.
+
+### Step 2 — Configure data collection
+
+Stand up eight complementary lanes the multisearch fuses: federated etcd Prometheus metrics including etcd_server_leader_changes_seen_total, etcd_disk_wal_fsync_duration_seconds and etcd_disk_backend_commit_duration_seconds quantiles or recording-rule equivalents, etcd_disk_backend_commit_duration_seconds_bucket tails when summaries are unavailable, etcd_server_proposals_failed_total, etcd_network_peer_round_trip_time_seconds quantiles when enabled, Kubernetes events involving openshift-etcd, periodic Etcd custom resource snapshots with flattened EtcdMembersDegraded and any node installer degradation flags your pipeline maps from status.conditions messages, filtered etcd ClusterOperator snapshots, and a CSV knowledge lookup consumed through inputlookup for approved control-plane maintenance.
+
+Prometheus lane: enable platform monitoring federation per OpenShift documentation. Preserve labels cluster, instance or pod, namespace, job, and __name__. Validate in the OpenShift console that etcd_server_leader_changes_seen_total increases are rare during steady state. If raw histogram buckets dominate ingest cost, precompute recording rules such as etcd_disk_wal_fsync_duration_seconds:p99:sum by cluster and forward those series instead, adjusting SPL metric names accordingly.
+
+Recording rule discipline: platform teams often install rules that collapse histograms into tractable gauges. When Splunk ingests only those gauges, rename the SPL filters in this use case to match the exact __name__ strings your Thanos or Prometheus configuration emits, and document the mapping in the runbook appendix so analysts do not assume raw etcd histogram names exist in index=ocp_metrics when they have been replaced upstream.
+
+Events lane: forward Kubernetes events with involvedObject.namespace openshift-etcd and reasons touching probes, leader elections, or static pod revisions. Retain reason, message, count, and lastTimestamp. Ensure collectors do not drop high-volume Warning types during etcd storms. For OpenShift SDN or OVN control-plane interactions that surface indirectly through etcd messages, retain enough raw text for triage even if primary networking analytics live in sibling use cases.
+
+Etcd CR snapshot lane: poll oc get etcd cluster -o json on a five-minute cadence from automation with proper RBAC. Flatten EtcdMembersDegraded and concatenate condition messages into etcd_cond_msg. When OpenShift exposes installer or revision stress through distinct condition types, map them into explicit boolean fields so SPL does not rely on fragile substring searches alone. Preserve observedGeneration versus metadata.generation deltas when your JSON exporter includes them because silent reconciliation stalls sometimes precede visible metrics regression.
+
+ClusterOperator lane: reuse the UC-3.3.6 exporter with a name filter for etcd or ship a lightweight oc get clusteroperator etcd -o json poller. Store Degraded and Progressing as booleans with lastTransitionTime for investigations outside this alert. Treat Progressing=True during upgrades as context, not an automatic page, unless paired with disk tails and leader storms per the severity ladder in Step 3.
+
+Maintenance suppression lookup: publish lookups/ocp_control_plane_maintenance_suppression.csv with columns cluster, start_epoch, end_epoch, change_ticket, owner_team. Optional human-readable start_time and end_time columns may be parsed in SPL as shown. Refresh the lookup during change windows so scheduled control-plane reboots downgrade warn noise without hiding genuine page-tier correlations absent from the calendar. Require a valid change identifier for every row so audit can trace suppressions.
+
+props.conf guidance: TRUNCATE sufficiently large for JSON, LINE_BREAKER tuned for multiplexed syslog-wrapped prometheus lines, FIELDALIAS from dotted API paths into underscore fields used by coalesce() ladders. When remote write batches multiple samples per line, verify BREAK_ONLY_BEFORE rules do not split quantile labels from values.
+
+Pre-save validation: confirm index=ocp_metrics includes etcd_server_leader_changes_seen_total for each member, confirm quantile labels exist for WAL and backend commit metrics or substitute recording-rule names documented in runbooks, confirm ocp_events returns openshift-etcd rows during intentional static pod restarts in lab, confirm ocp_etcd_cr snapshots arrive after the first poll, confirm the maintenance lookup returns rows for a test cluster during a simulated window. Run a parallel search that charts fleet_leader_p90 weekly to catch silent baseline drift after hardware refreshes.
+
+### Step 3 — Create the search and alert
+
+Save the SPL as openshift_uc_3_3_18_etcd_leader_storm_disk_io with a fifteen-minute schedule, dispatch earliest=-6h@h, dispatch latest=now, and alert when severity is page or warn after maintenance suppression. Throttle duplicate cluster rows for thirty minutes unless severity escalates. Include leader_roll15, cluster_fsync_p99, cluster_be_p99, correlate, and recommended_action in pager descriptions so incident commanders open storage and networking runbooks without rerunning ad hoc searches.
+
+Pipeline narrative: multisearch fans dedicated metric arms for leader rolling sums, disk tails, proposal failure deltas, peer RTT tails, and optional histogram bucket hints alongside event and API condition arms so a single exporter outage does not silence the entire analytic. streamstats implements the fifteen-minute rolling sum of per-minute leader counter increments per member before cluster-level aggregation. eventstats adds fleet percentile context for executive heatmaps. case() encodes severity tiers emphasizing the conjunction of leader storm hints with disk bad hints while still warning on split patterns such as storms with clean disks but degraded peer RTT. join to inputlookup marks maintenance windows to downgrade benign warn noise. The closing table preserves investigator columns for etcd CR text snippets and recent event snippets.
+
+Governance: store the saved search in a version-controlled Splunk app, require peer review for threshold edits, and attach links to vendor support articles for etcd tuning so junior responders do not improvise unsafe node cordons. When Splunk Cloud export controls apply, ensure alert actions only route to approved destinations.
+
+Fenced SPL must match the spl JSON field exactly:
+
+```spl
+`comment("UC-3.3.18 OpenShift cluster-etcd leader-election storm correlated with disk-IO tail latency and operator conditions. Indexes/sourcetypes are conventions—map to your OCP telemetry. Tunables: leader_storm_min=3 leader_window_m=15 fsync_p99_page_ms=50 backend_p99_page_ms=25 prop_fail_warn_delta=25 peer_rtt_warn_ms=80 earliest=-6h@h latest=now")`
+| multisearch
+    [ search index=ocp_metrics (sourcetype=prometheus:metrics OR sourcetype=prometheus:ocp OR sourcetype=etcd:metrics) earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=lower(trim(toString(coalesce(__name__, metric_name, name, ""))))
+      | eval inst=lower(trim(toString(coalesce(instance, kubernetes_pod_name, pod, pod_name, host, ""))))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "0")), 10)
+      | where mn="etcd_server_leader_changes_seen_total"
+      | bucket _time span=1m
+      | stats max(mv) AS mx BY cluster inst _time
+      | sort 0 cluster inst + _time
+      | streamstats window=2 current=t global=f last(mx) AS pm BY cluster inst
+      | eval inc=max(0, mx-coalesce(pm, mx))
+      | streamstats current=t window=15 global=f sum(inc) AS roll15 BY cluster inst
+      | stats max(roll15) AS leader_roll15 max(_time) AS last_lc BY cluster
+      | eval lane="m_leader" ]
+    [ search index=ocp_metrics (sourcetype=prometheus:metrics OR sourcetype=prometheus:ocp OR sourcetype=etcd:metrics) earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=lower(trim(toString(coalesce(__name__, metric_name, name, ""))))
+      | eval inst=lower(trim(toString(coalesce(instance, kubernetes_pod_name, pod, pod_name, ""))))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "0")), 10)
+      | eval qlab=trim(toString(coalesce(quantile, qt, le, "")))
+      | where (match(mn,"etcd_disk_wal_fsync_duration_seconds") OR match(mn,"etcd_disk_backend_commit_duration_seconds")) AND (match(qlab,"0\\.99") OR match(qlab,"^99$"))
+      | eval fsync_ms=if(match(mn,"wal_fsync"), mv*1000, null())
+      | eval be_ms=if(match(mn,"backend_commit"), mv*1000, null())
+      | stats max(fsync_ms) AS fsync_p99_inst max(be_ms) AS be_p99_inst BY cluster inst
+      | stats max(fsync_p99_inst) AS cluster_fsync_p99 max(be_p99_inst) AS cluster_be_p99 BY cluster
+      | eval lane="m_disk" ]
+    [ search index=ocp_metrics (sourcetype=prometheus:metrics OR sourcetype=prometheus:ocp OR sourcetype=etcd:metrics) earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=lower(trim(toString(coalesce(__name__, metric_name, name, ""))))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "0")), 10)
+      | where mn="etcd_server_proposals_failed_total"
+      | bucket _time span=5m
+      | stats max(mv) AS pmx BY cluster _time
+      | sort 0 cluster - _time
+      | streamstats window=2 current=t global=f last(pmx) AS ppm BY cluster
+      | eval prop_dlt=max(0, pmx-coalesce(ppm, pmx))
+      | stats max(prop_dlt) AS proposals_fail_delta max(_time) AS last_prop BY cluster
+      | eval lane="m_prop" ]
+    [ search index=ocp_metrics (sourcetype=prometheus:metrics OR sourcetype=prometheus:ocp OR sourcetype=etcd:metrics) earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=lower(trim(toString(coalesce(__name__, metric_name, name, ""))))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "0")), 10)
+      | eval qlab=trim(toString(coalesce(quantile, qt, "")))
+      | where mn="etcd_network_peer_round_trip_time_seconds" AND match(qlab,"0\\.99")
+      | stats max(mv*1000) AS peer_rtt_p99_ms BY cluster
+      | eval lane="m_rtt" ]
+    [ search index=ocp_events (sourcetype=ocp_events OR sourcetype=k8s_events) earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, ""))))
+      | eval ns=lower(trim(toString(coalesce(involvedObject_namespace, namespace, object_namespace, ""))))
+      | eval msg=lower(toString(coalesce(message, Message, reason, "")))
+      | where match(ns,"openshift-etcd$") OR match(msg,"etcd|raft|leader|member|quorum|cluster-etcd")
+      | eval evt_line=coalesce(message, Message, reason, "")
+      | eval lane="k_evt"
+      | stats count AS evt_cnt latest(_time) AS last_evt latest(evt_line) AS evt_snip BY cluster ]
+    [ search (index=ocp_metrics OR index=ocp_audit OR index=ocp_events) sourcetype=ocp_etcd_cr earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval dg=lower(trim(toString(coalesce(etcd_members_degraded, degraded, conditions_degraded, ""))))
+      | eval ni=lower(trim(toString(coalesce(node_installer_degraded, NodeInstallerDegraded, nodeinstallerdegraded, ""))))
+      | eval mem_deg_f=if(match(dg,"true|1"), 1, 0)
+      | eval ni_deg_f=if(match(ni,"true|1"), 1, 0)
+      | eval cond_blob=substr(trim(toString(coalesce(status_message, message, etcd_cond_msg, ""))), 1, 240)
+      | stats max(mem_deg_f) AS etcd_cr_memdeg max(ni_deg_f) AS etcd_cr_ni_deg latest(cond_blob) AS etcd_cr_msg latest(_time) AS last_cr BY cluster
+      | eval lane="cr_etcd" ]
+    [ search (index=ocp_metrics OR index=ocp_audit) sourcetype=ocp_clusteroperator earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, ""))))
+      | eval op=lower(trim(toString(coalesce(name, operator, metadata_name, ""))))
+      | where op="etcd"
+      | eval co_deg=if(match(lower(toString(coalesce(degraded, conditions_degraded, ""))), "true|1"), 1, 0)
+      | stats max(co_deg) AS co_etcd_deg latest(_time) AS last_co BY cluster
+      | eval lane="co_etcd" ]
+    [ search index=ocp_metrics (sourcetype=prometheus:metrics OR sourcetype=prometheus:ocp) earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=lower(trim(toString(coalesce(__name__, metric_name, name, ""))))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "0")), 10)
+      | where mn="etcd_disk_backend_commit_duration_seconds_bucket"
+      | eval lelab=trim(toString(coalesce(le, le_label, "")))
+      | where lelab="0.25" OR lelab="0.5" OR lelab="1" OR lelab="+Inf" OR match(lelab,"Inf$")
+      | bucket _time span=5m
+      | stats max(mv) AS bmax BY cluster _time
+      | stats max(bmax) AS coarse_commit_hist_hint max(_time) AS last_hist BY cluster
+      | eval lane="m_hist" ]
+| stats max(last_lc) AS last_lc max(leader_roll15) AS leader_roll15 max(cluster_fsync_p99) AS cluster_fsync_p99 max(cluster_be_p99) AS cluster_be_p99 max(proposals_fail_delta) AS proposals_fail_delta max(last_prop) AS last_prop max(peer_rtt_p99_ms) AS peer_rtt_p99_ms max(evt_cnt) AS evt_cnt max(last_evt) AS last_evt max(etcd_cr_memdeg) AS etcd_cr_memdeg max(etcd_cr_ni_deg) AS etcd_cr_ni_deg max(last_cr) AS last_cr max(co_etcd_deg) AS co_etcd_deg max(last_co) AS last_co max(coarse_commit_hist_hint) AS coarse_commit_hist_hint max(last_hist) AS last_hist values(evt_snip) AS evt_snip_mv values(etcd_cr_msg) AS cr_msg_mv BY cluster
+| eval evt_snip=substr(trim(toString(mvindex(mvdedup(evt_snip_mv), 0))), 1, 160)
+| eval etcd_cr_msg=substr(trim(toString(mvindex(mvdedup(cr_msg_mv), 0))), 1, 200)
+| eval storm_hint=if(coalesce(leader_roll15,0)>=3, 1, 0)
+| eval disk_bad=if(coalesce(cluster_fsync_p99,0)>50 OR coalesce(cluster_be_p99,0)>25, 1, 0)
+| eval rtt_bad=if(coalesce(peer_rtt_p99_ms,0)>80, 1, 0)
+| eval prop_hot=if(coalesce(proposals_fail_delta,0)>=25, 1, 0)
+| eventstats perc90(leader_roll15) AS fleet_leader_p90 perc90(cluster_fsync_p99) AS fleet_fsync_p90 BY cluster
+| eval correlate=if(storm_hint==1 AND disk_bad==1, 1, 0)
+| eval severity=case(
+    correlate==1 AND (etcd_cr_memdeg==1 OR co_etcd_deg==1 OR prop_hot==1), "page",
+    correlate==1, "page",
+    storm_hint==1 AND disk_bad==0 AND rtt_bad==1, "warn",
+    storm_hint==1, "warn",
+    disk_bad==1 AND coalesce(leader_roll15,0)>=1, "warn",
+    disk_bad==1, "info",
+    prop_hot==1, "warn",
+    true(), "info")
+| eval recommended_action=case(
+    correlate==1 AND disk_bad==1, "isolate_slow_control_plane_disk_verify_etcd_volume_io_correlate_machineconfig_pool",
+    storm_hint==1 AND rtt_bad==1, "map_control_plane_network_path_peer_latency_packet_loss_firewall_mtu",
+    prop_hot==1, "check_apiserver_load_and_etcd_space_quota_review_slow_apply_clients",
+    etcd_cr_memdeg==1 OR co_etcd_deg==1, "oc_describe_etcd_cluster_gather_ceo_logs_review_static_pod_revisions",
+    disk_bad==1, "storage_team_inspect_etcd_lv_latency_fsync_histograms_uc_3_2_8",
+    true(), "refresh_prometheus_federation_labels_validate_scrape_interval")
+| join type=left max=0 cluster [| inputlookup ocp_control_plane_maintenance_suppression | eval cluster=lower(trim(toString(cluster)))
+  | eval nowx=now()
+  | eval st=if(isnotnull(start_epoch) AND start_epoch>0, tonumber(start_epoch,10), if(len(trim(toString(start_time)))>0, strptime(trim(toString(start_time)), "%Y-%m-%dT%H:%M:%SZ"), null()))
+  | eval en=if(isnotnull(end_epoch) AND end_epoch>0, tonumber(end_epoch,10), if(len(trim(toString(end_time)))>0, strptime(trim(toString(end_time)), "%Y-%m-%dT%H:%M:%SZ"), null()))
+  | eval maint_active=if(isnotnull(st) AND isnotnull(en) AND nowx>=st AND nowx<=en, 1, 0)
+  | where maint_active==1
+  | stats max(maint_active) AS maint_suppress BY cluster ]
+| fillnull value=0 maint_suppress
+| eval severity=if(maint_suppress==1 AND severity!="page", "info", severity)
+| table cluster leader_roll15 cluster_fsync_p99 cluster_be_p99 storm_hint disk_bad correlate proposals_fail_delta peer_rtt_p99_ms etcd_cr_memdeg etcd_cr_ni_deg co_etcd_deg evt_cnt coarse_commit_hist_hint severity recommended_action maint_suppress fleet_leader_p90 fleet_fsync_p90 evt_snip last_co
+```
+
+savedsearches.conf sketch:
+
+```ini
+[openshift_uc_3_3_18_etcd_leader_storm_disk_io_alert]
+cron_schedule = */15 * * * *
+dispatch.earliest_time = -6h@h
+dispatch.latest_time = now
+enableSched = 1
+action.email = 1
+action.email.to = openshift-platform@example.com
+action.email.subject = OCP etcd leader storm disk IO $result.severity$ $result.cluster$
+counttype = number of events
+relation = greater than
+quantity = 0
+search = | savedsearch openshift_uc_3_3_18_etcd_leader_storm_disk_io | where severity IN ("page","warn")
+```
+
+Performance: materialize per-cluster one-minute leader increment summaries into a summary index when Job Inspector queue time exceeds internal SLO; keep this search for investigations. For Splunk ITSI optional deployments, bind KPIs to correlate and cluster_fsync_p99 for service entities representing the OpenShift control plane. When multisearch fan-out strains the scheduler, split the eighth histogram arm into a scheduled report that writes a small kvstore collection merged by cluster for alert hour lookups.
+
+### Step 4 — Validate
+
+Ground truth begins on-cluster. Compare Prometheus console graphs for etcd_server_leader_changes_seen_total slopes against Splunk leader_roll15 during the same UTC window. When Splunk shows storms without console confirmation, verify federation lag, duplicated cluster labels, and daylight-saving skew on forwarders.
+
+Disk validation: compare etcd_disk_wal_fsync_duration_seconds quantiles or node exporter disk metrics on control-plane nodes against Splunk cluster_fsync_p99 and cluster_be_p99. If your environment exposes only histogram buckets, validate that Splunk approximations match recording rules or Grafana panels sourced from the same Thanos querier. For shared storage arrays, correlate array latency logs with Splunk disk_bad transitions.
+
+Operator validation: run oc get etcd cluster -o yaml and oc get clusteroperator etcd -o wide, then compare EtcdMembersDegraded and Degraded columns to etcd_cr_memdeg and co_etcd_deg hints inside the alert row. When API snapshots lag metrics, widen exporter cadence before declaring false positives.
+
+Synthetic positive: in lab under vendor guidance, induce controlled IO latency on a non-production etcd volume class or use documented stress tools that raise fsync latency without destroying quorum, and confirm severity becomes page or warn with correlate=1 when leader_roll15 crosses the storm threshold.
+
+Synthetic negative: after recovery with stable leader metrics and quantiles below thresholds, confirm severity returns to info and the alert wrapper emits zero rows for page and warn filters.
+
+Runbook linkage: document expected leader churn during z-stream upgrades so validators do not file defects when change tickets explain transient churn without disk tails. Capture must-gather bundles for positive tests and attach hashes to the evidence index when regulation mandates tamper-evident storage.
+
+Peer review: have a second platform engineer independently compare Splunk output to oc and console for two clusters quarterly, signing off in the change system so auditors see recurring validation rather than one-time setup.
+
+### Step 5 — Operationalize & Troubleshoot
+
+Case 1 — Single noisy control-plane disk causing isolated election churn: identify the member instance with the highest per-minute increments, map it to the node and volume, inspect SMART and storage latency from the SAN or local NVMe, and migrate etcd data only through documented OpenShift procedures with vendor support.
+
+Case 2 — Cluster-wide network partition triggering simultaneous elections: collect peer_rtt_p99_ms trends, verify control-plane MTU consistency across zones, inspect firewall change tickets, and correlate switch maintenance windows with simultaneous raft timeouts.
+
+Case 3 — MachineConfigPool restart of master nodes during operator-driven re-roll: join Splunk timelines to machine-config operator dashboards, confirm etcd static pod revision bumps, and treat short storms with maintenance lookup coverage as expected while watching for disk tails that outlive the roll.
+
+Case 4 — Snapshotter or backup pressure during scheduled EtcdBackup: distinguish this UC from UC-3.3.15 by focusing on IO latency and leader churn during backup windows; if only backup age or BackupFailed reasons fire, route to the DR readiness analytic instead of muting disk correlation outright.
+
+Case 5 — Split-brain risk from peer-RTT regression without disk tails: escalate networking when storm_hint pairs with rtt_bad while cluster_fsync_p99 stays low; capture traceroutes and SDN logs before blaming storage.
+
+Case 6 — etcd_server_proposals_failed_total spikes with modest leader churn: investigate API server overload, admission webhook latency, and misbehaving controllers issuing expensive writes; pair with apiserver resource metrics outside this UC.
+
+Case 7 — EtcdMembersDegraded=True with clean metrics: read Etcd condition messages for revision mismatch, gather cluster-etcd-operator logs, and compare static pod generations before manual etcdctl use.
+
+Case 8 — NodeInstallerDegraded hints on Etcd CR snapshots: correlate to pending machine-config on masters, review pending pools, and ensure installer pods are not wedged on image pulls.
+
+Case 9 — False calm when prometheus scrape fails: if leader_roll15 is null but events show etcd warnings, page on observability gaps using complementary uptime monitors on federation paths.
+
+Case 10 — Fleet-wide info severities: weekly spot-check two production clusters comparing oc observation to Splunk rows to ensure label migrations after OpenShift minor upgrades did not hollow the analytic.
+
+Case 11 — Maintenance suppression abuse: audit lookup additions quarterly so teams do not permanently downgrade production clusters; require change_ticket on every row.
+
+Case 12 — Duplicate telemetry doubling counts: dedupe on cluster and scrape_shard in summary indexes when redundant collectors exist.
+
+Closing checklist: multisearch lists eight arms; coalesce() ladders apply across exporters; streamstats quantifies rolling leader increments; eventstats adds fleet context; case() implements severity tiers; join applies maintenance suppression; closing table includes cluster, leader_roll15, cluster_fsync_p99, cluster_be_p99, storm_hint, disk_bad, correlate, proposals_fail_delta, peer_rtt_p99_ms, etcd_cr_memdeg, etcd_cr_ni_deg, co_etcd_deg, evt_cnt, coarse_commit_hist_hint, severity, recommended_action, maint_suppress, fleet_leader_p90, fleet_fsync_p90, evt_snip, and last_co for investigator review.
+
+
+## SPL
+
+```spl
+`comment("UC-3.3.18 OpenShift cluster-etcd leader-election storm correlated with disk-IO tail latency and operator conditions. Indexes/sourcetypes are conventions—map to your OCP telemetry. Tunables: leader_storm_min=3 leader_window_m=15 fsync_p99_page_ms=50 backend_p99_page_ms=25 prop_fail_warn_delta=25 peer_rtt_warn_ms=80 earliest=-6h@h latest=now")`
+| multisearch
+    [ search index=ocp_metrics (sourcetype=prometheus:metrics OR sourcetype=prometheus:ocp OR sourcetype=etcd:metrics) earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=lower(trim(toString(coalesce(__name__, metric_name, name, ""))))
+      | eval inst=lower(trim(toString(coalesce(instance, kubernetes_pod_name, pod, pod_name, host, ""))))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "0")), 10)
+      | where mn="etcd_server_leader_changes_seen_total"
+      | bucket _time span=1m
+      | stats max(mv) AS mx BY cluster inst _time
+      | sort 0 cluster inst + _time
+      | streamstats window=2 current=t global=f last(mx) AS pm BY cluster inst
+      | eval inc=max(0, mx-coalesce(pm, mx))
+      | streamstats current=t window=15 global=f sum(inc) AS roll15 BY cluster inst
+      | stats max(roll15) AS leader_roll15 max(_time) AS last_lc BY cluster
+      | eval lane="m_leader" ]
+    [ search index=ocp_metrics (sourcetype=prometheus:metrics OR sourcetype=prometheus:ocp OR sourcetype=etcd:metrics) earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=lower(trim(toString(coalesce(__name__, metric_name, name, ""))))
+      | eval inst=lower(trim(toString(coalesce(instance, kubernetes_pod_name, pod, pod_name, ""))))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "0")), 10)
+      | eval qlab=trim(toString(coalesce(quantile, qt, le, "")))
+      | where (match(mn,"etcd_disk_wal_fsync_duration_seconds") OR match(mn,"etcd_disk_backend_commit_duration_seconds")) AND (match(qlab,"0\\.99") OR match(qlab,"^99$"))
+      | eval fsync_ms=if(match(mn,"wal_fsync"), mv*1000, null())
+      | eval be_ms=if(match(mn,"backend_commit"), mv*1000, null())
+      | stats max(fsync_ms) AS fsync_p99_inst max(be_ms) AS be_p99_inst BY cluster inst
+      | stats max(fsync_p99_inst) AS cluster_fsync_p99 max(be_p99_inst) AS cluster_be_p99 BY cluster
+      | eval lane="m_disk" ]
+    [ search index=ocp_metrics (sourcetype=prometheus:metrics OR sourcetype=prometheus:ocp OR sourcetype=etcd:metrics) earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=lower(trim(toString(coalesce(__name__, metric_name, name, ""))))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "0")), 10)
+      | where mn="etcd_server_proposals_failed_total"
+      | bucket _time span=5m
+      | stats max(mv) AS pmx BY cluster _time
+      | sort 0 cluster - _time
+      | streamstats window=2 current=t global=f last(pmx) AS ppm BY cluster
+      | eval prop_dlt=max(0, pmx-coalesce(ppm, pmx))
+      | stats max(prop_dlt) AS proposals_fail_delta max(_time) AS last_prop BY cluster
+      | eval lane="m_prop" ]
+    [ search index=ocp_metrics (sourcetype=prometheus:metrics OR sourcetype=prometheus:ocp OR sourcetype=etcd:metrics) earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=lower(trim(toString(coalesce(__name__, metric_name, name, ""))))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "0")), 10)
+      | eval qlab=trim(toString(coalesce(quantile, qt, "")))
+      | where mn="etcd_network_peer_round_trip_time_seconds" AND match(qlab,"0\\.99")
+      | stats max(mv*1000) AS peer_rtt_p99_ms BY cluster
+      | eval lane="m_rtt" ]
+    [ search index=ocp_events (sourcetype=ocp_events OR sourcetype=k8s_events) earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, ""))))
+      | eval ns=lower(trim(toString(coalesce(involvedObject_namespace, namespace, object_namespace, ""))))
+      | eval msg=lower(toString(coalesce(message, Message, reason, "")))
+      | where match(ns,"openshift-etcd$") OR match(msg,"etcd|raft|leader|member|quorum|cluster-etcd")
+      | eval evt_line=coalesce(message, Message, reason, "")
+      | eval lane="k_evt"
+      | stats count AS evt_cnt latest(_time) AS last_evt latest(evt_line) AS evt_snip BY cluster ]
+    [ search (index=ocp_metrics OR index=ocp_audit OR index=ocp_events) sourcetype=ocp_etcd_cr earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval dg=lower(trim(toString(coalesce(etcd_members_degraded, degraded, conditions_degraded, ""))))
+      | eval ni=lower(trim(toString(coalesce(node_installer_degraded, NodeInstallerDegraded, nodeinstallerdegraded, ""))))
+      | eval mem_deg_f=if(match(dg,"true|1"), 1, 0)
+      | eval ni_deg_f=if(match(ni,"true|1"), 1, 0)
+      | eval cond_blob=substr(trim(toString(coalesce(status_message, message, etcd_cond_msg, ""))), 1, 240)
+      | stats max(mem_deg_f) AS etcd_cr_memdeg max(ni_deg_f) AS etcd_cr_ni_deg latest(cond_blob) AS etcd_cr_msg latest(_time) AS last_cr BY cluster
+      | eval lane="cr_etcd" ]
+    [ search (index=ocp_metrics OR index=ocp_audit) sourcetype=ocp_clusteroperator earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, ""))))
+      | eval op=lower(trim(toString(coalesce(name, operator, metadata_name, ""))))
+      | where op="etcd"
+      | eval co_deg=if(match(lower(toString(coalesce(degraded, conditions_degraded, ""))), "true|1"), 1, 0)
+      | stats max(co_deg) AS co_etcd_deg latest(_time) AS last_co BY cluster
+      | eval lane="co_etcd" ]
+    [ search index=ocp_metrics (sourcetype=prometheus:metrics OR sourcetype=prometheus:ocp) earliest=-6h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=lower(trim(toString(coalesce(__name__, metric_name, name, ""))))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "0")), 10)
+      | where mn="etcd_disk_backend_commit_duration_seconds_bucket"
+      | eval lelab=trim(toString(coalesce(le, le_label, "")))
+      | where lelab="0.25" OR lelab="0.5" OR lelab="1" OR lelab="+Inf" OR match(lelab,"Inf$")
+      | bucket _time span=5m
+      | stats max(mv) AS bmax BY cluster _time
+      | stats max(bmax) AS coarse_commit_hist_hint max(_time) AS last_hist BY cluster
+      | eval lane="m_hist" ]
+| stats max(last_lc) AS last_lc max(leader_roll15) AS leader_roll15 max(cluster_fsync_p99) AS cluster_fsync_p99 max(cluster_be_p99) AS cluster_be_p99 max(proposals_fail_delta) AS proposals_fail_delta max(last_prop) AS last_prop max(peer_rtt_p99_ms) AS peer_rtt_p99_ms max(evt_cnt) AS evt_cnt max(last_evt) AS last_evt max(etcd_cr_memdeg) AS etcd_cr_memdeg max(etcd_cr_ni_deg) AS etcd_cr_ni_deg max(last_cr) AS last_cr max(co_etcd_deg) AS co_etcd_deg max(last_co) AS last_co max(coarse_commit_hist_hint) AS coarse_commit_hist_hint max(last_hist) AS last_hist values(evt_snip) AS evt_snip_mv values(etcd_cr_msg) AS cr_msg_mv BY cluster
+| eval evt_snip=substr(trim(toString(mvindex(mvdedup(evt_snip_mv), 0))), 1, 160)
+| eval etcd_cr_msg=substr(trim(toString(mvindex(mvdedup(cr_msg_mv), 0))), 1, 200)
+| eval storm_hint=if(coalesce(leader_roll15,0)>=3, 1, 0)
+| eval disk_bad=if(coalesce(cluster_fsync_p99,0)>50 OR coalesce(cluster_be_p99,0)>25, 1, 0)
+| eval rtt_bad=if(coalesce(peer_rtt_p99_ms,0)>80, 1, 0)
+| eval prop_hot=if(coalesce(proposals_fail_delta,0)>=25, 1, 0)
+| eventstats perc90(leader_roll15) AS fleet_leader_p90 perc90(cluster_fsync_p99) AS fleet_fsync_p90 BY cluster
+| eval correlate=if(storm_hint==1 AND disk_bad==1, 1, 0)
+| eval severity=case(
+    correlate==1 AND (etcd_cr_memdeg==1 OR co_etcd_deg==1 OR prop_hot==1), "page",
+    correlate==1, "page",
+    storm_hint==1 AND disk_bad==0 AND rtt_bad==1, "warn",
+    storm_hint==1, "warn",
+    disk_bad==1 AND coalesce(leader_roll15,0)>=1, "warn",
+    disk_bad==1, "info",
+    prop_hot==1, "warn",
+    true(), "info")
+| eval recommended_action=case(
+    correlate==1 AND disk_bad==1, "isolate_slow_control_plane_disk_verify_etcd_volume_io_correlate_machineconfig_pool",
+    storm_hint==1 AND rtt_bad==1, "map_control_plane_network_path_peer_latency_packet_loss_firewall_mtu",
+    prop_hot==1, "check_apiserver_load_and_etcd_space_quota_review_slow_apply_clients",
+    etcd_cr_memdeg==1 OR co_etcd_deg==1, "oc_describe_etcd_cluster_gather_ceo_logs_review_static_pod_revisions",
+    disk_bad==1, "storage_team_inspect_etcd_lv_latency_fsync_histograms_uc_3_2_8",
+    true(), "refresh_prometheus_federation_labels_validate_scrape_interval")
+| join type=left max=0 cluster [| inputlookup ocp_control_plane_maintenance_suppression | eval cluster=lower(trim(toString(cluster)))
+  | eval nowx=now()
+  | eval st=if(isnotnull(start_epoch) AND start_epoch>0, tonumber(start_epoch,10), if(len(trim(toString(start_time)))>0, strptime(trim(toString(start_time)), "%Y-%m-%dT%H:%M:%SZ"), null()))
+  | eval en=if(isnotnull(end_epoch) AND end_epoch>0, tonumber(end_epoch,10), if(len(trim(toString(end_time)))>0, strptime(trim(toString(end_time)), "%Y-%m-%dT%H:%M:%SZ"), null()))
+  | eval maint_active=if(isnotnull(st) AND isnotnull(en) AND nowx>=st AND nowx<=en, 1, 0)
+  | where maint_active==1
+  | stats max(maint_active) AS maint_suppress BY cluster ]
+| fillnull value=0 maint_suppress
+| eval severity=if(maint_suppress==1 AND severity!="page", "info", severity)
+| table cluster leader_roll15 cluster_fsync_p99 cluster_be_p99 storm_hint disk_bad correlate proposals_fail_delta peer_rtt_p99_ms etcd_cr_memdeg etcd_cr_ni_deg co_etcd_deg evt_cnt coarse_commit_hist_hint severity recommended_action maint_suppress fleet_leader_p90 fleet_fsync_p90 evt_snip last_co
+```
+
+## CIM SPL
+
+```spl
+| tstats summariesonly=true latest(Performance.cpu_load_percent) AS cpu latest(Performance.mem_used) AS mem FROM datamodel=Performance WHERE nodename=Performance earliest=-24h@h latest=now BY Performance.host
+| rename Performance.host AS perf_host
+| join type=left max=0 perf_host
+    [| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
+     | rename Application_State.dest AS perf_host ]
+| where like(lower(app_info), "%openshift%") OR like(lower(app_info), "%etcd%")
+| table perf_host cpu mem app_state app_info
+```
+
+## Visualization
+
+Timechart of leader_roll15 and cluster_fsync_p99 by cluster; table panel mirroring closing SPL columns; drilldowns to raw prometheus lines, ocp_events, ocp_etcd_cr JSON, and etcd ClusterOperator snapshot rows.
+
+## Known False Positives
+
+Planned control-plane upgrades and certificate rotations can legitimately increment etcd_server_leader_changes_seen_total for short intervals while quantiles remain well below paging thresholds; rely on the rolling fifteen-minute sum and the conjunction with disk tails before executive escalation. Approved etcd member replacement ceremonies supervised by support may show bursts of leader churn without storage faults; correlate change tickets and NodeMaintenance or machine-config timelines before treating as defect. Scheduled etcd defragmentation or compaction windows sometimes widen histograms briefly; compare duration against documented maintenance lookups and vendor guidance rather than muting the analytic globally. Backup or snapshot IO spikes from adjacent storage workloads can elevate fsync tails on shared arrays even when etcd logical health is fine; storage teams should map noisy neighbor LUNs and use the maintenance lookup when IO qualification runs are authorized. Prometheus federation delays or Thanos receiver gaps can make leader_roll15 appear artificially low while events still show warnings; pair with scrape health monitors before declaring all-clear. Lab clusters with synthetic chaos experiments will page by design; route them to non-production alert channels. Some cloud instance types exhibit higher baseline WAL quantiles; baseline fleet_fsync_p90 quarterly and adjust warn thresholds where hardware generations justify it. Duplicate scrapes from redundant collectors can inflate counters if deduplication is misconfigured upstream; reconcile Prometheus HA pairs before blaming etcd. Network microbursts that do not persist fifteen minutes may trip warn on peer round-trip tails without sustained storms; capture packet loss evidence on control-plane interfaces. When Etcd CR exporters lag behind metrics, etcd_cr_memdeg may be zero during genuine degradation; treat ClusterOperator and metrics lanes as mandatory peers, not optional ornaments.
+
+## References
+
+- [etcd documentation — Metrics](https://etcd.io/docs/v3.5/metrics/)
+- [etcd documentation — Monitoring guide](https://etcd.io/docs/v3.5/op-guide/monitoring/)
+- [OpenShift Documentation — Cluster etcd Operator](https://docs.openshift.com/container-platform/latest/nodes/cluster-etcd-operator.html)
+- [OpenShift Documentation — Recommended etcd practices](https://docs.openshift.com/container-platform/latest/scalability_and_performance/recommended-performance-scale-practices/recommended-etcd-practices.html)
+- [OpenShift Documentation — Backing up etcd](https://docs.openshift.com/container-platform/latest/backup_and_restore/control_plane_backup_and_restore/backing-up-etcd.html)
+- [OpenShift REST API Reference — Etcd (operator.openshift.io/v1)](https://docs.openshift.com/container-platform/latest/rest_api/operator_apis/etcd-operator-openshift-io-v1.html)
+- [cluster-etcd-operator source (GitHub)](https://github.com/openshift/cluster-etcd-operator)
+- [OpenShift Documentation — Gathering data about your cluster](https://docs.openshift.com/container-platform/latest/support/gathering-cluster-data.html)

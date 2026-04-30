@@ -7,6 +7,8 @@ pair added in v1.6.x — :func:`get_clause_coverage` and
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from splunk_uc_mcp.catalog import Catalog, CatalogNotFoundError
@@ -293,11 +295,25 @@ class TestGetClauseCoverageLive:
     def test_uncovered_clause_reports_empty_ucs(
         self, live_catalog: Catalog
     ) -> None:
-        r = get_clause_coverage(
+        # Pick a clause the clauses index still marks uncovered — hard-coding
+        # a label drifts when catalogue coverage changes.
+        worklist = list_uncovered_clauses(
             catalog=live_catalog,
-            regulation_id="ccpa",
-            clause="§1798.100",
+            regulations=["*"],
+            limit=1,
         )
+        entries = worklist["entries"]
+        assert entries, "live catalogue should list at least one uncovered clause"
+        row = entries[0]
+        kwargs: dict[str, Any] = {
+            "catalog": live_catalog,
+            "regulation_id": row["regulationId"],
+            "clause": row["clause"],
+        }
+        ver = row.get("version")
+        if ver is not None:
+            kwargs["version"] = ver
+        r = get_clause_coverage(**kwargs)
         assert r["coverageState"] == "uncovered"
         assert r["coveringUcs"] == []
         assert r["coveringUcCount"] == 0

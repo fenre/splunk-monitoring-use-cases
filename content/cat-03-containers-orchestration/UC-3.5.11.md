@@ -10,6 +10,12 @@ splunkPillar: "Security"
 
 # UC-3.5.11 · Sidecar Injection Validation
 
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Compliance, Fault &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*Every program in our network is supposed to have a security guard assigned to it — we regularly check which programs are missing their guard and report them so they can be fixed before sensitive information travels unprotected.*
+
+---
+
 ## Description
 
 Continuously validates that all pods running in Istio **injection-enabled namespaces** contain the **istio-proxy** sidecar container, cross-referencing namespace labels with pod container lists and tracking istiod webhook **injection success rates** — identifying pods that bypass mesh policy enforcement, mTLS encryption, and traffic management because the sidecar was never injected or silently failed to start.
@@ -24,24 +30,24 @@ Collect pod status snapshots and namespace labels via Splunk Connect for Kuberne
 
 ## Detailed Implementation
 
-Prerequisites
-• **Istio** 1.14+ service mesh with **sidecar injection** configured via **namespace labels**. **Istio** supports two injection modes:
+### Prerequisites
+- **Istio** 1.14+ service mesh with **sidecar injection** configured via **namespace labels**. **Istio** supports two injection modes:
   — **Label-based**: `istio-injection=enabled` label on the namespace (legacy)
   — **Revision-based**: `istio.io/rev=<revision>` label on the namespace (recommended for **canary upgrades**)
   Both modes use a **MutatingWebhookConfiguration** (`istio-sidecar-injector`) to intercept **pod CREATE** requests and inject the `istio-proxy` sidecar container and `istio-init` init container.
-• **Splunk Connect for Kubernetes** deployed to collect **`sourcetype=kube:pod:status`** from the **Kubernetes API**. The pod status snapshot must include the **container list** (names of all containers in the pod spec) and the pod namespace.
-• **Namespace label collection**: the **OTel Collector**'s **k8s_cluster receiver** collects namespace metadata including labels. Alternatively, create a **scheduled scripted input** that runs `kubectl get namespaces --show-labels -o json` and indexes the output as **`sourcetype=kube:namespace:labels`**.
-• **Namespace injection lookup**: create **`namespace_injection_status.csv`** mapping `namespace` to `injection_enabled` (true/false) and `injection_revision` (the Istio revision label if using canary upgrades). Populate this lookup from the namespace label collection — either manually or via a **scheduled search**:
+- **Splunk Connect for Kubernetes** deployed to collect **`sourcetype=kube:pod:status`** from the **Kubernetes API**. The pod status snapshot must include the **container list** (names of all containers in the pod spec) and the pod namespace.
+- **Namespace label collection**: the **OTel Collector**'s **k8s_cluster receiver** collects namespace metadata including labels. Alternatively, create a **scheduled scripted input** that runs `kubectl get namespaces --show-labels -o json` and indexes the output as **`sourcetype=kube:namespace:labels`**.
+- **Namespace injection lookup**: create **`namespace_injection_status.csv`** mapping `namespace` to `injection_enabled` (true/false) and `injection_revision` (the Istio revision label if using canary upgrades). Populate this lookup from the namespace label collection — either manually or via a **scheduled search**:
   `index=containers sourcetype="kube:namespace:labels" | eval injection_enabled=if(match(labels, "istio-injection=enabled") OR match(labels, "istio.io/rev="), "true", "false") | table namespace injection_enabled`
-• **Splunk HEC** token for **`index=containers`** with appropriate sourcetype routing.
-• **istiod metrics**: configure the OTel Collector **Prometheus receiver** to scrape the istiod `/metrics` endpoint for injection metrics:
+- **Splunk HEC** token for **`index=containers`** with appropriate sourcetype routing.
+- **istiod metrics**: configure the OTel Collector **Prometheus receiver** to scrape the istiod `/metrics` endpoint for injection metrics:
   — `sidecar_injection_requests_total` (counter — all injection attempts)
   — `sidecar_injection_success_total` (counter — successful injections)
   — `sidecar_injection_failure_total` (counter — failed injections, labeled by `reason`)
-• Splunk RBAC: users running compliance searches need **`srchIndexesAllowed`** including `containers`; assign via a **`mesh_compliance`** role.
-• **License estimate**: pod status snapshots generate approximately 1–5 MB/day for a 200-pod cluster. Injection metrics are negligible (~50 KB/day).
+- Splunk RBAC: users running compliance searches need **`srchIndexesAllowed`** including `containers`; assign via a **`mesh_compliance`** role.
+- **License estimate**: pod status snapshots generate approximately 1–5 MB/day for a 200-pod cluster. Injection metrics are negligible (~50 KB/day).
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **Pod status collection**: the **`kube:pod:status`** sourcetype must include the following fields for **compliance check**ing:
 — **`containers`** or **`spec.containers`** — the list of container names in the pod. The search checks for the presence of **`istio-proxy`** in this list.
 — **`namespace`** — the pod's namespace, used to look up injection status.
@@ -58,7 +64,7 @@ Step 1 — Configure data collection
 
 (4) **Namespace label change detection**: create an alert that triggers when a namespace's `istio-injection` label is removed or changed. This catches accidental label removal during **Helm upgrades** or `kubectl label` operations that silently disable injection for an entire namespace.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The compliance check SPL uses a **lookup** to identify injection-enabled namespaces, then finds pods in those namespaces that lack the `istio-proxy` container. The **`dedup`** by namespace and pod name (sorted by most recent `_time`) ensures each pod is counted once using its latest status.
 
 The injection success rate SPL aggregates istiod's injection metrics hourly:
@@ -68,30 +74,30 @@ The injection success rate SPL aggregates istiod's injection metrics hourly:
 
 Schedule the compliance check every **30 minutes** and alert when any namespace has `non_compliant_pods > 0`. Schedule the injection success rate every **hour** and alert on CRITICAL or sustained DEGRADED for 3+ hours.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Verify pod status collection: `index=containers sourcetype="kube:pod:status" earliest=-1h | stats dc(pod_name) as total_pods, dc(namespace) as namespaces`. Should show all monitored namespaces and pods.
 (b) Deploy a non-compliant test pod: `kubectl run no-sidecar --image=nginx --overrides='{"metadata":{"annotations":{"sidecar.istio.io/inject":"false"}}}' -n <injection-enabled-ns>`. Verify it appears in the compliance search results.
 (c) Verify the **namespace lookup**: `| inputlookup namespace_injection_status.csv | table namespace injection_enabled injection_revision`. Should list all namespaces with their injection status.
 (d) Verify injection metrics: `index=containers sourcetype="otel:metrics" metric_name="sidecar_injection_requests_total" earliest=-1h | stats sum(metric_value) as total`. Should be non-zero if pods have been created recently.
 (e) Test exemption logic: verify that istiod pods and system DaemonSets are correctly classified as exempt.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **single-value tiles** — total injection-enabled namespaces, total pods in those namespaces, non-compliant pod count (red if > 0), compliance percentage, injection success rate.
-• Row B: **compliance heatmap** — namespace × compliance status (green=100% compliant, amber=95–99%, red=<95%). Click to drill down to non-compliant pods.
-• Row C: **line chart** of injection success rate over 7 days at 1-hour granularity. Overlay injection request count as secondary Y-axis.
-• Row D: **non-compliant pod table** — namespace, pod name, owner (Deployment/StatefulSet/DaemonSet), non_compliant_reason, pod age. Sorted by namespace.
-• **Alerting**: any non-compliant pod → Slack `#mesh-security` with namespace and pod details; injection failure rate > 1% → Slack `#mesh-ops`; namespace label removed → PagerDuty **P3** (entire namespace may lose injection); injection failure rate > 10% → PagerDuty **P2** (**webhook malfunction**).
-• **Runbook** (owner: service mesh platform team): (1) for INJECTION_BYPASSED: check **pod annotations** for explicit opt-out: `kubectl get pod <pod> -n <ns> -o jsonpath='{.metadata.annotations}'`, (2) for INIT_PRESENT_SIDECAR_MISSING: check istio-proxy container status: `kubectl describe pod <pod> -n <ns> | grep -A5 istio-proxy`, (3) for webhook failures: check istiod logs: `kubectl logs -n istio-system deploy/istiod --tail=50 | grep inject`, (4) for namespace label changes: review recent kubectl/Helm operations.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **single-value tiles** — total injection-enabled namespaces, total pods in those namespaces, non-compliant pod count (red if > 0), compliance percentage, injection success rate.
+- Row B: **compliance heatmap** — namespace × compliance status (green=100% compliant, amber=95–99%, red=<95%). Click to drill down to non-compliant pods.
+- Row C: **line chart** of injection success rate over 7 days at 1-hour granularity. Overlay injection request count as secondary Y-axis.
+- Row D: **non-compliant pod table** — namespace, pod name, owner (Deployment/StatefulSet/DaemonSet), non_compliant_reason, pod age. Sorted by namespace.
+- **Alerting**: any non-compliant pod → Slack `#mesh-security` with namespace and pod details; injection failure rate > 1% → Slack `#mesh-ops`; namespace label removed → PagerDuty **P3** (entire namespace may lose injection); injection failure rate > 10% → PagerDuty **P2** (**webhook malfunction**).
+- **Runbook** (owner: service mesh platform team): (1) for INJECTION_BYPASSED: check **pod annotations** for explicit opt-out: `kubectl get pod <pod> -n <ns> -o jsonpath='{.metadata.annotations}'`, (2) for INIT_PRESENT_SIDECAR_MISSING: check istio-proxy container status: `kubectl describe pod <pod> -n <ns> | grep -A5 istio-proxy`, (3) for webhook failures: check istiod logs: `kubectl logs -n istio-system deploy/istiod --tail=50 | grep inject`, (4) for namespace label changes: review recent kubectl/Helm operations.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **namespace compliance matrix** showing each namespace as a colored cell — green (100% compliant), amber (partially compliant), red (non-compliant) — with hover showing the count of non-compliant pods. Pair with a **timeline** showing injection events over 24 hours.
-• **Alert design**: include `namespace`, `non_compliant_pods`, `affected_workloads`, `non_compliant_reason`, and `example_pods` in the compliance alert payload. For injection rate alerts include `failure_rate`, `total_requests`, and `injection_health`.
-• **Multi-revision injection tracking** — when using Istio **revision-based upgrades** with the **`istio.io/rev`** label, track which namespaces are on which revision to ensure complete migration. A namespace stuck on an old revision after all istiod pods for that revision are removed will silently lose injection.
-• **Per-workload compliance reporting** — aggregate non-compliant pods by **ownerReferences** (Deployment, StatefulSet, DaemonSet) to report at the workload level rather than individual pods. This provides **actionable remediation** targets for development teams.
-• **All pods show as non-compliant** — the `containers` field in the pod status may not include the full container list if the pod snapshot is incomplete. Verify the raw event includes all containers: `index=containers sourcetype="kube:pod:status" pod_name="<known-injected-pod>" | table containers`.
-• **Namespace lookup is empty** — the scheduled search that populates `namespace_injection_status.csv` may not be running. Check the saved search status and permissions. Alternatively, manually populate the CSV from `kubectl get ns --show-labels`.
-• **False compliance** — some pods may have the `istio-proxy` container but it is in **CrashLoopBackOff** or **not ready**. The basic compliance check only verifies container presence, not health. Extend the check to include container readiness status for comprehensive validation.
-• **Injection metrics show zero requests** — no pods have been created or updated recently. In a stable cluster, the injection webhook is only invoked during pod creation. Deploy a test pod to generate injection activity.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **namespace compliance matrix** showing each namespace as a colored cell — green (100% compliant), amber (partially compliant), red (non-compliant) — with hover showing the count of non-compliant pods. Pair with a **timeline** showing injection events over 24 hours.
+- **Alert design**: include `namespace`, `non_compliant_pods`, `affected_workloads`, `non_compliant_reason`, and `example_pods` in the compliance alert payload. For injection rate alerts include `failure_rate`, `total_requests`, and `injection_health`.
+- **Multi-revision injection tracking** — when using Istio **revision-based upgrades** with the **`istio.io/rev`** label, track which namespaces are on which revision to ensure complete migration. A namespace stuck on an old revision after all istiod pods for that revision are removed will silently lose injection.
+- **Per-workload compliance reporting** — aggregate non-compliant pods by **ownerReferences** (Deployment, StatefulSet, DaemonSet) to report at the workload level rather than individual pods. This provides **actionable remediation** targets for development teams.
+- **All pods show as non-compliant** — the `containers` field in the pod status may not include the full container list if the pod snapshot is incomplete. Verify the raw event includes all containers: `index=containers sourcetype="kube:pod:status" pod_name="<known-injected-pod>" | table containers`.
+- **Namespace lookup is empty** — the scheduled search that populates `namespace_injection_status.csv` may not be running. Check the saved search status and permissions. Alternatively, manually populate the CSV from `kubectl get ns --show-labels`.
+- **False compliance** — some pods may have the `istio-proxy` container but it is in **CrashLoopBackOff** or **not ready**. The basic compliance check only verifies container presence, not health. Extend the check to include container readiness status for comprehensive validation.
+- **Injection metrics show zero requests** — no pods have been created or updated recently. In a stable cluster, the injection webhook is only invoked during pod creation. Deploy a test pod to generate injection activity.
 
 ## SPL
 

@@ -1,0 +1,125 @@
+<!-- AUTO-GENERATED from UC-9.5.11.json — DO NOT EDIT -->
+
+---
+id: "9.5.11"
+title: "Impossible Travel Detection (Okta)"
+criticality: "high"
+splunkPillar: "Security"
+---
+
+# UC-9.5.11 · Impossible Travel Detection (Okta)
+
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security
+
+*We notice sign-ins that do not line up with how fast a person could move so we can catch stolen sessions or account sharing.*
+
+---
+
+## Description
+
+Two successful sessions from geolocations that cannot be reached in the elapsed time indicate credential theft or shared accounts.
+
+## Value
+
+Two successful sessions from geolocations that cannot be reached in the elapsed time indicate credential theft or shared accounts.
+
+## Implementation
+
+Use Okta geo fields (or enrich IP with `iplocation`). Tune minimum distance and maximum time windows. Exclude VPN and satellite egress via ASN lookups. Combine with Okta’s built-in impossible travel if licensed.
+
+## Detailed Implementation
+
+### Prerequisites
+- Install and configure the required add-on or app: `Splunk_TA_okta`.
+- Ensure the following data sources are available: `sourcetype=OktaIM2:log` (`user.session.start`, `user.authentication.sso`).
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+### Step 1 — Configure data collection
+Use Okta geo fields (or enrich IP with `iplocation`). Tune minimum distance and maximum time windows. Exclude VPN and satellite egress via ASN lookups. Combine with Okta’s built-in impossible travel if licensed.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+index=okta sourcetype="OktaIM2:log" outcome.result="SUCCESS" eventType="user.authentication.sso"
+| sort 0 actor.alternateId _time
+| streamstats window=1 last(client.geographicalContext.country) as prev_country last(_time) as prev_time last(client.ipAddress) as prev_ip current(client.geographicalContext.country) as country by actor.alternateId
+| eval delta_sec=_time-prev_time
+| where delta_sec > 0 AND delta_sec < 3600 AND country!=prev_country AND isnotnull(prev_country)
+| table _time, actor.alternateId, prev_country, country, delta_sec, prev_ip, client.ipAddress
+```
+
+#### Understanding this SPL
+
+**Impossible Travel Detection (Okta)** — Two successful sessions from geolocations that cannot be reached in the elapsed time indicate credential theft or shared accounts.
+
+Documented **Data sources**: `sourcetype=OktaIM2:log` (`user.session.start`, `user.authentication.sso`). **App/TA** (typical add-on context): `Splunk_TA_okta`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: okta; **sourcetype**: OktaIM2:log. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=okta, sourcetype="OktaIM2:log". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+- `streamstats` rolls up events into metrics; results are split **by actor.alternateId** so each row reflects one combination of those dimensions.
+- `eval` defines or adjusts **delta_sec** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where delta_sec > 0 AND delta_sec < 3600 AND country!=prev_country AND isnotnull(prev_country)` — typically the threshold or rule expression for this monitoring goal.
+- Pipeline stage (see **Impossible Travel Detection (Okta)**): table _time, actor.alternateId, prev_country, country, delta_sec, prev_ip, client.ipAddress
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+Understanding this CIM / accelerated SPL
+
+**Impossible Travel Detection (Okta)** — Two successful sessions from geolocations that cannot be reached in the elapsed time indicate credential theft or shared accounts.
+
+Documented **Data sources**: `sourcetype=OktaIM2:log` (`user.session.start`, `user.authentication.sso`). **App/TA** (typical add-on context): `Splunk_TA_okta`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+
+**Pipeline walkthrough**
+
+- Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+
+
+### Step 3 — Validate
+Compare Splunk results with the Okta admin console and System Log for the same users, outcomes, and time window, then adjust thresholds to normal org traffic.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (user, country A → B, delta), Map (sequential points), Single value (impossible travel count per day).
+
+## SPL
+
+```spl
+index=okta sourcetype="OktaIM2:log" outcome.result="SUCCESS" eventType="user.authentication.sso"
+| sort 0 actor.alternateId _time
+| streamstats window=1 last(client.geographicalContext.country) as prev_country last(_time) as prev_time last(client.ipAddress) as prev_ip current(client.geographicalContext.country) as country by actor.alternateId
+| eval delta_sec=_time-prev_time
+| where delta_sec > 0 AND delta_sec < 3600 AND country!=prev_country AND isnotnull(prev_country)
+| table _time, actor.alternateId, prev_country, country, delta_sec, prev_ip, client.ipAddress
+```
+
+## CIM SPL
+
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+## Visualization
+
+Table (user, country A → B, delta), Map (sequential points), Single value (impossible travel count per day).
+
+## Known False Positives
+
+Planned change windows, maintenance, approved automation, and known good service accounts; correlate with change tickets and identity team communication.
+
+## References
+
+- [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553)
+- [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)

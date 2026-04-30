@@ -9,14 +9,14 @@ verbatim.
 
 ```
 src/
-├── styles/         5 hand-written CSS files, split by concern.
+├── styles/         6 hand-written CSS files, split by concern.
 │                   Concatenated and fingerprinted into
 │                   dist/assets/styles.<hash>.css.
 │                   Critical (01-tokens + 02-base) is inlined into
 │                   <style> in <head> for above-the-fold rendering.
 │                   See src/styles/README.md.
 │
-├── scripts/        5 hand-written JS files, split by concern.
+├── scripts/        7 hand-written JS files, split by concern.
 │                   Concatenated and fingerprinted into
 │                   dist/assets/app.<hash>.js. Loaded via
 │                   <script defer> at end of <body>.

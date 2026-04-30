@@ -10,13 +10,13 @@ last_updated: 2026-04-30
 
 This guide situates the **Infrastructure** pillar of the Splunk monitoring use-case catalog: operating-system telemetry, virtualization signals, campus-to-data-center networking, storage lifecycles, physical facility risks, programmable fabrics, and converged compute platforms. It connects vendor-native instrumentation—what each stack emits—to Splunk normalization patterns (Apps/TAs, sourcetypes, common alert semantics) so practitioners can prioritize crawl/walk/run adoption against measurable outage classes and audit obligations.
 
-Browse the domain categories directly: [Browse Server & Compute](index.html#cat-1), [Browse Virtualization](index.html#cat-2), [Browse Network Infrastructure](index.html#cat-5), [Browse Storage & Backup](index.html#cat-6), [Browse Data Center Physical Infrastructure](index.html#cat-15), [Browse Data Center Fabric & SDN](index.html#cat-18), [Browse Compute Infrastructure](index.html#cat-19).
+Browse the domain categories directly: [Browse Server & Compute](../../index.html#cat-1), [Browse Virtualization](../../index.html#cat-2), [Browse Network Infrastructure](../../index.html#cat-5), [Browse Storage & Backup](../../index.html#cat-6), [Browse Data Center Physical Infrastructure](../../index.html#cat-15), [Browse Data Center Fabric & SDN](../../index.html#cat-18), [Browse Compute Infrastructure](../../index.html#cat-19).
 
 ---
 
 ## Category 1: Server & Compute (275 use cases)
 
-Server & Compute spans [Linux Servers](index.html#cat-1/1.1) (131), [Windows Servers](index.html#cat-1/1.2) (127), [macOS Endpoints](index.html#cat-1/1.3) (6), [Bare-Metal / Hardware](index.html#cat-1/1.4) (11), and blends performance telemetry with security-relevant OS narrative.
+Server & Compute spans [Linux Servers](../../index.html#cat-1/1.1) (131), [Windows Servers](../../index.html#cat-1/1.2) (127), [macOS Endpoints](../../index.html#cat-1/1.3) (6), [Bare-Metal / Hardware](../../index.html#cat-1/1.4) (11), and blends performance telemetry with security-relevant OS narrative.
 
 ### Operating-system metrics and monitoring stance
 
@@ -44,11 +44,11 @@ Hardware-adjacent failures escape OS counters until workloads crash silently; pr
 
 | Critical UC | Risk addressed |
 |-------------|----------------|
-| [EDAC Memory Error Tracking](index.html#uc-1.1.102) | Row/column ECC faults preceding DIMM replacement |
-| [IPMI Sensor Threshold Violations](index.html#uc-1.1.103) | Power/temp/current excursions visible only out-of-band |
-| [Thermal Throttling Detection](index.html#uc-1.1.104) | Firmware slowing CPUs before thermal shutdown |
-| [Fan Speed Anomalies](index.html#uc-1.1.105) | Cooling subsystem degradation vs HVAC faults |
-| [Power Supply State Changes](index.html#uc-1.1.106) | Redundancy loss preceding cascading faults |
+| [EDAC Memory Error Tracking](../../index.html#uc-1.1.102) | Row/column ECC faults preceding DIMM replacement |
+| [IPMI Sensor Threshold Violations](../../index.html#uc-1.1.103) | Power/temp/current excursions visible only out-of-band |
+| [Thermal Throttling Detection](../../index.html#uc-1.1.104) | Firmware slowing CPUs before thermal shutdown |
+| [Fan Speed Anomalies](../../index.html#uc-1.1.105) | Cooling subsystem degradation vs HVAC faults |
+| [Power Supply State Changes](../../index.html#uc-1.1.106) | Redundancy loss preceding cascading faults |
 
 **WHAT/WHY/HOW for BMC ingestion:** Ship SEL/IPMI syslog streams or periodic sensor polls into Splunk via syslog receivers or scripted pulls (Heavy Forwarder). *Why:* Operating systems frequently lack sensors when BMC asserts predictive failures. *How:* Normalize vendor-specific severity tokens into Splunk lookups (`bmc_vendor`,`regex_extract`,`severity_map`) so correlated dashboards combine Linux OS KPIs with BMC thermal/power timelines without double-counting transient spikes during chassis firmware flashes.
 
@@ -64,10 +64,10 @@ Representative catalog threads tying OS observability to incident response hygie
 
 | Linked UC | Focus |
 |-----------|-------|
-| [OOM Killer Events](index.html#uc-1.1.7) | Memory-pressure kill signatures preceding instability |
-| [SSH Brute-Force Detection](index.html#uc-1.1.8) | Credential-stuffing narratives |
-| [Unauthorized Sudo Usage](index.html#uc-1.1.9) | Privilege escalation forensic pivot |
-| [Cron Job Failure Monitoring](index.html#uc-1.1.10) | Scheduled-task automation drift |
+| [OOM Killer Events](../../index.html#uc-1.1.7) | Memory-pressure kill signatures preceding instability |
+| [SSH Brute-Force Detection](../../index.html#uc-1.1.8) | Credential-stuffing narratives |
+| [Unauthorized Sudo Usage](../../index.html#uc-1.1.9) | Privilege escalation forensic pivot |
+| [Cron Job Failure Monitoring](../../index.html#uc-1.1.10) | Scheduled-task automation drift |
 
 ### Windows Event Log depth and PerfMon pairing
 
@@ -81,7 +81,7 @@ Representative catalog threads tying OS observability to incident response hygie
 
 ## Category 2: Virtualization (124 use cases)
 
-Virtualization aggregates hypervisors ([VMware vSphere](index.html#cat-2/2.1)), Microsoft Hyper-V, KVM / Proxmox / oVirt families, cross-platform abstractions, VDI estates, and Citrix delivery tiers—each exporting scheduler/memory semantics invisible to guest-only agents.
+Virtualization aggregates hypervisors ([VMware vSphere](../../index.html#cat-2/2.1)), Microsoft Hyper-V, KVM / Proxmox / oVirt families, cross-platform abstractions, VDI estates, and Citrix delivery tiers—each exporting scheduler/memory semantics invisible to guest-only agents.
 
 ### Splunk integration baseline
 
@@ -91,10 +91,10 @@ Anchor operational resilience:
 
 | Critical UC | Signal |
 |-------------|--------|
-| [ESXi Host Unexpected Reboot](index.html#uc-2.1.21) | Host isolation / PSOD-class outages |
-| [vCenter Service Health](index.html#uc-2.1.22) | Control-plane dependency failures |
-| [VM Unexpected Power State Changes](index.html#uc-2.1.23) | HA/restart storms vs automation drift |
-| [Datastore Capacity Trending](index.html#uc-2.1.3) | Thin-provision exhaustion cascades |
+| [ESXi Host Unexpected Reboot](../../index.html#uc-2.1.21) | Host isolation / PSOD-class outages |
+| [vCenter Service Health](../../index.html#uc-2.1.22) | Control-plane dependency failures |
+| [VM Unexpected Power State Changes](../../index.html#uc-2.1.23) | HA/restart storms vs automation drift |
+| [Datastore Capacity Trending](../../index.html#uc-2.1.3) | Thin-provision exhaustion cascades |
 
 ### VMware vendor-aligned hypervisor KPI practices (gold reference)
 
@@ -158,7 +158,7 @@ VMware dominates enterprise hypervisor mindshare, yet Splunk estates routinely a
 
 ## Category 5: Network Infrastructure (490 use cases) — Cisco gold standard
 
-Network Infrastructure is the catalog’s largest vertical ([Browse Network Infrastructure](index.html#cat-5)): routers/switches, firewalls, load balancers, wireless, SD-WAN, DNS/DHCP, flow telemetry, management-plane APIs, Digital Experience Monitoring (ThousandEyes), carrier signaling, model-driven telemetry (gNMI/gRPC), telecom-style CDR feeds, Cisco Catalyst Center assurance/automation posture, Infoblox IPAM narratives, plus adjacent ecosystem integrations.
+Network Infrastructure is the catalog’s largest vertical ([Browse Network Infrastructure](../../index.html#cat-5)): routers/switches, firewalls, load balancers, wireless, SD-WAN, DNS/DHCP, flow telemetry, management-plane APIs, Digital Experience Monitoring (ThousandEyes), carrier signaling, model-driven telemetry (gNMI/gRPC), telecom-style CDR feeds, Cisco Catalyst Center assurance/automation posture, Infoblox IPAM narratives, plus adjacent ecosystem integrations.
 
 Non-Cisco ecosystems remain essential for heterogeneous estates:
 
@@ -175,15 +175,15 @@ Non-Cisco ecosystems remain essential for heterogeneous estates:
 
 Before consolidating on Cisco-specific controllers, align Splunk ingestion with **horizontal control-plane roles**—each subcategory maps to measurable blast-radius classes:
 
-#### Firewalls ([Browse Firewalls](index.html#cat-5/5.2))
+#### Firewalls ([Browse Firewalls](../../index.html#cat-5/5.2))
 
 **WHAT:** Normalize vendor syslog (Palo Alto `traffic`/`threat`, Cisco Secure Firewall **eStreamer**/syslog, Fortinet FGTVOM, Check Point OPSEC LEA, Meraki MX unified threat narratives) into Splunk ES-compatible schemas where licensing permits.
 
 **WHY:** Stateful inspection devices emit **session lifecycle** semantics—Splunk timelines differentiate benign bulk transfers from **C2 beaconing** faster than pure NetFlow absent application labels.
 
-**HOW:** Deploy Heavy Forwarders at syslog aggregation tiers with **`props/transforms`** enforcing consistent `_time` extraction across fragmented syslog lines; leverage **`Firewall`**/**`IDS`** CIM templates for cross-vendor analytics. Anchor operational resilience via catalog threads such as [Firewall HA Failover Events](index.html#uc-5.2.14) (fail-open detection) and [Session Table Exhaustion](index.html#uc-5.2.13) (state-store pressure preceding silent drops).
+**HOW:** Deploy Heavy Forwarders at syslog aggregation tiers with **`props/transforms`** enforcing consistent `_time` extraction across fragmented syslog lines; leverage **`Firewall`**/**`IDS`** CIM templates for cross-vendor analytics. Anchor operational resilience via catalog threads such as [Firewall HA Failover Events](../../index.html#uc-5.2.14) (fail-open detection) and [Session Table Exhaustion](../../index.html#uc-5.2.13) (state-store pressure preceding silent drops).
 
-#### Load balancers ([Browse Load Balancers & ADCs](index.html#cat-5/5.3))
+#### Load balancers ([Browse Load Balancers & ADCs](../../index.html#cat-5/5.3))
 
 **WHAT:** Capture F5 BIG-IP **LTM**/AFM logs (`/var/log/ltm`), pool member health transitions (`POOL_MEMBER_DOWN`), SSL handshake failures, Citrix ADC rewrite policies, plus A10/Kemp syslog dialects where applicable.
 
@@ -191,7 +191,7 @@ Before consolidating on Cisco-specific controllers, align Splunk ingestion with 
 
 **HOW:** Scripted pulls of **iHealth**/**qkview** summaries complement streaming logs—schedule nightly modular inputs storing serialized diagnostics alongside syslog streams for RCA archives.
 
-#### Wireless infrastructure ([Browse Wireless Infrastructure](index.html#cat-5/5.4))
+#### Wireless infrastructure ([Browse Wireless Infrastructure](../../index.html#cat-5/5.4))
 
 **WHAT:** Blend Cisco Catalyst/WLC syslog (`CLIENT_OR_DEBUG`), Aruba Central REST exports, Mist JWT-based webhooks, and Meraki MR RF telemetry (`meraki:networks`/`meraki:wireless`) already unified via **`Splunk_TA_cisco_meraki`**.
 
@@ -199,31 +199,31 @@ Before consolidating on Cisco-specific controllers, align Splunk ingestion with 
 
 **HOW:** Normalize BSSID/AP MAC joins across datasets via lookups keyed by `serial`/`networkId`; correlate roaming events with DHCP scope pressure captured next.
 
-#### DNS & DHCP ([Browse DNS & DHCP](index.html#cat-5/5.6))
+#### DNS & DHCP ([Browse DNS & DHCP](../../index.html#cat-5/5.6))
 
 **WHAT:** Infoblox **Grid** syslog (`audit`,`dns`,`dhcp`), BlueCat Address Manager audit feeds, Microsoft DNS analytical logs (`Microsoft-Windows-DNS-Server/Analytical`), ISC BIND structured syslog.
 
 **WHY:** Application outages masquerade as “network down” when **NXDOMAIN** storms or **DHCP exhaustion** starve clients—Catalyst Center client health cannot diagnose authoritative DNS failures alone.
 
-**HOW:** Splunk Add-on for **Infoblox** supplies field extractions; pair [DHCP Scope Exhaustion](index.html#uc-5.6.5) baselines with Meraki MX DHCP narratives (`meraki:events`) for branch-office contrast. DNSSEC validation threads ([DNSSEC Validation Failures](index.html#uc-5.6.10)) demand Splunk correlation against resolver forwarding hops.
+**HOW:** Splunk Add-on for **Infoblox** supplies field extractions; pair [DHCP Scope Exhaustion](../../index.html#uc-5.6.5) baselines with Meraki MX DHCP narratives (`meraki:events`) for branch-office contrast. DNSSEC validation threads ([DNSSEC Validation Failures](../../index.html#uc-5.6.10)) demand Splunk correlation against resolver forwarding hops.
 
-#### Network flow data ([Browse Network Flow Data](index.html#cat-5/5.7))
+#### Network flow data ([Browse Network Flow Data](../../index.html#cat-5/5.7))
 
 **WHAT:** Ingest **NetFlow v5/v9/IPFIX** (`stream:cisco_hsl_netflow`, Splunk Stream, Cisco IOS Flexible NetFlow exports), **sFlow**, and **Zeek** `conn.log`/`dns.log` for unsampled east-west forensics.
 
 **WHY:** Flow telemetry reveals volumetric DDoS and lateral movement paths absent from SNMP interface counters—security analytics complements SD-WAN **TCP/UDP syslog** security dashboards mandated by Cisco reference designs.
 
-**HOW:** Splunk **CIM Network Traffic** acceleration over flow-derived fields (`src_ip`,`dest_ip`,`bytes_in`) powers [East-West Traffic Monitoring](index.html#uc-5.7.4) and [Long-Duration Flow Detection](index.html#uc-5.7.10) pivots; tune retention/class masks to control license burn—sample heavy CDN flows via Splunk **filter transforms**.
+**HOW:** Splunk **CIM Network Traffic** acceleration over flow-derived fields (`src_ip`,`dest_ip`,`bytes_in`) powers [East-West Traffic Monitoring](../../index.html#uc-5.7.4) and [Long-Duration Flow Detection](../../index.html#uc-5.7.10) pivots; tune retention/class masks to control license burn—sample heavy CDN flows via Splunk **filter transforms**.
 
-#### gNMI / gRPC streaming telemetry ([Browse gNMI / gRPC](index.html#cat-5/5.11))
+#### gNMI / gRPC streaming telemetry ([Browse gNMI / gRPC](../../index.html#cat-5/5.11))
 
 **WHAT:** Subscribe to **OpenConfig**/`ietf-interfaces` YANG paths via **gNMI ON_CHANGE** dial-out/dial-in collectors feeding Splunk HTTP Event Collector endpoints—NX-OS/Arista EOS expose line-rate counters (`interfaces/interface/state/counters`) suitable for microburst analytics.
 
 **WHY:** Poll-based SNMP misses sub-second microbursts causing silent drops—streaming telemetry aligns with Cisco **model-driven telemetry** guidance for modern fabrics.
 
-**HOW:** Operationalize UC threads such as [Interface Utilization via gNMI Streaming Counters](index.html#uc-5.11.1) and [BGP Peer State Change Detection via ON_CHANGE](index.html#uc-5.11.3)—Splunk dashboards stitch dial-out telemetry with Catalyst Center Assurance fault timelines using shared `deviceId` lookups.
+**HOW:** Operationalize UC threads such as [Interface Utilization via gNMI Streaming Counters](../../index.html#uc-5.11.1) and [BGP Peer State Change Detection via ON_CHANGE](../../index.html#uc-5.11.3)—Splunk dashboards stitch dial-out telemetry with Catalyst Center Assurance fault timelines using shared `deviceId` lookups.
 
-#### Carrier signaling & telecom CDR ([Browse Carrier](index.html#cat-5/5.10), [Browse Telecom & CDR](index.html#cat-5/5.12))
+#### Carrier signaling & telecom CDR ([Browse Carrier](../../index.html#cat-5/5.10), [Browse Telecom & CDR](../../index.html#cat-5/5.12))
 
 **WHAT:** Capture SS7/Diameter adjunct logs (where permissible), SIP ladder diagrams normalized to syslog, CDR batches via SFTP ingestion into Splunk indexes partitioned by tenant.
 
@@ -231,7 +231,7 @@ Before consolidating on Cisco-specific controllers, align Splunk ingestion with 
 
 **HOW:** Heavy Forwarder **`batch`** inputs monitor landing zones; **`INDEXED_EXTRACTIONS = CSV`** with strict **TZ** offsets prevents multi-region daylight drift during regulatory investigations.
 
-### Cisco Catalyst Center (78 use cases — subcategory [Cisco Catalyst Center](index.html#cat-5/5.13))
+### Cisco Catalyst Center (78 use cases — subcategory [Cisco Catalyst Center](../../index.html#cat-5/5.13))
 
 Cisco Catalyst Center (formerly DNA Center) exemplifies controller-led assurance across campus fabrics. Cisco IT publicly cites transformational outcomes—**97% reduction in critical/high software vulnerabilities** through disciplined lifecycle governance and **59% faster software upgrades** via standardized automation pipelines—underscoring why Splunk correlation across Catalyst Center telemetry yields measurable operational ROI versus fragmented CLI scraping.
 
@@ -296,7 +296,7 @@ Canonical sourcetypes emphasized for Splunk analysts:
 
 Representative correlated UC journeys pair Assurance anomalies with upstream/downstream telemetry—for example bridging Catalyst Center wireless onboarding degradation with DHCP/DNS Splunk feeds captured elsewhere in Category 5.
 
-### Cisco ThousandEyes (54 use cases — subcategory [Network Experience Monitoring](index.html#cat-5/5.9))
+### Cisco ThousandEyes (54 use cases — subcategory [Network Experience Monitoring](../../index.html#cat-5/5.9))
 
 ThousandEyes treats Internet/SaaS paths as first-class observables—distinct from SNMP/syslog device-only narratives.
 
@@ -316,9 +316,9 @@ Illustrative catalog links:
 
 | UC | ThousandEyes tie-in |
 |----|---------------------|
-| [Path Hop Count Analysis](index.html#uc-5.9.5) | Path length regression |
-| [Network Path Change Detection](index.html#uc-5.9.6) | Route flaps vs DC moves |
-| [HTTP Server Availability Monitoring (ThousandEyes)](index.html#uc-5.9.34) | Test targets tied to SaaS SLAs |
+| [Path Hop Count Analysis](../../index.html#uc-5.9.5) | Path length regression |
+| [Network Path Change Detection](../../index.html#uc-5.9.6) | Route flaps vs DC moves |
+| [HTTP Server Availability Monitoring (ThousandEyes)](../../index.html#uc-5.9.34) | Test targets tied to SaaS SLAs |
 
 #### SYN vs SACK probing optimization — WHAT/WHY/HOW
 
@@ -374,7 +374,7 @@ Meraki blends wireless telemetry with MT environmental sensors—Splunk dashboar
 
 **HOW:** Splunk Heavy Forwarder modular inputs populate **`meraki:devices`**, **`meraki:sensorreadingshistory`**, **`meraki:webhook`** sourcetypes—normalize JSON payloads via props/transforms into accelerated summaries (`sensor_serial`,`sensor_metric`,`networkId`).
 
-### Cisco SD-WAN (20 use cases — subcategory [SD-WAN](index.html#cat-5/5.5))
+### Cisco SD-WAN (20 use cases — subcategory [SD-WAN](../../index.html#cat-5/5.5))
 
 Cisco Catalyst SD-WAN overlays application-aware steering with security service edge adjacencies—Splunk delivers single-pane operational/security fusion.
 
@@ -402,7 +402,7 @@ Cisco Catalyst SD-WAN overlays application-aware steering with security service 
 
 **HOW:** Compliance searches index `softwareVersion` fields alongside Splunk lookups verifying minimal IOS-XE trains before onboarding routers into dashboards.
 
-### IOS / IOS-XE routers & switches ([Routers & Switches](index.html#cat-5/5.1))
+### IOS / IOS-XE routers & switches ([Routers & Switches](../../index.html#cat-5/5.1))
 
 Classic Cisco forwarding-plane instrumentation feeds Splunk via syslog (facility-oriented severity tokens), SNMP traps for hardware redundancy transitions, and streaming telemetry adjuncts.
 
@@ -412,11 +412,11 @@ Classic Cisco forwarding-plane instrumentation feeds Splunk via syslog (facility
 
 | UC | Operational interpretation |
 |----|----------------------------|
-| [Interface Up/Down](index.html#uc-5.1.1) | Link-loss segmentation vs bounce churn |
-| [Power Supply/Fan Failures](index.html#uc-5.1.11) | Hardware redundancy breaches |
-| [Route Table Flapping](index.html#uc-5.1.16) | Control-plane instability |
-| [EIGRP Neighbor Flapping](index.html#uc-5.1.20) | IGP reconvergence storms |
-| [HSRP/VRRP State Changes](index.html#uc-5.1.23) | Default-gateway failover narratives |
+| [Interface Up/Down](../../index.html#uc-5.1.1) | Link-loss segmentation vs bounce churn |
+| [Power Supply/Fan Failures](../../index.html#uc-5.1.11) | Hardware redundancy breaches |
+| [Route Table Flapping](../../index.html#uc-5.1.16) | Control-plane instability |
+| [EIGRP Neighbor Flapping](../../index.html#uc-5.1.20) | IGP reconvergence storms |
+| [HSRP/VRRP State Changes](../../index.html#uc-5.1.23) | Default-gateway failover narratives |
 
 **WHAT/WHY/HOW aggregate:** Normalize syslog `%LINK`/`%BGP`/`%OSPF`/`%EIGRP`/`%HSRP` patterns via TA transforms—Splunk alerts differentiate singular fiber cuts (`single-interface`) vs systemic PSU faults (`multi-interface concurrent`). Correlate Catalyst Center Assurance overlays where IOS-XE switches integrate controller-managed telemetry alongside standalone syslog ingestion.
 
@@ -424,7 +424,7 @@ Classic Cisco forwarding-plane instrumentation feeds Splunk via syslog (facility
 
 ## Category 6: Storage & Backup (81 use cases)
 
-Storage spans SAN/NAS arrays ([SAN/NAS](index.html#cat-6/6.1)), object endpoints ([Object Storage](index.html#cat-6/6.2)), backup suites ([Backup & Recovery](index.html#cat-6/6.3)), and shared file services ([File Services](index.html#cat-6/6.4)).
+Storage spans SAN/NAS arrays ([SAN/NAS](../../index.html#cat-6/6.1)), object endpoints ([Object Storage](../../index.html#cat-6/6.2)), backup suites ([Backup & Recovery](../../index.html#cat-6/6.3)), and shared file services ([File Services](../../index.html#cat-6/6.4)).
 
 ### Capacity, latency, IOPS — unified lens
 
@@ -440,11 +440,11 @@ Storage spans SAN/NAS arrays ([SAN/NAS](index.html#cat-6/6.1)), object endpoints
 
 **Dell EMC PowerStore / Unity — WHAT/WHY/HOW:** Pull REST **`instance`**/`metric` families for node CPU/memory headroom plus replication session states (`ReplicationSession`). *Why:* Active/active Metro fabrics shift failure domains—Splunk must pair replication lag seconds with VMware datastore latency from Category 2. *How:* OAuth-stored credentials inside Splunk credential locker with rotating refresh tokens scripted nightly.
 
-**Pure Storage FlashArray — WHAT/WHY/HOW:** Pure1 REST exposes **`array`,`volume`,`host`** latency histograms (`usec_per_op`)—trend drive rebuild states (`hardware.components`) alongside predictive failure counters per Pure Operations Guide thresholds. *Why:* All-flash arrays mask wear until parallel rebuild windows coincide with peak OLTP bursts. *How:* Scheduled searches persist `capacity` and `thin_provisioning` snapshot fields into summary indexes powering [Pure Storage Array Health](index.html#uc-6.1.19).
+**Pure Storage FlashArray — WHAT/WHY/HOW:** Pure1 REST exposes **`array`,`volume`,`host`** latency histograms (`usec_per_op`)—trend drive rebuild states (`hardware.components`) alongside predictive failure counters per Pure Operations Guide thresholds. *Why:* All-flash arrays mask wear until parallel rebuild windows coincide with peak OLTP bursts. *How:* Scheduled searches persist `capacity` and `thin_provisioning` snapshot fields into summary indexes powering [Pure Storage Array Health](../../index.html#uc-6.1.19).
 
-**Dell PowerScale (Isilon) — WHAT/WHY/HOW:** OneFS **`isi_audit_categories`** syslog plus REST **`/platform/*/cluster/status`** quorum narratives feed Splunk alongside SMB/NFS latency proxies. *Why:* Scale-out NAS outages cluster as **`JOB_ENGINE`** backlog spikes—capacity alone stays green while metadata storms persist. *How:* Correlate [Isilon Cluster Health](index.html#uc-6.1.11) dashboards with SMB **`tcp`** connection resets captured at adjacent Catalyst Center client metrics.
+**Dell PowerScale (Isilon) — WHAT/WHY/HOW:** OneFS **`isi_audit_categories`** syslog plus REST **`/platform/*/cluster/status`** quorum narratives feed Splunk alongside SMB/NFS latency proxies. *Why:* Scale-out NAS outages cluster as **`JOB_ENGINE`** backlog spikes—capacity alone stays green while metadata storms persist. *How:* Correlate [Isilon Cluster Health](../../index.html#uc-6.1.11) dashboards with SMB **`tcp`** connection resets captured at adjacent Catalyst Center client metrics.
 
-**Ceph — WHAT/WHY/HOW:** **`ceph -w`**/`ceph.log`, RADOSGW access logs, Prometheus **`ceph_exporter`** scrape endpoints via Splunk HTTP Event Collector OTEL bridging. *Why:* Placement-group `degraded` / `peering` states precede client IO stalls—Splunk overlays OSD maps with host disk SMART narratives from Category 1. *How:* Implementation narrative captured in [Ceph Cluster Health](index.html#uc-6.1.14).
+**Ceph — WHAT/WHY/HOW:** **`ceph -w`**/`ceph.log`, RADOSGW access logs, Prometheus **`ceph_exporter`** scrape endpoints via Splunk HTTP Event Collector OTEL bridging. *Why:* Placement-group `degraded` / `peering` states precede client IO stalls—Splunk overlays OSD maps with host disk SMART narratives from Category 1. *How:* Implementation narrative captured in [Ceph Cluster Health](../../index.html#uc-6.1.14).
 
 ### Backup job monitoring — WHAT/WHY/HOW
 
@@ -474,22 +474,22 @@ Catalog-critical UC anchors:
 
 | UC | Tier focus |
 |----|------------|
-| [Volume Capacity Trending](index.html#uc-6.1.1) | Capacity forecasting |
-| [Isilon Cluster Health](index.html#uc-6.1.11) | Scale-out NAS resilience |
-| [Ceph Cluster Health](index.html#uc-6.1.14) | Open-source SDS quorum narratives |
-| [Pure Storage Array Health](index.html#uc-6.1.19) | All-flash endurance |
+| [Volume Capacity Trending](../../index.html#uc-6.1.1) | Capacity forecasting |
+| [Isilon Cluster Health](../../index.html#uc-6.1.11) | Scale-out NAS resilience |
+| [Ceph Cluster Health](../../index.html#uc-6.1.14) | Open-source SDS quorum narratives |
+| [Pure Storage Array Health](../../index.html#uc-6.1.19) | All-flash endurance |
 
 ### Object storage & shared file services
 
 **Object storage — WHAT/WHY/HOW:** Index S3-compatible access logs (`GET/PUT` latency, `503` bursts), Erasure-coded repair metrics (`repairDuration`), and lifecycle transition failures from **NetApp StorageGRID**, **Dell ECS**, **Scality RING**, or cloud-adjacent stacks when Splunk aggregates hybrid bursting patterns. *Why:* Erasure-coded rebuild windows interact with WAN replication—Splunk ties object consistency lag to VMware datastore snapshots from Category 2 when VADP-style backup targets sit on object endpoints. *How:* Heavy Forwarder batches ORC/Parquet inventory reports from lifecycle scanners; optional **Splunk Observability Cloud** OTLP bridges for modern SRE teams.
 
-**File services — WHAT/WHY/HOW:** SMB (`Microsoft-Windows-SMBClient/Operational`) alongside NFS `rpc` timeout counters on Linux file clients provide end-host perspective on array/controller issues flagged in [Volume Capacity Trending](index.html#uc-6.1.1). *Why:* Array controllers may assert healthy yet client-side `STATUS_NETWORK_NAME_DELETED` storms indicate split-brain DFS or stale DNS pointers. *How:* Splunk correlation rules join DFS namespace events with [DNS Record Change Audit](index.html#uc-5.6.7) timelines from Category 5.
+**File services — WHAT/WHY/HOW:** SMB (`Microsoft-Windows-SMBClient/Operational`) alongside NFS `rpc` timeout counters on Linux file clients provide end-host perspective on array/controller issues flagged in [Volume Capacity Trending](../../index.html#uc-6.1.1). *Why:* Array controllers may assert healthy yet client-side `STATUS_NETWORK_NAME_DELETED` storms indicate split-brain DFS or stale DNS pointers. *How:* Splunk correlation rules join DFS namespace events with [DNS Record Change Audit](../../index.html#uc-5.6.7) timelines from Category 5.
 
 ---
 
 ## Category 15: Data Center Physical Infrastructure (81 use cases)
 
-Physical-layer resilience splits across [Power / UPS](index.html#cat-15/15.1), [Cooling / Environmental](index.html#cat-15/15.2), and [Physical Security](index.html#cat-15/15.3)—Splunk narratives converge telemetry historically siloed in BMS/BEPMS tooling.
+Physical-layer resilience splits across [Power / UPS](../../index.html#cat-15/15.1), [Cooling / Environmental](../../index.html#cat-15/15.2), and [Physical Security](../../index.html#cat-15/15.3)—Splunk narratives converge telemetry historically siloed in BMS/BEPMS tooling.
 
 ### UPS / generators / transfer switches — WHAT/WHY/HOW
 
@@ -503,10 +503,10 @@ Critical UC anchors:
 
 | UC | Scenario |
 |----|----------|
-| [UPS Battery Health](index.html#uc-15.1.1) | Cell degradation forecasting |
-| [UPS Battery Runtime](index.html#uc-15.1.10) | Load-adjusted autonomy breaches |
-| [Generator Fuel Level](index.html#uc-15.1.12) | Extended outage preparedness |
-| [Transfer Switch Events](index.html#uc-15.1.13) | Utility/generator source transitions |
+| [UPS Battery Health](../../index.html#uc-15.1.1) | Cell degradation forecasting |
+| [UPS Battery Runtime](../../index.html#uc-15.1.10) | Load-adjusted autonomy breaches |
+| [Generator Fuel Level](../../index.html#uc-15.1.12) | Extended outage preparedness |
+| [Transfer Switch Events](../../index.html#uc-15.1.13) | Utility/generator source transitions |
 
 ### Cooling & physical access
 
@@ -516,7 +516,7 @@ Critical UC anchors:
 
 **HOW:** Splunk correlation rules join Meraki MT sensors (`meraki:sensorreadingshistory`) with Catalyst Center WLAN Assurance thermal overlays where dense racks threaten RF absorption anomalies—closing facilities/network causality loops.
 
-### Physical security & access control ([Physical Security](index.html#cat-15/15.3))
+### Physical security & access control ([Physical Security](../../index.html#cat-15/15.3))
 
 **WHAT:** Integrate badge reader syslog (`ACCESS_GRANTED/DENIED`), biometric failures, elevator interlocks, video metadata markers (where privacy policies permit aggregated counts only), and intrusion-detection perimeter feeds—Splunk indexes operational summaries rather than raw PII wherever feasible.
 
@@ -529,9 +529,9 @@ Critical UC anchors:
 
 ## Category 18: Data Center Fabric & SDN (76 use cases)
 
-Fabric automation merges controller-led overlays ([Cisco ACI](index.html#cat-18/18.1)), VMware NSX micro-segmentation ([VMware NSX](index.html#cat-18/18.2)), generalized EVPN/VXLAN transports ([Other SDN](index.html#cat-18/18.3)), and Nexus Dashboard/NX-OS telemetry ([Nexus Dashboard](index.html#cat-18/18.4)).
+Fabric automation merges controller-led overlays ([Cisco ACI](../../index.html#cat-18/18.1)), VMware NSX micro-segmentation ([VMware NSX](../../index.html#cat-18/18.2)), generalized EVPN/VXLAN transports ([Other SDN](../../index.html#cat-18/18.3)), and Nexus Dashboard/NX-OS telemetry ([Nexus Dashboard](../../index.html#cat-18/18.4)).
 
-### Cisco ACI (23 use cases — subcategory [Cisco ACI](index.html#cat-18/18.1))
+### Cisco ACI (23 use cases — subcategory [Cisco ACI](../../index.html#cat-18/18.1))
 
 APIC exposes hierarchical managed-object graphs—Splunk correlates faults/events across tenants transparently.
 
@@ -563,10 +563,10 @@ APIC exposes hierarchical managed-object graphs—Splunk correlates faults/event
 
 | UC | Fabric narrative |
 |----|------------------|
-| [ACI Fabric Health Score Monitoring](index.html#uc-18.1.1) | Global spine/leaf posture |
-| [Multi-Site Health](index.html#uc-18.1.17) | Inter-site contracts stretched fabrics |
-| [Contract Violation and Implicit Deny Bursts](index.html#uc-18.1.20) | Policy-drop forensic timelines |
-| [APIC Resource Exhaustion](index.html#uc-18.1.23) | Control-plane saturation |
+| [ACI Fabric Health Score Monitoring](../../index.html#uc-18.1.1) | Global spine/leaf posture |
+| [Multi-Site Health](../../index.html#uc-18.1.17) | Inter-site contracts stretched fabrics |
+| [Contract Violation and Implicit Deny Bursts](../../index.html#uc-18.1.20) | Policy-drop forensic timelines |
+| [APIC Resource Exhaustion](../../index.html#uc-18.1.23) | Control-plane saturation |
 
 #### REST endpoints and Splunk mapping — WHAT/WHY/HOW
 
@@ -576,7 +576,7 @@ APIC exposes hierarchical managed-object graphs—Splunk correlates faults/event
 
 **HOW:** Scripted inputs stagger intervals (`poll_interval_sec`) respecting APIC CPU guidance—bulk export **`subscribe?query-target-filter`** batches nightly while minute-level fault pulls feed alerting paths; token refresh uses APIC **`aaaLogin`** cookie lifecycle cached in Splunk credential stores.
 
-### Cisco Nexus Dashboard & NX-OS (13 use cases — subcategory [Nexus Dashboard Fabric Controller](index.html#cat-18/18.4))
+### Cisco Nexus Dashboard & NX-OS (13 use cases — subcategory [Nexus Dashboard Fabric Controller](../../index.html#cat-18/18.4))
 
 **WHAT:** Nexus Dashboard Fabric Controller (**NDFC**) aggregates NX-OS telemetry, NetFlow/IPFIX exports, overlay/underlay operational state for VXLAN/EVPN fabrics.
 
@@ -596,7 +596,7 @@ Critical failover UC:
 
 | UC | Interpretation |
 |----|----------------|
-| [NSX Tier-0/Tier-1 Gateway HA Failover](index.html#uc-18.2.12) | Control-plane redundancy regressions |
+| [NSX Tier-0/Tier-1 Gateway HA Failover](../../index.html#uc-18.2.12) | Control-plane redundancy regressions |
 
 ---
 
@@ -604,7 +604,7 @@ Critical failover UC:
 
 Compute Infrastructure merges Cisco UCS (`cat-19.1`), HyperFlex-driven HCI clusters (`cat-19.2`), and Azure Stack HCI footprints (`cat-19.3`).
 
-### Cisco UCS (33 use cases — subcategory [Cisco UCS](index.html#cat-19/19.1))
+### Cisco UCS (33 use cases — subcategory [Cisco UCS](../../index.html#cat-19/19.1))
 
 UCS Manager exposes hierarchical faults spanning chassis/blades/FIs/service profiles—Splunk operationalizes XML API streams alongside syslog semantics.
 
@@ -644,13 +644,13 @@ UCS Manager exposes hierarchical faults spanning chassis/blades/FIs/service prof
 
 | UC | Operational focus |
 |----|-------------------|
-| [Blade/Rack Server Health](index.html#uc-19.1.1) | Overall compute availability |
-| [Service Profile Association Failures](index.html#uc-19.1.11) | Stateless automation breaks |
-| [FI Port-Channel Errors](index.html#uc-19.1.13) | Fabric interconnect resilience |
-| [Chassis PSU Redundancy Loss](index.html#uc-19.1.15) | Power-domain risk |
-| [Intersight Server Alarm Monitoring](index.html#uc-19.1.19) | Cloud-managed alarm correlation |
+| [Blade/Rack Server Health](../../index.html#uc-19.1.1) | Overall compute availability |
+| [Service Profile Association Failures](../../index.html#uc-19.1.11) | Stateless automation breaks |
+| [FI Port-Channel Errors](../../index.html#uc-19.1.13) | Fabric interconnect resilience |
+| [Chassis PSU Redundancy Loss](../../index.html#uc-19.1.15) | Power-domain risk |
+| [Intersight Server Alarm Monitoring](../../index.html#uc-19.1.19) | Cloud-managed alarm correlation |
 
-### Cisco HyperFlex (HCI — subcategory [Hyper-Converged Infrastructure](index.html#cat-19/19.2))
+### Cisco HyperFlex (HCI — subcategory [Hyper-Converged Infrastructure](../../index.html#cat-19/19.2))
 
 **WHAT:** HX Connect / HXDP REST APIs expose cluster quorum health, replication backlog depth, storage IO latency distributions across SCSI/NFS fronts.
 
@@ -670,10 +670,10 @@ UCS Manager exposes hierarchical faults spanning chassis/blades/FIs/service prof
 
 ## Adopting this guide in practice
 
-Treat this document as a **domain map**, not a substitute for per-UC SPL: start with browse anchors to [Browse Network Infrastructure](index.html#cat-5) when cross-domain causality dominates (Catalyst Center Assurance + ThousandEyes SaaS KPIs + IOS-XE syslog), tighten to [Browse Server & Compute](index.html#cat-1) when host-level saturation or hardware sensor patterns lead, and escalate to [Browse Data Center Fabric & SDN](index.html#cat-18) / [Browse Compute Infrastructure](index.html#cat-19) when controller-led fabrics or blade chassis narratives explain outages unreachable via SNMP alone.
+Treat this document as a **domain map**, not a substitute for per-UC SPL: start with browse anchors to [Browse Network Infrastructure](../../index.html#cat-5) when cross-domain causality dominates (Catalyst Center Assurance + ThousandEyes SaaS KPIs + IOS-XE syslog), tighten to [Browse Server & Compute](../../index.html#cat-1) when host-level saturation or hardware sensor patterns lead, and escalate to [Browse Data Center Fabric & SDN](../../index.html#cat-18) / [Browse Compute Infrastructure](../../index.html#cat-19) when controller-led fabrics or blade chassis narratives explain outages unreachable via SNMP alone.
 
 Minimum viable Splunk pairing checklist:
 
 1. Deploy vendor TA packages aligned with onboarded sourcetypes (`Splunk_TA_nix`,`Splunk_TA_windows`,`TA_cisco_catalyst`,`Splunk_Add-on_for_VMware`,`Splunk_Add-on_for_Cisco_ACI`).
 2. Normalize identification (`serial`,`deviceId`,`tenant`,`business_service`) via nightly lookups bridging CMDB exports.
-3. Route critical UCS anchors ([Blade/Rack Server Health](index.html#uc-19.1.1)), resilient IOS narratives ([HSRP/VRRP State Changes](index.html#uc-5.1.23)), virtualization datastore runway ([Datastore Capacity Trending](index.html#uc-2.1.3)), and ThousandEyes SaaS probes ([HTTP Server Availability Monitoring (ThousandEyes)](index.html#uc-5.9.34)) into rehearsed incident bridges—Splunk becomes the forensic ledger tying assurance APIs to packet-path realities without swapping consoles mid-severity event.
+3. Route critical UCS anchors ([Blade/Rack Server Health](../../index.html#uc-19.1.1)), resilient IOS narratives ([HSRP/VRRP State Changes](../../index.html#uc-5.1.23)), virtualization datastore runway ([Datastore Capacity Trending](../../index.html#uc-2.1.3)), and ThousandEyes SaaS probes ([HTTP Server Availability Monitoring (ThousandEyes)](../../index.html#uc-5.9.34)) into rehearsed incident bridges—Splunk becomes the forensic ledger tying assurance APIs to packet-path realities without swapping consoles mid-severity event.

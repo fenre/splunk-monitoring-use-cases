@@ -10,6 +10,12 @@ splunkPillar: "Observability"
 
 # UC-3.5.7 · Envoy Proxy Error Rates
 
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Fault, Performance, Availability &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*We monitor the network helpers sitting between all our programs, counting how often they report errors or failed connections, so when something goes wrong the team knows exactly which helper and which connection is the problem.*
+
+---
+
 ## Description
 
 Aggregates **Envoy** proxy upstream error metrics (`envoy_cluster_upstream_rq_xx`) across every sidecar in the **Istio** mesh to compute per-upstream-cluster 4xx/5xx error rates, connection failure counts, and timeout rates — isolating which backend clusters are producing errors and whether the fault lies in the application, the network, or a misconfigured route.
@@ -24,20 +30,20 @@ Deploy the Splunk OTel Collector with Prometheus receiver scraping Envoy sidecar
 
 ## Detailed Implementation
 
-Prerequisites
-• **Istio** 1.18+ with **Envoy** **sidecar** injection enabled; Envoy exposes per-cluster upstream metrics on port **15090** (`/stats/prometheus`) including the `envoy_cluster_upstream_rq_xx` family of counters that break down responses by HTTP status code class (2xx, 3xx, 4xx, 5xx).
-• **Splunk OpenTelemetry Collector** deployed as a **DaemonSet** with the **Prometheus receiver** scraping sidecar stats. The key metric families:
+### Prerequisites
+- **Istio** 1.18+ with **Envoy** **sidecar** injection enabled; Envoy exposes per-cluster upstream metrics on port **15090** (`/stats/prometheus`) including the `envoy_cluster_upstream_rq_xx` family of counters that break down responses by HTTP status code class (2xx, 3xx, 4xx, 5xx).
+- **Splunk OpenTelemetry Collector** deployed as a **DaemonSet** with the **Prometheus receiver** scraping sidecar stats. The key metric families:
 — **`envoy_cluster_upstream_rq`** (total **upstream requests** by response code class, labeled `envoy_cluster_name` and `envoy_response_code_class`)
 — **`envoy_cluster_upstream_cx_connect_fail`** (upstream **TCP connection** failures)
 — **`envoy_cluster_upstream_rq_timeout`** (requests that exceeded the **route timeout**)
 — **`envoy_cluster_upstream_rq_retry`** (**retry** attempts indicating transient failures)
 — **`envoy_cluster_upstream_rq_pending_overflow`** (requests rejected by **circuit breaker**)
-• **Splunk HEC** token for **`index=containers`** with **`sourcetype=otel:metrics`**; secondary streams for **`sourcetype=istio:accesslog`** (per-request logs) and **`sourcetype=kube:events`** (deployment correlation).
-• **Kubernetes RBAC**: **OTel Collector** **ServiceAccount** needs pod discovery permissions for scrape target resolution.
-• Splunk RBAC: users running **error-rate search**es need **`srchIndexesAllowed`** including `containers`; assign via a custom role (**`mesh_observer`**).
-• **License estimate**: Envoy emits ~50–100 cluster-level metric time series per sidecar; a 200-pod mesh at 15s intervals generates ~30–60 MB/day of cluster metrics.
+- **Splunk HEC** token for **`index=containers`** with **`sourcetype=otel:metrics`**; secondary streams for **`sourcetype=istio:accesslog`** (per-request logs) and **`sourcetype=kube:events`** (deployment correlation).
+- **Kubernetes RBAC**: **OTel Collector** **ServiceAccount** needs pod discovery permissions for scrape target resolution.
+- Splunk RBAC: users running **error-rate search**es need **`srchIndexesAllowed`** including `containers`; assign via a custom role (**`mesh_observer`**).
+- **License estimate**: Envoy emits ~50–100 cluster-level metric time series per sidecar; a 200-pod mesh at 15s intervals generates ~30–60 MB/day of cluster metrics.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **Envoy cluster metrics**: the `envoy_cluster_upstream_rq` counter family is the foundation for **error-rate** calculation. Each sidecar reports these counters per **upstream cluster** — in Istio's terminology, an **upstream cluster** corresponds to a **Kubernetes** **Service** that the sidecar routes traffic to. The `envoy_cluster_name` label follows the format `outbound|<port>||<service>.<namespace>.svc.cluster.local`.
 
 (2) **Metric label normalization**: the SPL uses **`coalesce`** chains to handle label variations between OTel Collector configurations and direct Prometheus paths. The `envoy_response_code_class` label is a single digit (2, 3, 4, 5) representing the HTTP status code class. Some scrape configurations produce `response_code_class` without the `envoy_` prefix.
@@ -54,7 +60,7 @@ Step 1 — Configure data collection
 
 (5) **Event correlation**: collect **`sourcetype=kube:events`** to correlate error spikes with **deployment rollout**s (ScalingReplicaSet), pod restarts (BackOff), and node failures (NodeNotReady). Error spikes that align with deployment events are likely caused by **bad rollouts** rather than infrastructure faults.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL computes **per-upstream-cluster error rates** by aggregating `envoy_cluster_upstream_rq` counters across all sidecars. The `response_class` label (2/3/4/5) splits traffic by HTTP status code class. The **`severity`** classification uses server error rate thresholds: CRITICAL (> 5%), WARNING (> 1%), ELEVATED (> 0.1%), HEALTHY.
 
 The **volume filter** (`grand_total > 100`) excludes low-traffic clusters where a single error produces a misleadingly high percentage. Adjust this threshold based on your mesh scale.
@@ -63,29 +69,29 @@ The **connection/timeout** variant focuses on **infrastructure-level failures** 
 
 Schedule the error-rate search every **5 minutes** over **`-5m@m`** and alert when any cluster exceeds 1% server error rate with > 100 requests. Schedule the connection/timeout search every **15 minutes** and alert when `failure_total > 50`.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Verify **metric presence**: `index=containers sourcetype=otel:metrics metric_name=envoy_cluster_upstream_rq earliest=-5m | stats dc(envoy_cluster_name) as clusters`. Should match the number of upstream services visible in `istioctl proxy-config cluster <pod>`.
 (b) Compare with Istio metrics: the `envoy_cluster_upstream_rq_xx` counters are the raw Envoy stats underlying Istio's higher-level `istio_requests_total`. The cluster names differ in format but the total request counts should agree within one **scrape interval**.
 (c) Generate test errors: deploy a service that returns 500s (`kubectl run err-test --image=nginx -- /bin/sh -c 'echo HTTP/1.1 500 | nc -l -p 80'`), send traffic, and verify the error-rate search surfaces the cluster with elevated `server_err_pct`.
 (d) Verify **connection failures**: block access to a service's port using a **NetworkPolicy** and confirm `connect_fail` increments: `index=containers sourcetype=otel:metrics metric_name=envoy_cluster_upstream_cx_connect_fail | stats sum(value) by envoy_cluster_name`.
 (e) Test **timeout detection**: configure a short route timeout (1s) and send requests to a slow service; verify `timeouts` counter increments.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **timechart** of server error rate (`rq_5xx / grand_total`) by cluster over 4 hours — line chart with a reference line at the 1% alert threshold.
-• Row B: **single-value tiles** — worst cluster error rate, total 5xx count, total connection failures, total timeouts, clusters above WARNING threshold.
-• Row C: **sortable table** of clusters ranked by `server_err_pct` — columns: cluster_name, ns, grand_total, rq_4xx, rq_5xx, server_err_pct, severity. Drilldown opens per-cluster access log detail.
-• Row D: **connection/timeout table** — cluster_name, ns, connect_fail, timeouts, retries, failure_total. Drilldown opens timeline.
-• **Alerting**: server_err_pct > 1% on medium/high-traffic cluster → **PagerDuty** P2; connect failures > 50 in 15m → Slack `#sre-mesh`; timeout spike correlated with deployment event → P3 with deployment name.
-• **Runbook** (owner: SRE mesh on-call): (1) check if a deployment rollout is in progress, (2) for 5xx errors: check application logs of the upstream service, (3) for connection failures: verify service endpoints exist (`kubectl get endpoints <svc>`), check NetworkPolicy rules, (4) for timeouts: check upstream service latency, adjust route timeout if needed.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **timechart** of server error rate (`rq_5xx / grand_total`) by cluster over 4 hours — line chart with a reference line at the 1% alert threshold.
+- Row B: **single-value tiles** — worst cluster error rate, total 5xx count, total connection failures, total timeouts, clusters above WARNING threshold.
+- Row C: **sortable table** of clusters ranked by `server_err_pct` — columns: cluster_name, ns, grand_total, rq_4xx, rq_5xx, server_err_pct, severity. Drilldown opens per-cluster access log detail.
+- Row D: **connection/timeout table** — cluster_name, ns, connect_fail, timeouts, retries, failure_total. Drilldown opens timeline.
+- **Alerting**: server_err_pct > 1% on medium/high-traffic cluster → **PagerDuty** P2; connect failures > 50 in 15m → Slack `#sre-mesh`; timeout spike correlated with deployment event → P3 with deployment name.
+- **Runbook** (owner: SRE mesh on-call): (1) check if a deployment rollout is in progress, (2) for 5xx errors: check application logs of the upstream service, (3) for connection failures: verify service endpoints exist (`kubectl get endpoints <svc>`), check NetworkPolicy rules, (4) for timeouts: check upstream service latency, adjust route timeout if needed.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **bubble chart** with cluster_name on the X-axis, error rate on the Y-axis, and bubble size proportional to grand_total — instantly shows which high-volume clusters have error problems; pair with a **response-flag breakdown** **bar chart** from **access logs** showing UF/UH/UC/LR/UO distribution per cluster to classify the error cause.
-• **Alert design**: include `cluster_name`, `ns`, `server_err_pct`, `grand_total`, `rq_5xx`, `severity` in error-rate alerts; for connection alerts include `connect_fail`, `timeouts`, `retries`; add a **deep-link** to the cluster-specific dashboard panel.
-• **All clusters show 0% error rate** — metrics may not be arriving; check `index=containers sourcetype=otel:metrics metric_name=envoy_cluster_upstream_rq earliest=-5m | stats count`. Zero means the OTel Collector is not scraping sidecar stats.
-• **Error rate is 100% on a cluster** — likely a low-traffic internal cluster (readiness probes, internal tooling) where all requests fail. The `grand_total > 100` filter should exclude these; adjust if needed.
-• **Retries inflating request counts** — Envoy retries are counted as separate upstream requests, inflating `grand_total` and potentially masking the true error rate. Use `envoy_cluster_upstream_rq_retry` to subtract retries from the denominator for a more accurate rate.
-• **Cluster name is a long FQDN** — Istio formats cluster names as `outbound|<port>||<fqdn>`. Use `| eval svc=mvindex(split(cluster_name, "|"), 3)` to extract the short service name for display.
-• **5xx spikes without access log correlation** — the metric counters and access logs may have different collection intervals; expand the access log search time range by 1–2 minutes for correlation.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **bubble chart** with cluster_name on the X-axis, error rate on the Y-axis, and bubble size proportional to grand_total — instantly shows which high-volume clusters have error problems; pair with a **response-flag breakdown** **bar chart** from **access logs** showing UF/UH/UC/LR/UO distribution per cluster to classify the error cause.
+- **Alert design**: include `cluster_name`, `ns`, `server_err_pct`, `grand_total`, `rq_5xx`, `severity` in error-rate alerts; for connection alerts include `connect_fail`, `timeouts`, `retries`; add a **deep-link** to the cluster-specific dashboard panel.
+- **All clusters show 0% error rate** — metrics may not be arriving; check `index=containers sourcetype=otel:metrics metric_name=envoy_cluster_upstream_rq earliest=-5m | stats count`. Zero means the OTel Collector is not scraping sidecar stats.
+- **Error rate is 100% on a cluster** — likely a low-traffic internal cluster (readiness probes, internal tooling) where all requests fail. The `grand_total > 100` filter should exclude these; adjust if needed.
+- **Retries inflating request counts** — Envoy retries are counted as separate upstream requests, inflating `grand_total` and potentially masking the true error rate. Use `envoy_cluster_upstream_rq_retry` to subtract retries from the denominator for a more accurate rate.
+- **Cluster name is a long FQDN** — Istio formats cluster names as `outbound|<port>||<fqdn>`. Use `| eval svc=mvindex(split(cluster_name, "|"), 3)` to extract the short service name for display.
+- **5xx spikes without access log correlation** — the metric counters and access logs may have different collection intervals; expand the access log search time range by 1–2 minutes for correlation.
 
 ## SPL
 

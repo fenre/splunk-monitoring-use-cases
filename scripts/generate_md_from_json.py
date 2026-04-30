@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -23,6 +24,99 @@ CONTENT_DIR = REPO_ROOT / "content"
 HEADER = "<!-- AUTO-GENERATED from {filename} — DO NOT EDIT -->\n"
 
 
+# ---------------------------------------------------------------------------
+# Formatting helpers
+# ---------------------------------------------------------------------------
+
+def _format_detailed_implementation(text: str) -> str:
+    """Add proper markdown heading structure and list syntax."""
+    text = text.replace("\r", "")
+    lines = text.split("\n")
+    out: list[str] = []
+    in_code = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        if stripped.startswith("```"):
+            in_code = not in_code
+            out.append(line)
+            continue
+
+        if in_code:
+            out.append(line)
+            continue
+
+        if stripped in ("Prerequisites", "Prerequisites:"):
+            out.append(f"### {stripped.rstrip(':')}")
+            continue
+
+        m = re.match(r"^(Step\s+\d+)\s*[—–-]\s*(.+)", stripped)
+        if m:
+            out.append(f"### {m.group(1)} — {m.group(2)}")
+            continue
+
+        if stripped.startswith("Understanding this SPL"):
+            out.append(f"#### {stripped}")
+            continue
+
+        if stripped.startswith("•"):
+            out.append(f"- {stripped[1:].strip()}")
+            continue
+
+        out.append(line)
+
+    return "\n".join(out)
+
+
+def _format_known_false_positives(text: str) -> str:
+    """Convert enumerated false-positive entries into a markdown list."""
+    parts = re.split(r"(?:^|\s)\(([a-zA-Z]|\d+)\)\s+", text.strip())
+    if len(parts) < 3:
+        return text
+
+    items: list[str] = []
+    leading = parts[0].strip()
+    if leading:
+        items.append(leading)
+        items.append("")
+
+    for i in range(1, len(parts) - 1, 2):
+        content = parts[i + 1].strip() if i + 1 < len(parts) else ""
+        if content:
+            items.append(f"- {content}")
+
+    return "\n".join(items) if items else text
+
+
+def _format_visualization(text: str) -> str:
+    """Break multi-panel visualization specs into a readable list."""
+    parts = re.split(r"(?=\*\*Row\s+\d+)", text.strip())
+    if len(parts) > 1:
+        items = [p.strip() for p in parts if p.strip()]
+        return "\n".join(f"- {item}" for item in items)
+
+    parts = re.split(r"(?=\(\d+\)\s*\*\*Panel)", text.strip())
+    if len(parts) > 1:
+        result: list[str] = []
+        for p in parts:
+            p = p.strip()
+            if not p:
+                continue
+            if p.startswith("("):
+                result.append(f"- {p}")
+            else:
+                result.append(p)
+                result.append("")
+        return "\n".join(result)
+
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Markdown renderer
+# ---------------------------------------------------------------------------
+
 def render_md(uc: dict, json_filename: str) -> str:
     """Render a UC dict to markdown string."""
     uc_id = uc.get("id", "")
@@ -30,6 +124,9 @@ def render_md(uc: dict, json_filename: str) -> str:
     criticality = uc.get("criticality", "")
     pillar = uc.get("splunkPillar", "")
     status = uc.get("status", "")
+    difficulty = uc.get("difficulty", "")
+    wave = uc.get("wave", "")
+    monitoring = uc.get("monitoringType", [])
 
     lines: list[str] = []
     lines.append(HEADER.format(filename=json_filename))
@@ -48,6 +145,34 @@ def render_md(uc: dict, json_filename: str) -> str:
 
     lines.append(f"# UC-{uc_id} \u00b7 {title}")
     lines.append("")
+
+    meta_parts: list[str] = []
+    if criticality:
+        meta_parts.append(f"**Criticality:** {criticality.title()}")
+    if difficulty:
+        meta_parts.append(f"**Difficulty:** {difficulty.title()}")
+    if pillar:
+        meta_parts.append(f"**Pillar:** {pillar}")
+    if monitoring:
+        meta_parts.append(
+            f"**Type:** {', '.join(monitoring)}"
+        )
+    if wave:
+        meta_parts.append(f"**Wave:** {wave.title()}")
+    if status:
+        meta_parts.append(f"**Status:** {status.title()}")
+    if meta_parts:
+        lines.append("> " + " &middot; ".join(meta_parts))
+        lines.append("")
+
+    grandma = uc.get("grandmaExplanation", "")
+    if grandma:
+        lines.append(f"*{grandma}*")
+        lines.append("")
+
+    if meta_parts or grandma:
+        lines.append("---")
+        lines.append("")
 
     desc = uc.get("description", "")
     if desc:
@@ -98,7 +223,7 @@ def render_md(uc: dict, json_filename: str) -> str:
     if detailed:
         lines.append("## Detailed Implementation")
         lines.append("")
-        lines.append(detailed)
+        lines.append(_format_detailed_implementation(detailed))
         lines.append("")
 
     spl = uc.get("spl", "")
@@ -123,14 +248,14 @@ def render_md(uc: dict, json_filename: str) -> str:
     if viz:
         lines.append("## Visualization")
         lines.append("")
-        lines.append(viz)
+        lines.append(_format_visualization(viz))
         lines.append("")
 
     kfp = uc.get("knownFalsePositives", "")
     if kfp:
         lines.append("## Known False Positives")
         lines.append("")
-        lines.append(kfp)
+        lines.append(_format_known_false_positives(kfp))
         lines.append("")
 
     refs = uc.get("references", [])

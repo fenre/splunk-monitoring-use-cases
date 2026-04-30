@@ -10,6 +10,12 @@ splunkPillar: "Observability"
 
 # UC-3.4.3 · Storage Quota Monitoring
 
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Capacity, Availability, Performance &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*We measure how full the team's shared storage space is getting, alerting them when it is nearly full so they can clean up old files before new work gets blocked.*
+
+---
+
 ## Description
 
 Monitors **Harbor** project-level storage **quota usage** against configured limits by scraping `harbor_project_quota_usage_byte` and `harbor_project_quota_byte` metrics, computing usage percentages, growth rates, and days-to-full projections — surfacing projects approaching exhaustion before failed pushes break CI/CD pipelines.
@@ -24,16 +30,16 @@ Scrape Harbor's Prometheus metrics endpoint for project quota usage and limits u
 
 ## Detailed Implementation
 
-Prerequisites
-• **Harbor** 2.6+ with **project-level quotas** configured (Project → Configuration → **Project Quotas** → set storage limit per project); the **Prometheus metrics** endpoint must be enabled in `harbor.yml` (`metric.enabled: true`, default port **9090**).
-• **Splunk OpenTelemetry Collector** deployed as a **DaemonSet** via the `splunk-otel-collector-chart` **Helm chart** with the **Prometheus receiver** configured to scrape the **Harbor metrics endpoint** at `/metrics` on port 9090. Alternatively, use **rest_ta** (**Splunkbase 1546**) to poll the Harbor **project quota API**: `GET /api/v2.0/quotas`.
-• **Splunk HEC** token for **`index=containers`** with default **`sourcetype=harbor:metrics`**; secondary stream for **`sourcetype=harbor:webhook`** (QUOTA_EXCEED events) and **`sourcetype=harbor:audit`** for administrative quota changes.
-• **Harbor robot account** with project-level **read** scope on each monitored project — never reuse admin credentials for metric collection.
-• **Kubernetes PersistentVolume monitoring**: if Harbor uses a **Kubernetes PersistentVolumeClaim** for storage, collect `kubelet_volume_stats_used_bytes` and `kubelet_volume_stats_capacity_bytes` via the OTel Collector's **kubelet stats receiver** as **`sourcetype=kube:metrics`** for the underlying filesystem view.
-• Splunk RBAC: users running quota searches need **`srchIndexesAllowed`** including `containers`; assign via a custom role (**`registry_operator`**).
-• **License estimate**: Harbor emits ~50 metric time series per project at 60s intervals; a 20-project registry generates ~2 MB/day of quota metrics.
+### Prerequisites
+- **Harbor** 2.6+ with **project-level quotas** configured (Project → Configuration → **Project Quotas** → set storage limit per project); the **Prometheus metrics** endpoint must be enabled in `harbor.yml` (`metric.enabled: true`, default port **9090**).
+- **Splunk OpenTelemetry Collector** deployed as a **DaemonSet** via the `splunk-otel-collector-chart` **Helm chart** with the **Prometheus receiver** configured to scrape the **Harbor metrics endpoint** at `/metrics` on port 9090. Alternatively, use **rest_ta** (**Splunkbase 1546**) to poll the Harbor **project quota API**: `GET /api/v2.0/quotas`.
+- **Splunk HEC** token for **`index=containers`** with default **`sourcetype=harbor:metrics`**; secondary stream for **`sourcetype=harbor:webhook`** (QUOTA_EXCEED events) and **`sourcetype=harbor:audit`** for administrative quota changes.
+- **Harbor robot account** with project-level **read** scope on each monitored project — never reuse admin credentials for metric collection.
+- **Kubernetes PersistentVolume monitoring**: if Harbor uses a **Kubernetes PersistentVolumeClaim** for storage, collect `kubelet_volume_stats_used_bytes` and `kubelet_volume_stats_capacity_bytes` via the OTel Collector's **kubelet stats receiver** as **`sourcetype=kube:metrics`** for the underlying filesystem view.
+- Splunk RBAC: users running quota searches need **`srchIndexesAllowed`** including `containers`; assign via a custom role (**`registry_operator`**).
+- **License estimate**: Harbor emits ~50 metric time series per project at 60s intervals; a 20-project registry generates ~2 MB/day of quota metrics.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **Prometheus scraping** (recommended): add the **Harbor metrics endpoint** as a scrape target in the OTel Collector Prometheus receiver config. Harbor exposes these key quota metrics:
 — **`harbor_project_quota_usage_byte`** (gauge: current storage used per project)
 — **`harbor_project_quota_byte`** (gauge: configured quota limit per project)
@@ -49,7 +55,7 @@ Each metric is labeled with **`project_name`**. Verify the endpoint is reachable
 
 (5) **Retention policy inventory**: create a lookup **`retention_policies.csv`** with columns `project`, `retention_rule`, `last_run`, `images_retained` to correlate quota growth with retention policy effectiveness.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL computes per-project **usage percentage** by dividing `quota_usage_byte` by `quota_byte`. The **`alert_tier`** classification provides escalation boundaries: **CRITICAL** (≥ 95%), **WARNING** (≥ 85%), **APPROACHING** (≥ 70%), and **HEALTHY** (< 70%).
 
 The **`days_to_full`** field provides a rough linear projection based on current usage and the project's average daily consumption rate over the last 30 days. This is deliberately conservative — actual growth may be non-linear around release cycles.
@@ -58,29 +64,29 @@ The growth-rate variant uses **`streamstats`** to compute daily storage deltas p
 
 Schedule the quota-status search every **1 hour** and alert when any project reaches **CRITICAL** or **WARNING** tier. Schedule the growth-rate search **daily at 08:00** over **`-30d`** and alert when any project's **`projected_30d_gb`** exceeds its configured quota limit.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Cross-check with **Harbor UI**: navigate to **Administration → Project Quotas** and compare the usage/limit values with the Splunk search output. Values should match within the scrape interval.
 (b) Test a quota-exceed scenario: set a project quota to a small value (e.g., 100 MB), push images until the limit is reached, and verify (i) the SPL shows `alert_tier=CRITICAL`, (ii) the QUOTA_EXCEED webhook arrives, and (iii) the push returns HTTP 413.
 (c) Verify **PV monitoring**: `index=containers sourcetype="kube:metrics" metric_name="kubelet_volume_stats_used_bytes" | stats latest(value) by pod_name` — should include the Harbor data PVC.
 (d) Confirm **growth trending**: the 30-day search should show a **line chart** with daily usage values and projected growth. If values are flat, push a few large images to create visible growth.
 (e) Verify **retention correlation**: if a tag retention policy ran recently, the daily growth should show a negative delta (storage reclaimed) on that day.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **horizontal bar chart** of usage vs. limit per project — bars color-coded by **alert tier** (red/orange/yellow/green) with the limit shown as a reference line.
-• Row B: **single-value tiles** — projects at CRITICAL, total registry storage used (all projects combined), average days-to-full, system-level free storage remaining.
-• Row C: **growth trend line** per project over 30 days (line chart) with a dashed **projected line** extending 30 days forward — immediate visual for when each project hits its limit.
-• Row D: **sortable table** — columns: project, usage_gb, limit_gb, usage_pct, remaining_gb, repo_count, days_to_full, growth_direction. Drilldown opens per-project image list.
-• **Alerting**: project at CRITICAL (≥ 95%) → Slack `#registry-ops` + PagerDuty P3; project at WARNING (≥ 85%) → email to project owner; growth projection exceeds quota within 14 days → weekly digest to platform team.
-• **Runbook** (owner: platform engineering on-call): (1) identify the project and check repo_count — high counts suggest a retention policy may be too lenient, (2) review **tag retention rules** in Harbor (Project → Tag Retention) and adjust, (3) for immediate relief: manually delete untagged artifacts via `harbor-cli artifact delete`, (4) if quota is genuinely insufficient: coordinate a quota increase via change request.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **horizontal bar chart** of usage vs. limit per project — bars color-coded by **alert tier** (red/orange/yellow/green) with the limit shown as a reference line.
+- Row B: **single-value tiles** — projects at CRITICAL, total registry storage used (all projects combined), average days-to-full, system-level free storage remaining.
+- Row C: **growth trend line** per project over 30 days (line chart) with a dashed **projected line** extending 30 days forward — immediate visual for when each project hits its limit.
+- Row D: **sortable table** — columns: project, usage_gb, limit_gb, usage_pct, remaining_gb, repo_count, days_to_full, growth_direction. Drilldown opens per-project image list.
+- **Alerting**: project at CRITICAL (≥ 95%) → Slack `#registry-ops` + PagerDuty P3; project at WARNING (≥ 85%) → email to project owner; growth projection exceeds quota within 14 days → weekly digest to platform team.
+- **Runbook** (owner: platform engineering on-call): (1) identify the project and check repo_count — high counts suggest a retention policy may be too lenient, (2) review **tag retention rules** in Harbor (Project → Tag Retention) and adjust, (3) for immediate relief: manually delete untagged artifacts via `harbor-cli artifact delete`, (4) if quota is genuinely insufficient: coordinate a quota increase via change request.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **gauge chart** per project showing usage percentage with color bands at 70/85/95% thresholds for an executive-friendly view; pair with a **capacity planning table** that combines current usage, growth rate, and projected full date so stakeholders can see exactly when action is needed; add a **stacked area chart** of usage by project over time to show which projects dominate storage consumption.
-• **Alert design**: include `project`, `usage_gb`, `limit_gb`, `usage_pct`, `remaining_gb`, `days_to_full`, and `growth_direction` in every alert payload; for CRITICAL alerts add the top 5 largest repositories in the project from `harbor_project_repo_count` context; include a direct link to the Harbor project settings page for immediate quota adjustment.
-• **Quota metrics show zero for all projects** — quotas may not be configured; verify in Harbor UI (Administration → Project Quotas) that limits are set. Harbor returns `0` for the limit when quotas are disabled (unlimited).
-• **Usage exceeds limit but no QUOTA_EXCEED webhook** — the webhook fires only on **push attempts** that would exceed the limit, not when usage organically crosses the threshold via new CVE database updates. Use the metric-based alert as the primary detection, not webhooks.
-• **PV usage does not match Harbor quota sum** — the PV includes non-project data (system databases, trivy cache, redis data). The PV metric is a supplementary view, not a direct comparison to project quotas.
-• **Growth rate is negative but alert still fires** — tag retention ran and reclaimed storage, but the alert evaluates current usage_pct which remains above threshold. The alert is correct — reclaimed space was not enough.
-• **days_to_full shows very large number** — the project's growth rate is near zero or negative; the linear projection is not meaningful for idle projects. Filter the dashboard to show only projects with `growth_direction=GROWING` or `GROWING_FAST`.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **gauge chart** per project showing usage percentage with color bands at 70/85/95% thresholds for an executive-friendly view; pair with a **capacity planning table** that combines current usage, growth rate, and projected full date so stakeholders can see exactly when action is needed; add a **stacked area chart** of usage by project over time to show which projects dominate storage consumption.
+- **Alert design**: include `project`, `usage_gb`, `limit_gb`, `usage_pct`, `remaining_gb`, `days_to_full`, and `growth_direction` in every alert payload; for CRITICAL alerts add the top 5 largest repositories in the project from `harbor_project_repo_count` context; include a direct link to the Harbor project settings page for immediate quota adjustment.
+- **Quota metrics show zero for all projects** — quotas may not be configured; verify in Harbor UI (Administration → Project Quotas) that limits are set. Harbor returns `0` for the limit when quotas are disabled (unlimited).
+- **Usage exceeds limit but no QUOTA_EXCEED webhook** — the webhook fires only on **push attempts** that would exceed the limit, not when usage organically crosses the threshold via new CVE database updates. Use the metric-based alert as the primary detection, not webhooks.
+- **PV usage does not match Harbor quota sum** — the PV includes non-project data (system databases, trivy cache, redis data). The PV metric is a supplementary view, not a direct comparison to project quotas.
+- **Growth rate is negative but alert still fires** — tag retention ran and reclaimed storage, but the alert evaluates current usage_pct which remains above threshold. The alert is correct — reclaimed space was not enough.
+- **days_to_full shows very large number** — the project's growth rate is near zero or negative; the linear projection is not meaningful for idle projects. Filter the dashboard to show only projects with `growth_direction=GROWING` or `GROWING_FAST`.
 
 ## SPL
 

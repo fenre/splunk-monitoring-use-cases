@@ -12,7 +12,7 @@ Three tools live here:
   ``regulationId`` + ``clause``. Reads
   ``api/v1/compliance/clauses/index.json``.
 * :func:`list_uncovered_clauses` — lists every clause whose
-  ``coverageState`` is ``not-authored`` for one or more regulations,
+  ``coverageState`` is ``uncovered`` for one or more regulations,
   sorted by descending ``priorityWeight`` so the agent can prioritise
   remediation.
 

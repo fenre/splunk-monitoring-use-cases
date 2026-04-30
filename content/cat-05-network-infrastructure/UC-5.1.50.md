@@ -1,0 +1,88 @@
+<!-- AUTO-GENERATED from UC-5.1.50.json — DO NOT EDIT -->
+
+---
+id: "5.1.50"
+title: "Cable Test Results and Port Diagnostics (Meraki MS)"
+criticality: "medium"
+splunkPillar: "Observability"
+---
+
+# UC-5.1.50 · Cable Test Results and Port Diagnostics (Meraki MS)
+
+> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Performance
+
+*We help you know early when something looks wrong with cable test results and port diagnostics so the team can act before it grows into a bigger outage.*
+
+---
+
+## Description
+
+Analyzes cable integrity test results to identify wiring faults before they cause outages.
+
+## Value
+
+Analyzes cable integrity test results to identify wiring faults before they cause outages.
+
+## Implementation
+
+Periodically run cable tests on switch ports. Ingest results into syslog.
+
+## Detailed Implementation
+
+### Prerequisites
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: `sourcetype=meraki type=security_event signature="*cable*" OR signature="*diagnostic*"`.
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+### Step 1 — Configure data collection
+Periodically run cable tests on switch ports. Ingest results into syslog.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*cable*" OR signature="*diagnostic*")
+| stats count as test_count by switch_name, port_id, test_result
+| where test_result="FAIL"
+```
+
+#### Understanding this SPL
+
+**Cable Test Results and Port Diagnostics (Meraki MS)** — Analyzes cable integrity test results to identify wiring faults before they cause outages.
+
+Documented **Data sources**: `sourcetype=meraki type=security_event signature="*cable*" OR signature="*diagnostic*"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by switch_name, port_id, test_result** so each row reflects one combination of those dimensions.
+- Filters the current rows with `where test_result="FAIL"` — typically the threshold or rule expression for this monitoring goal.
+
+
+### Step 3 — Validate
+In the Meraki dashboard, select the same organization, site, and UTC window as the Splunk search. Open Network-wide event log or the device event log and confirm a sample event count and field (for example `event_type` or `carrier_name`) matches what you see in Splunk.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of failed cable tests; port detail with diagnostic results; failure timeline.
+
+## SPL
+
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*cable*" OR signature="*diagnostic*")
+| stats count as test_count by switch_name, port_id, test_result
+| where test_result="FAIL"
+```
+
+## Visualization
+
+Table of failed cable tests; port detail with diagnostic results; failure timeline.
+
+## Known False Positives
+
+Cabling work and flaky patch panels can fail a test one run and pass the next. Re-run and compare with a cable certifier for chronic ports.
+
+## References
+
+- [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)

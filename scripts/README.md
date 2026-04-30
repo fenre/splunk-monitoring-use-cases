@@ -20,7 +20,7 @@ make manifest         # Regenerate eventgen manifest
 
 | Script | Reads from | Purpose |
 |--------|-----------|---------|
-| `audit_uc_structure.py` | `content/**/*.json` | Validate required fields, enums, SPL presence |
+| `audit_uc_structure.py` | `use-cases/cat-*.md` | Audit legacy markdown UC blocks (required fields, enums, SPL presence). Canonical JSON validation runs in the build pipeline via [`tools/build/parse_content.py`](../tools/build/parse_content.py). |
 | `audit_cim_spl_alignment.py` | `content/**/*.json` | CIM Models vs CIM SPL datamodel alignment |
 | `audit_links.py` | `content/**/*.json` | HTTP check all URLs in `references` arrays |
 | `audit_repo_consistency.py` | `enrichment.py` | Cross-check CAT_GROUPS, SPLUNK_APPS, INDEX.md |

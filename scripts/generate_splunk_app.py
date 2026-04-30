@@ -1368,15 +1368,18 @@ def _render(out_root: pathlib.Path, requested: Optional[Sequence[str]]) -> Dict[
         summary[fw["id"]] = len(reg_ucs)
 
     # Prune stale apps under out_root (only those matching our naming scheme).
-    for child in sorted(out_root.iterdir()):
-        if not child.name.startswith("splunk-uc-"):
-            continue
-        if child in expected_dirs:
-            continue
-        if child.name in _EXTERNAL_APP_IDS:
-            # Owned by a sibling generator — never touch.
-            continue
-        shutil.rmtree(child)
+    # Skip when --regulation filter is active — partial generation must not
+    # delete other regulation app trees under the same output root.
+    if requested is None:
+        for child in sorted(out_root.iterdir()):
+            if not child.name.startswith("splunk-uc-"):
+                continue
+            if child in expected_dirs:
+                continue
+            if child.name in _EXTERNAL_APP_IDS:
+                # Owned by a sibling generator — never touch.
+                continue
+            shutil.rmtree(child)
 
     _write_json(
         out_root / "manifest.json",

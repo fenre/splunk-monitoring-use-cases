@@ -7,7 +7,7 @@
 > `.github/workflows/release.yml`.
 >
 > **Scope:** every clause-level compliance mapping declared across UC
-> sidecars under `use-cases/cat-*/uc-*.json`. Currently 1,889 entries
+> sidecars under `content/cat-*/UC-*.json`. Currently 1,889 entries
 > covering 15 regulation families.
 
 This repository aspires to be the international gold standard for
@@ -74,7 +74,7 @@ the ledger establishes the truth of the record.
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `schemas/mapping-ledger.schema.json`               | JSON Schema (Draft 2020-12) that governs the ledger. Defines entry shape, canonicalisation contract, and the `oneOf` signature envelope (`unsigned` or `attested`).                                                                                                                                        |
 | `data/provenance/mapping-ledger.json`              | The in-repo ledger. Always `signature.state = "unsigned"` on `main` (so PR CI is deterministic); the attested copy lives in `dist/` at release time.                                                                                                                                                       |
-| `scripts/generate_mapping_ledger.py`               | Deterministic generator. Walks every `use-cases/cat-*/uc-*.json`, canonicalises regulation names against `data/regulations.json`, probes git history in a single bulk `git log` pass, snapshots peer/legal/SME signoffs, hashes each entry, and emits the sorted-leaf merkle root. `--check` mode diff-gates. |
+| `scripts/generate_mapping_ledger.py`               | Deterministic generator. Walks every `content/cat-*/UC-*.json`, canonicalises regulation names against `data/regulations.json`, probes git history in a single bulk `git log` pass, snapshots peer/legal/SME signoffs, hashes each entry, and emits the sorted-leaf merkle root. `--check` mode diff-gates. |
 | `scripts/audit_mapping_ledger.py`                  | Independent verifier. Re-reads the ledger, recomputes all `canonicalHash`es and the `merkleRoot`, validates against the schema, performs referential integrity against current sidecars, and — when `--verify-signature` is passed — shells out to `gh attestation verify` against the Sigstore bundle.    |
 | `scripts/stamp_ledger_release.py`                  | Release-time stamper. Copies the in-repo ledger to `dist/mapping-ledger.json` and flips `signature.state` from `unsigned` to `attested` _before_ Sigstore attestation (because attestation binds the file-at-rest).                                                                                         |
 | `.github/workflows/validate.yml`                   | Runs `--check` (regeneration drift) and the audit on every pull request. Uploads the ledger as part of the `qa-gates` artifact.                                                                                                                                                                             |

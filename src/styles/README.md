@@ -1,6 +1,6 @@
 # `src/styles/` — Source-of-truth stylesheets
 
-These five CSS files are the authoritative stylesheet sources for the
+These six CSS files are the authoritative stylesheet sources for the
 v7 site. The build pipeline (`tools/build/render_assets.py`)
 concatenates them in lexicographic order, computes a SHA-256 content
 hash, and emits `dist/assets/styles.<hash>.css`. The HTML rewrite
@@ -16,6 +16,7 @@ stage swaps the source `index.html`'s inline `<style>` block for a
 | `03-components.css`    | ~55 KB | All component styles: header, sidebar, cards, panels, modals, tables |
 | `04-print.css`         |  ~0.7 KB | `@media print` overrides + non-technical-view modifiers     |
 | `05-helpers.css`       |  ~6.5 KB | Release-notes modal, help button/banner, help-tab content   |
+| `06-chrome.css`        |  ~6.7 KB | Browser chrome, scroll containment, layout glue for v7 shell |
 
 The numeric prefix (`01-`, `02-`, …) defines both the source-order in
 the bundle and the **critical-CSS partition**: files matching the

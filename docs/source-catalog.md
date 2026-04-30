@@ -338,9 +338,9 @@ Generator: `scripts/generate_evidence_packs.py`.
 | `docs/evidence-packs/nist-800-53.md` | NIST 800-53 Rev 5 | ✅ USED |
 | `docs/evidence-packs/nis2.md` | NIS2 | ✅ USED |
 | `docs/evidence-packs/dora.md` | DORA | ✅ USED |
-| `docs/evidence-packs/sox.md` | SOX 404 ITGC | ✅ USED |
-| `docs/evidence-packs/nerc-cip.md` | NERC CIP | ✅ USED |
-| `docs/evidence-packs/iec-62443.md` | IEC 62443 | ✅ USED |
+| `docs/evidence-packs/sox-itgc.md` | SOX 404 ITGC | ✅ USED |
+| `docs/evidence-packs/uk-gdpr.md` | UK GDPR + Data Protection Act 2018 | ✅ USED |
+| `docs/evidence-packs/cmmc.md` | CMMC Level 2 | ✅ USED |
 | `docs/evidence-packs/soc-2.md` | SOC 2 | ✅ USED |
 
 ### MCP server (`mcp/`, v1.6.x) &mdash; ten tools

@@ -10,6 +10,12 @@ splunkPillar: "Observability"
 
 # UC-3.6.6 · Ingress Traffic Volume Trending
 
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Capacity &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*Like counting how many visitors walk through the front door each day and charting the numbers over weeks, we track how many requests arrive at the cluster entrance so the team knows whether traffic is growing, shrinking, or spiking unexpectedly.*
+
+---
+
 ## Description
 
 Tracks daily ingress request volume across NGINX Ingress Controller and Istio Gateway access logs, computing 7-day moving average RPS and deviation percentages to surface organic traffic growth, campaign-driven surges, and unexpected drops — then breaks down by **host header** and **status class** to identify which services drive volume changes and whether growth brings proportional error increases.
@@ -24,16 +30,16 @@ Collect NGINX Ingress Controller and/or Istio Gateway access logs into index=con
 
 ## Detailed Implementation
 
-Prerequisites
-• **NGINX Ingress Controller** 1.5+ deployed in the cluster (or **Istio Ingress Gateway** 1.14+ for service mesh environments). NGINX Ingress is the most common Kubernetes ingress controller, handling external HTTP/HTTPS traffic and routing to backend **Services** based on **Ingress** resource rules.
-• **Access log format**: configure the **NGINX Ingress Controller** to emit **JSON-format** **access logs** by setting the `log-format-upstream` **ConfigMap** key. JSON logs provide structured fields (method, uri, status, request_length, **bytes_sent**, **request_time**, upstream_response_time) without regex-based field extraction. For Istio, enable the **Envoy access log** via the **Telemetry API** with JSON format.
-• **Splunk Connect for Kubernetes** or the **OTel filelog receiver** configured to collect access logs from ingress controller pods and index them as **`sourcetype=nginx:ingress:access`** or **`sourcetype=istio:accesslog`**.
-• **Splunk HEC** token for **`index=containers`** with appropriate sourcetype routing.
-• At least **14 days** of historical access log data for meaningful 7-day SMA trending; **30 days** is ideal. Set **index retention** to at least 90 days for capacity planning analysis.
-• **License estimate**: access log volume is directly proportional to request volume. At 500 bytes per log line, 1 million requests/day generates approximately **500 MB/day** of log data. For high-traffic clusters, consider using **metrics** (from the **Prometheus receiver**) instead of raw access logs to reduce license consumption — the metrics variant provides RPS and error rates without per-request log storage.
-• Splunk RBAC: users running ingress trend searches need **`srchIndexesAllowed`** including `containers`; assign via a **`platform_analyst`** role.
+### Prerequisites
+- **NGINX Ingress Controller** 1.5+ deployed in the cluster (or **Istio Ingress Gateway** 1.14+ for service mesh environments). NGINX Ingress is the most common Kubernetes ingress controller, handling external HTTP/HTTPS traffic and routing to backend **Services** based on **Ingress** resource rules.
+- **Access log format**: configure the **NGINX Ingress Controller** to emit **JSON-format** **access logs** by setting the `log-format-upstream` **ConfigMap** key. JSON logs provide structured fields (method, uri, status, request_length, **bytes_sent**, **request_time**, upstream_response_time) without regex-based field extraction. For Istio, enable the **Envoy access log** via the **Telemetry API** with JSON format.
+- **Splunk Connect for Kubernetes** or the **OTel filelog receiver** configured to collect access logs from ingress controller pods and index them as **`sourcetype=nginx:ingress:access`** or **`sourcetype=istio:accesslog`**.
+- **Splunk HEC** token for **`index=containers`** with appropriate sourcetype routing.
+- At least **14 days** of historical access log data for meaningful 7-day SMA trending; **30 days** is ideal. Set **index retention** to at least 90 days for capacity planning analysis.
+- **License estimate**: access log volume is directly proportional to request volume. At 500 bytes per log line, 1 million requests/day generates approximately **500 MB/day** of log data. For high-traffic clusters, consider using **metrics** (from the **Prometheus receiver**) instead of raw access logs to reduce license consumption — the metrics variant provides RPS and error rates without per-request log storage.
+- Splunk RBAC: users running ingress trend searches need **`srchIndexesAllowed`** including `containers`; assign via a **`platform_analyst`** role.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **NGINX Ingress Controller JSON access log**: configure the ingress controller's **ConfigMap** to emit structured JSON logs:
 ```
 apiVersion: v1
@@ -67,7 +73,7 @@ For Istio, use `istio_requests_total` and `istio_request_duration_milliseconds_b
 
 (5) **Geographic and **CDN** context** (optional): if ingress traffic passes through a **CDN** or **load balancer** before reaching the Kubernetes ingress controller, the `X-Forwarded-For` and `X-Real-IP` headers provide the original client IP. Configure the NGINX Ingress Controller to trust the upstream proxy via the `use-forwarded-headers` ConfigMap setting.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL computes daily **request volume** and **RPS** from access logs, then applies a **7-day SMA** to smooth daily variance. The **`trend_flag`** classification:
 — **SURGE**: daily RPS exceeds **2× the 7-day SMA** AND exceeds **10 RPS** (absolute floor for small clusters). May indicate a traffic spike from a marketing campaign, viral event, or DDoS attack.
 — **DROP**: daily RPS drops below **30% of the SMA** when the SMA is above **5 RPS**. May indicate DNS failures, CDN misrouting, or upstream provider outages.
@@ -80,7 +86,7 @@ The breakdown variant groups traffic by **host header** (virtual host) and **sta
 
 Schedule the daily RPS trend over **`-30d`** daily at **07:00**. Alert on SURGE (immediate Slack notification) or DROP (immediate investigation trigger). Schedule the breakdown search daily for the **capacity planning dashboard**.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Verify access log collection: `index=containers sourcetype="nginx:ingress:access" earliest=-1h | stats count`. Should return a count proportional to your ingress traffic volume.
 (b) Verify field extraction: `index=containers sourcetype="nginx:ingress:access" earliest=-5m | table host status request_time bytes_sent ingress_name service_name`. All fields should populate (not null).
 (c) Generate test traffic: `for i in $(seq 1 100); do curl -s -o /dev/null https://<ingress-host>/healthz; done`. Verify the 100 requests appear in the access log within 1 minute.
@@ -88,21 +94,21 @@ Step 3 — Validate
 (e) Verify **host breakdown**: `index=containers sourcetype="nginx:ingress:access" earliest=-1h | stats count by host | sort -count`. The top hosts should match your known high-traffic services.
 (f) Confirm **status class distribution**: the majority of requests should be **2xx** for a healthy cluster. A high proportion of 4xx may indicate client errors or misconfigured routes; 5xx indicates upstream service failures.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **single-value tiles** — today's total requests, current daily RPS, 7-day SMA RPS, deviation %, trend flag (SURGE=red, DROP=amber, NORMAL=green), error rate %.
-• Row B: **line chart** of daily RPS with **7-day SMA** overlay over 30 days — the primary capacity planning signal. Add a secondary Y-axis for daily 5xx error rate.
-• Row C: **stacked area chart** of daily requests by host header over 14 days — shows which services contribute most to total volume and whether growth is concentrated or distributed.
-• Row D: **host+status breakdown table** — host_header, status_class, total_requests, avg_daily, peak_daily, overall_avg_latency, overall_p95_latency, total_gb, sparkline. Sorted by total requests.
-• **Alerting**: SURGE flag → Slack `#platform-ops` (immediate investigation); DROP flag → Slack `#platform-ops` + email to on-call (potential outage); daily RPS exceeds **capacity threshold** (e.g., 80% of tested controller max RPS) → PagerDuty P3 (scale ingress controllers); 5xx error rate > 5% → PagerDuty P2.
-• **Runbook** (owner: platform engineering): (1) for SURGE: check if traffic is legitimate (marketing campaign) or an attack (DDoS) by examining client IP distribution and request patterns, (2) for DROP: check DNS resolution, CDN health, and upstream provider status, (3) for latency increase: check ingress controller CPU/memory and backend pod health, (4) for error rate increase: check upstream service health and ingress annotation configuration.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **single-value tiles** — today's total requests, current daily RPS, 7-day SMA RPS, deviation %, trend flag (SURGE=red, DROP=amber, NORMAL=green), error rate %.
+- Row B: **line chart** of daily RPS with **7-day SMA** overlay over 30 days — the primary capacity planning signal. Add a secondary Y-axis for daily 5xx error rate.
+- Row C: **stacked area chart** of daily requests by host header over 14 days — shows which services contribute most to total volume and whether growth is concentrated or distributed.
+- Row D: **host+status breakdown table** — host_header, status_class, total_requests, avg_daily, peak_daily, overall_avg_latency, overall_p95_latency, total_gb, sparkline. Sorted by total requests.
+- **Alerting**: SURGE flag → Slack `#platform-ops` (immediate investigation); DROP flag → Slack `#platform-ops` + email to on-call (potential outage); daily RPS exceeds **capacity threshold** (e.g., 80% of tested controller max RPS) → PagerDuty P3 (scale ingress controllers); 5xx error rate > 5% → PagerDuty P2.
+- **Runbook** (owner: platform engineering): (1) for SURGE: check if traffic is legitimate (marketing campaign) or an attack (DDoS) by examining client IP distribution and request patterns, (2) for DROP: check DNS resolution, CDN health, and upstream provider status, (3) for latency increase: check ingress controller CPU/memory and backend pod health, (4) for error rate increase: check upstream service health and ingress annotation configuration.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **heatmap** showing hourly request volume over 30 days (X=hour, Y=day) to reveal traffic patterns — daily cycles, weekend dips, campaign spikes. Pair with a **top-N bar chart** showing the top 10 hosts by request volume.
-• **Alert design**: include `daily_rps`, `sma_7d_rps`, `deviation_pct`, `trend_flag`, `daily_5xx`, `error_rate`, `active_hosts`, and `unique_clients` in the alert payload. For breakdown alerts include `host_header`, `peak_daily`, and `overall_p95_latency`.
-• **Access log volume too high for license** — switch to the metrics-based approach using `nginx_ingress_controller_requests` counters instead of per-request access logs. Metrics provide the same RPS and error rate data at a fraction of the license cost.
-• **Host header is always "unknown"** — the ingress controller is not extracting the Host header. Verify the log format includes `$host` and that the ingress resource has the correct `host` field in its rules.
-• **RPS appears low despite high request count** — the `daily_rps` calculation divides by 86,400 (seconds in a day). If your traffic is concentrated in business hours (e.g., 8 hours/day), the effective RPS during peak hours is 3× the daily average. Add a **peak-hour RPS** calculation.
-• **Trend SMA is flat but traffic is growing** — the 7-day SMA smooths gradual growth to near zero deviation. Add a **30-day linear regression** (`predict` command) to detect slow growth trends that the SMA does not surface.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **heatmap** showing hourly request volume over 30 days (X=hour, Y=day) to reveal traffic patterns — daily cycles, weekend dips, campaign spikes. Pair with a **top-N bar chart** showing the top 10 hosts by request volume.
+- **Alert design**: include `daily_rps`, `sma_7d_rps`, `deviation_pct`, `trend_flag`, `daily_5xx`, `error_rate`, `active_hosts`, and `unique_clients` in the alert payload. For breakdown alerts include `host_header`, `peak_daily`, and `overall_p95_latency`.
+- **Access log volume too high for license** — switch to the metrics-based approach using `nginx_ingress_controller_requests` counters instead of per-request access logs. Metrics provide the same RPS and error rate data at a fraction of the license cost.
+- **Host header is always "unknown"** — the ingress controller is not extracting the Host header. Verify the log format includes `$host` and that the ingress resource has the correct `host` field in its rules.
+- **RPS appears low despite high request count** — the `daily_rps` calculation divides by 86,400 (seconds in a day). If your traffic is concentrated in business hours (e.g., 8 hours/day), the effective RPS during peak hours is 3× the daily average. Add a **peak-hour RPS** calculation.
+- **Trend SMA is flat but traffic is growing** — the 7-day SMA smooths gradual growth to near zero deviation. Add a **30-day linear regression** (`predict` command) to detect slow growth trends that the SMA does not surface.
 
 ## SPL
 

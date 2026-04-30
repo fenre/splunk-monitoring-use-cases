@@ -10,6 +10,12 @@ splunkPillar: "Security"
 
 # UC-3.4.4 · Registry Image Vulnerability Scan Results
 
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Compliance, Audit &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*Before any software package is allowed to run in our systems, it must pass a security inspection — we track which packages passed, which were blocked, and whether any slipped through without inspection.*
+
+---
+
 ## Description
 
 Monitors **Harbor** scan-on-push policy compliance by tracking SCANNING_COMPLETED webhook verdicts across every project, computing per-project pass/block/warning rates, and correlating with **Kubernetes admission controller** deny events from **OPA Gatekeeper** or **Kyverno** to verify that vulnerable images are actually prevented from deploying — closing the loop between registry scanning and runtime enforcement.
@@ -24,16 +30,16 @@ Configure Harbor scan-on-push with SCANNING_COMPLETED webhooks sent to Splunk HE
 
 ## Detailed Implementation
 
-Prerequisites
-• **Harbor** 2.6+ with **scan-on-push** enabled per project and a **vulnerability policy** configured (Project → Configuration → **Deployment Security** → set severity threshold for blocking pulls — e.g., block pulls when critical CVE count > 0).
-• **OPA Gatekeeper** 3.12+ or **Kyverno** 1.9+ deployed as a **Kubernetes admission controller** with image scanning policies that validate each pod's container images against scan results before allowing deployment. Example: Gatekeeper **`ConstraintTemplate`** that queries the registry API for scan status and denies admission if the image has not passed the vulnerability scan.
-• **Splunk HEC** token for **`index=containers`** with **`sourcetype=harbor:webhook`** for scan completion events; secondary streams for **`sourcetype=kube:admission`** (**admission controller** audit events) and **`sourcetype=kube:container:status`** (running image **digest**s).
-• **Kubernetes audit logging** enabled at the API server with the admission response recorded at the **RequestResponse** **audit level** so denied requests are captured with their reason and policy details.
-• **Splunk Connect for Kubernetes** or **OTel Collector** collecting **admission audit events** — Gatekeeper logs decisions to the **audit log** and also emits constraint violation metrics; Kyverno logs policy reports as **Kubernetes** custom resources.
-• Splunk RBAC: users running **compliance search**es need **`srchIndexesAllowed`** including `containers`; assign via a custom role (**`security_compliance_analyst`**).
-• **License estimate**: scan completion webhooks are ~1–2 KB each; admission controller events ~500 bytes each; a registry scanning 200 images/day with 50 deployment attempts produces ~1 MB/day.
+### Prerequisites
+- **Harbor** 2.6+ with **scan-on-push** enabled per project and a **vulnerability policy** configured (Project → Configuration → **Deployment Security** → set severity threshold for blocking pulls — e.g., block pulls when critical CVE count > 0).
+- **OPA Gatekeeper** 3.12+ or **Kyverno** 1.9+ deployed as a **Kubernetes admission controller** with image scanning policies that validate each pod's container images against scan results before allowing deployment. Example: Gatekeeper **`ConstraintTemplate`** that queries the registry API for scan status and denies admission if the image has not passed the vulnerability scan.
+- **Splunk HEC** token for **`index=containers`** with **`sourcetype=harbor:webhook`** for scan completion events; secondary streams for **`sourcetype=kube:admission`** (**admission controller** audit events) and **`sourcetype=kube:container:status`** (running image **digest**s).
+- **Kubernetes audit logging** enabled at the API server with the admission response recorded at the **RequestResponse** **audit level** so denied requests are captured with their reason and policy details.
+- **Splunk Connect for Kubernetes** or **OTel Collector** collecting **admission audit events** — Gatekeeper logs decisions to the **audit log** and also emits constraint violation metrics; Kyverno logs policy reports as **Kubernetes** custom resources.
+- Splunk RBAC: users running **compliance search**es need **`srchIndexesAllowed`** including `containers`; assign via a custom role (**`security_compliance_analyst`**).
+- **License estimate**: scan completion webhooks are ~1–2 KB each; admission controller events ~500 bytes each; a registry scanning 200 images/day with 50 deployment attempts produces ~1 MB/day.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **Harbor scan webhooks**: subscribe to **`SCANNING_COMPLETED`** and **`SCANNING_FAILED`** webhook events in Harbor (Administration → Webhooks or per-project under Project → Webhooks). The SCANNING_COMPLETED payload includes:
 — **`scan_overview.scan_status`** (Success, Error, Queued)
 — **`scan_overview.summary`** (severity counts: Critical, High, Medium, Low, Unknown)
@@ -48,7 +54,7 @@ This is the source-of-truth for whether each image's scan verdict is PASSED, BLO
 
 (5) **Policy exception lookup**: create **`scan_policy_exceptions.csv`** with columns `image_pattern`, `project`, `exception_reason`, `approved_by`, `expiry_date` for images with approved **policy exception**s. Reference in the compliance search to distinguish intentional exceptions from policy gaps.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL computes per-project **scan compliance rates** by classifying each scan result into PASSED (zero critical CVEs), BLOCKED (critical > 0), WARNING (high > 5), or SCAN_FAILED. The **`compliance_pct`** metric shows what percentage of images in each project have clean scan results.
 
 The admission-controller variant tracks actual **deployment denials** — each denied admission event represents a vulnerable image that was prevented from running. Grouping by namespace and showing the enforcing policy names provides accountability for which policies are actively protecting each environment.
@@ -57,29 +63,29 @@ The enforcement gap is measured by comparing the two searches: BLOCKED images in
 
 Schedule the compliance search **hourly** and alert when any **production** project's `compliance_pct` drops below 95%. Schedule the **admission search** every **15 minutes** and alert on any denial to provide immediate feedback to the deploying team. Run a **daily correlation search** comparing BLOCKED image digests against running container digests to detect bypass.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Push a clean image (no critical CVEs) and verify: `index=containers sourcetype="harbor:webhook" event_type="SCANNING_COMPLETED" | head 1 | table scan_status critical high`. Should show `scan_status=Success`, `critical=0`.
 (b) Push a known-vulnerable image (e.g., `nginx:1.14`) and verify the scan result shows `critical > 0` and the `policy_verdict=BLOCKED` in the SPL output.
 (c) Attempt to deploy the BLOCKED image: `kubectl run vuln-test --image=<harbor>/library/nginx:1.14` — the admission controller should deny the request. Verify: `index=containers sourcetype="kube:admission" action=deny | head 1`.
 (d) Verify **compliance percentage**: count the PASSED and BLOCKED images manually in Harbor UI and compare with the Splunk `compliance_pct` value.
 (e) Test the **bypass detection**: if the admission controller is in audit-only mode, the deployment succeeds despite a BLOCKED verdict. The daily correlation search should surface the deployed digest as a **policy bypass**.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **gauge charts** per project showing **compliance percentage** with color bands (green ≥ 95%, yellow ≥ 85%, red < 85%).
-• Row B: **single-value tiles** — overall compliance %, total BLOCKED images, admission denials today, scan failures today, active policy exceptions.
-• Row C: **blocked images table** — project, image_ref, digest, critical, high, scan_status, verdict. Drilldown opens the CVE detail from UC-3.4.2.
-• Row D: **admission denial table** — ns, deny_count, unique_images_blocked, enforcing_policies, last_reason. Drilldown shows the full admission event.
-• **Alerting**: project compliance < 95% → email to **project security lead**; BLOCKED image running in production (bypass detection) → **PagerDuty** P1; scan failure → Slack `#registry-ops`; admission denial → Slack `#deploy-feedback` with image name and reason.
-• **Runbook** (owner: AppSec team): (1) for BLOCKED images: check if the critical CVEs have fixes (cross-reference UC-3.4.2 patch priority), (2) for scan failures: check Harbor scanner health in Harbor UI → Interrogation Services, (3) for admission denials: verify the policy is correct and not blocking legitimate deployments, (4) for bypass detection: check admission controller mode (enforce vs. audit-only) and namespace coverage.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **gauge charts** per project showing **compliance percentage** with color bands (green ≥ 95%, yellow ≥ 85%, red < 85%).
+- Row B: **single-value tiles** — overall compliance %, total BLOCKED images, admission denials today, scan failures today, active policy exceptions.
+- Row C: **blocked images table** — project, image_ref, digest, critical, high, scan_status, verdict. Drilldown opens the CVE detail from UC-3.4.2.
+- Row D: **admission denial table** — ns, deny_count, unique_images_blocked, enforcing_policies, last_reason. Drilldown shows the full admission event.
+- **Alerting**: project compliance < 95% → email to **project security lead**; BLOCKED image running in production (bypass detection) → **PagerDuty** P1; scan failure → Slack `#registry-ops`; admission denial → Slack `#deploy-feedback` with image name and reason.
+- **Runbook** (owner: AppSec team): (1) for BLOCKED images: check if the critical CVEs have fixes (cross-reference UC-3.4.2 patch priority), (2) for scan failures: check Harbor scanner health in Harbor UI → Interrogation Services, (3) for admission denials: verify the policy is correct and not blocking legitimate deployments, (4) for bypass detection: check admission controller mode (enforce vs. audit-only) and namespace coverage.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **compliance scorecard** (**Dashboard Studio**) showing each project as a colored card (green/yellow/red) with the compliance percentage and BLOCKED count; pair with a **Sankey diagram** flowing scan verdict → admission decision → deployment outcome to visualize the end-to-end **enforcement pipeline**; add a **trend chart** of daily compliance_pct per project to show whether enforcement is improving.
-• **Alert design**: include `project`, `image_ref`, `verdict`, `critical`, `high`, `compliance_pct` in scan alerts; for admission alerts include `ns`, `image`, `policy`, `reason`; for bypass alerts include the running pod name, namespace, and image digest with a Harbor **deep-link**.
-• **Scan webhooks arrive but severity counts are null** — Harbor versions before 2.8 use a different scan_overview JSON structure. Check the raw event with `| spath` and adjust the `coalesce` chain to match your version's field paths.
-• **Admission events missing** — Gatekeeper's audit controller may not be configured to emit webhook logs; check `kubectl logs -n gatekeeper-system deployment/gatekeeper-audit-controller`. For Kyverno, check the admission webhook configuration: `kubectl get validatingwebhookconfigurations`.
-• **Compliance shows 100% but known-vulnerable images exist** — the search evaluates the latest scan per image; if a **rescan** has not run since new CVEs were published, the previous clean result persists. Ensure **nightly scheduled** scans (UC-3.4.2 Step 1) keep results current.
-• **High admission denial count** — may indicate a policy that is too strict or a team deploying images from an unscanned registry. Check whether denied images have any scan results at all.
-• **Bypass detection correlation fails** — **kube:container:status** image digests must use the same format as Harbor digests (sha256:xxx). Normalize with `| eval digest=replace(container_image_digest, "^sha256:", "")`.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **compliance scorecard** (**Dashboard Studio**) showing each project as a colored card (green/yellow/red) with the compliance percentage and BLOCKED count; pair with a **Sankey diagram** flowing scan verdict → admission decision → deployment outcome to visualize the end-to-end **enforcement pipeline**; add a **trend chart** of daily compliance_pct per project to show whether enforcement is improving.
+- **Alert design**: include `project`, `image_ref`, `verdict`, `critical`, `high`, `compliance_pct` in scan alerts; for admission alerts include `ns`, `image`, `policy`, `reason`; for bypass alerts include the running pod name, namespace, and image digest with a Harbor **deep-link**.
+- **Scan webhooks arrive but severity counts are null** — Harbor versions before 2.8 use a different scan_overview JSON structure. Check the raw event with `| spath` and adjust the `coalesce` chain to match your version's field paths.
+- **Admission events missing** — Gatekeeper's audit controller may not be configured to emit webhook logs; check `kubectl logs -n gatekeeper-system deployment/gatekeeper-audit-controller`. For Kyverno, check the admission webhook configuration: `kubectl get validatingwebhookconfigurations`.
+- **Compliance shows 100% but known-vulnerable images exist** — the search evaluates the latest scan per image; if a **rescan** has not run since new CVEs were published, the previous clean result persists. Ensure **nightly scheduled** scans (UC-3.4.2 Step 1) keep results current.
+- **High admission denial count** — may indicate a policy that is too strict or a team deploying images from an unscanned registry. Check whether denied images have any scan results at all.
+- **Bypass detection correlation fails** — **kube:container:status** image digests must use the same format as Harbor digests (sha256:xxx). Normalize with `| eval digest=replace(container_image_digest, "^sha256:", "")`.
 
 ## SPL
 

@@ -93,7 +93,7 @@ A PR that lands `full`-assurance tier-1 content without recording all three huma
 
 ## 5a. Peer review gate (Phase 4.5a)
 
-Every pull request that adds or changes compliance content (cat-22, `schemas/uc.schema.json`, `data/regulations.json`, `docs/regulatory-primer.md`, `docs/evidence-packs/**`, `tests/golden/compliance-mappings.yaml`, or any UC sidecar under `use-cases/cat-*/uc-*.json`) MUST be peer-reviewed against the six-point rubric in [`docs/peer-review-guide.md`](docs/peer-review-guide.md) by an engineer who is **not** the author. The review is recorded as a sign-off in `data/provenance/peer-review-signoffs.json` and validated by `scripts/audit_peer_review_signoffs.py` in CI. This is an engineering gate — reviewers check clause precision, assurance honesty, MITRE/OSCAL cross-refs, provenance, derivative correctness, and build hygiene. It does **not** replace the legal gate in §5b or the SME gate in §5c.
+Every pull request that adds or changes compliance content (cat-22, `schemas/uc.schema.json`, `data/regulations.json`, `docs/regulatory-primer.md`, `docs/evidence-packs/**`, `tests/golden/compliance-mappings.yaml`, or any UC sidecar under `content/cat-*/UC-*.json`) MUST be peer-reviewed against the six-point rubric in [`docs/peer-review-guide.md`](docs/peer-review-guide.md) by an engineer who is **not** the author. The review is recorded as a sign-off in `data/provenance/peer-review-signoffs.json` and validated by `scripts/audit_peer_review_signoffs.py` in CI. This is an engineering gate — reviewers check clause precision, assurance honesty, MITRE/OSCAL cross-refs, provenance, derivative correctness, and build hygiene. It does **not** replace the legal gate in §5b or the SME gate in §5c.
 
 ## 5b. Legal review gate (Phase 4.5b)
 

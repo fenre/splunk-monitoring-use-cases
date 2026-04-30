@@ -10,6 +10,12 @@ splunkPillar: "Observability"
 
 # UC-3.5.17 · Kubernetes Resource Quota and LimitRange Compliance
 
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Capacity, Compliance &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*Each department in our company has a spending budget for computer resources, and we monitor how close each department is to its limit so we can raise the budget before their next project gets rejected for insufficient funds.*
+
+---
+
 ## Description
 
 Monitors **Kubernetes ResourceQuota** utilization percentages (CPU, memory, pods) per namespace against tiered thresholds (CRITICAL at 95%, HIGH at 85%, WARNING at 70%), detects **quota exhaustion events** where pod creation was rejected because the namespace exceeded its resource limits, and forecasts quota utilization growth via a **30-day trend** with 7-day SMA — enabling platform teams to proactively adjust quotas before deployment failures cascade.
@@ -24,19 +30,19 @@ Collect ResourceQuota objects via the OTel Collector k8sobjects receiver and kub
 
 ## Detailed Implementation
 
-Prerequisites
-• **Kubernetes cluster** with **ResourceQuota** objects configured per namespace. ResourceQuotas define **hard limits** on aggregate resource consumption within a namespace — **CPU requests**, **memory requests**, **CPU limits**, **memory limits**, **pod count**, **service count**, **PersistentVolumeClaim count**, **ConfigMap count**, and **Secret count**. The **Kubernetes API server** enforces these limits at **admission time** — any pod creation that would cause the namespace to exceed its quota is rejected.
-• **LimitRange** objects optionally configured per namespace. LimitRanges define **per-container** and **per-pod** defaults, minimums, and maximums for CPU and memory requests/limits. When a pod does not specify resource requests or limits, the **LimitRange admission controller** injects the **default values**. Pods that specify values outside the min/max range are rejected.
-• **Splunk Distribution of OpenTelemetry Collector** deployed with:
+### Prerequisites
+- **Kubernetes cluster** with **ResourceQuota** objects configured per namespace. ResourceQuotas define **hard limits** on aggregate resource consumption within a namespace — **CPU requests**, **memory requests**, **CPU limits**, **memory limits**, **pod count**, **service count**, **PersistentVolumeClaim count**, **ConfigMap count**, and **Secret count**. The **Kubernetes API server** enforces these limits at **admission time** — any pod creation that would cause the namespace to exceed its quota is rejected.
+- **LimitRange** objects optionally configured per namespace. LimitRanges define **per-container** and **per-pod** defaults, minimums, and maximums for CPU and memory requests/limits. When a pod does not specify resource requests or limits, the **LimitRange admission controller** injects the **default values**. Pods that specify values outside the min/max range are rejected.
+- **Splunk Distribution of OpenTelemetry Collector** deployed with:
   — **k8sobjects receiver**: configured to collect **ResourceQuota** and **LimitRange** objects from the Kubernetes API. Polling interval: 60 seconds.
   — **Prometheus receiver**: scraping **kube-state-metrics** for real-time **`kube_resourcequota`** gauge metrics with `resource`, `type` (hard/used), and `namespace` labels.
-• **Splunk HEC** token for **`index=containers`** with sourcetype routing for **`kube:objects:resourcequotas`**, **`kube:objects:limitranges`**, **`kube:events`**, **`kube:pod:status`**, and **`otel:metrics`**.
-• **kube-state-metrics** v2.0+ deployed in the cluster. This component exposes **Prometheus metrics** for Kubernetes objects including ResourceQuotas, LimitRanges, and pod resource specifications. The OTel Collector scrapes these metrics and forwards them to Splunk.
-• **Namespace inventory**: maintain a **lookup** (`namespace_metadata.csv`) mapping each namespace to its **owning team**, **environment** (production, staging, development), **tier** (critical, standard, best-effort), and **contact channel** (Slack, email). This enables risk-appropriate alerting — a CRITICAL quota breach in a production namespace requires immediate response, while the same breach in a development namespace is informational.
-• **License estimate**: ResourceQuota objects are small (~1 KB each). A cluster with 50 namespaces generates approximately 50 events per poll cycle × 1440 cycles/day = ~72,000 events/day (~70 MB). kube-state-metrics quota gauges add approximately 10–50 MB/day.
-• Splunk RBAC: assign a **`platform_analyst`** role with **`srchIndexesAllowed`** including `containers`.
+- **Splunk HEC** token for **`index=containers`** with sourcetype routing for **`kube:objects:resourcequotas`**, **`kube:objects:limitranges`**, **`kube:events`**, **`kube:pod:status`**, and **`otel:metrics`**.
+- **kube-state-metrics** v2.0+ deployed in the cluster. This component exposes **Prometheus metrics** for Kubernetes objects including ResourceQuotas, LimitRanges, and pod resource specifications. The OTel Collector scrapes these metrics and forwards them to Splunk.
+- **Namespace inventory**: maintain a **lookup** (`namespace_metadata.csv`) mapping each namespace to its **owning team**, **environment** (production, staging, development), **tier** (critical, standard, best-effort), and **contact channel** (Slack, email). This enables risk-appropriate alerting — a CRITICAL quota breach in a production namespace requires immediate response, while the same breach in a development namespace is informational.
+- **License estimate**: ResourceQuota objects are small (~1 KB each). A cluster with 50 namespaces generates approximately 50 events per poll cycle × 1440 cycles/day = ~72,000 events/day (~70 MB). kube-state-metrics quota gauges add approximately 10–50 MB/day.
+- Splunk RBAC: assign a **`platform_analyst`** role with **`srchIndexesAllowed`** including `containers`.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **k8sobjects receiver configuration**: configure the OTel Collector to collect **ResourceQuota** objects:
 ```yaml
 receivers:
@@ -71,7 +77,7 @@ The receiver emits each ResourceQuota as a structured JSON event containing:
 
 (5) **Resource unit normalization**: Kubernetes expresses CPU in **millicores** (e.g., `500m` = 0.5 cores) and memory in **binary units** (e.g., `256Mi`, `1Gi`). The SPL must handle these unit conversions. The k8sobjects receiver preserves the original string values — use `eval` with `tonumber()` and unit conversion logic to produce comparable percentages.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL processes **ResourceQuota** objects to compute utilization percentages for CPU, memory, and pod count. The **risk** classification:
   — **CRITICAL** (≥95%): the namespace is nearly exhausted — the next deployment will likely fail
   — **HIGH** (≥85%): approaching exhaustion — proactive intervention required
@@ -86,30 +92,30 @@ The 30-day trend SPL computes **daily average utilization** for CPU and memory, 
 
 Schedule the utilization risk search every **15 minutes** and alert on CRITICAL (PagerDuty P2) or HIGH (Slack). Schedule the exhaustion event search every **5 minutes** and alert on any rejection. Schedule the trend search **daily** and send a weekly capacity report.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Verify quota data: `index=containers sourcetype="kube:objects:resourcequotas" earliest=-1h | spath | stats dc(metadata.namespace) as namespaces, dc(metadata.name) as quotas`. Should match the number of namespaces with quotas in the cluster.
 (b) Verify utilization calculation: for a known namespace, compare the SPL-computed cpu_pct with `kubectl describe quota -n <ns>`. The percentages should match.
 (c) Test quota exhaustion: in a test namespace with a tight quota, attempt to scale a deployment beyond the quota limit. Verify: `index=containers sourcetype="kube:events" "exceeded quota" earliest=-10m`.
 (d) Verify kube-state-metrics: `| mstats count(kube_resourcequota) WHERE index=containers BY namespace, resource span=5m | head 20`. Should show metrics for all quota-enabled namespaces.
 (e) Validate trend data: `index=containers sourcetype="kube:objects:resourcequotas" earliest=-30d | bin _time span=1d | stats count by _time | sort _time`. Should show consistent daily data points.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **single-value tiles** — namespaces at CRITICAL risk, namespaces at HIGH risk, total quota rejections (last 24h), soonest forecasted exhaustion (days), namespaces without quotas.
-• Row B: **heatmap** — namespace × resource type (CPU, Memory, Pods) with utilization percentage as color intensity. Red cells immediately highlight the most constrained namespaces.
-• Row C: **quota utilization bar chart** — horizontal bars showing CPU and memory utilization per namespace with threshold lines at 70%, 85%, and 95%.
-• Row D: **exhaustion event table** — ns, rejection_count, affected_workloads, exceeded_quotas, latest_msg. Red rows for recent rejections.
-• Row E: **growth trend line chart** — daily CPU and memory utilization per namespace with SMA overlay and threshold lines.
-• **Alerting**: CRITICAL → PagerDuty P2 + Slack `#platform-capacity` (include ns, bottleneck, max_util); HIGH sustained > 2 hours → Slack; quota rejection event → Slack `#platform-ops` (include ns, workload, quota_name); growth trend crossing 85% threshold → weekly capacity planning report.
-• **Runbook** (owner: platform/capacity team): (1) for CRITICAL quota: check which workloads are consuming the most resources: `kubectl top pods -n <ns> --sort-by=cpu`, (2) determine if usage is legitimate (growth) or anomalous (runaway pod), (3) if legitimate: increase the quota via `kubectl edit quota -n <ns>` or through GitOps, (4) if anomalous: identify and remediate the runaway workload, (5) for quota rejections: communicate with the affected team about their quota limits and assist with resource optimization.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **single-value tiles** — namespaces at CRITICAL risk, namespaces at HIGH risk, total quota rejections (last 24h), soonest forecasted exhaustion (days), namespaces without quotas.
+- Row B: **heatmap** — namespace × resource type (CPU, Memory, Pods) with utilization percentage as color intensity. Red cells immediately highlight the most constrained namespaces.
+- Row C: **quota utilization bar chart** — horizontal bars showing CPU and memory utilization per namespace with threshold lines at 70%, 85%, and 95%.
+- Row D: **exhaustion event table** — ns, rejection_count, affected_workloads, exceeded_quotas, latest_msg. Red rows for recent rejections.
+- Row E: **growth trend line chart** — daily CPU and memory utilization per namespace with SMA overlay and threshold lines.
+- **Alerting**: CRITICAL → PagerDuty P2 + Slack `#platform-capacity` (include ns, bottleneck, max_util); HIGH sustained > 2 hours → Slack; quota rejection event → Slack `#platform-ops` (include ns, workload, quota_name); growth trend crossing 85% threshold → weekly capacity planning report.
+- **Runbook** (owner: platform/capacity team): (1) for CRITICAL quota: check which workloads are consuming the most resources: `kubectl top pods -n <ns> --sort-by=cpu`, (2) determine if usage is legitimate (growth) or anomalous (runaway pod), (3) if legitimate: increase the quota via `kubectl edit quota -n <ns>` or through GitOps, (4) if anomalous: identify and remediate the runaway workload, (5) for quota rejections: communicate with the affected team about their quota limits and assist with resource optimization.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **quota budget gauge** per namespace showing remaining capacity (like a fuel gauge) — green when plenty of room, amber when approaching limits, red when nearly exhausted. Pair with a **resource allocation treemap** showing each namespace as a rectangle sized by quota allocation and colored by utilization percentage.
-• **Alert design**: include `ns`, `quota_name`, `cpu_pct`, `mem_pct`, `pods_pct`, `max_util`, `bottleneck`, and `risk` in the alert payload. For exhaustion events include `rejection_count`, `affected_workloads`, `exceeded_quotas`, and `latest_msg`.
-• **Utilization shows 0% for all resources** — the `spath` extraction may not be finding the correct fields. ResourceQuota field paths vary by Kubernetes version and collector configuration. Verify the raw event structure: `index=containers sourcetype="kube:objects:resourcequotas" earliest=-5m | head 1 | spath | fields status.*`.
-• **CPU/memory values are strings, not numbers** — Kubernetes API returns resource values as strings (e.g., `"4"` for CPU, `"8Gi"` for memory). Use `tonumber()` in eval and handle unit suffixes (m for millicores, Ki/Mi/Gi for memory) before computing percentages.
-• **Quota rejection events not appearing** — the FailedCreate event is generated by the **ReplicaSet controller**, not the pod itself. Check the event's involvedObject.kind — it should be ReplicaSet or Job, not Pod.
-• **LimitRange defaults not visible in pod specs** — when a LimitRange injects default resource requests/limits, the injected values appear in the pod spec but are not distinguishable from explicitly set values. Compare pod specs with the LimitRange defaults to identify pods relying on injected defaults versus explicit specifications.
-• **Multi-cluster quota aggregation** — if the same team operates across multiple clusters, aggregate quota utilization across clusters by team using the namespace metadata lookup. This provides a holistic view of team resource consumption.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **quota budget gauge** per namespace showing remaining capacity (like a fuel gauge) — green when plenty of room, amber when approaching limits, red when nearly exhausted. Pair with a **resource allocation treemap** showing each namespace as a rectangle sized by quota allocation and colored by utilization percentage.
+- **Alert design**: include `ns`, `quota_name`, `cpu_pct`, `mem_pct`, `pods_pct`, `max_util`, `bottleneck`, and `risk` in the alert payload. For exhaustion events include `rejection_count`, `affected_workloads`, `exceeded_quotas`, and `latest_msg`.
+- **Utilization shows 0% for all resources** — the `spath` extraction may not be finding the correct fields. ResourceQuota field paths vary by Kubernetes version and collector configuration. Verify the raw event structure: `index=containers sourcetype="kube:objects:resourcequotas" earliest=-5m | head 1 | spath | fields status.*`.
+- **CPU/memory values are strings, not numbers** — Kubernetes API returns resource values as strings (e.g., `"4"` for CPU, `"8Gi"` for memory). Use `tonumber()` in eval and handle unit suffixes (m for millicores, Ki/Mi/Gi for memory) before computing percentages.
+- **Quota rejection events not appearing** — the FailedCreate event is generated by the **ReplicaSet controller**, not the pod itself. Check the event's involvedObject.kind — it should be ReplicaSet or Job, not Pod.
+- **LimitRange defaults not visible in pod specs** — when a LimitRange injects default resource requests/limits, the injected values appear in the pod spec but are not distinguishable from explicitly set values. Compare pod specs with the LimitRange defaults to identify pods relying on injected defaults versus explicit specifications.
+- **Multi-cluster quota aggregation** — if the same team operates across multiple clusters, aggregate quota utilization across clusters by team using the namespace metadata lookup. This provides a holistic view of team resource consumption.
 
 ## SPL
 

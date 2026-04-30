@@ -6,7 +6,7 @@ Usage
     python3 tools/build/build.py --out dist
     python3 tools/build/build.py --out dist --reproducible
     python3 tools/build/build.py --out dist --check
-    python3 tools/build/build.py --out dist --only parse,api
+    python3 tools/build/build.py --out dist --only parse api
 
 Stages
 ------
@@ -35,11 +35,12 @@ CI runs the full build twice and asserts byte-identical output.
 
 Transitional behaviour (v7.0-dev)
 ---------------------------------
-While the per-stage native renderers are landing, the pipeline still calls
-the legacy `build.py` in `--legacy` mode to keep `dist/` byte-equivalent
-to today's site. As each native renderer ships, the corresponding section
-of the legacy pass is short-circuited; v7.1 removes the legacy pass
-entirely.
+While the per-stage native renderers are landing, parts of the pipeline
+still rely on the v6 root ``build.py``. Legacy parsing loads that module
+through ``parse_content._legacy_module()``, which imports root ``build.py``
+via ``importlib`` (as a Python module), not by spawning it as a subprocess.
+As each native renderer ships, the corresponding section of the legacy pass
+is short-circuited; v7.1 removes the legacy pass entirely.
 """
 
 from __future__ import annotations
@@ -51,7 +52,7 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -85,30 +86,6 @@ class BuildOptions:
     check: bool = False
     only: tuple[str, ...] = ALL_STAGES
     verbose: bool = False
-    legacy_extras: tuple[str, ...] = field(
-        default_factory=lambda: (
-            "data.js",
-            "catalog.json",
-            "llms.txt",
-            "llm.txt",
-            "llms-full.txt",
-            "sitemap.xml",
-            "scorecard.json",
-            "scorecard.html",
-            "regulatory-primer.html",
-            "guide-reader.html",
-            "clause-navigator.html",
-            "compliance-story.html",
-            "api-docs.html",
-            "graph.html",
-            "graph-data.json",
-            "mitre_techniques.json",
-            "recently-added.json",
-            "provenance.json",
-            "provenance.js",
-            "non-technical-view.js",
-        )
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +103,6 @@ def _ensure_clean_out(out: Path) -> None:
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True, exist_ok=True)
-
 
 
 

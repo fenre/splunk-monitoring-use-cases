@@ -10,6 +10,12 @@ splunkPillar: "Security"
 
 # UC-3.4.5 · Registry Authentication and Authorization Failures
 
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security, Audit, Compliance &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*We watch for anyone trying to access our software storage with the wrong password or without permission, catching repeated break-in attempts and alerting when legitimate workers get locked out because their access expired.*
+
+---
+
 ## Description
 
 Detects **authentication failures** (HTTP 401) and **authorization denials** (HTTP 403) across **Harbor** and **Docker Distribution** registries by analyzing access logs and audit events, classifying each denied request by action type (login, pull, push, catalog), and flagging patterns indicative of credential brute-force or project enumeration — then correlating with Kubernetes **ImagePullBackOff** events to quantify the deployment impact of registry access failures.
@@ -24,17 +30,17 @@ Collect Harbor nginx access logs (401/403 responses) via Universal Forwarder and
 
 ## Detailed Implementation
 
-Prerequisites
-• **Harbor** 2.6+ with **HTTPS** enabled and **nginx **access log**ging** active (default configuration logs all requests including status codes, client IPs, and user agents to `/var/log/harbor/nginx/access.log`).
-• **Universal Forwarder** deployed on the **Harbor host** monitoring the **nginx access log** file and forwarding as **`sourcetype=harbor:access`** to `index=containers`. Configure the **monitor stanza** in `inputs.conf` with `sourcetype=harbor:access` and `index=containers`.
-• **Splunk REST API Modular Input** (**rest_ta**, **Splunkbase 1546**) on a **heavy forwarder** polling the **Harbor audit API** (`GET /api/v2.0/audit-logs?sort=-op_time`) every **300 seconds** for structured audit entries as **`sourcetype=harbor:audit`**.
-• **Splunk HEC** token for **`index=containers`** with webhook reception for **`sourcetype=harbor:webhook`** events.
-• **Kubernetes event collection**: **Splunk Connect for Kubernetes** or **OTel Collector** capturing **`sourcetype=kube:events`** with reasons `ImagePullBackOff`, `ErrImagePull`, and `Failed` to correlate registry **auth failure**s with pod scheduling impact.
-• Splunk RBAC: users running auth failure searches need **`srchIndexesAllowed`** including `containers`; assign via a custom role (**`registry_security_analyst`**).
-• **Baseline data**: collect at least 7 days of access logs before tuning **brute-force thresholds** — legitimate **CI/CD** pipelines can generate bursts of auth attempts during credential rotation.
-• **License estimate**: each access log entry is ~500 bytes; a registry serving 1,000 pull/push requests/day generates ~500 KB/day of access logs.
+### Prerequisites
+- **Harbor** 2.6+ with **HTTPS** enabled and **nginx **access log**ging** active (default configuration logs all requests including status codes, client IPs, and user agents to `/var/log/harbor/nginx/access.log`).
+- **Universal Forwarder** deployed on the **Harbor host** monitoring the **nginx access log** file and forwarding as **`sourcetype=harbor:access`** to `index=containers`. Configure the **monitor stanza** in `inputs.conf` with `sourcetype=harbor:access` and `index=containers`.
+- **Splunk REST API Modular Input** (**rest_ta**, **Splunkbase 1546**) on a **heavy forwarder** polling the **Harbor audit API** (`GET /api/v2.0/audit-logs?sort=-op_time`) every **300 seconds** for structured audit entries as **`sourcetype=harbor:audit`**.
+- **Splunk HEC** token for **`index=containers`** with webhook reception for **`sourcetype=harbor:webhook`** events.
+- **Kubernetes event collection**: **Splunk Connect for Kubernetes** or **OTel Collector** capturing **`sourcetype=kube:events`** with reasons `ImagePullBackOff`, `ErrImagePull`, and `Failed` to correlate registry **auth failure**s with pod scheduling impact.
+- Splunk RBAC: users running auth failure searches need **`srchIndexesAllowed`** including `containers`; assign via a custom role (**`registry_security_analyst`**).
+- **Baseline data**: collect at least 7 days of access logs before tuning **brute-force thresholds** — legitimate **CI/CD** pipelines can generate bursts of auth attempts during credential rotation.
+- **License estimate**: each access log entry is ~500 bytes; a registry serving 1,000 pull/push requests/day generates ~500 KB/day of access logs.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **nginx access log collection**: deploy a **Universal Forwarder** on the Harbor host with a **monitor stanza** targeting `/var/log/harbor/nginx/access.log`. The default Harbor nginx log format includes: `remote_addr`, `remote_user`, `request`, `status`, `body_bytes_sent`, `http_referer`, `http_user_agent`. For enhanced forensics, configure Harbor's nginx to use a **JSON log format** that adds `upstream_response_time` and `request_time` fields.
 
 (2) **Field extraction**: create **`props.conf`** extractions for the Harbor access log format to produce fields: `client_ip`, `remote_user`, `request_uri`, `http_status`, `user_agent`. For 401/403 analysis, the key fields are **`http_status`** (the response code), **`remote_user`** (authenticated user or `-` for anonymous), **`request`** (the HTTP method + URI), and **`remote_addr`** (client IP).
@@ -45,7 +51,7 @@ Step 1 — Configure data collection
 
 (5) **Lookup setup**: create **`known_service_accounts.csv`** with columns `actor`, `account_type` (robot, ci_pipeline, human), `owner_team` to distinguish known automation from suspicious actors. Define in **`transforms.conf`** and reference in the search.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL filters for **HTTP 401** (authentication failure — invalid or missing credentials) and **HTTP 403** (authorization denied — valid credentials but insufficient permissions) responses from the access log and **audit API**.
 
 The **`action`** classification uses URI patterns to determine what the user was attempting: manifest pulls (`/v2/.*/manifests/`), blob pushes (`/v2/.*/blobs/uploads`), catalog enumeration (`/v2/_catalog`), login (`/api/v2.0/users/login`), or token requests (`/service/token`).
@@ -56,29 +62,29 @@ The **ImagePullBackOff variant** correlates **Kubernetes** pod scheduling failur
 
 Schedule the auth failure search every **15 minutes** over **`-15m`** and alert on `is_brute_force=LIKELY` or `is_enumeration=LIKELY`. Schedule the ImagePullBackOff search every **5 minutes** and alert when `affected_pods > 3` in any production namespace.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Generate a test 401: `curl -u wronguser:wrongpass https://<harbor>/v2/_catalog` and verify the access log entry appears: `index=containers sourcetype="harbor:access" status=401 | head 1`.
 (b) Generate a test 403: use a **robot account** with read-only scope and attempt a push: `docker push <harbor>/library/test:latest` — should produce a 403. Verify: `index=containers sourcetype="harbor:access" status=403 | head 1`.
 (c) Test **brute-force detection**: run a loop of 25 failed login attempts in under 30 minutes and verify `is_brute_force=LIKELY` in the search output.
 (d) Test **ImagePullBackOff correlation**: create a pod referencing a non-existent registry **secret**: `kubectl run pull-test --image=<harbor>/nonexistent:latest` and verify the kube:events search captures the ErrImagePull event.
 (e) Verify **known_service_accounts lookup**: add a CI/CD robot account to the lookup and confirm it is enriched with `account_type=robot` in the search output.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **timechart** of auth failures by `failure_type` (401 vs 403) over 24 hours — spikes indicate credential issues or targeted attacks.
-• Row B: **single-value tiles** — total auth failures (last 4h), unique actors with failures, actors flagged as **brute-force**, pods in ImagePullBackOff.
-• Row C: **actor table** — actor, failure_type, failure_count, source_ips, projects_targeted, is_brute_force, is_enumeration. Red rows for brute-force/enumeration. Drilldown opens per-actor timeline.
-• Row D: **ImagePullBackOff table** — ns, registry, event_count, affected_pods, last_message. Drilldown opens pod detail.
-• **Alerting**: brute-force detected → **PagerDuty** P2 + Slack `#security-ops`; enumeration detected → P3; ImagePullBackOff in production → Slack `#platform-ops` with pod names.
-• **Runbook** (owner: security on-call): (1) for brute-force: check if the actor is a known **service account** or robot — if not, block the source IP and rotate credentials, (2) for enumeration: review the actor's access scope and disable if unauthorized, (3) for ImagePullBackOff: check **imagePullSecrets** on the pod spec and verify the referenced Secret contains valid credentials.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **timechart** of auth failures by `failure_type` (401 vs 403) over 24 hours — spikes indicate credential issues or targeted attacks.
+- Row B: **single-value tiles** — total auth failures (last 4h), unique actors with failures, actors flagged as **brute-force**, pods in ImagePullBackOff.
+- Row C: **actor table** — actor, failure_type, failure_count, source_ips, projects_targeted, is_brute_force, is_enumeration. Red rows for brute-force/enumeration. Drilldown opens per-actor timeline.
+- Row D: **ImagePullBackOff table** — ns, registry, event_count, affected_pods, last_message. Drilldown opens pod detail.
+- **Alerting**: brute-force detected → **PagerDuty** P2 + Slack `#security-ops`; enumeration detected → P3; ImagePullBackOff in production → Slack `#platform-ops` with pod names.
+- **Runbook** (owner: security on-call): (1) for brute-force: check if the actor is a known **service account** or robot — if not, block the source IP and rotate credentials, (2) for enumeration: review the actor's access scope and disable if unauthorized, (3) for ImagePullBackOff: check **imagePullSecrets** on the pod spec and verify the referenced Secret contains valid credentials.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **geo-map** panel plotting auth failure source IPs to identify geographic anomalies (e.g., login attempts from unexpected countries); pair with an **auth failure funnel** showing total attempts → unique actors → brute-force flagged → successfully blocked; add a **correlation panel** linking auth failure actors with their first successful login (if any) from `harbor:access status=200`.
-• **Alert design**: include `actor`, `failure_type`, `failure_count`, `source_ips`, `projects_targeted`, `is_brute_force`, `is_enumeration`, `session_min` in auth alerts; for ImagePullBackOff include `ns`, `registry`, `affected_pods`, `last_message`; add a **deep-link** to the Harbor user management page for the flagged actor.
-• **High failure count from CI/CD robot accounts** — robot credential rotation creates a burst of 401s during the overlap window. Correlate with robot creation timestamps and suppress during planned rotation windows via a **`maintenance_windows`** lookup.
-• **Anonymous 401s dominate the search** — Harbor returns 401 for unauthenticated requests to private projects (prompting the client to authenticate). Filter by excluding actors with `remote_user="-"` and `action="token_request"` which are the normal Docker client auth flow.
-• **ImagePullBackOff without 401/403 in access logs** — the pull may be hitting a different registry (Docker Hub, GCR, ECR) not monitored by this search. Check the `registry` field in the kube:events to identify the source.
-• **Account lockout integration** — configure a **correlation search** that detects brute-force flagged actors and automatically adds them to a **blocked_actors** lookup that a Harbor webhook validation script uses to reject all subsequent requests from that actor until manual review.
-• **No access log events** — verify the Universal Forwarder **monitor stanza** path matches the actual nginx log location; check file permissions and forwarder status.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **geo-map** panel plotting auth failure source IPs to identify geographic anomalies (e.g., login attempts from unexpected countries); pair with an **auth failure funnel** showing total attempts → unique actors → brute-force flagged → successfully blocked; add a **correlation panel** linking auth failure actors with their first successful login (if any) from `harbor:access status=200`.
+- **Alert design**: include `actor`, `failure_type`, `failure_count`, `source_ips`, `projects_targeted`, `is_brute_force`, `is_enumeration`, `session_min` in auth alerts; for ImagePullBackOff include `ns`, `registry`, `affected_pods`, `last_message`; add a **deep-link** to the Harbor user management page for the flagged actor.
+- **High failure count from CI/CD robot accounts** — robot credential rotation creates a burst of 401s during the overlap window. Correlate with robot creation timestamps and suppress during planned rotation windows via a **`maintenance_windows`** lookup.
+- **Anonymous 401s dominate the search** — Harbor returns 401 for unauthenticated requests to private projects (prompting the client to authenticate). Filter by excluding actors with `remote_user="-"` and `action="token_request"` which are the normal Docker client auth flow.
+- **ImagePullBackOff without 401/403 in access logs** — the pull may be hitting a different registry (Docker Hub, GCR, ECR) not monitored by this search. Check the `registry` field in the kube:events to identify the source.
+- **Account lockout integration** — configure a **correlation search** that detects brute-force flagged actors and automatically adds them to a **blocked_actors** lookup that a Harbor webhook validation script uses to reject all subsequent requests from that actor until manual review.
+- **No access log events** — verify the Universal Forwarder **monitor stanza** path matches the actual nginx log location; check file permissions and forwarder status.
 
 ## SPL
 

@@ -10,6 +10,12 @@ splunkPillar: "Security"
 
 # UC-3.5.3 · mTLS Certificate Expiry
 
+> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Availability, Compliance &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*The digital identity cards that let programs prove who they are to each other expire on a schedule — we track every card's expiry date and sound an alarm weeks in advance so the team can renew them before services lose the ability to communicate.*
+
+---
+
 ## Description
 
 Tracks **Istio** mesh **mTLS certificate** expiry timestamps for root CA, intermediate CA, istiod workload certificates, and ingress/egress gateway TLS certificates, computing days-to-expiry and alert tiers — then correlates certificate-related TLS handshake failures from Envoy access logs to detect in-progress expiry events before the entire service mesh loses mutual authentication.
@@ -24,16 +30,16 @@ Scrape Istio control plane certificate expiry metrics (citadel_server_root_cert_
 
 ## Detailed Implementation
 
-Prerequisites
-• **Istio** 1.18+ with **mTLS** in **STRICT** mode across all namespaces (verify with `kubectl get peerauthentication --all-namespaces`); Istio manages its own **root CA** and issues short-lived **workload certificates** via its built-in **certificate authority** (formerly Citadel, now integrated into **istiod**).
-• **istiod** control plane metrics endpoint enabled on port **15014** — this exposes the certificate expiry timestamps that the SPL monitors. Verify: `kubectl port-forward -n istio-system svc/istiod 15014:15014` then `curl localhost:15014/metrics | grep cert_expiry`.
-• **Splunk OpenTelemetry Collector** with the **Prometheus receiver** scraping **istiod** metrics on port **15014**; add a static or service-discovery scrape target for the `istiod` service in the `istio-system` namespace.
-• **Splunk HEC** token for **`index=containers`** with default **`sourcetype=otel:metrics`**; secondary streams for **`sourcetype=istio:pilot`** (istiod logs), **`sourcetype=kube:events`**, and **`sourcetype=istio:accesslog`**.
-• **Kubernetes Secret metadata collection**: configure the OTel Collector's **`k8sobjects`** receiver or a **scripted input** to collect **Secret metadata** (name, namespace, annotations, creation timestamp) for Secrets matching `type=kubernetes.io/tls` — never collect the actual certificate data or private keys. Index as **`sourcetype=kube:secrets`**.
-• Splunk RBAC: assign **`srchIndexesAllowed`** including `containers` via a custom role (**`mesh_security_analyst`**).
-• **Certificate rotation context**: Istio's default workload certificate TTL is **24 hours** (configurable via `meshConfig.certificates[].dnsNames` or `CITADEL_SELF_SIGNED_CA_CERT_TTL`). The root CA certificate default TTL is **10 years** for self-signed CAs. External CAs (**cert-manager**, Vault) have their own rotation schedules.
+### Prerequisites
+- **Istio** 1.18+ with **mTLS** in **STRICT** mode across all namespaces (verify with `kubectl get peerauthentication --all-namespaces`); Istio manages its own **root CA** and issues short-lived **workload certificates** via its built-in **certificate authority** (formerly Citadel, now integrated into **istiod**).
+- **istiod** control plane metrics endpoint enabled on port **15014** — this exposes the certificate expiry timestamps that the SPL monitors. Verify: `kubectl port-forward -n istio-system svc/istiod 15014:15014` then `curl localhost:15014/metrics | grep cert_expiry`.
+- **Splunk OpenTelemetry Collector** with the **Prometheus receiver** scraping **istiod** metrics on port **15014**; add a static or service-discovery scrape target for the `istiod` service in the `istio-system` namespace.
+- **Splunk HEC** token for **`index=containers`** with default **`sourcetype=otel:metrics`**; secondary streams for **`sourcetype=istio:pilot`** (istiod logs), **`sourcetype=kube:events`**, and **`sourcetype=istio:accesslog`**.
+- **Kubernetes Secret metadata collection**: configure the OTel Collector's **`k8sobjects`** receiver or a **scripted input** to collect **Secret metadata** (name, namespace, annotations, creation timestamp) for Secrets matching `type=kubernetes.io/tls` — never collect the actual certificate data or private keys. Index as **`sourcetype=kube:secrets`**.
+- Splunk RBAC: assign **`srchIndexesAllowed`** including `containers` via a custom role (**`mesh_security_analyst`**).
+- **Certificate rotation context**: Istio's default workload certificate TTL is **24 hours** (configurable via `meshConfig.certificates[].dnsNames` or `CITADEL_SELF_SIGNED_CA_CERT_TTL`). The root CA certificate default TTL is **10 years** for self-signed CAs. External CAs (**cert-manager**, Vault) have their own rotation schedules.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **istiod metrics scraping**: add the **istiod** service as a Prometheus scrape target. Key metrics:
 — **`citadel_server_root_cert_expiry_timestamp`** (gauge: Unix epoch when the **root CA** cert expires)
 — **`citadel_server_cert_chain_expiry_timestamp`** (gauge: Unix epoch when the **intermediate CA** cert chain expires)
@@ -52,7 +58,7 @@ These three metrics provide complete visibility into the **certificate hierarchy
 
 (5) **External CA integration**: if using **cert-manager** or **HashiCorp Vault** as the Istio CA, collect the CA's own certificate expiry metrics and logs. For cert-manager: scrape `certmanager_certificate_expiration_timestamp_seconds`; for Vault: monitor the PKI secret engine's CA certificate expiry.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL converts Unix epoch **expiry timestamps** into human-readable dates and computes `days_remaining` and `hours_remaining`. The **`alert_level`** classification escalates through **HEALTHY** → **APPROACHING** (30d) → **WARNING** (7d) → **CRITICAL** (1d) → **EXPIRED**.
 
 The root CA certificate has the longest lifetime and the most catastrophic impact if it expires — a single expired root invalidates every workload certificate in the mesh. The intermediate CA and istiod workload certificates have shorter lifetimes but are rotated automatically.
@@ -63,29 +69,29 @@ The **handshake-failure variant** detects active certificate problems by searchi
 
 Schedule the expiry search every **6 hours** with long-range thresholds (30/7/1 day). Schedule the **handshake-failure** search every **5 minutes** over **`-5m`** and alert on any failure count > 10.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Verify **certificate metrics**: `index=containers sourcetype=otel:metrics metric_name=citadel_server_root_cert_expiry_timestamp | head 1 | eval expiry=strftime(tonumber(value), "%Y-%m-%d") | table expiry`. Should show the root CA expiry date matching `istioctl proxy-config secret -n istio-system <istiod-pod> | grep ROOTCA`.
 (b) Test **workload cert rotation**: `kubectl rollout restart deployment -n istio-system istiod` triggers a fresh cert issuance cycle. The `istiod_cert_expiry_seconds` metric should reset to the full TTL value (default 86400s for 24h certs).
 (c) Verify **gateway Secret monitoring**: `index=containers sourcetype="kube:secrets" secret_name=*tls* | stats count by ns, secret_name`. Should list all TLS Secrets in gateway namespaces.
 (d) Test **handshake failure detection**: temporarily set a PeerAuthentication to STRICT in a namespace where a pod lacks sidecar injection — traffic to that pod will produce TLS handshake failures that the third SPL variant should capture.
 (e) Cross-check with `istioctl`: `istioctl proxy-config secret <pod>` shows the certificate chain, ROOTCA expiry, and whether the SDS stream is healthy.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **countdown tiles** — root CA days-to-expiry (large single-value), intermediate CA days-to-expiry, istiod cert hours-to-expiry (expected to cycle every 24h). Color-code: green > 30d, yellow 7–30d, red < 7d.
-• Row B: **timeline** of upcoming certificate expirations — a Gantt-style bar for each certificate showing its validity window.
-• Row C: **handshake-failure bar chart** — failures per 15-minute window by source service, correlated with certificate rotation events.
-• Row D: **gateway certificate table** — ns, secret_name, expiry, days_left, alert_level. Red highlighting for any non-HEALTHY entry.
-• **Alerting**: root CA ≤ 30 days → email to **security team** and **platform engineering** leads; root CA ≤ 7 days → **PagerDuty** P1; istiod cert not rotating (hours_remaining > 36h for a 24h TTL) → P2 to mesh on-call; handshake failures > 10 in 5m → P2 with affected services.
-• **Runbook** (owner: platform security on-call): (1) check cert type from alert, (2) for root CA: follow Istio root CA rotation procedure (`istioctl x create-remote-secret`), plan rolling restart of all workloads, (3) for gateway certs: renew via cert-manager or manual CSR, (4) for workload certs: verify istiod is healthy and SDS is pushing.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **countdown tiles** — root CA days-to-expiry (large single-value), intermediate CA days-to-expiry, istiod cert hours-to-expiry (expected to cycle every 24h). Color-code: green > 30d, yellow 7–30d, red < 7d.
+- Row B: **timeline** of upcoming certificate expirations — a Gantt-style bar for each certificate showing its validity window.
+- Row C: **handshake-failure bar chart** — failures per 15-minute window by source service, correlated with certificate rotation events.
+- Row D: **gateway certificate table** — ns, secret_name, expiry, days_left, alert_level. Red highlighting for any non-HEALTHY entry.
+- **Alerting**: root CA ≤ 30 days → email to **security team** and **platform engineering** leads; root CA ≤ 7 days → **PagerDuty** P1; istiod cert not rotating (hours_remaining > 36h for a 24h TTL) → P2 to mesh on-call; handshake failures > 10 in 5m → P2 with affected services.
+- **Runbook** (owner: platform security on-call): (1) check cert type from alert, (2) for root CA: follow Istio root CA rotation procedure (`istioctl x create-remote-secret`), plan rolling restart of all workloads, (3) for gateway certs: renew via cert-manager or manual CSR, (4) for workload certs: verify istiod is healthy and SDS is pushing.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **certificate lifecycle timeline** showing each cert's issued/expiry dates as colored bars (green/yellow/red by remaining time); pair with a **handshake-failure heatmap** showing source × destination × time to correlate failures with specific cert rotation windows; add a **rotation history table** from istiod logs showing successful and failed rotations.
-• **Alert design**: include `cert_type`, `expiry`, `days_left`, `hours_left`, and `alert_level`; for handshake alerts include `source_svc`, `dest_svc`, `failure_count`, and `error_detail`; add deep-links to the certificate dashboard and the Istio security documentation.
-• **Root CA expiry shows year 2033** — this is the default 10-year self-signed CA. While not urgent, plan rotation before it becomes a forgotten time bomb. Add a calendar reminder 6 months before expiry.
-• **istiod cert metric not updating** — istiod may have lost connection to its CA or the SDS push is failing. Check istiod logs: `kubectl logs -n istio-system -l app=istiod | grep -i cert`.
-• **Gateway cert shows EXPIRED but traffic works** — the ingress gateway may be serving cached certificates. Restart the gateway pod to force a fresh cert load and verify whether traffic breaks.
-• **Handshake failures without cert expiry** — may indicate misconfigured **PeerAuthentication** (STRICT mode on a namespace with non-injected pods), not cert expiry. Check the `error_detail` field for specific TLS error codes.
-• **cert-manager certificates not appearing** — the kube:secrets collection may not include the cert-manager-managed Secrets. Add cert-manager namespace to the k8sobjects receiver scope.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **certificate lifecycle timeline** showing each cert's issued/expiry dates as colored bars (green/yellow/red by remaining time); pair with a **handshake-failure heatmap** showing source × destination × time to correlate failures with specific cert rotation windows; add a **rotation history table** from istiod logs showing successful and failed rotations.
+- **Alert design**: include `cert_type`, `expiry`, `days_left`, `hours_left`, and `alert_level`; for handshake alerts include `source_svc`, `dest_svc`, `failure_count`, and `error_detail`; add deep-links to the certificate dashboard and the Istio security documentation.
+- **Root CA expiry shows year 2033** — this is the default 10-year self-signed CA. While not urgent, plan rotation before it becomes a forgotten time bomb. Add a calendar reminder 6 months before expiry.
+- **istiod cert metric not updating** — istiod may have lost connection to its CA or the SDS push is failing. Check istiod logs: `kubectl logs -n istio-system -l app=istiod | grep -i cert`.
+- **Gateway cert shows EXPIRED but traffic works** — the ingress gateway may be serving cached certificates. Restart the gateway pod to force a fresh cert load and verify whether traffic breaks.
+- **Handshake failures without cert expiry** — may indicate misconfigured **PeerAuthentication** (STRICT mode on a namespace with non-injected pods), not cert expiry. Check the `error_detail` field for specific TLS error codes.
+- **cert-manager certificates not appearing** — the kube:secrets collection may not include the cert-manager-managed Secrets. Add cert-manager namespace to the k8sobjects receiver scope.
 
 ## SPL
 

@@ -24,7 +24,7 @@ deliverables:
 
 Why there is no 0.3 / 0.4 in this report: those were Phase 0 subtasks
 (regulatory coverage and architecture-review rehearsal) that merged
-into 0.1 and 0.2 during scoping. The tracked IDs in `docs/plan/` reflect
+into 0.1 and 0.2 during scoping. The tracked IDs in `../plan/` reflect
 the consolidated set.
 
 ---

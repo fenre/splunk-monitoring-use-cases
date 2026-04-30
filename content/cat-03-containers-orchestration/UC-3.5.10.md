@@ -10,6 +10,12 @@ splunkPillar: "Observability"
 
 # UC-3.5.10 · Ingress Gateway Latency
 
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Reliability &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*We measure how quickly the front gate of our computer network responds to each visitor and track whether it is getting slower over time, so the team knows when to widen the gate before visitors start waiting too long.*
+
+---
+
 ## Description
 
 Tracks Istio Ingress Gateway request latency at **p50, p95, and p99** percentiles per route using Envoy access logs, comparing real-time 5-minute windows against SLO thresholds (p95 < 500ms, error rate < 1%) and computing daily p95 trends with 7-day moving averages to detect latency regressions before they breach external SLAs — covering TLS termination, authentication, routing, and upstream response time in a single measurement.
@@ -24,26 +30,26 @@ Collect Istio Ingress Gateway Envoy access logs via Splunk Connect for Kubernete
 
 ## Detailed Implementation
 
-Prerequisites
-• **Istio** 1.14+ service mesh with the **Istio Ingress Gateway** deployed as a **LoadBalancer** or **NodePort** Service in the `istio-system` namespace. The gateway handles **TLS termination**, **authentication** (via RequestAuthentication), **authorization** (via AuthorizationPolicy), and **routing** (via VirtualService/Gateway resources) for all north-south traffic.
-• **Envoy access logging** enabled on the ingress gateway. Configure via the Istio **Telemetry API**:
+### Prerequisites
+- **Istio** 1.14+ service mesh with the **Istio Ingress Gateway** deployed as a **LoadBalancer** or **NodePort** Service in the `istio-system` namespace. The gateway handles **TLS termination**, **authentication** (via RequestAuthentication), **authorization** (via AuthorizationPolicy), and **routing** (via VirtualService/Gateway resources) for all north-south traffic.
+- **Envoy access logging** enabled on the ingress gateway. Configure via the Istio **Telemetry API**:
   — Set `meshConfig.accessLogFile` to `/dev/stdout`
   — Set `meshConfig.accessLogEncoding` to `JSON`
   — Alternatively, use a namespace-scoped **Telemetry** resource targeting only the `istio-system` namespace to avoid enabling access logs mesh-wide.
-• **Splunk Connect for Kubernetes** or the OTel Collector's **filelog receiver** configured to collect access logs from istio-ingressgateway pods and index them as **`sourcetype=envoy:accesslog`** in **`index=containers`**.
-• **Prometheus metrics** scraping: configure the OTel Collector **Prometheus receiver** to scrape the ingress gateway pods' `/stats/prometheus` endpoint on port **15020**. Key metrics:
+- **Splunk Connect for Kubernetes** or the OTel Collector's **filelog receiver** configured to collect access logs from istio-ingressgateway pods and index them as **`sourcetype=envoy:accesslog`** in **`index=containers`**.
+- **Prometheus metrics** scraping: configure the OTel Collector **Prometheus receiver** to scrape the ingress gateway pods' `/stats/prometheus` endpoint on port **15020**. Key metrics:
   — `istio_request_duration_milliseconds_bucket` (histogram — provides percentile computation without per-request log storage)
   — `istio_requests_total` (counter — request rate by response code)
   — `envoy_server_live` (gauge — gateway liveness)
-• **Splunk HEC** token for **`index=containers`** with sourcetype routing for access logs, metrics, and events.
-• **SLO definition**: establish explicit SLO thresholds per route or globally:
+- **Splunk HEC** token for **`index=containers`** with sourcetype routing for access logs, metrics, and events.
+- **SLO definition**: establish explicit SLO thresholds per route or globally:
   — Default: **p95 < 500ms**, **error rate < 1%**
   — Create a **lookup** (`gateway_slo_thresholds.csv`) mapping `route` to `p95_threshold_ms` and `error_rate_threshold_pct` for per-route SLO customization.
-• At least **7 days** of historical access log data for meaningful SMA trending; **30 days** is ideal.
-• **License estimate**: access log volume is proportional to request volume. At ~400 bytes per JSON log line, 1 million requests/day generates ~400 MB/day. For high-traffic gateways, consider using **metrics-only** mode (Prometheus histogram) which provides percentiles at a fraction of the license cost.
-• Splunk RBAC: assign a **`gateway_analyst`** role with **`srchIndexesAllowed`** including `containers`.
+- At least **7 days** of historical access log data for meaningful SMA trending; **30 days** is ideal.
+- **License estimate**: access log volume is proportional to request volume. At ~400 bytes per JSON log line, 1 million requests/day generates ~400 MB/day. For high-traffic gateways, consider using **metrics-only** mode (Prometheus histogram) which provides percentiles at a fraction of the license cost.
+- Splunk RBAC: assign a **`gateway_analyst`** role with **`srchIndexesAllowed`** including `containers`.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **Envoy access log format**: the Istio Ingress Gateway emits Envoy **JSON access logs** with the following key fields:
 — **`duration`** (request duration in milliseconds — the primary latency measurement, includes downstream processing, upstream response time, and Envoy internal processing)
 — **`response_code`** (HTTP status code — for error rate calculation)
@@ -64,7 +70,7 @@ Step 1 — Configure data collection
 
 (4) **Multi-gateway deployments**: if the cluster has multiple ingress gateways (e.g., public, private, internal), tag access logs with the gateway **Deployment name** or use the `pod_name` prefix to distinguish them in queries. Create separate dashboard rows for each gateway class.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL computes **p50/p95/p99 latency** per route in 5-minute windows from access logs. The **`slo_breach`** flag triggers when:
 — p95 exceeds **500ms** (the default SLO threshold for gateway latency)
 — OR error rate exceeds **1%** (the default SLO threshold for availability)
@@ -78,29 +84,29 @@ The daily trend variant computes **daily p95** per route with a **7-day SMA** an
 
 Schedule the 5-minute latency search as a **real-time alert** with a 5-minute window. Alert on CRITICAL latency_flag or sustained SLO breaches (3+ consecutive 5-minute intervals). Schedule the daily trend over **`-30d`** daily at **07:00** and alert on REGRESSION.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Verify access log collection: `index=containers sourcetype="envoy:accesslog" earliest=-1h | where like(pod_name, "istio-ingressgateway%") | stats count`. Should be proportional to your ingress traffic.
 (b) Verify latency field extraction: `index=containers sourcetype="envoy:accesslog" earliest=-5m | table authority duration response_code response_flags upstream_cluster`. All fields should populate.
 (c) Generate latency test: `for i in $(seq 1 50); do curl -s -o /dev/null -w "%{time_total}\n" https://<gateway-host>/api/health; done`. Compare reported latency with the p50 computed by the search.
 (d) Simulate a latency spike: deploy a backend service with an artificial delay (`sleep 2s`) and route through the gateway. Verify the p99 spike appears: `index=containers sourcetype="envoy:accesslog" route="<test-route>" earliest=-5m | stats p99(duration) as p99_ms`.
 (e) Verify SLO breach detection: artificially lower the SLO threshold in the search (e.g., `p95_ms > 10`) and confirm `slo_breach=1` appears for normal traffic.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **single-value tiles** — current p50/p95/p99 (last 5 min), error rate %, SLO breach count (last 1h), latency_flag (CRITICAL=red, DEGRADED=amber, HEALTHY=green).
-• Row B: **line chart** of p50/p95/p99 over 24h at 5-minute granularity per route — the p95-to-p99 gap reveals tail latency issues.
-• Row C: **daily p95 trend** with **7-day SMA** overlay over 30 days — the primary capacity planning and regression detection signal.
-• Row D: **route breakdown table** — route, p50_ms, p95_ms, p99_ms, request_count, error_rate, slo_breach, latency_flag. Sorted by p99 descending.
-• **Alerting**: CRITICAL latency_flag → PagerDuty **P2** (user-facing degradation); sustained SLO breach for 15+ min → PagerDuty **P3**; REGRESSION in daily trend for 2+ days → Slack `#platform-ops`; error rate > 5% → PagerDuty **P1**.
-• **Runbook** (owner: platform engineering): (1) check response flags for root cause: `UT` = backend slow (check backend service), `UO` = circuit breaker (check connection pool limits), `UF` = backend down (check backend pods), (2) check gateway pod CPU/memory utilization, (3) check if latency correlates with traffic volume increase (capacity issue) or specific route (application issue), (4) compare with upstream service latency to isolate gateway overhead vs backend latency.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **single-value tiles** — current p50/p95/p99 (last 5 min), error rate %, SLO breach count (last 1h), latency_flag (CRITICAL=red, DEGRADED=amber, HEALTHY=green).
+- Row B: **line chart** of p50/p95/p99 over 24h at 5-minute granularity per route — the p95-to-p99 gap reveals tail latency issues.
+- Row C: **daily p95 trend** with **7-day SMA** overlay over 30 days — the primary capacity planning and regression detection signal.
+- Row D: **route breakdown table** — route, p50_ms, p95_ms, p99_ms, request_count, error_rate, slo_breach, latency_flag. Sorted by p99 descending.
+- **Alerting**: CRITICAL latency_flag → PagerDuty **P2** (user-facing degradation); sustained SLO breach for 15+ min → PagerDuty **P3**; REGRESSION in daily trend for 2+ days → Slack `#platform-ops`; error rate > 5% → PagerDuty **P1**.
+- **Runbook** (owner: platform engineering): (1) check response flags for root cause: `UT` = backend slow (check backend service), `UO` = circuit breaker (check connection pool limits), `UF` = backend down (check backend pods), (2) check gateway pod CPU/memory utilization, (3) check if latency correlates with traffic volume increase (capacity issue) or specific route (application issue), (4) compare with upstream service latency to isolate gateway overhead vs backend latency.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **latency distribution histogram** (bucket chart) showing the request duration distribution over 1h — reveals bimodal distributions where most requests are fast but a subset is very slow. Pair with a **response flags pie chart** to show the proportion of error types.
-• **Alert design**: include `route`, `p50_ms`, `p95_ms`, `p99_ms`, `request_count`, `error_rate`, `slo_breach`, `latency_flag`, and the most common `response_flags` in the alert payload.
-• **Latency appears constant at exactly the timeout value** — many requests timing out at the exact upstream timeout limit. Check the Envoy route timeout configuration: `istioctl proxy-config route <gateway-pod> -o json | grep timeout`.
-• **p95 is fine but p99 is very high** — a small number of outlier requests are extremely slow. Check for specific routes or client IPs causing the tail. Often caused by TLS renegotiation, DNS resolution delays, or backend garbage collection pauses.
-• **Access logs show zero requests** — the Telemetry API access log configuration may not be applied to the ingress gateway namespace. Verify: `kubectl get telemetry -n istio-system` and check that the access log provider is configured.
-• **Multi-gateway latency comparison** — if the cluster has separate **public** and **internal** gateways, compare their latency profiles side-by-side. Internal gateways typically show lower latency because they skip TLS termination. A **convergence** of internal and external latency suggests the bottleneck is in the backend services, not the gateway itself.
-• **SLO breach but no user complaints** — the SLO threshold may be too aggressive for the application. Review historical p95 baseline and adjust the lookup thresholds accordingly. Also check if the breaches are concentrated on low-traffic routes where a single slow request dominates the percentile.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **latency distribution histogram** (bucket chart) showing the request duration distribution over 1h — reveals bimodal distributions where most requests are fast but a subset is very slow. Pair with a **response flags pie chart** to show the proportion of error types.
+- **Alert design**: include `route`, `p50_ms`, `p95_ms`, `p99_ms`, `request_count`, `error_rate`, `slo_breach`, `latency_flag`, and the most common `response_flags` in the alert payload.
+- **Latency appears constant at exactly the timeout value** — many requests timing out at the exact upstream timeout limit. Check the Envoy route timeout configuration: `istioctl proxy-config route <gateway-pod> -o json | grep timeout`.
+- **p95 is fine but p99 is very high** — a small number of outlier requests are extremely slow. Check for specific routes or client IPs causing the tail. Often caused by TLS renegotiation, DNS resolution delays, or backend garbage collection pauses.
+- **Access logs show zero requests** — the Telemetry API access log configuration may not be applied to the ingress gateway namespace. Verify: `kubectl get telemetry -n istio-system` and check that the access log provider is configured.
+- **Multi-gateway latency comparison** — if the cluster has separate **public** and **internal** gateways, compare their latency profiles side-by-side. Internal gateways typically show lower latency because they skip TLS termination. A **convergence** of internal and external latency suggests the bottleneck is in the backend services, not the gateway itself.
+- **SLO breach but no user complaints** — the SLO threshold may be too aggressive for the application. Review historical p95 baseline and adjust the lookup thresholds accordingly. Also check if the breaches are concentrated on low-traffic routes where a single slow request dominates the percentile.
 
 ## SPL
 

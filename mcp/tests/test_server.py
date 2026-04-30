@@ -168,10 +168,11 @@ async def test_call_tool_invalid_input_returns_error_payload(
 @pytest.mark.asyncio
 async def test_unknown_tool_returns_error(live_catalog: Catalog) -> None:
     async def body(client: ClientSession) -> None:
-        # Unknown tools propagate as server-side errors; the MCP client
-        # surfaces them with isError=True on the result.
-        result = await client.call_tool("unknown_tool", {})
+        result = await client.call_tool("not_a_registered_tool_name", {})
         assert result.isError
+        payload = json.loads(result.content[0].text)
+        assert payload["error"] == "unknown_tool"
+        assert "not_a_registered_tool_name" in payload["message"]
 
     await _drive_server(live_catalog, body)
 

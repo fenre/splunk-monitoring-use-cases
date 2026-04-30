@@ -32,10 +32,13 @@ Re-run:
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import re
+import subprocess
 import sys
+import tempfile
 from typing import Dict, Iterable, List, Set, Tuple
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -107,7 +110,6 @@ TACTIC_BY_PREFIX: Dict[str, str] = {
     "T1566": "Initial Access",
     "T1567": "Exfiltration",
     "T1570": "Lateral Movement",
-    "T1570": "Lateral Movement",
     "T1589": "Reconnaissance",
     "T1595": "Reconnaissance",
     "T1657": "Impact",
@@ -150,6 +152,24 @@ def _stanza_name(uc: dict) -> str:
     return f"ESCS-{uid} - {name}"
 
 
+def _uc_value_one_line(uc: dict) -> str:
+    """Catalog ``v`` as a single line for ``description=`` (no embedded newlines)."""
+    return (
+        (uc.get("v") or "")
+        .strip()
+        .replace("\n", " ")
+        .replace("\r", "")
+    )
+
+
+def _uc_value_rule_description(uc: dict) -> str:
+    """First line of ``v`` for ``rule_description``; empty if missing or whitespace-only."""
+    stripped = (uc.get("v") or "").strip()
+    if not stripped:
+        return ""
+    return stripped.splitlines()[0]
+
+
 def _escape_conf(val: str) -> str:
     s = val.strip()
     if "\n" not in s:
@@ -179,7 +199,9 @@ def render_savedsearches(ucs: List[dict]) -> str:
         spl = uc.get("q") or ""
         title = _stanza_name(uc)
         out.append(f"[{title}]")
-        out.append(f"description = UC-{uid}: {uc.get('n','')}. {uc.get('v','').strip()}")
+        out.append(
+            f"description = UC-{uid}: {uc.get('n','')}. {_uc_value_one_line(uc)}"
+        )
         out.append(f"search = {_escape_conf(spl)}")
         out.append(f"cron_schedule = {cron}")
         out.append(f"dispatch.earliest_time = {earliest}")
@@ -191,10 +213,9 @@ def render_savedsearches(ucs: List[dict]) -> str:
         out.append(f"action.correlationsearch.label = UC-{uid}: {uc.get('n','')}")
         out.append("action.notable = 1")
         out.append(f"action.notable.param.rule_title = UC-{uid}: {uc.get('n','')}")
-        out.append(
-            f"action.notable.param.rule_description = {uc.get('v','').strip().splitlines()[0] if uc.get('v') else ''}"
-        )
+        out.append(f"action.notable.param.rule_description = {_uc_value_rule_description(uc)}")
         out.append(f"action.notable.param.severity = {severity}")
+        out.append(f"action.notable.param.urgency = {urgency}")
         out.append("action.notable.param.drilldown_name = $name$")
         out.append("action.notable.param.drilldown_search = $drilldown_search$")
         # Risk-based alerting hook — empty strings keep RBA disabled until
@@ -260,7 +281,7 @@ def render_analytic_stories(ucs: List[dict]) -> str:
         out.append(f"category = Monitoring Use Cases — {tactic}")
         out.append(f"description = Correlation searches that map to the MITRE ATT&CK ``{tactic}`` tactic.")
         out.append(f"narrative = Curated detections derived from the splunk-monitoring-use-cases catalog.")
-        out.append(f"last_updated = 2026-04-16")
+        out.append(f"last_updated = {datetime.date.today().isoformat()}")
         out.append(f"version = 1")
         out.append(f"detections = {', '.join(sorted(set(names)))}")
         out.append("")
@@ -351,6 +372,31 @@ def pick_ucs(include_all: bool = False) -> List[dict]:
     return crit_ucs[:MAX_CRITICAL] + high_ucs[:MAX_HIGH]
 
 
+def _build_file_map(ucs: List[dict]) -> Dict[str, str]:
+    return {
+        "savedsearches.conf": render_savedsearches(ucs),
+        "governance.conf": render_governance(ucs),
+        "analytic_stories.conf": render_analytic_stories(ucs),
+        "eventtypes.conf": render_eventtypes(),
+        "tags.conf": render_tags(),
+        "data/ui/nav/default.xml": NAV_XML,
+    }
+
+
+def _write_default_dir(default_dir: str, files: Dict[str, str], verbose: bool = True) -> None:
+    os.makedirs(default_dir, exist_ok=True)
+    os.makedirs(os.path.join(default_dir, "data", "ui", "nav"), exist_ok=True)
+    for rel, contents in files.items():
+        path = os.path.join(default_dir, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(contents)
+        if verbose:
+            print(
+                f"  wrote {os.path.relpath(path, REPO_ROOT)}  ({len(contents)} chars)"
+            )
+
+
 def main() -> int:
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
@@ -359,27 +405,45 @@ def main() -> int:
         help="Include every security UC that fits correlation search semantics "
              "(can produce 1,500+ searches — use sparingly)",
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Regenerate into a temp dir and diff -r against the real "
+             "`ta/DA-ESS-monitoring-use-cases/default` output. Exit 1 on drift.",
+    )
     args = parser.parse_args()
 
-    os.makedirs(DEFAULT_DIR, exist_ok=True)
-    os.makedirs(os.path.join(DEFAULT_DIR, "data", "ui", "nav"), exist_ok=True)
     ucs = pick_ucs(include_all=args.include_all)
     print(f"[build_es] correlation searches: {len(ucs)}")
+    files = _build_file_map(ucs)
 
-    files = {
-        "savedsearches.conf": render_savedsearches(ucs),
-        "governance.conf": render_governance(ucs),
-        "analytic_stories.conf": render_analytic_stories(ucs),
-        "eventtypes.conf": render_eventtypes(),
-        "tags.conf": render_tags(),
-        "data/ui/nav/default.xml": NAV_XML,
-    }
-    for rel, contents in files.items():
-        path = os.path.join(DEFAULT_DIR, rel)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(contents)
-        print(f"  wrote {os.path.relpath(path, REPO_ROOT)}  ({len(contents)} chars)")
+    if args.check:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_default = os.path.join(tmp, "default")
+            _write_default_dir(tmp_default, files, verbose=False)
+            result = subprocess.run(
+                ["diff", "-r", tmp_default, DEFAULT_DIR],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                sys.stderr.write(
+                    "DA-ESS-monitoring-use-cases default/ drift detected — "
+                    "regenerate with `python3 scripts/build_es.py` and commit:\n"
+                )
+                out = (result.stdout or "") + (result.stderr or "")
+                if out:
+                    sys.stderr.write(out)
+                if not out and result.returncode != 0:
+                    sys.stderr.write(
+                        "(diff exited non-zero; compare "
+                        f"{tmp_default!r} vs {DEFAULT_DIR!r})\n"
+                    )
+                return 1
+            sys.stdout.write("build_es output is up to date.\n")
+            return 0
+
+    _write_default_dir(DEFAULT_DIR, files, verbose=True)
     return 0
 
 

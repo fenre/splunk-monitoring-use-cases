@@ -39,7 +39,7 @@
   },
   "dataSources": "ERP vendor-master events, AP payment approval events.",
   "app": "Splunk Enterprise / Splunk Cloud Platform",
-  "spl": "index=erp sourcetype=sap:vendor_master OR sourcetype=oracle:vendor_master action=create earliest=-30d\n| stats min(_time) as created_at values(created_by) as creators by vendor_id\n| join vendor_id [search index=erp sourcetype=*:ap_payment action=approve earliest=-30d | stats values(approved_by) as approvers by vendor_id]\n| eval overlap=mvfilter(match(creators,approvers))\n| where mvcount(overlap)>0\n| table vendor_id created_at creators approvers overlap",
+  "spl": "index=erp sourcetype=sap:vendor_master OR sourcetype=oracle:vendor_master action=create earliest=-30d\n| stats min(_time) as created_at values(created_by) as creators by vendor_id\n| join vendor_id [search index=erp sourcetype=*:ap_payment action=approve earliest=-30d | stats values(approved_by) as approvers by vendor_id]\n| eval overlap=mvmap(creators, if(mvfind(approvers, creators), creators, null()))\n| where mvcount(overlap)>0\n| table vendor_id created_at creators approvers overlap",
   "description": "Classic fraud-vector control: the ability to create a vendor and approve its payment cannot reside with a single identity.",
   "value": "Continuously enforces a control most organisations only sample.",
   "implementation": "(1) Ensure ERP emits both events; (2) run hourly; (3) auto-freeze suspicious vendor payments via AP workflow.",

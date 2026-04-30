@@ -14,13 +14,13 @@ Practitioners should read Categories **3**, **4**, and **20** together—Kuberne
 
 Treat missing audit delivery as an incident precursor: silent CloudTrail gaps blind FinOps reconciliation as surely as they blind SOC hunts.
 
-Browse the domain categories directly: [Browse Containers & Orchestration](index.html#cat-3), [Browse Cloud Infrastructure](index.html#cat-4), [Browse Cost & Capacity Management](index.html#cat-20).
+Browse the domain categories directly: [Browse Containers & Orchestration](../../index.html#cat-3), [Browse Cloud Infrastructure](../../index.html#cat-4), [Browse Cost & Capacity Management](../../index.html#cat-20).
 
 ---
 
 ## Category 3: Containers & Orchestration (129 use cases)
 
-Containers & Orchestration spans [Docker](index.html#cat-3/3.1) (29), [Kubernetes](index.html#cat-3/3.2) (46), [OpenShift](index.html#cat-3/3.3) (25), [Container Registries](index.html#cat-3/3.4) (9), [Service Mesh & Serverless Containers](index.html#cat-3/3.5) (14), and [Container & Kubernetes Trending](index.html#cat-3/3.6) (6). Together they capture workload lifecycle narratives—crash loops, admission failures, image supply-chain risk, mesh latency, and platform SLO regressions—that guest-only OS metrics miss when the unit of deployment is a pod, not a VM.
+Containers & Orchestration spans [Docker](../../index.html#cat-3/3.1) (29), [Kubernetes](../../index.html#cat-3/3.2) (46), [OpenShift](../../index.html#cat-3/3.3) (25), [Container Registries](../../index.html#cat-3/3.4) (9), [Service Mesh & Serverless Containers](../../index.html#cat-3/3.5) (14), and [Container & Kubernetes Trending](../../index.html#cat-3/3.6) (6). Together they capture workload lifecycle narratives—crash loops, admission failures, image supply-chain risk, mesh latency, and platform SLO regressions—that guest-only OS metrics miss when the unit of deployment is a pod, not a VM.
 
 Brownfield clusters frequently omit etcd scraping until API latency incidents strike—prioritize backlog metrics in the first hardening sprint because incident response traffic can compound write pressure on an already degraded datastore.
 
@@ -38,13 +38,13 @@ The Cloud Native Computing Foundation and Red Hat document monitoring as a **sta
 
 - **WHAT:** Track API server request latency/error rate, scheduler rate-limits, controller-manager reconciliation lag, and **etcd** health (leader elections, proposal failures, disk fsync latency, database size).
 - **WHY:** etcd is the source of truth; API latency spikes often trace to etcd saturation or leader instability before user-visible symptoms appear.
-- **HOW:** Prometheus-style scrapes or cloud-managed metrics exports into Splunk; for etcd specifically, monitor **backend commit duration**—[etcd documentation](https://etcd.io/docs/v3.5/op-guide/monitoring/) calls out commit latency as a primary health signal. Operational practice in the field treats **sustained commit latency above ~25 ms** as a warning that merits investigation (tune against your baseline; vendor docs emphasize trend and percentile analysis over a single universal constant). Also track **database size**, **leader changes**, and defragmentation windows. Catalog anchors: [Control Plane Health](index.html#uc-3.2.7), [etcd Cluster Health](index.html#uc-3.2.8).
+- **HOW:** Prometheus-style scrapes or cloud-managed metrics exports into Splunk; for etcd specifically, monitor **backend commit duration**—[etcd documentation](https://etcd.io/docs/v3.5/op-guide/monitoring/) calls out commit latency as a primary health signal. Operational practice in the field treats **sustained commit latency above ~25 ms** as a warning that merits investigation (tune against your baseline; vendor docs emphasize trend and percentile analysis over a single universal constant). Also track **database size**, **leader changes**, and defragmentation windows. Catalog anchors: [Control Plane Health](../../index.html#uc-3.2.7), [etcd Cluster Health](../../index.html#uc-3.2.8).
 
 **3) Workloads (pods, deployments, HPAs)**
 
 - **WHAT:** Pod phase transitions, restart counts, scheduling latency, PDB violations, HPA saturation, and pending workload queues.
 - **WHY:** These signals isolate deployment pipeline issues, resource starvation, and autoscaling misconfiguration from application code defects.
-- **HOW:** Ship `kube-state-metrics` style state to Splunk; alert on **CrashLoopBackOff** with restart thresholds—common operational practice treats **more than five restarts** in a lookback window as **critical** because it indicates a non-recoverable loop rather than a single transient fault. Alert when **pods stay Pending beyond five minutes** to catch quota, taint/toleration, and volume binding failures early. Catalog touchpoints: [Pod Restart Rate](index.html#uc-3.2.1), [Container Crash Loops](index.html#uc-3.1.1), [Container Restart Loop](index.html#uc-3.1.13).
+- **HOW:** Ship `kube-state-metrics` style state to Splunk; alert on **CrashLoopBackOff** with restart thresholds—common operational practice treats **more than five restarts** in a lookback window as **critical** because it indicates a non-recoverable loop rather than a single transient fault. Alert when **pods stay Pending beyond five minutes** to catch quota, taint/toleration, and volume binding failures early. Catalog touchpoints: [Pod Restart Rate](../../index.html#uc-3.2.1), [Container Crash Loops](../../index.html#uc-3.1.1), [Container Restart Loop](../../index.html#uc-3.1.13).
 
 **4) Applications inside containers**
 
@@ -68,7 +68,7 @@ The Cloud Native Computing Foundation and Red Hat document monitoring as a **sta
 
 - **WHAT:** Compare `resources.requests` and `limits` to measured CPU/memory utilization from cAdvisor/kubelet or OTel host metrics.
 - **WHY:** Over-requesting starves scheduling; under-requesting causes throttling and OOMs. FinOps and platform teams need the same chart to defend rightsizing.
-- **HOW:** Weekly reports by namespace/team with recommender-style hints; tie reductions to change records. Pair with [Container OOM Kills](index.html#uc-3.1.2) alerts to validate that cuts do not breach headroom.
+- **HOW:** Weekly reports by namespace/team with recommender-style hints; tie reductions to change records. Pair with [Container OOM Kills](../../index.html#uc-3.1.2) alerts to validate that cuts do not breach headroom.
 
 ### AIOps for containerized environments
 
@@ -89,7 +89,7 @@ Even without an orchestrator, Docker hosts remain security- and reliability-sens
 
 - **WHAT:** Capture `docker events` streams, container JSON logs, optional `docker stats`, and cgroup OOM markers on the Linux host.
 - **WHY:** Swarm-less Docker still experiences image pull storms, restart thrash, and memory pressure visible only when container scope is retained.
-- **HOW:** Modular inputs against a **hardened** socket path (never exposed to the network); pair with auditd or equivalent for access to `/var/run/docker.sock` investigations. Reinforce posture reviews with [Docker Socket Exposure](index.html#uc-3.1.25).
+- **HOW:** Modular inputs against a **hardened** socket path (never exposed to the network); pair with auditd or equivalent for access to `/var/run/docker.sock` investigations. Reinforce posture reviews with [Docker Socket Exposure](../../index.html#uc-3.1.25).
 
 ### OpenShift platform overlays (Red Hat)
 
@@ -97,7 +97,7 @@ OpenShift layers an opinionated operator model, cluster versioning, and integrat
 
 - **WHAT:** Monitor upgrade channels, ClusterOperator degraded conditions, ingress/dns availability, and registry pull success in addition to generic Kubernetes KPIs.
 - **WHY:** Platform teams experience incident classes (CVO stalls, Operators flapping, Route admission failures) that do not surface on vanilla kube dashboards.
-- **HOW:** Forward OpenShift API audit and platform logs into Splunk; scrape Red Hat metrics endpoints per supported patterns; anchor catalog narratives such as [OpenShift ClusterVersion Upgrade Progress and CVO Stuck Detection (Z- and Y-stream lifecycle)](index.html#uc-3.3.1).
+- **HOW:** Forward OpenShift API audit and platform logs into Splunk; scrape Red Hat metrics endpoints per supported patterns; anchor catalog narratives such as [OpenShift ClusterVersion Upgrade Progress and CVO Stuck Detection (Z- and Y-stream lifecycle)](../../index.html#uc-3.3.1).
 
 ### Container registries and supply-chain telemetry
 
@@ -105,7 +105,7 @@ Registries are the distribution choke point for compromised or policy-violating 
 
 - **WHAT:** Track push/pull volumes, authentication failures, manifest digests tagged across environments, and webhook-driven admission outcomes.
 - **WHY:** Silent policy drift (public read, weak signing posture) precedes lateral movement via malicious layers.
-- **HOW:** REST collectors or SCM-style webhooks normalized into Splunk—pair governance scans with catalog patterns like [Image Push/Pull Audit](index.html#uc-3.4.1) and complement with vulnerability scanner exports where SecOps consumes Splunk as the correlation hub.
+- **HOW:** REST collectors or SCM-style webhooks normalized into Splunk—pair governance scans with catalog patterns like [Image Push/Pull Audit](../../index.html#uc-3.4.1) and complement with vulnerability scanner exports where SecOps consumes Splunk as the correlation hub.
 
 ### Service mesh and serverless containers — golden signals
 
@@ -113,7 +113,7 @@ Service meshes expose **L7 request volume, latency, error rates**, and peer iden
 
 - **WHAT:** Envoy/Istio access logs, downstream/upstream cluster metrics, and mTLS handshake failures.
 - **WHY:** Network policies and retries hide systemic faults until queues saturate mesh-wide.
-- **HOW:** OTel receivers shipping Prometheus exposition from Istio components; exemplar anchor [Istio Mesh Traffic Monitoring](index.html#uc-3.5.1).
+- **HOW:** OTel receivers shipping Prometheus exposition from Istio components; exemplar anchor [Istio Mesh Traffic Monitoring](../../index.html#uc-3.5.1).
 
 Serverless containers (ECS/Fargate, Cloud Run, Azure Container Apps) shift observability toward **task lifecycle APIs**, **cold-start latency**, **platform throttle counters**, and **vendor-managed scaling decisions**.
 
@@ -125,16 +125,16 @@ Serverless containers (ECS/Fargate, Cloud Run, Azure Container Apps) shift obser
 
 | Risk | Representative UC |
 |------|---------------------|
-| Crash loops / unstable workloads | [Container Crash Loops](index.html#uc-3.1.1), [Pod Restart Rate](index.html#uc-3.2.1), [Container Restart Loop](index.html#uc-3.1.13) |
-| Memory pressure | [Container OOM Kills](index.html#uc-3.1.2) |
-| Privileged exposure | [Docker Socket Exposure](index.html#uc-3.1.25) |
-| Control plane instability | [Control Plane Health](index.html#uc-3.2.7), [etcd Cluster Health](index.html#uc-3.2.8) |
+| Crash loops / unstable workloads | [Container Crash Loops](../../index.html#uc-3.1.1), [Pod Restart Rate](../../index.html#uc-3.2.1), [Container Restart Loop](../../index.html#uc-3.1.13) |
+| Memory pressure | [Container OOM Kills](../../index.html#uc-3.1.2) |
+| Privileged exposure | [Docker Socket Exposure](../../index.html#uc-3.1.25) |
+| Control plane instability | [Control Plane Health](../../index.html#uc-3.2.7), [etcd Cluster Health](../../index.html#uc-3.2.8) |
 
 ---
 
 ## Category 4: Cloud Infrastructure (227 use cases)
 
-Cloud Infrastructure spans [AWS](index.html#cat-4/4.1) (77), [Azure](index.html#cat-4/4.2) (57), [GCP](index.html#cat-4/4.3) (40), [Multi-Cloud & Cloud Management](index.html#cat-4/4.4) (31), [Serverless & FaaS](index.html#cat-4/4.5) (16), and [Cloud Infrastructure Trending](index.html#cat-4/4.6) (6). Hyperscaler telemetry centers on **who changed what**, **whether defenses fired**, and **whether delivery pipelines for audit logs broke**.
+Cloud Infrastructure spans [AWS](../../index.html#cat-4/4.1) (77), [Azure](../../index.html#cat-4/4.2) (57), [GCP](../../index.html#cat-4/4.3) (40), [Multi-Cloud & Cloud Management](../../index.html#cat-4/4.4) (31), [Serverless & FaaS](../../index.html#cat-4/4.5) (16), and [Cloud Infrastructure Trending](../../index.html#cat-4/4.6) (6). Hyperscaler telemetry centers on **who changed what**, **whether defenses fired**, and **whether delivery pipelines for audit logs broke**.
 
 ### AWS vendor-aligned practices
 
@@ -148,7 +148,7 @@ Cloud Infrastructure spans [AWS](index.html#cat-4/4.1) (77), [Azure](index.html#
 
 - **WHAT:** Ingest GuardDuty findings ( IAM, VPC, malware, Kubernetes, S3 protections as enabled).
 - **WHY:** Augments rule-based SIEM logic with AWS-native anomaly and threat intelligence.
-- **HOW:** SNS → SQS or EventBridge fan-out into Splunk; severity and type drive SOAR playbooks—see also [GuardDuty Finding Ingestion](index.html#uc-4.1.8).
+- **HOW:** SNS → SQS or EventBridge fan-out into Splunk; severity and type drive SOAR playbooks—see also [GuardDuty Finding Ingestion](../../index.html#uc-4.1.8).
 
 **CloudWatch metrics with Splunk**
 
@@ -172,38 +172,38 @@ Cloud Infrastructure spans [AWS](index.html#cat-4/4.1) (77), [Azure](index.html#
 
 - **WHAT:** Monitor IAM policy changes, root account usage, access key rotation, cross-account role assumptions, and STS token abuse patterns.
 - **WHY:** IAM is the attack surface in cloud—lateral movement often starts with overprivileged roles or leaked access keys, not network exploits.
-- **HOW:** Normalize CloudTrail `CreateRole`, `AttachRolePolicy`, and `AssumeRole` event families via the **Splunk Add-on for AWS**; alert on `ConsoleLogin` without MFA, new access key creation for root, and cross-account `AssumeRole` from unexpected source accounts. Catalog anchors: [Root Account Usage](index.html#uc-4.1.2), [IAM Policy Changes](index.html#uc-4.1.4).
+- **HOW:** Normalize CloudTrail `CreateRole`, `AttachRolePolicy`, and `AssumeRole` event families via the **Splunk Add-on for AWS**; alert on `ConsoleLogin` without MFA, new access key creation for root, and cross-account `AssumeRole` from unexpected source accounts. Catalog anchors: [Root Account Usage](../../index.html#uc-4.1.2), [IAM Policy Changes](../../index.html#uc-4.1.4).
 
 ### AWS VPC and network telemetry
 
 - **WHAT:** VPC Flow Logs (v5 enriched format preferred), Transit Gateway flow logs, Security Group change auditing, and NACLs.
 - **WHY:** East-west visibility in cloud requires flow logs—there are no SPAN ports. Security group changes are a common misconfiguration vector in AWS breaches.
-- **HOW:** Land flow logs in S3 and ingest with the TA; normalize `srcaddr`, `dstaddr`, and `action` into **CIM Network_Traffic** for correlation with on-premises firewall feeds. Alert on `REJECT` spikes correlated with GuardDuty findings. Catalog anchor: [VPC Flow Log Analysis](index.html#uc-4.1.9).
+- **HOW:** Land flow logs in S3 and ingest with the TA; normalize `srcaddr`, `dstaddr`, and `action` into **CIM Network_Traffic** for correlation with on-premises firewall feeds. Alert on `REJECT` spikes correlated with GuardDuty findings. Catalog anchor: [VPC Flow Log Analysis](../../index.html#uc-4.1.9).
 
 ### AWS Lambda and serverless depth
 
 - **WHAT:** Invocation errors, duration p99, concurrent execution limits, dead-letter queue depth, and cold-start frequency by function version.
 - **WHY:** Serverless hides infrastructure but not failure modes—concurrency throttles can manifest as HTTP 502 storms for API Gateway callers.
-- **HOW:** Pull CloudWatch metrics via the TA poller plus structured Lambda logging through CloudWatch Logs → Kinesis (or Firehose) → Splunk; tag function ARN and version for deployment correlation. Catalog anchors: [Lambda Concurrent Executions and Throttling](index.html#uc-4.1.51), [Lambda Cold Start and Init Duration Latency](index.html#uc-4.5.2).
+- **HOW:** Pull CloudWatch metrics via the TA poller plus structured Lambda logging through CloudWatch Logs → Kinesis (or Firehose) → Splunk; tag function ARN and version for deployment correlation. Catalog anchors: [Lambda Concurrent Executions and Throttling](../../index.html#uc-4.1.51), [Lambda Cold Start and Init Duration Latency](../../index.html#uc-4.5.2).
 
 ### AWS EKS specific practices
 
 - **WHAT:** EKS control plane audit logs, managed node group scaling events, Fargate pod scheduling latency, and EKS add-on health.
 - **WHY:** Managed Kubernetes still requires audit-grade control plane visibility—AWS manages etcd, but customers own workload security and admission policy.
-- **HOW:** Enable EKS audit logging to CloudWatch and forward into Splunk; combine with `kube-state-metrics` and cluster signals from Category **3** (Containers). Cross-reference [Control Plane Health](index.html#uc-3.2.7) with EKS-specific upgrade and add-on events.
+- **HOW:** Enable EKS audit logging to CloudWatch and forward into Splunk; combine with `kube-state-metrics` and cluster signals from Category **3** (Containers). Cross-reference [Control Plane Health](../../index.html#uc-3.2.7) with EKS-specific upgrade and add-on events.
 
 ### Critical AWS-aligned catalog anchors
 
 | Risk | Representative UC |
 |------|---------------------|
-| Privileged misuse | [Root Account Usage](index.html#uc-4.1.2) |
-| IAM drift | [IAM Policy Changes](index.html#uc-4.1.4) |
-| Network visibility | [VPC Flow Log Analysis](index.html#uc-4.1.9) |
-| Availability | [ELB Target Health](index.html#uc-4.1.22) |
-| Audit integrity | [CloudTrail Log File Delivery Failures](index.html#uc-4.1.30) |
-| Storage exposure | [S3 Bucket Policy Changes](index.html#uc-4.1.7) |
-| Threat detection | [GuardDuty Finding Ingestion](index.html#uc-4.1.8) |
-| Serverless throttles | [Lambda Concurrent Executions and Throttling](index.html#uc-4.1.51) |
+| Privileged misuse | [Root Account Usage](../../index.html#uc-4.1.2) |
+| IAM drift | [IAM Policy Changes](../../index.html#uc-4.1.4) |
+| Network visibility | [VPC Flow Log Analysis](../../index.html#uc-4.1.9) |
+| Availability | [ELB Target Health](../../index.html#uc-4.1.22) |
+| Audit integrity | [CloudTrail Log File Delivery Failures](../../index.html#uc-4.1.30) |
+| Storage exposure | [S3 Bucket Policy Changes](../../index.html#uc-4.1.7) |
+| Threat detection | [GuardDuty Finding Ingestion](../../index.html#uc-4.1.8) |
+| Serverless throttles | [Lambda Concurrent Executions and Throttling](../../index.html#uc-4.1.51) |
 
 ### Microsoft Azure practices
 
@@ -217,7 +217,7 @@ Cloud Infrastructure spans [AWS](index.html#cat-4/4.1) (77), [Azure](index.html#
 
 - **WHAT:** Secure-score regressions, regulatory recommendations, threat alerts across VMs, APIs, and Kubernetes.
 - **WHY:** Native posture narrative complements Splunk correlators for hybrid SOC workflows.
-- **HOW:** Ingest alerts continuously—catalog anchor [Defender for Cloud Alerts](index.html#uc-4.2.9).
+- **HOW:** Ingest alerts continuously—catalog anchor [Defender for Cloud Alerts](../../index.html#uc-4.2.9).
 
 **Azure Monitor metrics and logs**
 
@@ -229,21 +229,21 @@ Cloud Infrastructure spans [AWS](index.html#cat-4/4.1) (77), [Azure](index.html#
 
 - **WHAT:** NSG flow logs, Azure Firewall logs, Application Gateway WAF logs, and Private Link audit trails.
 - **WHY:** Microsegmentation in Azure depends on NSG enforcement visibility—silent rule changes create exposure windows that are hard to see without Splunk correlation.
-- **HOW:** Route diagnostic settings to Event Hub → Splunk; normalize `FlowDirection`, `RuleAction`, and related fields for **CIM Network_Traffic** parity with AWS VPC flows. Catalog anchor: [NSG Flow Log Analysis](index.html#uc-4.2.4).
+- **HOW:** Route diagnostic settings to Event Hub → Splunk; normalize `FlowDirection`, `RuleAction`, and related fields for **CIM Network_Traffic** parity with AWS VPC flows. Catalog anchor: [NSG Flow Log Analysis](../../index.html#uc-4.2.4).
 
 ### Azure AKS practices
 
 - **WHAT:** AKS diagnostics (kube-apiserver, kube-controller-manager, kube-scheduler, cluster-autoscaler), Azure Policy for AKS, and Azure Container Registry vulnerability scanning.
 - **WHY:** Managed Kubernetes reduces ops burden, but auditors still require control plane evidence and admission policy proof.
-- **HOW:** Use diagnostic settings to capture AKS master-tier logs; pair with Category **3** workload signals. Catalog anchor: [AKS Cluster Health](index.html#uc-4.2.7).
+- **HOW:** Use diagnostic settings to capture AKS master-tier logs; pair with Category **3** workload signals. Catalog anchor: [AKS Cluster Health](../../index.html#uc-4.2.7).
 
 #### Azure catalog anchors
 
 | Risk | Representative UC |
 |------|---------------------|
-| Posture regression | [Defender for Cloud Alerts](index.html#uc-4.2.9) |
-| Network exposure | [NSG Flow Log Analysis](index.html#uc-4.2.4) |
-| Container platform | [AKS Cluster Health](index.html#uc-4.2.7) |
+| Posture regression | [Defender for Cloud Alerts](../../index.html#uc-4.2.9) |
+| Network exposure | [NSG Flow Log Analysis](../../index.html#uc-4.2.4) |
+| Container platform | [AKS Cluster Health](../../index.html#uc-4.2.7) |
 
 ### Google Cloud Platform practices
 
@@ -275,8 +275,8 @@ Cloud Infrastructure spans [AWS](index.html#cat-4/4.1) (77), [Azure](index.html#
 
 | Risk | Representative UC |
 |------|---------------------|
-| Identity drift | [IAM Policy Changes](index.html#uc-4.3.2) |
-| Posture findings | [Security Command Center Findings](index.html#uc-4.3.30) |
+| Identity drift | [IAM Policy Changes](../../index.html#uc-4.3.2) |
+| Posture findings | [Security Command Center Findings](../../index.html#uc-4.3.30) |
 
 ### Multi-cloud posture: normalization before dashboards
 
@@ -294,13 +294,13 @@ Serverless stacks emphasize four recurring KPI classes: **latency percentiles**,
 - **WHY:** Cold starts and quota exhaustion manifest as saturation invisible to upstream callers until timeouts cascade.
 - **HOW:** Splunk TA pulls or streaming exports—tie Lambda/Azure Function revisions back to CI/CD release IDs carried as structured logging fields.
 
-Cross-reference burst-spend anomalies with deployment hashes—patterns surfaced later under Category 20 anchors such as [Cost Anomaly Detection](index.html#uc-20.1.2).
+Cross-reference burst-spend anomalies with deployment hashes—patterns surfaced later under Category 20 anchors such as [Cost Anomaly Detection](../../index.html#uc-20.1.2).
 
 ---
 
 ## Category 20: Cost & Capacity Management (77 use cases)
 
-Cost & Capacity Management spans [Cloud Cost Monitoring](index.html#cat-20/20.1) (27), [Capacity Planning](index.html#cat-20/20.2) (33), and [License & Subscription Management](index.html#cat-20/20.3) (17). It connects telemetry-derived utilization with contractual spend—closing the loop between observability and finance stakeholders.
+Cost & Capacity Management spans [Cloud Cost Monitoring](../../index.html#cat-20/20.1) (27), [Capacity Planning](../../index.html#cat-20/20.2) (33), and [License & Subscription Management](../../index.html#cat-20/20.3) (17). It connects telemetry-derived utilization with contractual spend—closing the loop between observability and finance stakeholders.
 
 ### FinOps Foundation-aligned practices
 
@@ -310,26 +310,26 @@ Per the [FinOps Framework](https://www.finops.org/framework/), mature organizati
 
 - **WHAT:** Dashboard daily/hourly spend by team, service, tag, and region with anomaly overlays.
 - **WHY:** Budget breaches discovered monthly arrive too late for corrective architecture decisions.
-- **HOW:** Ingest CUR/Billing exports into Splunk; join with deployment tags from CI/CD—anchors [Daily Spend Trending](index.html#uc-20.1.1), [Budget Threshold Alerting](index.html#uc-20.1.5).
+- **HOW:** Ingest CUR/Billing exports into Splunk; join with deployment tags from CI/CD—anchors [Daily Spend Trending](../../index.html#uc-20.1.1), [Budget Threshold Alerting](../../index.html#uc-20.1.5).
 
 **Rightsizing**
 
 - **WHAT:** Compare billed capacity units to measured utilization percentiles across EC2/RDS/analogues.
 - **WHY:** Eliminates structural waste uncovered only when observability meets billing granularity.
-- **HOW:** Automated recommendations tracked through ticketing—pair with [Idle Resource Identification](index.html#uc-20.1.4).
+- **HOW:** Automated recommendations tracked through ticketing—pair with [Idle Resource Identification](../../index.html#uc-20.1.4).
 
 **Commitment optimization**
 
 - **WHAT:** Model savings plans/reserved instances vs on-demand spikes using rolling forecasts.
 - **WHY:** Maximizes discount uptake without locking spend ahead of workload deprecation.
-- **HOW:** Forecast indexes populated from utilization baselines—see [Compute Capacity Forecasting](index.html#uc-20.2.1) and [Storage Growth Forecasting](index.html#uc-20.2.2).
+- **HOW:** Forecast indexes populated from utilization baselines—see [Compute Capacity Forecasting](../../index.html#uc-20.2.1) and [Storage Growth Forecasting](../../index.html#uc-20.2.2).
 
 ### Critical FinOps-aligned anomaly detection anchors
 
 | Scenario | Representative UC |
 |----------|---------------------|
-| Spend spikes | [Cost Anomaly Detection](index.html#uc-20.1.2), [Cost Anomaly by Cloud Service](index.html#uc-20.1.13) |
-| Seasonality-aware alerting | [Cost Anomaly with Seasonal Decomposition](index.html#uc-20.2.24) |
+| Spend spikes | [Cost Anomaly Detection](../../index.html#uc-20.1.2), [Cost Anomaly by Cloud Service](../../index.html#uc-20.1.13) |
+| Seasonality-aware alerting | [Cost Anomaly with Seasonal Decomposition](../../index.html#uc-20.2.24) |
 
 Seasonal decomposition matters because weekly release cadences and quarter-close batch jobs produce benign spikes—models must separate repeating patterns from genuine leakage events.
 

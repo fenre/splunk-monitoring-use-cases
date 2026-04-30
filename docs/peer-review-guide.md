@@ -16,8 +16,8 @@
 A PR triggers the Phase 4.5 peer-review gate when **any** of the
 following paths change:
 
-- `use-cases/cat-22/**` — any regulatory UC sidecar.
-- `use-cases/cat-*/uc-*.json` — any UC sidecar that carries a
+- `content/cat-22-*/UC-*.json` — any regulatory UC sidecar under category 22.
+- `content/cat-*/UC-*.json` — any UC JSON that carries a
   `compliance[]` array.
 - `schemas/uc.schema.json` — the JSON schema every sidecar validates
   against.
@@ -67,7 +67,7 @@ in the cited regulation version?
 
 **How to check.**
 
-1. Open the UC sidecar in `use-cases/cat-NN/uc-A.B.C.json`.
+1. Open the UC sidecar in `content/cat-NN-<slug>/UC-A.B.C.json`.
 2. For every `compliance[]` entry, grep the regulation's version in
    `data/regulations.json` and verify the `clause` value matches the
    format in `commonClauses[]`. Example for GDPR:

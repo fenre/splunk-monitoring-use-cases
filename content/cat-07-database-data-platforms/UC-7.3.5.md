@@ -1,0 +1,92 @@
+<!-- AUTO-GENERATED from UC-7.3.5.json — DO NOT EDIT -->
+
+---
+id: "7.3.5"
+title: "Maintenance Window Tracking"
+criticality: "medium"
+splunkPillar: "Observability"
+---
+
+# UC-7.3.5 · Maintenance Window Tracking
+
+> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Performance
+
+*Awareness of upcoming and completed maintenance ensures teams are prepared for potential service impact We use it to stay ahead of pain for applications and the people who depend on the data.*
+
+---
+
+## Description
+
+Awareness of upcoming and completed maintenance ensures teams are prepared for potential service impact.
+
+## Value
+
+Awareness of upcoming and completed maintenance ensures teams are prepared for potential service impact.
+
+## Implementation
+
+Subscribe to RDS maintenance events via SNS. Ingest into Splunk. Create calendar view of upcoming maintenance. Alert 72 hours before scheduled maintenance. Log actual impact duration after completion.
+
+## Detailed Implementation
+
+### Prerequisites
+- In operations we align Splunk with the cloud provider’s database console and metrics to rule out a platform maintenance window.
+- Install and configure the required add-on or app: Cloud provider TAs.
+- Ensure the following data sources are available: RDS event subscriptions, Azure Service Health, GCP maintenance notifications.
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+### Step 1 — Configure data collection
+Subscribe to RDS maintenance events via SNS. Ingest into Splunk. Create calendar view of upcoming maintenance. Alert 72 hours before scheduled maintenance. Log actual impact duration after completion.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+index=aws sourcetype="aws:cloudwatch:events"
+| search detail.EventCategories="maintenance"
+| table _time, detail.SourceIdentifier, detail.Message, detail.Date
+| sort detail.Date
+```
+
+#### Understanding this SPL
+
+**Maintenance Window Tracking** — Awareness of upcoming and completed maintenance ensures teams are prepared for potential service impact.
+
+Documented **Data sources**: RDS event subscriptions, Azure Service Health, GCP maintenance notifications. **App/TA** (typical add-on context): Cloud provider TAs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch:events. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=aws, sourcetype="aws:cloudwatch:events". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Applies an explicit `search` filter to narrow the current result set.
+- Pipeline stage (see **Maintenance Window Tracking**): table _time, detail.SourceIdentifier, detail.Message, detail.Date
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+
+### Step 3 — Validate
+For the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (upcoming/recent maintenance), Calendar view, Timeline (maintenance history).
+
+## SPL
+
+```spl
+index=aws sourcetype="aws:cloudwatch:events"
+| search detail.EventCategories="maintenance"
+| table _time, detail.SourceIdentifier, detail.Message, detail.Date
+| sort detail.Date
+```
+
+## Visualization
+
+Table (upcoming/recent maintenance), Calendar view, Timeline (maintenance history).
+
+## Known False Positives
+
+Autoscale events, service tier changes, and Microsoft-side maintenance in Azure can move CPU and storage metrics; compare with the Azure service health and your deployment pipeline.
+
+## References
+
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

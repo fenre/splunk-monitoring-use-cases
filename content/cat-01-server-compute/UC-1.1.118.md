@@ -1,0 +1,90 @@
+<!-- AUTO-GENERATED from UC-1.1.118.json — DO NOT EDIT -->
+
+---
+id: "1.1.118"
+title: "System Reboot Frequency Anomaly"
+criticality: "medium"
+splunkPillar: "Observability"
+---
+
+# UC-1.1.118 · System Reboot Frequency Anomaly
+
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Anomaly
+
+*We count reboot and panic messages in syslog so unstable hosts or surprise maintenance do not go unnoticed in the last week.*
+
+---
+
+## Description
+
+Unexpected reboot frequency indicates system instability, crashes, or possible security incident response.
+
+## Value
+
+Unexpected reboot frequency indicates system instability, crashes, or possible security incident response.
+
+## Implementation
+
+Monitor system boot/reboot messages in syslog. Create alerts when reboot frequency exceeds normal baseline. Include reboot cause analysis and incident correlation.
+
+## Detailed Implementation
+
+### Prerequisites
+- Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.
+- Ensure the following data sources are available: `sourcetype=syslog`.
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+
+### Step 1 — Configure data collection
+Monitor system boot/reboot messages in syslog. Create alerts when reboot frequency exceeds normal baseline. Include reboot cause analysis and incident correlation.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
+```spl
+index=os sourcetype=syslog earliest=-7d@d latest=now
+| search "Kernel panic" OR "reboot" OR "system shutdown" OR "Restarting system"
+| stats count as reboot_count by host
+| where reboot_count > 2
+```
+
+#### Understanding this SPL
+
+**System Reboot Frequency Anomaly** — Unexpected reboot frequency indicates system instability, crashes, or possible security incident response.
+
+Documented **Data sources**: `sourcetype=syslog`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
+- Filters the current rows with `where reboot_count > 2` over the last seven days of indexed time (`earliest=-7d@d` on the base search) — tune count and window to your SLOs.
+
+
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart, Alert
+
+## SPL
+
+```spl
+index=os sourcetype=syslog earliest=-7d@d latest=now
+| search "Kernel panic" OR "reboot" OR "system shutdown" OR "Restarting system"
+| stats count as reboot_count by host
+| where reboot_count > 2
+```
+
+## Visualization
+
+Timechart, Alert
+
+## Known False Positives
+
+Patch Tuesdays, kernel CVE rollouts, or fleet-wide maintenance can push many reboot messages that are still approved work. The substring “reboot” appears in user-facing apps and non-kernel subsystems—tighten `search` to your distro’s real shutdown/startup phrases.
+
+## References
+
+- [Splunk Lantern — use case library](https://lantern.splunk.com/)

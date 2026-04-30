@@ -4,10 +4,10 @@
 the [Splunk Monitoring Use Cases catalogue](https://fenre.github.io/splunk-monitoring-use-cases/).
 Read-only access to:
 
-- **6 424 use cases** across 23 categories (operational, security, compliance, …)
-- **60 regulations** (GDPR, HIPAA, PCI DSS, DORA, CMMC, NIS2, EU AI Act, …)
-- **105 equipment slugs** (Splunk add-ons and TAs, e.g. `cisco_asa`, `azure`, `kubernetes`)
-- **Signed provenance ledger** (1 889 regulatory-to-UC mapping decisions)
+- **The full use case catalogue** across primary categories (operational, security, compliance, …)
+- **Regulatory frameworks** (GDPR, HIPAA, PCI DSS, DORA, CMMC, NIS2, EU AI Act, …)
+- **Equipment slugs** for Splunk add-ons and TAs (e.g. `cisco_asa`, `azure`, `kubernetes`)
+- **Signed provenance ledger** (regulatory-to-UC mapping decisions)
 - **Compliance gap analysis** (pre-computed uncovered clauses per regulation)
 
 Designed for both **compliance officer / auditor** and **detection engineer**

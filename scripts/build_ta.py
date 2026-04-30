@@ -25,7 +25,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
+import tempfile
 import textwrap
 from typing import Dict, Iterable, List, Tuple
 
@@ -292,25 +294,73 @@ def pick_ucs() -> List[dict]:
     return picked
 
 
-def main() -> int:
-    os.makedirs(DEFAULT_DIR, exist_ok=True)
-    os.makedirs(os.path.join(DEFAULT_DIR, "data", "ui", "nav"), exist_ok=True)
-    ucs = pick_ucs()
-    print(f"[build_ta] packaging {len(ucs)} saved searches")
-
-    files = {
+def _build_file_map(ucs: List[dict]) -> Dict[str, str]:
+    return {
         "savedsearches.conf": render_savedsearches(ucs),
         "macros.conf": render_macros(),
         "eventtypes.conf": render_eventtypes(),
         "tags.conf": render_tags(),
         "data/ui/nav/default.xml": NAV_XML,
     }
+
+
+def _write_default_dir(default_dir: str, files: Dict[str, str], verbose: bool = True) -> None:
+    os.makedirs(default_dir, exist_ok=True)
+    os.makedirs(os.path.join(default_dir, "data", "ui", "nav"), exist_ok=True)
     for rel, contents in files.items():
-        path = os.path.join(DEFAULT_DIR, rel)
+        path = os.path.join(default_dir, rel)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             f.write(contents)
-        print(f"  wrote {os.path.relpath(path, REPO_ROOT)}  ({len(contents)} chars)")
+        if verbose:
+            print(
+                f"  wrote {os.path.relpath(path, REPO_ROOT)}  ({len(contents)} chars)"
+            )
+
+
+def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Regenerate into a temp dir and diff -r against the real "
+             "`ta/TA-splunk-use-cases/default` output. Exit 1 on drift.",
+    )
+    args = parser.parse_args()
+
+    ucs = pick_ucs()
+    print(f"[build_ta] packaging {len(ucs)} saved searches")
+    files = _build_file_map(ucs)
+
+    if args.check:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_default = os.path.join(tmp, "default")
+            _write_default_dir(tmp_default, files, verbose=False)
+            result = subprocess.run(
+                ["diff", "-r", tmp_default, DEFAULT_DIR],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                sys.stderr.write(
+                    "TA-splunk-use-cases default/ drift detected — regenerate "
+                    "with `python3 scripts/build_ta.py` and commit:\n"
+                )
+                out = (result.stdout or "") + (result.stderr or "")
+                if out:
+                    sys.stderr.write(out)
+                if not out and result.returncode != 0:
+                    sys.stderr.write(
+                        "(diff exited non-zero; compare "
+                        f"{tmp_default!r} vs {DEFAULT_DIR!r})\n"
+                    )
+                return 1
+            sys.stdout.write("build_ta output is up to date.\n")
+            return 0
+
+    _write_default_dir(DEFAULT_DIR, files, verbose=True)
     return 0
 
 

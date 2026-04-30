@@ -10,6 +10,12 @@ splunkPillar: "Observability"
 
 # UC-3.5.15 · eBPF Auto-Instrumented Service Metrics (Beyla)
 
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Performance, Availability &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*We attach an invisible speed camera to every service in our software city that automatically measures how fast each one responds and how often it makes mistakes, without the service ever knowing the camera is there.*
+
+---
+
 ## Description
 
 Ingests **Grafana Beyla** eBPF auto-instrumented RED metrics (Request rate, Error rate, Duration) to monitor **HTTP service latency and error rates** without application code changes, detects **latency anomalies** via z-score deviation from rolling baselines, and identifies **uninstrumented services** missing eBPF metric coverage — enabling platform teams to achieve comprehensive service observability across polyglot microservice environments with zero-touch instrumentation.
@@ -24,20 +30,20 @@ Deploy Beyla as a DaemonSet or sidecar with OTLP export to the Splunk OTel Colle
 
 ## Detailed Implementation
 
-Prerequisites
-• **Grafana Beyla** 1.5+ — an open-source eBPF-based **auto-instrumentation agent** that extracts RED metrics (Request rate, Error rate, Duration) and distributed traces from HTTP and gRPC services by attaching eBPF programs to the Linux kernel's **socket operations** and **Go runtime** (for Go services). Unlike traditional APM agents, Beyla requires **no application code changes**, no SDK integration, and no language-specific instrumentation — it works with **any language** or **framework** that communicates over HTTP/gRPC.
-• **Deployment model**: Beyla can run as:
+### Prerequisites
+- **Grafana Beyla** 1.5+ — an open-source eBPF-based **auto-instrumentation agent** that extracts RED metrics (Request rate, Error rate, Duration) and distributed traces from HTTP and gRPC services by attaching eBPF programs to the Linux kernel's **socket operations** and **Go runtime** (for Go services). Unlike traditional APM agents, Beyla requires **no application code changes**, no SDK integration, and no language-specific instrumentation — it works with **any language** or **framework** that communicates over HTTP/gRPC.
+- **Deployment model**: Beyla can run as:
   — **DaemonSet** (recommended): one Beyla pod per node, instrumenting all eligible services on that node. Configure via `BEYLA_OPEN_PORT` or `BEYLA_EXECUTABLE_NAME` to target specific processes.
   — **Sidecar**: one Beyla container per application pod, providing per-service isolation. Use when DaemonSet-level access is restricted or when different services need different Beyla configurations.
-• **Splunk Distribution of OpenTelemetry Collector** deployed as a **DaemonSet** with the **OTLP receiver** enabled (gRPC port 4317, HTTP port 4318). Beyla exports metrics and traces via **OTLP** to the local node's OTel Collector, which processes, batches, and forwards to **Splunk HEC**.
-• **Splunk HEC** token for **`index=containers`** configured to receive **metric events** (for Beyla RED metrics) and **event data** (for traces and logs). The OTel Collector's **Splunk HEC exporter** maps OTLP metrics to Splunk metric events with dimensions preserved as fields.
-• **Kubernetes node requirements**: Beyla needs Linux kernel **5.8+** (for BPF ring buffers) and **BTF** (BPF Type Format) support enabled. Most modern Kubernetes distributions (EKS, GKE, AKS with Ubuntu/Debian nodes) include these by default. Verify: `ls /sys/kernel/btf/vmlinux` — if this file exists, BTF is available.
-• **Service discovery**: Beyla automatically discovers services by scanning for processes listening on **network ports**. Configure `BEYLA_OPEN_PORT` to specify which ports to instrument (e.g., `80,443,8080,8443,3000`) or use `BEYLA_EXECUTABLE_NAME` to target specific binaries.
-• **Performance impact**: Beyla's eBPF programs add approximately **1–3 microseconds** per request, which is negligible for most services. Memory usage is typically **50–100 MB** per Beyla DaemonSet pod.
-• **License estimate**: each instrumented service generates approximately **1–5 KB/minute** of metric data (depending on endpoint cardinality). A cluster with 50 services generates approximately **100–400 MB/day** of Beyla metrics.
-• Splunk RBAC: assign a **`sre_analyst`** role with **`srchIndexesAllowed`** including `containers`.
+- **Splunk Distribution of OpenTelemetry Collector** deployed as a **DaemonSet** with the **OTLP receiver** enabled (gRPC port 4317, HTTP port 4318). Beyla exports metrics and traces via **OTLP** to the local node's OTel Collector, which processes, batches, and forwards to **Splunk HEC**.
+- **Splunk HEC** token for **`index=containers`** configured to receive **metric events** (for Beyla RED metrics) and **event data** (for traces and logs). The OTel Collector's **Splunk HEC exporter** maps OTLP metrics to Splunk metric events with dimensions preserved as fields.
+- **Kubernetes node requirements**: Beyla needs Linux kernel **5.8+** (for BPF ring buffers) and **BTF** (BPF Type Format) support enabled. Most modern Kubernetes distributions (EKS, GKE, AKS with Ubuntu/Debian nodes) include these by default. Verify: `ls /sys/kernel/btf/vmlinux` — if this file exists, BTF is available.
+- **Service discovery**: Beyla automatically discovers services by scanning for processes listening on **network ports**. Configure `BEYLA_OPEN_PORT` to specify which ports to instrument (e.g., `80,443,8080,8443,3000`) or use `BEYLA_EXECUTABLE_NAME` to target specific binaries.
+- **Performance impact**: Beyla's eBPF programs add approximately **1–3 microseconds** per request, which is negligible for most services. Memory usage is typically **50–100 MB** per Beyla DaemonSet pod.
+- **License estimate**: each instrumented service generates approximately **1–5 KB/minute** of metric data (depending on endpoint cardinality). A cluster with 50 services generates approximately **100–400 MB/day** of Beyla metrics.
+- Splunk RBAC: assign a **`sre_analyst`** role with **`srchIndexesAllowed`** including `containers`.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **Beyla DaemonSet deployment**: deploy Beyla with OTLP export to the local OTel Collector:
 ```yaml
 apiVersion: apps/v1
@@ -87,7 +93,7 @@ Beyla requires **hostPID** access to discover processes on the node and **privil
 
 (6) **Pipeline health monitoring**: collect the OTel Collector's **internal metrics** (**`sourcetype=otel:metrics`**) to monitor the Beyla-to-Splunk pipeline. Key metrics: `otelcol_receiver_accepted_metric_points` (are metrics arriving from Beyla?), `otelcol_exporter_send_failed_metric_points` (are exports to Splunk failing?), `otelcol_processor_batch_batch_send_size` (is batching efficient?).
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL uses **`mstats`** to query Beyla's HTTP server duration metrics, computing RED aggregations per service in 5-minute windows. The **severity classification**:
   — **CRITICAL** (latency): p99 > 5000ms — the service is severely degraded
   — **HIGH** (latency): p95 > 2000ms — significant latency affecting user experience
@@ -102,29 +108,29 @@ The coverage gap analysis variant compares **running services** (from `kube:pod:
 
 Schedule the RED metric search every **5 minutes** and alert on CRITICAL status (PagerDuty P2). Schedule the anomaly detection every **15 minutes** and alert on ANOMALY deviations. Schedule the coverage analysis **daily** and report uninstrumented services.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Verify Beyla metrics: `| mstats count(http.server.request.duration) WHERE index=containers AND sourcetype="beyla:metrics" BY service.name span=5m | head 20`. Should show metric counts per service.
 (b) Generate test traffic: `kubectl exec <test-pod> -- curl http://<target-service>:8080/health` and verify the request appears in Beyla metrics within 5 minutes.
 (c) Verify service names: `| mstats count(http.server.request.duration) WHERE index=containers BY service.name | sort -count`. Service names should be meaningful (not merely executable names).
 (d) Test anomaly detection: introduce artificial latency to a test service (e.g., add a sleep) and verify the z-score increases above the ANOMALY threshold.
 (e) Verify coverage: compare the list of services in `kube:pod:status` with services generating Beyla metrics. Any production service missing Beyla metrics indicates an instrumentation gap.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **single-value tiles** — services monitored, total request rate (all services), average p95 latency, average error rate, instrumentation coverage percentage.
-• Row B: **RED metric panels** per service — three columns: request rate (line chart), error rate (area chart, red fill), latency percentiles (p50, p95, p99 band chart).
-• Row C: **anomaly table** — svc, endpoint, method, avg_latency, baseline_avg, z_score, deviation. Red rows for ANOMALY.
-• Row D: **coverage matrix** — namespace, uninstrumented_services, service_list. Highlights services missing eBPF metrics.
-• **Alerting**: CRITICAL latency/error → PagerDuty P2 + Slack `#sre-alerts`; ANOMALY z-score > 3 → Slack `#sre-alerts`; coverage below 90% → weekly report to platform team; pipeline health degradation (otel:metrics export failures) → Slack `#monitoring-ops`.
-• **Runbook** (owner: SRE/platform team): (1) check service health via RED metrics, (2) drill into affected endpoints via the anomaly table, (3) correlate with Tetragon events (UC-3.5.14) and network flows (UC-3.5.13) for root-cause analysis, (4) verify Beyla instrumentation is active on the target node.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **single-value tiles** — services monitored, total request rate (all services), average p95 latency, average error rate, instrumentation coverage percentage.
+- Row B: **RED metric panels** per service — three columns: request rate (line chart), error rate (area chart, red fill), latency percentiles (p50, p95, p99 band chart).
+- Row C: **anomaly table** — svc, endpoint, method, avg_latency, baseline_avg, z_score, deviation. Red rows for ANOMALY.
+- Row D: **coverage matrix** — namespace, uninstrumented_services, service_list. Highlights services missing eBPF metrics.
+- **Alerting**: CRITICAL latency/error → PagerDuty P2 + Slack `#sre-alerts`; ANOMALY z-score > 3 → Slack `#sre-alerts`; coverage below 90% → weekly report to platform team; pipeline health degradation (otel:metrics export failures) → Slack `#monitoring-ops`.
+- **Runbook** (owner: SRE/platform team): (1) check service health via RED metrics, (2) drill into affected endpoints via the anomaly table, (3) correlate with Tetragon events (UC-3.5.14) and network flows (UC-3.5.13) for root-cause analysis, (4) verify Beyla instrumentation is active on the target node.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **service topology map** where node size represents request volume, node color represents health (green/amber/red based on error rate), and edge thickness represents inter-service call volume. Beyla's client-side metrics (`http.client.request.duration`) enable mapping service-to-service dependencies automatically.
-• **Alert design**: include `service.name`, `requests`, `error_rate`, `p95_latency`, `p99_latency`, `latency_status`, `error_status`, and for anomalies include `endpoint`, `z_score`, `deviation`, `baseline_avg`.
-• **No metrics for a known service** — Beyla may not be discovering the service's listening port. Check Beyla logs: `kubectl logs -n monitoring <beyla-pod> | grep -i discover`. Verify the service's port is listed in `BEYLA_OPEN_PORT` or switch to `BEYLA_EXECUTABLE_NAME` targeting.
-• **Service names show as executable names** — the `OTEL_SERVICE_NAME` environment variable is not set in the application pod. Configure the **k8sattributes processor** in the OTel Collector to inject Kubernetes labels as resource attributes.
-• **High cardinality in url.path** — REST APIs with path parameters (e.g., `/api/users/12345`) create unique paths per request, leading to metric cardinality explosion. Configure Beyla's **route decoration** or the OTel Collector's **attributes processor** to normalize paths (e.g., `/api/users/{id}`).
-• **Metrics missing after node reboot** — Beyla's eBPF programs are loaded into the kernel and persist only while the Beyla process runs. After a node reboot, the DaemonSet restarts and reattaches eBPF programs, but there is a brief gap in metrics during restart. This gap is expected and typically lasts under 60 seconds.
-• **Pipeline backpressure** — if the OTel Collector's export queue fills up, Beyla metrics are dropped. Monitor `otelcol_exporter_queue_size` and increase the collector's memory limit or batch size if needed.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **service topology map** where node size represents request volume, node color represents health (green/amber/red based on error rate), and edge thickness represents inter-service call volume. Beyla's client-side metrics (`http.client.request.duration`) enable mapping service-to-service dependencies automatically.
+- **Alert design**: include `service.name`, `requests`, `error_rate`, `p95_latency`, `p99_latency`, `latency_status`, `error_status`, and for anomalies include `endpoint`, `z_score`, `deviation`, `baseline_avg`.
+- **No metrics for a known service** — Beyla may not be discovering the service's listening port. Check Beyla logs: `kubectl logs -n monitoring <beyla-pod> | grep -i discover`. Verify the service's port is listed in `BEYLA_OPEN_PORT` or switch to `BEYLA_EXECUTABLE_NAME` targeting.
+- **Service names show as executable names** — the `OTEL_SERVICE_NAME` environment variable is not set in the application pod. Configure the **k8sattributes processor** in the OTel Collector to inject Kubernetes labels as resource attributes.
+- **High cardinality in url.path** — REST APIs with path parameters (e.g., `/api/users/12345`) create unique paths per request, leading to metric cardinality explosion. Configure Beyla's **route decoration** or the OTel Collector's **attributes processor** to normalize paths (e.g., `/api/users/{id}`).
+- **Metrics missing after node reboot** — Beyla's eBPF programs are loaded into the kernel and persist only while the Beyla process runs. After a node reboot, the DaemonSet restarts and reattaches eBPF programs, but there is a brief gap in metrics during restart. This gap is expected and typically lasts under 60 seconds.
+- **Pipeline backpressure** — if the OTel Collector's export queue fills up, Beyla metrics are dropped. Monitor `otelcol_exporter_queue_size` and increase the collector's memory limit or batch size if needed.
 
 ## SPL
 

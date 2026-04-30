@@ -16,9 +16,6 @@ Design notes
   through ``stat().st_size``.
 * **No secrets, no credentials.** The catalogue is 100 % public; the loader
   does not send or read any authentication headers.
-* **Cached.** Each endpoint is LRU-cached per process — the catalogue is
-  static between rebuilds, so every invocation within a single agent session
-  is fetched at most once.
 
 CoSAI MCP alignment
 -------------------

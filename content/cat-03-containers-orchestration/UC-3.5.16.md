@@ -10,6 +10,12 @@ splunkPillar: "Observability"
 
 # UC-3.5.16 · Kubernetes Event Correlation with Application Traces
 
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Fault, Performance &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*When something breaks in the building's plumbing and the restaurant upstairs starts getting complaints, we connect those two events together so the maintenance crew knows the real problem is pipes, not the chef.*
+
+---
+
 ## Description
 
 Correlates **Kubernetes infrastructure events** (OOMKill, Eviction, FailedScheduling, NodeNotReady, BackOff) with **OpenTelemetry application traces** in the same namespace and time window to determine whether infrastructure failures caused application-visible impact — classifying correlations as CONFIRMED_IMPACT, LATENCY_IMPACT, PROBABLE_IMPACT, or NO_VISIBLE_IMPACT and detecting **causal sequences** where OOMKills precede application error spikes by minutes.
@@ -24,17 +30,17 @@ Ingest Kubernetes Warning events via the OTel Collector k8s_events receiver and 
 
 ## Detailed Implementation
 
-Prerequisites
-• **Kubernetes cluster** with the **OTel Collector** deployed as a **DaemonSet** running the **k8s_events receiver** to collect all Warning events from the Kubernetes API. The receiver watches the **Event API** and emits structured events with reason, type, message, and involvedObject metadata.
-• **Application traces** collected via the **OTLP receiver** (gRPC port 4317, HTTP port 4318) from applications instrumented with **OpenTelemetry SDKs** or auto-instrumented via **Beyla** (UC-3.5.15). Traces must include **Kubernetes resource attributes** (`k8s.namespace.name`, `k8s.pod.name`, `k8s.deployment.name`) for accurate correlation with infrastructure events.
-• **Splunk HEC** token for **`index=containers`** with sourcetype routing for **`kube:events`**, **`otel:traces`**, **`kube:pod:status`**, **`kube:container:logs`**, and **`otel:metrics`**.
-• **Namespace-level correlation**: the correlation works by matching infrastructure events and application traces within the **same Kubernetes namespace**. This assumes that services within a namespace are related — which is the standard multi-tenant Kubernetes deployment pattern. If your architecture uses **cross-namespace service dependencies**, you will need to extend the correlation to include upstream/downstream namespaces.
-• **Trace volume consideration**: the correlation join queries traces within a **±15 minute window** around each infrastructure event. High-volume trace environments (>10,000 spans/minute) should use **summary indexes** or pre-computed **error rate metrics** to avoid expensive join operations.
-• **OTel Collector pipeline**: configure the **k8sattributes processor** to enrich traces with Kubernetes metadata (namespace, pod, deployment, node). Without this enrichment, the `k8s_namespace` field is missing from traces and the correlation join fails.
-• **License estimate**: Kubernetes events are low-volume — a healthy 200-pod cluster generates 100–1,000 events/day (~200 KB–2 MB). The trace volume depends on application instrumentation depth and traffic — typically 1–50 GB/day for a mid-size cluster.
-• Splunk RBAC: assign an **`sre_analyst`** role with **`srchIndexesAllowed`** including `containers`.
+### Prerequisites
+- **Kubernetes cluster** with the **OTel Collector** deployed as a **DaemonSet** running the **k8s_events receiver** to collect all Warning events from the Kubernetes API. The receiver watches the **Event API** and emits structured events with reason, type, message, and involvedObject metadata.
+- **Application traces** collected via the **OTLP receiver** (gRPC port 4317, HTTP port 4318) from applications instrumented with **OpenTelemetry SDKs** or auto-instrumented via **Beyla** (UC-3.5.15). Traces must include **Kubernetes resource attributes** (`k8s.namespace.name`, `k8s.pod.name`, `k8s.deployment.name`) for accurate correlation with infrastructure events.
+- **Splunk HEC** token for **`index=containers`** with sourcetype routing for **`kube:events`**, **`otel:traces`**, **`kube:pod:status`**, **`kube:container:logs`**, and **`otel:metrics`**.
+- **Namespace-level correlation**: the correlation works by matching infrastructure events and application traces within the **same Kubernetes namespace**. This assumes that services within a namespace are related — which is the standard multi-tenant Kubernetes deployment pattern. If your architecture uses **cross-namespace service dependencies**, you will need to extend the correlation to include upstream/downstream namespaces.
+- **Trace volume consideration**: the correlation join queries traces within a **±15 minute window** around each infrastructure event. High-volume trace environments (>10,000 spans/minute) should use **summary indexes** or pre-computed **error rate metrics** to avoid expensive join operations.
+- **OTel Collector pipeline**: configure the **k8sattributes processor** to enrich traces with Kubernetes metadata (namespace, pod, deployment, node). Without this enrichment, the `k8s_namespace` field is missing from traces and the correlation join fails.
+- **License estimate**: Kubernetes events are low-volume — a healthy 200-pod cluster generates 100–1,000 events/day (~200 KB–2 MB). The trace volume depends on application instrumentation depth and traffic — typically 1–50 GB/day for a mid-size cluster.
+- Splunk RBAC: assign an **`sre_analyst`** role with **`srchIndexesAllowed`** including `containers`.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **Kubernetes events**: the OTel Collector's **k8s_events receiver** watches the Kubernetes **Event API** and collects all Warning and Normal events. Key event **reasons** for infrastructure correlation:
   — **OOMKilling**: the **kubelet** terminated a container because it exceeded its **memory limit**. This is the most common infrastructure-caused application failure.
   — **Evicted**: the node is under **resource pressure** (disk, memory, PID) and the **kubelet** evicted pods to reclaim resources.
@@ -58,7 +64,7 @@ Step 1 — Configure data collection
 
 (5) **Correlation window tuning**: the default ±15 minute window captures most infrastructure-to-application impact chains. However, some impacts are immediate (OOMKill → instant restart → 503 errors) while others are delayed (NodeNotReady → pod rescheduling → 2-minute gap → service recovery). Use the **causal sequence** SPL variant to determine the typical time-to-impact for your environment and tune the window accordingly.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL correlates **infrastructure events** with **application traces** by joining on namespace within a ±15 minute window. The **app_impact** classification:
   — **CONFIRMED_IMPACT**: error rate > 10% AND the infrastructure event is CRITICAL or HIGH severity — strong evidence that the infrastructure event caused application failures
   — **LATENCY_IMPACT**: p95 latency > 2000ms AND the infrastructure event is CRITICAL or HIGH — the infrastructure event degraded application performance
@@ -73,28 +79,28 @@ The **causal sequence** variant focuses specifically on **OOMKill events** and d
 
 Schedule the correlation search every **5 minutes** and alert on CONFIRMED_IMPACT (PagerDuty P2) or STRONG_CAUSAL (PagerDuty P2 + Slack). Schedule a **daily summary** of all correlations for trend analysis.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Verify event collection: `index=containers sourcetype="kube:events" type="Warning" earliest=-24h | stats count by reason | sort -count`. Should show OOMKilling, BackOff, and other expected events.
 (b) Verify trace collection: `index=containers sourcetype="otel:traces" earliest=-1h | stats dc(service_name) as services, count as spans`. Should show active services.
 (c) Test correlation: find a known OOMKill event and check for trace errors in the same namespace: `index=containers sourcetype="otel:traces" k8s_namespace="<ns>" status_code="ERROR" earliest=<oom_time-15m> latest=<oom_time+15m>`.
 (d) Verify Kubernetes enrichment: `index=containers sourcetype="otel:traces" earliest=-1h | stats count by k8s_namespace | where isnotnull(k8s_namespace)`. All traces should have namespace information.
 (e) Validate impact classification: review recent CONFIRMED_IMPACT correlations and verify the infrastructure event plausibly caused the application errors.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **single-value tiles** — correlated incidents (last 24h), CONFIRMED_IMPACT count (red if > 0), average time-to-impact (minutes), namespaces with no traces (instrumentation gaps).
-• Row B: **dual-axis timeline** — primary axis shows infrastructure event counts by severity (stacked bars), secondary axis shows application error rate (line) — visual alignment reveals causal patterns.
-• Row C: **correlation table** — ns, infra_severity, reasons, affected_pods, app_impact, error_rate, p95_latency, affected_services. Color-coded by app_impact.
-• Row D: **causal sequence table** — ns, pod, oom_time, svc, errors_per_min, time_diff_min, causality. Ordered by causality strength.
-• **Alerting**: CONFIRMED_IMPACT → PagerDuty P2 + Slack `#sre-incidents` with full context (infrastructure event + application impact metrics); STRONG_CAUSAL OOMKill → PagerDuty P2; PROBABLE_IMPACT sustained > 15 minutes → Slack `#sre-alerts`; NO_TRACES for production namespace → weekly instrumentation gap report.
-• **Runbook** (owner: SRE team): (1) for OOMKill+CONFIRMED_IMPACT: increase memory limits or optimize application memory usage, (2) for FailedScheduling+CONFIRMED_IMPACT: check cluster capacity and autoscaler configuration, (3) for NodeNotReady: check node health and reschedule affected pods, (4) for LATENCY_IMPACT without error spike: the infrastructure event caused degradation but not failure — may resolve with pod rescheduling.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **single-value tiles** — correlated incidents (last 24h), CONFIRMED_IMPACT count (red if > 0), average time-to-impact (minutes), namespaces with no traces (instrumentation gaps).
+- Row B: **dual-axis timeline** — primary axis shows infrastructure event counts by severity (stacked bars), secondary axis shows application error rate (line) — visual alignment reveals causal patterns.
+- Row C: **correlation table** — ns, infra_severity, reasons, affected_pods, app_impact, error_rate, p95_latency, affected_services. Color-coded by app_impact.
+- Row D: **causal sequence table** — ns, pod, oom_time, svc, errors_per_min, time_diff_min, causality. Ordered by causality strength.
+- **Alerting**: CONFIRMED_IMPACT → PagerDuty P2 + Slack `#sre-incidents` with full context (infrastructure event + application impact metrics); STRONG_CAUSAL OOMKill → PagerDuty P2; PROBABLE_IMPACT sustained > 15 minutes → Slack `#sre-alerts`; NO_TRACES for production namespace → weekly instrumentation gap report.
+- **Runbook** (owner: SRE team): (1) for OOMKill+CONFIRMED_IMPACT: increase memory limits or optimize application memory usage, (2) for FailedScheduling+CONFIRMED_IMPACT: check cluster capacity and autoscaler configuration, (3) for NodeNotReady: check node health and reschedule affected pods, (4) for LATENCY_IMPACT without error spike: the infrastructure event caused degradation but not failure — may resolve with pod rescheduling.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **swimlane timeline** with one lane per namespace showing infrastructure events (markers) and application error rate (line). When an event marker aligns with an error rate spike in the same lane, the visual correlation is immediately apparent. Color markers by **infra_severity** (red for CRITICAL, orange for HIGH) and shade the error rate line by **app_impact**.
-• **Alert design**: include `ns`, `infra_severity`, `reasons`, `affected_pods`, `event_count`, `app_impact`, `error_rate`, `p95_latency`, `affected_services`, and `last_msg` in the alert payload. For causal alerts include `pod`, `oom_time`, `time_diff_min`, and `causality`.
-• **Join returns no results** — the `k8s_namespace` field in traces may not match the namespace format in events. Verify field names: events use `involvedObject.namespace` while traces use `k8s.namespace.name`. The SPL uses coalesce to handle both.
-• **False correlations in shared namespaces** — if multiple unrelated services share a namespace, an OOMKill in one service may correlate with errors in an unrelated service. Use pod-level (not namespace-level) correlation for shared namespaces.
-• **Trace latency shows no impact but users report errors** — the issue may be at the **network** level (load balancer, ingress) rather than within the application. Check Ingress controller metrics (UC-3.6.6) and service mesh telemetry (UC-3.5.2) for external-facing impact.
-• **High join cost with large trace volumes** — the join operation scans all traces in the ±15 minute window. For high-volume environments, pre-compute namespace-level error rate metrics in a **summary index** and join against the summary instead of raw traces.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **swimlane timeline** with one lane per namespace showing infrastructure events (markers) and application error rate (line). When an event marker aligns with an error rate spike in the same lane, the visual correlation is immediately apparent. Color markers by **infra_severity** (red for CRITICAL, orange for HIGH) and shade the error rate line by **app_impact**.
+- **Alert design**: include `ns`, `infra_severity`, `reasons`, `affected_pods`, `event_count`, `app_impact`, `error_rate`, `p95_latency`, `affected_services`, and `last_msg` in the alert payload. For causal alerts include `pod`, `oom_time`, `time_diff_min`, and `causality`.
+- **Join returns no results** — the `k8s_namespace` field in traces may not match the namespace format in events. Verify field names: events use `involvedObject.namespace` while traces use `k8s.namespace.name`. The SPL uses coalesce to handle both.
+- **False correlations in shared namespaces** — if multiple unrelated services share a namespace, an OOMKill in one service may correlate with errors in an unrelated service. Use pod-level (not namespace-level) correlation for shared namespaces.
+- **Trace latency shows no impact but users report errors** — the issue may be at the **network** level (load balancer, ingress) rather than within the application. Check Ingress controller metrics (UC-3.6.6) and service mesh telemetry (UC-3.5.2) for external-facing impact.
+- **High join cost with large trace volumes** — the join operation scans all traces in the ±15 minute window. For high-volume environments, pre-compute namespace-level error rate metrics in a **summary index** and join against the summary instead of raw traces.
 
 ## SPL
 

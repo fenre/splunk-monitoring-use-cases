@@ -10,6 +10,12 @@ splunkPillar: "Security"
 
 # UC-3.5.12 · Rate Limiting and Traffic Policy Compliance
 
+> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Performance &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*We set speed limits on how fast visitors can access each service and then verify those limits are actually being enforced — like checking that a speed camera is working and not letting every car pass unchecked.*
+
+---
+
 ## Description
 
 Monitors Envoy proxy **429 responses** and **RL response flags** across service mesh routes to verify that Istio rate limiting policies (local rate limits and global RateLimitService) are actively enforcing traffic quotas, then compares observed throttle rates against expected policy baselines to detect **policy drift** — where misconfiguration, bypass, or disabled enforcement allows traffic that should be throttled.
@@ -24,21 +30,21 @@ Collect Envoy access logs and rate limit metrics via OTel Collector into index=c
 
 ## Detailed Implementation
 
-Prerequisites
-• **Istio** 1.14+ service mesh with **rate limiting** configured via one or both mechanisms:
+### Prerequisites
+- **Istio** 1.14+ service mesh with **rate limiting** configured via one or both mechanisms:
   — **Local rate limiting**: configured via **EnvoyFilter** resources that inject Envoy's `local_rate_limit` **HTTP filter** into sidecar or gateway proxies. Limits are enforced per-pod without coordination.
   — **Global rate limiting**: configured via **Istio**'s **RateLimitService** integration with an external **rate limit service** (typically envoyproxy/ratelimit) that maintains **shared counters** across all proxies.
-• **Envoy access logging** enabled with **response_flags** included in the log format. The `RL` flag indicates rate-limited requests. The `response_code=429` indicates HTTP-level **rate limiting**. Both may be present simultaneously or independently depending on the configuration.
-• **Splunk Connect for Kubernetes** or the **OTel Collector**'s **filelog receiver** for access log collection. Index as **`sourcetype=envoy:accesslog`** in **`index=containers`**.
-• **OTel Collector Prometheus receiver** configured to scrape rate limit metrics:
+- **Envoy access logging** enabled with **response_flags** included in the log format. The `RL` flag indicates rate-limited requests. The `response_code=429` indicates HTTP-level **rate limiting**. Both may be present simultaneously or independently depending on the configuration.
+- **Splunk Connect for Kubernetes** or the **OTel Collector**'s **filelog receiver** for access log collection. Index as **`sourcetype=envoy:accesslog`** in **`index=containers`**.
+- **OTel Collector Prometheus receiver** configured to scrape rate limit metrics:
   — From **Envoy sidecars**: `envoy_http_local_rate_limit_enabled`, `envoy_http_local_rate_limit_enforced`, `envoy_http_local_rate_limit_ok`, `envoy_http_local_rate_limit_rate_limited`
   — From the **global rate limit service**: `ratelimit_service_rate_limit_total` (labeled by domain, key, and `rate_limited=true/false`)
-• **Rate limit policy lookup**: create **`rate_limit_policies.csv`** mapping `route` to `policy_name`, `max_rps`, and `expected_rl_pct`. This lookup enables **policy drift detection** by comparing observed throttle rates against expected baselines.
-• **Splunk HEC** token for **`index=containers`** with appropriate sourcetype routing.
-• Splunk RBAC: assign a **`security_analyst`** role with **`srchIndexesAllowed`** including `containers`.
-• **License estimate**: rate limit events are a subset of all access log events. In a cluster with active rate limiting, typically 1–10% of requests are throttled. The SPL filters and aggregates efficiently.
+- **Rate limit policy lookup**: create **`rate_limit_policies.csv`** mapping `route` to `policy_name`, `max_rps`, and `expected_rl_pct`. This lookup enables **policy drift detection** by comparing observed throttle rates against expected baselines.
+- **Splunk HEC** token for **`index=containers`** with appropriate sourcetype routing.
+- Splunk RBAC: assign a **`security_analyst`** role with **`srchIndexesAllowed`** including `containers`.
+- **License estimate**: rate limit events are a subset of all access log events. In a cluster with active rate limiting, typically 1–10% of requests are throttled. The SPL filters and aggregates efficiently.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **Envoy access log response flags**: the `response_flags` field in Envoy **access logs** contains coded flags that indicate how the request was processed. For rate limiting:
 — **`RL`** — the request was **rate limited** by the local or global **rate limit filter**
 — **`RLSE`** — the **rate limit service** **error** (the global rate limit service was unreachable, and the request was allowed or denied based on the `failure_mode_deny` setting)
@@ -62,7 +68,7 @@ These metrics provide **precise** rate limit counts without parsing access logs,
 
 (5) **Policy lookup maintenance**: the `rate_limit_policies.csv` lookup should be updated whenever rate limit policies change. A scheduled search can extract current policies from **EnvoyFilter** resources collected via `kube:objects` and update the lookup automatically.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL computes 5-minute rate limit enforcement per route from access logs. The **`enforcement_status`** classification:
 — **HEAVY_THROTTLE** (>20% requests limited): aggressive throttling that may affect legitimate users — investigate whether the limit is too low or traffic is genuinely abusive
 — **ACTIVE_THROTTLE** (>5%): moderate throttling — the policy is actively enforcing
@@ -77,29 +83,29 @@ The policy drift variant compares **observed hourly throttle rates** against **e
 
 Schedule the enforcement search every **5 minutes** and alert on HEAVY_THROTTLE (may indicate **DDoS** or misconfigured policy). Schedule the drift search hourly and alert on SIGNIFICANT_DRIFT or NO_POLICY for routes that should be protected.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Verify rate limit enforcement: generate traffic exceeding the rate limit threshold for a test route using a **load testing** tool or `hey` command and verify 429 responses appear: `index=containers sourcetype="envoy:accesslog" response_code=429 earliest=-5m | stats count by route_name`.
 (b) Verify response flags: `index=containers sourcetype="envoy:accesslog" response_flags="*RL*" earliest=-1h | stats count`. Should show non-zero if rate limiting is active.
 (c) Verify metric collection: `index=containers sourcetype="otel:metrics" metric_name="envoy_http_local_rate_limit_rate_limited" earliest=-1h | stats sum(metric_value)`.
 (d) Populate and verify the policy lookup: `| inputlookup rate_limit_policies.csv | table route policy_name max_rps expected_rl_pct`.
 (e) Test **policy drift detection**: temporarily lower a rate limit to trigger more 429s, then verify the drift search shows SIGNIFICANT_DRIFT.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **single-value tiles** — total 429s last 1h, rate-limited percentage (cluster-wide), routes with active throttling, drift alerts (SIGNIFICANT_DRIFT count), rate limit service status.
-• Row B: **stacked bar chart** of allowed vs rate-limited requests per route over 24h — immediately shows which routes bear the most throttling.
-• Row C: **policy drift table** — route, policy_name, hourly_requests, hourly_rl_pct, expected_rl_pct, drift, drift_status. Red rows for SIGNIFICANT_DRIFT.
-• Row D: **client analysis** for heavily throttled routes — client IP, request count, 429 count, rl_pct. Identifies **abusive clients**.
-• **Alerting**: HEAVY_THROTTLE on any route → **Slack** `#security-ops`; SIGNIFICANT_DRIFT → Slack `#mesh-ops`; rate limit service pod restart → **PagerDuty** P3; rate limit service down → PagerDuty P2 (all limits may be bypassed).
-• **Runbook**: (1) for unexpected NO_THROTTLE: verify EnvoyFilter is applied: `kubectl get envoyfilter -A | grep rate`, (2) for HEAVY_THROTTLE: check top clients and block abusive IPs, (3) for SIGNIFICANT_DRIFT: compare current policy config with the lookup baseline, (4) for rate limit service outage: check `failure_mode_deny` setting to understand the impact.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **single-value tiles** — total 429s last 1h, rate-limited percentage (cluster-wide), routes with active throttling, drift alerts (SIGNIFICANT_DRIFT count), rate limit service status.
+- Row B: **stacked bar chart** of allowed vs rate-limited requests per route over 24h — immediately shows which routes bear the most throttling.
+- Row C: **policy drift table** — route, policy_name, hourly_requests, hourly_rl_pct, expected_rl_pct, drift, drift_status. Red rows for SIGNIFICANT_DRIFT.
+- Row D: **client analysis** for heavily throttled routes — client IP, request count, 429 count, rl_pct. Identifies **abusive clients**.
+- **Alerting**: HEAVY_THROTTLE on any route → **Slack** `#security-ops`; SIGNIFICANT_DRIFT → Slack `#mesh-ops`; rate limit service pod restart → **PagerDuty** P3; rate limit service down → PagerDuty P2 (all limits may be bypassed).
+- **Runbook**: (1) for unexpected NO_THROTTLE: verify EnvoyFilter is applied: `kubectl get envoyfilter -A | grep rate`, (2) for HEAVY_THROTTLE: check top clients and block abusive IPs, (3) for SIGNIFICANT_DRIFT: compare current policy config with the lookup baseline, (4) for rate limit service outage: check `failure_mode_deny` setting to understand the impact.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **traffic light matrix** showing each route as a row with columns for enforcement_status, drift_status, and RLS service health — green/amber/red coloring provides instant policy compliance overview. Pair with a **time series** of 429 rate per route.
-• **Alert design**: include `route`, `total_requests`, `rate_limited`, `rl_pct`, `enforcement_status`, `drift_status`, `policy_name`, and top 3 throttled clients in the alert payload.
-• **No 429 responses despite configured rate limits** — the EnvoyFilter may not be targeting the correct **workload selector** or listener. Verify: `istioctl proxy-config listener <pod> | grep rate_limit`.
-• **Rate limit service RLSE errors** — the global rate limit service is unreachable. Check `failure_mode_deny` to determine if requests are being allowed or blocked during the outage.
-• **Drift shows negative values** — the observed throttle rate is lower than expected, meaning fewer requests are being limited than the policy intended. This may indicate traffic volume is below the rate limit threshold (expected) or the **rate limit counter** is not being incremented (bug).
-• **Per-descriptor hit analysis** — the global rate limit service evaluates **descriptor keys** (e.g., client IP, API key, route) against configured limits. Monitor the `ratelimit_service_total_hits` metric labeled by descriptor to identify which descriptors trigger the most evaluations.
-• **Inconsistent enforcement across pods** — local rate limits are enforced per-pod, so total enforcement across the deployment is proportional to **replica count**. A deployment with 10 replicas each limiting at 100 RPS effectively allows 1000 RPS total. Scale-aware policies require the global rate limit service.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **traffic light matrix** showing each route as a row with columns for enforcement_status, drift_status, and RLS service health — green/amber/red coloring provides instant policy compliance overview. Pair with a **time series** of 429 rate per route.
+- **Alert design**: include `route`, `total_requests`, `rate_limited`, `rl_pct`, `enforcement_status`, `drift_status`, `policy_name`, and top 3 throttled clients in the alert payload.
+- **No 429 responses despite configured rate limits** — the EnvoyFilter may not be targeting the correct **workload selector** or listener. Verify: `istioctl proxy-config listener <pod> | grep rate_limit`.
+- **Rate limit service RLSE errors** — the global rate limit service is unreachable. Check `failure_mode_deny` to determine if requests are being allowed or blocked during the outage.
+- **Drift shows negative values** — the observed throttle rate is lower than expected, meaning fewer requests are being limited than the policy intended. This may indicate traffic volume is below the rate limit threshold (expected) or the **rate limit counter** is not being incremented (bug).
+- **Per-descriptor hit analysis** — the global rate limit service evaluates **descriptor keys** (e.g., client IP, API key, route) against configured limits. Monitor the `ratelimit_service_total_hits` metric labeled by descriptor to identify which descriptors trigger the most evaluations.
+- **Inconsistent enforcement across pods** — local rate limits are enforced per-pod, so total enforcement across the deployment is proportional to **replica count**. A deployment with 10 replicas each limiting at 100 RPS effectively allows 1000 RPS total. Scale-aware policies require the global rate limit service.
 
 ## SPL
 

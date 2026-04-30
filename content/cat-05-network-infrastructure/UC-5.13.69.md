@@ -1,0 +1,154 @@
+<!-- AUTO-GENERATED from UC-5.13.69.json — DO NOT EDIT -->
+
+---
+id: "5.13.69"
+title: "Catalyst Center + SD-WAN WAN Path Health"
+status: "verified"
+criticality: "high"
+splunkPillar: "Observability"
+---
+
+# UC-5.13.69 · Catalyst Center + SD-WAN WAN Path Health
+
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Performance, Availability &middot; **Wave:** Run &middot; **Status:** Verified
+
+*We combine the health of your local network with the health of your wide-area connections to give you the full picture of how users experience the network end-to-end. This helps your team act on facts instead of guesses.*
+
+---
+
+## Description
+
+Correlates Catalyst Center campus network health with SD-WAN WAN path health to provide an end-to-end view and detect scenarios where campus or WAN is the bottleneck.
+
+## Value
+
+Users experience the entire path — campus LAN plus WAN. Correlating both domains shows whether poor experience is caused by local infrastructure or WAN quality.
+
+## Implementation
+
+Both Catalyst Center and SD-WAN data come from the same TA (7538). Ensure both are configured:
+
+1. **Catalyst Center:** Already configured for network health UCs
+2. **SD-WAN account:** Add an SD-WAN account in the TA pointing to your vManage/SD-WAN Manager
+3. **Enable SD-WAN inputs:** Enable `health` and `site_and_tunnel_health` inputs → `index=sdwan`
+4. **Correlation:** Time-based correlation using `appendcols` — both health scores are time-series
+
+## Detailed Implementation
+
+### Prerequisites
+- Cisco Catalyst Add-on for Splunk (Splunkbase 7538) with `devicehealth` or `interfacehealth` inputs enabled to `index=catalyst`.
+- Cisco SD-WAN Add-on for Splunk (or equivalent) with WAN health data in a separate index (e.g., `index=sdwan`), sourcetype `cisco:sdwan:*` or equivalent.
+- Both Catalyst Center and SD-WAN vManage must be configured with API credentials in their respective TAs.
+- RBAC: service accounts with read access to Assurance health data on Catalyst Center and WAN analytics on vManage.
+- Network: the heavy forwarder must be able to reach both Catalyst Center and vManage API endpoints.
+
+### Step 1 — Configure data collection
+This UC correlates two independent data sources:
+- **Catalyst Center side:** `sourcetype=cisco:dnac:devicehealth` or `cisco:dnac:interfacehealth` — polled from `GET /dna/intent/api/v1/device-health` at 900s intervals.
+- **SD-WAN side:** WAN path health data from vManage — typically `sourcetype=cisco:sdwan:device` or `cisco:sdwan:tunnel` — polled at the SD-WAN TA's configured interval.
+
+Key fields for correlation:
+- Catalyst Center: `deviceName`, `managementIpAddress`, `overallHealth`, `siteId`.
+- SD-WAN: `system_ip`, `hostname`, `tunnel_status`, `latency`, `jitter`, `loss`.
+- Correlation key: `managementIpAddress` (Catalyst Center) ↔ `system_ip` (SD-WAN), or `deviceName` ↔ `hostname` if naming conventions align.
+
+### Step 2 — Create the search and alert
+
+```spl
+index=catalyst sourcetype="cisco:dnac:devicehealth" deviceFamily="Routers"
+| stats latest(overallHealth) as cc_health latest(reachabilityHealth) as cc_reach by deviceName, managementIpAddress
+| join managementIpAddress type=left [search index=sdwan sourcetype="cisco:sdwan:*" | stats latest(tunnel_status) as wan_status latest(latency) as wan_latency latest(loss) as wan_loss by system_ip | rename system_ip as managementIpAddress]
+| eval combined_status=case(cc_reach="Unreachable" AND wan_status!="up","Both Down", cc_reach="Unreachable","CC Unreachable Only", wan_status!="up","WAN Path Down Only", cc_health<50,"CC Health Degraded", wan_latency>150 OR wan_loss>5,"WAN Quality Degraded", 1==1,"Healthy")
+| sort combined_status
+```
+
+#### Understanding this SPL:
+- **`deviceFamily="Routers"`**: Filters to router devices in Catalyst Center, which are typically the WAN edge devices also managed by SD-WAN.
+- **`join managementIpAddress type=left`**: Left join preserves all Catalyst Center devices even if no SD-WAN data exists. The join key assumes the management IP in Catalyst Center matches the system IP in vManage — validate this assumption for your deployment.
+- **`combined_status=case(...)`**: Creates a combined health assessment from both sources, prioritizing "Both Down" as the most severe condition.
+- **`wan_latency>150 OR wan_loss>5`**: Threshold values for WAN quality — tune based on your application SLAs.
+
+### Step 3 — Validate
+- **Cross-reference:** Pick 3-5 WAN edge routers. In Catalyst Center, check their health score in Assurance > Device Health. In vManage, check their tunnel status and WAN performance metrics. Compare with the Splunk joined results.
+- **Join completeness:** Run `| stats count(cc_health) as cc_count count(wan_status) as wan_count` — if `wan_count` is significantly lower than `cc_count`, the join key may not be matching correctly.
+- **Timing:** Ensure both data sources cover the same time window. SD-WAN data that is 30+ minutes stale will produce misleading correlations.
+
+### Step 4 — Operationalize
+- **Dashboard:** Two-column layout — Catalyst Center health on the left, SD-WAN WAN path health on the right, with a combined status column in the center. Add a map visualization if site geo-coordinates are available.
+- **Alert:** Trigger when `combined_status` includes "Both Down" — this indicates a site outage affecting both the campus network and WAN connectivity. Throttle per `deviceName` for 30 minutes.
+
+### Step 5 — Troubleshoot
+- **Join returns no SD-WAN data:** The management IP in Catalyst Center may not match the system IP in vManage. Create a `catalyst_sdwan_ip_map` lookup to translate between the two.
+- **All WAN devices show "CC Unreachable Only":** The SD-WAN TA may not be collecting data, or the SD-WAN index name differs from the SPL. Check `index=sdwan earliest=-1h | stats count` to verify data flow.
+- **Latency/loss thresholds too sensitive:** Application-specific SLAs vary — voice traffic may require <150ms latency while bulk data can tolerate 300ms+. Consider per-application threshold tuning.
+
+For SD-WAN tunnel health correlation:
+```spl
+index=catalyst sourcetype="cisco:dnac:networkhealth"
+| where healthScore > 0
+| bin _time span=5m
+| stats latest(healthScore) as campus_health by _time
+| appendcols
+    [search index=sdwan sourcetype="cisco:sdwan:bfd" OR sourcetype="cisco:sdwan:approute"
+     | bin _time span=5m
+     | stats avg(latency) as wan_latency_ms avg(loss_percentage) as wan_loss_pct avg(jitter) as wan_jitter_ms by _time]
+| where isnotnull(campus_health) AND isnotnull(wan_latency_ms)
+| eval isolation=case(
+    campus_health < 70 AND wan_latency_ms < 50, "Campus issue — internal infrastructure",
+    campus_health >= 80 AND wan_latency_ms > 100, "WAN issue — SD-WAN overlay degradation",
+    campus_health < 70 AND wan_latency_ms > 100, "Both campus AND WAN degraded",
+    1==1, "Both healthy")
+| where isolation != "Both healthy"
+| table _time, campus_health, wan_latency_ms, wan_loss_pct, wan_jitter_ms, isolation
+```
+
+Why campus + WAN correlation: branch offices connect to headquarters and cloud services through SD-WAN overlays. When users at a branch complain about slow applications, the problem could be the local campus network (Catalyst Center) or the WAN path (SD-WAN). This search isolates which domain is degraded.
+
+For per-site WAN quality mapping:
+```spl
+index=sdwan sourcetype="cisco:sdwan:approute"
+| stats avg(latency) as latency avg(loss_percentage) as loss by local_system_ip, remote_system_ip
+| lookup sdwan_to_catalyst_site local_system_ip OUTPUT siteId, siteName
+| where isnotnull(siteId)
+| join type=left siteId [search index=catalyst sourcetype="cisco:dnac:devicehealth" | stats avg(overallHealth) as campus_health by siteId]
+| table siteName, campus_health, latency, loss
+| sort -latency
+```
+Requires a `sdwan_to_catalyst_site` lookup mapping vEdge/cEdge management IPs to Catalyst Center site IDs.
+
+Runbook:
+1. "Campus issue": investigate internal infrastructure — UC-5.13.1, UC-5.13.9, UC-5.13.21.
+2. "WAN issue": investigate SD-WAN overlay — check vManage for tunnel status, BFD health, and AppRoute quality. Common causes: ISP degradation, MPLS SLA violation, internet congestion.
+3. "Both degraded": check shared infrastructure — gateway, DNS, NAT/firewall at the branch edge. These devices bridge campus and WAN.
+
+Troubleshooting:
+- **No SD-WAN data** — the Cisco SD-WAN TA or vManage API integration is not configured.
+- **`sdwan_to_catalyst_site` lookup is empty** — create it manually by mapping vEdge management IPs to physical locations.
+- **Latency thresholds don't fit your WAN design** — adjust from 100ms to your SLA target. MPLS circuits typically SLA at 50ms; internet transports at 200ms.
+
+
+## SPL
+
+```spl
+index=catalyst sourcetype="cisco:dnac:networkhealth" | stats latest(healthScore) as campus_health by _time | appendcols [search index=sdwan sourcetype="cisco:sdwan:*" | stats latest(health_score) as wan_health by _time] | eval combined_health=round((campus_health+wan_health)/2,1) | eval health_gap=abs(campus_health-wan_health) | where health_gap > 20 | table _time campus_health wan_health combined_health health_gap
+```
+
+## Visualization
+
+Time-series line chart: campus_health, wan_health, health_gap; single-value for combined_health when gap exceeds threshold; optional alert on sustained divergence.
+
+## Known False Positives
+
+**SD-WAN circuit maintenance causing temporary WAN health drop while campus health is stable.** When an MPLS or internet circuit undergoes maintenance, the SD-WAN health score drops while the Catalyst Center campus health remains unaffected. Distinguish by checking whether the WAN health drop coincides with a circuit provider maintenance notification. This is a real event — correlate, don't suppress.
+
+**Different poll intervals between Catalyst Center and SD-WAN data sources causing time alignment issues.** The `appendcols` join assumes both queries return data for the same time window. If the Catalyst Center and SD-WAN TAs poll at different intervals, the time alignment may produce mismatched comparisons. Distinguish by comparing `latest(_time)` from both sourcetypes and verifying they are within the same poll window. Suppress by using `| eval` with time-binning (`bin _time span=15m`) on both data sources before the correlation.
+
+**SD-WAN vManage cluster in standby mode reporting stale health data.** If the SD-WAN vManage cluster fails over, the TA may continue polling the old primary until reconfigured, returning stale health scores. Distinguish by checking `_time` of the SD-WAN events — if they are significantly older than the Catalyst Center events, the vManage data is stale. Suppress by alerting when the SD-WAN data latency exceeds 2x the expected poll interval.
+
+**Campus health high while WAN health low is a genuine cross-domain finding.** A WAN degradation will not immediately affect campus device health scores since Catalyst Center monitors campus infrastructure independently. The divergence is a correct correlation showing the WAN as the bottleneck. Do not suppress — this is the purpose of the cross-product UC.
+
+## References
+
+- [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
+- [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
+- [Catalyst Center Network Health API — Cisco DevNet](https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-health)

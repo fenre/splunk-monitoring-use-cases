@@ -405,7 +405,7 @@ def _uc_to_unified_savedsearch(
             "| stats count "
             f"| eval uc_id=\"{uc_id}\""
         )
-    spl_lines = spl_text.splitlines()
+    spl_lines = [line.rstrip() for line in spl_text.splitlines() if line.strip()]
     if len(spl_lines) == 1:
         search_value = spl_lines[0]
     else:
@@ -1237,7 +1237,7 @@ def _recommend_studio_view_xml(api_base: str) -> str:
     layouts natively, so we only need the XML stub for the nav.
     """
     return f"""{GENERATED_XML_BANNER}
-<dashboard version="2" theme="light" script="recommender.js" stylesheet="recommender.css">
+<dashboard version="2" theme="light">
   <label>Recommend (Dashboard Studio)</label>
   <description>Dashboard Studio layout of the recommendation page. Companion to recommend.xml.</description>
   <definition src="recommend.json"/>
@@ -2834,7 +2834,7 @@ def _build_ta_app(
     ta_root = out_root / TA_APP_ID
     _write_text(ta_root / "default" / "app.conf", _ta_app_conf(version))
     _write_text(ta_root / "default" / "inputs.conf", _ta_inputs_conf())
-    _write_text(ta_root / "bin" / "deep_scan.py", _DEEP_SCAN_PY)
+    _write_text(ta_root / "bin" / "uc_recommender_deep_scan.py", _DEEP_SCAN_PY)
     _write_text(ta_root / "metadata" / "default.meta", _default_meta_ta())
     _write_json(ta_root / "app.manifest", _ta_app_manifest(version))
     _write_text(ta_root / "README.md", _ta_readme(version, generated_at))

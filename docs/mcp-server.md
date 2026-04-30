@@ -2,7 +2,7 @@
 
 > **TL;DR** — Install [`splunk-uc-mcp`](../mcp/) locally (`pip install -e mcp/`)
 > and point your MCP-aware editor (Cursor, Claude Desktop, Claude Code,
-> MCP Inspector) at it. The server exposes the 6 424 use cases, 60
+> MCP Inspector) at it. The server exposes the 7,337 use cases, 69
 > regulations, 105 equipment slugs, and the signed provenance ledger
 > published by this repository as Model Context Protocol tools and
 > resources. Read-only, stdio-only, no authentication surface, and no
@@ -39,10 +39,10 @@ project's GitHub Pages mirror.
 
 | Surface | Count | Source |
 | --- | --- | --- |
-| Tools | 8 | Declared in [`mcp/src/splunk_uc_mcp/server.py`](../mcp/src/splunk_uc_mcp/server.py) |
+| Tools | 10 | Declared in [`mcp/src/splunk_uc_mcp/server.py`](../mcp/src/splunk_uc_mcp/server.py) |
 | URI families | 4 (`uc://`, `reg://`, `equipment://`, `ledger://`) | Declared in [`mcp/src/splunk_uc_mcp/resources/uri_scheme.py`](../mcp/src/splunk_uc_mcp/resources/uri_scheme.py) |
-| Use cases exposed | 6 424 | `api/v1/recommender/uc-thin.json` + per-UC endpoints |
-| Regulations | 60 | `api/v1/compliance/regulations/index.json` |
+| Use cases exposed | 7,337 | `api/v1/recommender/uc-thin.json` + per-UC endpoints |
+| Regulations | 69 | `api/v1/compliance/regulations/index.json` |
 | Equipment slugs | 105 | `api/v1/equipment/index.json` |
 | Compliance gap report | 1 | `api/v1/compliance/gaps.json` |
 | Signed provenance ledger | 1 889 entries | `data/provenance/mapping-ledger.json` (local only) |
@@ -66,7 +66,7 @@ the stdio transport makes the agent the sole trust boundary.
 │ splunk-uc-mcp (python package, this repo)                            │
 │                                                                      │
 │   ┌────────────┐  ┌──────────────────────┐  ┌──────────────────────┐ │
-│   │ server.py  │─▶│ tools/*.py (8 tools) │─▶│ catalog.py           │ │
+│   │ server.py  │─▶│ tools/*.py (10 tools) │─▶│ catalog.py           │ │
 │   │ stdio loop │  │ resources/uri_scheme │  │ (local + HTTPS)      │ │
 │   └────────────┘  └──────────────────────┘  └──────────┬───────────┘ │
 └─────────────────────────────────────────────────────────┼────────────┘
@@ -283,7 +283,7 @@ Useful as a discovery step before `search_use_cases`.
 
 ### `list_regulations`
 
-List the 60 regulations with jurisdiction, tier, and tag metadata.
+List the 69 regulations with jurisdiction, tier, and tag metadata.
 
 ```json
 {

@@ -1,5 +1,7 @@
 # Category files and display names
 
+> **Deprecated:** This document describes the legacy v6 markdown-first layout (`use-cases/cat-NN-*.md`). The current canonical layout is `content/cat-NN-slug/UC-X.Y.Z.json` — see [`docs/architecture.md`](architecture.md) for the v7 structure.
+
 ## Why there are more markdown files than categories
 
 The build only turns a file into a **category** if its first `# N.` or `## N.` heading is a **top-level** category (e.g. `## 10. Security Infrastructure`). One file is intentionally **not** a category and is **skipped** by the build:

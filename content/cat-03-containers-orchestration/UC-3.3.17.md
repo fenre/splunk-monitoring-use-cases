@@ -1,0 +1,426 @@
+<!-- AUTO-GENERATED from UC-3.3.17.json — DO NOT EDIT -->
+
+---
+id: "3.3.17"
+title: "MachineConfigPool Degradation"
+status: "verified"
+criticality: "critical"
+splunkPillar: "Observability"
+---
+
+# UC-3.3.17 · MachineConfigPool Degradation
+
+> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Configuration, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
+
+*OpenShift keeps a master checklist called a MachineConfigPool that says every server in a group should run the same low-level operating recipe. When that checklist shows Degraded, some machines refused the recipe, and we need to find out why before the next big upgrade leaves them behind.*
+
+---
+
+## Description
+
+Detects OpenShift MachineConfigPool degradation on the Machine Configuration Operator plane: Degraded=True, Updating stalls, divergence between machineCount and readyMachineCount versus degradedMachineCount, spec.paused governance gates, maxUnavailable exhaustion, render-config skew, and post-upgrade cohort drift across worker and control-plane pools. The analytic multisearches MCP API snapshots, OpenShift events, and optional MCO Prometheus metrics, applies coalesce() normalization for field naming drift, uses streamstats for short-term degraded count deltas and eventstats for fleet percentile context, and emits page, warn, or info severities with recommended_action verbs. UC-3.2.3 covers generic node NotReady without MCP ledger context; UC-3.3.1 covers ClusterVersion upgrade progression rather than per-pool OS recipe convergence.
+
+## Value
+
+Platform leaders reduce mean time to innocence when upgrades or configuration campaigns stall at the MCP boundary: one bad kubelet config or chrony fragment can strand a pool while ClusterVersion still reports success, and maxUnavailable=1 layouts amplify single-node faults into fleet-wide change freezes. Splunk preserves a tamper-resistant narrative tying API counts, event text, optional mco_machine_count_drift gauges, and operator log references so auditors see continuous monitoring of the OS configuration ledger—not ad hoc oc commands during incidents. FinOps and risk teams gain evidence that governance pauses, SSH rotations, and kernel argument programs complete within policy windows.
+
+## Implementation
+
+Provision index=openshift with openshift:machineconfigpool snapshots every five minutes via oc get machineconfigpool -o json, openshift:event from Splunk_TA_kubernetes or OTel k8s_events, and prometheus:metrics from OpenShift Monitoring via OTel prometheus receiver; normalize cluster labels in props; save openshift_uc_3_3_17_mcp_degradation on a fifteen minute cadence over earliest=-24h@h; route page and warn severities to platform on-call with ITSI or webhooks.
+
+## Evidence
+
+Saved search openshift_uc_3_3_17_mcp_degradation with fifteen minute schedule; versioned ocp_machineconfig git repository hash referenced in weekly CSV exports; dashboard drilldowns on openshift:machineconfigpool, openshift:event, and prometheus:metrics; alert stanza with platform routing keys.
+
+## Control test
+
+### Positive scenario
+
+In a lab OpenShift cluster, apply a conflicting kubeletconfig MachineConfig to a single-node worker pool, wait until oc get machineconfigpool shows Degraded=True with degradedMachineCount=1, ingest snapshots into openshift:machineconfigpool, and confirm openshift_uc_3_3_17_mcp_degradation returns warn or page with non-zero degraded_pct and a kubelet-focused recommended_action.
+
+### Negative scenario
+
+Restore a healthy MachineConfig, unpause pools, wait until oc get machineconfigpool shows Degraded=False and Updating=False, and confirm the saved search emits only info rows or zero qualifying alert rows when the alert wrapper filters to page and warn severities.
+
+## Detailed Implementation
+
+### Step 1 — Prerequisites
+
+Head of Platform owns this control with the OpenShift platform engineering lead, the Kubernetes SRE rotation that carries cluster-admin credentials for production, and the observability engineers who operate Splunk HTTP Event Collector tokens plus OpenTelemetry Collector DaemonSets on management clusters. This use case isolates the Machine Configuration Operator (MCO) ledger plane: MachineConfigPool objects that batch node-level Ignition recipes—kernel arguments, kubelet configuration, container runtime (CRI-O) tunables, chrony time sync, SSH authorized keys, and other OS glue—into worker and control-plane cohorts. UC-3.2.3 remains the generic Kubernetes node NotReady and kubelet health story; this UC deliberately does not re-litigate kubelet heartbeats without MCP context. UC-3.3.1 remains cluster version and long-running upgrade progression; this UC focuses on per-pool configuration convergence, paused governance gates, maxUnavailable exhaustion, render-config mismatch signals, and multi-node divergence after an OpenShift minor or patch transition. Splunk becomes the reconciliation narrative that ties API object snapshots, OpenShift events, optional Prometheus mco_machine_count_drift style gauges, and operator logs referenced in validation into one analyst row per cluster and pool.
+
+Index contracts land before parsers. Create or designate index=openshift (or a governed openshift_platform index) for MCP JSON snapshots, MachineConfig object exports if you correlate laterally, openshift:event Kubernetes events, and prometheus:metrics lines scraped from the in-cluster monitoring stack or federated through an OpenTelemetry Collector prometheus receiver. Issue distinct HEC tokens per environment with least privilege: platform SRE read-only roles on the index, application teams dashboard-only filtered views, and quarterly token rotation recorded in your secrets vault. Retention: keep at least fourteen days hot for incident replay on MCP stalls, thirty days for post-upgrade forensic review, and align cold storage with enterprise observability policy.
+
+RBAC and safety: the scripted input or cron job that runs oc get machineconfigpool -o json (and optional oc get machineconfig -o json) must use a dedicated service account with get/list on machineconfiguration.openshift.io resources, not cluster-admin on employee laptops. Run the collector from a hardened management host or CI worker with short-lived kubeconfig files. Legal and privacy reviews should confirm node names and SSH fingerprints in events are acceptable in Splunk; redact employee identifiers from free-text messages when counsel requires.
+
+Field normalization expectations: your forwarder should flatten metadata.name into name or mcp_name, status.machineCount into machineCount, status.readyMachineCount into readyMachineCount, status.degradedMachineCount into degradedMachineCount, status.updatedMachineCount into updatedMachineCount, status.conditions[type=Degraded].status into status_degraded, and status.conditions[type=Updating].status into status_updating. If you ingest raw JSON without KV extraction, add props.conf with INDEXED_EXTRACTIONS=json and FIELDALIAS rules so the SPL coalesce() ladder still resolves. Cluster identity must be present on every event as cluster, openshift_cluster, or cluster_name drawn from management-cluster context or external_labels on Prometheus scrapes.
+
+Risk briefing: MCP degradation is a frequent root cause of upgrade succeeded but nodes behave differently incidents—especially when a post-upgrade MachineConfig renders a new kubelet config but one worker refuses the file, or when maxUnavailable=1 pools stall behind a single bad node. MachineConfigPool.spec.paused=true is a legitimate governance freeze; alerts must treat pause plus intentional maintenance differently from accidental drift. Chrony and SSH key MachineConfigs can look healthy in the console while MCD pods loop on a single node; combine API counts with events and MCD logs during validation.
+
+Differentiation recap: MCP object degradation and rollout stalls on the MCO plane, not generic node readiness without MCP, not ClusterVersion upgrade tracking, not etcd leader churn in isolation, and not pure workload pod crash loops.
+
+### Step 2 — Configure data collection
+
+Stand up three complementary lanes that Splunk can multisearch together: periodic MCP API snapshots, OpenShift Kubernetes events involving MachineConfigPool objects, and optional Prometheus metrics that expose MCO machine-count drift gauges when your monitoring platform scrapes the openshift-machine-config-operator metrics Service or kube-state-metrics exports on machineconfiguration.openshift.io objects.
+
+Scripted snapshot lane: package a small Python or Go utility executed every five minutes from a management host with kubeconfig authentication. The utility should run oc get machineconfigpool -o json, iterate items[], and emit one HEC JSON event per pool with fields cluster, name, paused, machineCount, readyMachineCount, degradedMachineCount, updatedMachineCount, generation, observedGeneration, configuration.name, and derived booleans for Degraded and Updating conditions. Set sourcetype=openshift:machineconfigpool and source=oc_mcp_snapshot. Include a sha256 hash of the canonical JSON body (without volatile resourceVersion) if you want tamper-evident auditing in regulated environments.
+
+Event lane: forward Kubernetes events from the API server to Splunk with sourcetype=openshift:event using the Splunk Add-on for Kubernetes (Splunk_TA_kubernetes) event collection patterns or an OpenTelemetry Collector k8s_events receiver. Ensure involvedObject.kind=MachineConfigPool is preserved, along with message, reason, firstTimestamp, and cluster identity. Increase retention on this sourcetype when you expect noisy operator loops during upgrades.
+
+Metrics lane: enable user-workload monitoring or platform monitoring federation per OpenShift Monitoring documentation, then scrape series such as mco_machine_count_drift (name may vary slightly by OCP minor; validate against oc get --raw /metrics on the operator Service) through a prometheus receiver in the OpenTelemetry Collector. Land lines in the same openshift index with sourcetype=prometheus:metrics and preserve labels that identify pool or role when present. If kube-state-metrics is deployed with custom resource state metrics for MachineConfigPool, map those labels into cluster and machineconfigpool fields for joins.
+
+Example collector fragment combining prometheus scrape and HEC export (simplify tokens and TLS for your estate):
+
+```yaml
+receivers:
+  prometheus/mco:
+    config:
+      scrape_configs:
+        - job_name: openshift-mco
+          scheme: https
+          tls_config:
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+          kubernetes_sd_configs:
+            - role: endpoints
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_namespace]
+              regex: openshift-machine-config-operator
+              action: keep
+exporters:
+  splunk_hec:
+    token: ${SPLUNK_HEC_TOKEN_OPENSHIFT}
+    endpoint: https://splunk-hec.example:8088/services/collector/event
+    index: openshift
+    sourcetype: prometheus:metrics
+service:
+  pipelines:
+    metrics:
+      receivers: [prometheus/mco]
+      exporters: [splunk_hec]
+```
+
+props.conf guidance: for openshift:machineconfigpool, TIMESTAMP_FIELDS = _time if your HEC sender sets time correctly; TRUNCATE = 1048576 for large JSON; KV_MODE = json when forwarding raw JSON bodies. For prometheus:metrics, reuse your shared prometheus extraction configuration so __name__, value, and labels become indexed fields where possible.
+
+Pre-save validation: index=openshift sourcetype=openshift:machineconfigpool earliest=-1h must return non-zero event counts after the first five minute interval; openshift:event should show MachineConfigPool involved objects during intentional test rollouts; prometheus:metrics should include MCO metric names after ServiceMonitor or platform monitoring scrape begins.
+
+Operational depth note 1 (governance): align MCP telemetry with your change board by stamping git commit hashes of MachineConfig bundles onto HEC events when automation pushes manifests. When Splunk shows Updating=True but your GitOps repository shows no drift, suspect out-of-band oc edits or emergency hotfixes that bypassed the pipeline. Capture those incidents in a lookup table keyed on cluster and pool so future searches can suppress short-lived noise tied to approved break-glass work. Correlate registry mirror outages with MCD log lines mentioning image pull failures before assuming kubelet configuration is invalid. Pair chrony MachineConfig changes with time-offset signals from sibling monitoring so a single bad NTP peer does not masquerade as widespread MCP failure.
+
+Operational depth note 2 (operator_logs): align MCP telemetry with your change board by stamping git commit hashes of MachineConfig bundles onto HEC events when automation pushes manifests. When Splunk shows Updating=True but your GitOps repository shows no drift, suspect out-of-band oc edits or emergency hotfixes that bypassed the pipeline. Capture those incidents in a lookup table keyed on cluster and pool so future searches can suppress short-lived noise tied to approved break-glass work. Correlate registry mirror outages with MCD log lines mentioning image pull failures before assuming kubelet configuration is invalid. Pair chrony MachineConfig changes with time-offset signals from sibling monitoring so a single bad NTP peer does not masquerade as widespread MCP failure.
+
+Operational depth note 3 (registry_mirrors): align MCP telemetry with your change board by stamping git commit hashes of MachineConfig bundles onto HEC events when automation pushes manifests. When Splunk shows Updating=True but your GitOps repository shows no drift, suspect out-of-band oc edits or emergency hotfixes that bypassed the pipeline. Capture those incidents in a lookup table keyed on cluster and pool so future searches can suppress short-lived noise tied to approved break-glass work. Correlate registry mirror outages with MCD log lines mentioning image pull failures before assuming kubelet configuration is invalid. Pair chrony MachineConfig changes with time-offset signals from sibling monitoring so a single bad NTP peer does not masquerade as widespread MCP failure.
+
+Operational depth note 4 (chrony): align MCP telemetry with your change board by stamping git commit hashes of MachineConfig bundles onto HEC events when automation pushes manifests. When Splunk shows Updating=True but your GitOps repository shows no drift, suspect out-of-band oc edits or emergency hotfixes that bypassed the pipeline. Capture those incidents in a lookup table keyed on cluster and pool so future searches can suppress short-lived noise tied to approved break-glass work. Correlate registry mirror outages with MCD log lines mentioning image pull failures before assuming kubelet configuration is invalid. Pair chrony MachineConfig changes with time-offset signals from sibling monitoring so a single bad NTP peer does not masquerade as widespread MCP failure.
+
+Operational depth note 5 (ssh_keys): align MCP telemetry with your change board by stamping git commit hashes of MachineConfig bundles onto HEC events when automation pushes manifests. When Splunk shows Updating=True but your GitOps repository shows no drift, suspect out-of-band oc edits or emergency hotfixes that bypassed the pipeline. Capture those incidents in a lookup table keyed on cluster and pool so future searches can suppress short-lived noise tied to approved break-glass work. Correlate registry mirror outages with MCD log lines mentioning image pull failures before assuming kubelet configuration is invalid. Pair chrony MachineConfig changes with time-offset signals from sibling monitoring so a single bad NTP peer does not masquerade as widespread MCP failure.
+
+Operational depth note 6 (kernel_rt): align MCP telemetry with your change board by stamping git commit hashes of MachineConfig bundles onto HEC events when automation pushes manifests. When Splunk shows Updating=True but your GitOps repository shows no drift, suspect out-of-band oc edits or emergency hotfixes that bypassed the pipeline. Capture those incidents in a lookup table keyed on cluster and pool so future searches can suppress short-lived noise tied to approved break-glass work. Correlate registry mirror outages with MCD log lines mentioning image pull failures before assuming kubelet configuration is invalid. Pair chrony MachineConfig changes with time-offset signals from sibling monitoring so a single bad NTP peer does not masquerade as widespread MCP failure.
+
+Operational depth note 7 (max_unavailable): align MCP telemetry with your change board by stamping git commit hashes of MachineConfig bundles onto HEC events when automation pushes manifests. When Splunk shows Updating=True but your GitOps repository shows no drift, suspect out-of-band oc edits or emergency hotfixes that bypassed the pipeline. Capture those incidents in a lookup table keyed on cluster and pool so future searches can suppress short-lived noise tied to approved break-glass work. Correlate registry mirror outages with MCD log lines mentioning image pull failures before assuming kubelet configuration is invalid. Pair chrony MachineConfig changes with time-offset signals from sibling monitoring so a single bad NTP peer does not masquerade as widespread MCP failure.
+
+### Step 3 — Create the search and alert
+
+Save the SPL as openshift_uc_3_3_17_mcp_degradation with a fifteen minute schedule, dispatch earliest=-24h@h, dispatch latest=now, and alert when severity is page or warn. Throttle duplicate cluster,mcp_pool rows for thirty minutes unless severity escalates from warn to page. Include recommended_action, degraded_pct, and updating_minutes in pager descriptions so incident commanders open the right runbook section without re-running ad hoc searches.
+
+Pipeline narrative for operators: multisearch fans three parallel arms so a silent metrics scrape does not hide a genuinely Degraded API status. The MCP snapshot arm normalizes cluster and pool names, derives degraded_flag and updating_flag from conditions or counts, and uses streamstats to measure short-term degradedMachineCount movement as degraded_mc_delta for sudden divergence detection. The event arm carries human-readable last_event_message and last_failed_node hints when the API emits node-specific failures. The Prometheus arm raises drift_hint when mco_machine_count_drift (or similarly named MCO machine counters) stays positive, suggesting render versus apply skew worth correlating to kube-state-metrics. After fan-in, eventstats perc90(degraded_pct) by cluster adds fleet context for severity shading. case() maps governance pause plus degradation, wide blast radius, stuck updating beyond sixty minutes, and drift hints into page versus warn versus info tiers. recommended_action encodes the next mechanical step without pretending Splunk replaces oc debug.
+
+Fenced SPL must match the spl JSON field exactly:
+
+```spl
+`comment("UC-3.3.17 OpenShift MachineConfigPool (MCP) degradation — MCO config plane. Tunables: idx=openshift; st_mcp=openshift:machineconfigpool st_evt=openshift:event st_prom=prometheus:metrics; earliest=-24h@h latest=now; stuck_updating_min=60; degraded_pct_page=1")`
+| multisearch
+    [ search index=openshift sourcetype="openshift:machineconfigpool" earliest=-24h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval mcp_pool=lower(trim(toString(coalesce(name, mcp_name, metadata_name, pool, object_name, ""))))
+      | eval mcp_role=lower(trim(toString(coalesce(node_role, pool_role, role_label, machineconfiguration_role, mcp_pool, ""))))
+      | eval mcp_paused=case(match(lower(toString(coalesce(paused, spec_paused, is_paused, ""))), "true|1"), "true", true(), "false")
+      | eval machineCount=tonumber(tostring(coalesce(machineCount, machine_count, status_machineCount, mc_total, "0")), 10)
+      | eval readyMachineCount=tonumber(tostring(coalesce(readyMachineCount, ready_machine_count, status_readyMachineCount, "0")), 10)
+      | eval degradedMachineCount=tonumber(tostring(coalesce(degradedMachineCount, degraded_machine_count, status_degradedMachineCount, "0")), 10)
+      | eval updatedMachineCount=tonumber(tostring(coalesce(updatedMachineCount, updated_machine_count, status_updatedMachineCount, "0")), 10)
+      | eval cond_deg=lower(trim(toString(coalesce(status_degraded, conditions_Degraded, degraded_condition, degraded, ""))))
+      | eval cond_upd=lower(trim(toString(coalesce(status_updating, conditions_Updating, updating_condition, updating, ""))))
+      | eval degraded_flag=if(match(cond_deg, "true") OR coalesce(degradedMachineCount, 0) > 0, 1, 0)
+      | eval updating_flag=if(match(cond_upd, "true"), 1, 0)
+      | sort 0 + cluster + mcp_pool - _time
+      | streamstats window=2 current=t global=f last(degradedMachineCount) AS prev_deg_mc BY cluster mcp_pool
+      | eval degraded_mc_delta=abs(degradedMachineCount - coalesce(prev_deg_mc, degradedMachineCount))
+      | eval lane="mcp_snapshot"
+      | fields _time cluster mcp_pool mcp_role mcp_paused machineCount readyMachineCount degradedMachineCount updatedMachineCount degraded_flag updating_flag degraded_mc_delta lane ]
+    [ search index=openshift sourcetype="openshift:event" earliest=-24h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, source_cluster, ""))))
+      | eval kind=lower(trim(toString(coalesce(involvedObject_kind, involved_kind, object_kind, ""))))
+      | eval mcp_pool=lower(trim(toString(coalesce(involvedObject_name, involved_name, object_name, ""))))
+      | where kind="machineconfigpool" OR match(lower(_raw), "machineconfigpool")
+      | eval last_event_message=trim(toString(coalesce(message, Message, reason, "")))
+      | eval last_failed_node=trim(toString(coalesce(node, host, node_name, failing_node, "")))
+      | eval lane="mcp_event"
+      | stats latest(_time) AS last_evt_time latest(last_event_message) AS last_event_message latest(last_failed_node) AS last_failed_node BY cluster mcp_pool lane ]
+    [ search index=openshift sourcetype="prometheus:metrics" earliest=-24h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=trim(toString(coalesce(__name__, metric_name, name, "")))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "0")), 10)
+      | where match(lower(mn), "mco_machine_count_drift") OR match(lower(mn), "mco_.*machine")
+      | eval mcp_pool=lower(trim(toString(coalesce(machineconfigpool, mcp, pool, label_machineconfigpool, "cluster_aggregate"))))
+      | eval lane="mco_prom"
+      | stats latest(_time) AS last_prom_time latest(mv) AS mco_machine_count_drift BY cluster mcp_pool lane ]
+    [ search index=openshift sourcetype="openshift:event" earliest=-24h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval mcp_pool=lower(trim(toString(coalesce(involvedObject_name, name, mcp_name, ""))))
+      | eval evt_kind=lower(trim(toString(coalesce(involvedObject_kind, "machineconfigpool"))))
+      | eval evt_reason=lower(trim(toString(coalesce(reason, event_reason, ""))))
+      | eval evt_msg=lower(trim(toString(coalesce(message, event_message, _raw, ""))))
+      | where evt_kind="machineconfigpool" OR match(evt_msg, "machine.config|mcp|render-")
+      | stats count AS mcp_evt_count, max(_time) AS last_mcp_evt_time, values(evt_reason) AS mcp_evt_reasons BY cluster mcp_pool
+      | eval lane="mcp_event_signal"
+      | eval mcp_role=""
+      | eval mcp_paused="false"
+      | eval machineCount=0
+      | eval readyMachineCount=0
+      | eval degradedMachineCount=0
+      | eval updatedMachineCount=0
+      | eval cond_deg=""
+      | eval cond_upd=""
+      | eval degraded_flag=if(mcp_evt_count>0,1,0)
+      | eval _time=last_mcp_evt_time
+      | fields _time cluster mcp_pool mcp_role mcp_paused machineCount readyMachineCount degradedMachineCount updatedMachineCount cond_deg cond_upd degraded_flag mcp_evt_count last_mcp_evt_time mcp_evt_reasons lane ]
+| eval mcp_pool=lower(trim(coalesce(mcp_pool, "unknown")))
+| stats latest(_time) AS last_seen first(mcp_role) AS mcp_role values(mcp_paused) AS paused_vals max(machineCount) AS machineCount max(readyMachineCount) AS readyMachineCount max(degradedMachineCount) AS degradedMachineCount max(updatedMachineCount) AS updatedMachineCount max(degraded_flag) AS degraded_flag max(updating_flag) AS updating_flag max(degraded_mc_delta) AS degraded_mc_delta max(last_evt_time) AS last_evt_time max(last_prom_time) AS last_prom_time max(mco_machine_count_drift) AS mco_machine_count_drift values(last_event_message) AS lem_mv values(last_failed_node) AS lfn_mv BY cluster mcp_pool
+| eval mcp_paused=lower(trim(toString(mvindex(mvdedup(paused_vals), 0))))
+| eval mcp_role=lower(trim(toString(coalesce(mcp_role, mcp_pool, ""))))
+| eval last_event_message=trim(toString(mvindex(mvdedup(lem_mv), 0)))
+| eval last_failed_node=trim(toString(mvindex(mvdedup(lfn_mv), 0)))
+| eval degraded_pct=if(machineCount > 0, round(100.0 * degradedMachineCount / machineCount, 2), 0.0)
+| eval updating_minutes=if(updating_flag == 1 AND isnotnull(last_seen), round((now() - last_seen) / 60, 2), 0.0)
+| eval days_since_last_success=if(isnotnull(last_seen), round((now() - last_seen) / 86400, 3), null())
+| eval drift_hint=if(isnotnull(mco_machine_count_drift) AND mco_machine_count_drift > 0, 1, 0)
+| eventstats perc90(degraded_pct) AS cluster_deg_p90 BY cluster
+| eval severity=case(
+    mcp_paused == "true" AND (degraded_flag == 1 OR degraded_pct >= 5), "page",
+    degraded_flag == 1 AND degradedMachineCount >= 3, "page",
+    degraded_flag == 1 AND degradedMachineCount >= 1, "warn",
+    updating_flag == 1 AND updating_minutes >= 60, "page",
+    updating_flag == 1 AND updating_minutes >= 30, "warn",
+    updating_flag == 1 AND updating_minutes < 30, "info",
+    drift_hint == 1, "warn",
+    degraded_flag == 0 AND updating_flag == 0 AND drift_hint == 0 AND coalesce(cluster_deg_p90, 0) < 1, "info",
+    true(), "warn")
+| eval recommended_action=case(
+    mcp_paused == "true" AND degraded_flag == 1, "unpause_or_rollback_governance_then_resync_mcp",
+    degraded_flag == 1 AND degradedMachineCount == 1, "describe_mcp_and_mcd_logs_on_single_node",
+    degraded_flag == 1 AND degradedMachineCount > 1, "check_post_upgrade_manifest_divergence_and_pool_rollout",
+    updating_flag == 1 AND updating_minutes >= 60, "investigate_stuck_rollout_max_unavailable_and_mcc_logs",
+    updating_flag == 1 AND updating_minutes < 30, "treat_as_active_rollout_monitor_only",
+    drift_hint == 1, "compare_kube_state_metrics_machineconfigpool_to_api_snapshot",
+    degraded_flag == 0 AND updating_flag == 0, "treat_as_healthy_mcp_snapshot_refresh",
+    true(), "correlate_events_and_machineconfig_objects")
+| join type=left max=0 cluster
+    [| inputlookup openshift_cluster_inventory.csv
+     | fields cluster, cluster_tier, owner_team, environment]
+| eval cluster_tier=coalesce(cluster_tier, "unrated"),
+       owner_team=coalesce(owner_team, "unowned"),
+       environment=coalesce(environment, "unknown")
+| table cluster mcp_pool mcp_role mcp_paused machineCount readyMachineCount degradedMachineCount updatedMachineCount degraded_pct updating_minutes last_failed_node last_event_message severity days_since_last_success recommended_action cluster_tier owner_team environment
+```
+
+
+savedsearches.conf sketch for platform paging:
+
+```ini
+[openshift_uc_3_3_17_mcp_degradation_alert]
+action.email = 1
+action.email.to = openshift-platform@example.com
+action.email.subject = OpenShift MCP degradation $result.severity$ on $result.cluster$ pool $result.mcp_pool$
+action.email.message.alert = $result.recommended_action$ :: degraded_pct=$result.degraded_pct$ updating_min=$result.updating_minutes$
+cron_schedule = */15 * * * *
+dispatch.earliest_time = -24h@h
+dispatch.latest_time = now
+enableSched = 1
+is_visible = 1
+alert.track = 1
+alert.condition = search
+alert.comparator = greater than
+alert.threshold = 0
+counttype = number of events
+relation = greater than
+quantity = 0
+search = `comment("alert wrapper UC-3.3.17")`\
+| savedsearch openshift_uc_3_3_17_mcp_degradation\
+| where severity IN ("page","warn")
+```
+
+For Splunk ITSI optional deployments, bind a KPI to the percentage of pools at warn or page per cluster and attach episode policies when two consecutive windows stay non-info.
+
+Performance: if Job Inspector shows multisearch queue time above your internal SLA, materialize openshift:machineconfigpool snapshots hourly into a summary index keyed on cluster and mcp_pool, widen alert searches to earliest=-6h@h on the summary, and keep this full search for investigations.
+
+### Step 4 — Validate
+
+Ground truth always starts on-cluster. Run oc get machineconfigpool -o wide and compare machineCount, READY, UPDATED, DEGRADED, MCD UPDATED, and UPDATING columns to the Splunk row for the same cluster and pool inside the last snapshot window. When numbers disagree, first verify resourceVersion freshness and indexer clock skew before blaming Splunk parsing.
+
+Deep dive with oc describe machineconfigpool <name> to read condition messages, paused spec, maxUnavailable, machineSelector, and pinned machineConfigSelector references. Splunk should mirror Degraded=True and Updating=True transitions within one collection interval; if not, tighten scripted input frequency or fix token expiration on the management host.
+
+Operator reconciliation logs matter: collect oc logs -n openshift-machine-config-operator -l k8s-app=machine-config-daemon --tail=200 from a failing node context (via debug pod or privileged tooling per your security policy) and confirm errors such as rpm-ostree failures, Ignition fetch timeouts, or kubelet config validation refusals. Correlate log timestamps with openshift:event storms and with MCP snapshot deltas in Splunk.
+
+Prometheus cross-check: in the OpenShift console monitoring stack or via oc get --raw on metrics endpoints, validate kube-state-metrics style series on machineconfigpool objects if enabled, and compare generation labels to Splunk observed counts. When mco_machine_count_drift appears in prometheus:metrics, confirm the gauge returns toward zero after remediation; persistent positive drift with API healthy flags is a signal to open an operator bug or vendor case with data.
+
+Synthetic validation: in a lab cluster, apply a deliberately conflicting kubeletconfig or an invalid kernel argument MachineConfig to a single-node pool, wait for Degraded=True, and confirm openshift_uc_3_3_17_mcp_degradation surfaces warn or page with non-zero degraded_pct. Roll back via git-managed manifests, watch the pool recover, and confirm severity returns to info. Negative test: pause a non-production pool with spec.paused=true during maintenance, ensure info or suppressed paging matches your alert wrapper logic, then unpause.
+
+Publish a dashboard with one row per cluster and pool using the closing table columns, color severity with UI thresholds (page=red, warn=amber, info=blue), and add drilldowns to raw openshift:machineconfigpool JSON, openshift:event text, and prometheus:metric lines. Archive weekly CSV exports of the alert table to a restricted evidence index with the git commit hash of your MachineConfig manifests for auditors proving continuous MCP oversight.
+
+Wire alert actions to platform on-call, optional ITSI episodes, and ticketing systems with cluster, mcp_pool, recommended_action, and direct links to internal runbooks covering kubelet config render mismatches, maxUnavailable tuning, chrony drift, SSH key rotations, kernel-rt arguments, and MCD crash loops. Document ownership: platform SRE for worker pools, control-plane team for master pools, security for SSH key MachineConfigs.
+
+Train responders that MCP fixes often require cordoning nodes, deleting stale machine-config-daemon pods, or rolling back a bad MachineConfig before a cluster upgrade proceeds—Splunk supplies the when and where, not the privileged command execution.
+
+### Step 5 — Operationalize & Troubleshoot
+
+Case A — paused=true MachineConfigPool during a governance freeze: confirm change tickets authorize pause, ensure ClusterVersion is not mid-flight without an exception, and treat Degraded=True during pause as a planned risk window with suppressed paging until unpause.
+
+Case B — Updating=True for under thirty minutes after a MachineConfig bump: expect info severity, monitor only, and validate maxUnavailable allows parallel node churn; do not page if single-node pools are progressing serially.
+
+Case C — Updating=True beyond sixty minutes with stagnant updatedMachineCount: treat as stuck rollout; inspect maxUnavailable budget, node cordons, and MCC logs for render failures; consider raising maxUnavailable temporarily under change control after assessing blast radius.
+
+Case D — Degraded=True with exactly one degradedMachineCount: focus on kubelet config or CRI-O render mismatch on that node; use oc describe node and MCD logs on the failing host before widening the blast radius.
+
+Case E — Degraded=True with multi-node degradedMachineCount after a cluster upgrade: look for manifest divergence between control-plane rendered configs and worker pools, verify git history for post-upgrade MachineConfig merges, and replay operator upgrade ordering from openshift-cluster-version events.
+
+Case F — render-config drift between desired and current: compare machineconfiguration.openshift.io/v1 MachineConfig generation on the pool to node annotations such as machineconfiguration.openshift.io/currentConfig; Splunk should show rising degraded_mc_delta while API messages mention render.
+
+Case G — maxUnavailable budget exhausted: pools with maxUnavailable=1 stall behind a single bad node; identify the blocking node via events, cordon or replace hardware, and document budget tuning for future rollouts.
+
+Case H — post-cluster-upgrade drift right after MCO operator transitions: expect transient Updating=True; if Degraded persists beyond vendor guidance, open a support case with must-gather, Splunk event excerpts, and MCP snapshot diffs.
+
+Case I — chrony or SSH-key Ignition file divergence: validate time sync MachineConfig references and authorized_keys fragments; incorrect chrony can break certificate renewals elsewhere, so pair with sibling PKI monitoring when symptoms overlap.
+
+Case J — kernel-argument drift on RT or RHEL CoreOS variants: confirm kernelType and realtime kargs are consistent across the pool; mismatches often surface as single-node Degraded with rpm-ostree errors in MCD logs.
+
+Case K — machine-config-daemon DaemonSet or pod crash looping: when MCD cannot apply, MCP counts stall; restart loops under change control after verifying disk space and SELinux denials, and escalate if the operator enters crash backoff cluster-wide.
+
+Case L — cluster-wide healthy MCP with info severity and zero drift: use as a control test that telemetry, parsers, and tokens work; spot-check weekly that Splunk rows still match oc get machineconfigpool for every production cluster.
+
+## SPL
+
+```spl
+`comment("UC-3.3.17 OpenShift MachineConfigPool (MCP) degradation — MCO config plane. Tunables: idx=openshift; st_mcp=openshift:machineconfigpool st_evt=openshift:event st_prom=prometheus:metrics; earliest=-24h@h latest=now; stuck_updating_min=60; degraded_pct_page=1")`
+| multisearch
+    [ search index=openshift sourcetype="openshift:machineconfigpool" earliest=-24h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval mcp_pool=lower(trim(toString(coalesce(name, mcp_name, metadata_name, pool, object_name, ""))))
+      | eval mcp_role=lower(trim(toString(coalesce(node_role, pool_role, role_label, machineconfiguration_role, mcp_pool, ""))))
+      | eval mcp_paused=case(match(lower(toString(coalesce(paused, spec_paused, is_paused, ""))), "true|1"), "true", true(), "false")
+      | eval machineCount=tonumber(tostring(coalesce(machineCount, machine_count, status_machineCount, mc_total, "0")), 10)
+      | eval readyMachineCount=tonumber(tostring(coalesce(readyMachineCount, ready_machine_count, status_readyMachineCount, "0")), 10)
+      | eval degradedMachineCount=tonumber(tostring(coalesce(degradedMachineCount, degraded_machine_count, status_degradedMachineCount, "0")), 10)
+      | eval updatedMachineCount=tonumber(tostring(coalesce(updatedMachineCount, updated_machine_count, status_updatedMachineCount, "0")), 10)
+      | eval cond_deg=lower(trim(toString(coalesce(status_degraded, conditions_Degraded, degraded_condition, degraded, ""))))
+      | eval cond_upd=lower(trim(toString(coalesce(status_updating, conditions_Updating, updating_condition, updating, ""))))
+      | eval degraded_flag=if(match(cond_deg, "true") OR coalesce(degradedMachineCount, 0) > 0, 1, 0)
+      | eval updating_flag=if(match(cond_upd, "true"), 1, 0)
+      | sort 0 + cluster + mcp_pool - _time
+      | streamstats window=2 current=t global=f last(degradedMachineCount) AS prev_deg_mc BY cluster mcp_pool
+      | eval degraded_mc_delta=abs(degradedMachineCount - coalesce(prev_deg_mc, degradedMachineCount))
+      | eval lane="mcp_snapshot"
+      | fields _time cluster mcp_pool mcp_role mcp_paused machineCount readyMachineCount degradedMachineCount updatedMachineCount degraded_flag updating_flag degraded_mc_delta lane ]
+    [ search index=openshift sourcetype="openshift:event" earliest=-24h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, source_cluster, ""))))
+      | eval kind=lower(trim(toString(coalesce(involvedObject_kind, involved_kind, object_kind, ""))))
+      | eval mcp_pool=lower(trim(toString(coalesce(involvedObject_name, involved_name, object_name, ""))))
+      | where kind="machineconfigpool" OR match(lower(_raw), "machineconfigpool")
+      | eval last_event_message=trim(toString(coalesce(message, Message, reason, "")))
+      | eval last_failed_node=trim(toString(coalesce(node, host, node_name, failing_node, "")))
+      | eval lane="mcp_event"
+      | stats latest(_time) AS last_evt_time latest(last_event_message) AS last_event_message latest(last_failed_node) AS last_failed_node BY cluster mcp_pool lane ]
+    [ search index=openshift sourcetype="prometheus:metrics" earliest=-24h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
+      | eval mn=trim(toString(coalesce(__name__, metric_name, name, "")))
+      | eval mv=tonumber(tostring(coalesce(value, metric_value, Value, "0")), 10)
+      | where match(lower(mn), "mco_machine_count_drift") OR match(lower(mn), "mco_.*machine")
+      | eval mcp_pool=lower(trim(toString(coalesce(machineconfigpool, mcp, pool, label_machineconfigpool, "cluster_aggregate"))))
+      | eval lane="mco_prom"
+      | stats latest(_time) AS last_prom_time latest(mv) AS mco_machine_count_drift BY cluster mcp_pool lane ]
+    [ search index=openshift sourcetype="openshift:event" earliest=-24h@h latest=now
+      | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
+      | eval mcp_pool=lower(trim(toString(coalesce(involvedObject_name, name, mcp_name, ""))))
+      | eval evt_kind=lower(trim(toString(coalesce(involvedObject_kind, "machineconfigpool"))))
+      | eval evt_reason=lower(trim(toString(coalesce(reason, event_reason, ""))))
+      | eval evt_msg=lower(trim(toString(coalesce(message, event_message, _raw, ""))))
+      | where evt_kind="machineconfigpool" OR match(evt_msg, "machine.config|mcp|render-")
+      | stats count AS mcp_evt_count, max(_time) AS last_mcp_evt_time, values(evt_reason) AS mcp_evt_reasons BY cluster mcp_pool
+      | eval lane="mcp_event_signal"
+      | eval mcp_role=""
+      | eval mcp_paused="false"
+      | eval machineCount=0
+      | eval readyMachineCount=0
+      | eval degradedMachineCount=0
+      | eval updatedMachineCount=0
+      | eval cond_deg=""
+      | eval cond_upd=""
+      | eval degraded_flag=if(mcp_evt_count>0,1,0)
+      | eval _time=last_mcp_evt_time
+      | fields _time cluster mcp_pool mcp_role mcp_paused machineCount readyMachineCount degradedMachineCount updatedMachineCount cond_deg cond_upd degraded_flag mcp_evt_count last_mcp_evt_time mcp_evt_reasons lane ]
+| eval mcp_pool=lower(trim(coalesce(mcp_pool, "unknown")))
+| stats latest(_time) AS last_seen first(mcp_role) AS mcp_role values(mcp_paused) AS paused_vals max(machineCount) AS machineCount max(readyMachineCount) AS readyMachineCount max(degradedMachineCount) AS degradedMachineCount max(updatedMachineCount) AS updatedMachineCount max(degraded_flag) AS degraded_flag max(updating_flag) AS updating_flag max(degraded_mc_delta) AS degraded_mc_delta max(last_evt_time) AS last_evt_time max(last_prom_time) AS last_prom_time max(mco_machine_count_drift) AS mco_machine_count_drift values(last_event_message) AS lem_mv values(last_failed_node) AS lfn_mv BY cluster mcp_pool
+| eval mcp_paused=lower(trim(toString(mvindex(mvdedup(paused_vals), 0))))
+| eval mcp_role=lower(trim(toString(coalesce(mcp_role, mcp_pool, ""))))
+| eval last_event_message=trim(toString(mvindex(mvdedup(lem_mv), 0)))
+| eval last_failed_node=trim(toString(mvindex(mvdedup(lfn_mv), 0)))
+| eval degraded_pct=if(machineCount > 0, round(100.0 * degradedMachineCount / machineCount, 2), 0.0)
+| eval updating_minutes=if(updating_flag == 1 AND isnotnull(last_seen), round((now() - last_seen) / 60, 2), 0.0)
+| eval days_since_last_success=if(isnotnull(last_seen), round((now() - last_seen) / 86400, 3), null())
+| eval drift_hint=if(isnotnull(mco_machine_count_drift) AND mco_machine_count_drift > 0, 1, 0)
+| eventstats perc90(degraded_pct) AS cluster_deg_p90 BY cluster
+| eval severity=case(
+    mcp_paused == "true" AND (degraded_flag == 1 OR degraded_pct >= 5), "page",
+    degraded_flag == 1 AND degradedMachineCount >= 3, "page",
+    degraded_flag == 1 AND degradedMachineCount >= 1, "warn",
+    updating_flag == 1 AND updating_minutes >= 60, "page",
+    updating_flag == 1 AND updating_minutes >= 30, "warn",
+    updating_flag == 1 AND updating_minutes < 30, "info",
+    drift_hint == 1, "warn",
+    degraded_flag == 0 AND updating_flag == 0 AND drift_hint == 0 AND coalesce(cluster_deg_p90, 0) < 1, "info",
+    true(), "warn")
+| eval recommended_action=case(
+    mcp_paused == "true" AND degraded_flag == 1, "unpause_or_rollback_governance_then_resync_mcp",
+    degraded_flag == 1 AND degradedMachineCount == 1, "describe_mcp_and_mcd_logs_on_single_node",
+    degraded_flag == 1 AND degradedMachineCount > 1, "check_post_upgrade_manifest_divergence_and_pool_rollout",
+    updating_flag == 1 AND updating_minutes >= 60, "investigate_stuck_rollout_max_unavailable_and_mcc_logs",
+    updating_flag == 1 AND updating_minutes < 30, "treat_as_active_rollout_monitor_only",
+    drift_hint == 1, "compare_kube_state_metrics_machineconfigpool_to_api_snapshot",
+    degraded_flag == 0 AND updating_flag == 0, "treat_as_healthy_mcp_snapshot_refresh",
+    true(), "correlate_events_and_machineconfig_objects")
+| join type=left max=0 cluster
+    [| inputlookup openshift_cluster_inventory.csv
+     | fields cluster, cluster_tier, owner_team, environment]
+| eval cluster_tier=coalesce(cluster_tier, "unrated"),
+       owner_team=coalesce(owner_team, "unowned"),
+       environment=coalesce(environment, "unknown")
+| table cluster mcp_pool mcp_role mcp_paused machineCount readyMachineCount degradedMachineCount updatedMachineCount degraded_pct updating_minutes last_failed_node last_event_message severity days_since_last_success recommended_action cluster_tier owner_team environment
+```
+
+## CIM SPL
+
+```spl
+| tstats summariesonly=true latest(Change.action) AS change_action latest(Change.object) AS change_object latest(Change.user) AS change_user FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.dest
+| rename Change.dest AS cim_dest
+| join type=left max=0 cim_dest
+    [| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
+     | rename Application_State.dest AS cim_dest ]
+| where like(lower(change_object), "%machineconfig%") OR like(lower(app_info), "%machineconfig%")
+| table cim_dest change_action change_object change_user app_state app_info
+```
+
+## Visualization
+
+Severity-colored table by cluster and mcp_pool with drilldowns to raw MCP JSON, openshift:event text, and prometheus metric lines; single-value tiles for pools at page severity; timeline of degraded_pct and updating_minutes; optional map of paused pools during maintenance windows.
+
+## Known False Positives
+
+Short Updating=True windows during legitimate serial rollouts on maxUnavailable=1 pools routinely exceed ten minutes without indicating failure; require the sixty minute stuck threshold or a non-zero degradedMachineCount before executive paging. spec.paused=true during approved maintenance freezes Degraded signals that are intentional; join alerts to change calendars or suppress when pause_authorized=true metadata is present on HEC events. Lab clusters that constantly churn test MachineConfigs can emit noisy degraded counts; route those clusters to non-prod indexes or lower severity tiers. Duplicate HEC submissions from redundant collectors double machine counts in rare misconfigurations; dedupe on cluster, mcp_pool, and snapshot_generation before paging. Prometheus label renames after OpenShift minor upgrades can null mco_machine_count_drift joins for a single scrape interval; corroborate with API snapshots before opening operator defects. Single-node development clusters often pin MCPs that would be unhealthy at enterprise scale; mark them in a lookup to downgrade severity. Image content mirroring or registry outages can stall MCD pulls and mimic MCP degradation; cross-link registry health before blaming kubelet configs. Clock skew between management hosts and Splunk indexers distorts updating_minutes; enforce chrony on forwarders when skew exceeds two minutes.
+
+## References
+
+- [OpenShift Documentation — Post-installation machine configuration tasks](https://docs.openshift.com/container-platform/latest/post_installation_configuration/machine-configuration-tasks.html)
+- [OpenShift REST API Reference — MachineConfigPool](https://docs.openshift.com/container-platform/latest/rest_api/machine_apis/machineconfigpool-machineconfiguration-openshift-io-v1.html)
+- [Splunkbase — Splunk Add-on for Kubernetes](https://splunkbase.splunk.com/app/3743)
+- [Splunk Lantern — Kubernetes data descriptors](https://lantern.splunk.com/Data_Descriptors/Kubernetes)
+- [OpenShift Documentation — Configuring the monitoring stack](https://docs.openshift.com/container-platform/latest/monitoring/configuring-the-monitoring-stack.html)
+- [Red Hat Knowledgebase — Troubleshooting a MachineConfigPool stuck in Updating state](https://access.redhat.com/solutions/5598401)
+- [GitHub — openshift/machine-config-operator](https://github.com/openshift/machine-config-operator)

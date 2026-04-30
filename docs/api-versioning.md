@@ -334,11 +334,11 @@ result as untrusted.
 | Public content URLs (`/uc/`, `/category/`, `/regulation/`) | [`url-scheme.md`](url-scheme.md) — locked, never break |
 | HTML page structure | Lighthouse + axe in CI; no formal version |
 | Search-index shard format | Internal to `/browse/`; not a public API |
-| Embeddable widgets (`/embed/`) | [`docs/embedding.md`](embedding.md) — semver via the embed bundle |
-| Distribution channels (jsDelivr, npm, PyPI, Splunkbase) | [`docs/distribution.md`](distribution.md) |
+| Embeddable widgets (`/embed/`) | *Embedding policy (planned); future `docs/embedding.md`.* Semver via the embed bundle when documented. |
+| Distribution channels (jsDelivr, npm, PyPI, Splunkbase) | *Distribution guide (planned); future `docs/distribution.md`.* |
 
 ## Versioning this document
 
 When this policy changes, note the diff in `CHANGELOG.md` under "Policy" and link
-the originating RFC under [`docs/governance.md`](governance.md). The current policy
+the originating RFC under [`GOVERNANCE.md`](../GOVERNANCE.md). The current policy
 is effective from **catalogue 7.0.0** and **API v1**.

@@ -10,6 +10,12 @@ splunkPillar: "Observability"
 
 # UC-3.6.3 · Deployment Velocity Trending
 
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Change, Compliance &middot; **Wave:** Crawl &middot; **Status:** Verified
+
+*We track how many software updates the team pushes out each day, charting whether they are releasing more or fewer changes over time, so leadership can spot when delivery is speeding up dangerously or stalling unexpectedly.*
+
+---
+
 ## Description
 
 Measures **Kubernetes** deployment rollout velocity per namespace and cluster by counting daily `ScalingReplicaSet` events, computing 7-day moving averages and deviation percentages, and classifying deployment patterns as SURGE, FREEZE, or NORMAL — combined with success/failure rate trending that reveals whether delivery cadence is producing stable or problematic releases.
@@ -24,16 +30,16 @@ Collect Kubernetes events (ScalingReplicaSet, SuccessfulCreate, ProgressDeadline
 
 ## Detailed Implementation
 
-Prerequisites
-• **Kubernetes** 1.24+ cluster with deployment workloads across multiple namespaces — the trending analysis requires at least **14 days** of event history to produce meaningful 7-day SMAs; 30 days is ideal.
-• **Splunk Connect for Kubernetes** deployed to collect **`sourcetype=kube:events`** (event stream), **`sourcetype=kube:deployment:status`** (deployment object updates), and **`sourcetype=kube:audit`** (API server audit logs). Alternative: **Splunk OpenTelemetry Collector** with the **`k8s_events`** receiver and **`k8sobjects`** receiver.
-• **Kubernetes audit logging** enabled at the API server level with policy capturing `create`, `update`, and `patch` operations on `deployments.apps` resources at the **RequestResponse** or **Metadata** audit level — this provides the **user identity** behind each deployment change.
-• **Splunk HEC** token for **`index=containers`** with sourcetype routing for events, deployment status, and audit logs.
-• Optional: **ArgoCD** 2.6+ with **notifications** configured to send sync events to Splunk HEC as **`sourcetype=argocd:events`** — this enriches deployment velocity with **GitOps context** (commit hash, sync status, health status).
-• Splunk RBAC: users running velocity searches need **`srchIndexesAllowed`** including `containers`; assign via a custom role (**`platform_analyst`**).
-• **License estimate**: deployment events generate ~2–5 KB per rollout; a cluster with 50 daily deployments produces ~5–10 MB/day of deployment-related events.
+### Prerequisites
+- **Kubernetes** 1.24+ cluster with deployment workloads across multiple namespaces — the trending analysis requires at least **14 days** of event history to produce meaningful 7-day SMAs; 30 days is ideal.
+- **Splunk Connect for Kubernetes** deployed to collect **`sourcetype=kube:events`** (event stream), **`sourcetype=kube:deployment:status`** (deployment object updates), and **`sourcetype=kube:audit`** (API server audit logs). Alternative: **Splunk OpenTelemetry Collector** with the **`k8s_events`** receiver and **`k8sobjects`** receiver.
+- **Kubernetes audit logging** enabled at the API server level with policy capturing `create`, `update`, and `patch` operations on `deployments.apps` resources at the **RequestResponse** or **Metadata** audit level — this provides the **user identity** behind each deployment change.
+- **Splunk HEC** token for **`index=containers`** with sourcetype routing for events, deployment status, and audit logs.
+- Optional: **ArgoCD** 2.6+ with **notifications** configured to send sync events to Splunk HEC as **`sourcetype=argocd:events`** — this enriches deployment velocity with **GitOps context** (commit hash, sync status, health status).
+- Splunk RBAC: users running velocity searches need **`srchIndexesAllowed`** including `containers`; assign via a custom role (**`platform_analyst`**).
+- **License estimate**: deployment events generate ~2–5 KB per rollout; a cluster with 50 daily deployments produces ~5–10 MB/day of deployment-related events.
 
-Step 1 — Configure data collection
+### Step 1 — Configure data collection
 (1) **Kubernetes event collection**: ensure **`sourcetype=kube:events`** captures events with reasons **ScalingReplicaSet** (deployment controller scaling up/down replica sets during rollout), **SuccessfulCreate** (new pod created), **NewReplicaSetAvailable** (rollout complete), **ProgressDeadlineExceeded** (rollout failed — stuck or unhealthy), **FailedCreate** (pod creation failure), and **BackOff** (crash-loop after deployment). These events carry `involvedObject.name` (the ReplicaSet name, from which the **deployment name** is derived by stripping the trailing hash).
 
 (2) **Deployment status collection**: collect **`sourcetype=kube:deployment:status`** via the OTel **`k8sobjects`** receiver watching Deployment objects. Key fields: **`metadata.name`**, **`metadata.namespace`**, **`status.replicas`**, **`status.readyReplicas`**, **`status.updatedReplicas`**, **`status.observedGeneration`**. A change in **`observedGeneration`** signals a new rollout.
@@ -44,7 +50,7 @@ Step 1 — Configure data collection
 
 (5) **Namespace ownership lookup**: create **`namespace_owners.csv`** with columns `namespace`, `team`, `service_tier` (production/staging/development) to route velocity alerts to the correct team and filter dashboards by ownership.
 
-Step 2 — Create the search and alert
+### Step 2 — Create the search and alert
 The primary SPL counts distinct deployments per day from **ScalingReplicaSet** events. The **deployment name** is extracted from the ReplicaSet name by stripping the trailing random hash (the last segment after the final hyphen). The **`timechart`** with `by ns` shows per-namespace contribution to daily velocity.
 
 The **`trendline sma7`** computes a 7-day simple moving average of the cluster-wide daily deployment count. The **`velocity_flag`** classifies each day:
@@ -56,28 +62,28 @@ The success/failure variant tracks deployment outcomes by namespace. A namespace
 
 Schedule the velocity trend daily at **08:00** over **`-30d`** and alert on SURGE or FREEZE flags. Schedule the success/failure search daily and alert when any production namespace (filtered via the **`namespace_owners`** lookup) drops below 90% success rate.
 
-Step 3 — Validate
+### Step 3 — Validate
 (a) Cross-check with `kubectl`: `kubectl get events --all-namespaces --field-selector reason=ScalingReplicaSet --sort-by=.lastTimestamp | tail -20` — count the events from today and compare with the Splunk search output for the same day.
 (b) Trigger a test deployment: `kubectl set image deployment/nginx nginx=nginx:latest -n default` and verify the event appears in Splunk within 1–2 minutes.
 (c) Test a **failed deployment**: create a deployment with a non-existent image tag (`kubectl set image deployment/nginx nginx=nginx:nonexistent`) and confirm `ProgressDeadlineExceeded` or `BackOff` events surface in the failure search.
 (d) Verify **namespace coverage**: `index=containers sourcetype="kube:events" reason="ScalingReplicaSet" earliest=-24h | stats dc(namespace) as ns_count`. Should match the number of namespaces with active deployments.
 (e) If ArgoCD is configured: `index=containers sourcetype="argocd:events" earliest=-24h | stats count by sync_status`. Should show Synced/OutOfSync counts.
 
-Step 4 — Operationalize dashboards and runbooks
-• Row A: **line chart** with daily deployment count and **7-day SMA** overlay over 30 days — the SMA reveals the **delivery cadence** trend.
-• Row B: **single-value tiles** — today's deployment count, deviation % from SMA, velocity flag (SURGE in red, FREEZE in blue, NORMAL in green), number of namespaces with deployments today.
-• Row C: **stacked area chart** of deployments by namespace over 30 days — shows which namespaces drive the most deployment activity.
-• Row D: **namespace health table** — columns: ns, total_successes, total_failures, success_rate, avg_daily_deploys, peak_daily_deploys, health, trend sparkline. Red rows for POOR health.
-• **Alerting**: SURGE flag → Slack `#platform-ops` (informational — investigate whether the spike is a release train or incident response); FREEZE flag → Slack + email to engineering leads (investigate pipeline blockage); namespace success_rate < 90% → **PagerDuty** P3 to the owning team; sustained FREEZE > 3 days → escalation to engineering management.
-• **Runbook** (owner: platform engineering): (1) for SURGE — check if correlates with a release window, if not check for automated scaling or runaway CI triggers, (2) for FREEZE — check CI/CD pipeline status, recent infrastructure changes, or deployment freezes, (3) for low success rate — check ProgressDeadlineExceeded events for affected deployments and review resource limits, health checks, and image availability.
+### Step 4 — Operationalize dashboards and runbooks
+- Row A: **line chart** with daily deployment count and **7-day SMA** overlay over 30 days — the SMA reveals the **delivery cadence** trend.
+- Row B: **single-value tiles** — today's deployment count, deviation % from SMA, velocity flag (SURGE in red, FREEZE in blue, NORMAL in green), number of namespaces with deployments today.
+- Row C: **stacked area chart** of deployments by namespace over 30 days — shows which namespaces drive the most deployment activity.
+- Row D: **namespace health table** — columns: ns, total_successes, total_failures, success_rate, avg_daily_deploys, peak_daily_deploys, health, trend sparkline. Red rows for POOR health.
+- **Alerting**: SURGE flag → Slack `#platform-ops` (informational — investigate whether the spike is a release train or incident response); FREEZE flag → Slack + email to engineering leads (investigate pipeline blockage); namespace success_rate < 90% → **PagerDuty** P3 to the owning team; sustained FREEZE > 3 days → escalation to engineering management.
+- **Runbook** (owner: platform engineering): (1) for SURGE — check if correlates with a release window, if not check for automated scaling or runaway CI triggers, (2) for FREEZE — check CI/CD pipeline status, recent infrastructure changes, or deployment freezes, (3) for low success rate — check ProgressDeadlineExceeded events for affected deployments and review resource limits, health checks, and image availability.
 
-Step 5 — Visualization, alert design, and troubleshooting
-• **Visualization**: use a **calendar heatmap** (Dashboard Studio custom viz or HTML panel) showing daily deployment count as cell color intensity — reveals weekly patterns (e.g., low weekends, peak Tuesdays) and anomalous days; pair with a **DORA metrics panel** showing deployment frequency, change failure rate (failures / total), and mean time to recovery derived from the time between a `ProgressDeadlineExceeded` event and the next `NewReplicaSetAvailable` event for the same deployment.
-• **Alert design**: include `velocity_flag`, `cluster_total`, `sma_7d`, `deviation_pct`, and the top 3 namespaces by deployment count in the alert payload; for success-rate alerts include `ns`, `total_failures`, `success_rate`, and the most recent failure event message.
-• **ScalingReplicaSet events missing** — Kubernetes events have a default TTL of 1 hour; if the event collector polls less frequently than every 60 minutes, events may age out. Increase the collector's poll frequency or configure the API server's `--event-ttl` flag.
-• **Deployment count is inflated** — a single deployment update generates multiple ScalingReplicaSet events (one for the new ReplicaSet scaling up, one for the old scaling down). The `dc(deployment)` aggregation handles this by counting unique deployments, not events.
-• **ArgoCD events not arriving** — verify the notification template and HEC endpoint; check ArgoCD controller logs for webhook delivery errors.
-• **All deployments show as failures** — the failure reasons list may not match your cluster's event patterns; check `index=containers sourcetype="kube:events" | stats count by reason | sort -count` to discover the actual reason values and adjust the search.
+### Step 5 — Visualization, alert design, and troubleshooting
+- **Visualization**: use a **calendar heatmap** (Dashboard Studio custom viz or HTML panel) showing daily deployment count as cell color intensity — reveals weekly patterns (e.g., low weekends, peak Tuesdays) and anomalous days; pair with a **DORA metrics panel** showing deployment frequency, change failure rate (failures / total), and mean time to recovery derived from the time between a `ProgressDeadlineExceeded` event and the next `NewReplicaSetAvailable` event for the same deployment.
+- **Alert design**: include `velocity_flag`, `cluster_total`, `sma_7d`, `deviation_pct`, and the top 3 namespaces by deployment count in the alert payload; for success-rate alerts include `ns`, `total_failures`, `success_rate`, and the most recent failure event message.
+- **ScalingReplicaSet events missing** — Kubernetes events have a default TTL of 1 hour; if the event collector polls less frequently than every 60 minutes, events may age out. Increase the collector's poll frequency or configure the API server's `--event-ttl` flag.
+- **Deployment count is inflated** — a single deployment update generates multiple ScalingReplicaSet events (one for the new ReplicaSet scaling up, one for the old scaling down). The `dc(deployment)` aggregation handles this by counting unique deployments, not events.
+- **ArgoCD events not arriving** — verify the notification template and HEC endpoint; check ArgoCD controller logs for webhook delivery errors.
+- **All deployments show as failures** — the failure reasons list may not match your cluster's event patterns; check `index=containers sourcetype="kube:events" | stats count by reason | sort -count` to discover the actual reason values and adjust the search.
 
 ## SPL
 

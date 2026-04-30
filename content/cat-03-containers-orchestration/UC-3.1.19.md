@@ -1,0 +1,329 @@
+<!-- AUTO-GENERATED from UC-3.1.19.json — DO NOT EDIT -->
+
+---
+id: "3.1.19"
+title: "Container Log Driver Health"
+status: "verified"
+criticality: "high"
+splunkPillar: "Observability"
+---
+
+# UC-3.1.19 · Container Log Driver Health
+
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Reliability, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
+
+*We treat application logs like numbered evidence bags on a conveyor. If the belt jams in blocking mode, the whole line slows down; if someone sets the belt to toss overflow bags quietly, evidence disappears and you never know what was inside. We watch belt speed, jam alarms, and how often local log files rotate so the story stays intact.*
+
+---
+
+## Description
+
+This control monitors container log-driver pipeline delivery health so stdout and stderr actually reach durable observability storage instead of vanishing through rotation failure, remote-driver back-pressure, or mode=non-blocking buffer loss. It correlates dockerd journal lines about json-file rotation, fluentd, syslog, gelf, splunk, and awslogs failures with per-container log-line velocity from docker:stats and filesystem pressure on /var/lib/docker/containers from a df-style feed. The join to container_log_driver_baseline.csv supplies expected throughput, configured driver, blocking versus non-blocking intent, and max-size plus max-file policy so detections distinguish a noisy application from a mis-sized driver. UC-3.1.8 answers whether the engine process itself is panicking or starving; this UC answers whether the logging pipeline between application writes and your platform is intact, including silent forensic gaps that never show up as Splunk indexer errors. Ingest lag, HEC saturation, or search-head issues remain separate triage paths: they do not excuse unexplained dockerd-side drops when MESSAGE already reports lines_dropped or failed to log.
+
+## Value
+
+Quantifying avoided forensic loss is the headline benefit: HIPAA security rule audit controls, SOC2 CC7.2 logging integrity expectations, and PCI DSS 10.7 review requirements all assume operators can reconstruct who did what after an incident; drop rates above a few percent on regulated workloads translate directly into notification and remediation cost. Blocking-mode remediation reduces application latency tails caused by STDOUT stalls when collectors fall behind, which protects revenue during peak traffic far more cheaply than over-provisioning every container twice. Capacity planning gains credible charts tying loglines_per_sec to driver ceilings so FinOps can fund the right collector tier before black-swan noisy loggers appear. Mean time to repair for runaway debug logging shrinks when the search already names the container, image, host, driver, and recommended_response playbook text instead of forcing analysts to grep dockerd by hand during an outage.
+
+## Implementation
+
+Install Splunk Add-on for Linux journald inputs into index=oti_containers as sourcetype=docker:journald (or alias linux:journald:docker), deploy docker:stats and linux:disk:docker_logs_dir scripted inputs, publish container_log_driver_baseline.csv weekly, save container_uc_3_1_19_log_driver_health every five minutes on earliest=-4h@h latest=@h, route critical forensic-loss severities to platform and compliance jointly, and archive weekly table exports with lookup commit hashes for auditor replay.
+
+## Evidence
+
+Saved search container_uc_3_1_19_log_driver_health, lookup container_log_driver_baseline.csv with weekly git commits, dashboard exports of dropped_count and drop_rate_pct time series, dockerd journal archives for hosts showing critical_drop_rate_above_5pct_forensic_loss, and cited public references including Datadog docker logging guidance, Docker documentation for json-file and fluentd drivers, Splunk Lantern guidance for Docker log onboarding with OpenTelemetry, Pinterest-scale container logging engineering literature, and moby issue 45217 on non-blocking buffer behavior.
+
+## Control test
+
+### Positive scenario
+
+On a lab Linux host configure a container with fluentd logging in blocking mode, stop the fluentd receiver, generate stdout load, ingest docker:journald lines showing failed to log or similar driver errors, execute container_uc_3_1_19_log_driver_health, and expect critical_remote_driver_disconnected_blocking_mode or medium_buffer_overrun_warnings with non-null recommended_response.
+
+### Negative scenario
+
+Run a healthy host for four hours with stable collectors, drop_rate_pct below one percent, docker_containers_fs_pct below seventy percent, and docker:stats showing loglines_per_sec within baseline, then confirm the saved search returns zero qualifying rows across multiple intervals.
+
+## Detailed Implementation
+
+### Step 1 — Prerequisites and scope
+
+Head of Platform owns this walk-tier control together with the Linux observability engineer who certifies Splunk Add-on for Linux scripted inputs and the forensic readiness lead who signs off on evidence-continuity metrics for regulated workloads. UC-3.1.19 is the container log pipeline delivery axis: it answers whether json-file rotation and remote logging drivers are keeping pace with application STDOUT so investigators retain a complete trail. UC-3.1.8 remains the dockerd process-reliability narrative for panics, storage-driver failures, and engine API saturation; this UC isolates log-driver buffering, rotation cadence, dropped-line accounting, and write-rate ceilings that directly determine whether stdout ever reaches your indexers. UC-3.1.1 through UC-3.1.3 and UC-3.1.13 cover crash loops, cgroup pressure, CPU throttle, and restart cadence without interpreting log-driver drop counters. UC-3.1.16 tracks named volume and overlay growth on the host filesystem; it does not score fluentd back-pressure or json-file rotation success the way this control does. Splunk-side ingest gaps, HEC token exhaustion, and index routing misconfigurations belong to platform ingest runbooks; correlate them here only after you have ruled out dockerd-side drops.
+
+You must land four writers before the saved search is trustworthy. First, dockerd lines in index=oti_containers under sourcetype=docker:journald or a props alias from linux:journald:docker that preserves MESSAGE, PRIORITY, and host identity so regex classes can see rotating log file warnings, Failed to log msg strings, logger: failed to log to driver excerpts, and lines_dropped style counters. Second, sourcetype=docker:stats from a scripted modular input or Splunk Connect for Containers style poller that emits per-container log-line velocity fields; normalize camelCase with coalesce(loglines_per_sec, loglinesPerSec) in props or in the SPL macro. Third, sourcetype=linux:disk:docker_logs_dir from a df or stat scripted input aimed at the filesystem backing /var/lib/docker/containers so percent-used and growth context accompany rotation math. Fourth, governance lookup container_log_driver_baseline.csv with columns image, expected_loglines_per_sec, configured_driver, blocking_mode, max_size, and max_file refreshed whenever golden images change.
+
+Licensing reality: docker:stats at one-minute granularity across thousands of containers is measurable license bytes; justify the cost against regulatory expectation that you can prove log completeness. RBAC should keep oti_containers readable to platform SRE and compliance analytics roles but not to every application developer tenant.
+
+Differentiation recap: if the engine is panicking, UC-3.1.8 pages first. If the container is restarting, UC-3.1.1 or UC-3.1.13 pages first. If volumes are full but log drivers are quiet, UC-3.1.16 may page alone. This UC fires when the handoff between application writes and observability storage is the broken link.
+
+### Step 2 — Configure data collection and baselines
+
+On each Docker host, enable Splunk Add-on for Linux journal collection for docker.service and ensure props.conf maps the feed to sourcetype=docker:journald or preserves a parallel linux:journald:docker alias your macros already trust. Confirm PRIORITY filtering is not stripping warn-level rotation lines; many teams default to err-only and lose the rotation cadence signal. For Mirantis Container Runtime, validate unit names still land MESSAGE fields with the same driver= key-value patterns Docker CE emits.
+
+Deploy docker:stats collection with an interval no looser than five minutes during steady state and one minute during forensic hunts. Extract container id in lowercase hex without truncating to twelve characters when sixty-four are available, because joins to baselines and to journal rex captures must align. If your poller only knows container_name, add a nightly CSV from docker inspect that maps name to id until the field gap closes.
+
+Author linux:disk:docker_logs_dir as a lightweight scripted input that runs df -P or statfs against the mount hosting /var/lib/docker/containers, emitting pct_used, avail_bytes, and host_id consistent with forwarder host keys. Schedule it every five minutes; disk surprises inside five minutes still beat an overnight outage.
+
+Publish container_log_driver_baseline.csv from your image factory. expected_loglines_per_sec should reflect median prod behavior per semver tag, not lab silence. configured_driver must mirror docker inspect HostConfig.LogConfig.Type. blocking_mode must record whether Compose sets mode=blocking or mode=non-blocking because severity uses that to distinguish latency risk from silent loss. max_size and max_file belong in the lookup for auditor questions even when the SPL only uses them in recommended_response text.
+
+Optional Splunk Connect for Containers can replace bespoke stats scripts when your security office approves socket access; document whether Connect or OTel is the stats writer to avoid double-counting loglines_per_sec.
+
+### Step 3 — Primary detection search
+
+Save as container_uc_3_1_19_log_driver_health with schedule every five minutes on earliest=-4h@h latest=@h during burn-in, then widen to fifteen minutes if Job Inspector cost demands. Throttle duplicate rows per host_id and container_id for thirty minutes unless severity escalates from medium_buffer_overrun_warnings to critical_drop_rate_above_5pct_forensic_loss in the same hour.
+
+#### Understanding this SPL in operator terms: the opening comment macro is the contract for index names, lookup paths, and forensic thresholds. multisearch keeps journal-derived drops independent from docker:stats so a silent failure in either collector does not zero the other arm. The journal arm enforces a twelve-character minimum container id to avoid hashing empty rex captures into bogus joins. Hourly buckets measure rotation bursts; the outer stats turn hourly rotation peaks into rotation_cadence_per_hour for comparison against max-file expectations documented in the baseline lookup. The stats arm brings coalesce-friendly loglines_per_sec fields into the same host_id and container_id grain. After the fan-in, coalesce and mvdedup rebuild a single log_driver, blocking_mode, and driver_connection_state per container. The host-level disk join adds docker_containers_fs_pct without pretending every container row owns a unique filesystem metric. The baseline join uses inputlookup inside join type=left max=0 image, not a bare lookup command, so governance reviewers see the same pattern as other gold UCs. eventstats perc99 supplies fleet context when expected_loglines_per_sec is missing for a new image. streamstats range on dropped_count exposes slope for analysts even though the severity ladder keys primarily on drop_rate_pct derived from baseline throughput estimates. streamstats time_window=3600s counts driver_connection_state transitions as a proxy for connection churn called driver_state_churn. The severity case returns exactly the six mandated strings plus null for healthy rows, which the where clause drops. recommended_response encodes runbook verbs tied to each severity for paging bridges.
+
+Fenced SPL must match the spl JSON field byte-for-byte:
+
+```spl
+`comment("UC-3.1.19 Container Log Driver Health. Tunables: index=oti_containers; sourcetypes docker:journald OR linux:journald:docker, docker:stats, linux:disk:docker_logs_dir; join container_log_driver_baseline.csv on image; earliest=-4h@h latest=@h; forensic_drop_pct=5; rotation_burst_h=60; write_rate_mult=2; conn_churn_window=3600.")`
+| multisearch
+    [ search index=oti_containers (sourcetype="docker:journald" OR sourcetype="linux:journald:docker") earliest=-4h@h latest=@h
+      | eval host_id=lower(toString(coalesce(host, Host, hostname, host_id, dest, "")))
+      | eval msg_lc=lower(toString(coalesce(MESSAGE, message, _raw, "")))
+      | where match(msg_lc, "(?i)log(?:ging)? driver|json-file|fluentd|splunk|gelf|syslog|awslogs|rotating|rotate|failed to log|logger: failed|lines[_ ]?dropped|buffer|non-blocking|\\bblocking\\b|connection refused|broken pipe|i/o timeout|dial tcp|buffer is full|use of closed network")
+      | rex field=msg_lc "(?<cidrex>[a-f0-9]{64})"
+      | eval container_id=lower(trim(toString(coalesce(cidrex, ""))))
+      | where len(container_id)>=12
+      | rex field=msg_lc "(?i)driver=(?<drv>[a-z0-9_-]+)"
+      | rex field=msg_lc "(?i)lines[_ ]?dropped[=:\\s]*(?<dp>\\d+)"
+      | eval dropped_inc=if(isnotnull(dp), tonumber(dp, 10), 0)
+      | eval is_rotation=if(match(msg_lc, "(?i)rotating log|rotat.*json"), 1, 0)
+      | eval blocking_mode=case(match(msg_lc, "(?i)non-blocking|nonblocking"), "non_blocking", match(msg_lc, "(?i)mode=blocking|\\bblocking\\b"), "blocking", true(), "unknown")
+      | eval driver_connection_state=case(match(msg_lc, "(?i)connection refused|timeout|unreachable|closed network connection"), "disconnected", match(msg_lc, "(?i)dial tcp|reset by peer|use of closed"), "churn", true(), "nominal")
+      | bucket _time span=1h AS th
+      | stats sum(dropped_inc) AS dropped_lines_h sum(is_rotation) AS rot_h mode(drv) AS log_driver mode(blocking_mode) AS blocking_mode mode(driver_connection_state) AS driver_connection_state BY host_id, container_id, th
+      | stats sum(dropped_lines_h) AS j_drop max(rot_h) AS j_rot mode(log_driver) AS j_ldr mode(blocking_mode) AS j_bm mode(driver_connection_state) AS j_dcs BY host_id, container_id
+      | eval s_lps=null()
+      | eval s_cn=null()
+      | eval s_im=null() ]
+    [ search index=oti_containers sourcetype="docker:stats" earliest=-4h@h latest=@h
+      | eval host_id=lower(toString(coalesce(host, Host, hostname, host_id, "")))
+      | eval container_id=lower(trim(toString(coalesce(container_id, containerID, Id, ""))))
+      | eval s_cn=toString(coalesce(container_name, Names, name, ""))
+      | eval s_im=trim(toString(coalesce(image, Image, "")))
+      | eval s_lps=tonumber(tostring(coalesce(loglines_per_sec, loglinesPerSec, "0")), 10)
+      | stats latest(s_lps) AS s_lps latest(s_cn) AS s_cn latest(s_im) AS s_im BY host_id, container_id
+      | eval j_drop=0
+      | eval j_rot=0
+      | eval j_ldr=null()
+      | eval j_bm=null()
+      | eval j_dcs=null() ]
+| stats max(j_drop) AS dropped_count max(j_rot) AS rotation_cadence_per_hour max(s_lps) AS loglines_per_sec latest(s_cn) AS container_name latest(s_im) AS image values(j_ldr) AS jldr values(j_bm) AS jbm values(j_dcs) AS jdcs BY host_id, container_id
+| eval log_driver=lower(trim(toString(mvindex(mvdedup(jldr), 0))))
+| eval log_driver=if((len(log_driver)==0) OR (log_driver=="null"), "unknown", log_driver)
+| eval blocking_mode=toString(mvindex(mvdedup(jbm), 0))
+| eval blocking_mode=if((len(blocking_mode)==0) OR (blocking_mode=="null"), "unknown", blocking_mode)
+| eval driver_connection_state=toString(mvindex(mvdedup(jdcs), 0))
+| eval driver_connection_state=if((len(driver_connection_state)==0) OR (driver_connection_state=="null"), "nominal", driver_connection_state)
+| fields - jldr jbm jdcs
+| join type=left max=0 host_id
+    [| search index=oti_containers sourcetype="linux:disk:docker_logs_dir" earliest=-4h@h latest=@h
+      | eval host_id=lower(toString(coalesce(host, Host, hostname, host_id, "")))
+      | eval docker_containers_fs_pct=tonumber(tostring(coalesce(pct_used, UsePct, used_pct, PCT_USED, "0")), 10)
+      | stats latest(docker_containers_fs_pct) AS docker_containers_fs_pct BY host_id ]
+| join type=left max=0 image
+    [| inputlookup container_log_driver_baseline.csv
+      | eval image=trim(toString(coalesce(image, Image, "")))
+      | eval expected_loglines_per_sec=tonumber(tostring(coalesce(expected_loglines_per_sec, expectedLps, "0")), 10)
+      | eval configured_driver=lower(toString(coalesce(configured_driver, driver_expected, "")))
+      | eval baseline_blocking_mode=lower(toString(coalesce(blocking_mode, blockingMode, "")))
+      | eval max_size=toString(coalesce(max_size, maxSize, ""))
+      | eval max_file=tonumber(tostring(coalesce(max_file, maxFile, "0")), 10)
+      | fields image expected_loglines_per_sec configured_driver baseline_blocking_mode max_size max_file ]
+| eval loglines_per_sec=tonumber(tostring(coalesce(loglines_per_sec, "0")), 10)
+| eval log_driver=if((len(configured_driver)>0) AND ((log_driver=="unknown") OR (len(log_driver)==0)), configured_driver, log_driver)
+| eval blocking_mode=if(len(baseline_blocking_mode)>0, baseline_blocking_mode, blocking_mode)
+| eventstats perc99(loglines_per_sec) AS fleet_p99_lps
+| eval baseline_lps=if(expected_loglines_per_sec>0, expected_loglines_per_sec, round(fleet_p99_lps*0.6, 4))
+| eval baseline_lps=if(baseline_lps<=0, 1, baseline_lps)
+| eval denom=(baseline_lps*3600) + dropped_count
+| eval drop_rate_pct=if(denom>0, round(100 * dropped_count / denom, 4), 0)
+| sort 0 host_id, container_id
+| streamstats window=5 current=t global=f range(dropped_count) AS dropped_range BY host_id, container_id
+| streamstats time_window=3600s global=f count AS driver_state_churn BY host_id, driver_connection_state
+| eval severity=case(
+    ((driver_connection_state=="disconnected") OR (driver_connection_state=="churn")) AND match(blocking_mode, "(?i)blocking|unknown"), "critical_remote_driver_disconnected_blocking_mode",
+    (drop_rate_pct>=5) AND (dropped_count>0), "critical_drop_rate_above_5pct_forensic_loss",
+    (docker_containers_fs_pct>=88) AND (rotation_cadence_per_hour>=60), "high_rotation_failure_disk_pressure",
+    (loglines_per_sec>(baseline_lps*2)) AND (baseline_lps>0), "high_loglines_per_sec_above_2x_baseline",
+    ((dropped_count>0) OR (driver_state_churn>=8)) AND (drop_rate_pct<5) AND (drop_rate_pct>0), "medium_buffer_overrun_warnings",
+    (abs(loglines_per_sec-baseline_lps)>(baseline_lps*0.35)) AND (baseline_lps>0) AND (drop_rate_pct<1), "low_baseline_drift",
+    true(), null())
+| where isnotnull(severity)
+| eval recommended_response=case(
+    severity=="critical_remote_driver_disconnected_blocking_mode", "Restore remote log collector reachability; relieve fluentd, syslog, gelf, or splunk driver back-pressure; if you must flip mode=non-blocking, obtain written acceptance of silent line loss; scale receivers and network paths before closing.",
+    severity=="critical_drop_rate_above_5pct_forensic_loss", "Treat as evidence-continuity incident: quantify dropped lines per container, preserve dockerd journal exports, open HIPAA or SOC2 CC7.2 impact review when PHI or trust services data is involved, parallel-path Splunk HEC health checks.",
+    severity=="high_rotation_failure_disk_pressure", "Emergency capacity on /var/lib/docker/containers, validate max-size and max-file log-opts, drain host if ENOSPC is imminent, engage storage ops before rotation failures create a forensic void.",
+    severity=="high_loglines_per_sec_above_2x_baseline", "Find the noisy logger: remove prod debug flags, break stack-trace tight loops, shard ultra-chatty workloads, add approved sampling only after owner sign-off.",
+    severity=="medium_buffer_overrun_warnings", "Widen collector buffers and parallelism, verify MTU and TLS overhead on the driver link, add disk-backed spill for remote drivers, rehearse collector failover.",
+    severity=="low_baseline_drift", "Refresh container_log_driver_baseline.csv after image or Compose changes, document intentional driver migrations, reconcile Terraform and systemd drop-ins.",
+    true(), "Correlate docker:journald, docker:stats, and linux:disk:docker_logs_dir feeds before muting.")
+| table container_id container_name image host_id log_driver blocking_mode loglines_per_sec dropped_count rotation_cadence_per_hour driver_connection_state severity recommended_response
+```
+
+Alert actions: route critical_remote_driver_disconnected_blocking_mode and critical_drop_rate_above_5pct_forensic_loss to platform and compliance bridges jointly with the recommended_response string attached. Route high_rotation_failure_disk_pressure to storage and platform. Route high_loglines_per_sec_above_2x_baseline to the owning service team with graph links. Keep medium rows in a ticket queue unless churn repeats for three consecutive runs.
+
+### Step 4 — Validate
+
+Positive test A — json-file pressure: on a lab host set a tiny max-size and max-file, run a container that prints five hundred lines per second for ten minutes, confirm dockerd journal lines mention rotation, ingest into docker:journald, run the saved search, and expect rotation_cadence_per_hour above your warn threshold with severity at least medium_buffer_overrun_warnings when paired with synthetic drops.
+
+Positive test B — remote driver disconnect: stop a fluentd sidecar while a container logs in blocking mode, capture Failed to log or logger: failed lines, confirm critical_remote_driver_disconnected_blocking_mode or the churn branch fires, then restore the collector and verify severity clears.
+
+Negative test — healthy host: run production-shape traffic with known-good log drivers, confirm drop_rate_pct stays below one percent for an hour, docker_containers_fs_pct below seventy percent, and the saved search returns zero rows.
+
+Correlation test: compare dropped_count trends against indexed event volume for the same container_id in Splunk; divergence implies either ingest loss downstream or field extraction drift — split the difference using HEC metrics versus dockerd counters.
+
+RBAC test: a role without oti_containers must see null results, proving separation of duties.
+
+Performance test: Job Inspector scan time should stay under thirty seconds on a search head warming summary indexes; if not, push docker:stats into an hourly summary before joining.
+
+Field hygiene test: after a Docker upgrade, spot-check that driver= tokens still parse and that coalesce lists include any new camelCase keys your poller introduced.
+
+### Step 5 — Operationalize and troubleshoot
+
+Case 1 — critical_remote_driver_disconnected_blocking_mode fires during a collector upgrade: pause application deploys, fail open by routing logs to a secondary driver only if regulators allow dual-ship, finish the upgrade, validate TCP health from dockerd host to collector, document blocking_mode decisions in the change ticket.
+
+Case 2 — critical_drop_rate_above_5pct_forensic_loss with stable network: inspect docker info for max-buffer-size and mode flags, increase fluentd or splunk driver receive capacity, add disk spill buffers, and open a forensic ticket capturing journalctl excerpts.
+
+Case 3 — high_rotation_failure_disk_pressure but low dropped_count: max-file may be too large for the workload class; reduce max-file after owner approval, expand LVM or cloud volume, verify fstrim and inode counts, not only bytes.
+
+Case 4 — high_loglines_per_sec_above_2x_baseline without drops yet: proactive FinOps and reliability win; tune application log levels before drops begin, add cardinality guards on trace ids, and schedule code review for tight-loop logging.
+
+Case 5 — medium_buffer_overrun_warnings during regional network blips: expect churn; require three consecutive intervals or customer-visible SLO breach before paging leadership, but still ticket the incident for SOC2 evidence.
+
+Case 6 — low_baseline_drift after image promotion: refresh container_log_driver_baseline.csv, do not silence the alert with a global threshold change, and confirm Compose overrides did not sneak in a different driver per environment.
+
+Case 7 — join misses on image: ensure lookup image strings match registry/repo:tag exactly; add a derived field without digest if teams deploy mutable tags against policy.
+
+Case 8 — docker:stats arm silent: forwarder may have lost docker.sock access; fix permissions before blaming log drivers.
+
+Case 9 — journal arm floods after log level change on dockerd: tighten the leading where regex to exclude benign info lines while keeping rotation warnings visible.
+
+Case 10 — false churn from message wording upgrades: when Docker changes log text, update the connection-state case and document the version pin in props.conf comments.
+
+Dashboard layout: heatmap host_id by worst severity across log_driver families, time series of dropped_count and drop_rate_pct, connection churn ribbon for driver_connection_state, top-N bar chart of loglines_per_sec divided by baseline_lps.
+
+Evidence retention: weekly CSV snapshots of the closing table to a restricted index with lookup commit hashes satisfy most HIPAA, SOC2 CC7.2, and PCI 10.7 discussions when paired with change tickets.
+
+Governance: quarterly replay after Docker CE or MCR upgrades; refresh the comment macro when index names move.
+
+Closing checklist: five step headers with plain em dashes, Step 3 fenced SPL matches spl field, monitoringType lists Reliability and Availability, cimModels include Application_State and Performance, equipment lists docker and linux, equipmentModels lists docker_engine and linux_journald, narrative JSON fields avoid asterisk emphasis, knownFalsePositives stay observability-themed, references include six unique URLs with Docker docs, Lantern Docker OTel article, Datadog docker logging guidance, and moby issue 45217.
+
+Supplemental notes for long-term owners: rootless Docker changes log paths but not the forensic story; Podman compatibility layers may alter field names; Kubernetes CRI-only nodes without dockerd should disable this UC rather than muting it; Windows containers remain out of scope; when Splunk Enterprise Security ingests these rows, map severities to risk scores with higher weight on forensic-loss tiers; when finance challenges stats volume, show the asymmetry between license cost and breach response cost; when legal holds land, include dockerd journal archives alongside indexer exports; when OT edge gateways run Docker for legacy reasons, duplicate baselines with OT owner routing; when service meshes add sidecar stdout noise, baseline per mesh version; when red teams simulate noisy loggers, tag exercises in a maintenance lookup; when vulnerability management publishes dockerd CVEs, pair review with this dashboard to prove logging continuity during patch windows; when board decks ask for a one-liner, use the conveyor-belt analogy from the non-technical summary rather than SPL vocabulary.
+
+Forensic and capacity idioms worth internalizing: json-file rotation that never fires while disk grows implies logs are not truncating as expected or another path consumes the filesystem; rotation that fires too often implies burst logging or undersized max-size. Remote drivers that default to blocking protect durability at the expense of application latency; non-blocking protects latency while explicitly trading silent loss, which is why mode appears in the severity ladder. Fleet percentile baselines prevent new images from lying about expected_loglines_per_sec until your factory publishes the number. Connection churn counts proxy TCP flap for fluentd and similar drivers where explicit state fields do not exist in MESSAGE. Drop-rate math uses baseline_lps times three thousand six hundred seconds as a conservative throughput denominator so investigators see a percentage even when per-second stats jitter.
+
+
+## SPL
+
+```spl
+`comment("UC-3.1.19 Container Log Driver Health. Tunables: index=oti_containers; sourcetypes docker:journald OR linux:journald:docker, docker:stats, linux:disk:docker_logs_dir; join container_log_driver_baseline.csv on image; earliest=-4h@h latest=@h; forensic_drop_pct=5; rotation_burst_h=60; write_rate_mult=2; conn_churn_window=3600.")`
+| multisearch
+    [ search index=oti_containers (sourcetype="docker:journald" OR sourcetype="linux:journald:docker") earliest=-4h@h latest=@h
+      | eval host_id=lower(toString(coalesce(host, Host, hostname, host_id, dest, "")))
+      | eval msg_lc=lower(toString(coalesce(MESSAGE, message, _raw, "")))
+      | where match(msg_lc, "(?i)log(?:ging)? driver|json-file|fluentd|splunk|gelf|syslog|awslogs|rotating|rotate|failed to log|logger: failed|lines[_ ]?dropped|buffer|non-blocking|\\bblocking\\b|connection refused|broken pipe|i/o timeout|dial tcp|buffer is full|use of closed network")
+      | rex field=msg_lc "(?<cidrex>[a-f0-9]{64})"
+      | eval container_id=lower(trim(toString(coalesce(cidrex, ""))))
+      | where len(container_id)>=12
+      | rex field=msg_lc "(?i)driver=(?<drv>[a-z0-9_-]+)"
+      | rex field=msg_lc "(?i)lines[_ ]?dropped[=:\\s]*(?<dp>\\d+)"
+      | eval dropped_inc=if(isnotnull(dp), tonumber(dp, 10), 0)
+      | eval is_rotation=if(match(msg_lc, "(?i)rotating log|rotat.*json"), 1, 0)
+      | eval blocking_mode=case(match(msg_lc, "(?i)non-blocking|nonblocking"), "non_blocking", match(msg_lc, "(?i)mode=blocking|\\bblocking\\b"), "blocking", true(), "unknown")
+      | eval driver_connection_state=case(match(msg_lc, "(?i)connection refused|timeout|unreachable|closed network connection"), "disconnected", match(msg_lc, "(?i)dial tcp|reset by peer|use of closed"), "churn", true(), "nominal")
+      | bucket _time span=1h AS th
+      | stats sum(dropped_inc) AS dropped_lines_h sum(is_rotation) AS rot_h mode(drv) AS log_driver mode(blocking_mode) AS blocking_mode mode(driver_connection_state) AS driver_connection_state BY host_id, container_id, th
+      | stats sum(dropped_lines_h) AS j_drop max(rot_h) AS j_rot mode(log_driver) AS j_ldr mode(blocking_mode) AS j_bm mode(driver_connection_state) AS j_dcs BY host_id, container_id
+      | eval s_lps=null()
+      | eval s_cn=null()
+      | eval s_im=null() ]
+    [ search index=oti_containers sourcetype="docker:stats" earliest=-4h@h latest=@h
+      | eval host_id=lower(toString(coalesce(host, Host, hostname, host_id, "")))
+      | eval container_id=lower(trim(toString(coalesce(container_id, containerID, Id, ""))))
+      | eval s_cn=toString(coalesce(container_name, Names, name, ""))
+      | eval s_im=trim(toString(coalesce(image, Image, "")))
+      | eval s_lps=tonumber(tostring(coalesce(loglines_per_sec, loglinesPerSec, "0")), 10)
+      | stats latest(s_lps) AS s_lps latest(s_cn) AS s_cn latest(s_im) AS s_im BY host_id, container_id
+      | eval j_drop=0
+      | eval j_rot=0
+      | eval j_ldr=null()
+      | eval j_bm=null()
+      | eval j_dcs=null() ]
+| stats max(j_drop) AS dropped_count max(j_rot) AS rotation_cadence_per_hour max(s_lps) AS loglines_per_sec latest(s_cn) AS container_name latest(s_im) AS image values(j_ldr) AS jldr values(j_bm) AS jbm values(j_dcs) AS jdcs BY host_id, container_id
+| eval log_driver=lower(trim(toString(mvindex(mvdedup(jldr), 0))))
+| eval log_driver=if((len(log_driver)==0) OR (log_driver=="null"), "unknown", log_driver)
+| eval blocking_mode=toString(mvindex(mvdedup(jbm), 0))
+| eval blocking_mode=if((len(blocking_mode)==0) OR (blocking_mode=="null"), "unknown", blocking_mode)
+| eval driver_connection_state=toString(mvindex(mvdedup(jdcs), 0))
+| eval driver_connection_state=if((len(driver_connection_state)==0) OR (driver_connection_state=="null"), "nominal", driver_connection_state)
+| fields - jldr jbm jdcs
+| join type=left max=0 host_id
+    [| search index=oti_containers sourcetype="linux:disk:docker_logs_dir" earliest=-4h@h latest=@h
+      | eval host_id=lower(toString(coalesce(host, Host, hostname, host_id, "")))
+      | eval docker_containers_fs_pct=tonumber(tostring(coalesce(pct_used, UsePct, used_pct, PCT_USED, "0")), 10)
+      | stats latest(docker_containers_fs_pct) AS docker_containers_fs_pct BY host_id ]
+| join type=left max=0 image
+    [| inputlookup container_log_driver_baseline.csv
+      | eval image=trim(toString(coalesce(image, Image, "")))
+      | eval expected_loglines_per_sec=tonumber(tostring(coalesce(expected_loglines_per_sec, expectedLps, "0")), 10)
+      | eval configured_driver=lower(toString(coalesce(configured_driver, driver_expected, "")))
+      | eval baseline_blocking_mode=lower(toString(coalesce(blocking_mode, blockingMode, "")))
+      | eval max_size=toString(coalesce(max_size, maxSize, ""))
+      | eval max_file=tonumber(tostring(coalesce(max_file, maxFile, "0")), 10)
+      | fields image expected_loglines_per_sec configured_driver baseline_blocking_mode max_size max_file ]
+| eval loglines_per_sec=tonumber(tostring(coalesce(loglines_per_sec, "0")), 10)
+| eval log_driver=if((len(configured_driver)>0) AND ((log_driver=="unknown") OR (len(log_driver)==0)), configured_driver, log_driver)
+| eval blocking_mode=if(len(baseline_blocking_mode)>0, baseline_blocking_mode, blocking_mode)
+| eventstats perc99(loglines_per_sec) AS fleet_p99_lps
+| eval baseline_lps=if(expected_loglines_per_sec>0, expected_loglines_per_sec, round(fleet_p99_lps*0.6, 4))
+| eval baseline_lps=if(baseline_lps<=0, 1, baseline_lps)
+| eval denom=(baseline_lps*3600) + dropped_count
+| eval drop_rate_pct=if(denom>0, round(100 * dropped_count / denom, 4), 0)
+| sort 0 host_id, container_id
+| streamstats window=5 current=t global=f range(dropped_count) AS dropped_range BY host_id, container_id
+| streamstats time_window=3600s global=f count AS driver_state_churn BY host_id, driver_connection_state
+| eval severity=case(
+    ((driver_connection_state=="disconnected") OR (driver_connection_state=="churn")) AND match(blocking_mode, "(?i)blocking|unknown"), "critical_remote_driver_disconnected_blocking_mode",
+    (drop_rate_pct>=5) AND (dropped_count>0), "critical_drop_rate_above_5pct_forensic_loss",
+    (docker_containers_fs_pct>=88) AND (rotation_cadence_per_hour>=60), "high_rotation_failure_disk_pressure",
+    (loglines_per_sec>(baseline_lps*2)) AND (baseline_lps>0), "high_loglines_per_sec_above_2x_baseline",
+    ((dropped_count>0) OR (driver_state_churn>=8)) AND (drop_rate_pct<5) AND (drop_rate_pct>0), "medium_buffer_overrun_warnings",
+    (abs(loglines_per_sec-baseline_lps)>(baseline_lps*0.35)) AND (baseline_lps>0) AND (drop_rate_pct<1), "low_baseline_drift",
+    true(), null())
+| where isnotnull(severity)
+| eval recommended_response=case(
+    severity=="critical_remote_driver_disconnected_blocking_mode", "Restore remote log collector reachability; relieve fluentd, syslog, gelf, or splunk driver back-pressure; if you must flip mode=non-blocking, obtain written acceptance of silent line loss; scale receivers and network paths before closing.",
+    severity=="critical_drop_rate_above_5pct_forensic_loss", "Treat as evidence-continuity incident: quantify dropped lines per container, preserve dockerd journal exports, open HIPAA or SOC2 CC7.2 impact review when PHI or trust services data is involved, parallel-path Splunk HEC health checks.",
+    severity=="high_rotation_failure_disk_pressure", "Emergency capacity on /var/lib/docker/containers, validate max-size and max-file log-opts, drain host if ENOSPC is imminent, engage storage ops before rotation failures create a forensic void.",
+    severity=="high_loglines_per_sec_above_2x_baseline", "Find the noisy logger: remove prod debug flags, break stack-trace tight loops, shard ultra-chatty workloads, add approved sampling only after owner sign-off.",
+    severity=="medium_buffer_overrun_warnings", "Widen collector buffers and parallelism, verify MTU and TLS overhead on the driver link, add disk-backed spill for remote drivers, rehearse collector failover.",
+    severity=="low_baseline_drift", "Refresh container_log_driver_baseline.csv after image or Compose changes, document intentional driver migrations, reconcile Terraform and systemd drop-ins.",
+    true(), "Correlate docker:journald, docker:stats, and linux:disk:docker_logs_dir feeds before muting.")
+| table container_id container_name image host_id log_driver blocking_mode loglines_per_sec dropped_count rotation_cadence_per_hour driver_connection_state severity recommended_response
+```
+
+## CIM SPL
+
+```spl
+| tstats summariesonly=true latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="docker" OR Application_State.app="dockerd") earliest=-4h@h latest=@h BY Application_State.dest
+| rename Application_State.dest AS host_id
+| where like(lower(app_info), "%log%") OR like(lower(app_info), "%driver%")
+```
+
+## Visualization
+
+Per-host log-driver health heatmap trellised by configured driver family, dropped_count and drop_rate_pct time series with annotated collector restarts, driver_connection_state churn ribbon with thirty-six hundred second windows, and horizontal bar chart of loglines_per_sec divided by baseline_lps for top noisy containers.
+
+## Known False Positives
+
+Legitimate startup bursts after container create can spike loglines_per_sec for two to three minutes while health checks warm caches; require sustained intervals above baseline before paging service owners. Incident bridges sometimes enable TRACE or DEBUG intentionally; tag those windows in maintenance lookups so medium_buffer_overrun_warnings rows downgrade after ticket correlation. Collector restarts for fluentd, splunk logging driver targets, or syslog relays increment driver_state_churn and may bump dropped_inc counters briefly without chronic misconfiguration; pair with collector uptime metrics. Hosts participating in deliberate near-full disk stress tests will raise high_rotation_failure_disk_pressure even when engineering expects the condition; exclude tagged hosts or shorten test windows. Structured JSON logging that emits pretty-printed multiline stacks inflates per-line counters versus semantic single events; reconcile baselines using parser-normalized counts when available. Blue-green deploys that recreate containers with new ids but identical images can look like baseline drift until container_log_driver_baseline.csv keys on image alone absorb the churn; add short-lived canary rows if needed. Security patches that only restart dockerd without workload changes may emit benign rotation warnings; compare rotation_cadence_per_hour against application release timelines. Low-volume sidecars that log once per minute may show zero rotation for days; do not treat absence of rotation as failure unless disk pressure is climbing. IPv6-only collector endpoints during migration can present as churn until DNS and routing stabilize; validate dual-stack health before muting. Mirantis field deltas after upgrades occasionally rename MESSAGE tokens until props aliases ship; expect brief uncategorized noise, not sustained forensic loss.
+
+## References
+
+- [Docker Docs — Configure logging drivers](https://docs.docker.com/config/containers/logging/configure/)
+- [Docker Docs — JSON File logging driver](https://docs.docker.com/config/containers/logging/json-file/)
+- [Docker Docs — Fluentd logging driver](https://docs.docker.com/config/containers/logging/fluentd/)
+- [Splunk Lantern — Getting Docker log data into Splunk Cloud Platform with OpenTelemetry](https://lantern.splunk.com/Platform_Data_Management/Unlock_Insights/Getting_Docker_log_data_into_Splunk_Cloud_Platform_with_OpenTelemetry)
+- [Datadog — Docker logging best practices](https://www.datadoghq.com/blog/docker-logging/)
+- [moby/moby GitHub Issue #45217 — non-blocking AWSLogs driver buffer behavior](https://github.com/moby/moby/issues/45217)

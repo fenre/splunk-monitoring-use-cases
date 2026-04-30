@@ -88,6 +88,8 @@ def extract_build_assignments():
     with open(BUILD_PATH, encoding="utf-8") as f:
         src = f.read()
     tree = ast.parse(src, filename=BUILD_PATH)
+    # CAT_GROUPS / SPLUNK_APPS are also defined in tools/build/enrichment.py;
+    # keep those tables in sync with root build.py when editing either file.
     cat_groups = None
     splunk_apps = None
     for node in tree.body:
