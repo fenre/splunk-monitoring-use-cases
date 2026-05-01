@@ -1,13 +1,13 @@
 # Compliance coverage report
 
-Status: **passed**  |  Generated: 2026-05-01T21:31:17Z
+Status: **passed**  |  Generated: 2026-05-01T22:03:26Z
 
 ## Summary
 
 * UC files checked: **7364**
 * UC files valid:   **7364**
 * Compliance entries: **2082**
-* Findings: **33** (errors: **0**, baselined: **0**)
+* Findings: **0** (errors: **0**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
 ## Global coverage (all tiers)
