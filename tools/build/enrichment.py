@@ -1416,6 +1416,10 @@ def _load_sidecar_equipment_cache():
     empty-tuple entry so callers can distinguish "sidecar says no equipment"
     from "no sidecar exists".
 
+    Primary source is ``content/cat-*/UC-*.json``; ``use-cases/**/uc-*.json``
+    fills missing ids and triggers stderr warnings when equipment is only
+    authored under ``use-cases/``.
+
     Cached for the life of the build. Called from build_index(), not at
     module load, so tests that import build.py don't pay the I/O cost.
     """
@@ -1423,32 +1427,82 @@ def _load_sidecar_equipment_cache():
     if _SIDECAR_EQUIPMENT_CACHE is not None:
         return _SIDECAR_EQUIPMENT_CACHE
     cache = {}
-    if not os.path.isdir(UC_DIR):
-        _SIDECAR_EQUIPMENT_CACHE = cache
-        return cache
-    for root, _dirs, files in os.walk(UC_DIR):
-        for fname in files:
-            if not fname.startswith("uc-") or not fname.endswith(".json"):
-                continue
-            path = os.path.join(root, fname)
+    content_tree_present = os.path.isdir(CONTENT_DIR)
+
+    def _equipment_pair_from_dict(
+        side: dict,
+    ) -> tuple[str, tuple[list, list]] | None:
+        uc_id = side.get("id")
+        if not isinstance(uc_id, str):
+            return None
+        equipment = side.get("equipment") or []
+        equipment_models = side.get("equipmentModels") or []
+        if not isinstance(equipment, list):
+            equipment = []
+        if not isinstance(equipment_models, list):
+            equipment_models = []
+        return uc_id, (list(equipment), list(equipment_models))
+
+    # 1) Primary: content/cat-*/UC-*.json
+    if os.path.isdir(CONTENT_DIR):
+        content_paths = sorted(
+            glob.glob(os.path.join(CONTENT_DIR, "cat-*", "UC-*.json"))
+        )
+        for path in content_paths:
             try:
                 with open(path, "r", encoding="utf-8") as fh:
                     side = json.load(fh)
             except (IOError, ValueError) as exc:
-                print(f"  WARN  skipping malformed sidecar {path}: {exc}")
+                print(f"  WARN  skipping malformed content sidecar {path}: {exc}")
                 continue
             if not isinstance(side, dict):
                 continue
-            uc_id = side.get("id")
-            if not isinstance(uc_id, str):
+            parsed = _equipment_pair_from_dict(side)
+            if parsed is None:
                 continue
-            equipment = side.get("equipment") or []
-            equipment_models = side.get("equipmentModels") or []
-            if not isinstance(equipment, list):
-                equipment = []
-            if not isinstance(equipment_models, list):
-                equipment_models = []
-            cache[uc_id] = (list(equipment), list(equipment_models))
+            uc_id, pair = parsed
+            cache[uc_id] = pair
+
+    # 2) Fallback + drift detection: use-cases/**/uc-*.json
+    if os.path.isdir(UC_DIR):
+        for root, _dirs, files in os.walk(UC_DIR):
+            for fname in files:
+                if not fname.startswith("uc-") or not fname.endswith(".json"):
+                    continue
+                path = os.path.join(root, fname)
+                try:
+                    with open(path, "r", encoding="utf-8") as fh:
+                        side = json.load(fh)
+                except (IOError, ValueError) as exc:
+                    print(f"  WARN  skipping malformed sidecar {path}: {exc}")
+                    continue
+                if not isinstance(side, dict):
+                    continue
+                parsed = _equipment_pair_from_dict(side)
+                if parsed is None:
+                    continue
+                uc_id, (equipment, equipment_models) = parsed
+                use_cases_has = bool(equipment) or bool(equipment_models)
+                if uc_id not in cache:
+                    cache[uc_id] = (equipment, equipment_models)
+                    if content_tree_present and use_cases_has:
+                        print(
+                            f"  WARN  equipment drift: UC {uc_id} has equipment "
+                            f"data in use-cases ({path}) but no matching entry "
+                            f"in content/cat-*/UC-*.json; using use-cases as fallback.",
+                            file=sys.stderr,
+                        )
+                    continue
+                ceq, cmodels = cache[uc_id]
+                content_has = bool(ceq) or bool(cmodels)
+                if content_tree_present and use_cases_has and not content_has:
+                    print(
+                        f"  WARN  equipment drift: UC {uc_id} has equipment data "
+                        f"in use-cases ({path}) but not in content/; canonical "
+                        f"content sidecar should carry equipment[] / equipmentModels[].",
+                        file=sys.stderr,
+                    )
+
     _SIDECAR_EQUIPMENT_CACHE = cache
     return cache
 
