@@ -19,6 +19,7 @@
     "Authentication"
   ],
   "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  by Authentication.user Authentication.action Authentication.src Authentication.app span=1h\n| sort -count",
+  "dataModelAcceleration": "Enable acceleration for the Authentication data model (Authentication dataset) before relying on tstats here.",
   "references": [
     {
       "title": "Splunk_TA_cisco-ise",
@@ -29,6 +30,7 @@
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
     }
   ],
+  "knownFalsePositives": "Failed logins often come from typos, expired passwords, guest self-service, or a single misconfigured device; treat sustained rises across many users as the real signal.",
   "equipment": [
     "cisco",
     "syslog"
@@ -39,7 +41,5 @@
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cisco WLC syslog, `Splunk_TA_cisco-ise`.\n• Ensure the following data sources are available: `sourcetype=cisco:wlc`, `sourcetype=cisco:ise:syslog`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward ISE/RADIUS logs to Splunk. Alert when failure rate exceeds 20% of attempts. Distinguish between bad credentials, expired certificates, and server timeouts.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"cisco:ise:syslog\" \"Authentication failed\"\n| rex \"UserName=(?<username>\\S+).*?FailureReason=(?<reason>[^;]+)\"\n| stats count by reason, username | sort -count\n| head 20\n```\n\nUnderstanding this SPL\n\n**RADIUS Authentication Failures** — Mass RADIUS failures prevent wireless users from connecting. Distinguishing between user errors and server issues drives faster resolution.\n\nDocumented **Data sources**: `sourcetype=cisco:wlc`, `sourcetype=cisco:ise:syslog`. **App/TA** (typical add-on context): Cisco WLC syslog, `Splunk_TA_cisco-ise`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ise:syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"cisco:ise:syslog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by reason, username** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\n\n\nStep 3 — Validate\nIn Cisco ISE (Operations > RADIUS Live Log or authentication reports), compare pass/fail counts and usernames to the Splunk search for the same time range. Spot-check a few failure reasons against ISE.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (failure reasons), Table (username, reason, count), Timechart (failure rate).",
   "grandmaExplanation": "We watch radius authentication failures so we notice problems while they are still small, and we can fix them before Wi-Fi users get dropped calls or dead spots.",
-  "hardware": "Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance",
-  "dataModelAcceleration": "Enable acceleration for the Authentication data model (Authentication dataset) before relying on tstats here.",
-  "knownFalsePositives": "Failed logins often come from typos, expired passwords, guest self-service, or a single misconfigured device; treat sustained rises across many users as the real signal."
+  "hardware": "Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance"
 }

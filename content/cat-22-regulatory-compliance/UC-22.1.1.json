@@ -48,6 +48,7 @@
     "N/A"
   ],
   "cimSpl": "",
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "Splunk Common Information Model Add-on",
@@ -68,10 +69,13 @@
     "pii_type",
     "sourcetype"
   ],
-  "equipment": [],
-  "equipmentModels": [],
+  "equipment": [
+    "hardware_bmc"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_edac"
+  ],
   "lastReviewed": "2026-04-22",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Processor (Splunk Cloud Platform — ingest-time PII rules), Splunk Common Information Model Add-on (Splunkbase 1621).\n• Ensure the following data sources are available: `index=main` OR `index=web` OR `index=app` — any high-volume text-bearing sourcetype such as `sourcetype=\"access_combined\"`, `sourcetype=\"log4j\"`, or custom application sourcetypes.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) In Splunk Cloud, configure Edge Processor pipelines with built-in PII detection rules for net-new data to mask at ingest; (2) run this SPL against existing indexes to find residual PII; (3) route hits to a restricted summary index for DPO review; (4) remediate at source (masking, log redaction, field drops in props.conf/transforms.conf) and re-run to verify reduction.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n(index=main OR index=web OR index=app) earliest=-24h\n| regex _raw=\"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\"\n| eval pii_type=\"email\"\n| append [\n    search (index=main OR index=web OR index=app) earliest=-24h\n    | regex _raw=\"\\b\\d{3}-\\d{2}-\\d{4}\\b\"\n    | eval pii_type=\"ssn_pattern\"\n  ]\n| append [\n    search (index=main OR index=web OR index=app) earliest=-24h\n    | regex _raw=\"\\b(\\+?1[-.\\s]?)?\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}\\b\"\n    | eval pii_type=\"phone\"\n  ]\n| stats count by index, sourcetype, host, pii_type\n| sort - count\n```\n\nUnderstanding this SPL\n\n**GDPR PII Detection in Application Log Data (Art. 5/6)** — Detects email, phone, and SSN patterns in indexed application and web logs so controllers can prove technical measures for data minimisation and lawful processing under Arts. 5-6.\n\nDocumented **Data sources**: `index=main` OR `index=web` OR `index=app` — any high-volume text-bearing sourcetype such as `sourcetype=\"access_combined\"`, `sourcetype=\"log4j\"`, or custom application sourcetypes. **App/TA** (typical add-on context): Splunk Edge Processor (Splunk Cloud Platform — ingest-time PII rules), Splunk Common Information Model Add-on (Splunkbase 1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: main, web, app.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=main, index=web, index=app, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters rows matching a pattern with `regex`.\n• `eval` defines or adjusts **pii_type** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Appends rows from a subsearch with `append`.\n• `stats` rolls up events into metrics; results are split **by index, sourcetype, host, pii_type** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nThis use case does not use a CIM tstats shortcut; the primary SPL above is the source of truth after field normalization in your environment.\n\n\nStep 3 — Validate\nCompare with audit evidence in the source system (DLP, IDP, or application) and, if this use case underpins a control test, the ServiceNow GRC console or the evidence pack for a known time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (hits by sourcetype/host), Table (top offending sources by PII type), Single value (total PII pattern matches vs prior period).",
-  "grandmaExplanation": "We watch your application logs for personal information like email addresses, phone numbers, and ID numbers that shouldn't be there, so you can catch privacy risks before they become a problem.",
-  "dataModelAcceleration": "Not applicable"
+  "grandmaExplanation": "We watch your application logs for personal information like email addresses, phone numbers, and ID numbers that shouldn't be there, so you can catch privacy risks before they become a problem."
 }

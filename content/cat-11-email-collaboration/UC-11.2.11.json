@@ -18,12 +18,14 @@
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable; primary SPL uses raw or vendor-normalized event fields.",
   "references": [
     {
       "title": "Splunk Lantern — use case library",
       "url": "https://lantern.splunk.com/"
     }
   ],
+  "knownFalsePositives": "Legal hold expansions, HR matters, and ediscovery projects that add many items at once.",
   "equipment": [
     "hashicorp"
   ],
@@ -31,7 +33,5 @@
     "hashicorp_vault"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_GoogleWorkspace`.\n• Ensure the following data sources are available: Vault audit (`CREATE_HOLD`, `DELETE_HOLD`, `UPDATE_HOLD`, `CREATE_MATTER`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward Vault audit to Splunk. Restrict alerts to legal-team actors; flag hold deletions without ticket ID in custom field.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gws sourcetype=\"gws:vault\" OR (sourcetype=\"gws:admin\" event_name=\"VAULT_*\")\n| table _time, actor.email, event_name, matter_id, hold_name\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Google Vault Hold Compliance** — Hold creation, release, and matter changes affect legal preservation; errors risk spoliation findings.\n\nDocumented **Data sources**: Vault audit (`CREATE_HOLD`, `DELETE_HOLD`, `UPDATE_HOLD`, `CREATE_MATTER`). **App/TA** (typical add-on context): `Splunk_TA_GoogleWorkspace`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gws; **sourcetype**: gws:vault, gws:admin. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gws, sourcetype=\"gws:vault\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **Google Vault Hold Compliance**): table _time, actor.email, event_name, matter_id, hold_name\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with Google Admin console audit and Google Workspace reports for the same org unit and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (hold changes), Table (matters affected), Single value (hold deletions 90d).",
-  "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks.",
-  "knownFalsePositives": "Legal hold expansions, HR matters, and ediscovery projects that add many items at once.",
-  "dataModelAcceleration": "Not applicable; primary SPL uses raw or vendor-normalized event fields."
+  "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks."
 }

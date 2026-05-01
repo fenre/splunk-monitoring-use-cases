@@ -9,6 +9,10 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "access-review-cadence",
+  "exclusions": "Does not decide who may access systems, approve joiner-mover-leaver tickets, interpret Article 21 national transpositions, or replace lawyer-reviewed access policies. It only aggregates technical log evidence.",
+  "evidence": "Scheduled saved search `UC-22.2.5` CSV/PDF export, supporting raw-event samples in `index=audit_evidence sourcetype=evidence:saved_search`, and RFC 3161 timestamp metadata from `evidenceSigning` stored beside quarterly NIS2 control packets.",
   "compliance": [
     {
       "regulation": "NIS2",
@@ -25,6 +29,11 @@
       "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
+  "controlTest": {
+    "positiveScenario": "Synthetic fixture seeds `index=windows` with `EventCode=4672`, `Account_Name=test_admin`, `after_hours=1`, and matching `index=pam` `cyberark:session` rows for the same user within five minutes; the saved search returns at least one combined stats row with `auth_result=special_privileges` and non-zero count, proving cross-system correlation.",
+    "negativeScenario": "Fixture contains only `nis2_service_accounts.csv` listed users performing scripted Logon Type 4 backups during the maintenance window with `Workstation_Name` allow-listed; the production alert child search applying the lookup filter returns zero actionable rows while still logging a green health metric.",
+    "fixtureRef": "sample-data/uc-22.2.5-fixture.json"
+  },
   "dataSources": "`index=windows` `sourcetype=WinEventLog:Security` and `index=auth` with `sourcetype=azure:aad:signin` or `sourcetype=okta:log`, plus `index=pam` `sourcetype=cyberark:session` for CyberArk Privileged Session Manager (Splunkbase 2891). Splunk Add-on for Microsoft Cloud Services ([Splunkbase 3110](https://splunkbase.splunk.com/app/3110)) for Entra ID / Graph modular inputs. Extracted fields for auditors include EventCode, Account_Name, Logon_Type, userPrincipalName, authenticationRequirement, dest, and session_id.",
   "app": "Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Okta Identity Cloud (Splunkbase 6553), Splunk Add-on for CyberArk (Splunkbase 2891)",
   "spl": "(index=windows sourcetype=\"WinEventLog:Security\" EventCode IN (4624, 4625, 4672)) OR (index=auth sourcetype IN (\"azure:aad:signin\",\"okta:log\")) OR (index=pam sourcetype=\"cyberark:session\") earliest=-24h\n| eval user=coalesce(Account_Name, userPrincipalName, user, Username)\n| eval auth_result=case(EventCode=4624,\"success\", EventCode=4625,\"failure\", EventCode=4672,\"special_privileges\", match(lower(_raw),\"(?i)success\"),\"success\", match(lower(_raw),\"(?i)fail|denied\"),\"failure\", 1=1,\"other\")\n| eval after_hours=if(tonumber(strftime(_time,\"%H\"))<7 OR tonumber(strftime(_time,\"%H\"))>19, 1, 0)\n| stats count by sourcetype, EventCode, auth_result, user, dest, Logon_Type, after_hours\n| sort -count",
@@ -36,6 +45,7 @@
     "Authentication"
   ],
   "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user, Authentication.action, Authentication.src | sort - count",
+  "dataModelAcceleration": "Enable for Authentication",
   "references": [
     {
       "title": "Splunk Add-on for Microsoft Windows",
@@ -83,36 +93,31 @@
     "dest",
     "user"
   ],
+  "equipment": [
+    "azure",
+    "cyberark",
+    "hashicorp",
+    "m365",
+    "microsoft_entra",
+    "okta",
+    "servicenow",
+    "splunk_es"
+  ],
+  "equipmentModels": [
+    "CyberArk Privileged Access Security (PAM session and vault audit logs)",
+    "Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110, Entra ID sign-in and audit logs)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, user provisioning and RBAC data)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, Authentication data model and Assets & Identities)",
+    "hashicorp_vault"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-04-29",
   "detailedImplementation": "Prerequisites\n• This UC implements NIS2 Art.21(2)(i) — human resources security, access control policies, and asset management. It specifically addresses access control by auditing authentication patterns, detecting privilege anomalies, and verifying that access rights are aligned with the principle of least privilege. It provides evidence that the entity controls who can access its network and information systems.\n• **Access control dimensions monitored**:\n  - **Authentication anomalies**: unusual login patterns — impossible travel (login from two geographically distant locations within a timeframe that precludes physical travel), new device/browser combinations, authentication outside business hours for non-shift workers.\n  - **Privilege accumulation**: users with excessive group memberships or role assignments relative to their job function. \"Privilege creep\" occurs when users change roles but retain their old access rights.\n  - **Dormant accounts**: active accounts that haven't authenticated in > 90 days. These are targets for account takeover.\n  - **Service account misuse**: service accounts used for interactive logins (should only authenticate programmatically).\n• **Data sources**:\n  - CIM Authentication data model (accelerated) — normalised authentication events. Fields: `user`, `action` (success, failure), `src`, `dest`, `app`, `authentication_method`.\n  - `index=azure sourcetype=ms:aad:signin` — Microsoft Entra ID sign-in logs. Rich data: `userPrincipalName`, `ipAddress`, `location.city`, `location.countryOrRegion`, `deviceDetail`, `appDisplayName`, `conditionalAccessStatus`, `authenticationRequirement` (singleFactorAuthentication, multiFactorAuthentication).\n  - `index=pam sourcetype=cyberark:session` — CyberArk sessions. Shows privileged access usage.\n  - `index=itsm sourcetype=snow:sys_user` or `index=hr sourcetype=hris:user` — user provisioning data with `department`, `manager`, `job_title`, `is_active`.\n• **ES Assets & Identities**: the Identity lookup (`identity_lookup_expanded`) provides user context: `bunit`, `category` (employee, contractor, service_account), `priority`, `watchlist`. This enrichment is essential for distinguishing legitimate anomalies from genuine threats.\n• **RBAC**: role `nis2_access_analyst` with `srchIndexesAllowed = azure, authentication, pam, itsm, hr, audit_evidence`.\n• **Index retention**: `index=azure` ≥ 1 year. `index=audit_evidence` ≥ 7 years.\n\nStep 1 — Configure data collection\n**Entra ID sign-in logs:**\nInstall the Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110). Configure the Entra ID input:\n- API: Microsoft Graph API `/auditLogs/signIns`\n- Authentication: OAuth2 client credentials (app registration with `AuditLog.Read.All` permission)\n- Interval: 300 seconds\n- Index: `azure`\n- Sourcetype: `ms:aad:signin`\n\nVerify CIM compliance: `| tstats count from datamodel=Authentication where earliest=-1h by Authentication.user Authentication.action Authentication.src`.\n\n**Identity enrichment:**\nVerify ES Identities: `| inputlookup identity_lookup_expanded | stats count dc(identity) as identities values(category) as categories`.\n\nStep 2 — Create the search and alert\nSave as `UC-22.2.5 NIS2 Access Control Audit`.\n\nUnderstanding this SPL — design decisions:\n\n• **Method 1 — Impossible travel**: \nFor each user, calculate the geographic distance between consecutive logins and compare with the time difference. If `distance_km / time_hours > 800` (faster than commercial aviation), flag as impossible travel.\n```spl\nindex=azure sourcetype=ms:aad:signin status.errorCode=0 earliest=-24h\n| sort user _time\n| streamstats window=2 current=t values(location.city) as cities values(location.countryOrRegion) as countries latest(_time) as latest_time earliest(_time) as earliest_time by user\n| where mvcount(countries) > 1\n| eval time_diff_hours=round((latest_time - earliest_time) / 3600, 1)\n| where time_diff_hours < 4 AND time_diff_hours > 0\n```\nTrue impossible travel detection requires geo-IP distance calculation. A simplified version checks for different countries within < 4 hours.\n\n• **Method 2 — Dormant account activation**:\n```spl\n| tstats latest(_time) as last_login from datamodel=Authentication where Authentication.action=success earliest=-365d by Authentication.user\n| rename Authentication.user as user\n| eval days_since_login=round((now() - last_login) / 86400, 0)\n| where days_since_login > 90\n| join type=inner user [| tstats count from datamodel=Authentication where Authentication.action=success earliest=-24h by Authentication.user | rename Authentication.user as user]\n```\nThis identifies accounts that were dormant for > 90 days but suddenly became active in the last 24 hours. The `join type=inner` ensures only accounts with recent activity appear.\n\n• **Method 3 — Service account interactive login**:\n```spl\n| tstats count from datamodel=Authentication where Authentication.action=success earliest=-24h by Authentication.user Authentication.app\n| rename Authentication.* as *\n| lookup identity_lookup_expanded identity AS user OUTPUT category\n| where category=\"service_account\" AND NOT match(app, \"(?i)api|service|daemon|cron|scheduler\")\n```\nService accounts logging in through interactive applications (RDP, browser, VPN) indicate misuse or compromise.\n\nSchedule: `0 * * * *` (hourly for impossible travel and dormant activation). `0 7 * * *` (daily for privilege analysis). Trigger: any method produces results.\n\nAlert actions: (1) For impossible travel: PagerDuty page to the SOC — likely credential compromise. (2) For dormant activation: email to the identity team for verification. (3) For service account misuse: email to the SOC and service account owner. (4) Write to `index=audit_evidence sourcetype=nis2:access_control:evidence`.\n\nStep 3 — Validate\n(a) **Impossible travel**: connect to the VPN from a foreign country (or use a proxy). Authenticate with your test account. Then authenticate from the office. Verify the UC detects the impossible travel within the time window.\n\n(b) **Dormant account**: identify an account that hasn't logged in for > 90 days (or create a test account with a backdated last login). Log in with it. Verify the UC detects the dormant activation.\n\n(c) **Service account misuse**: log in interactively (e.g., via RDP or web browser) using a service account that is tagged as `category=service_account` in ES Identities. Verify the UC detects the interactive login.\n\n(d) **Authentication data model coverage**: `| tstats count from datamodel=Authentication where earliest=-1h | eval events_per_min=count/60`. If this is low (< 10 events/min for an enterprise with > 1,000 users), authentication data may not be flowing correctly.\n\nStep 4 — Operationalize\nDashboard (recommended name: `NIS2 Access Control Audit`):\n• **Row 1 — Access posture**: Single-value `Impossible travel events (24h)` (red ≥ 1). Single-value `Dormant accounts activated (24h)`. Single-value `Service account misuse (24h)`. Single-value `Failed logins (24h)`.\n• **Row 2 — Authentication geography**: map visualisation of login locations over the last 24 hours. Cluster by country. Anomalous countries highlighted.\n• **Row 3 — Dormant account inventory**: `| tstats latest(_time) as last_login from datamodel=Authentication where Authentication.action=success earliest=-365d by Authentication.user | eval days_idle=round((now()-last_login)/86400,0) | where days_idle > 90 | sort -days_idle`. Table of dormant accounts for the identity team to review and disable.\n• **Row 4 — Failed login trends**: `| tstats count from datamodel=Authentication where Authentication.action=failure earliest=-7d by _time span=1h Authentication.user | timechart span=1h count by Authentication.user limit=10`. Line chart showing failed login trends per user.\n\nRunbook (owner: Identity & Access Management / SOC):\n1. Hourly: investigate impossible travel alerts. Verify with the user: did they use a VPN? Are they actually travelling? If no explanation: disable the account, reset credentials, investigate for compromise.\n2. Daily: review dormant account activations. Contact the account owner or manager. If the account is no longer needed: disable immediately.\n3. Weekly: review the dormant account inventory. Send a report to IT managers with accounts idle > 90 days. Request justification or disable.\n4. Monthly: present access control metrics to the CISO.\n\nStep 5 — Troubleshooting\n\n• **Impossible travel false positives from VPN/proxy.** Users connecting through corporate VPN exit points in different countries. Fix: maintain a `corporate_egress_ips.csv` lookup and exclude those IPs from impossible travel detection.\n\n• **Entra ID sign-in logs delayed.** Microsoft Graph API may have up to 15-minute latency for sign-in log availability. Fix: set the polling interval to 300 seconds and accept 5-20 minute detection latency. Do not poll more frequently than every 60 seconds (API throttling).\n\n• **Identity lookup not enriching.** The `identity_lookup_expanded` returns `category=unknown` for most users. Fix: ensure the ES Assets & Identities framework has been configured with an identity feed (AD LDAP, HR system, or manual CSV). Verify: `| inputlookup identity_lookup_expanded | where category!=\"unknown\" | stats count`.\n\n• **Service account naming inconsistent.** Service accounts don't follow a naming convention. Fix: tag all service accounts in the ES Identities framework with `category=service_account`. Use a naming convention going forward (e.g., `svc-<app>-<env>`).\n\n• **Authentication data model missing events from some sources.** Some authentication sources (e.g., CyberArk, Linux PAM) may not be mapped to the CIM Authentication data model. Fix: check `props.conf` for the source's `tag` settings. Required tags: `authentication` + `action::success` (or `failure`). Verify: `index=* tag=authentication earliest=-1h | stats count by sourcetype`.\n",
-  "grandmaExplanation": "We keep a single diary that shows who got into our important computer systems, whether they used an extra login check when required, and when someone tried after bedtime. That way we can prove to outsiders we watch the doors properly.",
-  "dataModelAcceleration": "Enable for Authentication",
-  "owner": "CISO",
-  "controlFamily": "access-review-cadence",
-  "exclusions": "Does not decide who may access systems, approve joiner-mover-leaver tickets, interpret Article 21 national transpositions, or replace lawyer-reviewed access policies. It only aggregates technical log evidence.",
-  "evidence": "Scheduled saved search `UC-22.2.5` CSV/PDF export, supporting raw-event samples in `index=audit_evidence sourcetype=evidence:saved_search`, and RFC 3161 timestamp metadata from `evidenceSigning` stored beside quarterly NIS2 control packets.",
   "evidenceSigning": {
     "method": "rfc3161-tsa",
     "tsaUrl": "http://timestamp.digicert.com"
   },
-  "status": "verified",
-  "wave": "crawl",
+  "grandmaExplanation": "We keep a single diary that shows who got into our important computer systems, whether they used an extra login check when required, and when someone tried after bedtime. That way we can prove to outsiders we watch the doors properly.",
   "prerequisiteUseCases": [],
-  "controlTest": {
-    "positiveScenario": "Synthetic fixture seeds `index=windows` with `EventCode=4672`, `Account_Name=test_admin`, `after_hours=1`, and matching `index=pam` `cyberark:session` rows for the same user within five minutes; the saved search returns at least one combined stats row with `auth_result=special_privileges` and non-zero count, proving cross-system correlation.",
-    "negativeScenario": "Fixture contains only `nis2_service_accounts.csv` listed users performing scripted Logon Type 4 backups during the maintenance window with `Workstation_Name` allow-listed; the production alert child search applying the lookup filter returns zero actionable rows while still logging a green health metric.",
-    "fixtureRef": "sample-data/uc-22.2.5-fixture.json"
-  },
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, Authentication data model and Assets & Identities)",
-    "Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110, Entra ID sign-in and audit logs)",
-    "CyberArk Privileged Access Security (PAM session and vault audit logs)",
-    "Splunk Add-on for ServiceNow (Splunkbase 1928, user provisioning and RBAC data)"
-  ],
-  "equipment": [
-    "splunk_es",
-    "microsoft_entra",
-    "cyberark",
-    "servicenow"
-  ]
+  "wave": "crawl"
 }

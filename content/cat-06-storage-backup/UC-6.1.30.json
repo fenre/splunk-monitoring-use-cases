@@ -12,13 +12,13 @@
   "dataSources": "MDS syslog (FLOGI/FDISC events), NX-API (`show flogi database`)",
   "app": "`cisco:mds` syslog, scripted input (NX-API)",
   "spl": "index=network sourcetype=\"cisco:mds\" \"FLOGI\" OR \"FDISC\"\n| stats count as login_count by switch, port, pwwn, nwwn\n| lookup mds_known_hosts pwwn OUTPUT host_name, authorized\n| where isnull(authorized) OR authorized!=\"yes\"\n| table switch, port, pwwn, nwwn, host_name, authorized, login_count",
-  "cimModels": [
-    "N/A"
-  ],
   "description": "The FLOGI (Fabric Login) database records every device that has logged into the SAN fabric. Monitoring FLOGI events detects rogue devices, unexpected host logins, and fabric login storms that indicate HBA or driver issues.",
   "value": "The FLOGI (Fabric Login) database records every device that has logged into the SAN fabric. Monitoring FLOGI events detects rogue devices, unexpected host logins, and fabric login storms that indicate HBA or driver issues.",
   "implementation": "Forward MDS syslog and periodically poll FLOGI database via NX-API. Maintain a lookup of known/authorized WWNs. Alert on unknown WWN logins. Track FLOGI count trends to detect login storms.",
   "visualization": "Table (FLOGI entries with authorization status), Bar chart (logins per switch), Timeline (login events).",
+  "cimModels": [
+    "N/A"
+  ],
   "references": [
     {
       "title": "Splunk Lantern — use case library",
@@ -33,7 +33,7 @@
   "equipmentModels": [
     "cisco_nexus"
   ],
-  "hardware": "Cisco MDS 9132T, MDS 9148T, MDS 9396T, MDS 9700 series",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `cisco:mds` syslog, scripted input (NX-API).\n• Ensure the following data sources are available: MDS syslog (FLOGI/FDISC events), NX-API (`show flogi database`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward MDS syslog and periodically poll FLOGI database via NX-API. Maintain a lookup of known/authorized WWNs. Alert on unknown WWN logins. Track FLOGI count trends to detect login storms.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"cisco:mds\" \"FLOGI\" OR \"FDISC\"\n| stats count as login_count by switch, port, pwwn, nwwn\n| lookup mds_known_hosts pwwn OUTPUT host_name, authorized\n| where isnull(authorized) OR authorized!=\"yes\"\n| table switch, port, pwwn, nwwn, host_name, authorized, login_count\n```\n\nUnderstanding this SPL\n\n**MDS FLOGI Database Monitoring** — The FLOGI (Fabric Login) database records every device that has logged into the SAN fabric. Monitoring FLOGI events detects rogue devices, unexpected host logins, and fabric login storms that indicate HBA or driver issues.\n\nDocumented **Data sources**: MDS syslog (FLOGI/FDISC events), NX-API (`show flogi database`). **App/TA** (typical add-on context): `cisco:mds` syslog, scripted input (NX-API). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:mds. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"cisco:mds\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by switch, port, pwwn, nwwn** so each row reflects one combination of those dimensions.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(authorized) OR authorized!=\"yes\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **MDS FLOGI Database Monitoring**): table switch, port, pwwn, nwwn, host_name, authorized, login_count\n\nStep 3 — Validate\nCompare port and error counters with the switch CLI (`show interface`, `porterrshow`) or DCNM for the same switch, port, and interval.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production—not generic platform steps only. Consider visualizations: Table (FLOGI entries with authorization status), Bar chart (logins per switch), Timeline (login events).",
-  "grandmaExplanation": "We watch who is allowed on the storage network and who just logged in, so stray servers or surprise changes on the fabric are harder to miss."
+  "grandmaExplanation": "We watch who is allowed on the storage network and who just logged in, so stray servers or surprise changes on the fabric are harder to miss.",
+  "hardware": "Cisco MDS 9132T, MDS 9148T, MDS 9396T, MDS 9700 series"
 }

@@ -14,7 +14,6 @@
   "spl": "index=os sourcetype=df host=*\n| where MountedOn=\"/\" OR match(MountedOn, \"^/System/Volumes/Data$\")\n| eval use_pct=coalesce(tonumber(UsePct), tonumber(PercentUsed), round((UsedKB/SizeKB)*100,2))\n| where use_pct > 90\n| table _time, host, Filesystem, MountedOn, SizeKB, AvailKB, use_pct\n| sort - use_pct",
   "description": "macOS endpoints exhaust `/System/Volumes/Data` quickly with local Time Machine snapshots, Xcode caches, and mail attachments. The TA `df` input already exposes per-mount utilization; scoping to root and Data volumes catches impending fullness before logging and MDM operations fail.",
   "value": "Prevents OS instability and failed security tooling updates by alerting on critical mount points before they hit 100% utilization.",
-  "knownFalsePositives": "APFS local snapshots and Time Machine locals can make `/System/Volumes/Data` look fuller than a Finder “Get Info” until snapshots are thinned. Network home directories or FUSE mounts can confuse `df` field parsing—test on a pilot Mac. iCloud purge and Mobile Accounts can free space minutes after a noisy alert.",
   "implementation": "Enable the `df` scripted input in `Splunk_TA_nix` on macOS UF installs (Darwin is supported for many collectors). Confirm field extractions: prefer `UsePct`; if your build emits `UsedKB`/`SizeKB`, derive percent as in the SPL. Poll every 5–15 minutes. Exclude network mounts with a `where NOT match(Filesystem, \"^//\")` clause if noisy. Alert above 90% on `/` and `/System/Volumes/Data` (adjust for Silicon vs Intel layout).",
   "visualization": "Table (host, mount, use_pct), Line chart (use_pct trend for Data volume), Single value (count of hosts over threshold).",
   "cimModels": [
@@ -36,6 +35,7 @@
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
     }
   ],
+  "knownFalsePositives": "APFS local snapshots and Time Machine locals can make `/System/Volumes/Data` look fuller than a Finder “Get Info” until snapshots are thinned. Network home directories or FUSE mounts can confuse `df` field parsing—test on a pilot Mac. iCloud purge and Mobile Accounts can free space minutes after a noisy alert.",
   "equipment": [
     "linux",
     "macos"

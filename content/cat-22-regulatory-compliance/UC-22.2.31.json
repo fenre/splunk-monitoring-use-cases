@@ -8,6 +8,10 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "owner": "Head of IR",
+  "controlFamily": "ir-drill-evidence",
+  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
+  "evidence": "`UC-22.2.31` mismatch report with `legal_entity_id`, snapshot of CMDB tags, ServiceNow task numbers, and signed PDF in `audit_evidence` referencing Art.2(1) classification checks.",
   "compliance": [
     {
       "regulation": "NIS2",
@@ -24,6 +28,11 @@
       "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
     }
   ],
+  "controlTest": {
+    "positiveScenario": "Set `legal_entity_id=LE-TEST` to `entity_tier=essential` in the lookup while CMDB events carry `nis2_entity_tag=important` for the same ID; run the search and confirm a row with `mismatch=1`.",
+    "negativeScenario": "Align CMDB `nis2_entity_tag` text to include essential per the lookup (or remove the CI test data) and verify the next run produces no row for that entity.",
+    "fixtureRef": "sample-data/uc-22.2.31-fixture.json"
+  },
   "dataSources": "`lookup=nis2_entity_classification.csv` columns `legal_entity_id`, `entity_tier`, `registered_name` remain the legal baseline. `index=cmdb` `sourcetype=snow:cmdb_ci_server` (Splunk Add-on for ServiceNow, Splunkbase 1928) carries `nis2_entity_tag`, `company`, `sys_id`, `os`, `name`. Cross-check geography and sector using `lookup=nis2_entity_scope.csv` (`country_code`, `in_scope`, `entity_tier_expected`). Governance policy attestations may mirror `index=itsm` `sourcetype=snow:sn_grc_policy` with `policy_number` ties.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263) optional for asset overlays",
   "spl": "| inputlookup nis2_entity_classification.csv\n| join legal_entity_id type=left [\n    search index=cmdb sourcetype=snow:cmdb_ci_server earliest=-1d\n    | stats values(nis2_entity_tag) as cmdb_tags by legal_entity_id\n]\n| eval mismatch=if(isnull(cmdb_tags),1,if(NOT match(mvjoin(cmdb_tags,\"|\"), entity_tier),1,0))\n| where mismatch=1\n| table legal_entity_id, entity_tier, cmdb_tags, mismatch",
@@ -34,6 +43,8 @@
   "cimModels": [
     "N/A"
   ],
+  "cimSpl": "",
+  "dataModelAcceleration": "Not applicable",
   "references": [
     {
       "title": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
@@ -69,29 +80,18 @@
   "equipment": [
     "servicenow"
   ],
+  "equipmentModels": [
+    "ServiceNow ITSM / Security Incident Response (SIR) module",
+    "Splunk Enterprise Security 7.x (notable framework, correlation rules)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-04-29",
   "detailedImplementation": "Prerequisites\n• Splunk Add-on for ServiceNow (Splunkbase 1928) on a Heavy Forwarder hitting `https://<instance>.service-now.com/api/now/table/cmdb_ci_server` every **300 seconds** with OAuth.\n• Index `cmdb` sized for full enterprise CI counts; retention **400 days** to survive annual audits.\n• CSV `nis2_entity_classification.csv` in Git with Splunk Deployment Server distribution.\n• Secondary lookup `nis2_entity_scope.csv` capturing geography constraints; optional join in extended panel.\n• RBAC limiting `cmdb` to architects and compliance analysts.\n\nStep 1 — Configure data collection\nMap ServiceNow fields `u_legal_entity` → `legal_entity_id`, `u_nis2_tag` → `nis2_entity_tag`. For multi-datacenter clones, add `splunk_server` partition to avoid duplicate CIs.\n\nStep 2 — Create the search and alert\nImplement SPL, run daily, store results `append=t` to summary index optional. Alert when `mismatch=1` count >0.\n\n```spl\n| inputlookup nis2_entity_classification.csv\n| join legal_entity_id type=left [\n    search index=cmdb sourcetype=snow:cmdb_ci_server earliest=-1d\n    | stats values(nis2_entity_tag) as cmdb_tags by legal_entity_id\n]\n```\n\nUnderstanding this SPL: `mvjoin` collapses tags before regex `match()` compares textual tier tokens—adjust pattern if tags encode JSON.\n\nStep 3 — Validate\nPick a known aligned entity, ensure no row returned. Force a mismatch in lab CMDB row and confirm detection within one search run.\n\nStep 4 — Operationalize & Troubleshoot\nCreate ServiceNow integration: alert action posts to `incident` table with `u_correlation_id`. If join fails, inspect `legal_entity_id` nulls on CIs—often missing corporate linkage field.\n\nStep 5 — Governance\nLegal counsel reviews CSV quarterly. Sign exports with `evidenceSigning`. During M&A freeze windows, pause alert via `nis2_exception_register.csv`.\n",
-  "grandmaExplanation": "We double-check that the big organisation chart labels—who counts as \"extra supervised\" versus \"regular supervised\"—match what the inventory system thinks, so nobody follows the wrong rulebook by accident.",
-  "cimSpl": "",
-  "dataModelAcceleration": "Not applicable",
-  "owner": "Head of IR",
-  "controlFamily": "ir-drill-evidence",
-  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
-  "evidence": "`UC-22.2.31` mismatch report with `legal_entity_id`, snapshot of CMDB tags, ServiceNow task numbers, and signed PDF in `audit_evidence` referencing Art.2(1) classification checks.",
   "evidenceSigning": {
     "method": "rfc3161-tsa",
     "tsaUrl": "http://timestamp.digicert.com"
   },
-  "status": "verified",
-  "wave": "walk",
+  "grandmaExplanation": "We double-check that the big organisation chart labels—who counts as \"extra supervised\" versus \"regular supervised\"—match what the inventory system thinks, so nobody follows the wrong rulebook by accident.",
   "prerequisiteUseCases": [],
-  "controlTest": {
-    "positiveScenario": "Set `legal_entity_id=LE-TEST` to `entity_tier=essential` in the lookup while CMDB events carry `nis2_entity_tag=important` for the same ID; run the search and confirm a row with `mismatch=1`.",
-    "negativeScenario": "Align CMDB `nis2_entity_tag` text to include essential per the lookup (or remove the CI test data) and verify the next run produces no row for that entity.",
-    "fixtureRef": "sample-data/uc-22.2.31-fixture.json"
-  },
-  "equipmentModels": [
-    "ServiceNow ITSM / Security Incident Response (SIR) module",
-    "Splunk Enterprise Security 7.x (notable framework, correlation rules)"
-  ]
+  "wave": "walk"
 }

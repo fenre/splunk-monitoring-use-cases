@@ -18,7 +18,6 @@
   "cimModels": [
     "N/A"
   ],
-  "knownFalsePositives": "Test clusters that intentionally trigger cgroup OOM; log-format changes that still contain the word cgroup but refer to a healthy accounting line; missing `cgroup_id` parsing so every row lands in null—fix extractions first.",
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
@@ -29,9 +28,14 @@
       "url": "https://lantern.splunk.com/"
     }
   ],
+  "knownFalsePositives": "Test clusters that intentionally trigger cgroup OOM; log-format changes that still contain the word cgroup but refer to a healthy accounting line; missing `cgroup_id` parsing so every row lands in null—fix extractions first.",
   "equipment": [
+    "kubernetes",
     "linux",
     "syslog"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
   ],
   "detailedImplementation": "Prerequisites\n• Ingest the OS log stream that records cgroup memory events (often forwarded as syslog) or deploy a `custom:cgroup_memory` input that samples `/sys/fs/cgroup`.\n\nStep 1 — Configure data collection\nFor syslog, ensure the forwarder is allowed to read `/var/log/kern.log` or `journal` streams with kernel priority. For structured metrics, sample usage and limit in MiB and tag `cgroup_id` from the path.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=os sourcetype=syslog (\"memory.max_usage_in_bytes\" OR ((\"Out of memory\" OR \"oom\") AND \"cgroup\"))\n| stats count by host, cgroup_id\n| where count > 0\n```\n\nAdjust keywords to match your distribution’s wording. Add `rex` to extract `cgroup_id` if the field is only in `_raw`.\n\n**Understanding this SPL** — Counts qualifying messages per host and cgroup; raise when any appear in the window (tighten to `>5` in busy environments).\n\n\nStep 3 — Validate\nReproduce a benign limit in a test cgroup and compare host-side `systemd-cgtop` or `cat` of the cgroup’s `memory.current` to the log lines Splunk received.\n\nStep 4 — Operationalize\nRoute to the platform or container SRE queue with links to the namespace or workload, and add a follow-up search on usage/limit ratio if you add structured metrics.\n\n",
   "grandmaExplanation": "We watch for signs that a container or service group is bumping into its memory cap, so you can add memory or move work before things get stopped unexpectedly."
