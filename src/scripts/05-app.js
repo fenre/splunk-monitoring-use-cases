@@ -648,7 +648,7 @@ function renderNonTechnicalOverview() {
   var totalSubs = DATA.reduce(function(a, c) { return a + c.s.length; }, 0);
   var html = '<div class="nt-hero"><h2>Monitoring outcomes</h2><p>Plain-language view of what we watch across your environment.</p>';
   html += '<div class="nt-stats"><div><strong>' + DATA.length + '</strong><span>Areas</span></div><div><strong>' + totalSubs + '</strong><span>Focus topics</span></div><div><strong>' + totalUCs.toLocaleString() + '</strong><span>Checks</span></div></div>';
-  html += '<div style="margin-top:12px"><input type="text" id="nt-search" placeholder="Search outcomes\u2026" oninput="filterNTCards(this.value)" style="width:100%;max-width:400px;padding:8px 12px;border-radius:8px;border:1px solid var(--border-subtle);font-size:14px;background:var(--bg-card);color:var(--text-primary)"></div>';
+  html += '<div style="margin-top:12px"><input type="text" id="nt-search" placeholder="Search outcomes\u2026" aria-label="Search outcomes" oninput="filterNTCards(this.value)" style="width:100%;max-width:400px;padding:8px 12px;border-radius:8px;border:1px solid var(--border-subtle);font-size:14px;background:var(--bg-card);color:var(--text-primary)"></div>';
   html += '</div>';
   html += '<div class="c-cat-grid" id="nt-grid">';
   DATA.forEach(function(cat) {
@@ -849,8 +849,12 @@ function toggleUCSelection(ucId) {
   }
   _saveUCSelections();
   _updateSizingTray();
-  var cb = document.querySelector('.uc-card input[onchange*="' + ucId + '"]');
-  if (cb) cb.checked = selectedUCIds.has(ucId);
+  var ucSelEsc = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(String(ucId)) : String(ucId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  var lab = document.querySelector('label.uc-select-cb[data-uc-select="' + ucSelEsc + '"]');
+  if (lab) {
+    var cb = lab.querySelector('input[type="checkbox"]');
+    if (cb) cb.checked = selectedUCIds.has(ucId);
+  }
 }
 
 function clearUCSelections() {
@@ -993,6 +997,19 @@ function initApp() {
   if (fl && SITE.siteRepoUrl) fl.href = SITE.siteRepoUrl;
 
   document.getElementById('header-logo').addEventListener('click', goHome);
+  /* UC open / sizing selection: data-uc-id + data-uc-select (delegation; capture stops parent row/card handlers e.g. .sc-view-card). */
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('[data-uc-select]')) return;
+    var el = e.target.closest('[data-uc-id]');
+    if (el) {
+      openUCById(el.getAttribute('data-uc-id'));
+      e.stopPropagation();
+    }
+  }, true);
+  document.addEventListener('change', function(e) {
+    var el = e.target.closest('[data-uc-select]');
+    if (el) toggleUCSelection(el.getAttribute('data-uc-select'));
+  });
   document.getElementById('theme-btn').addEventListener('click', toggleTheme);
   document.getElementById('hamburger').addEventListener('click', function() {
     document.getElementById('sidebar').classList.toggle('open');

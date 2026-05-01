@@ -11,8 +11,8 @@ function _ucContainerClass() {
   return currentBrowseMode === 'list' ? 'uc-list-container' : 'uc-grid';
 }
 function renderUCListRow(uc) {
-  var html = '<div class="uc-list-row" onclick="openUCById(\'' + esc(uc.i) + '\')">';
-  html += '<span class="uc-list-id"><span class="uc-crit-dot c-' + esc(uc.c || 'low') + '"></span> UC-' + esc(uc.i) + '</span>';
+  var html = '<div class="uc-list-row uc-clickable" data-uc-id="' + esc(uc.i) + '">';
+  html += '<span class="uc-list-id"><span class="uc-crit-dot c-' + esc(uc.c || 'low') + '" aria-hidden="true"></span> UC-' + esc(uc.i) + '</span>';
   html += '<span class="uc-list-name">' + esc(uc.n) + '</span>';
   html += critBadge(uc.c) + ' ' + diffBadge(uc.f);
   html += '</div>';
@@ -20,9 +20,9 @@ function renderUCListRow(uc) {
 }
 function renderUCCard(uc) {
   var cbChecked = selectedUCIds.has(uc.i) ? ' checked' : '';
-  var cb = '<label class="uc-select-cb" onclick="event.stopPropagation()" title="Select for data sizing estimate"><input type="checkbox"' + cbChecked + ' onchange="toggleUCSelection(\'' + esc(uc.i) + '\')"></label>';
-  var html = '<div class="uc-card" onclick="openUCById(\'' + esc(uc.i) + '\')">' + cb;
-  html += '<div class="uc-card-top"><span class="uc-crit-dot c-' + esc(uc.c || 'low') + '"></span><div style="flex:1;min-width:0"><span class="uc-card-title">' + esc(uc.n) + '</span><div style="margin-top:3px"><span class="uc-card-id">UC-' + esc(uc.i) + '</span></div></div>';
+  var cb = '<label class="uc-select-cb" data-uc-select="' + esc(uc.i) + '" title="Select for data sizing estimate"><input type="checkbox"' + cbChecked + '></label>';
+  var html = '<div class="uc-card uc-clickable" data-uc-id="' + esc(uc.i) + '">' + cb;
+  html += '<div class="uc-card-top">' + ucCritDotHtml(uc.c) + '<div style="flex:1;min-width:0"><span class="uc-card-title">' + esc(uc.n) + '</span><div style="margin-top:3px"><span class="uc-card-id">UC-' + esc(uc.i) + '</span></div></div>';
   html += diffBadge(uc.f);
   html += '</div>';
   if (uc.v) html += '<p class="uc-card-val">' + esc(stripMd(uc.v)) + '</p>';
@@ -291,7 +291,7 @@ function renderOverview() {
   [['all', SITE.filterAll || 'Categories'], ['subcats', SITE.statSubcategories || 'Subcategories'], ['alluc', SITE.statUseCases || 'Use Cases'], ['quickwins', SITE.statQuickWins || 'Quick Wins'], ['recent', 'Recently Added'], ['quality', 'Quality']].forEach(function(g) {
     html += '<button type="button" class="ov-tab' + (ovGroupFilter === g[0] ? ' active' : '') + '" onclick="filterOvGroup(\'' + g[0] + '\')">' + esc(g[1]) + '</button>';
   });
-  html += '<select class="ov-sort" onchange="setSort(this.value)">';
+  html += '<select class="ov-sort" aria-label="Sort overview list" onchange="setSort(this.value)">';
   [['criticality', '\u2195 Criticality'], ['difficulty', '\u2195 Easiest first'], ['difficulty-desc', '\u2195 Hardest first'], ['name-az', '\u2195 A\u2013Z'], ['name-za', '\u2195 Z\u2013A'], ['category', '\u2195 Category']].forEach(function(s) {
     html += '<option value="' + s[0] + '"' + (currentSort === s[0] ? ' selected' : '') + '>' + s[1] + '</option>';
   });
@@ -601,8 +601,8 @@ function renderSubcategoryView() {
     if (topUCs.length) {
       html += '<div class="sc-view-card-ucs">';
       topUCs.forEach(function(e) {
-        html += '<div class="sc-view-uc-peek" onclick="event.stopPropagation(); openUCById(\'' + esc(e.uc.i) + '\')">';
-        html += '<span class="uc-crit-dot c-' + (e.uc.c || 'low') + '"></span>';
+        html += '<div class="sc-view-uc-peek uc-clickable" data-uc-id="' + esc(e.uc.i) + '">';
+        html += ucCritDotHtml(e.uc.c);
         html += '<span class="sc-view-uc-name">' + esc(e.uc.n) + '</span></div>';
       });
       if (entries.length > 3) html += '<div class="sc-view-more">+' + (entries.length - 3) + ' more</div>';

@@ -231,7 +231,7 @@ function renderCondensedList() {
     }
     var cls = 'dl-item' + (detailEntry && detailEntry.uc.i === e.uc.i ? ' active' : '');
     html += '<div class="' + cls + '" data-idx="' + idx + '" onclick="openDetailByIdx(' + idx + ')">';
-    html += '<span class="uc-crit-dot c-' + esc(e.uc.c || 'low') + '"></span>';
+    html += ucCritDotHtml(e.uc.c);
     html += '<span class="dl-item-name">' + esc(e.uc.n) + '</span>';
     html += '</div>';
   });

@@ -206,7 +206,13 @@ function sortUCs(list, sortKey) {
 }
 
 function critBadge(c) {
-  return '<span class="c-badge c-badge-' + esc(c || 'low') + '">' + esc((c || '').charAt(0).toUpperCase() + (c || '').slice(1)) + '</span>';
+  var word = (c || '').charAt(0).toUpperCase() + (c || '').slice(1);
+  return '<span class="c-badge c-badge-' + esc(c || 'low') + '" aria-label="Criticality: ' + esc(word) + '">' + esc(word) + '</span>';
+}
+function ucCritDotHtml(c) {
+  var level = String(c || 'low').toLowerCase();
+  var word = level.charAt(0).toUpperCase() + level.slice(1);
+  return '<span class="uc-crit-dot c-' + esc(level) + '" role="img" aria-label="' + esc(word + ' criticality') + '"></span>';
 }
 function diffBadge(d) {
   return '<span class="c-badge c-badge-diff">' + esc((d || '').charAt(0).toUpperCase() + (d || '').slice(1)) + '</span>';
@@ -266,7 +272,7 @@ function renderUCChip(ucFullId) {
   if (entry.uc.wv && WAVE_LABELS[entry.uc.wv]) {
     waveHtml = ' <span class="chip-wave c-badge c-badge-wave-' + esc(entry.uc.wv) + '" title="' + esc(WAVE_TOOLTIPS[entry.uc.wv]) + '">' + esc(WAVE_LABELS[entry.uc.wv]) + '</span>';
   }
-  return '<li><button type="button" class="uc-chip" title="' + esc(title) + '" onclick="openUCById(\'' + esc(bareId) + '\')">' + esc(ucFullId) + waveHtml + '</button></li>';
+  return '<li><button type="button" class="uc-chip uc-clickable" title="' + esc(title) + '" data-uc-id="' + esc(bareId) + '">' + esc(ucFullId) + waveHtml + '</button></li>';
 }
 function renderImplementationOrdering(uc) {
   var html = '';
@@ -446,9 +452,12 @@ function freshChipHtml(iso) {
   if (days < 31) label = days + 'd ago';
   else if (days < 366) label = Math.round(days / 30) + 'mo ago';
   else label = Math.max(1, Math.round(days / 365)) + 'y ago';
+  var freshness = 'fresh';
   if (days > 183) cls = 'fresh-amber';
+  if (days > 183) freshness = 'stale';
   if (days > 366) cls = 'fresh-red';
-  return '<span class="uc-card-fresh ' + cls + '" title="Last reviewed ' + esc(iso) + '">✓ ' + esc(label) + '</span>';
+  if (days > 366) freshness = 'outdated';
+  return '<span class="uc-card-fresh ' + cls + '" title="Last reviewed ' + esc(iso) + '" aria-label="Review status: ' + esc(label) + ', ' + freshness + '">✓ ' + esc(label) + '</span>';
 }
 function setRegFilter(f) {
   // Changing the regulation always resets the clause selection: a
@@ -599,7 +608,7 @@ function advancedFilterPanel() {
   });
   html += '</select></div>';
   html += '<div class="adv-group"><label class="adv-label">Data source</label>';
-  html += '<select class="c-select full" onchange="handleDsGroupSelect(this.value)">';
+  html += '<select class="c-select full" id="adv-ds-group" onchange="handleDsGroupSelect(this.value)">';
   html += '<option value="all"' + (!currentDsGroup && !currentDatasourceFilter ? ' selected' : '') + '>All sources</option>';
   if (FILTER_FACETS.datasource_groups) FILTER_FACETS.datasource_groups.forEach(function(g) {
     if (g.name === 'Other') return;
@@ -609,7 +618,7 @@ function advancedFilterPanel() {
   if (currentDsGroup) {
     var grp = FILTER_FACETS.datasource_groups && FILTER_FACETS.datasource_groups.find(function(g) { return g.name === currentDsGroup; });
     if (grp && grp.sources.length) {
-      html += '<select class="c-select full mt" onchange="handleDsSourceSelect(this.value)">';
+      html += '<select class="c-select full mt" aria-label="Specific data source within group" onchange="handleDsSourceSelect(this.value)">';
       html += '<option value="">Any in group</option>';
       grp.sources.forEach(function(s) {
         html += '<option value="' + esc(s.name) + '"' + (currentDatasourceFilter === s.name ? ' selected' : '') + '>' + esc(s.name) + '</option>';
@@ -618,7 +627,7 @@ function advancedFilterPanel() {
     }
   }
   if (!currentDsGroup && currentDatasourceFilter) {
-    html += '<input type="text" class="c-input full mt" placeholder="Type data source…" value="' + esc(currentDatasourceFilter) + '" oninput="debounceAdvSearch(\'datasource\',this.value)">';
+    html += '<input type="text" class="c-input full mt" placeholder="Type data source…" aria-label="Filter by custom data source name" value="' + esc(currentDatasourceFilter) + '" oninput="debounceAdvSearch(\'datasource\',this.value)">';
   }
   html += '</div></div>';
   var mitreLabel = 'All tactics & techniques';
@@ -637,7 +646,7 @@ function advancedFilterPanel() {
   html += '<div class="adv-row single"><div class="adv-group grow">';
   html += '<label class="adv-label">MITRE ATT&CK</label><div class="adv-mitre-row">';
   html += '<div class="adv-mitre-wrap" id="mitre-dd-wrap"><button type="button" class="adv-mitre-btn' + (mitreHas ? ' has-value' : '') + '" onclick="toggleMitreDd()">' + esc(mitreLabel) + '</button>';
-  html += '<div class="adv-mitre-dd" id="mitre-dd"><input type="text" class="adv-mitre-search" placeholder="Search…" oninput="filterMitreDd(this.value)"><div id="mitre-dd-list"></div></div></div>';
+  html += '<div class="adv-mitre-dd" id="mitre-dd"><input type="text" class="adv-mitre-search" placeholder="Search…" aria-label="Search MITRE ATT&amp;CK tactics and techniques" oninput="filterMitreDd(this.value)"><div id="mitre-dd-list"></div></div></div>';
   html += '<button type="button" class="c-btn c-btn-secondary mitre-map-trigger" onclick="openMitreMap()">' + si('shield') + ' Coverage Map</button>';
   html += '</div></div></div></div>';
   return html;
@@ -677,22 +686,22 @@ function filterStrip() {
   [['all','All'],['security','Security'],['observability','Observability']].forEach(function(p) {
     html += '<button type="button" class="c-chip' + (currentPillarFilter === p[0] ? ' active' : '') + '" onclick="setPillarFilter(\'' + p[0] + '\')">' + p[1] + '</button>';
   });
-  html += '<select class="c-select" onchange="setFilter(this.value)"><option value="all">All criticality</option>';
+  html += '<select class="c-select" aria-label="Filter by criticality" onchange="setFilter(this.value)"><option value="all">All criticality</option>';
   ['critical','high','medium','low'].forEach(function(c) {
     html += '<option value="' + c + '"' + (currentFilter === c ? ' selected' : '') + '>' + c.charAt(0).toUpperCase() + c.slice(1) + '</option>';
   });
-  html += '</select><select class="c-select" onchange="setDiffFilter(this.value)"><option value="all">All Difficulty</option>';
+  html += '</select><select class="c-select" aria-label="Filter by difficulty" onchange="setDiffFilter(this.value)"><option value="all">All Difficulty</option>';
   ['beginner','intermediate','advanced','expert'].forEach(function(d) {
     html += '<option value="' + d + '"' + (currentDiffFilter === d ? ' selected' : '') + '>' + d.charAt(0).toUpperCase() + d.slice(1) + '</option>';
   });
   html += '</select>';
-  html += '<select class="c-select" onchange="setStatusFilter(this.value)" title="Quality status">';
+  html += '<select class="c-select" aria-label="Filter by quality status" onchange="setStatusFilter(this.value)" title="Quality status">';
   html += '<option value="all">All Status</option>';
   ['verified','community','draft'].forEach(function(s) {
     html += '<option value="' + s + '"' + (currentStatusFilter === s ? ' selected' : '') + '>' + s.charAt(0).toUpperCase() + s.slice(1) + '</option>';
   });
   html += '</select>';
-  html += '<select class="c-select" onchange="setFreshFilter(this.value)" title="Last reviewed">';
+  html += '<select class="c-select" aria-label="Filter by last reviewed" onchange="setFreshFilter(this.value)" title="Last reviewed">';
   html += '<option value="all">All Freshness</option>';
   [['fresh','≤ 6 mo'],['stale','6–12 mo'],['outdated','> 12 mo'],['unknown','Never reviewed']].forEach(function(fp) {
     html += '<option value="' + fp[0] + '"' + (currentFreshFilter === fp[0] ? ' selected' : '') + '>' + fp[1] + '</option>';
