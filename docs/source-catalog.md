@@ -514,8 +514,8 @@ schemas. Install with `pip install -e mcp/[test]`. Drift-guarded by
 |---|---|---|
 | `search_use_cases(query, category, regulation, equipment, mitre, limit)` | ✅ USED | Keyword + facet search; returns slim UC records |
 | `get_use_case(uc_id)` | ✅ USED | Full UC detail; `compliance[]` always present (empty for non-compliance UCs) |
-| `list_categories()` | ✅ USED | 23 categories &times; 189 subcategories with UC counts |
-| `list_regulations(tier?)` | ✅ USED | 66 frameworks with jurisdiction / tags / UC counts |
+| `list_categories()` | ✅ USED | 23 categories &times; 212 subcategories with UC counts |
+| `list_regulations(tier?)` | ✅ USED | 69 frameworks with jurisdiction / tags / UC counts |
 | `get_regulation(regulation_id, version?)` | ✅ USED | Per-framework detail with `clauseCoverageMatrix[]` |
 | `list_equipment(min_use_case_count?, regulation_id?)` | ✅ USED | Equipment inventory rollup |
 | `get_equipment(equipment_id)` | ✅ USED | Equipment detail (tag, UCs, regulations, categories) |

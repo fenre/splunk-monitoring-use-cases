@@ -7,8 +7,8 @@
 > `.github/workflows/release.yml`.
 >
 > **Scope:** every clause-level compliance mapping declared across UC
-> sidecars under `content/cat-*/UC-*.json`. Currently 1,889 entries
-> covering 15 regulation families.
+> sidecars under `content/cat-*/UC-*.json`. Currently 2,082 entries
+> covering 69 regulation frameworks.
 
 This repository aspires to be the international gold standard for
 compliance-monitoring use cases. Peer review (Phase 4.5a), legal review
@@ -421,7 +421,7 @@ python3 scripts/audit_mapping_ledger.py \
   --verify-signature
 ```
 
-Expected: `PASS: mapping ledger OK (1,889 entries, merkle root …, signature=attested)`.
+Expected: `PASS: mapping ledger OK (2,082 entries, merkle root …, signature=attested)`.
 
 ### 8.6 Local dry-run of the release stamper
 

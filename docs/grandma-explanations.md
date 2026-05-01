@@ -1,6 +1,6 @@
 # Plain-language explanations (`grandmaExplanation`)
 
-> **Status:** shipped v7.1 (2026-04-20) · **Schema:** `uc.schema.json` v1.5.0 · **Writer:** [`scripts/generate_grandma_explanations.py`](../scripts/generate_grandma_explanations.py) · **CI guard:** `generate_grandma_explanations.py --check`
+> **Status:** shipped v7.1 (2026-04-20) · **Schema:** `uc.schema.json` v1.6.1 · **Writer:** [`scripts/generate_grandma_explanations.py`](../scripts/generate_grandma_explanations.py) · **CI guard:** `generate_grandma_explanations.py --check`
 
 Every use case in the catalogue carries a short, jargon-free "explain it
 to my grandma" sentence in the sidecar field `grandmaExplanation`
@@ -176,7 +176,7 @@ should run the generator locally before pushing.
 
 ## Schema reference
 
-Defined in [`schemas/uc.schema.json`](../schemas/uc.schema.json) (v1.5.0):
+Defined in [`schemas/uc.schema.json`](../schemas/uc.schema.json) (v1.6.1):
 
 ```jsonc
 "grandmaExplanation": {

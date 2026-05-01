@@ -472,7 +472,7 @@ All four are generated from `catalog.json` by scripts under [`scripts/`](../scri
 - **HTTP GET `catalog.json`** — full catalog (~40 MB). Suitable for bulk offline processing; cache aggressively.
 - **`git clone` + `make build`** — reproduce `dist/` locally; use when changing parsers, renderers, or emitted APIs.
 - **`git clone` + `pip install openapi-generator-cli` + codegen** — the OpenAPI 3.1 spec at `openapi.yaml` (rendered at [`/api-docs.html`](../api-docs.html)) means typed client code is a single `openapi-generator-cli generate -i openapi.yaml -g <lang>` away.
-- **`pip install -e mcp/` + MCP-capable client** — the Phase 6 Model Context Protocol server at [`mcp/`](../mcp/) wraps `api/v1/*.json` in an LLM-addressable surface (eight tools + four URI schemes) for Cursor, Claude Desktop, Claude Code, and any other MCP-compatible agent.
+- **`pip install -e mcp/` + MCP-capable client** — the Phase 6 Model Context Protocol server at [`mcp/`](../mcp/) wraps `api/v1/*.json` in an LLM-addressable surface (ten tools + four URI schemes) for Cursor, Claude Desktop, Claude Code, and any other MCP-compatible agent.
 
 ### 9.4 MCP server (Phase 6)
 
@@ -508,7 +508,7 @@ a `CallToolResult(isError=True)` so agents have an unambiguous
 **Audit gates.** `scripts/audit_mcp_tool_schemas.py` exercises every
 tool against the committed `api/v1/*.json` tree and validates each
 response against its declared `outputSchema`. The guard also freezes
-the slug regex set, asserts the 8 tools are declared with non-empty
+the slug regex set, asserts the 10 tools are declared with non-empty
 descriptions, and verifies `api/v1/manifest.json` still exposes the
 endpoints the remote-fallback catalogue depends on. Wired into
 `.github/workflows/validate.yml` so schema drift between `api/v1`

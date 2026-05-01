@@ -192,7 +192,7 @@ NIS2, NIST 800-53, NIST CSF, PCI DSS, SOC 2, SOX ITGC).
 Where IT Essentials / ITSI content packs / ESCU deliver a fixed
 library of saved searches bound to a specific data source or
 regulation, the recommender app solves the inverse problem: **"given
-the data I already have in Splunk, which of the 6 300+ use cases in
+the data I already have in Splunk, which of the 7,364 use cases in
 this catalogue are worth turning on?"** — *and* it still ships all
 tier-1 compliance content for auditors in the same app.
 
@@ -207,7 +207,7 @@ Key differences vs. the other apps discussed above:
   ITGC) as **disabled, unscheduled** saved searches with a filterable
   Compliance view so a single install covers both "what could we
   monitor?" and "what do we need for audit evidence?".
-- It covers the **full catalogue** (all 23 categories, ~6 300 UCs)
+- It covers the **full catalogue** (all 23 categories, 7,364 UCs)
   for recommendations, not just the compliance-tagged subset.
 - It is **Splunk Cloud safe** — no custom commands, REST endpoints,
   scripted inputs, or web.conf exposures; all catalogue fetches

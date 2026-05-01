@@ -15,7 +15,7 @@ of the non-technical UI so that toggle hides *all* technical chrome
 behind a single disclosure.
 
 - New required-at-runtime `grandmaExplanation` field on every UC
-  sidecar (schema v1.5.0, 20–400 chars, `we` voice, no Splunk/SPL/CIM/
+  sidecar (schema v1.6.1, 20–400 chars, `we` voice, no Splunk/SPL/CIM/
   MITRE/TA acronyms) — populated deterministically by
   [`scripts/generate_grandma_explanations.py`](scripts/generate_grandma_explanations.py)
   from the existing title/description/value copy

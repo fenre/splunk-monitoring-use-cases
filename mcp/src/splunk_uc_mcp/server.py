@@ -211,7 +211,7 @@ def _tool_definitions() -> list[Tool]:
         Tool(
             name="search_use_cases",
             description=(
-                "Search the catalogue (6,400+ UCs) by optional keyword + "
+                "Search the catalogue (7,364 UCs) by optional keyword + "
                 "category/regulation/equipment/MITRE filters. Returns a "
                 "compact list suitable for follow-up get_use_case calls."
             ),
@@ -241,7 +241,7 @@ def _tool_definitions() -> list[Tool]:
         Tool(
             name="list_regulations",
             description=(
-                "List the 60 regulations with jurisdiction, tier, and tag "
+                "List the 69 regulations with jurisdiction, tier, and tag "
                 "metadata. Filter by tier / jurisdiction / tag to scope "
                 "down."
             ),

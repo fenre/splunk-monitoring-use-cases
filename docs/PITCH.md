@@ -4,7 +4,7 @@
 
 ---
 
-> **7,300+ production-grade use cases.
+> **7,364 production-grade use cases.
 > 23 technology domains.
 > 3 Splunkbase-ready content packs.
 > One browser tab. Zero license cost.**
@@ -39,7 +39,7 @@ and we're open about exactly how we got here.
 
 ## The solution in one paragraph
 
-An open-source catalog of **7,300+ infrastructure and security use cases**,
+An open-source catalog of **7,364 infrastructure and security use cases**,
 each written in a strict authoring contract, each producing **ready-to-run
 SPL**, each automatically graded on six quality dimensions, each audited
 for **Splunk Cloud compatibility** on every commit, each traceable to its
@@ -59,13 +59,13 @@ free forever.
 
 | Metric | Value |
 |---|---|
-| Use cases | **7,300+** |
+| Use cases | **7,364** |
 | Categories | **23** (infrastructure · security · cloud · application · industry · compliance · business) |
-| Subcategories | **173** |
+| Subcategories | **212** |
 | Lines of curated markdown | **~169,000** |
-| Ready-to-run SPL queries | **7,300+** |
+| Ready-to-run SPL queries | **7,364** |
 | Industry verticals covered | Energy, manufacturing, healthcare, telecom, transportation, retail, aviation, insurance |
-| Compliance frameworks | **9** — GDPR, NIS2, DORA, CCPA, MiFID II, ISO 27001, NIST CSF, SOC 2, PCI DSS |
+| Compliance frameworks | **69** — GDPR, NIS2, DORA, HIPAA, PCI DSS, ISO 27001, NIST CSF, SOC 2, SOX ITGC, CCPA, MiFID II, and 58 more |
 | Equipment vendors tagged | **206+** — Cisco, Palo Alto, Fortinet, F5, VMware, Microsoft, AWS, Azure, GCP, Nutanix, Dell, HPE, … |
 
 ### Quality
@@ -121,7 +121,7 @@ A single static HTML file — open `index.html`, that's it — with:
 - Grouped sidebar navigation across 6 collapsible pillars
 - Full-text search (`Cmd/Ctrl+K`), deep-linkable URLs
 - Equipment filter ("show me everything for Cisco ASA")
-- Virtual scrolling for 7,300+ cards
+- Virtual scrolling for 7,364 cards
 - Light / dark mode, mobile-first, print-optimised
 - Non-technical "outcomes" view for executive audiences
 - Colour-coded provenance badge on every card — **instantly see if this came from Splunk docs or a random blog**
@@ -235,7 +235,7 @@ findings, **five** SPL warnings (all legitimate `dbxquery` callouts).
 ### vs. "just write your own"
 
 - **10,323 lines of automation** so you don't have to. Ours.
-- **7,300+ UCs of curated content.** Would take a team of four three
+- **7,364 UCs of curated content.** Would take a team of four three
   years to write from scratch.
 - **Zero runtime dependencies.** It'll still build in 2035.
 
@@ -280,18 +280,19 @@ research should look.
 **v6.0 (shipped):** Verifiable quality — every shipped SPL demonstrably
 correct, every metric transparently measured.
 
-**v6.1 (next):** Raise the grades. Expand sample-fixture coverage from
-15 → 200. Push 5 categories from Bronze into Silver, 3 Silver into Gold.
-Drive "unclassified" provenance below 1 %.
+**v7.0–v7.3 (shipped):** 195 UCs rewritten to true-gold standard.
+69 regulatory frameworks with clause-level provenance. Interactive
+knowledge graph. Cisco Catalyst Center, OpenShift, and NIS2 deep-dives.
+MCP server with ten tools for AI-agent integration.
 
-**v6.x backlog:** Industry-specific bundles (Finance, OT, Healthcare,
+**v7.x backlog:** Industry-specific bundles (Finance, OT, Healthcare,
 Public Sector). Cloud-provider deep dives at parity with cat-10.
 AI / LLM observability subcategory. OCSF parity (every detection in
 CIM *and* OCSF). CLI (`pip install splunk-monitoring-use-cases`).
 Terraform provider. VS Code extension. Translations. Monthly community
 call.
 
-**v7 north star:** Every Splunk deployment on Earth starts from this
+**v8 north star:** Every Splunk deployment on Earth starts from this
 catalog. Every commercial Splunk vendor builds on top of it. Every
 academic paper about detection engineering cites it.
 
@@ -331,7 +332,7 @@ into your Splunk instance and click install.
 
 ## The one-line pitch (memorable version)
 
-> **We're the Wikipedia of Splunk detections — 7,300+ articles, every
+> **We're the Wikipedia of Splunk detections — 7,364 articles, every
 > one cited, graded, and runnable.**
 
 ---

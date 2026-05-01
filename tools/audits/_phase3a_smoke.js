@@ -42,9 +42,10 @@ function assert(ok, msg) {
 
 // Minimal document shim — just enough for the loaded scripts to
 // evaluate without ReferenceError. We capture writes to
-// ``document.getElementById('panel-body').innerHTML`` so we can
-// assert on the HTML that ``fillPanelBody`` produced.
+// ``document.getElementById('detail-pane').innerHTML`` so we can
+// assert on the HTML that ``fillDetailPane`` produced.
 const stubElements = {
+  "detail-pane": { innerHTML: "" },
   "panel-body": { innerHTML: "" },
   "panel-id": { textContent: "" },
   "panel-title": { textContent: "" },
@@ -249,23 +250,23 @@ assert(
 );
 
 // ---------------------------------------------------------------
-// Assertion 3 — fillPanelBody renders the clause table
+// Assertion 3 — fillDetailPane renders the clause table
 // ---------------------------------------------------------------
-// fillPanelBody writes into document.getElementById('panel-body').
-// innerHTML. We stub panel-body up front and inspect the string
+// fillDetailPane writes into document.getElementById('detail-pane').
+// innerHTML. We stub detail-pane up front and inspect the string
 // after the function returns. Pick a narrowed entry that does NOT
 // have ``uc.z`` (visualization) so we don't need to stub
 // ntVizMockups from 03-render.js.
 assert(
-  typeof sandbox.fillPanelBody === "function",
-  "04-panel.js exports fillPanelBody()",
+  typeof sandbox.fillDetailPane === "function",
+  "04-panel.js exports fillDetailPane()",
 );
 const renderEntry = narrowed.find((e) => !e.uc.z) || narrowed[0];
-sandbox.fillPanelBody(renderEntry);
-const renderedHtml = stubElements["panel-body"].innerHTML;
+sandbox.fillDetailPane(renderEntry);
+const renderedHtml = stubElements["detail-pane"].innerHTML;
 assert(
   typeof renderedHtml === "string" && renderedHtml.length > 0,
-  "fillPanelBody() populates panel-body innerHTML",
+  "fillDetailPane() populates detail-pane innerHTML",
 );
 assert(
   renderedHtml.includes("uc-compliance-table"),
