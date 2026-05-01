@@ -77,6 +77,8 @@ def audit_file(filepath: str) -> List[str]:
 
 
 def main() -> int:
+    warn_only = "--warn-gaps" in sys.argv
+
     paths = sorted(glob.glob(f"{USE_CASES_DIR}/cat-*.md"))
     all_issues: Dict[str, List[str]] = {}
     for p in paths:
@@ -88,6 +90,11 @@ def main() -> int:
         print("No issues found.")
         return 0
 
+    gap_only = all(
+        all(line.startswith("Gap in Z") for line in v)
+        for v in all_issues.values()
+    )
+
     for p in sorted(all_issues.keys()):
         print(f"\n## {p}")
         for line in all_issues[p]:
@@ -96,6 +103,11 @@ def main() -> int:
     print(f"\n---\nTotal files with issues: {len(all_issues)}")
     total = sum(len(v) for v in all_issues.values())
     print(f"Total issue lines: {total}")
+
+    if gap_only and warn_only:
+        print("\n(--warn-gaps: gaps treated as warnings, not errors)")
+        return 0
+
     return 1
 
 
