@@ -201,10 +201,11 @@ server.listen(0, "127.0.0.1", () => {
   const sandbox = {
     console,
     Date, Math, JSON, Error, Promise,
-    Set, Map, Array,
+    Set, Map, Array, Object, Number, String, RegExp, parseInt, parseFloat, isNaN, isFinite,
     setTimeout, clearTimeout,
     setInterval, clearInterval,
     encodeURIComponent, decodeURIComponent,
+    AbortController,
     fetch: (url, init) => {
       // Resolve relative URLs against the fixture server root.
       const u = /^https?:/.test(url) ? url : base + "/" + url.replace(/^\//, "");
