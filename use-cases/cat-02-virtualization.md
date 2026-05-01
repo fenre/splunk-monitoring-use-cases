@@ -4515,7 +4515,7 @@ index=xd (sourcetype="uberAgent:Process:ProcessStartup" OR sourcetype="uberAgent
 ### UC-2.6.78 · Citrix Session Recording Pipeline and Storage Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability, Compliance
+- **Monitoring type:** Availability, Compliance, Security
 - **Value:** Session recording is often a compliance and insider-risk control. The recording service, search index, and long-term file storage must be healthy, searchable within agreed latency, and large enough to retain evidence. Failures in any tier create a gap where activity is not provable even though policy requires recording. Monitoring capacity and playback availability closes that gap operationally and for audits.
 - **App/TA:** No official Splunk TA for Citrix Session Recording. Ingest via Windows Event Logs from the Session Recording Server (Splunk Add-on for Microsoft Windows), IIS logs from the SR web player, and optionally SR database queries via Splunk DB Connect.
 - **Data Sources:** `index=xd` `sourcetype="citrix:session:recording:server"` (service up, IIS app pool, admin API), `sourcetype="citrix:session:recording:storage"` (free space, file age), `sourcetype="citrix:session:recording:search"` (indexing lag, playback requests); Windows performance or `sourcetype=WinHostMon` for disk Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.
