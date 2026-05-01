@@ -2,7 +2,7 @@ var DOMAIN_GUIDE = {1:'infrastructure-monitoring',2:'infrastructure-monitoring',
 function domainGuideLink(catId, label) {
   var g = DOMAIN_GUIDE[catId];
   if (!g) return '';
-  return '<a class="sc-guide-link" href="guide-reader.html?src=docs/guides/' + g + '.md" onclick="event.stopPropagation()" title="Domain guide — vendor best practices, implementation guidance">' + si('external') + ' ' + (label || 'Domain Guide') + '</a>';
+  return '<a class="sc-guide-link" href="guide-reader.html?src=docs/guides/' + g + '.md" onclick="event.stopPropagation()" title="Domain guide — vendor best practices, implementation guidance">' + si('external') + ' ' + esc(label || 'Domain Guide') + '</a>';
 }
 function _renderUC(uc) {
   return currentBrowseMode === 'list' ? renderUCListRow(uc) : renderUCCard(uc);

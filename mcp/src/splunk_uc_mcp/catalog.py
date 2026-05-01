@@ -312,7 +312,13 @@ class Catalog:
                             f"Remote payload exceeds MAX_PAYLOAD_BYTES: {url}"
                         )
             try:
-                return json.loads(bytes(body).decode("utf-8"))
+                text = bytes(body).decode("utf-8")
+            except UnicodeDecodeError as uexc:
+                raise CatalogError(
+                    "Invalid UTF-8 in remote catalog response"
+                ) from uexc
+            try:
+                return json.loads(text)
             except json.JSONDecodeError as jexc:
                 raise CatalogError(
                     f"Corrupt JSON from {url}: {jexc}"

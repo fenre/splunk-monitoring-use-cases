@@ -20,8 +20,8 @@ no formal commitments to the project.
 
 Anyone who has had a pull request merged, opened a well-formed issue, or
 meaningfully improved a use case, documentation page, or build script.
-Contributors are acknowledged in `CONTRIBUTING.md` and GitHub's automatic
-contributor list.
+Contributor recognition is described in **Acknowledgements** in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ### 3. Maintainers
 

@@ -186,7 +186,7 @@ if (typeof window !== 'undefined') {
     if ((currentSearch || '').toLowerCase().trim() !== q) return;
     if (typeof reRender === 'function') {
       _searchRerendering = true;
-      try { reRender(); } catch (e) { /* swallow */ }
+      try { reRender(); } catch (e) { console.error('reRender failed:', e); }
       _searchRerendering = false;
     }
   };
@@ -598,7 +598,7 @@ function advancedFilterPanel() {
   html += '<div class="adv-group"><label class="adv-label">App / TA</label><select class="c-select full" onchange="setAdvFilter(\'sapp\',this.value)">';
   html += '<option value="all">All apps</option>';
   if (FILTER_FACETS.sapp) FILTER_FACETS.sapp.forEach(function(v) {
-    html += '<option value="' + v.id + '"' + (currentSappFilter === String(v.id) ? ' selected' : '') + '>' + esc(v.name) + '</option>';
+    html += '<option value="' + esc(v.id) + '"' + (currentSappFilter === String(v.id) ? ' selected' : '') + '>' + esc(v.name) + '</option>';
   });
   html += '</select></div>';
   html += '<div class="adv-group"><label class="adv-label">Industry</label><select class="c-select full" onchange="setAdvFilter(\'industry\',this.value)">';

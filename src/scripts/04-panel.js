@@ -259,6 +259,7 @@ function _scopeListToCategory(entry) {
 
 function openDetail(entry) {
   if (window.innerWidth < 768) {
+    if (!/^\d+\.\d+\.\d+$/.test(entry.uc.i)) return;
     window.location.href = 'uc/UC-' + entry.uc.i + '/';
     return;
   }

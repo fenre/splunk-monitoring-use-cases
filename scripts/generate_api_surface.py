@@ -1588,6 +1588,42 @@ paths:
           schema:
             type: string
             pattern: ^[0-9]+\\.[0-9]+\\.[0-9]+$
+  /compliance/clauses/{clauseId}.json:
+    get:
+      summary: Per-clause detail (coverage, covering UCs, obligation text)
+      description: |
+        Single-clause reverse index emitted by ``scripts/generate_clause_index.py``.
+        The ``clauseId`` path segment is the URL-safe filename encoding the
+        framework id, regulation version, and clause citation (see
+        ``compliance/clauses/index.json`` entries' ``endpoint`` field).
+      parameters:
+        - name: clauseId
+          in: path
+          required: true
+          schema:
+            type: string
+  /compliance/story/{regulation}.json:
+    get:
+      summary: Compliance story narrative for a regulation
+      description: |
+        Buyer / auditor / implementer narrative consumed by ``compliance-story.html``,
+        produced by ``scripts/generate_story_payload.py``.
+      parameters:
+        - name: regulation
+          in: path
+          required: true
+          schema: { type: string }
+  /evidence-packs/{regulation}.json:
+    get:
+      summary: Machine-readable evidence pack for a regulation
+      description: |
+        JSON twin of the Markdown pack under ``docs/evidence-packs/``, produced by
+        ``scripts/generate_evidence_packs.py`` (subtree owned outside this generator).
+      parameters:
+        - name: regulation
+          in: path
+          required: true
+          schema: { type: string }
   /oscal/index.json:
     get:
       summary: OSCAL artifacts index

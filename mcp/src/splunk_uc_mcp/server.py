@@ -187,6 +187,8 @@ def _register_tools(server: Server, catalog: Catalog) -> None:
             payload = handler(args)
         except (ValueError, CatalogValidationError) as exc:
             return _error_result("invalid_input", str(exc))
+        except (TypeError, KeyError) as exc:
+            return _error_result("invalid_input", str(exc))
         except CatalogNotFoundError as exc:
             return _error_result("not_found", str(exc))
         except CatalogError as exc:

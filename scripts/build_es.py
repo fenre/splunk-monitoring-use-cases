@@ -121,8 +121,13 @@ TACTIC_BY_PREFIX: Dict[str, str] = {
 # --------------------------------------------------------------------------
 
 def load_catalog() -> dict:
-    with open(CATALOG, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(CATALOG, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        sys.exit("ERROR: catalog.json not found — run 'make build' first")
+    except json.JSONDecodeError as e:
+        sys.exit(f"ERROR: catalog.json is invalid JSON: {e}")
 
 
 def iter_security_ucs(catalog: dict) -> Iterable[dict]:

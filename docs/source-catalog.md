@@ -8,18 +8,29 @@ Comprehensive reference of all sources used (and not yet used) to develop use ca
 - 🔵 **UNTAPPED** — Promising source with real Splunk backing; not yet used
 - ⬜ **LOW PRIORITY** — Source exists but adds marginal value given current coverage
 
-Last reviewed: 2026-04-20 (catalogue v7.1)
+Last reviewed: 2026-05-01 (catalogue v7.3)
 
 > **What changed since the v3.20 review (2026-03-20):** the catalogue
 > grew from 4,625 UCs / 22 categories / 122 subcategories to
-> **7,364 UCs / 23 categories / 189 subcategories**. The regulatory
-> corpus was rebuilt on top of `data/regulations.json` (66 frameworks
+> **7,364 UCs / 23 categories / 212 subcategories**. The regulatory
+> corpus was rebuilt on top of `data/regulations.json` (69 frameworks
 > across three tiers), every tier-1 regulation is now covered by a
 > deep `commonClauses[]` matrix with `obligationText`, and the
 > catalogue ships clause-level machine APIs under `api/v1/compliance/`
 > (story, clause-navigator, and per-regulation payloads). The MCP
-> server (`mcp/`) now exposes ten tools covering the whole corpus. See
-> `CHANGELOG.md` v3.21 &rarr; v7.1 and
+> server (`mcp/`) now exposes ten tools covering the whole corpus.
+>
+> **v7.2 (2026-04-29):** 195 UCs rewritten to the true-gold standard
+> across cat-01, cat-18, cat-19, and cat-23; cat-23 Business Analytics
+> (63 UCs) and cat-19 Compute Infrastructure (93 UCs) reached 100%
+> coverage.
+>
+> **v7.3 (2026-04-30):** 27 Gold-tier UCs via Lantern UCE enrichment,
+> 89 UCs enriched; interactive knowledge graph (`graph.html`) added;
+> 78 Cisco Catalyst Center UCs (5.13.1–5.13.78) fully handwritten to
+> gold standard; 57 NIS2 UCs deeply uplifted; 14 OpenShift UCs added.
+>
+> See `CHANGELOG.md` v3.21 &rarr; v7.3 and
 > `docs/v6.0-release-report.md` for the detailed timeline.
 
 ---
@@ -126,7 +137,7 @@ ESCU detections and analytic stories. Check monthly for new releases.
 | Cisco Meraki Add-on | 5580 | ~110 | 5.9 |
 | Cisco ThousandEyes App | 7719 | ~60 | 5.10, 8.7 |
 | Cisco Security Cloud | 7404 | — | 10.1 (via Firewall syslog) |
-| Cisco Catalyst Add-on | 7538 | — | 5.1 (via syslog/Netflow) |
+| Cisco Catalyst Add-on | 7538 | ~78 | 5.1, 5.13 (Catalyst Center Intent API + syslog/Netflow) |
 
 ### Security Vendor TAs (✅ USED)
 
@@ -232,47 +243,195 @@ These are new Splunkbase apps that could generate timely, relevant UCs.
 | OPC Foundation | opcfoundation.org | ✅ USED | OPC-UA in 14.5 |
 | Modbus.org | modbus.org | ✅ USED | Modbus protocol in 14.2 |
 
-### Regulatory Framework Documentation
+### Regulatory & Standards Source Register
 
-The regulatory corpus has been formalised into `data/regulations.json`
-since v6.0 &mdash; every framework below now carries an authoritative
-`commonClauses[]` list with `obligationText`, a `clauseGrammar` regex
-for clause-string validation, and generated machine-readable endpoints
-under `/api/v1/compliance/regulations/{id}.json`. Coverage is
-auditable via `scripts/audit_compliance_mappings.py` (baseline lives
-in `tests/golden/audit-baseline.json`). Full tier-1 + tier-2 coverage
-reached **1,395 UCs / 1,964 compliance entries / 946 clauses** in v7.1.
+This section documents **where all regulatory and standards content
+comes from**. Every obligation text, clause identifier, and coverage
+mapping in this catalogue traces back to the authoritative sources
+listed below.
 
-| Source | URL | Status | Notes |
+#### How regulatory content is sourced
+
+1. **Primary sources.** Obligation text is taken verbatim (or closely
+   paraphrased) from official government gazettes, regulator websites,
+   and standards body publications. The `authoritativeUrl` field in
+   `data/regulations.json` links each framework to its canonical
+   online publication.
+2. **Clause-level citations.** Many frameworks carry per-clause deep
+   links via `clauseUrlTemplate` or individual `obligationSource`
+   URLs that resolve to the specific article, section, or requirement
+   within the source document (e.g., Eur-Lex article anchors, eCFR
+   section links, PCI DSS PDF page numbers).
+3. **Crosswalks.** Derivative relationships (e.g., UK GDPR derives
+   from EU GDPR; FedRAMP from NIST 800-53) are encoded in the
+   `derivesFrom` graph within `data/regulations.json`, with explicit
+   `clauseMapping` and `divergences` arrays.
+4. **Provenance tracking.** Ingested crosswalk datasets (MITRE
+   ATT&CK, NIST OLIR, CTID, D3FEND, Atomic Red Team) are
+   SHA-256-hashed in `data/provenance/ingest-manifest.json`. Legal
+   attribution is documented in `LEGAL.md`.
+5. **Verification.** Coverage is auditable via
+   `scripts/audit_compliance_mappings.py` (baseline in
+   `tests/golden/audit-baseline.json`). Clause-string formats are
+   validated by the `clauseGrammar` regex in each framework version.
+
+Machine-readable endpoints at `api/v1/compliance/regulations/{id}.json`
+expose the full per-framework detail including `clauseCoverageMatrix[]`.
+Browse interactively at `regulatory-primer.html` or query via MCP
+tool `get_regulation(regulation_id)`.
+
+Full corpus: **69 frameworks**, **994 clauses**, **1,452 compliance-tagged UCs**,
+**2,082 compliance entries**.
+
+#### Tier 1 &mdash; primary frameworks (11)
+
+Deep clause coverage, evidence packs, story payloads, and per-regulation
+Splunk apps. These frameworks are the foundation of the compliance
+programme.
+
+| Framework | Jurisdiction | Authoritative Source | Issuing Body |
 |---|---|---|---|
-| GDPR Full Text | gdpr-info.eu | ✅ USED | Tier-1; Cat 22.1; 100% common-clause coverage; `obligationText` on Art.5 / Art.32 / Art.33 |
-| NIS2 Directive | eur-lex.europa.eu (Directive 2022/2555) | ✅ USED | Tier-1; Cat 22.2; evidence pack + story payload shipped |
-| DORA Regulation | eur-lex.europa.eu (Regulation 2022/2554) | ✅ USED | Tier-1; Cat 22.3; RTS references in NIS2 + DORA cross-walks |
-| CCPA/CPRA Text | oag.ca.gov/privacy/ccpa | ✅ USED | Tier-2; Cat 22.4; contributing coverage on &sect;1798.100 + &sect;1798.150 |
-| MiFID II | esma.europa.eu | ✅ USED | Tier-2; Cat 22.5; MiFID II operational controls UCs |
-| ISO 27001:2022 | iso.org/standard/27001 | ✅ USED | Tier-1; Cat 22.6; Annex A controls mapped to UCs; full `obligationText` backfill in v7.1 |
-| NIST CSF 2.0 | nist.gov/cyberframework | ✅ USED | Tier-1; Cat 22.7; Identify / Protect / Detect / Respond / Recover / Govern covered |
-| SOC 2 Trust Services Criteria | aicpa.org | ✅ USED | Tier-2; Cat 22.8; CC1&ndash;CC9 common criteria |
-| NERC CIP Standards | nerc.com/pa/Stand/Pages/CIPStandards.aspx | ✅ USED | Tier-1; CIP-002 &ndash; CIP-014 covered; OT/ICS cross-walks to Cat 14 |
-| PCI DSS v4.0 | pcisecuritystandards.org | ✅ USED | Tier-1; requirement 1&ndash;12 common clauses; evidence pack + Splunk app shipped |
-| HIPAA Security Rule | hhs.gov/hipaa | ✅ USED | Tier-1; &sect;164.308 / &sect;164.310 / &sect;164.312 mapped; HIPAA + HITECH evidence packs |
-| NIST 800-53 Rev 5 | csrc.nist.gov/publications/detail/sp/800-53/rev-5/final | ✅ USED | Tier-1; AC / AU / CM / IA / SC / SI control families |
-| FedRAMP Moderate Baseline | fedramp.gov/documents-templates/ | ✅ USED | Tier-2; derives from 800-53 Rev 5 |
-| SOX 404 IT General Controls | sarbanes-oxley-101.com | ✅ USED | Tier-1; PCAOB AS-5 control mappings |
-| CMMC Level 2 | dodcio.defense.gov/CMMC/ | ✅ USED | Tier-2; 14 domains cross-walked to 800-171 |
-| FISMA | nist.gov/itl/smallbusinesscyber/cybersecurity-basics/fisma | ✅ USED | Tier-2; 800-53 moderate baseline |
-| CJIS Security Policy | fbi.gov/services/cjis/ | ✅ USED | Tier-2; criminal-justice information handling |
-| LGPD (Brazil) | planalto.gov.br/ccivil_03/\_ato2015-2018/2018/lei/l13709.htm | ✅ USED | Tier-2; GDPR-mapped mode |
-| PDPA (Singapore) | pdpc.gov.sg | ✅ USED | Tier-2 |
-| PIPEDA (Canada) | priv.gc.ca | ✅ USED | Tier-2 |
-| Australian Privacy Principles | oaic.gov.au/privacy/australian-privacy-principles | ✅ USED | Tier-2 |
-| COPPA | ftc.gov/legal-library/browse/rules/childrens-online-privacy-protection-rule-coppa | ✅ USED | Tier-2; story payload ships with `uncovered` clauses flagged |
-| IEC 62443 | iec.ch | ✅ USED | Tier-1; OT/ICS security; cross-walked to NIS2 Annex I |
-| HKMA Supervisory Policy Manual | hkma.gov.hk/eng/regulatory-resources/ | ✅ USED | Tier-2; Hong Kong banking resilience |
-| UK GDPR + Data Protection Act 2018 | ico.org.uk | ✅ USED | Tier-2; GDPR-derived |
-| PSD2 / SCA (EU) | eba.europa.eu | ✅ USED | Tier-2; financial services strong-customer-auth |
-| KYC / AML Directives | eba.europa.eu | ✅ USED | Tier-2; money-laundering directives |
-| Full tier inventory | `data/regulations.json` &mdash; **66 frameworks** total | ✅ USED | 11 tier-1, 54 tier-2, 1 tier-3 (browse via `regulatory-primer.html` + `api/v1/compliance/regulations/index.json`) |
+| GDPR | EU, EEA | [Regulation 2016/679](https://eur-lex.europa.eu/eli/reg/2016/679/oj) | European Parliament & Council |
+| NIS2 Directive | EU | [Directive 2022/2555](https://eur-lex.europa.eu/eli/dir/2022/2555/oj) | European Parliament & Council |
+| DORA | EU | [Regulation 2022/2554](https://eur-lex.europa.eu/eli/reg/2022/2554/oj) | European Parliament & Council |
+| PCI DSS v4.0 | Global | [PCI Document Library](https://www.pcisecuritystandards.org/document_library/) | PCI Security Standards Council |
+| HIPAA Security Rule | US | [45 CFR 164 Subpart C](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C) | HHS Office for Civil Rights |
+| NIST CSF 2.0 | US, Global | [NIST Cybersecurity Framework](https://www.nist.gov/cyberframework/framework) | NIST |
+| NIST 800-53 Rev 5 | US | [SP 800-53 Rev 5](https://csrc.nist.gov/pubs/sp/800/53/r5/final) | NIST CSRC |
+| ISO 27001:2022 | Global | [ISO/IEC 27001](https://www.iso.org/standard/27001) | ISO / IEC |
+| SOC 2 | US, Global | [SOC Suite of Services](https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services) | AICPA-CIMA |
+| SOX ITGC | US | [PCAOB AS 2201](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201) | PCAOB |
+| CMMC Level 2 | US | [CMMC Programme](https://dodcio.defense.gov/CMMC/) | US DoD CIO |
+
+#### Tier 2 &mdash; extended frameworks (56)
+
+Contributing coverage via clause mappings, crosswalks, or GDPR-derived
+modes. Listed by jurisdiction.
+
+**European Union**
+
+| Framework | Authoritative Source | Issuing Body |
+|---|---|---|
+| EU AI Act | [Regulation 2024/1689](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) | European Parliament & Council |
+| EU Cyber Resilience Act | [Regulation 2024/2847](https://eur-lex.europa.eu/eli/reg/2024/2847/oj) | European Parliament & Council |
+| PSD2 | [Directive 2015/2366](https://eur-lex.europa.eu/eli/dir/2015/2366/oj) | European Parliament & Council |
+| MiFID II | [Directive 2014/65](https://eur-lex.europa.eu/eli/dir/2014/65/oj) | European Parliament & Council |
+| EU AML Regulation | [Regulation 2024/1624](https://eur-lex.europa.eu/eli/reg/2024/1624/oj) | European Parliament & Council |
+| eIDAS 2.0 | [Regulation 2024/1183](https://eur-lex.europa.eu/eli/reg/2024/1183/oj) | European Parliament & Council |
+
+**United States**
+
+| Framework | Authoritative Source | Issuing Body |
+|---|---|---|
+| FedRAMP | [FedRAMP Baselines](https://www.fedramp.gov/baselines/) | GSA / FedRAMP PMO |
+| FISMA | [Senate Bill 2521](https://www.congress.gov/bill/113th-congress/senate-bill/2521) | US Congress |
+| CJIS Security Policy | [CJIS Resource Center](https://le.fbi.gov/cjis-division/cjis-security-policy-resource-center) | FBI CJIS Division |
+| HIPAA Privacy Rule | [45 CFR 164 Subpart E](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-E) | HHS OCR |
+| CCPA/CPRA | [CPPA Regulations](https://cppa.ca.gov/regulations/) | California Privacy Protection Agency |
+| COPPA | [16 CFR 312](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-312) | FTC |
+| FERPA | [34 CFR 99](https://www.ecfr.gov/current/title-34/subtitle-A/part-99) | US Dept. of Education |
+| GLBA Safeguards | [16 CFR 314](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314) | FTC |
+| FDA 21 CFR Part 11 | [21 CFR Part 11](https://www.ecfr.gov/current/title-21/chapter-I/subchapter-A/part-11) | FDA |
+| TSA Security Directives | [TSA SD-02C](https://www.tsa.gov/sd02c) | TSA |
+| HITRUST CSF | [HITRUST CSF Overview](https://hitrustalliance.net/csf-overview/) | HITRUST Alliance |
+| NERC CIP | [CIP Standards](https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx) | NERC |
+
+**United Kingdom**
+
+| Framework | Authoritative Source | Issuing Body |
+|---|---|---|
+| UK GDPR | [Retained EU Regulation 2016/679](https://www.legislation.gov.uk/eur/2016/679/contents) | UK Parliament (retained EU law) |
+| UK NIS Regulations | [SI 2018/506](https://www.legislation.gov.uk/uksi/2018/506/contents) | UK Parliament |
+| FCA SM&CR | [SM&CR](https://www.fca.org.uk/firms/senior-managers-certification-regime) | Financial Conduct Authority |
+| FCA SS1/21 | [PS21-3 (PDF)](https://www.fca.org.uk/publication/policy/ps21-3.pdf) | Financial Conduct Authority |
+| PRA SS2/21 | [Outsourcing and Third-Party Risk](https://www.bankofengland.co.uk/prudential-regulation/publication/2021/march/outsourcing-and-third-party-risk-management-ss) | Bank of England / PRA |
+| Cyber Essentials | [Cyber Essentials Overview](https://www.ncsc.gov.uk/cyberessentials/overview) | NCSC |
+
+**Germany**
+
+| Framework | Authoritative Source | Issuing Body |
+|---|---|---|
+| BAIT/KAIT | [BAIT Circular (EN)](https://www.bafin.de/SharedDocs/Veroeffentlichungen/EN/Rundschreiben/2021/rs_1021_BAIT_en.html) | BaFin |
+| BSI-KritisV | [BSI-KritisV](https://www.gesetze-im-internet.de/bsi-kritisv/) | BSI |
+| IT-Grundschutz | [IT-Grundschutz](https://www.bsi.bund.de/EN/Themen/Unternehmen-und-Organisationen/Standards-und-Zertifizierung/IT-Grundschutz/it-grundschutz_node.html) | BSI |
+| IT-SiG 2.0 | [Bundesgesetzblatt](https://www.bgbl.de/xaver/bgbl/start.xav?startbk=Bundesanzeiger_BGBl&start=//*[@attr_id=%27bgbl121s1122.pdf%27]) | German Federal Parliament |
+
+**Norway**
+
+| Framework | Authoritative Source | Issuing Body |
+|---|---|---|
+| Personopplysningsloven | [Lov 2018-06-15-38](https://lovdata.no/dokument/NL/lov/2018-06-15-38) | Stortinget |
+| Kraftberedskapsforskriften | [Forskrift 2012-12-07-1157](https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157) | NVE / OED |
+| Petroleumsforskriften | [Forskrift 1997-06-27-653](https://lovdata.no/dokument/SF/forskrift/1997-06-27-653) | Petroleumstilsynet |
+| Sikkerhetsloven | [Lov 2018-06-01-24](https://lovdata.no/dokument/NL/lov/2018-06-01-24) | Stortinget |
+
+**Asia-Pacific**
+
+| Framework | Authoritative Source | Issuing Body |
+|---|---|---|
+| SG PDPA | [PDPA 2012](https://sso.agc.gov.sg/Act/PDPA2012) | PDPC (Singapore) |
+| MAS TRM Guidelines | [TRM Guidelines (PDF)](https://www.mas.gov.sg/-/media/mas/regulations-and-financial-stability/regulatory-and-supervisory-framework/risk-management/trm-guidelines-18-january-2021.pdf) | MAS (Singapore) |
+| APPI | [APPI Legal Portal](https://www.ppc.go.jp/en/legal/) | PPC (Japan) |
+| PIPL | [PIPL Full Text](http://www.npc.gov.cn/npc/c2/c30834/202108/t20210820_313088.html) | NPC Standing Committee (China) |
+| HKMA TM-G-2 | [SPM Hub](https://www.hkma.gov.hk/eng/regulatory-resources/regulatory-guides/supervisory-policy-manual/) | HKMA (Hong Kong) |
+| RBI Cyber Security | [RBI Notification](https://rbi.org.in/Scripts/NotificationUser.aspx?Id=10435) | Reserve Bank of India |
+| AU Privacy Act | [Privacy Act 1988](https://www.legislation.gov.au/C2004A03712/latest/text) | OAIC (Australia) |
+| APRA CPS 234 | [CPS 234](https://www.apra.gov.au/information-security) | APRA (Australia) |
+| ASD Essential Eight | [Essential Eight Maturity Model](https://www.cyber.gov.au/resources-business-and-government/essential-cyber-security/essential-eight/essential-eight-maturity-model) | ASD (Australia) |
+| NZISM | [NZ ISM](https://www.nzism.gcsb.govt.nz/) | GCSB (New Zealand) |
+
+**Americas (non-US)**
+
+| Framework | Authoritative Source | Issuing Body |
+|---|---|---|
+| LGPD (Brazil) | [Lei 13709/2018](http://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm) | Planalto (Brazil) |
+
+**Switzerland**
+
+| Framework | Authoritative Source | Issuing Body |
+|---|---|---|
+| Swiss nFADP | [nFADP (Fedlex)](https://www.fedlex.admin.ch/eli/cc/2022/491/en) | Swiss Federal Council |
+
+**Middle East**
+
+| Framework | Authoritative Source | Issuing Body |
+|---|---|---|
+| NESA IAS | [NESA Portal](https://www.nesa.gov.ae/) | NESA (UAE) |
+| QCB Cyber | [QCB Portal](https://www.qcb.gov.qa/) | Qatar Central Bank |
+| SAMA CSF | [SAMA CSF (PDF)](https://www.sama.gov.sa/en-US/Laws/BankingRules/SAMA%20Cyber%20Security%20Framework.pdf) | SAMA (Saudi Arabia) |
+| SA PDPL | [PDPL (PDF)](https://sdaia.gov.sa/en/SDAIA/about/Files/PersonalDataEnglish.pdf) | SDAIA (Saudi Arabia) |
+
+**Global / industry bodies**
+
+| Framework | Authoritative Source | Issuing Body |
+|---|---|---|
+| IEC 62443 | [ISA/IEC 62443 Series](https://www.isa.org/standards-and-publications/isa-standards/isa-iec-62443-series-of-standards) | ISA / IEC |
+| ISO 27001 | [ISO/IEC 27001](https://www.iso.org/standard/54534.html) | ISO / IEC |
+| SWIFT CSP | [SWIFT CSP Controls](https://www.swift.com/myswift/customer-security-programme-csp/security-controls) | SWIFT |
+| API RP 1164 | [API Standard 1164](https://www.api.org/products-and-services/standards/important-standards-announcements/standard-1164) | American Petroleum Institute |
+| Basel III | [BIS BCBS d516](https://www.bis.org/bcbs/publ/d516.htm) | BIS / BCBS |
+| COSO | [COSO IC Guidance](https://www.coso.org/guidance-on-ic) | COSO |
+| COBIT | [COBIT Resources](https://www.isaca.org/resources/cobit) | ISACA |
+| UN R155 (Vehicle Cyber) | [UN R155](https://unece.org/transport/documents/2021/03/standards/un-regulation-no-155-cyber-security-and-cyber-security) | UNECE |
+| UN R156 (Software Update) | [UN R156](https://unece.org/transport/documents/2021/03/standards/un-regulation-no-156-software-update-and-software-update) | UNECE |
+
+**Tier 3**
+
+| Framework | Authoritative Source | Issuing Body |
+|---|---|---|
+| FERC CIP | [FERC CIP](https://www.ferc.gov/industries-data/electric/industry-activities/critical-infrastructure-protection) | FERC |
+
+#### Provenance and verification artefacts
+
+| Artefact | Path | Purpose |
+|---|---|---|
+| Regulations database | `data/regulations.json` | Single source of truth for all 69 frameworks, versions, clauses, and authoritative URLs |
+| Crosswalks | `data/crosswalks/` | OLIR/OSCAL-normalised mappings between frameworks |
+| Ingest manifest | `data/provenance/ingest-manifest.json` | SHA-256 hashes of all ingested upstream datasets (ATT&CK, CTID, D3FEND, Atomic Red Team) |
+| Legal attribution | `LEGAL.md` | Per-source licensing and attribution requirements |
+| Coverage methodology | `docs/coverage-methodology.md` | How coverage percentages, priority weights, and assurance levels are calculated |
+| Regulatory primer | `docs/regulatory-primer.md` | Reader-facing overview with supervisory authority table and appendices |
+| Audit baseline | `tests/golden/audit-baseline.json` | CI-enforced baseline for `scripts/audit_compliance_mappings.py` |
 
 ### Community & Partner Resources
 
@@ -302,9 +461,9 @@ published obligation texts.
 | `compliance/gaps.json` | `scripts/generate_api_surface.py` | ✅ USED | Every `uncovered` common-clause, sorted by priority weight |
 | `compliance/regulations/{id}.json` | `scripts/augment_regulation_api.py` | ✅ USED | Per-framework detail + `clauseCoverageMatrix[]` per version (v7.1) |
 | `compliance/regulations/{id}@{version}.json` | `scripts/generate_api_surface.py` | ✅ USED | Per-version pointer with jurisdiction / tags |
-| `compliance/clauses/index.json` | `scripts/generate_clause_index.py` | ✅ USED | Flat registry of 946 clauses (coverage state, covering UCs, `obligationText`, priority weight) |
+| `compliance/clauses/index.json` | `scripts/generate_clause_index.py` | ✅ USED | Flat registry of 994 clauses (coverage state, covering UCs, `obligationText`, priority weight) |
 | `compliance/clauses/{clauseId}.json` | `scripts/generate_clause_index.py` | ✅ USED | Per-clause reverse index &mdash; every UC that covers this clause with `controlObjective` + `evidenceArtifact` |
-| `compliance/story/{regulationId}.json` | `scripts/generate_story_payload.py` | ✅ USED | Unified buyer/auditor/implementer narrative; 67 payloads shipped |
+| `compliance/story/{regulationId}.json` | `scripts/generate_story_payload.py` | ✅ USED | Unified buyer/auditor/implementer narrative; 70 payloads shipped |
 | `compliance/story/index.json` | `scripts/generate_story_payload.py` | ✅ USED | Story-landing rollup |
 | `compliance/ucs/index.json` | `scripts/generate_api_surface.py` | ✅ USED | Compact list of compliance-tagged UCs |
 | `compliance/ucs/{ucId}.json` | `scripts/generate_api_surface.py` | ✅ USED | Full UC sidecar (canonical form) &mdash; **7,364** per-UC JSON exports under `api/v1/` |
@@ -318,11 +477,12 @@ published obligation texts.
 | `compliance-story.html?reg={id}` | Buyer | ✅ USED | Per-regulation narrative (coverage headline / top-five highlights / top-three gaps); reads `compliance/story/{id}.json` |
 | `regulatory-primer.html` | Legal / privacy / risk | ✅ USED | Reader view over `docs/regulatory-primer.md`; autolinks inline `<code>` clause references into the clause navigator (v7.1) |
 | `scorecard.html` | Programme manager | ✅ USED | Tier-1 regulation scorecard; reads `compliance/regulations/{id}.json` |
+| `graph.html` | Explorer | ✅ USED | Interactive knowledge graph (Sigma.js): 23 categories, 80 equipment types, 37 CIM models, 4 pillars as nodes with 446 weighted edges; dark mode, search, layer toggles (v7.3) |
 | `index.html` (main catalogue) | Implementer | ✅ USED | Two-level regulation/clause filter; clause-level table on the UC detail panel (v7.1); new header audience-switch nav |
 
 ### Evidence packs (`docs/evidence-packs/*.md`)
 
-Auditor-facing markdown packs. **12 packs** ship in v7.1, one per
+Auditor-facing markdown packs. **13 packs** ship in v7.3, one per
 tier-1 regulation plus the major tier-2 frameworks. Each pack now
 ships a &ldquo;Live views&rdquo; block linking the reader to the
 buyer narrative, the auditor clause navigator, and the JSON twin.
@@ -462,27 +622,29 @@ Sources to check on a regular cadence for updates:
 
 ---
 
-## 8. Coverage Statistics (as of 2026-04-30, catalogue head)
+## 8. Coverage Statistics (as of 2026-05-01, catalogue v7.3)
 
 | Metric | Value |
 |---|---|
 | Total UCs in catalogue | **7,364** (+2,739 since 2026-03-20 baseline of 4,625) |
-| Categories | **23** (+1 since 2026-03-20: Cat 22 regulatory-compliance split into 49 subcategories) |
-| Subcategories | **189** (+67 since 2026-03-20) |
-| Unique TAs / Apps referenced | **~2,635** (+~935 since 2026-03-20) |
-| Security pillar UCs | 4,451 (60.4%) |
-| Observability pillar UCs | 1,981 (26.9%) |
-| Cat 10 (Security Infrastructure) share | 2,402 (32.6%) &mdash; dominance reduced from 51% as Cat 22 grew |
-| Cat 22 (Regulatory Compliance) share | 1,310 (17.8%) |
-| Cat 14 (OT/IoT) share | 230 (3.1%) |
-| ESCU-derived UCs | ~2,068 (28.1%) |
-| Regulations tracked in `data/regulations.json` | **66** (11 tier-1, 54 tier-2, 1 tier-3) |
-| UCs with at least one `compliance[]` entry | 1,395 (18.9% of catalogue) |
-| Total compliance entries (UC &times; clause pairs) | 1,964 |
-| Unique clauses in `api/v1/compliance/clauses/index.json` | 946 |
-| Story payloads (`api/v1/compliance/story/*.json`) | 67 |
-| Evidence packs (`docs/evidence-packs/*.md`) | 12 |
+| Categories | **23** (+1 since 2026-03-20: Cat 22 regulatory-compliance split into 70 subcategories) |
+| Subcategories | **212** (+90 since 2026-03-20) |
+| Unique equipment tags | **241** |
+| Security pillar UCs | 4,651 (63.2%) |
+| Observability pillar UCs | 2,483 (33.7%) |
+| IT Operations pillar UCs | 83 (1.1%) |
+| Platform pillar UCs | 147 (2.0%) |
+| Cat 10 (Security Infrastructure) share | 2,455 (33.3%) |
+| Cat 22 (Regulatory Compliance) share | 1,345 (18.3%) |
+| Cat 14 (OT/IoT) share | 249 (3.4%) |
+| Regulations tracked in `data/regulations.json` | **69** (schemaVersion 1.1.0) |
+| UCs with at least one `compliance[]` entry | 1,452 (19.7% of catalogue) |
+| Total compliance entries (UC &times; clause pairs) | 2,082 |
+| Unique clauses in `api/v1/compliance/clauses/index.json` | 994 |
+| Story payloads (`api/v1/compliance/story/*.json`) | 70 |
+| Evidence packs (`docs/evidence-packs/*.md`) | 13 |
 | MCP tools exposed to LLM clients | 10 |
+| Audience surfaces (HTML pages) | 6 (index, clause-navigator, compliance-story, regulatory-primer, scorecard, graph) |
 | Schema version &mdash; UC sidecars | 1.6.1 |
 | Schema version &mdash; `data/regulations.json` | 1.1.0 |
 
@@ -493,13 +655,13 @@ Sources to check on a regular cadence for updates:
 | Lantern + ESCU + docs.splunk.com | 14 | 3 | 1 | 🔵 `docs.splunk.com/.../Listofpretrainedsourcetypes` still the best gap-analysis source |
 | Splunk blogs | 4 | 1 | 1 | .conf25/.conf26 recaps still untapped |
 | Core platform TAs | 13 | 0 | 0 | Covered |
-| Cisco TAs | 4 | 0 | 0 | Covered |
+| Cisco TAs | 4 | 0 | 0 | Covered; Catalyst Center now has 78 gold-standard UCs (v7.3) |
 | Security vendor TAs (used) | 13 | 0 | 0 | Covered |
 | Security vendor TAs (untapped) | 0 | 0 | 7 | SentinelOne / Sophos / Trend Micro highest value |
 | OT / IoT TAs | 1 | 4 | 0 | Still in expansion plan (Phase 1a/1b/1c) |
 | Industry-specific apps | 1 | 5 | 0 | Aviation, transport, retail pending |
-| Regulatory frameworks | **27** | 0 | 0 | Tier-1 fully covered; tier-2 buffer in `data/regulations.json` (see regulation table for the long tail) |
-| Compliance APIs (new) | 12 | 0 | 0 | Story, clauses, regulations, ucs, oscal endpoints |
-| Audience surfaces (new) | 5 | 0 | 0 | index, clause-navigator, compliance-story, regulatory-primer, scorecard |
-| Evidence packs (new) | 12 | 0 | 0 | All tier-1 + SOC 2 + DORA + NIS2 + CIP + IEC 62443 |
-| MCP tools (new) | 10 | 0 | 0 | All ten shipped and drift-guarded |
+| Regulatory frameworks | **27** | 0 | 0 | Tier-1 fully covered; 69 total in `data/regulations.json` |
+| Compliance APIs | 12 | 0 | 0 | Story, clauses, regulations, ucs, oscal endpoints |
+| Audience surfaces | 6 | 0 | 0 | index, clause-navigator, compliance-story, regulatory-primer, scorecard, graph (v7.3) |
+| Evidence packs | 13 | 0 | 0 | All tier-1 + SOC 2 + DORA + NIS2 + CIP + IEC 62443 |
+| MCP tools | 10 | 0 | 0 | All ten shipped and drift-guarded |

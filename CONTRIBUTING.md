@@ -182,7 +182,11 @@ Other `scripts/*` files are generators or one-off tools, not part of the default
 
 ## CI (`.github/workflows/validate.yml`)
 
-On pull requests (when paths under `content/`, `tools/build/`, `non-technical-view.js`, `scripts/`, `CHANGELOG.md`, `index.html`, `VERSION`, etc. change), CI runs all audits above, Node eval on `non-technical-view.js`, **version triple consistency**, then **`python3 tools/build/build.py --out dist`** and fails if tracked generated output (under `dist/` and related artefacts) would change without matching commits.
+On pull requests (when paths under `content/`, `tools/build/`, `non-technical-view.js`, `scripts/`, `CHANGELOG.md`, `index.html`, `VERSION`, etc. change), CI runs all audits above, Node eval on `non-technical-view.js`, **version triple consistency**, then **`python3 tools/build/build.py --out dist`**. That command writes the browseable site under `dist/`, but the **merge gate does not** compare or require a clean `dist/` tree: after the build, the **Build check** step runs `git diff` only on committed **repo-root** paths:
+
+`catalog.json`, `llms.txt`, `llm.txt`, `llms-full.txt`, `sitemap.xml`, `api/*.json`, `provenance.json`, `provenance.js`, `docs/provenance-coverage.md`, `scorecard.json`, and `docs/scorecard.md`.
+
+If any of those would change without matching commits, CI fails (run `make build` and commit the updated files in that set). Other generated trees (e.g. `api/v1/`, `splunk-apps/`) are guarded by separate `--check` steps earlier in the same workflow.
 
 ## UC test harness secrets (`.github/workflows/uc-tests.yml`)
 
@@ -205,4 +209,8 @@ After **any** catalog content or build-input change:
 make build
 ```
 
-The build regenerates the full site into `dist/` (API endpoints, search index, catalog, etc.). Commit the changed generated files in the same PR as the source edits.
+The build regenerates the full static site into `dist/` (pages, bundled assets, search index, `dist/api/*`, etc.). Most of that tree is for local preview or release packaging — **not** what PR CI diffs. Commit any updates to the **repo-root** artefacts listed in the **CI** section above (same paths as the `git diff` line in `validate.yml`’s **Build check** step), plus anything your edits disturb that other workflow steps guard (e.g. regenerators with `--check`).
+
+## Acknowledgements
+
+Contributors are recognized in the git log and GitHub contributor insights. Significant changes are called out in `CHANGELOG.md` and release notes.
