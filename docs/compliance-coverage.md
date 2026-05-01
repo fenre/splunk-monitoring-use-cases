@@ -1,13 +1,13 @@
 # Compliance coverage report
 
-Status: **failed**  |  Generated: 2026-04-29T18:22:15Z
+Status: **passed**  |  Generated: 2026-05-01T21:31:17Z
 
 ## Summary
 
-* UC files checked: **7337**
-* UC files valid:   **7336**
+* UC files checked: **7364**
+* UC files valid:   **7364**
 * Compliance entries: **2082**
-* Findings: **42** (errors: **1**, baselined: **0**)
+* Findings: **33** (errors: **0**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
 ## Global coverage (all tiers)
@@ -173,12 +173,6 @@ Status: **failed**  |  Generated: 2026-04-29T18:22:15Z
 ## Golden tuples
 
 * Total: **52**  |  Passed: **52**  |  Failed: **0**
-
-## Blocking findings
-
-| Level | UC | Code | Path | Message |
-|-------|----|------|------|---------|
-| error | 13.2.7 | uc-schema-validation | content/cat-13-observability-monitoring-stack/UC-13.2.7.json:premiumApps/1 | {'name': 'Splunk Machine Learning Toolkit', 'displayName': 'Splunk Machine Learning Toolkit (MLTK)', 'note': 'required — fit and apply macros shared with ITSI predictive jobs'} is not valid under any of the given schemas |
 
 ---
 
