@@ -1,6 +1,6 @@
 # Compliance clause-level gap analysis
 
-_Generated: 2026-04-22T10:09:05Z_ by `scripts/audit_compliance_gaps.py`. Do not hand-edit.
+_Generated: 2026-04-29T19:20:32Z_ by `scripts/audit_compliance_gaps.py`. Do not hand-edit.
 
 This report inverts the compliance coverage audit: for every regulation-version listed in `data/regulations.json` it walks every `commonClauses[]` entry and records whether at least one non-draft UC sidecar tags that clause. Gaps are ranked by the clause's `priorityWeight` so authoring effort can focus on the highest-impact worklist items.
 
@@ -280,7 +280,7 @@ _NIST SP 800-53 Rev. 5_
 | `SC-7` | Boundary protection | 1.00 | ✔ 1 | contributing | 22.14.67 |
 | `SC-8` | Transmission confidentiality and integrity | 1.00 | ✔ 2 | full | 22.14.68, 22.41.2 |
 | `SC-13` | Cryptographic protection | 1.00 | ✔ 3 | full | 22.14.71, 22.41.1, 22.41.3 |
-| `SI-4` | System monitoring | 1.00 | ✔ 3 | full | 22.14.36, 22.8.33, 5.13.48 |
+| `SI-4` | System monitoring | 1.00 | ✔ 2 | full | 22.14.36, 22.8.33 |
 | `SR-3` | Supply chain controls and processes | 0.70 | ✔ 1 | partial | 22.44.1 |
 | `PT-3` | Personally identifiable information processing purposes | 0.70 | ✔ 1 | partial | 22.1.48 |
 

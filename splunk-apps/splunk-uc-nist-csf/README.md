@@ -2,7 +2,7 @@
 
 App ID: `splunk-uc-nist-csf`  
 App version: **7.3.0**  
-Generated: `2026-05-01T22:08:45Z`  
+Generated: `2026-05-01T22:16:46Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 

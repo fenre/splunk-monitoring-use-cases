@@ -79,17 +79,17 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`Art.23(2)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(2)) | Legacy NIS2 mapping already present in the catalogue | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49), [UC-22.2.7](#uc-22-2-7) |
 | [`Art.23(3)(a)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(3)(a)) | Art.23(3)(a) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
 | [`Art.23(3)(b)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(3)(b)) | Art.23(3)(b) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
-| [`Art.23(4)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(4)) | NIS2 clause already mapped by a catalogue UC; retained for source traceability and no-gap validation. | 1.0 | `contributing` | [UC-22.2.8](#uc-22-2-8) |
-| [`Art.23(4)(a)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(4)(a)) | Art.23(4)(a) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
+| [`Art.23(4)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(4)) | NIS2 clause already mapped by a catalogue UC; retained for source traceability and no-gap validation. | 1.0 | `partial` | [UC-22.2.8](#uc-22-2-8) |
+| [`Art.23(4)(a)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(4)(a)) | Art.23(4)(a) | 1.0 | `partial` | [UC-22.2.1](#uc-22-2-1), [UC-22.2.49](#uc-22-2-49) |
 | [`Art.23(4)(b)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(4)(b)) | Art.23(4)(b) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
 | [`Art.23(4)(c)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(4)(c)) | Art.23(4)(c) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
 | [`Art.23(4)(d)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(4)(d)) | Art.23(4)(d) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
 | [`Art.23(4)(e)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(4)(e)) | Art.23(4)(e) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
-| [`Art.23(5)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(5)) | Art.23(5) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
-| [`Art.23(6)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(6)) | Art.23(6) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
-| [`Art.23(7)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(7)) | Art.23(7) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
-| [`Art.23(10)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(10)) | Art.23(10) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
-| [`Art.23(11)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(11)) | Art.23(11) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
+| [`Art.23(5)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(5)) | Art.23(5) | 1.0 | `contributing` | [UC-22.2.49](#uc-22-2-49) |
+| [`Art.23(6)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(6)) | Art.23(6) | 1.0 | `contributing` | [UC-22.2.49](#uc-22-2-49) |
+| [`Art.23(7)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(7)) | Art.23(7) | 1.0 | `contributing` | [UC-22.2.49](#uc-22-2-49) |
+| [`Art.23(10)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(10)) | Art.23(10) | 1.0 | `contributing` | [UC-22.2.49](#uc-22-2-49) |
+| [`Art.23(11)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(11)) | Art.23(11) | 1.0 | `contributing` | [UC-22.2.49](#uc-22-2-49) |
 | [`Art.24`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.24) | Art.24 | 0.6 | `partial` | [UC-22.2.56](#uc-22-2-56) |
 | [`Art.25`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.25) | Art.25 | 0.6 | `partial` | [UC-22.2.56](#uc-22-2-56) |
 | [`Art.26`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.26) | Art.26 | 0.6 | `partial` | [UC-22.2.47](#uc-22-2-47) |
@@ -610,7 +610,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 7.2
+catalogue_version: 7.3
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     05d15d6f921fc6af3c7dbfacf931dcfd40d45bd1e8a91ef250232b39e24f110e
 ```
