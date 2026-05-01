@@ -2865,6 +2865,15 @@ def _render(
     return built
 
 
+def _strip_timestamp_lines(content: bytes) -> bytes:
+    """Remove lines that only carry the generatedAt timestamp."""
+    lines = content.split(b"\n")
+    return b"\n".join(
+        line for line in lines
+        if b"generatedAt" not in line and b"Generated:" not in line
+    )
+
+
 def _diff_trees(lhs: pathlib.Path, rhs: pathlib.Path) -> List[str]:
     """Return file paths that differ between two trees (recursive)."""
     diffs: List[str] = []
@@ -2875,8 +2884,11 @@ def _diff_trees(lhs: pathlib.Path, rhs: pathlib.Path) -> List[str]:
     for p in sorted(rhs_files - lhs_files):
         diffs.append(f"- {p}  (only on disk)")
     for p in sorted(lhs_files & rhs_files):
-        if (lhs / p).read_bytes() != (rhs / p).read_bytes():
-            diffs.append(f"  differs: {p}")
+        lhs_content = (lhs / p).read_bytes()
+        rhs_content = (rhs / p).read_bytes()
+        if lhs_content != rhs_content:
+            if _strip_timestamp_lines(lhs_content) != _strip_timestamp_lines(rhs_content):
+                diffs.append(f"  differs: {p}")
     return diffs
 
 
