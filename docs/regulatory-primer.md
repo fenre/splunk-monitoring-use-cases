@@ -925,7 +925,7 @@ they are sole providers in a member state.
 | Art.21.2(j) | Use of MFA and secured communications | 1.0 | full — §22.2 + 22.40 |
 | Art.23 | Reporting obligations | 1.0 | full — §22.2 + 22.39 |
 
-**What the catalogue delivers:** 100 % tier-1 coverage. §22.2 ships 45
+**What the catalogue delivers:** 100 % tier-1 coverage. §22.2 ships 57
 dedicated NIS2 UCs.
 
 **Where to look:** §22.2 · `api/v1/compliance/regulations/nis2.json`.
@@ -1076,7 +1076,7 @@ is the machine-readable view.
 | Subcategory | Regulation | Jurisdiction | Tier | UCs | API endpoint |
 |-------------|------------|--------------|------|-----|--------------|
 | 22.1 | GDPR | EU/EEA | T1 | 50 | `regulations/gdpr.json` |
-| 22.2 | NIS2 | EU | T1 | 45 | `regulations/nis2.json` |
+| 22.2 | NIS2 | EU | T1 | 57 | `regulations/nis2.json` |
 | 22.3 | DORA | EU | T1 | 45 | `regulations/dora.json` |
 | 22.4 | CCPA / CPRA | US-CA | T2 | inherit | `regulations/ccpa.json` |
 | 22.5 | MiFID II | EU | T2 | see §22.5 | `regulations/mifid-ii.json` |
