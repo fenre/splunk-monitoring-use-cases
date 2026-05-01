@@ -1,31 +1,31 @@
 # Splunk Use Cases — NIS2 compliance
 
 App ID: `splunk-uc-nis2`  
-App version: **7.1.0**  
-Generated: `2026-04-22T11:55:17Z`  
+App version: **7.3.0**  
+Generated: `2026-05-01T22:08:45Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
-This app packages **64 use cases** from the upstream catalogue that cite EU NIS2 Directive (`nis2`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
+This app packages **75 use cases** from the upstream catalogue that cite EU NIS2 Directive (`nis2`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
 
 * Regulation tier: **1**
 * Jurisdictions: EU
 * Versions covered: Directive (EU) 2022/2555
-* UCs by criticality: critical = 23, high = 35, medium = 6
+* UCs by criticality: critical = 28, high = 40, medium = 7
 
 
 ## Most-referenced clauses
 
 | Clause | UCs tagging this clause |
 |--------|-------------------------|
-| `Art.21(2)(d)` | 8 |
-| `Art.23` | 7 |
-| `Art.21(2)(e)` | 6 |
-| `Art.21(2)(a)` | 5 |
-| `Art.21(2)(c)` | 5 |
-| `Art.21(2)(g)` | 4 |
-| `Art.21(2)(i)` | 4 |
-| `Art.20` | 3 |
+| `Art.21(2)(d)` | 9 |
+| `Art.23` | 8 |
+| `Art.21(2)(e)` | 7 |
+| `Art.21(2)(a)` | 6 |
+| `Art.21(2)(c)` | 6 |
+| `Art.21(2)(f)` | 5 |
+| `Art.21(2)(i)` | 5 |
+| `Art.20` | 4 |
 
 ## Installation
 
@@ -69,14 +69,14 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 
 | UC | Title | Criticality | Clauses |
 |----|-------|-------------|---------|
-| UC-22.2.1 | NIS2 Incident Detection and 24-Hour Early Warning Reporting | critical | Art.23 |
+| UC-22.2.1 | NIS2 Art.23(4)(a) — 24-Hour Early-Warning Notification Readiness | critical | Art.23, Art.23(4)(a) |
 | UC-22.2.2 | NIS2 Supply Chain Security Monitoring | high | Art.21(2)(d) |
 | UC-22.2.3 | NIS2 Vulnerability Disclosure and Patch Management Tracking | critical | Art.21(2)(e) |
 | UC-22.2.4 | NIS2 Business Continuity and Crisis Management Monitoring | critical | Art.21(2)(c) |
 | UC-22.2.5 | NIS2 Network and Information Systems Access Control Audit | critical | Art.21(2)(i) |
 | UC-22.2.6 | NIS2 Risk Analysis and Information System Security Policy Evidence | critical | Art.21(2)(a) |
-| UC-22.2.7 | NIS2 72-Hour Incident Notification Readiness | critical | Art.23(2) |
-| UC-22.2.8 | NIS2 One-Month Final Incident Report Tracking | high | Art.23(4) |
+| UC-22.2.7 | NIS2 Art.23(4)(b) — 72-Hour Incident Notification Readiness | critical | Art.23(2) |
+| UC-22.2.8 | NIS2 Art.23(4)(d) — One-Month Final Incident Report Tracking | critical | Art.23(4) |
 | UC-22.2.9 | NIS2 Effectiveness Assessment of Cybersecurity Measures | high | Art.21(2)(f) |
 | UC-22.2.10 | NIS2 Cyber Hygiene and Training Compliance | medium | Art.21(2)(g) |
 | UC-22.2.11 | NIS2 Cryptography and Encryption Policy Monitoring | high | Art.21(2)(h) |
@@ -87,11 +87,11 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.2.16 | NIS2 Supply Chain Third-Party Risk Continuous Monitoring | high | Art.21(2)(d) |
 | UC-22.2.17 | NIS2 Backup Management and Disaster Recovery Verification | critical | Art.21(2)(c) |
 | UC-22.2.18 | NIS2 Network Security Monitoring and Anomaly Detection | critical | Art.21(2)(a) |
-| UC-22.2.19 | NIS2 Cross-Border Incident Impact Assessment | high | Art.23(3) |
+| UC-22.2.19 | NIS2 Art.23(3) — Cross-Border Incident Impact Assessment Completeness | high | Art.23(3) |
 | UC-22.2.20 | NIS2 Management Body Accountability and Governance Evidence | high | Art.20 |
 | UC-22.2.21 | NIS2 Risk Analysis Evidence for Essential Entities | critical | Art.21(2) |
 | UC-22.2.22 | NIS2 Risk Analysis Evidence for Important Entities | high | Art.21(2) |
-| UC-22.2.23 | NIS2 Incident Handling Procedure Adherence and Playbook Execution | critical | Art.21(2)(b) |
+| UC-22.2.23 | NIS2 Art.21(2)(b) — Incident Handling Playbook Adherence | high | Art.21(2)(b) |
 | UC-22.2.24 | NIS2 Business Continuity and ICT Continuity Evidence | critical | Art.21(2)(c) |
 | UC-22.2.25 | NIS2 Supply Chain Security Assessment Coverage | high | Art.21(2)(d) |
 | UC-22.2.26 | NIS2 Network Security Monitoring Coverage by Segment | critical | Art.21(2)(a) |
@@ -101,8 +101,8 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.2.30 | NIS2 Human Resources Security Measures Evidence | high | Art.21(2)(i) |
 | UC-22.2.31 | NIS2 Entity Classification Validation (Essential vs Important) | high | Art.2(1) |
 | UC-22.2.32 | NIS2 Proportional Security Measure Verification by Tier | high | Art.21(2) |
-| UC-22.2.33 | NIS2 Incident Reporting Timeline Compliance (24h Early Warning / 72h Notification) | critical | Art.23 |
-| UC-22.2.34 | NIS2 Cross-Border Incident Coordination Task Tracking | high | Art.23(3) |
+| UC-22.2.33 | NIS2 Art.23 — Reporting Timeline Compliance Roll-Up (24h / 72h / 1-Month) | critical | Art.23 |
+| UC-22.2.34 | NIS2 Art.23(3) — Cross-Border Coordination Task Tracking | high | Art.23(3) |
 | UC-22.2.35 | NIS2 Supervisory Compliance Evidence Pack Readiness | high | Art.32, Art.33 |
 | UC-22.2.36 | NIS2 OT Network Segmentation Validation | critical | Art.21(2)(a) |
 | UC-22.2.37 | NIS2 SCADA System Access Monitoring | critical | Art.21(2)(a) |
@@ -113,8 +113,19 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.2.42 | NIS2 Board-Level Cyber Risk Reporting Distribution Audit | high | Art.20 |
 | UC-22.2.43 | NIS2 Annual Security Assessment Completion Tracking | high | Art.21(2)(f) |
 | UC-22.2.44 | NIS2 Cooperation Group and Sector Information Sharing Participation | high | Art.14 |
-| UC-22.2.45 | NIS2 CSIRT Notification Compliance and Channel Health | critical | Art.23 |
+| UC-22.2.45 | NIS2 Art.23 — CSIRT Notification Channel Health and Delivery Confirmation | high | Art.23 |
 | UC-22.2.46 | NIS2 Art.21(2)(j) — Secure emergency communication channel verification | high | Art.21(2)(j) |
+| UC-22.2.47 | NIS2 Art.2/3/26/27 — Entity scope, registry and jurisdiction evidence | critical | Annex I, Annex II, Art.2… |
+| UC-22.2.48 | NIS2 Art.20/21 governance — Board approval, management training and risk acceptance evidence | critical | Art.20, Art.20(1), Art.20(2)… |
+| UC-22.2.49 | NIS2 Art.23 — Significant Incident Reporting Package Completeness and Timeline Control | critical | Art.23, Art.23(1), Art.23(10)… |
+| UC-22.2.50 | NIS2 Art.21/22 — Critical supplier risk, SBOM exposure and vendor access monitoring | critical | Art.21(2)(d), Art.21(3), Art.22 |
+| UC-22.2.51 | NIS2 Art.12/21 secure development and vulnerability disclosure evidence | high | Art.12, Art.21(2)(e), Art.21(2)(f) |
+| UC-22.2.52 | NIS2 Art.21 access, HR security, privileged accounts, MFA and secure communications evidence | critical | Art.21(2)(i), Art.21(2)(j) |
+| UC-22.2.53 | NIS2 Art.21 business continuity, backup restore and physical-environmental resilience evidence | critical | Art.21(2)(c) |
+| UC-22.2.54 | NIS2 Art.31-35 supervision, enforcement, fine exposure and GDPR coordination evidence | high | Art.31, Art.32, Art.33… |
+| UC-22.2.55 | NIS2 Art.28-30 domain registration, DNS integrity and information-sharing evidence | high | Art.28, Art.29, Art.30 |
+| UC-22.2.56 | NIS2 evidence integrity, certification and standards crosswalk control | high | Art.21(2)(a), Art.21(5), Art.24… |
+| UC-22.2.57 | NIS2 crawl/walk/run maturity and next-best-control benchmark dashboard | medium | Art.20(1), Art.21(2)(f) |
 | UC-22.3.42 | DORA Art.7 — ICT systems inventory completeness: unmanaged endpoints attached to financial services | high | Art.21(2)(d) |
 | UC-22.3.44 | DORA Art.17 — ICT incident classification timeliness: major-incident clock evidence | critical | Art.23 |
 | UC-22.9.4 | Regulatory Incident Response Time Trending | medium | Art.23 |
