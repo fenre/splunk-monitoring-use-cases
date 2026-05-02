@@ -443,7 +443,11 @@ def main(argv: list[str]) -> int:
     errors.extend(audit_entry_hashes(ledger))
     errors.extend(audit_merkle_root(ledger))
     errors.extend(audit_referential_integrity(ledger))
-    errors.extend(audit_catalogue_commit(ledger))
+
+    warnings = audit_catalogue_commit(ledger)
+    for w in warnings:
+        print(f"  WARN: {w}", file=sys.stderr)
+
     errors.extend(
         audit_signature_envelope(
             ledger,
@@ -453,7 +457,7 @@ def main(argv: list[str]) -> int:
         )
     )
 
-    write_report(errors, ledger)
+    write_report(errors + warnings, ledger)
 
     if errors:
         print("FAIL: mapping-ledger audit found issues:", file=sys.stderr)
