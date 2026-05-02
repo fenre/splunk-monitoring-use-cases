@@ -4,7 +4,10 @@
   "title": "Cross-Platform Network Correlation",
   "criticality": "high",
   "difficulty": "advanced",
-  "monitoringType": ["Anomaly", "Performance"],
+  "monitoringType": [
+    "Anomaly",
+    "Performance"
+  ],
   "splunkPillar": "Observability",
   "dataSources": "**Multiple data sources combined:**\n\n(1) `index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` — ThousandEyes network and HTTP metrics from `ta_cisco_thousandeyes`.\n\n(2) `index=thousandeyes_events sourcetype=cisco:thousandeyes:event` — ThousandEyes Internet Insights events.\n\n(3) Application Performance Monitoring (APM) data — e.g., `index=apm` or `index=itsi_summary` from Splunk APM, AppDynamics (Splunkbase 3890), or ITSI KPI data.\n\n(4) Infrastructure metrics — e.g., `index=em_metrics` from Splunk Infrastructure Monitoring or other server/container monitoring sources.\n\nThis UC performs **cross-index, cross-product correlation** — the highest-value use case for having all telemetry in a single Splunk platform.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported. **Also recommended:** Splunk ITSI (Splunkbase 3491) for service-level correlation, Splunk Observability Cloud for APM/infrastructure.",
@@ -14,19 +17,38 @@
   "implementation": "Join ThousandEyes network metrics with APM and infrastructure data using the target host or IP address as the correlation key. This requires consistent naming across data sources.",
   "visualization": "(1) Multi-panel dashboard: network metrics (ThousandEyes), application response times (APM), infrastructure utilization side by side. (2) Correlation table: per-host network vs application vs infrastructure health. (3) Timeline overlay: network latency and application response time on the same timechart.",
   "references": [
-    {"title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)", "url": "https://splunkbase.splunk.com/app/7719"},
-    {"title": "Splunk ITSI documentation", "url": "https://docs.splunk.com/Documentation/ITSI"},
-    {"title": "Splunk Observability Cloud", "url": "https://docs.splunk.com/observability/en/"}
+    {
+      "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
+      "url": "https://splunkbase.splunk.com/app/7719"
+    },
+    {
+      "title": "Splunk ITSI documentation",
+      "url": "https://docs.splunk.com/Documentation/ITSI"
+    },
+    {
+      "title": "Splunk Observability Cloud",
+      "url": "https://docs.splunk.com/observability/en/"
+    }
   ],
   "knownFalsePositives": "**Correlation key mismatch.** ThousandEyes uses `server.address` (IP or hostname), APM may use service names, and infrastructure monitoring may use hostnames. If the naming doesn't match, the join produces empty results. Use a lookup table to map between naming conventions.\n\n**Temporal misalignment.** ThousandEyes tests run at fixed intervals (e.g., every 2 minutes), APM samples continuously, and infrastructure metrics may report every 10 seconds. Time windows must be broad enough to capture data from all sources.\n\n**Correlation ≠ causation.** High network latency and high application response time at the same time doesn't prove the network caused the application slowness. The application could be independently slow, causing network retransmissions. Use ThousandEyes path visualization (UC-5.9.5) to confirm network-layer issues.",
-  "equipment": ["cisco"],
-  "equipmentModels": ["cisco_thousandeyes"],
+  "equipment": [
+    "cisco",
+    "itsi"
+  ],
+  "equipmentModels": [
+    "cisco_thousandeyes"
+  ],
   "status": "verified",
   "lastReviewed": "2026-05-02",
-  "splunkVersions": ["9.1+", "Cloud"],
+  "splunkVersions": [
+    "9.1+",
+    "Cloud"
+  ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• All prerequisites from UC-5.9.1 apply.\n• **At least one additional data source** — APM data (Splunk APM, AppDynamics, or similar) or infrastructure metrics (Splunk Infrastructure Monitoring, collectd, Prometheus) indexed in Splunk.\n• **Consistent correlation keys** — The target IP/hostname in ThousandEyes (`server.address`) must map to the host/service identifier in your APM and infrastructure data. If they don't match natively, create a lookup table.\n\nStep 1 — Build the correlation lookup\nIf `server.address` in ThousandEyes doesn't match your APM/infra host naming:\n```csv\ntarget_host,apm_service,infra_host,thousandeyes_target\n10.1.2.3,web-frontend,web-prod-01,10.1.2.3\napp.example.com,api-gateway,api-prod-02,app.example.com\n```\nUpload as `thousandeyes_host_mapping.csv` and create a lookup definition.\n\nStep 2 — Create the correlation search\n**Network + Infrastructure:**\n```spl\n`stream_index` thousandeyes.test.type=\"agent-to-server\" earliest=-1h\n| stats avg(network.latency) as avg_latency avg(network.loss) as avg_loss by server.address\n| eval avg_latency_ms=round(avg_latency*1000,1)\n| rename server.address as target_host\n| lookup thousandeyes_host_mapping.csv target_host OUTPUT infra_host, apm_service\n| join type=left infra_host [search index=em_metrics earliest=-1h | stats avg(cpu.utilization) as avg_cpu avg(memory.utilization) as avg_mem by host | rename host as infra_host]\n| eval network_health=case(avg_latency_ms < 50 AND avg_loss < 0.5, \"Good\", avg_latency_ms < 100 AND avg_loss < 2, \"Degraded\", 1=1, \"Critical\")\n| eval infra_health=case(avg_cpu < 70 AND avg_mem < 80, \"Good\", avg_cpu < 90 AND avg_mem < 90, \"Degraded\", 1=1, \"Critical\")\n| table target_host, apm_service, avg_latency_ms, avg_loss, network_health, avg_cpu, avg_mem, infra_health\n```\n\n**Network + APM overlay (timechart):**\n```spl\n`stream_index` thousandeyes.test.type=\"http-server\" server.address=\"app.example.com\" earliest=-24h\n| timechart span=5m avg(http.client.request.duration) as te_ttfb_s\n| eval te_ttfb_ms=round(te_ttfb_s*1000,1)\n| appendcols [search index=apm service=\"api-gateway\" earliest=-24h | timechart span=5m avg(duration) as apm_response_ms]\n| fields _time, te_ttfb_ms, apm_response_ms\n```\n\nStep 3 — Validate\nDuring a known maintenance window or load test, verify that the correlation shows degradation in the expected domain (network, app, or infra).\n\nStep 4 — Operationalize\n**Decision tree for incident triage:**\n\n| ThousandEyes Network | APM Response | Infrastructure | Root Cause |\n|---|---|---|---|\n| Degraded | Normal | Normal | Network path issue |\n| Normal | Degraded | Normal | Application bug |\n| Normal | Degraded | Degraded | Infrastructure capacity |\n| Degraded | Degraded | Normal | Network causing app impact |\n| Degraded | Degraded | Degraded | Cascading failure |\n\nBuild this as a Splunk dashboard with conditional formatting.\n\nStep 5 — Troubleshooting\n• **Join returns no results** — Verify the correlation key matches. Run each subsearch independently first.\n• **Temporal gaps** — Widen the time range or increase the `span` in timechart.\n• **Missing APM/infra data** — This UC requires at least one other data source. If only ThousandEyes data is available, use UC-5.9.50 (ITSI) instead.",
   "grandmaExplanation": "When something is slow, we check the network, the application, and the servers all at the same time in one place, so we can immediately tell which part is broken instead of having three teams argue about whose fault it is.",
-  "prerequisiteUseCases": ["UC-5.9.1"],
+  "prerequisiteUseCases": [
+    "UC-5.9.1"
+  ],
   "wave": "run"
 }

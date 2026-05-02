@@ -4,7 +4,10 @@
   "title": "MTTR Reduction via Network Fault Isolation",
   "criticality": "high",
   "difficulty": "advanced",
-  "monitoringType": ["Availability", "Anomaly"],
+  "monitoringType": [
+    "Availability",
+    "Anomaly"
+  ],
   "splunkPillar": "Observability",
   "dataSources": "**Multiple ThousandEyes data sources combined for fault isolation:**\n\n(1) `index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` — Network and HTTP metrics for quantifying the impact and identifying degraded paths.\n\n(2) `index=thousandeyes_pathvis sourcetype=cisco:thousandeyes:path-vis` — Hop-by-hop path data pinpointing the exact network node where degradation begins.\n\n(3) `index=thousandeyes_events sourcetype=cisco:thousandeyes:event` — Internet Insights events confirming whether the issue is an ISP/internet outage vs internal.\n\n(4) `index=thousandeyes_alerts sourcetype=cisco:thousandeyes:alerts` — ThousandEyes alerts with timestamps for measuring MTTR.\n\nThis UC aggregates data from all four ThousandEyes indexes to provide a complete fault isolation workflow, reducing Mean Time To Resolution (MTTR) by eliminating the investigation phase.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
@@ -14,19 +17,40 @@
   "implementation": "Aggregates data from all four ThousandEyes indexes using a multi-search correlation approach. The search starts with active critical alerts, enriches with current metrics, checks for corresponding Internet Insights events, and classifies the fault domain.",
   "visualization": "(1) Fault domain classification: pie chart of Internal vs External faults. (2) Active incident table with fault domain, impacted tests, and metrics. (3) MTTR trend: timechart showing alert-to-resolution time over weeks. (4) Triage decision tree as a dashboard note.",
   "references": [
-    {"title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)", "url": "https://splunkbase.splunk.com/app/7719"},
-    {"title": "ThousandEyes Internet Insights", "url": "https://docs.thousandeyes.com/product-documentation/internet-insights"},
-    {"title": "ThousandEyes path visualization", "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/views/network-path-visualization"}
+    {
+      "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
+      "url": "https://splunkbase.splunk.com/app/7719"
+    },
+    {
+      "title": "ThousandEyes Internet Insights",
+      "url": "https://docs.thousandeyes.com/product-documentation/internet-insights"
+    },
+    {
+      "title": "ThousandEyes path visualization",
+      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/views/network-path-visualization"
+    }
   ],
   "knownFalsePositives": "**Fault domain misclassification.** An internal network issue (e.g., a misconfigured firewall) may not generate an Internet Insights event but may also not show clearly in path visualization if the affected hop doesn't respond to ICMP. The absence of an external event doesn't definitively prove an internal fault.\n\n**Partial outages.** An ISP issue affecting only some agents may not trigger an Internet Insights event (which requires a threshold of affected vantage points). The fault domain may classify as Internal when it's actually a localized external issue.\n\n**Stale path visualization data.** Path visualization data is polled via API, not pushed in real-time. During the first minutes of an incident, path data may not yet reflect the current state. Wait at least 10 minutes before relying on path data for fault isolation.",
-  "equipment": ["cisco"],
-  "equipmentModels": ["cisco_thousandeyes"],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_thousandeyes"
+  ],
   "status": "verified",
   "lastReviewed": "2026-05-02",
-  "splunkVersions": ["9.1+", "Cloud"],
+  "splunkVersions": [
+    "9.1+",
+    "Cloud"
+  ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• **All four ThousandEyes data inputs configured:**\n  - Metrics Stream (HEC push) → `index=thousandeyes_metrics`\n  - Alerts Stream (HEC webhook) → `index=thousandeyes_alerts`\n  - Events input (API polling) → `index=thousandeyes_events`\n  - Path Visualization input (API polling) → `index=thousandeyes_pathvis`\n• This is the capstone UC — it builds on UC-5.9.1 (metrics), UC-5.9.5 (path visualization), UC-5.9.18 (events), and UC-5.9.19 (alerts).\n\nStep 1 — Build the fault isolation search\n```spl\n`stream_index` sourcetype=\"cisco:thousandeyes:alerts\" state=\"active\" severity=\"critical\"\n| stats earliest(_time) as alert_start by alert.rule.name, alert.test.name\n| join type=left alert.test.name [\n    search `stream_index` thousandeyes.test.type=\"agent-to-server\"\n    | stats avg(network.latency) as avg_latency avg(network.loss) as avg_loss by thousandeyes.test.name\n    | rename thousandeyes.test.name as alert.test.name\n]\n| join type=left alert.test.name [\n    search `event_index` (type=\"Network Outage\" OR type=\"DNS Issue\" OR type=\"Proxy Issue\") state=\"active\"\n    | stats count as external_events values(type) as external_event_types by thousandeyes.test.name\n    | rename thousandeyes.test.name as alert.test.name\n]\n| eval fault_domain=if(external_events > 0, \"External (ISP/Internet)\", \"Internal (Network/App)\")\n| eval avg_latency_ms=round(avg_latency*1000,1)\n| table alert.rule.name, alert.test.name, alert_start, avg_latency_ms, avg_loss, external_events, external_event_types, fault_domain\n| sort -avg_loss\n```\n\nStep 2 — Add path-level drill-down\nFor incidents classified as Internal, add a drill-down search that identifies the specific hop where packet loss begins:\n```spl\n`path_viz_index` thousandeyes.test.name=\"$alert.test.name$\" earliest=-1h\n| sort _time\n| stats avg(hop_latency) as avg_hop_latency avg(hop_loss) as avg_hop_loss by hop_number, hop_ip, hop_prefix\n| eval degraded=if(avg_hop_loss > 1 OR avg_hop_latency > 100, \"YES\", \"no\")\n| sort hop_number\n```\nThis pinpoints the exact network hop where degradation begins, which maps to a specific router, ISP, or peering point.\n\nStep 3 — Measure MTTR\nTrack alert lifecycle to measure MTTR:\n```spl\n`stream_index` sourcetype=\"cisco:thousandeyes:alerts\" earliest=-30d\n| stats earliest(_time) as alert_start latest(_time) as alert_end by alert.rule.name, alert.test.name, severity\n| eval mttr_min=round((alert_end - alert_start) / 60, 0)\n| stats avg(mttr_min) as avg_mttr_min p50(mttr_min) as p50_mttr p95(mttr_min) as p95_mttr by severity\n| eval avg_mttr_h=round(avg_mttr_min/60,1)\n```\n\nStep 4 — Operationalize\n**Triage runbook (automated in dashboard):**\n\n1. **Alert fires** → search runs automatically.\n2. **Check fault_domain:**\n   - External → Open ISP ticket. Link Internet Insights event. Wait for resolution. No internal escalation needed.\n   - Internal → Continue investigation.\n3. **For Internal faults → Check path visualization:**\n   - Degradation starts at hop N → Identify the owner of that hop (internal router, peering, transit).\n   - No path data available → Wait 10 minutes for API poll cycle, or investigate using metrics only.\n4. **Escalate with evidence:**\n   - Internal router → Network team with hop IP, latency, loss data.\n   - Transit/peering → ISP with path trace evidence.\n   - Application → App team with HTTP metrics showing server processing is the bottleneck (UC-5.9.52).\n\n**Dashboard design:** Build as a triage dashboard with three panels:\n- Top: Active critical alerts with fault domain classification.\n- Middle: Path visualization drill-down for selected alert.\n- Bottom: MTTR trending over 30 days.\n\nStep 5 — Troubleshooting\n• **Fault domain always shows Internal** — Verify the Events input is configured and polling. Check `index=thousandeyes_events | stats count` for recent data.\n• **Path visualization data missing** — Path viz is polled, not streamed. Verify the path visualization input is enabled and the OAuth token has access.\n• **Join returns incomplete results** — Test names in alerts (`alert.test.name`) must exactly match test names in metrics (`thousandeyes.test.name`). Verify with `| stats dc(alert.test.name)` vs `| stats dc(thousandeyes.test.name)`.\n• **MTTR appears artificially long** — Some alerts remain in `active` state if the ThousandEyes alert rule uses a high clearing threshold. Check ThousandEyes alert rule configuration.",
   "grandmaExplanation": "When the network breaks, we immediately figure out whether it's our problem or the internet's problem, and exactly which piece of equipment is causing the trouble, so the team can fix things in minutes instead of spending hours trying to find the problem.",
-  "prerequisiteUseCases": ["UC-5.9.1", "UC-5.9.5", "UC-5.9.18", "UC-5.9.19"],
+  "prerequisiteUseCases": [
+    "UC-5.9.1",
+    "UC-5.9.5",
+    "UC-5.9.18",
+    "UC-5.9.19"
+  ],
   "wave": "run"
 }
