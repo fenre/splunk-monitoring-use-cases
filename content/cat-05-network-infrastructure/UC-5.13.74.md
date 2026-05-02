@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-5.13.74 · Catalyst Center Data Collection Health (Meta)
 
-> **Criticality:** High &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Operational &middot; **Wave:** Crawl &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Operations &middot; **Wave:** Crawl &middot; **Status:** Verified
 
 *We watch the watchers — making sure that every data feed from the network management system into Splunk is actually working. If one of the connections breaks silently, we catch it within hours so your monitoring doesn't have blind spots that nobody notices until something goes wrong.*
 

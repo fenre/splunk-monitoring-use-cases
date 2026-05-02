@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-5.13.25 · Top Recurring Issues (Repeat Offenders)
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *We find the network problems that have been sitting unresolved for days or weeks — the chronic issues that everyone has gotten used to ignoring. By ranking them by how long they have been a problem and how many devices they affect, we give your team a clear list of what to fix next, with the data to justify the investment in a permanent solution rather than just fighting fires.*
 

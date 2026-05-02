@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-8.1.68 · Memcached CAS Bad Value Contention Rate
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Operational &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Operations &middot; **Status:** Draft
 
 *We watch for signs that helps application teams switch to app-level locking, sharded keys, or CRDT patterns before incidents during high concurrency.*
 

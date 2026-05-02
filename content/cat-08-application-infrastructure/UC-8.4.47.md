@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-8.4.47 · PHP-FPM Status Endpoint Self-Monitoring Response Time
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Operational &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Operations &middot; **Status:** Draft
 
 *We watch for signs that catches observer bias where synthetic checks fail before user traffic alarms.*
 

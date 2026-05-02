@@ -10,7 +10,7 @@ splunkPillar: "IT Operations"
 
 # UC-6.4.20 · Commvault Deduplication Database Disk Library Free Space Pressure
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Capacity, Operational &middot; **Status:** Draft
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Capacity, Operations &middot; **Status:** Draft
 
 *We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working.*
 

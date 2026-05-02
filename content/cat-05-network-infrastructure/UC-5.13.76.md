@@ -10,7 +10,7 @@ splunkPillar: "IT Operations"
 
 # UC-5.13.76 · Catalyst Center Alert to Splunk On-Call/SOAR Routing
 
-> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Operational &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Operations &middot; **Wave:** Run &middot; **Status:** Verified
 
 *We connect the network monitoring alerts to automated response systems — so when a critical problem is detected, the system automatically investigates, creates a ticket, and pages the right person, instead of relying on someone to notice the alert and manually do all those steps. This cuts the response time from hours to minutes.*
 

@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-2.9.7 · OpenStack Nova Scheduler Retry and Placement Filter Exhaustion Audit
 
-> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Performance, Operational &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Performance, Operations &middot; **Status:** Verified
 
 *We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups.*
 

@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-8.1.59 · ZooKeeper Ephemeral ZNode Count Trending
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Capacity, Operational &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Capacity, Operations &middot; **Status:** Draft
 
 *We watch for signs that keeps service-discovery load predictable for microservices and Kafka controllers alike.*
 

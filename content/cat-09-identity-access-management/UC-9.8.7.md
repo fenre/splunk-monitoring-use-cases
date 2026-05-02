@@ -10,7 +10,7 @@ splunkPillar: "IT Operations"
 
 # UC-9.8.7 · BeyondTrust Remote Support Session Duration and Concurrent Analyst Trending
 
-> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Operational, Capacity &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Operations, Capacity &middot; **Status:** Verified
 
 *We track how sign-in and identity activity change over time so we can spot surges, drift, and seasonal norms without guessing.*
 

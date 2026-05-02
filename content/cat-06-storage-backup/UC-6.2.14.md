@@ -10,7 +10,7 @@ splunkPillar: "IT Operations"
 
 # UC-6.2.14 · Commvault Auxiliary Copy Job Failures
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Operational &middot; **Status:** Draft
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Operations &middot; **Status:** Draft
 
 *We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early.*
 

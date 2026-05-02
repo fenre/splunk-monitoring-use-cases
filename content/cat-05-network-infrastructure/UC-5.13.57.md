@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-5.13.57 · Image Distribution and Upgrade Progress Tracking
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Change, Operational &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Change, Operations &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *We track the progress of software updates being rolled out across your network devices — how many have been updated successfully, how many are still waiting, and how many failed. This lets your team see at a glance whether an update campaign is on track or if some devices need manual attention.*
 

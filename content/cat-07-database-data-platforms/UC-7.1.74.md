@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-7.1.74 · Snowflake Warehouse Auto-Suspend and Auto-Resume Event Frequency
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Cost, Operational &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Cost, Operations &middot; **Status:** Draft
 
 *We watch Snowflake Warehouse Auto-Suspend and Auto-Resume Event Frequency so we can keep this part of the data platform within the capacity and quality targets our teams expect.*
 

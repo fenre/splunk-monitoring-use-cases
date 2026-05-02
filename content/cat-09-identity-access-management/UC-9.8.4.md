@@ -10,7 +10,7 @@ splunkPillar: "Security"
 
 # UC-9.8.4 · BeyondTrust Privilege Elevation Request Denial Rate Monitoring
 
-> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Security &middot; **Type:** Security, Operational &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Security &middot; **Type:** Security, Operations &middot; **Status:** Verified
 
 *We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — BeyondTrust Privilege Elevation Request Denial Rate Monitoring*
 

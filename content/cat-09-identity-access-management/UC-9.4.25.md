@@ -10,7 +10,7 @@ splunkPillar: "Security"
 
 # UC-9.4.25 · BeyondTrust Privileged Session Duration Beyond Policy Threshold
 
-> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Security &middot; **Type:** Security, Operational &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Security &middot; **Type:** Security, Operations &middot; **Status:** Draft
 
 *We call out when a remote admin session drags on far longer than policy allows so you can end risky marathon access before it becomes a bigger incident.*
 

@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-8.1.69 · Memcached Items Stored Count Trending
 
-> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Capacity, Operational &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Capacity, Operations &middot; **Status:** Draft
 
 *We watch for signs that catches buggy releases that stamp unbounded distinct keys before they exhaust memory metadata structures.*
 

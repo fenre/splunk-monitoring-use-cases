@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-5.13.64 · Event Notification Volume and Type Distribution
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational &middot; **Wave:** Crawl &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations &middot; **Wave:** Crawl &middot; **Status:** Verified
 
 *We monitor the real-time alert pipeline from the network management system — making sure that urgent notifications are actually being delivered to us. This is like checking that the fire alarm system is connected and working before you rely on it to warn you of a fire.*
 

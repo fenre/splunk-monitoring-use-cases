@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-5.14.52 · Traefik Weighted Round-Robin Backend Imbalance
 
-> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Performance, Operational &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Performance, Operations &middot; **Status:** Draft
 
 *We watch traefik weighted round-robin backend imbalance and catch issues early, before they turn into outages for the people who rely on the network.*
 

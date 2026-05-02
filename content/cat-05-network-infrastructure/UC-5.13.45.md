@@ -10,7 +10,7 @@ splunkPillar: "Security"
 
 # UC-5.13.45 · Audit Log Activity Overview
 
-> **Criticality:** High &middot; **Difficulty:** Beginner &middot; **Pillar:** Security &middot; **Type:** Audit, Operational &middot; **Wave:** Crawl &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Beginner &middot; **Pillar:** Security &middot; **Type:** Audit, Operations &middot; **Wave:** Crawl &middot; **Status:** Verified
 
 *We keep a complete record of everything administrators do on the network management system — every change, every login, every action — so when something goes wrong, you can look up exactly what happened, who did it, and when. This record is also what auditors ask for to prove your team follows proper procedures.*
 

@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-5.14.50 · Traefik Dynamic Configuration Reload Events
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Change, Operational &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Change, Operations &middot; **Status:** Draft
 
 *We watch traefik dynamic configuration reload events and catch issues early, before they turn into outages for the people who rely on the network.*
 

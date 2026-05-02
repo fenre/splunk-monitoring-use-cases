@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-6.2.54 · TrueNAS ZFS resilver progress percent and estimated completion
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational, Availability &middot; **Status:** Draft
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations, Availability &middot; **Status:** Draft
 
 *We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control.*
 

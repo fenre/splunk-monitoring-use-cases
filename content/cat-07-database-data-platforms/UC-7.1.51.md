@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-7.1.51 · MongoDB Sharded Cluster Chunk Migration Failures
 
-> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Availability, Operational &middot; **Status:** Draft
+> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Availability, Operations &middot; **Status:** Draft
 
 *We watch for repeated or suspicious sign-in activity on our databases so we can catch brute-force and misconfiguration before they become account takeovers.*
 

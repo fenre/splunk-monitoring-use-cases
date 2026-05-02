@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-2.7.7 · Proxmox VE QEMU Guest Agent API Failures and Timeouts
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational, Availability &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations, Availability &middot; **Status:** Verified
 
 *We keep an eye on vE QEMU Guest Agent API Failures and Timeouts and raise the alarm before it drags down real work or real outages start.*
 

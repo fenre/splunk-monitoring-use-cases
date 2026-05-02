@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-6.2.50 · TrueNAS jail and plugin CPU memory utilization
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Operational &middot; **Status:** Draft
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Operations &middot; **Status:** Draft
 
 *We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control.*
 

@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-7.1.58 · ClickHouse Stuck or Failed Mutations
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational, Data Quality &middot; **Status:** Draft
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations, Data Quality &middot; **Status:** Draft
 
 *We log unexpected schema and object changes so we can tie database drift to a change ticket or an investigation when something does not look intentional.*
 

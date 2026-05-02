@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-6.2.30 · Ceph OSD recovery and rebalance throughput versus cluster limits
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Operational &middot; **Status:** Draft
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Operations &middot; **Status:** Draft
 
 *We watch when disks or arrays slow down for your important workloads, so you can act before people notice a frozen app or missed deadlines.*
 

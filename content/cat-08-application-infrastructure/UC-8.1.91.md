@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-8.1.91 · WildFly JSR-352 Batch Job Execution Failures
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational, Fault &middot; **Status:** Draft
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations, Fault &middot; **Status:** Draft
 
 *We use this to reduce financial and compliance risk from missed batch completion.*
 

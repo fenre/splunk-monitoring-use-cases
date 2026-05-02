@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-8.1.63 · Memcached Hit Ratio Trending
 
-> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Performance, Operational &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Performance, Operations &middot; **Status:** Draft
 
 *We watch for signs that keeps read-mostly workloads fast and protects origin databases during traffic surges.*
 

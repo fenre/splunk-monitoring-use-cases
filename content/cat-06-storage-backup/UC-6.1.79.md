@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-6.1.79 · Pure Storage array alert storm detection from unified alert feed
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational, Anomaly &middot; **Status:** Draft
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations, Anomaly &middot; **Status:** Draft
 
 *We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises.*
 

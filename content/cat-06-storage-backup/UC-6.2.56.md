@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-6.2.56 · TrueNAS alert notification delivery failures for email SNMP and webhooks
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational, Reliability &middot; **Status:** Draft
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations, Reliability &middot; **Status:** Draft
 
 *We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control.*
 

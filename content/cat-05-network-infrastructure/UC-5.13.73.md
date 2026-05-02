@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-5.13.73 · Multi-Domain Network Health Executive Dashboard
 
-> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Operational, Performance &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Operations, Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
 *We put all the most important network health numbers on one screen — device health, user experience, security vulnerabilities, compliance status — so your leadership can see in 30 seconds whether the network is healthy or if something needs attention. It is the single page that tells the whole story.*
 

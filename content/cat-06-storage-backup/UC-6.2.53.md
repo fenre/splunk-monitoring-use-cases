@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-6.2.53 · TrueNAS cloud sync task success rate and byte transfer variance
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational, Data Quality &middot; **Status:** Draft
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations, Data Quality &middot; **Status:** Draft
 
 *We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control.*
 

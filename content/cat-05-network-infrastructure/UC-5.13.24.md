@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-5.13.24 · Issue Resolution Time Tracking
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *We measure how long it takes your team to fix each type of network problem — from the moment the system detects it to the moment it is resolved. This tells management which problems get fixed quickly and which ones sit too long, so they can improve the process for the slow ones.*
 

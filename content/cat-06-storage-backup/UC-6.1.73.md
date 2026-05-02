@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-6.1.73 · Pure Storage protection group replication schedule adherence
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Availability, Operational &middot; **Status:** Draft
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Availability, Operations &middot; **Status:** Draft
 
 *We track copy and mirror health so a planned outage or a bad link does not leave you with an old or broken remote copy when you need it most.*
 

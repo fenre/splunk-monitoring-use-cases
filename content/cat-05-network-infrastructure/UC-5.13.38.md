@@ -10,7 +10,7 @@ splunkPillar: "Security"
 
 # UC-5.13.38 · Advisory Remediation Progress Tracking
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Vulnerability, Operational &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Vulnerability, Operations &middot; **Wave:** Run &middot; **Status:** Verified
 
 *We track how quickly your team is fixing each security weakness — showing the number of affected devices declining over time as patches are applied. A flat line means nobody is patching and the risk is unchanged. A declining line proves the investment in upgrades is paying off.*
 

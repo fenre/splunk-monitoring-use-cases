@@ -10,7 +10,7 @@ splunkPillar: "Platform"
 
 # UC-1.2.135 · macOS Splunk Universal Forwarder Heartbeat and KV Store Queue Backlog
 
-> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** Platform &middot; **Type:** Availability, Operational &middot; **Status:** Draft
+> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** Platform &middot; **Type:** Availability, Operations &middot; **Status:** Draft
 
 *We check that the little log-forwarding program on each Mac is still talking to Splunk so we don’t think we’re protected when logs have actually stopped.*
 

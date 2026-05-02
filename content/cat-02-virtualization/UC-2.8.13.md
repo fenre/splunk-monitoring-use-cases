@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-2.8.13 · oVirt ISO Domain Mount and Image Provisioning Events
 
-> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Operational, Change &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Operations, Change &middot; **Status:** Verified
 
 *We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines.*
 

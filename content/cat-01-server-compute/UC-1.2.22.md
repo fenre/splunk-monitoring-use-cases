@@ -11,7 +11,7 @@ splunkPillar: "Observability"
 
 > **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Performance
 
-*We look for programs that keep grabbing more and more system handles, which can end in crashes—while the CIM view is a hint, the real math is in the main search.*
+*We look for programs that keep grabbing more and more system handles, which can end in crashes. The detailed handle-count search is what actually catches the problem; other summarized views are only supporting context.*
 
 ---
 

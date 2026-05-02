@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-8.1.73 · Memcached Expired Items vs Evicted Items Ratio
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational, Data Quality &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations, Data Quality &middot; **Status:** Draft
 
 *We watch for signs that guides TTL policy and memory sizing with evidence instead of guessing from average item size alone.*
 

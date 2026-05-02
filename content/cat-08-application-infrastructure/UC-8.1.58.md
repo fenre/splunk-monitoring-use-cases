@@ -10,7 +10,7 @@ splunkPillar: "Security"
 
 # UC-8.1.58 · ZooKeeper Connection Count by Client IP
 
-> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Operational &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Operations &middot; **Status:** Draft
 
 *We use this to protect shared ensembles from accidental denial-of-service by one application release.*
 

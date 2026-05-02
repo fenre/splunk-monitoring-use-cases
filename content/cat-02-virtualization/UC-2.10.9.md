@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-2.10.9 · VxRail Secure Remote Services (SRS) / Call Home Connectivity Health
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational, Reliability &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations, Reliability &middot; **Status:** Verified
 
 *We keep an eye on vxRail Secure Remote Services (SRS) / Call Home Connectivity Health and raise the alarm before it drags down real work or real outages start.*
 

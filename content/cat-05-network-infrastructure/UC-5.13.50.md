@@ -10,7 +10,7 @@ splunkPillar: "Security"
 
 # UC-5.13.50 · Audit Log Completeness and Gap Detection
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Audit, Operational &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Audit, Operations &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *We make sure the audit trail is continuous and complete — catching any gaps where logging stopped, which could mean something was tampered with or the recording system had a problem. A complete, unbroken record is what auditors need to trust that nothing was hidden during the periods between their visits.*
 

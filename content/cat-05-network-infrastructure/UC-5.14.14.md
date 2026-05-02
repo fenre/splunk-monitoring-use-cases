@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-5.14.14 · Varnish Ban List Growth and Lurker Lag
 
-> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Performance, Operational &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Performance, Operations &middot; **Status:** Draft
 
 *We watch varnish ban list growth and lurker lag and catch issues early, before they turn into outages for the people who rely on the network.*
 

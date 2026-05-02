@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-7.1.78 · Snowflake Snowpipe File Ingest Lag from Pipe Usage
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Data Quality, Operational &middot; **Status:** Draft
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Data Quality, Operations &middot; **Status:** Draft
 
 *We track replication and apply lag so we can meet recovery and read-your-writes expectations when a region or network path is under stress.*
 

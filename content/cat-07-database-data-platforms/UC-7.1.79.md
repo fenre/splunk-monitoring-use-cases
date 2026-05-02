@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-7.1.79 · Snowflake Task Execution Failures and Retries
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational, Data Quality &middot; **Status:** Draft
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations, Data Quality &middot; **Status:** Draft
 
 *We watch Snowflake Task Execution Failures and Retries so we can keep this part of the data platform within the capacity and quality targets our teams expect.*
 

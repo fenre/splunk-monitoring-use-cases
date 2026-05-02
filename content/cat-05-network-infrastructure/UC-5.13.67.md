@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-5.13.67 · Event Notification Correlation with TA Poll Data
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Operational, Availability &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Operations, Availability &middot; **Wave:** Run &middot; **Status:** Verified
 
 *We cross-check the real-time alerts against the regular polling data to make sure nothing is falling through the cracks between the two systems. This helps your team act on facts instead of guesses.*
 

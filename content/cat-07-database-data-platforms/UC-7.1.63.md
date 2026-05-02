@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-7.1.63 · ClickHouse INSERT Throughput and Batch Row Efficiency
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Operational &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Operations &middot; **Status:** Draft
 
 *We follow Oracle instance and space signals so the team can keep service levels and archivelog management in line with how the business actually uses the database.*
 

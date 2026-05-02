@@ -12,7 +12,7 @@ splunkPillar: "Observability"
 
 > **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Availability, Performance &middot; **Status:** Draft
 
-*We watch Cassandra Inter-Node Streaming Progress (nodetool netstats) so we can keep this part of the data platform within the capacity and quality targets our teams expect.*
+*We watch Cassandra inter-node streaming progress (using each node's streaming status view) so we can keep this part of the data platform within the capacity and quality targets our teams expect.*
 
 ---
 

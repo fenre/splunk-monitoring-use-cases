@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-2.8.2 · oVirt Host Activation and Maintenance Mode State Changes
 
-> **Criticality:** High &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Change, Operational &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Change, Operations &middot; **Status:** Verified
 
 *We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines.*
 

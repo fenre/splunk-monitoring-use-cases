@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-5.13.66 · Event Notification Delivery Failure Tracking
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operational &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Operations &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *We watch the watcher — making sure the real-time notification pipeline between the network management system and our monitoring system is actually working. If the connection breaks silently, we catch it within hours instead of discovering days later that no alerts were coming through.*
 

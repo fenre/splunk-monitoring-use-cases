@@ -10,7 +10,7 @@ splunkPillar: "Security"
 
 # UC-9.8.2 · BeyondTrust Password Safe Credential Checkout and Check-In Cycle Time
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Operational, Security &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Operations, Security &middot; **Status:** Verified
 
 *We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — BeyondTrust Password Safe Credential Checkout and Check-In Cycle Time*
 

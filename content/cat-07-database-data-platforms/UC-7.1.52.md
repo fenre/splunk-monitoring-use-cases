@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-7.1.52 · MongoDB Index Build Progress via CurrentOp
 
-> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Performance, Operational &middot; **Status:** Draft
+> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Performance, Operations &middot; **Status:** Draft
 
 *We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise.*
 

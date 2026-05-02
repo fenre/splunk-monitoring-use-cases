@@ -9,7 +9,7 @@ splunkPillar: "Security"
 
 # UC-2.6.78 · Citrix Session Recording Pipeline and Storage Health
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Availability, Compliance
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Availability, Compliance, Security
 
 *We keep an eye on session Recording Pipeline and Storage Health and raise the alarm before it drags down real work or real outages start.*
 

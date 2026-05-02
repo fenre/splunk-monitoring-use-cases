@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-8.5.34 · ActiveMQ Advisory Message Storm Detection
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Operational &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Operations &middot; **Status:** Verified
 
 *We use this to protect shared brokers from self-inflicted advisory storms that look like organic traffic growth until thread dumps show advisory fan-out.*
 

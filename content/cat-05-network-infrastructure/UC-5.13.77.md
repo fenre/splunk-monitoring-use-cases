@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-5.13.77 · Network Change MTTR Analysis
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Operational &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Observability &middot; **Type:** Operations &middot; **Wave:** Run &middot; **Status:** Verified
 
 *We measure how long it takes to fix each network problem and whether the problem was caused by a planned change or happened on its own. This tells management which problems are preventable (by improving the change process) and which need faster response (by improving runbooks or adding automation).*
 

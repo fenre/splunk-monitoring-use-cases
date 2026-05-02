@@ -10,7 +10,7 @@ splunkPillar: "Observability"
 
 # UC-2.10.3 · VxRail Manager Support Bundle Collection and Upload Status
 
-> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Operational, Compliance &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Operations, Compliance &middot; **Status:** Verified
 
 *We keep an eye on vxRail Manager Support Bundle Collection and Upload and raise the alarm before it drags down real work or real outages start.*
 
