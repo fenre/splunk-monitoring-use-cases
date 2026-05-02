@@ -131,6 +131,8 @@ function bootInlineScript(scriptSrc) {
     console,
     setTimeout,
     clearTimeout,
+    setImmediate,
+    AbortController,
     Promise,
     JSON,
     Math,
@@ -141,7 +143,11 @@ function bootInlineScript(scriptSrc) {
     Array,
     Object,
     Error,
-    // isFinite / isNaN global functions used by helpers
+    Map,
+    Set,
+    RegExp,
+    parseInt,
+    parseFloat,
     isNaN,
     isFinite,
   };
