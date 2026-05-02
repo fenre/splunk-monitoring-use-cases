@@ -1331,11 +1331,20 @@ def _prune_orphans(planned: dict[Path, bytes]) -> None:
 
 
 def _check_drift(planned: dict[Path, bytes]) -> list[str]:
-    """Compare planned bytes to on-disk bytes; return drift descriptions."""
+    """Compare planned bytes to on-disk bytes; return drift descriptions.
+
+    Files under ``API_OUT_DIR`` (api/v1/evidence-packs/) are gitignored
+    generated artifacts.  When they don't exist on disk we skip them
+    silently so ``--check`` in a fresh CI checkout only validates the
+    tracked Markdown packs under ``DOCS_OUT_DIR``.
+    """
     drift: list[str] = []
     for path, payload in sorted(planned.items()):
         rel = str(path.relative_to(ROOT))
         if not path.exists():
+            is_api = str(path).startswith(str(API_OUT_DIR))
+            if is_api:
+                continue
             drift.append(f"missing: {rel}")
             continue
         current = path.read_bytes()
