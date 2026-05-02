@@ -741,7 +741,7 @@ def main(argv: list[str]) -> int:
             )
             return 1
         current = LEDGER_PATH.read_text(encoding="utf-8")
-        if current != new_body:
+        if _structural_diff(current, new_body):
             print(
                 f"FATAL: {LEDGER_PATH.relative_to(ROOT)} is stale. "
                 f"Run scripts/generate_mapping_ledger.py (without --check) and commit the result.",
@@ -763,6 +763,20 @@ def main(argv: list[str]) -> int:
         f"merkle root {ledger['merkleRoot']}."
     )
     return 0
+
+
+def _structural_diff(current: str, regenerated: str) -> bool:
+    """Return True when the two ledger texts differ structurally.
+
+    The top-level ``generatedAt`` field is anchored to the HEAD commit
+    date, so it changes after every push.  Strip it (and the derived
+    ``catalogueCommit``) from both sides before comparing so that the
+    CI drift check only fires on real content changes.
+    """
+    import re
+    _TS_RE = re.compile(r'^\s*"(generatedAt|catalogueCommit)":\s*".*",?\s*$', re.MULTILINE)
+    strip = lambda s: _TS_RE.sub("", s)
+    return strip(current) != strip(regenerated)
 
 
 def _preview_diff(old: str, new: str) -> None:

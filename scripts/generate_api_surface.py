@@ -2034,9 +2034,21 @@ def _diff_trees(lhs: pathlib.Path, rhs: pathlib.Path) -> List[str]:
         if rel not in rhs_files:
             diffs.append(f"- {rel}  (only on disk)")
             continue
-        if (lhs / rel).read_bytes() != (rhs / rel).read_bytes():
-            diffs.append(f"~ {rel}")
+        lhs_content = (lhs / rel).read_bytes()
+        rhs_content = (rhs / rel).read_bytes()
+        if lhs_content != rhs_content:
+            if _strip_timestamp_lines(lhs_content) != _strip_timestamp_lines(rhs_content):
+                diffs.append(f"~ {rel}")
     return diffs
+
+
+def _strip_timestamp_lines(content: bytes) -> bytes:
+    """Remove lines carrying only the generatedAt timestamp so that the
+    drift check does not false-positive when HEAD commit date changes."""
+    return b"\n".join(
+        line for line in content.split(b"\n")
+        if b"generatedAt" not in line and b"Generated:" not in line
+    )
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
