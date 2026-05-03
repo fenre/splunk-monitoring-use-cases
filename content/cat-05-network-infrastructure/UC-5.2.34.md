@@ -21,7 +21,7 @@ Tracks failover events, recovery time, and uplink behavior to ensure high availa
 
 ## Value
 
-Tracks failover events, recovery time, and uplink behavior to ensure high availability.
+NOC teams track Meraki MX uplink failover events and measure recovery time to assess high-availability effectiveness and identify flapping circuits requiring ISP escalation.
 
 ## Implementation
 
@@ -30,41 +30,63 @@ Monitor failover and recovery events from syslog. Calculate recovery MTTR.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=security_event signature="*failover*" OR signature="*recovery*"`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MX uplink status change events. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki:api:uplinks`. Key fields: `interface` (wan1, wan2, cellular), `status` (active, failed, ready), `failedAt`, `recoveredAt`.
+* Meraki Dashboard > Security & SD-WAN > SD-WAN & traffic shaping > Uplink selection controls failover behavior. Events logged when primary WAN fails and traffic shifts to secondary.
 
-### Step 1 — Configure data collection
-Monitor failover and recovery events from syslog. Calculate recovery MTTR.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Meraki Dashboard > Network-wide > General > Reporting
+# Enable: Syslog > Flows, Events, IDS Alerts
+# Meraki syslog category: uplink change events
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*failover*" OR signature="*recovery*")
-| stats count as failover_count, latest(recovery_time) as recovery_duration by uplink_id, failure_reason
-| where failover_count > 0
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:uplinks") earliest=-7d
+| search "uplink" OR "failover" OR "wan" "down" OR "active"
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Internet Uplink Failover Events and Recovery Time (Meraki MX)** — Tracks failover events, recovery time, and uplink behavior to ensure high availability.
+**Primary search -- Uplink failover event tracking:**
+```spl
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:uplinks") earliest=-7d
+| where match(_raw, "(?i)failover|uplink.*change|wan.*down|wan.*up|connectivity.*change")
+| eval device=coalesce(serial, host, deviceSerial)
+| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
+| eval uplink=coalesce(interface, uplink)
+| eval status=coalesce(status, if(match(_raw, "(?i)down|fail|lost"), "FAILED", if(match(_raw, "(?i)up|recover|active"), "RECOVERED", "CHANGE")))
+| sort _time
+| streamstats current=f last(_time) as prev_time last(status) as prev_status by device
+| eval recovery_time_sec=if(status="RECOVERED" AND prev_status="FAILED", _time - prev_time, null())
+| eval recovery_min=round(recovery_time_sec/60, 1)
+| stats count as events count(eval(status="FAILED")) as failures count(eval(status="RECOVERED")) as recoveries avg(recovery_min) as avg_recovery_min max(recovery_min) as max_recovery_min by device, network_name, uplink
+| eval avg_recovery_min=round(avg_recovery_min, 1)
+| eval severity=case(failures > 5, "CRITICAL -- frequent failovers (flapping)", avg_recovery_min > 30, "WARNING -- slow recovery time", failures > 0, "INFO -- failover occurred", 1==1, "OK")
+| where severity != "OK"
+| sort severity, -failures
+```
 
-Documented **Data sources**: `sourcetype=meraki type=security_event signature="*failover*" OR signature="*recovery*"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Security & SD-WAN > Uplink status -- verify failover history.
+(b) Check ISP circuit SLA against recovery times.
+(c) Correlate with WAN quality degradation (UC-5.2.33) preceding failover.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MX -- Uplink Failover"):
+* Row 1 -- Single-value: "Failover events (7d)", "Avg recovery (min)", "Sites affected".
+* Row 2 -- Failover timeline.
+* Row 3 -- Recovery time distribution.
 
-**Pipeline walkthrough**
+Alert: Critical (>5 failovers in 4 hours for same device): investigate ISP/circuit flapping.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by uplink_id, failure_reason** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where failover_count > 0` — typically the threshold or rule expression for this monitoring goal.
+### Step 5 — - Troubleshooting
 
+* **Rapid failover flapping** -- ISP circuit unstable. Check: physical layer (cable/optics), ISP status page, circuit monitoring. Consider increasing failover threshold timers.
 
-### Step 3 — Validate
-In the Meraki cloud dashboard, use the same organization, network, and time range as the search. Confirm VPN paths, tunnel states, uplinks, and device names you expect there match the Splunk view.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Failover timeline; recovery time gauge; uplink failure cause pie chart.
+* **No recovery event after failure** -- Secondary uplink may also be down. Check warm spare status (UC-5.2.36) and cellular backup (UC-5.2.35).
+
+* **Long recovery time** -- Failover path may have DNS caching, VPN re-establishment, or BGP convergence delays. Check SD-WAN settings.
 
 ## SPL
 

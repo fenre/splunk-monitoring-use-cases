@@ -21,7 +21,7 @@ ARP table approaching hardware limits; can cause connectivity failures.
 
 ## Value
 
-ARP table approaching hardware limits; can cause connectivity failures.
+Network engineers trend ARP table sizes across routers to detect abnormal growth indicating large flat networks, scanning activity, or ARP storms that risk table exhaustion.
 
 ## Implementation
 
@@ -30,71 +30,68 @@ Poll ipNetToMediaTable (count rows) or parse `show ip arp` / `show arp` output v
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: ipNetToMediaTable entries count, show arp count.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* ARP table size data from SNMP or CLI scripted input. SNMP OID: ipNetToMediaEntry count, or `show arp | count` via scripted input. Data in `index=network` with SNMP or `sourcetype=network:arp:stats`.
+* ARP table exhaustion causes devices to drop new ARP entries, breaking connectivity. Large ARP tables indicate large flat networks (L2 broadcast domains), scanning activity, or ARP storms.
 
-### Step 1 — Configure data collection
-Poll ipNetToMediaTable (count rows) or parse `show ip arp` / `show arp` output via scripted input. Create lookup with device→max_arp (from vendor specs). Alert when utilization exceeds 70%.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=network sourcetype=snmp:arp OR sourcetype=cisco:ios:arp
-| eval arp_count=coalesce(arp_entries, arp_count, 0)
-| stats latest(arp_count) as current_arp by host
-| lookup arp_limit host OUTPUT max_arp
-| eval util_pct=round(current_arp/max_arp*100,1)
-| where util_pct > 70
-| table host current_arp max_arp util_pct
+### Step 1 — - Configure data collection
 ```
-
-#### Understanding this SPL
-
-**ARP Table Size Trending** — ARP table approaching hardware limits; can cause connectivity failures.
-
-Documented **Data sources**: ipNetToMediaTable entries count, show arp count. **App/TA** (typical add-on context): SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:arp, cisco:ios:arp. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype=snmp:arp. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `eval` defines or adjusts **arp_count** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
-- Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
-- `eval` defines or adjusts **util_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where util_pct > 70` — typically the threshold or rule expression for this monitoring goal.
-- Pipeline stage (see **ARP Table Size Trending**): table host current_arp max_arp util_pct
-
-
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
-
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (ARP count over time), Gauge (utilization), Table.
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
+[script:///opt/splunk/etc/apps/network_mon/bin/arp_table_size.sh]
 interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
+sourcetype = network:arp:stats
+index = network
+
+# arp_table_size.sh
+#!/bin/bash
+echo "device=$(hostname)"
+arp_count=$(show ip arp | wc -l 2>/dev/null || arp -an | wc -l)
+echo "arp_entries=$arp_count"
+```
+Verify:
+```spl
+index=network sourcetype="network:arp:stats" earliest=-4h | stats latest(arp_entries) by device
 ```
 
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
+### Step 2 — - Create the search and alert
 
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
+**Primary search -- ARP table size trending:**
+```spl
+index=network earliest=-7d
+| eval arp_count=tonumber(coalesce(arp_entries, arp_table_size))
+| eval device=coalesce(device, host, device_name)
+| where isnotnull(arp_count)
+| bin _time span=1h
+| stats avg(arp_count) as avg_entries max(arp_count) as max_entries by _time, device
+| eventstats avg(avg_entries) as baseline_avg stdev(avg_entries) as stdev_entries by device
+| eval z_score=if(stdev_entries > 0, round((avg_entries - baseline_avg)/stdev_entries, 2), 0)
+| eval severity=case(
+    max_entries > 4000, "CRITICAL -- ARP table very large (>4000 entries)",
+    z_score > 3, "WARNING -- abnormal ARP table growth",
+    max_entries > 2000, "INFO -- ARP table elevated",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, device, avg_entries, max_entries, z_score, severity
+| sort severity, -max_entries
 ```
 
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
+### Step 3 — - Validate
+(a) CLI: `show ip arp | count` or `show ip arp summary` -- current ARP table size.
+(b) Check ARP timeout: `show ip arp timeout` -- default 4 hours on Cisco.
+(c) Verify ARP table limit: hardware-dependent.
+
+### Step 4 — - Operationalize
+Dashboard ("Network -- ARP Table"):
+* Row 1 -- Single-value: "Max ARP entries", "Devices > 2000 entries".
+* Row 2 -- ARP table size timechart.
+
+Alert: Critical (>4000 ARP entries): investigate cause.
+
+### Step 5 — - Troubleshooting
+
+* **Large flat L2 domain** -- All hosts in the broadcast domain generate ARP entries. Consider: subnet segmentation, VRFs, or moving to routed access layer.
+
+* **ARP storm from scanning** -- Check for new entries from same source MAC. May indicate network scanner or worm. Apply DHCP snooping and DAI.
+
+* **ARP timeout too long** -- Default 4 hours may keep stale entries. Consider reducing: `arp timeout <seconds>` on interface.
 
 ## SPL
 

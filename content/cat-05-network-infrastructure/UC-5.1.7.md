@@ -21,7 +21,7 @@ Unauthorized config changes are a top cause of outages. Essential for compliance
 
 ## Value
 
-Unauthorized config changes are a top cause of outages. Essential for compliance.
+Operations teams track network device configuration changes with administrator attribution, enabling rapid change correlation with incidents and compliance audit.
 
 ## Implementation
 
@@ -30,42 +30,76 @@ Forward syslog. Enable archive logging. Alert on any config change. Correlate wi
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=cisco:ios`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Configuration change syslog messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%SYS-5-CONFIG_I`, `%PARSER-5-CFGLOG_LOGGEDCMD`; Juniper `UI_COMMIT`, `UI_COMMIT_COMPLETED`; Arista `SYS-5-CONFIG_I`.
+* Configuration changes are a top cause of network outages. Tracking who changed what and when enables rapid rollback, compliance auditing, and change correlation with incidents.
 
-### Step 1 — Configure data collection
-Forward syslog. Enable archive logging. Alert on any config change. Correlate with change tickets.
+### Step 1 — - Configure data collection
+```
+# Cisco IOS -- enable config change logging
+archive
+ log config
+  logging enable
+  logging size 200
+  notify syslog contenttype plaintext
+  hidekeys
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+logging host <splunk-syslog-ip>
+logging trap informational
+```
+Verify:
 ```spl
-index=network sourcetype="cisco:ios" "%SYS-5-CONFIG_I"
-| rex "Configured from (?<config_source>\S+) by (?<user>\S+)"
-| table _time host user config_source
+index=network earliest=-24h
+| where match(_raw, "(?i)CONFIG_I|CONFIG.*CHANGE|CFGLOG|COMMIT|config.*changed|configured.*from")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Configuration Change Detection** — Unauthorized config changes are a top cause of outages. Essential for compliance.
+**Primary search -- Configuration change detection:**
+```spl
+index=network earliest=-24h
+| where match(_raw, "(?i)CONFIG_I|CONFIG.*CHANGE|CFGLOG|COMMIT|config.*changed|configured.*from|running-config")
+| rex field=_raw "(?i)(?:by|user)\s+(?<config_user>\S+)"
+| rex field=_raw "(?i)(?:console|vty|line)\s*(?<access_method>\S+)"
+| rex field=_raw "(?i)(?:from|source)\s+(?<source_ip>\d+\.\d+\.\d+\.\d+)"
+| eval user=coalesce(config_user, user, admin, "unknown")
+| eval method=coalesce(access_method, if(match(_raw, "(?i)console"), "console", if(match(_raw, "(?i)vty|ssh|telnet"), "remote", "unknown")))
+| eval device=coalesce(host, device_name)
+| eval change_type=case(
+    match(_raw, "(?i)COMMIT"), "COMMIT",
+    match(_raw, "(?i)running.*startup|write"), "SAVE",
+    match(_raw, "(?i)CONFIG_I|config.*change"), "CONFIG_CHANGE",
+    1==1, "OTHER")
+| stats count as changes dc(user) as unique_admins values(user) as admins values(source_ip) as source_ips latest(_time) as last_change by device, change_type
+| eval severity=case(
+    change_type="CONFIG_CHANGE" AND match(mvjoin(source_ips, ","), "unknown"), "WARNING -- config change from unknown source",
+    changes > 10, "INFO -- high config change frequency",
+    1==1, "INFO")
+| eval last_change_time=strftime(last_change, "%Y-%m-%d %H:%M:%S")
+| table device, change_type, changes, admins, source_ips, last_change_time, severity
+| sort severity, -changes
+```
 
-Documented **Data sources**: `sourcetype=cisco:ios`. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show archive log config all` (Cisco) -- verify logged commands.
+(b) CLI: `show running-config | include Last` -- check last config change time.
+(c) Cross-reference with change management tickets.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- Configuration Changes"):
+* Row 1 -- Single-value: "Config changes (24h)", "Devices changed", "Administrators active".
+* Row 2 -- Configuration change timeline.
+* Row 3 -- Change audit trail table.
 
-**Pipeline walkthrough**
+Alert: Warning (config change outside maintenance window): unauthorized change.
 
-- Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- Pipeline stage (see **Configuration Change Detection**): table _time host user config_source
+### Step 5 — - Troubleshooting
 
+* **Unauthorized change** -- Check user identity and source IP. Cross-reference with AAA/TACACS+ logs. Verify change management approval.
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Config not saved** -- Running-config changed but not written to startup. Check: `show startup-config` vs `show running-config`. Risk: changes lost on reload.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (device, user, time), Timeline, Single value (changes last 24h).
+* **Correlate config change with outage** -- Overlay config change events with interface down/BGP flap events. Time-based correlation identifies change-induced incidents.
 
 ## SPL
 

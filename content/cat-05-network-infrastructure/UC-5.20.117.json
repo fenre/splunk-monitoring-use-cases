@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.117",
+  "title": "IPv6 NDP Neighbour Unreachability Detection (NUD) Failure Monitoring",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Monitors NDP Neighbour Unreachability Detection (NUD, RFC 4861 §7.3) failures. NUD ensures that neighbours remain reachable by transitioning entries through REACHABLE→STALE→DELAY→PROBE→FAILED states. Excessive FAILED transitions indicate link or host failures that need investigation.",
+  "app": "Splunk Enterprise",
+  "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-4h\n  (\"%IPV6_ND\" OR \"NUD\" OR \"PROBE\" OR \"FAILED\" OR \"neighbor.*unreachable\")\n| eval nud_event=case(\n    match(_raw, \"(?i)FAILED|unreachable|no.*response\"), \"NUD_FAILED\",\n    match(_raw, \"(?i)STALE\"), \"NUD_STALE\",\n    match(_raw, \"(?i)PROBE\"), \"NUD_PROBE\",\n    1=1, \"OTHER\")\n| rex field=_raw \"neighbor\\s*(?<neighbor_ip>[0-9a-fA-F:]+)\"\n| rex field=_raw \"interface\\s*(?<interface>\\S+)\"\n| stats count as events dc(neighbor_ip) as unique_neighbors by host, interface, nud_event\n| where nud_event=\"NUD_FAILED\" AND events > 5\n| eval severity=case(\n    unique_neighbors > 20, \"HIGH — \" . unique_neighbors . \" neighbours unreachable on \" . host . \" \" . interface . \" — link or switch failure\",\n    unique_neighbors > 5, \"MEDIUM — multiple neighbours unreachable\",\n    1=1, \"LOW — isolated neighbour unreachability\")\n| sort -unique_neighbors",
+  "description": "Monitors NDP Neighbour Unreachability Detection (NUD) state transitions, specifically PROBE→FAILED transitions that indicate a previously reachable neighbour is now unreachable. High NUD failure rates on an interface indicate link failures, switch issues, or host outages that affect IPv6 connectivity.",
+  "value": "NUD is the IPv6 mechanism for confirming neighbours remain reachable — equivalent to ARP keepalives in IPv4 but more sophisticated. When NUD reports a neighbour as FAILED, IPv6 traffic to that neighbour is dropped. Monitoring NUD failures provides early detection of link problems, host failures, and switch issues before they are reported by users.",
+  "implementation": "Monitor NDP state transition logs for FAILED entries. Correlate with interface up/down events and host availability.",
+  "visualization": "(1) Timechart: NUD failure rate by interface. (2) Table: unreachable neighbours. (3) Single-value: total NUD failures. (4) Correlation: NUD failures vs interface flaps.",
+  "references": [
+    {
+      "title": "RFC 4861 — Neighbor Discovery for IP version 6 (IPv6) (§7.3 — NUD)",
+      "url": "https://www.rfc-editor.org/rfc/rfc4861#section-7.3"
+    }
+  ],
+  "knownFalsePositives": "**Mobile devices.** Phones and laptops that leave the network naturally cause NUD failures for their addresses. High mobility environments will have higher NUD failure rates.\n\n**Sleep/hibernate.** Devices that sleep or hibernate become NUD-unreachable until they wake. This is normal for endpoint environments.",
+  "equipment": ["cisco", "juniper", "arista"],
+  "equipmentModels": ["cisco_catalyst_9000", "juniper_ex", "arista_7050"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Router/switch NDP logging enabled.\n• Splunk receiving NDP syslog events.\n\nStep 1 — Configure data collection\n\nNDP NUD events are logged at informational level. Ensure `logging buffered 8192 informational` is configured and NDP events are forwarded to Splunk via syslog.\n\nStep 2 — Create monitoring searches\n\n**NUD failure rate by interface:**\n```spl\nindex=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-24h\n  \"FAILED\" AND \"neighbor\"\n| rex field=_raw \"interface\\s*(?<interface>\\S+)\"\n| timechart span=15m count by interface\n```\n\n**Correlated with interface flaps:**\n```spl\nindex=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-24h\n  (\"FAILED\" AND \"neighbor\") OR \"%LINK\" OR \"%LINEPROTO\"\n| eval event_type=if(match(_raw, \"FAILED\"), \"NUD_FAILURE\", \"LINK_EVENT\")\n| timechart span=5m count by event_type\n```\n\nStep 3 — Validate\n(a) Shut down a test host on a monitored VLAN. Verify NUD failure is logged within 30-60 seconds.\n\n(b) Bring the host back up. Verify the neighbour transitions back to REACHABLE.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — NDP Health\"): NUD failures by interface, unreachable neighbour list, correlation with link events.\n\n**Alert:** >20 NUD failures on a single interface in 15 minutes — possible switch/link failure.\n\nStep 5 — Troubleshooting\n\n• **All neighbours on one interface failing.** The switch port, VLAN, or cable is likely down. Check physical layer.\n\n• **Single neighbour repeatedly failing.** The host may have a bad NIC, incorrect IPv6 configuration, or firewall blocking NS/NA.",
+  "grandmaExplanation": "The router periodically checks if its neighbours are still there — like knocking on the door to see if they're home. If nobody answers after several tries, the router marks them as 'gone.' We monitor these 'nobody home' reports to quickly find out when devices on the network have stopped responding.",
+  "prerequisiteUseCases": ["5.20.21"],
+  "wave": "walk"
+}

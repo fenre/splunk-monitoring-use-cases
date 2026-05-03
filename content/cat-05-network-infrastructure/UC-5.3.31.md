@@ -21,7 +21,7 @@ HTTP compression shrinks bytes on the wire but costs CPU on the Application Deli
 
 ## Value
 
-HTTP compression shrinks bytes on the wire but costs CPU on the Application Delivery Controller. Monitoring compression ratio, bandwidth saved, and CPU headroom together prevents turning compression on blindly when hardware is already near limits. A low savings percentage with high CPU can justify selective policies (only text types) or moving compression to origins.
+Infrastructure teams monitor Citrix ADC HTTP compression ratio and CPU impact, ensuring bandwidth savings justify the processing overhead on packet engine CPUs.
 
 ## Implementation
 
@@ -30,18 +30,54 @@ Ingest NITRO compression and CPU counters into `citrix:netscaler:perf`. Join per
 ## Detailed Implementation
 
 ### Prerequisites
-- `index=netscaler` with compression bytes (`compress_*`/`comp_*`) and `cpu_use_pct` or per-PE; `lbvserver` when present. Note SSL offload: compression is often on plaintext only—state that in the SOP.
+* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). NITRO stats for compression. Key metrics: `compression_ratio`, `compressed_bytes_saved`, `compression_requests`, `compression_cpu_pct`.
+* Citrix ADC HTTP compression reduces response size for compressible content (HTML, JS, CSS, JSON). Compression saves bandwidth but consumes CPU. If PE CPU is already high, compression can worsen performance.
 
-### Step 1 — Configure data collection
-One TA poll per interval binding CPU+comp. If multi-PE, pre-`stats` by host. `props` to force `tonumber()`. Tag vservers with text vs binary policy if split.
+### Step 1 — - Configure data collection
+Poll NITRO API: `GET /nitro/v1/stat/cmp` for compression stats. Verify:
+```spl
+index=netscaler sourcetype="citrix:netscaler:perf" earliest=-4h
+| where isnotnull(compression_ratio) OR isnotnull(cmpbandwidthsaving)
+| stats latest(compression_ratio) as ratio by host
+```
 
-### Step 2 — Create the search and alert
-SPL `peak_cpu>85 AND avg_comp_pct<5` means high CPU, low gain—narrow to `text/*` or disable. Inverse: `avg_comp_pct>20 AND avg_cpu<70` to expand. Set CPU threshold 80–90 by MPX/VPX class in lookup. Ignore first hour after ADC reboot (warmup).
+### Step 2 — - Create the search and alert
 
-### Step 3 — Validate
-Compare vservers, services, and load-balancing state in the Citrix ADC management view or command line for the same time window and objects.
-### Step 4 — Operationalize
-Panel: comp ratio + same-axis CPU; table top vservers by `total_saved_mb`. Escalation: cap team. Review after SSL/cipher or vCPU change. Cross-check high CPU with other ADC features in perf sourcetype.
+**Primary search -- Compression savings vs CPU impact:**
+```spl
+index=netscaler sourcetype="citrix:netscaler:perf" earliest=-4h
+| eval ratio=coalesce(compression_ratio, cmpratio)
+| eval saved_bytes=coalesce(compressed_bytes_saved, cmpbandwidthsaving)
+| eval cmp_cpu=coalesce(compression_cpu_pct, cmpcpupct)
+| eval pe_cpu=coalesce(packet_engine_cpu_pct, pktcpuusagepcnt)
+| bin _time span=15m
+| stats avg(ratio) as avg_ratio sum(saved_bytes) as bytes_saved avg(cmp_cpu) as avg_cmp_cpu avg(pe_cpu) as avg_pe_cpu by _time, host
+| eval saved_GB=round(bytes_saved/1073741824, 2)
+| eval status=case(avg_cmp_cpu > 30 AND avg_pe_cpu > 80, "RISK -- compression consuming CPU on saturated system", avg_ratio < 1.5, "LOW_SAVINGS -- compression not effective", avg_cmp_cpu > 20, "MONITOR -- high compression CPU", 1==1, "OK")
+| where status != "OK"
+| sort status
+```
+
+### Step 3 — - Validate
+(a) On ADC CLI: `stat cmp` -- compare ratio and bandwidth savings.
+(b) Check: `show cmp parameter` for compression level and content types.
+(c) Verify compression is applied: `curl -H "Accept-Encoding: gzip" -v https://app/` should return `Content-Encoding: gzip`.
+
+### Step 4 — - Operationalize
+Dashboard ("Citrix ADC -- Compression"):
+* Row 1 -- Single-value: "Compression ratio", "Bandwidth saved (GB)", "CMP CPU %", "PE CPU %".
+* Row 2 -- Compression efficiency trending.
+
+Alerting:
+* Warning (CMP CPU > 30% AND PE CPU > 80%): disable compression to free CPU.
+
+### Step 5 — - Troubleshooting
+
+* **Low compression ratio** -- Content may already be compressed (images, videos, PDFs). Compression only helps text-based content. Check content type configuration.
+
+* **High compression CPU** -- Reduce compression level from gzip-9 to gzip-1 (faster, slightly less compression).
+
+* **Compression not applied** -- Check: (1) compression policy is bound, (2) client sends `Accept-Encoding: gzip`, (3) response content type matches compression filter.
 
 ## SPL
 

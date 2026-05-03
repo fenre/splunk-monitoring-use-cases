@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.130",
+  "title": "IPv6 Cloud Provider Connectivity and Peering Health",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": ["Availability", "Performance"],
+  "splunkPillar": "ITSI",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=paloalto:traffic` — Monitors IPv6 connectivity to major cloud providers (AWS, Azure, GCP, Oracle Cloud) including BGP peering status, prefix reachability, latency, and path asymmetry. As workloads move to cloud, IPv6 connectivity to cloud endpoints becomes critical for dual-stack applications.\n\n**Cloud IPv6 connectivity aspects:**\n1. **AWS VPC IPv6.** AWS VPCs support dual-stack. Direct Connect supports IPv6 BGP peering.\n2. **Azure Virtual Network.** Azure VNets support IPv6 with dual-stack subnets. ExpressRoute supports IPv6 BGP.\n3. **GCP VPC.** GCP supports IPv6 for external VPC and Cloud Interconnect.\n4. **Path monitoring.** Cloud provider IPv6 paths may differ from IPv4 paths. Monitor latency and packet loss independently.\n5. **Private peering.** Direct Connect/ExpressRoute IPv6 BGP sessions must be monitored separately from IPv4 sessions.",
+  "app": "Splunk Enterprise / ITSI",
+  "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"paloalto:traffic\") earliest=-4h\n| eval cloud_dest=case(\n    match(dest, \"^2600:1f\") OR match(dest, \"^2406:da\"), \"AWS\",\n    match(dest, \"^2603:\"), \"Azure\",\n    match(dest, \"^2607:f8b0:\"), \"Google Cloud\",\n    match(dest, \"^2a05:d\"), \"AWS (EU)\",\n    1=1, null())\n| where isnotnull(cloud_dest)\n| stats count as flows sum(bytes) as total_bytes avg(duration) as avg_duration by cloud_dest\n| eval status=case(\n    flows > 0 AND avg_duration < 1, \"OK — \" . flows . \" flows to \" . cloud_dest,\n    flows > 0 AND avg_duration >= 1, \"DEGRADED — elevated latency to \" . cloud_dest,\n    flows=0, \"NO CONNECTIVITY to \" . cloud_dest . \" via IPv6\")\n| sort cloud_dest",
+  "description": "Monitors IPv6 connectivity to major cloud providers (AWS, Azure, GCP) including traffic flows, latency, and reachability. As organizations move workloads to cloud with dual-stack support, IPv6 connectivity to cloud endpoints becomes as critical as IPv4.",
+  "value": "Cloud workloads increasingly require IPv6 connectivity. If IPv6 paths to cloud providers are degraded or broken, dual-stack applications fall back to IPv4, potentially causing performance issues or hitting IPv4 NAT limitations. Dedicated cloud IPv6 monitoring ensures the fastest path to cloud resources is always available.",
+  "implementation": "Monitor traffic flows to known cloud provider IPv6 prefixes. Track latency and compare with IPv4 paths. Alert on IPv6 cloud connectivity loss.",
+  "visualization": "(1) Table: cloud provider IPv6 connectivity status. (2) Latency comparison: IPv6 vs IPv4 to each cloud. (3) Traffic volume to cloud by protocol version.",
+  "references": [
+    {"title": "AWS — IPv6 support in VPC", "url": "https://docs.aws.amazon.com/vpc/latest/userguide/how-it-works.html#vpc-ip-addressing"},
+    {"title": "Azure — IPv6 for Azure Virtual Network", "url": "https://docs.microsoft.com/en-us/azure/virtual-network/ipv6-overview"},
+    {"title": "GCP — IPv6 support", "url": "https://cloud.google.com/vpc/docs/using-ipv6"}
+  ],
+  "knownFalsePositives": "**IPv4-only cloud services.** Some cloud services are still IPv4-only. Zero IPv6 flows to those services is expected.\n\n**Cloud prefix changes.** Cloud providers occasionally update their IP ranges. Update the lookup periodically.",
+  "equipment": ["cisco", "paloalto"],
+  "equipmentModels": ["cisco_asr_1000", "paloalto_pa"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Firewall/router logging for IPv6 traffic.\n• Cloud provider IPv6 prefix lists.\n\nStep 1 — Create cloud provider prefix lookup from published IP ranges (AWS ip-ranges.json, Azure ServiceTags, GCP cloud.json).\n\nStep 2 — Monitor IPv6 traffic to cloud prefixes.\n\nStep 3 — Compare IPv6 vs IPv4 latency to cloud endpoints.\n\nStep 4 — Operationalize\n**Dashboard:** Cloud IPv6 connectivity. **Alert:** Zero IPv6 flows to a previously-reachable cloud — high.\n\nStep 5 — Troubleshooting\n• No IPv6 to cloud: Check BGP peering on Direct Connect/ExpressRoute. Verify IPv6 address family is enabled.",
+  "grandmaExplanation": "Our company stores important files in remote warehouses (cloud providers like AWS and Azure). We need to make sure the roads using new-format addresses (IPv6) to these warehouses are working properly and not slower than the old roads (IPv4).",
+  "prerequisiteUseCases": ["5.20.44", "5.20.116"],
+  "wave": "run"
+}

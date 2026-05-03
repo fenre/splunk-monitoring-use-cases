@@ -21,7 +21,7 @@ HA failovers cause brief traffic disruption and can indicate underlying hardware
 
 ## Value
 
-HA failovers cause brief traffic disruption and can indicate underlying hardware or link failures. Tracking failover frequency detects instability.
+Operations teams track firewall HA failover events, heartbeat losses, and state transitions, detecting loss of redundancy and investigating root causes of failovers.
 
 ## Implementation
 
@@ -30,41 +30,51 @@ Forward firewall system logs to Splunk. Alert on any active/passive transition. 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX).
-- Ensure the following data sources are available: `sourcetype=pan:system`, `sourcetype=fgt_event`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Firewall HA (High Availability) logs. Palo Alto: `sourcetype=pan:system` (HA events), Fortinet: `sourcetype=fgt_event` (HA events), Cisco FTD: HA syslog events, Juniper SRX: chassis cluster events. Key events: failover trigger, state change (active/passive/active-active), heartbeat loss, link monitoring failure.
 
-### Step 1 — Configure data collection
-Forward firewall system logs to Splunk. Alert on any active/passive transition. Correlate with link down events. Track failover frequency — more than 1 per week indicates instability.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+Verify HA events:
 ```spl
-index=firewall (sourcetype="pan:system" "HA state change") OR (sourcetype="fgt_event" subtype="ha")
-| rex "state change.*from (?<old_state>\w+) to (?<new_state>\w+)"
-| table _time, dvc, old_state, new_state | sort -_time
+index=firewall earliest=-7d
+| where match(_raw, "(?i)failover|HA.*(state|change|transition|active|passive|standby)|heartbeat|cluster|redundancy|preempt")
+| stats count by host, sourcetype
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Firewall HA Failover Events** — HA failovers cause brief traffic disruption and can indicate underlying hardware or link failures. Tracking failover frequency detects instability.
+**Primary search -- HA failover event detection:**
+```spl
+index=firewall earliest=-7d
+| where match(_raw, "(?i)failover|HA.*(state|change|transition)|heartbeat.*(lost|fail)|cluster.*(failover|switchover|transition)|active.*to.*passive|passive.*to.*active|standby.*to.*active")
+| eval ha_event=case(match(_raw, "(?i)failover.*trigger|switchover"), "FAILOVER_TRIGGERED", match(_raw, "(?i)heartbeat.*(lost|fail|miss)"), "HEARTBEAT_LOST", match(_raw, "(?i)link.*monitor.*(fail|down)"), "LINK_MONITOR_FAIL", match(_raw, "(?i)preempt"), "PREEMPTION", match(_raw, "(?i)passive.*to.*active|standby.*to.*active|became.*active"), "BECAME_ACTIVE", match(_raw, "(?i)active.*to.*passive|became.*passive|became.*standby"), "BECAME_PASSIVE", 1==1, "HA_EVENT")
+| eval node=coalesce(host, device_name)
+| stats count as events latest(_time) as last_event by node, ha_event
+| eval severity=case(ha_event="HEARTBEAT_LOST", "CRITICAL -- HA peer unreachable", ha_event="FAILOVER_TRIGGERED", "HIGH -- failover occurred", ha_event="LINK_MONITOR_FAIL", "HIGH -- link failure triggered failover", ha_event="PREEMPTION", "WARNING -- preemption event", 1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -events
+```
 
-Documented **Data sources**: `sourcetype=pan:system`, `sourcetype=fgt_event`. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Palo Alto: `show high-availability all` -- shows HA state and peer status.
+(b) Fortinet: `get system ha status` -- shows cluster status and role.
+(c) Simulate failover (if in maintenance window) and verify events appear.
 
-The first pipeline stage scopes events using **index**: firewall; **sourcetype**: pan:system, fgt_event. Those sourcetypes align with what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Firewall -- HA Status"):
+* Row 1 -- Single-value: "Failovers (7d)", "Heartbeat losses", "Current HA state".
+* Row 2 -- HA event timeline.
 
-**Pipeline walkthrough**
+Alerting:
+* Critical (heartbeat lost): HA peer may be down -- single point of failure.
+* High (failover triggered): investigate root cause.
 
-- Scopes the data: index=firewall, sourcetype="pan:system". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- Pipeline stage (see **Firewall HA Failover Events**): table _time, dvc, old_state, new_state
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
-### Step 3 — Validate
-Sample the same time range in your firewall management console, Panorama, FortiManager, or Check Point SmartConsole and confirm that counts, usernames, and object names line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (failover events), Single value (failovers this month), Table (history).
+* **Frequent failovers (flapping)** -- Check: (1) HA heartbeat link stability (dedicated link recommended), (2) link monitoring thresholds too sensitive, (3) hardware issue on one node causing intermittent failures.
+
+* **Heartbeat lost but peer is up** -- HA heartbeat link may have a physical issue. Check: (1) cable/SFP on HA ports, (2) switch port configuration for HA VLAN, (3) latency between HA peers.
+
+* **Sessions lost during failover** -- Verify session synchronization: Palo Alto: `show high-availability state-synchronization`, Fortinet: `get system ha status` -- check session pickup. Active-Active requires session sync to be enabled.
 
 ## SPL
 

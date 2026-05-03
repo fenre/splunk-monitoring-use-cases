@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.7.14",
+  "title": "Geo-IP Flow Enrichment and Unexpected Country Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance",
+    "Risk"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=netflow` sourcetype `netflow` or `stream:ipfix` with external-facing `dest` (or `dest_ip`) for outbound sessions; post-ingest enrichment via props transforms calling MaxMind–style lookups or inline `iplocation` at search time for fields `Country`, `City`, `lat`, `lon`.",
+  "app": "Splunk Add-on for NetFlow (Splunkbase 1759); Splunk Premium Lookup — MaxMind or bundled geography collections",
+  "spl": "index=netflow earliest=-4h NOT (cidrmatch(\"10.0.0.0/8\", dest) OR cidrmatch(\"192.168.0.0/16\", dest) OR cidrmatch(\"172.16.0.0/12\", dest))\n| iplocation prefix=geo_ dest\n| lookup expected_peer_countries.csv country AS geo_Country OUTPUT allowed\n| where isnull(allowed)\n| stats sum(bytes) as bytes dc(src) as internal_hosts dc(dest) as external_ips values(geo_Country) as countries values(geo_City) as cities\n  by dest\n| eval mb=round(bytes/1048576,2)\n| sort -bytes\n| head 50",
+  "description": "Adds geography to destination addresses on flows leaving private space and highlights destinations whose country is absent from an approved-country lookup so investigators focus on unfamiliar regions quickly.",
+  "value": "Security operations reduces dwell time for jurisdictional policy breaches, supports data-residency attestations with evidence of unexpected regions, and prioritizes incident tickets using geographic context without waiting on firewall logs.",
+  "implementation": "Schedule recurring geography database updates; maintain `expected_peer_countries.csv`; filter RFC1918 and carrier-grade Network Address Translation ranges; tune byte and host-count floors.",
+  "detailedImplementation": "Prerequisites\n• Legal-approved list of countries permitted for routine business traffic; separate lists for sensitive subnets.\n• Accurate MaxMind or equivalent database mapped through `transforms.conf` as automatic lookups or invoked explicitly.\n• Consensus whether to evaluate source geography for inbound denial-of-service contexts—this UC focuses on outbound discovery.\n\nStep 1 — Configure data collection\nPrefer indexer-time enrichment for volume efficiency; if search-time `iplocation` is used, restrict summaries with transforms or summaries-only accelerated searches.\n\nStep 2 — Create the search\nExtend SPL with `| lookup sensitive_src_segments.csv src OUTPUT tier` and multiply thresholds when tier equals restricted. Add threat-intelligence joins sparingly to avoid cartesian explosion.\n\nStep 3 — Validate\nPick three known Software-as-a-Service endpoints across approved regions and confirm absence from alerts. Synthetic tests via authorized cloud shells should appear once then be allowlisted.\n\nStep 4 — Operationalize\nDashboard tabs split by business unit using asset lookups; automated ticketing includes geo_city and autonomous-system summaries when available.\n\nStep 5 — Troubleshooting\nCarrier proxies and virtual private network egress nodes skew geography—maintain `vpn_exit_ips.csv`. Satellite offices may route through unexpected countries legitimately; annotate lookups with effective dates.",
+  "visualization": "Map visualization of weighted points; table of country, bytes, internal_hosts; pie chart of bytes by continent.",
+  "references": [
+    {
+      "title": "Splunk Documentation — iplocation command",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Iplocation"
+    },
+    {
+      "title": "MaxMind GeoIP documentation",
+      "url": "https://dev.maxmind.com/geoip/docs/databases"
+    }
+  ],
+  "knownFalsePositives": "Content delivery networks rotate countries for the same hostname. Browser privacy relays appear as unfamiliar regions. Mis-geolocated mobile carrier ranges trigger benign spikes.",
+  "equipment": [
+    "netflow"
+  ],
+  "equipmentModels": [
+    "netflow_netflow",
+    "netflow_sflow",
+    "netflow_ipfix"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We tag outside destinations with where in the world they sit and compare that to the places we normally do business. When something lands outside that familiar list, we look closer without reading every line ourselves.",
+  "wave": "walk"
+}

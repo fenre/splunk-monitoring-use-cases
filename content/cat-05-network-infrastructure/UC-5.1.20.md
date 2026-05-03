@@ -21,7 +21,7 @@ EIGRP neighbor instability causes route recalculation, increased CPU load, and t
 
 ## Value
 
-EIGRP neighbor instability causes route recalculation, increased CPU load, and traffic blackholing during convergence.
+NOC teams detect EIGRP neighbor flapping on Cisco routers, identifying hold timer expirations and adjacency instability that cause routing reconvergence and traffic disruption.
 
 ## Implementation
 
@@ -30,45 +30,69 @@ Collect syslog from Cisco routers. Alert on >2 EIGRP neighbor down events in 15 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=cisco:ios`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* EIGRP neighbor flapping syslog messages. Data in `index=network` with `sourcetype=cisco:ios`. Key mnemonics: `%DUAL-5-NBRCHANGE` (neighbor up/down), `%EIGRP-5-NBRCHANGE`.
+* EIGRP neighbors: routers in the same EIGRP AS form adjacencies via Hello packets (multicast 224.0.0.10). Neighbor loss triggers DUAL recalculation and potentially route recalculation. Flapping causes constant reconvergence, increased CPU, and traffic disruption.
 
-### Step 1 — Configure data collection
-Collect syslog from Cisco routers. Alert on >2 EIGRP neighbor down events in 15 minutes. Correlate with interface flaps and CPU utilization.
+### Step 1 — - Configure data collection
+```
+# Cisco IOS -- EIGRP neighbor changes are logged by default
+# Ensure syslog includes informational level
+logging host <splunk-syslog-ip>
+logging trap informational
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Optional: EIGRP event logging
+router eigrp <asn>
+ eigrp log-neighbor-changes
+```
+Verify:
 ```spl
-index=network sourcetype="cisco:ios" "%DUAL-5-NBRCHANGE"
-| rex "EIGRP-(?<protocol>IPv4|IPv6) (?<as_number>\d+).*Neighbor (?<neighbor_ip>\S+) \((?<interface>\S+)\) is (?<state>up|down)"
-| bin _time span=15m | stats count(eval(state="down")) as downs, count(eval(state="up")) as ups by _time, host, neighbor_ip, interface
-| where downs > 2
+index=network earliest=-24h
+| where match(_raw, "(?i)DUAL.*NBRCHANGE|EIGRP.*NBRCHANGE|eigrp.*neighbor|eigrp.*down|eigrp.*up")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**EIGRP Neighbor Flapping** — EIGRP neighbor instability causes route recalculation, increased CPU load, and traffic blackholing during convergence.
+**Primary search -- EIGRP neighbor flapping detection:**
+```spl
+index=network earliest=-24h
+| where match(_raw, "(?i)DUAL.*NBRCHANGE|EIGRP.*NBRCHANGE|eigrp.*neighbor")
+| rex field=_raw "(?i)(?:neighbor|Neighbor|Nbr)\s+(?<neighbor_ip>\d+\.\d+\.\d+\.\d+)"
+| rex field=_raw "(?i)(?<eigrp_state>is\s+(?:up|down))"
+| eval neighbor=coalesce(neighbor_ip, eigrp_neighbor)
+| eval state=if(match(_raw, "(?i)is\s+down|went.*down|lost|dead"), "down", "up")
+| eval device=coalesce(host, device_name)
+| sort device, neighbor, _time
+| stats count as events count(eval(state="down")) as down_events count(eval(state="up")) as up_events latest(state) as current_state by device, neighbor
+| eval flapping=if(events > 4, "YES", "NO")
+| eval severity=case(
+    current_state="down" AND flapping="YES", "CRITICAL -- EIGRP neighbor DOWN and flapping",
+    current_state="down", "WARNING -- EIGRP neighbor DOWN",
+    flapping="YES", "WARNING -- EIGRP neighbor flapping",
+    1==1, "OK")
+| where severity != "OK"
+| sort severity, -events
+```
 
-Documented **Data sources**: `sourcetype=cisco:ios`. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show eigrp neighbors` -- verify current neighbor states.
+(b) CLI: `show eigrp topology` -- check route status.
+(c) CLI: `show ip eigrp interfaces detail` -- check hello/hold timers.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- EIGRP Neighbors"):
+* Row 1 -- Single-value: "Neighbors DOWN", "Flapping neighbors".
+* Row 2 -- EIGRP neighbor event timeline.
 
-**Pipeline walkthrough**
+Alert: Critical (EIGRP neighbor DOWN on WAN link): routing impact.
 
-- Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- Discretizes time or numeric ranges with `bin`/`bucket`.
-- `stats` rolls up events into metrics; results are split **by _time, host, neighbor_ip, interface** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where downs > 2` — typically the threshold or rule expression for this monitoring goal.
+### Step 5 — - Troubleshooting
 
+* **Hold timer expired** -- Hello packets not received. Check: interface status, ACLs blocking multicast 224.0.0.10, K-value mismatch between neighbors.
 
-### Step 3 — Validate
-On the device, run `show eigrp neighbors` and check that the neighbor and interface in the CLI match the host and text you saw in Splunk.
+* **Stuck in Active (SIA)** -- DUAL query not answered in time. Check downstream neighbor CPU and convergence. Adjust: `timers active-time`.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (up/down events), Table (neighbor, interface, flap count), Status grid.
+* **K-value mismatch** -- All EIGRP neighbors must have matching K-values. Check: `show ip eigrp interfaces detail | include K-value`. Mismatch prevents adjacency formation.
 
 ## SPL
 

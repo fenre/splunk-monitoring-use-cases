@@ -21,7 +21,7 @@ Appliance and control-plane high availability, including VRRP and overlay tunnel
 
 ## Value
 
-Appliance and control-plane high availability, including VRRP and overlay tunnels, must stay stable for uninterrupted forwarding. Spurious VRRP transitions, split roles between peers, or tunnel flaps create brownouts. Monitoring role and tunnel state over time localizes a failing unit or a broadcast domain issue on the LAN side of the edge.
+Network operations teams monitor Citrix SD-WAN high availability and VRRP status per site, detecting failovers, peer failures, and split-brain conditions that impact site redundancy.
 
 ## Implementation
 
@@ -30,18 +30,51 @@ Correlate HA and VRRP with power and link events from the same site. Set thresho
 ## Detailed Implementation
 
 ### Prerequisites
-- `index=sdwan` with `citrix:sdwan:ha|vrrp|tunnel` sourcetypes. Stable `site_id` and VRRP `group_id` via `REPORT-` in `props` (regex from syslog) or JSON path. Runbook: site to circuit, peer names.
+* Citrix SD-WAN syslog. Key fields: `ha_state` (ACTIVE/STANDBY), `vrrp_state`, `peer_state`, `failover_reason`, `site_name`.
+* Citrix SD-WAN HA: two appliances per site in active-standby. VRRP (Virtual Router Redundancy Protocol) manages the virtual IP. Failover should be seamless, but split-brain or delayed failover causes traffic disruption.
 
-### Step 1 — Configure data collection
-JSON preferred. Syslog: `line_breaker`, `EXTRACT-` for role strings `active/standby/master/backup`. Deduplicate dual logs: `dedup` on `_time+site+group`. Poll tunnels 1m; mark cumulative counters if applicable.
+### Step 1 — - Configure data collection
+Verify HA events:
+```spl
+index=netscaler sourcetype="citrix:sdwan:syslog" ("HA" OR "VRRP" OR "failover" OR "standby" OR "active" OR "peer") earliest=-7d
+| stats count by host
+```
 
-### Step 2 — Create the search and alert
-Sev-1: tunnel `down`>2 aligned bins. Sev-2: `vrrp_events`>4/15m or `cur_role` in unknown,init,disabled. Add dynamic threshold: 2x site’s 7d mean flap count. Correlation: if tunnel down but VRRP quiet, underlay; both noisy, split-brain risk.
+### Step 2 — - Create the search and alert
 
-### Step 3 — Validate
-Compare path, site, and policy state in the SD-WAN orchestrator or on-appliance health views for the same time range as the search.
-### Step 4 — Operationalize
-Site matrix panel: A/B role, tunnel, event rate. RFO: attach chart. Escalation: on-call for Sev-1, SD-WAN TAC with serials; note version for bug DB. Maintenance windows: suppress with saved-search schedule.
+**Primary search -- HA and VRRP status:**
+```spl
+index=netscaler sourcetype="citrix:sdwan:syslog" ("HA" OR "VRRP" OR "failover" OR "peer") earliest=-24h
+| eval ha_event=case(match(_raw, "(?i)active.*to.*standby|demoted"), "DEMOTED", match(_raw, "(?i)standby.*to.*active|promoted"), "PROMOTED", match(_raw, "(?i)peer.*down|peer.*unreachable"), "PEER_DOWN", match(_raw, "(?i)split.?brain"), "SPLIT_BRAIN", match(_raw, "(?i)vrrp.*master"), "VRRP_MASTER", 1==1, null())
+| where isnotnull(ha_event)
+| eval site=coalesce(site_name, site)
+| eval severity=case(ha_event="SPLIT_BRAIN", "CRITICAL -- both active", ha_event="PEER_DOWN", "HIGH -- HA protection lost", ha_event IN ("PROMOTED", "DEMOTED"), "WARNING -- failover occurred", 1==1, "INFO")
+| stats count as events latest(_time) as last_event by site, ha_event, severity
+| sort severity
+```
+
+### Step 3 — - Validate
+(a) Check HA status on the SD-WAN appliance management console.
+(b) Verify both nodes are reporting to Splunk.
+(c) Check VRRP state: both appliances should not be MASTER simultaneously.
+
+### Step 4 — - Operationalize
+Dashboard ("Citrix SD-WAN -- HA"):
+* Row 1 -- Single-value: "HA pairs", "Failovers (24h)", "Peer down", "Split-brain alerts".
+* Row 2 -- HA event history.
+
+Alerting:
+* Critical (split-brain): both nodes active -- immediate intervention.
+* High (peer down): HA protection lost at site.
+* Warning (failover occurred): investigate cause.
+
+### Step 5 — - Troubleshooting
+
+* **Split-brain** -- HA heartbeat link between appliances has failed but both are still operational. Immediate action: determine which should be active, force the other to standby. Fix the HA link.
+
+* **Frequent failovers** -- Check: (1) HA heartbeat link health, (2) appliance resource utilization (CPU/memory), (3) power supply stability.
+
+* **Peer down** -- Check: (1) physical connectivity between appliances, (2) standby appliance power/boot status, (3) management interface.
 
 ## SPL
 

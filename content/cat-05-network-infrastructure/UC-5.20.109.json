@@ -1,0 +1,58 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.109",
+  "title": "IPv6 Multicast Listener Discovery (MLD) Anomaly Detection",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Performance"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Monitors MLD (Multicast Listener Discovery, RFC 3810) for anomalies including excessive MLD reports (state exhaustion), MLD spoofing, and MLD snooping bypass attempts. MLD is the IPv6 equivalent of IGMP and is critical for NDP (all NDP messages use multicast), MLDv2 group management, and multicast routing.\n\n**MLD security implications:**\n\n1. **MLD report flooding.** An attacker sends thousands of MLD reports for random multicast groups, exhausting the switch's multicast state table. This can crash the switch or force all multicast traffic to flood.\n2. **MLD query spoofing.** Attackers can send MLD General Queries to force hosts to respond with their group memberships, revealing which services they use (reconnaissance).\n3. **MLD snooping bypass.** If MLD snooping is disabled or fails, all IPv6 multicast traffic floods to every port. This includes NDP, which contains link-local addresses and can be used for host discovery.\n4. **Solicited-node multicast.** NDP uses solicited-node multicast addresses (ff02::1:ffXX:XXXX). Each IPv6 address generates a unique solicited-node address. Monitoring MLD joins for these addresses reveals IPv6 address activity on the segment.\n5. **PIM for IPv6.** Protocol Independent Multicast (PIM) for IPv6 multicast routing must be secured. Unauthorised PIM neighbours can inject multicast routes.",
+  "app": "Splunk Enterprise",
+  "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-24h\n  (\"%MLD\" OR \"multicast\" OR \"%IGMP\" OR \"snooping\" OR \"PIM\")\n| eval mld_event=case(\n    match(_raw, \"(?i)MLD.*report|listener.*report\"), \"MLD_REPORT\",\n    match(_raw, \"(?i)MLD.*query|general.*query\"), \"MLD_QUERY\",\n    match(_raw, \"(?i)MLD.*leave|listener.*done\"), \"MLD_LEAVE\",\n    match(_raw, \"(?i)snooping.*overflow|state.*exhaustion|table.*full\"), \"STATE_EXHAUSTION\",\n    match(_raw, \"(?i)PIM.*neighbor.*new|PIM.*adjacency\"), \"PIM_NEIGHBOR\",\n    1=1, \"OTHER\")\n| eval is_ipv6=if(match(_raw, \"(?i)ipv6|MLDv|ff02::|ff05::|ff08::\"), 1, 0)\n| where is_ipv6=1\n| stats count as events by host, mld_event\n| eval anomaly=case(\n    mld_event=\"STATE_EXHAUSTION\", \"CRITICAL — multicast state table full — possible MLD flood attack\",\n    mld_event=\"MLD_REPORT\" AND events > 1000, \"HIGH — excessive MLD reports (\" . events . \") — possible state exhaustion attack\",\n    mld_event=\"MLD_QUERY\" AND events > 100, \"MEDIUM — excessive MLD queries — possible spoofed querier\",\n    mld_event=\"PIM_NEIGHBOR\", \"INFO — new PIM neighbor detected — verify authorized\",\n    1=1, null())\n| where isnotnull(anomaly)\n| sort -events",
+  "description": "Monitors IPv6 Multicast Listener Discovery (MLD) protocol for anomalies: MLD report flooding (state exhaustion), MLD query spoofing (reconnaissance), snooping bypass, and unauthorized PIM neighbour establishment. MLD is essential for IPv6 NDP operation — all NDP messages use multicast — making MLD security directly tied to IPv6 infrastructure security.",
+  "value": "MLD is invisible in most monitoring but fundamental to IPv6 operation. An MLD state exhaustion attack can crash switches and flood multicast traffic, disrupting all IPv6 connectivity on the segment. MLD query spoofing reveals host group memberships for reconnaissance. Because NDP depends on multicast (and thus MLD), MLD attacks can destabilise the entire IPv6 first-hop security infrastructure.",
+  "implementation": "Monitor MLD report/query/leave rates. Alert on state table exhaustion. Track MLD snooping status. Verify PIM neighbour authenticity.",
+  "visualization": "(1) Timechart: MLD event rates by type. (2) Single-value: state table utilization. (3) Table: anomalous MLD event sources. (4) Status: MLD snooping enabled/disabled by VLAN.",
+  "references": [
+    {
+      "title": "RFC 3810 — Multicast Listener Discovery Version 2 (MLDv2) for IPv6",
+      "url": "https://www.rfc-editor.org/rfc/rfc3810"
+    },
+    {
+      "title": "RFC 4541 — Considerations for IGMP and MLD Snooping Switches",
+      "url": "https://www.rfc-editor.org/rfc/rfc4541"
+    },
+    {
+      "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3 — first-hop security)",
+      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+    }
+  ],
+  "knownFalsePositives": "**High density environments.** Large numbers of hosts on a single VLAN generate many MLD reports (one per solicited-node group per host). In a VLAN with 500+ hosts, thousands of MLD reports are normal.\n\n**Multicast applications.** Video conferencing (Zoom, Teams), streaming, and building management systems generate legitimate MLD reports. Baseline your environment before setting thresholds.\n\n**MLD querier election.** When multiple layer-3 switches are on the same segment, MLD querier election generates additional MLD queries during transitions. This is normal.",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "arista"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9000",
+    "juniper_ex",
+    "arista_7050"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• MLD snooping enabled on switches (default on most modern switches).\n• Switch logging for MLD events.\n• Understanding of expected multicast groups on each VLAN.\n\nStep 1 — Configure MLD snooping and monitoring\n\n**Cisco Catalyst 9000 MLD snooping (default enabled, verify):**\n```\nipv6 mld snooping\nipv6 mld snooping vlan 10\nipv6 mld snooping vlan 10 mrouter interface GigabitEthernet1/0/1\n```\n\n**MLD rate limiting to prevent state exhaustion:**\n```\nipv6 mld snooping vlan 10 limit 500\n```\n\n**Enable MLD event logging:**\n```\nlogging buffered 8192 informational\n```\n\nStep 2 — Create monitoring searches\n\n**MLD snooping status audit:**\n```spl\nindex=network sourcetype=\"cisco:*:config\" earliest=-7d\n| dedup host\n| eval mld_snooping=if(match(_raw, \"(?i)ipv6 mld snooping\") AND NOT match(_raw, \"(?i)no ipv6 mld snooping\"), \"ENABLED\", \"DISABLED\")\n| table host, mld_snooping\n| where mld_snooping=\"DISABLED\"\n| eval finding=\"MLD snooping DISABLED — all IPv6 multicast will flood (including NDP)\"\n```\n\n**MLD state table monitoring:**\n```spl\nindex=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-24h\n  \"MLD\" AND (\"group\" OR \"state\")\n| rex field=_raw \"(?<group_count>\\d+)\\s+groups?\"\n| eval group_count=tonumber(group_count)\n| stats max(group_count) as max_groups by host\n| eval status=case(\n    max_groups > 4000, \"CRITICAL — MLD state table near capacity\",\n    max_groups > 2000, \"WARNING — MLD state table growing\",\n    1=1, \"OK — \" . max_groups . \" groups\")\n| sort -max_groups\n```\n\nStep 3 — Validate\n(a) **MLD snooping test.** On a test VLAN, send an IPv6 multicast packet. Verify it is only forwarded to ports with interested listeners (not flooded to all ports). If it floods, MLD snooping is not working.\n\n(b) **Rate limiting test.** Send rapid MLD reports from a test host. Verify the switch rate-limits after the configured threshold.\n\n(c) **PIM neighbour audit.** Check `show ipv6 pim neighbor` on all routers. Verify all PIM neighbours are authorized.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — MLD/Multicast Security\"):\n• Row 1 — Single-values: MLD snooping status (green if all enabled), state table utilization.\n• Row 2 — Timechart: MLD event rates.\n• Row 3 — Table: VLANs with MLD snooping disabled.\n• Row 4 — PIM neighbour table audit.\n\n**Alert 1:** MLD state table >80% capacity — critical.\n**Alert 2:** MLD snooping disabled on production VLAN — high.\n**Alert 3:** Unexpected PIM neighbour — medium.\n\nStep 5 — Troubleshooting\n\n• **MLD snooping disabled by default on some platforms.** While most modern switches enable MLD snooping by default, some older platforms or non-default VLANs may have it disabled. Always explicitly configure `ipv6 mld snooping`.\n\n• **MLD querier missing.** If no MLD querier is present on a VLAN, MLD snooping gradually ages out all group state and reverts to flooding. Ensure at least one L3 switch on each VLAN acts as MLD querier.\n\n• **Performance impact of state exhaustion.** When the MLD state table overflows, switches typically fall back to flooding all multicast. This dramatically increases switch backplane utilization and can cause collateral packet drops for all traffic.",
+  "grandmaExplanation": "In our network, devices join 'interest groups' to receive specific types of messages — like subscribing to a newspaper. MLD is the protocol that manages these subscriptions for IPv6. If someone floods the subscription desk with thousands of fake subscriptions, it overwhelms the system and everyone's newspapers get mixed up. We watch the subscription desk to make sure it's not being overwhelmed or tricked.",
+  "prerequisiteUseCases": [
+    "5.20.21",
+    "5.20.28"
+  ],
+  "wave": "walk"
+}

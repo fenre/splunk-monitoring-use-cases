@@ -21,7 +21,7 @@ DNSSEC failures can indicate DNS spoofing attempts or misconfigured zones. Monit
 
 ## Value
 
-DNSSEC failures can indicate DNS spoofing attempts or misconfigured zones. Monitoring prevents users from being directed to malicious sites.
+DNS operations teams detect DNSSEC validation failures that make zones unreachable from validating resolvers, identify the root cause (expired signatures, missing keys, clock skew), and quantify user impact.
 
 ## Implementation
 
@@ -30,43 +30,81 @@ Enable DNSSEC validation logging. Monitor for validation failures by domain. Cro
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: Splunk_TA_infoblox, BIND logs.
-- Ensure the following data sources are available: `sourcetype=infoblox:dns`, `sourcetype=named`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- DNS logs in `index=dns` from DNSSEC-validating resolvers. DNSSEC validation failures occur when the resolver cannot verify the cryptographic chain of trust from the root zone to the queried domain. The resolver returns SERVFAIL to the client (same response code as other server failures — field-level or log message analysis is needed to distinguish DNSSEC from other SERVFAIL causes).
+- Sources: Infoblox NIOS (`sourcetype=infoblox:dns` — DNSSEC validation failures logged with specific keywords like "DNSSEC", "validation", "expired signature", "no DNSKEY"), BIND (`sourcetype=named` — logs `DNSSEC validation failed` messages), Windows DNS Server with DNSSEC validation enabled.
+- DNSSEC validation failures can be caused by: (a) expired RRSIG signatures on the authoritative server, (b) missing DS records in the parent zone, (c) key rollover issues (KSK or ZSK), (d) clock skew between resolver and authoritative server (RRSIG has inception/expiration timestamps), (e) deliberate DNSSEC stripping attack (MITM).
+- Enabling DNSSEC validation on resolvers is recommended but requires monitoring — a broken DNSSEC chain makes an entire zone unreachable from validating resolvers, while non-validating resolvers still resolve it fine.
 
 ### Step 1 — Configure data collection
-Enable DNSSEC validation logging. Monitor for validation failures by domain. Cross-reference with known domain registrations. Alert on spikes in DNSSEC failures.
+Verify DNSSEC-related events:
+```spl
+index=dns earliest=-24h
+| search "DNSSEC" OR "validation" OR "DNSKEY" OR "RRSIG" OR "expired" OR "bogus"
+| stats count by host, sourcetype
+```
+If zero events, either (a) DNSSEC validation is not enabled on your resolvers, or (b) there have been no DNSSEC failures (which is good). Enable DNSSEC validation on at least your recursive resolvers.
 
 ### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
+**Primary search — DNSSEC validation failure detection:**
 ```spl
-index=network sourcetype="named" "DNSSEC" ("validation failure" OR "SERVFAIL" OR "no valid signature")
-| rex "(?<query_domain>[a-zA-Z0-9.-]+\.)/(?<query_type>\w+)"
-| stats count by query_domain, query_type | sort -count
+index=dns earliest=-1h
+| search "DNSSEC" OR "validation fail" OR "bogus" OR "expired signature" OR "no valid RRSIG" OR "no DNSKEY"
+| rex field=_raw "(?i)(?:for|domain|name)[\s:=]+(?<failed_domain>[\w.-]+)"
+| rex field=_raw "(?i)(?:reason|error)[\s:=]+(?<failure_reason>[^;,]+)"
+| stats count dc(src) as affected_clients first(failure_reason) as reason by failed_domain, host
+| eval severity=case(affected_clients > 100, "CRITICAL", affected_clients > 10, "HIGH", 1==1, "MEDIUM")
+| sort -affected_clients
 ```
 
-#### Understanding this SPL
+#### Understanding this SPL: Identifies which domains are failing DNSSEC validation and how many clients are affected. A high-traffic domain failing DNSSEC affects many users. The `failure_reason` helps diagnose: "expired signature" = authoritative server didn't re-sign, "no DNSKEY" = key rollover problem, "bogus" = chain of trust broken.
 
-**DNSSEC Validation Failures** — DNSSEC failures can indicate DNS spoofing attempts or misconfigured zones. Monitoring prevents users from being directed to malicious sites.
+**DNSSEC failure trending:**
+```spl
+index=dns earliest=-7d
+| search "DNSSEC" OR "validation fail" OR "bogus"
+| bin _time span=1h
+| stats count as failures dc(eval(rex(_raw, "(?:for|domain)\s+([\w.-]+)", 1))) as unique_domains by _time, host
+| where failures > 0
+```
 
-Documented **Data sources**: `sourcetype=infoblox:dns`, `sourcetype=named`. **App/TA** (typical add-on context): Splunk_TA_infoblox, BIND logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: network; **sourcetype**: named. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="named". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- `stats` rolls up events into metrics; results are split **by query_domain, query_type** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+**Resolver DNSSEC health comparison (validating vs. non-validating):**
+```spl
+index=dns reply_code="SERVFAIL" earliest=-1h
+| stats count as servfails by host
+| lookup resolver_config.csv host OUTPUT dnssec_enabled
+| eval expected_servfails=if(dnssec_enabled=="yes", "Higher (includes DNSSEC failures)", "Lower (no DNSSEC validation)")
+| sort -servfails
+```
 
 ### Step 3 — Validate
-Compare query volume, response codes, or latency in Infoblox reporting, Microsoft DNS views, BIND logs, or Meraki Network > Monitor to the Splunk results for the same resolvers and time range.
+(a) Test DNSSEC validation: query a deliberately broken DNSSEC domain like `dnssec-failed.org` from your resolver. It should return SERVFAIL on a validating resolver and the log should contain DNSSEC-related error messages.
+(b) Compare with DNSSEC monitoring tools: `drill` or `dig +dnssec +cd <domain>` to check the DNSSEC chain independently.
+(c) Verify clock synchronization: DNSSEC signatures are time-sensitive. Ensure NTP is configured on all resolvers.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (domain, failure count), Timechart (failure rate), Bar chart.
+Dashboard ("DNS — DNSSEC Validation"):
+- Row 1 — Single-value tiles: "DNSSEC failures (1h)", "Unique failing domains", "Affected clients", "Resolvers with failures".
+- Row 2 — Failing domains table: domain, failure count, reason, affected clients, severity.
+- Row 3 — Failure trending: DNSSEC failures over 7 days.
+
+Alerting:
+- Critical (DNSSEC failure on internal or business-critical domain): page DNS operations — zone may be unreachable from validating resolvers.
+- High (DNSSEC failures for > 10 unique external domains simultaneously): possible DNSSEC infrastructure issue or MITM attack.
+- Warning (any new domain failing DNSSEC): investigate — may be a zone operator issue.
+
+Runbook:
+1. **Internal zone DNSSEC failure**: Check if the zone's RRSIG signatures expired. If you manage the zone, re-sign immediately. If using automated signing (BIND auto-dnssec, Infoblox), check the signing process.
+2. **External zone DNSSEC failure**: This is the remote zone operator's issue. As a workaround, you can configure a Negative Trust Anchor (NTA) for that specific domain to temporarily bypass validation. Contact the zone operator to report the issue.
+3. **Clock skew causing failures**: Verify NTP on all resolvers. DNSSEC signature validation is sensitive to time — even a few minutes of skew can cause failures if signatures are near expiration.
+
+### Step 5 — Troubleshooting
+
+- **Cannot distinguish DNSSEC SERVFAIL from other SERVFAIL** — DNSSEC failures return SERVFAIL just like other server errors. Look for DNSSEC-specific keywords in the log text. If your DNS logs don't include DNSSEC details, enable debug-level logging temporarily.
+
+- **DNSSEC failures after resolver upgrade** — New resolver versions may have stricter DNSSEC validation. Check if the upgrade changed validation behavior.
+
+- **NTA (Negative Trust Anchor) expired** — NTAs are temporary DNSSEC validation bypasses. If an NTA expires while the zone is still broken, failures resume. Monitor NTA expiration dates.
 
 ## SPL
 

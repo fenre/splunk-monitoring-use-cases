@@ -21,7 +21,7 @@ HTTPS inspection (SSL/TLS decryption) enables deep packet inspection of encrypte
 
 ## Value
 
-HTTPS inspection (SSL/TLS decryption) enables deep packet inspection of encrypted traffic. Connections that bypass inspection — due to certificate pinning, bypass rules, or resource limits — create visibility gaps. Monitoring bypass rates ensures that security coverage remains effective and identifies applications or categories that need policy updates.
+Security teams monitor Check Point HTTPS inspection coverage and bypass rates, identifying visibility gaps where encrypted traffic is not inspected and validating bypass policy exceptions.
 
 ## Implementation
 
@@ -30,48 +30,77 @@ Enable HTTPS inspection logging (log bypassed and inspected connections). Baseli
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259).
-- Ensure the following data sources are available: `sourcetype=cp_log` (firewall/HTTPS inspection logs).
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Check Point HTTPS inspection (SSL/TLS decryption) logs. Data in `index=checkpoint` with `sourcetype=cp_log`. Key fields: `product` (HTTPS Inspection), `action` (Inspect/Bypass), `src`, `dst`, `ssl_inspection_rule`, `bypass_reason`, `server_name`, `ssl_version`, `ssl_cipher`.
+* HTTPS Inspection: enables deep packet inspection of encrypted traffic. Check Point terminates the TLS session, inspects content, and re-encrypts to the client with a subordinate CA certificate. Connections bypassing inspection (due to category exception, pinned certificate, or unsupported protocol) create visibility gaps. Configured in SmartConsole > HTTPS Inspection policy.
 
-### Step 1 — Configure data collection
-Enable HTTPS inspection logging (log bypassed and inspected connections). Baseline bypass rate per category. Alert when bypass percentage increases (new cert-pinned apps, resource limits). Report on inspection coverage for compliance (PCI DSS, SOX). Correlate with gateway CPU — high CPU can trigger automatic inspection bypass.
+### Step 1 — - Configure data collection
+```
+# SmartConsole -- configure HTTPS Inspection
+# Security Policies > HTTPS Inspection
+# Ensure logging is enabled for both Inspect and Bypass actions
+# Manage & Settings > Logs > enable HTTPS Inspection logging
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Install CA certificate on endpoints for inspection to work
+```
+Verify:
 ```spl
-index=firewall sourcetype="cp_log" earliest=-24h
-| where match(lower(product),"(?i)https.?inspection|ssl.?inspection") OR match(lower(logdesc),"(?i)bypass|inspect|decrypt")
-| eval inspected=if(match(lower(logdesc),"(?i)inspect|decrypt") AND NOT match(lower(logdesc),"(?i)bypass|skip|fail"),1,0)
-| stats count sum(inspected) as inspected_count by rule_name, category
-| eval bypass_pct=round(100*(count-inspected_count)/count,1)
-| where bypass_pct > 20
-| sort -bypass_pct
+index=checkpoint sourcetype="cp_log" product="HTTPS Inspection" earliest=-4h
+| stats count by action, bypass_reason
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Check Point HTTPS Inspection Status and Bypass (Check Point)** — HTTPS inspection (SSL/TLS decryption) enables deep packet inspection of encrypted traffic. Connections that bypass inspection — due to certificate pinning, bypass rules, or resource limits — create visibility gaps. Monitoring bypass rates ensures that security coverage remains effective and identifies applications or categories that need policy updates.
+**Primary search -- HTTPS inspection status and bypass analysis:**
+```spl
+index=checkpoint sourcetype="cp_log" earliest=-4h
+| where product="HTTPS Inspection" OR match(_raw, "(?i)https.*inspect|ssl.*inspect|tls.*inspect")
+| eval act=coalesce(action, ssl_action)
+| eval bypass=coalesce(bypass_reason, bypass_category, "N/A")
+| eval server=coalesce(server_name, dst, destination_address)
+| eval user=coalesce(src_user_name, user, "unknown")
+| eval ssl_ver=coalesce(ssl_version, tls_version)
+| eval inspected=if(match(act, "(?i)inspect|decrypt"), "INSPECTED", "BYPASSED")
+| stats count as connections count(eval(inspected="INSPECTED")) as inspected_count count(eval(inspected="BYPASSED")) as bypassed_count dc(server) as unique_servers by host
+| eval inspect_pct=round(100*inspected_count/(inspected_count+bypassed_count), 1)
+| eval bypass_pct=round(100*bypassed_count/(inspected_count+bypassed_count), 1)
+| eval severity=case(
+    bypass_pct > 50, "WARNING -- majority of traffic bypassing inspection (".bypass_pct."%)",
+    bypass_pct > 30, "INFO -- significant bypass rate (".bypass_pct."%)",
+    1==1, "OK")
+| table host, inspected_count, bypassed_count, inspect_pct, bypass_pct, unique_servers, severity
+```
 
-Documented **Data sources**: `sourcetype=cp_log` (firewall/HTTPS inspection logs). **App/TA** (typical add-on context): `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+**Secondary search -- Bypass reason breakdown:**
+```spl
+index=checkpoint sourcetype="cp_log" earliest=-4h
+| where (product="HTTPS Inspection" OR match(_raw, "(?i)https.*inspect")) AND match(action, "(?i)bypass")
+| eval bypass=coalesce(bypass_reason, bypass_category, "Unknown")
+| eval server=coalesce(server_name, dst)
+| stats count as bypassed dc(server) as unique_servers values(server) as sample_servers by bypass
+| sort -bypassed
+| eval sample_servers=mvindex(sample_servers, 0, 4)
+```
 
-The first pipeline stage scopes events using **index**: firewall; **sourcetype**: cp_log. That sourcetype matches what this use case lists under Data sources.
+### Step 3 — - Validate
+(a) SmartConsole: HTTPS Inspection policy -- verify rules and exceptions.
+(b) SmartConsole: Logs & Monitor -- filter product="HTTPS Inspection".
+(c) CLI: `fw ctl zdebug + drop` -- check for HTTPS inspection failures.
 
-**Pipeline walkthrough**
+### Step 4 — - Operationalize
+Dashboard ("Check Point -- HTTPS Inspection"):
+* Row 1 -- Single-value: "Inspection ratio (%)", "Bypassed connections", "Unique bypass servers".
+* Row 2 -- Inspection vs bypass trend.
+* Row 3 -- Top bypass reasons.
 
-- Scopes the data: index=firewall, sourcetype="cp_log", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Filters the current rows with `where match(lower(product),"(?i)https.?inspection|ssl.?inspection") OR match(lower(logdesc),"(?i)bypass|inspect|decrypt")` — typically the threshold or rule expression for this monitoring goal.
-- `eval` defines or adjusts **inspected** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `stats` rolls up events into metrics; results are split **by rule_name, category** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **bypass_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where bypass_pct > 20` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+Alert: Warning (bypass rate > 50%): investigate inspection policy gaps.
 
-### Step 3 — Validate
-Compare key fields and timestamps in SmartConsole, SmartView, or the gateway’s local view so Splunk and Check Point match for the same events.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart (inspected vs bypassed), Bar chart (bypass by category), Line chart (bypass rate trend), Table (top bypass rules).
+### Step 5 — - Troubleshooting
+
+* **High bypass rate** -- Review bypass categories. Common bypasses: certificate-pinned applications (banking, Apple services), health/financial categories (regulatory), or applications that break with inspection (WebRTC, VPN apps). Validate these are intentional.
+
+* **Inspection causing application failures** -- Some applications use certificate pinning and break when intercepted. Add to HTTPS bypass rule. Check: "Update Services" category bypass for OS/software updates.
+
+* **Client certificate errors** -- CA certificate not trusted on endpoints. Deploy the inspection CA certificate via GPO, MDM, or manual installation. Check certificate chain validity.
 
 ## SPL
 

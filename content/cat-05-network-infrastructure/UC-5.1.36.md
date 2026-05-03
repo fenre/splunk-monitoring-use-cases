@@ -21,7 +21,7 @@ Identifies port saturation and congestion events that require capacity upgrades 
 
 ## Value
 
-Identifies port saturation and congestion events that require capacity upgrades or load balancing adjustments.
+Operations teams monitor Meraki MS switch port utilization and congestion, identifying saturated ports that require link aggregation or capacity upgrades.
 
 ## Implementation
 
@@ -30,44 +30,68 @@ Query MS switch device API for port utilization metrics. Alert on sustained >80%
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki:api device_type=MS`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MS switch port utilization data from Dashboard API. Data in `index=meraki` with `sourcetype=meraki:api:switch:ports` or `sourcetype=meraki:api:switch:portstatus`. Key fields: `portId`, `usageInKb`, `status`, `speed`, `duplex`.
+* Meraki Dashboard API: `GET /devices/{serial}/switch/ports/statuses` returns per-port traffic, status, speed/duplex, and PoE. Polling interval should be 5 minutes for real-time visibility.
 
-### Step 1 — Configure data collection
-Query MS switch device API for port utilization metrics. Alert on sustained >80% utilization.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# inputs.conf
+[meraki_switch_ports]
+interval = 300
+sourcetype = meraki:api:switch:portstatus
+index = meraki
+# API: GET /devices/{serial}/switch/ports/statuses
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki:api" device_type=MS
-| stats avg(port_utilization) as avg_util, max(port_utilization) as max_util by switch_name, port_id
-| where max_util > 80
-| sort - max_util
+index=meraki sourcetype="meraki:api:switch:portstatus" earliest=-1h
+| stats count by host, portId
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Port Utilization and Congestion Alerts (Meraki MS)** — Identifies port saturation and congestion events that require capacity upgrades or load balancing adjustments.
+**Primary search -- Port utilization and congestion alerts:**
+```spl
+index=meraki sourcetype="meraki:api:switch:portstatus" earliest=-4h
+| eval port=coalesce(portId, port_id)
+| eval speed_mbps=case(match(speed, "(?i)10 G"), 10000, match(speed, "(?i)1 G"), 1000, match(speed, "(?i)100 M"), 100, 1==1, 1000)
+| eval sent_kbps=tonumber(coalesce(usageInKb.sent, sent_kbps, sent))/300
+| eval recv_kbps=tonumber(coalesce(usageInKb.recv, recv_kbps, recv))/300
+| eval total_kbps=sent_kbps + recv_kbps
+| eval total_mbps=round(total_kbps/1024, 2)
+| eval util_pct=round(100*total_mbps/speed_mbps, 1)
+| eval device=coalesce(serial, host)
+| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
+| bin _time span=5m
+| stats avg(util_pct) as avg_util max(util_pct) as max_util avg(total_mbps) as avg_mbps by _time, network_name, device, port
+| eval severity=case(
+    max_util > 90, "CRITICAL -- port ".port." near saturation (".max_util."%)",
+    max_util > 75, "WARNING -- port ".port." high utilization",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, network_name, device, port, avg_mbps, avg_util, max_util, severity
+| sort severity, -max_util
+```
 
-Documented **Data sources**: `sourcetype=meraki:api device_type=MS`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Switch > Switch ports -- check per-port utilization graphs.
+(b) Compare with Dashboard live tools: cable test, packet capture.
+(c) Verify port speed/duplex negotiation is correct.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki:api. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MS -- Port Utilization"):
+* Row 1 -- Single-value: "Ports > 75% utilization", "Peak port utilization (%)".
+* Row 2 -- Port utilization timechart.
 
-**Pipeline walkthrough**
+Alert: Critical (port >90% sustained): trunk upgrade or traffic optimization needed.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by switch_name, port_id** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where max_util > 80` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **Uplink port congested** -- Insufficient bandwidth between switches. Consider: link aggregation, upgrading to 10G uplink, or traffic optimization.
 
-### Step 3 — Validate
-In the Meraki dashboard, select the same organization, site, and UTC window as the Splunk search. Open Network-wide event log or the device event log and confirm a sample event count and field (for example `event_type` or `carrier_name`) matches what you see in Splunk.
+* **Access port high utilization** -- Single device consuming excessive bandwidth. Check connected device type and activity. Apply traffic shaping if needed.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of congested ports; timeline showing peak congestion; port utilization heatmap.
+* **Port speed mismatch** -- Verify negotiated speed matches expected. Dashboard: Switch ports > port details.
 
 ## SPL
 

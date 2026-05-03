@@ -1,0 +1,53 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.10.9",
+  "title": "ISP Peering Point Saturation Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "wave": "walk",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`index=netflow` with normalized fields `bytes`, `host` (exporter/router), and egress interface identifier (`dst_inf_name`, `output_snmp`, or equivalent depending on TA—alias to `dst_inf_name` in props); optional `dst_as`/`src_as` enrichment. CSV lookup `peering_interfaces.csv` keyed by `peer_key` (`host|dst_inf_name`) supplying `peer_name`, `pop`, engineered `nominal_bps`, `peer_as`. UC-5.10.8 SNMP data fills gaps when templates omit interface names.",
+  "app": "`Splunk Stream` NetFlow/IPFIX collector, `Splunk Connect for Syslog` forwarding templates, or vendor TA (e.g., Cisco TA) normalizing flow records.",
+  "spl": "index=netflow earliest=-35m\n| bin _time span=5m\n| stats sum(eval(bytes*8)) as bits by _time, host, dst_inf_name\n| eval peer_key=host.\"|\".dst_inf_name\n| lookup peering_interfaces.csv peer_key OUTPUT peer_name pop nominal_bps peer_as\n| where isnotnull(peer_name)\n| eval interval_sec=300\n| eval bps=bits/interval_sec\n| eventstats avg(bps) as baseline by peer_name\n| eval util_pct=if(isnotnull(nominal_bps) AND nominal_bps>0, round(100*bps/nominal_bps,2), null())\n| eval baseline_spike=if(isnotnull(baseline) AND baseline>0 AND bps>(baseline*1.35), 1, 0)\n| where util_pct>80 OR baseline_spike=1\n| stats latest(util_pct) as util_pct latest(bps) as current_bps latest(baseline) as baseline_bps latest(peer_as) as peer_as by peer_name, pop\n| sort -util_pct",
+  "description": "Aggregates five-minute flow volume per ISP hand-off or peering interface to expose sustained saturation—either versus engineered nominal capacity or versus a thirty-minute adaptive baseline—highlighting choke points before packet loss manifests on subscriber services.",
+  "value": "Peering coordinators gain quantitative justification for augmenting ports, shifting traffic across diverse paths, or invoking contracted burst clauses—often avoiding reactive finger-pointing during sporting or retail traffic spikes.",
+  "implementation": "Ensure NetFlow/IPFIX templates export interface IDs resolvable to names; maintain lookup tying exporter+interface to carriers; blend SNMP when flows lack counters; tune nominal_bps yearly after upgrades.",
+  "detailedImplementation": "Prerequisites\n• NetFlow v9/IPFIX exporters on provider-edge routers with templates exposing OUTPUT_INTERFACE/SOURCE_INTERFACE IDs plus optional SNMP mapping tables.\n• Splunk Technology Add-on or Stream pipeline translating numeric interface indexes into human-readable `dst_inf_name` strings aligned with peering documentation.\n• Authoritative engineering workbook listing nominal capacity per interconnect (sometimes lower than line rate due to policers).\n• Baseline observation window (≥14 days) before trusting adaptive spike ratios.\n\nStep 1 — Normalize sourcetypes so `bytes` counts octets per flow and `_time` reflects flow end; deduplicate when multiple collectors mirror identical exports.\n\nStep 2 — Bucket traffic into five-minute spans per exporter/interface pair, multiply summed octets by eight to obtain bits, divide by three hundred seconds for average bps.\n\nStep 3 — Enrich with `peering_interfaces.csv`; compute engineered utilization when `nominal_bps` exists, otherwise rely on `baseline_spike` comparing against thirty-minute rolling averages per peer.\n\nStep 4 — Visualization stacks Top-N saturated peers, overlays SNMP discard counters (optional join), and publishes automated carrier-facing PDF summaries.\n\nStep 5 — Troubleshooting: sampled flows miss microbursts—spot-check with switchingASIC telemetry; confirm bidirectional exports since asymmetric configs blind one direction; update lookups whenever circuits relocate between routers.",
+  "visualization": "Treemap of peers sized by bits; alert table listing peer_name, util_pct, baseline delta; correlation panel with UC-5.10.8 SNMP chart for same interface.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Docs — NetFlow data onboard",
+      "url": "https://docs.splunk.com/"
+    },
+    {
+      "title": "RFC 7011 — IPFIX Protocol Specification",
+      "url": "https://www.rfc-editor.org/rfc/rfc7011"
+    }
+  ],
+  "knownFalsePositives": "BGP traffic engineering shifting volumes between peers triggers adaptive baseline swings; DDoS scrubbing redirection concentrates flows temporarily; midnight backup sweeps mimic saturation unless excluded by AS filters.",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "stream"
+  ],
+  "equipmentModels": [
+    "cisco_ios",
+    "juniper_mx",
+    "stream_forwarder"
+  ],
+  "grandmaExplanation": "We measure how busy each front door to the internet becomes so our team adds lanes or spreads traffic before videos start buffering for everyone.",
+  "telcoUseCase": "Peering capacity assurance",
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

@@ -21,7 +21,7 @@ SSL certificates on Citrix ADC terminate HTTPS connections for all web applicati
 
 ## Value
 
-SSL certificates on Citrix ADC terminate HTTPS connections for all web applications behind the load balancer. An expired certificate causes browser warnings or complete connection failures for all users. The NITRO API exposes `daystoexpiration` for every bound SSL certificate, enabling automated alerting well before expiry. Certificate expiry outages are among the most preventable yet impactful failures in production environments.
+Infrastructure teams track Citrix ADC SSL certificate expiration with tiered urgency and application ownership context, preventing HTTPS outages from expired certificates.
 
 ## Implementation
 
@@ -30,68 +30,53 @@ Create a scripted input that polls the NITRO API `sslcertkey` resource on each A
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: Custom scripted input polling Citrix ADC NITRO API.
-- Ensure the following data sources are available: `index=network` `sourcetype="citrix:netscaler:ssl"` fields `certkey_name`, `days_to_expiry`, `subject`, `issuer`, `serial`, `bound_vserver`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). Citrix ADC syslog or NITRO API providing certificate data. Key fields: `cert_name`, `expiry_date`, `days_to_expiry`, `issuer`, `subject`, `serial`. Citrix ADC syslog message: "Certificate <name> is going to expire in <N> days" (message code EVENT_CERT_EXP).
 
-### Step 1 — Configure data collection
-Create a scripted input that polls the NITRO API `sslcertkey` resource on each ADC. The API returns `certkey` name, `subject`, `issuer`, `serial`, `clientcertnotbefore`, `clientcertnotafter`, `daystoexpiration`, and `expirymonitor` status. Also enable the built-in `expirymonitor` on the ADC with a `notificationperiod` (10–100 days). Run the scripted input daily. Alert at 90 days (plan renewal), 30 days (action required), 7 days (critical), and immediately when `daystoexpiration` reaches 0. Track…
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+Citrix ADC generates certificate expiry warnings at 30 days and 7 days by default. Optionally poll NITRO API: `GET /nitro/v1/config/sslcertkey` for all certificate metadata. Verify:
 ```spl
-index=network sourcetype="citrix:netscaler:ssl"
-| stats latest(days_to_expiry) as days_left, latest(subject) as subject, latest(issuer) as issuer, values(bound_vserver) as bound_to by certkey_name, host
-| where days_left < 90
-| eval urgency=case(days_left<=7, "CRITICAL", days_left<=30, "HIGH", days_left<=90, "MEDIUM", 1=1, "LOW")
+index=netscaler sourcetype="citrix:netscaler:syslog" ("certificate" AND ("expir" OR "expire")) earliest=-30d
+| stats count by host
+```
+
+### Step 2 — - Create the search and alert
+
+**Primary search -- Certificate expiry monitoring:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:perf") earliest=-7d
+| where match(_raw, "(?i)(certificate|cert|ssl).*(expir|expire|expired)")
+| rex "(?i)(?:certificate|cert)\s+(?<cert_name>\S+).*?(?<days_left>\d+)\s*day"
+| eval days_left=coalesce(days_to_expiry, days_left)
+| where isnotnull(days_left)
+| lookup citrix_cert_inventory.csv cert_name OUTPUT vserver, application, owner, auto_renew
+| eval urgency=case(tonumber(days_left) < 0, "EXPIRED", tonumber(days_left) < 7, "CRITICAL", tonumber(days_left) < 30, "WARNING", tonumber(days_left) < 90, "PLAN", 1==1, "OK")
+| where urgency != "OK"
+| table host, cert_name, application, vserver, owner, days_left, urgency, auto_renew
 | sort days_left
-| table certkey_name, days_left, urgency, subject, issuer, bound_to, host
 ```
 
-#### Understanding this SPL
+### Step 3 — - Validate
+(a) On ADC CLI: `show ssl certkey` -- compare expiry dates with Splunk.
+(b) Identify a certificate expiring within 30 days and verify it appears.
+(c) Check certificate bindings: `show ssl vserver <vs>` -- verify the correct cert is bound.
 
-**Citrix ADC SSL Certificate Expiration Monitoring (NetScaler)** — SSL certificates on Citrix ADC terminate HTTPS connections for all web applications behind the load balancer. An expired certificate causes browser warnings or complete connection failures for all users. The NITRO API exposes `daystoexpiration` for every bound SSL certificate, enabling automated alerting well before expiry. Certificate expiry outages are among the most preventable yet impactful failures in production environments.
+### Step 4 — - Operationalize
+Dashboard ("Citrix ADC -- SSL Certificate Lifecycle"):
+* Row 1 -- Single-value: "Expired", "< 7 days", "< 30 days", "Total certs".
+* Row 2 -- Certificate expiry table with owner and auto-renewal status.
 
-Documented **Data sources**: `index=network` `sourcetype="citrix:netscaler:ssl"` fields `certkey_name`, `days_to_expiry`, `subject`, `issuer`, `serial`, `bound_vserver`. **App/TA** (typical add-on context): Custom scripted input polling Citrix ADC NITRO API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Alerting:
+* Critical (cert expired or < 7 days): immediate renewal.
+* Warning (cert < 30 days): schedule renewal.
+* Info (weekly): certificate report.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: citrix:netscaler:ssl. That sourcetype matches what this use case lists under Data sources.
+### Step 5 — - Troubleshooting
 
-**Pipeline walkthrough**
+* **Certificate renewed but ADC still shows old** -- After uploading a new cert, you must update the binding: `update ssl certkey <name> -cert <new_file> -key <new_key>`. If HA pair, sync: `force ha sync`.
 
-- Scopes the data: index=network, sourcetype="citrix:netscaler:ssl". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by certkey_name, host** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where days_left < 90` — typically the threshold or rule expression for this monitoring goal.
-- `eval` defines or adjusts **urgency** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-- Pipeline stage (see **Citrix ADC SSL Certificate Expiration Monitoring (NetScaler)**): table certkey_name, days_left, urgency, subject, issuer, bound_to, host
+* **Wildcard cert expiring** -- Wildcard certs are often shared across many vservers. Use the lookup to identify all affected applications and coordinate renewal.
 
-
-### Step 3 — Validate
-Compare vservers, services, and load-balancing state in the Citrix ADC management view or command line for the same time window and objects.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (certificates sorted by expiry), Single value (certificates expiring within 30 days), Gauge (soonest expiry).
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
-```
-
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
-
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
+* **Let's Encrypt / ACME certs** -- If using automated renewal, verify the automation is running. Citrix ADC supports ACME protocol natively in recent firmware.
 
 ## SPL
 

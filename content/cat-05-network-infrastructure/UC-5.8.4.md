@@ -21,7 +21,7 @@ Up-to-date inventory supports change management, vulnerability tracking, and com
 
 ## Value
 
-Up-to-date inventory supports change management, vulnerability tracking, and compliance auditing.
+Network operations teams maintain a unified device inventory across Catalyst Center, Meraki, and SNMP-discovered devices, detecting unmanaged shadow IT, tracking warranty status, and reconciling against the CMDB.
 
 ## Implementation
 
@@ -30,42 +30,86 @@ Poll SNMP sysDescr, sysName, sysLocation from all devices. Cross-reference with 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: Combined sources (NMS APIs, SNMP sysDescr).
-- Ensure the following data sources are available: NMS discovery, SNMP polling.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Network device inventory data from one or more sources: (1) Catalyst Center API via TA_cisco_catalyst (`sourcetype=cisco:dnac:device`), (2) Meraki Dashboard API via Splunk_TA_cisco_meraki (`sourcetype=meraki:api:devices`), (3) SNMP polling via SC4SNMP or custom scripts (`sourcetype=snmp:device`), (4) NetBox/CMDB exports via scripted inputs or CSV uploads.
+- Data in `index=network` (or platform-specific indexes). Key fields vary by source: `hostname`, `managementIpAddress`/`lanIp`, `platformId`/`model`, `softwareVersion`/`firmware`, `serialNumber`/`serial`, `role`/`device_type`, `location`/`siteNameHierarchy`/`network`.
+- The goal is a unified device inventory across all management platforms. Build a `master_device_inventory.csv` lookup as the single source of truth: `serial,hostname,management_ip,model,vendor,software_version,site,role,purchase_date,warranty_expiry,owner`.
 
 ### Step 1 — Configure data collection
-Poll SNMP sysDescr, sysName, sysLocation from all devices. Cross-reference with NMS discovery exports. Maintain inventory lookup for enrichment.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify device inventory from each source:
 ```spl
-index=network sourcetype="snmp:system"
-| stats latest(sysDescr) as description, latest(sysLocation) as location by host
-| table host description location
+(index=catalyst sourcetype="cisco:dnac:device") OR (index=meraki sourcetype="meraki:api:devices") OR (index=snmp sourcetype="snmp:device") earliest=-1h
+| stats count by sourcetype
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Network Device Inventory** — Up-to-date inventory supports change management, vulnerability tracking, and compliance auditing.
+**Primary search — Unified device inventory:**
+```spl
+(index=catalyst sourcetype="cisco:dnac:device") OR (index=meraki sourcetype="meraki:api:devices") OR (index=snmp sourcetype="snmp:device") earliest=-24h
+| eval unified_hostname=coalesce(hostname, name, sysName)
+| eval unified_ip=coalesce(managementIpAddress, lanIp, src)
+| eval unified_model=coalesce(platformId, model, sysDescr)
+| eval unified_version=coalesce(softwareVersion, firmware, sw_version)
+| eval unified_serial=coalesce(serialNumber, serial, chassis_serial)
+| eval source_platform=case(sourcetype="cisco:dnac:device", "Catalyst Center", sourcetype="meraki:api:devices", "Meraki Dashboard", sourcetype="snmp:device", "SNMP Discovery", 1==1, "Other")
+| dedup unified_serial sortby -_time
+| lookup master_device_inventory.csv serial as unified_serial OUTPUT site role purchase_date warranty_expiry owner
+| eval in_cmdb=if(isnotnull(owner), "YES", "NO")
+| eval warranty_status=case(isnotnull(warranty_expiry) AND strptime(warranty_expiry, "%Y-%m-%d") < now(), "EXPIRED", isnotnull(warranty_expiry) AND strptime(warranty_expiry, "%Y-%m-%d") < now() + 7776000, "EXPIRING_90D", isnotnull(warranty_expiry), "ACTIVE", 1==1, "UNKNOWN")
+| table unified_hostname, unified_ip, unified_model, unified_version, unified_serial, source_platform, site, role, warranty_status, in_cmdb
+| sort source_platform, site
+```
 
-Documented **Data sources**: NMS discovery, SNMP polling. **App/TA** (typical add-on context): Combined sources (NMS APIs, SNMP sysDescr). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: Multi-source device inventory is the foundation of network management. Without knowing what you have, you can't manage it. The `coalesce` functions normalize field names across platforms (Catalyst Center uses `hostname`, Meraki uses `name`, SNMP uses `sysName`). The CMDB lookup validation (`in_cmdb`) identifies shadow IT — devices discovered by monitoring but not tracked in the asset management system.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:system. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+**Rogue/unmanaged device detection:**
+```spl
+(index=catalyst sourcetype="cisco:dnac:device") OR (index=meraki sourcetype="meraki:api:devices") OR (index=snmp sourcetype="snmp:device") earliest=-24h
+| eval unified_serial=coalesce(serialNumber, serial, chassis_serial)
+| dedup unified_serial
+| lookup master_device_inventory.csv serial as unified_serial OUTPUT owner
+| where isnull(owner)
+| eval unified_hostname=coalesce(hostname, name, sysName)
+| eval unified_ip=coalesce(managementIpAddress, lanIp, src)
+| eval unified_model=coalesce(platformId, model)
+| table unified_hostname, unified_ip, unified_model, unified_serial
+| sort unified_ip
+```
 
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="snmp:system". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
-- Pipeline stage (see **Network Device Inventory**): table host description location
-
+**Inventory change detection (new devices):**
+```spl
+(index=catalyst sourcetype="cisco:dnac:device") OR (index=meraki sourcetype="meraki:api:devices") earliest=-24h
+| eval unified_serial=coalesce(serialNumber, serial)
+| dedup unified_serial
+| eval unified_hostname=coalesce(hostname, name)
+| search NOT [| inputlookup master_device_inventory.csv | fields serial | rename serial as unified_serial]
+| table _time, unified_hostname, unified_serial, sourcetype
+```
 
 ### Step 3 — Validate
-Pull `snmpget` of sysDescr from one router and check it matches the latest event in Splunk; refresh CMDB or NMS export row for the same host.
+(a) Compare total device count against each management platform: Catalyst Center device count, Meraki Dashboard device count, SNMP polled devices.
+(b) Spot-check 20 serial numbers: verify hostname, IP, model, and version match the source platform.
+(c) Verify CMDB coverage: check that the `in_cmdb` ratio matches expectations (> 95% for managed networks).
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (device, model, location, version), Pie chart (by model/vendor).
+Dashboard ("Network Device Inventory"):
+- Row 1 — Single-value tiles: "Total devices", "In CMDB", "Not in CMDB (shadow IT)", "Warranty expired".
+- Row 2 — Device inventory table: hostname, IP, model, version, serial, source, site, warranty status.
+- Row 3 — Rogue device alert: devices discovered but not in CMDB.
+- Row 4 — Warranty expiration timeline: devices approaching warranty end.
+
+Alerting:
+- High (new device discovered not in CMDB): shadow IT detection — investigate.
+- Warning (warranty expiring within 90 days): plan renewal or replacement.
+- Info (weekly): full inventory report for asset management reconciliation.
+
+### Step 5 — Troubleshooting
+
+- **Duplicate devices across platforms** — A device managed by both Catalyst Center and discovered via SNMP appears twice. The `dedup unified_serial` handles this if serial numbers are consistent. If not, add IP-based dedup as fallback.
+
+- **Serial number field empty** — Some devices don't report serial via SNMP. Use `sysName` + `managementIpAddress` as alternative unique key.
+
+- **Version field inconsistent** — Catalyst Center reports full version strings (e.g., "17.09.04a"), Meraki reports firmware codes. Normalize with `eval` or lookup for version comparison.
 
 ## SPL
 

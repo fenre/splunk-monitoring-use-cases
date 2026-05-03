@@ -21,7 +21,7 @@ NAT exhaustion prevents outbound connections. Users lose internet access.
 
 ## Value
 
-NAT exhaustion prevents outbound connections. Users lose internet access.
+Operations teams detect NAT pool exhaustion events and allocation failures that prevent new outbound connections, enabling capacity planning for NAT IP address pools.
 
 ## Implementation
 
@@ -30,39 +30,70 @@ Forward firewall logs. Monitor NAT table usage. Alert on exhaustion messages or 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), syslog.
-- Ensure the following data sources are available: Firewall NAT/system logs.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Firewall NAT/system logs in `index=firewall`. Key events: NAT pool exhaustion, PAT allocation failures, NAT session creation failures. Palo Alto: `pan:system` with NAT events. Fortinet: `fgt_event` with NAT messages. Key fields: `nat_pool`, `nat_rule`, `sessions_used`, `sessions_max`.
+* NAT pool exhaustion: when all available IP:port combinations in a NAT pool are used, new outbound connections fail. PAT (Port Address Translation) typically allows ~64K ports per IP. For large environments, multiple NAT IPs are needed.
 
-### Step 1 — Configure data collection
-Forward firewall logs. Monitor NAT table usage. Alert on exhaustion messages or >80% utilization.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+**Palo Alto:**
+```
+show running nat-rule-ippool  # shows pool utilization
+show running ippool  # shows allocated IPs and port ranges
+```
+Forward system events that include NAT resource warnings via syslog.
+Verify:
 ```spl
-index=firewall ("NAT" OR "nat") ("exhausted" OR "allocation failed" OR "out of")
-| stats count by host, nat_pool | sort -count
+index=firewall earliest=-4h
+| where match(_raw, "(?i)NAT.*(exhaust|fail|alloc|pool|limit|resource|oversubscr)")
+| stats count by host, _raw
+| head 20
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**NAT Pool Exhaustion** — NAT exhaustion prevents outbound connections. Users lose internet access.
+**Primary search -- NAT pool exhaustion detection:**
+```spl
+index=firewall earliest=-4h
+| where match(_raw, "(?i)NAT.*(exhaust|fail|alloc.*fail|pool.*full|limit.*reach|resource.*low|oversubscr|no.*available)")
+| eval nat_event=case(match(_raw, "(?i)exhaust|pool.*full|no.*available"), "POOL_EXHAUSTED", match(_raw, "(?i)alloc.*fail"), "ALLOCATION_FAILED", match(_raw, "(?i)limit.*reach|oversubscr"), "NEAR_LIMIT", match(_raw, "(?i)resource.*low"), "LOW_RESOURCES", 1==1, "OTHER")
+| rex "pool\s+(?<nat_pool>[\w.-]+)"
+| rex "rule\s+(?<nat_rule>[\w.-]+)"
+| stats count as events latest(_time) as last_event by host, nat_event, nat_pool
+| eval severity=case(nat_event="POOL_EXHAUSTED", "CRITICAL -- NAT pool exhausted, connections failing", nat_event="ALLOCATION_FAILED" AND events > 100, "HIGH -- frequent allocation failures", nat_event="NEAR_LIMIT", "WARNING -- approaching limit", 1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -events
+```
 
-Documented **Data sources**: Firewall NAT/system logs. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+**Session count by NAT pool (if available from API polling):**
+```spl
+index=firewall sourcetype="pan:system:resource" earliest=-4h
+| eval pool_pct=round(100*tonumber(sessions_used)/tonumber(sessions_max), 1)
+| where pool_pct > 70
+| stats latest(pool_pct) as utilization latest(sessions_used) as used latest(sessions_max) as max by nat_pool, host
+| sort -utilization
+```
 
-The first pipeline stage scopes events using **index**: firewall.
+### Step 3 — - Validate
+(a) Palo Alto: `show running nat-rule-ippool` -- check allocation percentage.
+(b) Fortinet: `diagnose firewall iprope list 100004` -- shows NAT pool utilization.
+(c) Verify by checking if users report internet access failures that correlate with NAT exhaustion events.
 
-**Pipeline walkthrough**
+### Step 4 — - Operationalize
+Dashboard ("Firewall -- NAT Pool Health"):
+* Row 1 -- Gauge: "NAT pool utilization %" per pool.
+* Row 2 -- NAT exhaustion events timeline.
 
-- Scopes the data: index=firewall. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by host, nat_pool** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+Alerting:
+* Critical (pool exhausted): outbound connections failing immediately.
+* High (allocation failures > 100/hr): capacity issue.
+* Warning (pool > 80%): plan additional NAT IPs.
 
-### Step 3 — Validate
-Sample the same time range in your firewall management console, Panorama, FortiManager, or Check Point SmartConsole and confirm that counts, usernames, and object names line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge per pool, Table, Events timeline.
+### Step 5 — - Troubleshooting
+
+* **NAT pool exhausted** -- Immediate: add more IP addresses to the NAT pool. Long-term: (1) identify top session consumers (specific hosts using excessive outbound connections), (2) reduce session timeouts for short-lived connections, (3) investigate for infected hosts opening many sessions.
+
+* **Single host consuming most NAT sessions** -- May indicate: (1) P2P software, (2) malware with many C2 connections, (3) aggressive web crawler. Investigate the host.
+
+* **NAT pool size planning** -- Rule of thumb: each public IP provides ~60K concurrent PAT sessions. For 10K users with average 5 concurrent connections, you need at least 1 NAT IP. Peak loads need 2-3x.
 
 ## SPL
 

@@ -21,7 +21,7 @@ iRule failures cause unexpected traffic handling — potentially bypassing secur
 
 ## Value
 
-iRule failures cause unexpected traffic handling — potentially bypassing security or routing traffic incorrectly.
+Application delivery teams detect F5 BIG-IP iRule TCL runtime errors and LTM policy failures that cause connection resets or incorrect traffic routing, correlating error spikes with recent iRule deployments.
 
 ## Implementation
 
@@ -30,42 +30,59 @@ Enable iRule logging (sparingly — high volume). Monitor for TCL runtime errors
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: F5 TA (`Splunk_TA_f5-bigip`).
-- Ensure the following data sources are available: `sourcetype=f5:bigip:ltm`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Splunk Add-on for F5 BIG-IP (`Splunk_TA_f5-bigip`, Splunkbase 2680). F5 iRule and LTM policy logs in `index=network` with `sourcetype=f5:bigip:syslog`. Key fields: iRule errors appear as TCL runtime errors in syslog, LTM policy errors as policy evaluation failures.
+* iRules are custom TCL scripts that process traffic on F5. iRule errors cause: (1) connection resets (if the error occurs mid-transaction), (2) performance degradation (TCL exceptions are expensive), (3) unexpected behavior (wrong pool selection, header manipulation failures). Common errors: TCL runtime errors, divide by zero, nil variable references, max loop iterations exceeded.
 
-### Step 1 — Configure data collection
-Enable iRule logging (sparingly — high volume). Monitor for TCL runtime errors. Alert on any iRule abort events. Review and test iRules in staging before production.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+F5 iRule errors are automatically logged to syslog. Verify:
 ```spl
-index=network sourcetype="f5:bigip:ltm" "TCL error" OR "rule error" OR "aborted"
-| rex "Rule (?<rule_name>/\S+)"
-| stats count by rule_name, host | sort -count
+index=network sourcetype="f5:bigip:syslog" ("TCL error" OR "iRule error" OR "rule error" OR "01220001" OR "01070151" OR "policy error") earliest=-24h
+| stats count by host
+```
+Note: F5 message ID `01220001` = iRule TCL runtime error, `01070151` = max loop iterations exceeded.
+
+### Step 2 — - Create the search and alert
+
+**Primary search -- iRule/policy error analysis:**
+```spl
+index=network sourcetype="f5:bigip:syslog" ("TCL error" OR "iRule error" OR "rule error" OR "01220001" OR "01070151" OR "policy error" OR "cannot server" OR "aborted") earliest=-4h
+| rex "Rule (?<rule_name>\S+) <(?<event_context>\S+)>: (?<error_detail>.+)"
+| eval error_type=case(match(_raw, "01220001"), "TCL_RUNTIME", match(_raw, "01070151"), "MAX_LOOP", match(_raw, "(?i)cannot server"), "POOL_SELECTION_FAIL", match(_raw, "(?i)policy error"), "LTM_POLICY_ERROR", match(_raw, "(?i)abort"), "ABORTED", 1==1, "OTHER")
+| stats count as errors dc(rule_name) as affected_rules values(rule_name) as rules values(error_detail) as details latest(_time) as last_error by host, error_type
+| eval impact=case(error_type="TCL_RUNTIME", "iRule crashed -- connection may have been reset", error_type="MAX_LOOP", "iRule infinite loop -- performance impact", error_type="POOL_SELECTION_FAIL", "Traffic not being routed correctly", error_type="LTM_POLICY_ERROR", "LTM policy evaluation failed -- fallback behavior", 1==1, "Investigate")
+| sort -errors
 ```
 
-#### Understanding this SPL
+**Error rate trending:**
+```spl
+index=network sourcetype="f5:bigip:syslog" ("TCL error" OR "iRule error" OR "01220001" OR "01070151" OR "policy error") earliest=-24h
+| bin _time span=1h
+| stats count as errors by _time, host
+| timechart span=1h sum(errors) by host
+```
 
-**iRule/Policy Errors (F5 BIG-IP)** — iRule failures cause unexpected traffic handling — potentially bypassing security or routing traffic incorrectly.
+### Step 3 — - Validate
+(a) Review active iRules: `tmsh list ltm rule` and identify complex rules.
+(b) Intentionally introduce a TCL error in a test iRule and verify it appears in Splunk.
+(c) Check the error rate trend -- a spike often correlates with a recent iRule deployment.
 
-Documented **Data sources**: `sourcetype=f5:bigip:ltm`. **App/TA** (typical add-on context): F5 TA (`Splunk_TA_f5-bigip`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 4 — - Operationalize
+Dashboard ("F5 -- iRule & Policy Errors"):
+* Row 1 -- Single-value: "Total errors (4h)", "Affected rules", "Last error time".
+* Row 2 -- Error classification table with rule name, type, and impact.
+* Row 3 -- Error rate trending.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: f5:bigip:ltm. That sourcetype matches what this use case lists under Data sources.
+Alerting:
+* High (> 100 iRule errors in 15 min): iRule causing widespread failures.
+* Warning (new rule_name appearing in errors): recently deployed iRule has bugs.
 
-**Pipeline walkthrough**
+### Step 5 — - Troubleshooting
 
-- Scopes the data: index=network, sourcetype="f5:bigip:ltm". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- `stats` rolls up events into metrics; results are split **by rule_name, host** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+* **TCL runtime error** -- Check the error_detail for the specific TCL error. Common: "can't read variable" (variable not initialized in all code paths), "invalid command name" (typo or missing package).
 
+* **Max loop iterations** -- iRule has a `while` or `foreach` loop that exceeded the F5 safety limit (default 10000 iterations). Fix the loop logic or increase the limit (not recommended).
 
-### Step 3 — Validate
-In the F5, open the iRule, policy, and related logs for the same virtual and time as the search, and line up the error lines with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (rule name, error count, host), Timechart (errors over time).
+* **Errors after iRule deployment** -- Roll back to the previous version: `tmsh load sys config file <backup>`. Debug the iRule in a test environment using `log local0. "debug: $variable"` statements.
 
 ## SPL
 

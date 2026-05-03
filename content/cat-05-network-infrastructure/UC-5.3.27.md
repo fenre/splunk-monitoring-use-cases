@@ -21,7 +21,7 @@ When demand exceeds a virtual server capacity settings, connections queue in the
 
 ## Value
 
-When demand exceeds a virtual server capacity settings, connections queue in the surge buffer or spill to backup vservers, affecting latency and success rates. Sustained surge depth or repeated spillover indicates undersized `maxclient` values, pool exhaustion, or slow backends. Early detection keeps user-visible failures and cascade overload off backup paths.
+Application delivery teams detect Citrix ADC surge queue buildup and spillover events indicating backend saturation, enabling capacity remediation before user-facing latency or failover.
 
 ## Implementation
 
@@ -30,19 +30,54 @@ Source spillover and surge events from `citrix:netscaler:syslog` (state change m
 ## Detailed Implementation
 
 ### Prerequisites
-- Syslog and/or NITRO performance feed into `index=netscaler`.
-- Naming map from vserver to application and owner on-call.
+* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). Syslog and/or NITRO performance counters. Key fields: `surge_depth` (connections queued), `spillover` (traffic redirected to backup vserver), `vserver_name`, `maxclient`.
+* Surge queue: when a vserver's backend services can't accept new connections fast enough, connections queue in a buffer. Spillover: when surge queue exceeds threshold, traffic spills to a backup vserver. Sustained surge = undersized backend or slow backends.
 
-### Step 1 — Configure data collection
-Enable state and surge-related logging on the ADC. If using perf poll, include lb vserver connection and surge statistics at 1–5 minute intervals.
+### Step 1 — - Configure data collection
+Enable surge/spillover logging. NITRO poll: `GET /nitro/v1/stat/lbvserver` includes `surgecount` and `spilloverthreshold`. Verify:
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:perf") ("surge" OR "spillover" OR "maxclient" OR "SURGEQ") earliest=-4h
+| stats count by host
+```
 
-### Step 2 — Create the search and alert
-Tighten SPL `rex` to your exact log format after review of samples. Page when spillover appears or when queue depth trends upward for 3 consecutive windows.
+### Step 2 — - Create the search and alert
 
-### Step 3 — Validate
-Compare vservers, services, and load-balancing state in the Citrix ADC management view or command line for the same time window and objects.
-### Step 4 — Operationalize
-Capacity playbook: raise limits cautiously, scale pool, or add nodes; avoid masking chronic backend slowness.
+**Primary search -- Surge queue and spillover events:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:perf") ("surge" OR "spillover" OR "max client" OR "maxclient" OR "SURGEQ") earliest=-4h
+| eval vs=coalesce(vserver_name, vs_name, vserver)
+| eval depth=coalesce(surge_depth, surgecount, if(match(_raw, "(?i)depth[\s:=]+(\d+)"), tonumber(replace(_raw, ".*depth[\s:=]+(\d+).*", "\1")), null()))
+| eval has_spillover=if(match(_raw, "(?i)spillover"), 1, 0)
+| bin _time span=5m
+| stats max(depth) as max_depth max(has_spillover) as spillover_flag count as events by _time, host, vs
+| where spillover_flag=1 OR max_depth > 0
+| lookup citrix_vserver_inventory.csv vs OUTPUT application, tier, owner
+| eval severity=case(spillover_flag=1, "HIGH -- traffic spilling to backup", max_depth > 100, "HIGH -- deep surge queue", max_depth > 10, "WARNING -- surge building", 1==1, "INFO")
+| sort severity, -max_depth
+```
+
+### Step 3 — - Validate
+(a) On ADC CLI: `show lb vserver <vs>` -- check surge count and spillover count.
+(b) Simulate backend slowness (add delay to test backend) and verify surge depth increases.
+(c) If backup vserver is configured, verify spillover triggers when surge threshold is exceeded.
+
+### Step 4 — - Operationalize
+Dashboard ("Citrix ADC -- Surge & Spillover"):
+* Row 1 -- Single-value: "vServers with surge", "Max surge depth", "Spillovers", "Affected apps".
+* Row 2 -- Surge/spillover detail table.
+* Row 3 -- Surge depth trending timechart.
+
+Alerting:
+* High (spillover occurring): traffic on backup path -- investigate primary backend.
+* Warning (surge depth > 50 for > 3 intervals): backends not keeping up.
+
+### Step 5 — - Troubleshooting
+
+* **Sustained surge** -- Backends too slow. Check: (1) backend server CPU/memory, (2) database query performance, (3) connection timeouts on ADC: `show service <svc>` for `maxClient`, `maxReq`.
+
+* **Spillover to backup** -- Primary backend capacity exceeded. Increase backend instances or raise `spilloverThreshold`: `set lb vserver <vs> -spilloverThreshold <value>`.
+
+* **Surge only during peak hours** -- Backend capacity insufficient for peak load. Pre-scale or implement auto-scaling.
 
 ## SPL
 

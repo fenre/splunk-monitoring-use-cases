@@ -21,7 +21,7 @@ ACL deny hits show blocked traffic. High volumes may indicate attacks or misconf
 
 ## Value
 
-ACL deny hits show blocked traffic. High volumes may indicate attacks or misconfigured apps.
+Security teams analyze ACL deny logs across routers and switches, detecting port scans, distributed attacks, and misconfigured applications blocked by network access control policies.
 
 ## Implementation
 
@@ -30,72 +30,81 @@ Enable ACL logging (`log` keyword). Forward syslog. Dashboard showing top denied
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=cisco:ios`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* ACL deny log messages from network devices. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%SEC-6-IPACCESSLOGP`, `%SEC-6-IPACCESSLOGDP`; Juniper `PFE_FW_SYSLOG_ETH`; Arista `SEC-6-IPACCESSLOG`.
+* ACL deny logging records packets that were explicitly blocked by access-control lists. Analyzing these events reveals attack patterns, misconfigured applications, and policy effectiveness. High deny rates on specific rules may indicate active scanning or policy too permissive in other areas.
 
-### Step 1 — Configure data collection
-Enable ACL logging (`log` keyword). Forward syslog. Dashboard showing top denied sources and trends.
+### Step 1 — - Configure data collection
+```
+# Cisco IOS -- ACL with logging
+access-list 100 deny ip any any log
+# Or named ACL:
+ip access-list extended OUTSIDE-IN
+ deny ip any any log
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+# Rate-limit ACL logging to avoid CPU impact
+logging rate-limit 100
 
+# Syslog forwarding
+logging host <splunk-syslog-ip>
+```
+Verify:
 ```spl
-index=network sourcetype="cisco:ios" "%SEC-6-IPACCESSLOGP"
-| rex "list (?<acl>\S+) denied (?<proto>\w+) (?<src>\d+\.\d+\.\d+\.\d+)"
-| stats count by host, acl, src, proto | sort -count
+index=network earliest=-4h
+| where match(_raw, "(?i)IPACCESSLOG|ACL.*denied|denied.*acl|access.list.*denied|firewall.*deny")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**ACL Deny Logging** — ACL deny hits show blocked traffic. High volumes may indicate attacks or misconfigured apps.
-
-Documented **Data sources**: `sourcetype=cisco:ios`. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- `stats` rolls up events into metrics; results are split **by host, acl, src, proto** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- ACL deny event analysis:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action All_Traffic.dvc span=1h
-| where count>0
-| sort -count
+index=network earliest=-4h
+| where match(_raw, "(?i)IPACCESSLOG|ACL.*denied|denied.*acl|access.list.*denied")
+| rex field=_raw "(?i)(?:list|acl)\s+(?<acl_name>\S+)"
+| rex field=_raw "(?i)denied\s+(?<protocol>\w+)\s+(?<src_ip>[\d\.]+).*?->\s*(?<dst_ip>[\d\.]+).*?(?<dst_port>\d+)"
+| eval src=coalesce(src_ip, src, source)
+| eval dst=coalesce(dst_ip, dst, destination)
+| eval port=coalesce(dst_port, dest_port)
+| eval device=coalesce(host, device_name)
+| iplocation src prefix=src_
+| stats count as denies dc(src) as unique_sources dc(dst) as unique_targets dc(port) as unique_ports by device, acl_name, protocol
+| eval severity=case(
+    denies > 1000 AND unique_sources > 50, "CRITICAL -- possible DDoS or distributed scan",
+    unique_ports > 20 AND unique_sources < 5, "WARNING -- port scan detected",
+    denies > 500, "WARNING -- high deny rate on ACL ".acl_name,
+    1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -denies
 ```
 
-Understanding this CIM / accelerated SPL
+### Step 3 — - Validate
+(a) CLI: `show access-lists` -- check ACL hit counts per rule.
+(b) Correlate with firewall deny events for defense-in-depth validation.
+(c) Verify ACL logging rate-limit is configured to avoid CPU overload.
 
-**ACL Deny Logging** — ACL deny hits show blocked traffic. High volumes may indicate attacks or misconfigured apps.
+### Step 4 — - Operationalize
+Dashboard ("Network -- ACL Deny Analysis"):
+* Row 1 -- Single-value: "Total denies (4h)", "Unique blocked sources", "ACLs triggered".
+* Row 2 -- ACL deny timeline by ACL name.
+* Row 3 -- Top blocked sources table.
 
-Documented **Data sources**: `sourcetype=cisco:ios`. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Alert: Critical (>1000 denies from 50+ sources): distributed attack.
 
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+### Step 5 — - Troubleshooting
 
-**Pipeline walkthrough**
+* **ACL logging overwhelming CPU** -- Enable rate-limiting: `logging rate-limit <n>`. Consider logging only specific ACL entries, not the catch-all deny.
 
-- Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.
-- `eval` defines or adjusts **bytes** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+* **Legitimate traffic blocked** -- Check if application requires ports not in ACL permit rules. Verify with the application team and add specific permit entries above the deny.
 
-### Step 3 — Validate
-On the device, `show access-lists` (or the Junos or Arista equivalent) with hit counts and compare the denied source, destination, and ACL name in the CLI to the same fields in Splunk.
+* **No ACL deny logs** -- Verify ACL has `log` keyword on deny entries. Check `logging trap` level includes informational (level 6).
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Bar chart by source IP, Timechart.
+**IPv6 Coverage:** IPv6 ACLs use `ipv6 access-list` and log via `%IPV6_ACL-6-ACCESSLOGP`. NIST SP 800-119 requires IPv4/IPv6 ACL parity. Critical: ICMPv6 types 133-137 (NDP) must be permitted — blocking them breaks IPv6 connectivity entirely.
 
 ## SPL
 
 ```spl
-index=network sourcetype="cisco:ios" "%SEC-6-IPACCESSLOGP"
-| rex "list (?<acl>\S+) denied (?<proto>\w+) (?<src>\d+\.\d+\.\d+\.\d+)"
+index=network sourcetype="cisco:ios" "%SEC-6-IPACCESSLOGP" OR "%IPV6_ACL-6-ACCESSLOGP"
+| rex "list (?<acl>\S+) denied (?<proto>\w+) (?<src>\d+\.\d+\.\d+\.\d+|[0-9a-fA-F:]+(?:\:[0-9a-fA-F:]+)*|\[[0-9a-fA-F:]+\])"
 | stats count by host, acl, src, proto | sort -count
 ```
 

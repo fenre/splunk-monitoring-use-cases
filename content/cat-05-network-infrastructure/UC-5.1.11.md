@@ -21,7 +21,7 @@ Hardware failures reduce redundancy. A second failure causes outage.
 
 ## Value
 
-Hardware failures reduce redundancy. A second failure causes outage.
+NOC teams detect power supply and fan failures on network devices, identifying loss of hardware redundancy that puts devices at risk of thermal shutdown or complete power failure.
 
 ## Implementation
 
@@ -30,41 +30,68 @@ Forward syslog. Poll ENVMON-MIB. Alert immediately on hardware failure. Include 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, SNMP CISCO-ENVMON-MIB.
-- Ensure the following data sources are available: `sourcetype=cisco:ios`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Power supply and fan failure syslog messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%ENVMON-2-FAN_FAILED`, `%C6KPWR-4-DISABLED`, `%PLATFORM_ENV-1-FAN`, `%PLATFORM_ENV-1-PSU`; generic `%SYS-2-MALLOCFAIL`.
+* Power supply redundancy loss means the device is running on a single PSU -- the next PSU failure causes complete outage. Fan failures lead to thermal shutdown if not addressed promptly.
 
-### Step 1 — Configure data collection
-Forward syslog. Poll ENVMON-MIB. Alert immediately on hardware failure. Include device location for dispatch.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Cisco IOS -- environmental monitoring is logged by default
+# SNMP: poll CISCO-ENVMON-MIB
+# ciscoEnvMonFanStatusDescr (.1.3.6.1.4.1.9.9.13.1.4.1.2)
+# ciscoEnvMonSupplyStatusDescr (.1.3.6.1.4.1.9.9.13.1.5.1.2)
+# ciscoEnvMonSupplyState (.1.3.6.1.4.1.9.9.13.1.5.1.3)
+```
+Verify:
 ```spl
-index=network sourcetype="cisco:ios" "%FAN-3-FAN_FAILED" OR "%PLATFORM_ENV-1-PSU" OR "%ENVIRONMENTAL-1-ALERT"
-| table _time host _raw | sort -_time
+index=network earliest=-30d
+| where match(_raw, "(?i)FAN|PSU|POWER.*SUPPLY|power.*fail|fan.*fail|ENVMON|PLATFORM_ENV")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Power Supply / Fan Failures** — Hardware failures reduce redundancy. A second failure causes outage.
+**Primary search -- Hardware failure event monitoring:**
+```spl
+index=network earliest=-30d
+| where match(_raw, "(?i)FAN.*FAIL|FAN.*DOWN|PSU.*FAIL|POWER.*FAIL|ENVMON.*(FAN|SUPPLY)|PLATFORM_ENV|redundancy.*lost|power.*absent")
+| eval device=coalesce(host, device_name)
+| eval component=case(
+    match(_raw, "(?i)fan"), "FAN",
+    match(_raw, "(?i)psu|power.*supply|power.*module"), "PSU",
+    1==1, "HARDWARE")
+| eval status=case(
+    match(_raw, "(?i)fail|down|absent|removed|critical"), "FAILED",
+    match(_raw, "(?i)ok|normal|good|inserted"), "OK",
+    1==1, "WARNING")
+| dedup device, component sortby -_time
+| where status != "OK"
+| eval severity=case(
+    component="PSU" AND status="FAILED", "CRITICAL -- power supply failure (redundancy lost)",
+    component="FAN" AND status="FAILED", "CRITICAL -- fan failure (thermal shutdown risk)",
+    1==1, "WARNING")
+| table device, component, status, _time, severity
+| sort severity
+```
 
-Documented **Data sources**: `sourcetype=cisco:ios`. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, SNMP CISCO-ENVMON-MIB. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show environment all` -- check PSU and fan status.
+(b) CLI: `show power inline` (for PoE switches) -- verify power budget.
+(c) Check for correlating temperature alarms (UC-5.1.15).
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- Hardware Health"):
+* Row 1 -- Single-value: "PSU failures", "Fan failures", "Devices at risk".
+* Row 2 -- Hardware failure event timeline.
 
-**Pipeline walkthrough**
+Alert: Critical (PSU/fan failure): dispatch field service or RMA.
 
-- Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Pipeline stage (see **Power Supply / Fan Failures**): table _time host _raw
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **PSU failure** -- Check: LED indicators, power cable, circuit breaker. If redundant PSU available, device continues operating but with no redundancy. Order replacement immediately.
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Fan failure** -- Device will begin thermal throttling. Monitor temperature (UC-5.1.15). If temperature exceeds threshold, device will shut down to prevent damage. RMA fan tray.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status indicator per device, Events list (critical).
+* **Intermittent PSU status** -- May indicate loose power cable or failing PSU capacitor. Reseat cable; if continues, replace PSU.
 
 ## SPL
 

@@ -21,7 +21,7 @@ Policy install pushes new rulebase and object changes from the management server
 
 ## Value
 
-Policy install pushes new rulebase and object changes from the management server (SmartConsole/Smart-1 Cloud) to enforcement gateways. A failed install leaves old policy active; a successful install with errors may silently break specific rules. Tracking install timestamps, success/failure, and who published enables change management correlation and root-cause analysis when traffic patterns shift unexpectedly after a policy push.
+Security teams track Check Point policy install and publish events with administrator attribution, detecting failed installs that leave gateways on stale policies and unauthorized changes.
 
 ## Implementation
 
@@ -30,67 +30,77 @@ Forward management audit logs via Log Exporter. Track policy install duration (p
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259).
-- Ensure the following data sources are available: `sourcetype=cp_log` (audit/admin logs), SmartConsole audit trail.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Check Point policy install and publish audit logs. Data in `index=checkpoint` or `index=firewall` with `sourcetype=cp_log`. Key fields: `product` (SmartConsole, Management Server), `action` (Install Policy, Publish), `administrator`, `policy_name`, `target`, `status`, `rule_count`.
+* Check Point policy workflow: (1) Admin edits rules in SmartConsole, (2) Publishes changes (creates audit trail), (3) Installs policy to gateway(s). Each step generates audit logs. Failed installs leave gateways on previous policy version. CLI: `show-sessions`, `install-policy`.
 
-### Step 1 — Configure data collection
-Forward management audit logs via Log Exporter. Track policy install duration (publish → install complete). Alert on install failures or partial installs (some gateways succeeded, others failed). Require ITSM ticket IDs in SmartConsole session descriptions for audit correlation. Report on policy change frequency by admin and gateway.
+### Step 1 — - Configure data collection
+```
+# Check Point Management Server -- enable audit logging
+# SmartConsole > Manage & Settings > Logs & Masters
+# Log policy install and configuration changes
+# Ensure "Audit" blade is enabled
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Log Exporter (captures audit and system logs)
+cp_log_export add name splunk_audit target-server <splunk-ip> target-port 514 protocol udp format syslog
+cp_log_export set name splunk_audit read-mode audit
+cp_log_export restart name splunk_audit
+```
+Verify:
 ```spl
 index=checkpoint sourcetype="cp_log" earliest=-30d
-| where match(lower(product),"(?i)smartconsole|smartcenter|management") AND match(lower(operation),"(?i)install|publish|verify")
-| stats count earliest(_time) as first latest(_time) as last values(operation) as ops by administrator, target_gateway
-| sort -last
+| where match(action, "(?i)install.*policy|publish|policy.*install") OR match(product, "(?i)SmartConsole|Audit")
+| stats count by action, administrator, status
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Check Point Policy Install and Publish Tracking (Check Point)** — Policy install pushes new rulebase and object changes from the management server (SmartConsole/Smart-1 Cloud) to enforcement gateways. A failed install leaves old policy active; a successful install with errors may silently break specific rules. Tracking install timestamps, success/failure, and who published enables change management correlation and root-cause analysis when traffic patterns shift unexpectedly after a policy push.
-
-Documented **Data sources**: `sourcetype=cp_log` (audit/admin logs), SmartConsole audit trail. **App/TA** (typical add-on context): `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: checkpoint; **sourcetype**: cp_log. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=checkpoint, sourcetype="cp_log", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Filters the current rows with `where match(lower(product),"(?i)smartconsole|smartcenter|management") AND match(lower(operation),"(?i)install|publish|verify")` — typically the threshold or rule expression for this monitoring goal.
-- `stats` rolls up events into metrics; results are split **by administrator, target_gateway** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Policy install and publish audit trail:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object All_Changes.action span=1h
-| sort -count
+index=checkpoint sourcetype="cp_log" earliest=-30d
+| where match(action, "(?i)install.*policy|publish|policy.*install|accept.*changes")
+| eval admin=coalesce(administrator, user, src_user_name)
+| eval policy=coalesce(policy_name, policy, rule_name)
+| eval target_gw=coalesce(target, dst, gateway)
+| eval install_status=case(
+    match(status, "(?i)succeeded|success|completed"), "SUCCESS",
+    match(status, "(?i)failed|error|timeout"), "FAILED",
+    match(status, "(?i)warning|partial"), "PARTIAL",
+    1==1, "UNKNOWN")
+| eval change_type=case(
+    match(action, "(?i)publish"), "PUBLISH",
+    match(action, "(?i)install"), "INSTALL",
+    1==1, "OTHER")
+| stats count as events count(eval(install_status="FAILED")) as failures count(eval(install_status="SUCCESS")) as successes values(target_gw) as targets by admin, policy, change_type, install_status
+| eval severity=case(
+    install_status="FAILED", "CRITICAL -- policy install FAILED",
+    install_status="PARTIAL", "WARNING -- partial policy install",
+    change_type="INSTALL" AND match(admin, "(?i)unknown|system|api"), "WARNING -- non-interactive policy install",
+    1==1, "INFO")
+| eval last_time=strftime(now(), "%Y-%m-%d %H:%M:%S")
+| where severity != "INFO" OR change_type="INSTALL"
+| sort severity, -events
 ```
 
-Understanding this CIM / accelerated SPL
+### Step 3 — - Validate
+(a) SmartConsole: Logs & Monitor > Audit -- verify install events appear.
+(b) CLI: `show-gateways` -- check policy date on each gateway.
+(c) Verify: `show-sessions limit 5` -- recent management sessions.
 
-This block uses `tstats` on the Change data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 4 — - Operationalize
+Dashboard ("Check Point -- Policy Management"):
+* Row 1 -- Single-value: "Policy installs (30d)", "Failed installs", "Administrators active".
+* Row 2 -- Policy install timeline.
+* Row 3 -- Audit trail table (admin, action, gateway, status).
 
-**Pipeline walkthrough**
+Alert: Critical (policy install failed): gateway running stale policy, investigate immediately.
 
-- Uses `tstats` against accelerated summaries for the Change model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+### Step 5 — - Troubleshooting
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+* **Policy install failed** -- Common causes: (1) SIC (Secure Internal Communication) certificate issue between management and gateway, (2) disk space on gateway, (3) rule conflict or invalid object reference. Check: `cpca_client lscert` for SIC, and SmartConsole install log for detailed error.
 
+* **Unauthorized policy change** -- Review audit log for admin identity. Cross-reference with change management tickets. Consider requiring approval for policy installs via SmartWorkflow.
 
-
-### Step 3 — Validate
-Compare key fields and timestamps in SmartConsole, SmartView, or the gateway’s local view so Splunk and Check Point match for the same events.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (recent policy installs), Timeline (publish/install events), Bar chart (installs by admin), Single value (failed installs this week).
+* **Policy install timeout** -- Large rulebases (>10K rules) or slow management-to-gateway links. Consider: optimizing rulebase, using policy packages, or increasing timeout.
 
 ## SPL
 

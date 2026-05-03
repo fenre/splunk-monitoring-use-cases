@@ -21,7 +21,7 @@ Check Point gateways forward logs to the management server or Log Server. When l
 
 ## Value
 
-Check Point gateways forward logs to the management server or Log Server. When log rate exceeds the management capacity or network bandwidth, logs are queued, delayed, or dropped — creating blind spots in security monitoring. Tracking log rate per gateway and comparing to Log Server capacity prevents log loss before it impacts compliance and incident detection.
+Operations teams monitor Check Point log forwarding rate and detect log gaps, ensuring continuous visibility and preventing blind spots from log capacity exhaustion or forwarding failures.
 
 ## Implementation
 
@@ -30,51 +30,84 @@ Baseline event rate per gateway. Alert on sudden spikes (possible attack or debu
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259).
-- Ensure the following data sources are available: `sourcetype=cp_log` (system/management logs), log server statistics.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Check Point log rate and capacity data. Data in `index=checkpoint` with `sourcetype=cp_log` or custom scripted input. Key fields: `log_rate`, `log_queue`, `disk_usage`, `log_server`.
+* Check Point gateways forward logs to the management server or dedicated Log Server via SIC-encrypted channel (TCP 257). When log rate exceeds management capacity, the gateway buffers logs locally. If local buffer fills, logs are dropped. Log rate capacity depends on management server/Log Server hardware. Monitoring: `fw log show`, `cpview`, and SmartConsole Logs & Monitor.
 
-### Step 1 — Configure data collection
-Baseline event rate per gateway. Alert on sudden spikes (possible attack or debug logging left enabled) and drops (log forwarding failure or connectivity issue). Monitor Log Server disk and queue depth. Correlate log drops with gateway CPU and network congestion.
+### Step 1 — - Configure data collection
+```
+# Custom scripted input for log rate monitoring
+# inputs.conf
+[script:///opt/splunk/etc/apps/checkpoint_inputs/bin/log_rate.sh]
+interval = 300
+sourcetype = checkpoint:lograte
+index = checkpoint
+disabled = false
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+# log_rate.sh (run on management/log server)
+#!/bin/bash
+echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "hostname=$(hostname)"
+# Get log rate from cpview or cpstat
+cpstat -f logging os 2>/dev/null | while read line; do echo "cpstat_log="$line""; done
+df -h /var/log 2>/dev/null | tail -1 | while read line; do echo "disk_usage="$line""; done
+```
+Verify:
+```spl
+index=checkpoint sourcetype="checkpoint:lograte" earliest=-1h
+| stats count by host
+```
 
+### Step 2 — - Create the search and alert
+
+**Primary search -- Log rate and capacity monitoring:**
+```spl
+index=checkpoint sourcetype="cp_log" earliest=-4h
+| bin _time span=1m
+| stats count as log_rate by _time, host
+| eventstats avg(log_rate) as avg_rate stdev(log_rate) as stdev_rate max(log_rate) as peak_rate by host
+| eval z_score=if(stdev_rate > 0, round((log_rate - avg_rate)/stdev_rate, 2), 0)
+| eval severity=case(
+    log_rate > 50000, "CRITICAL -- extreme log rate may exceed capacity",
+    z_score > 3 AND log_rate > 10000, "WARNING -- abnormal log rate spike",
+    log_rate > 20000, "WARNING -- sustained high log rate",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, host, log_rate, avg_rate, peak_rate, z_score, severity
+| sort severity, -log_rate
+```
+
+**Secondary search -- Log gap detection (missing logs):**
 ```spl
 index=checkpoint sourcetype="cp_log" earliest=-24h
 | bin _time span=5m
-| stats count as events_5m by _time, orig
-| eventstats avg(events_5m) as baseline by orig
-| where events_5m > baseline*3 OR events_5m < baseline*0.2
-| eval anomaly=if(events_5m > baseline*3, "spike", "drop")
-| table _time, orig, events_5m, baseline, anomaly
+| stats count as log_count by _time, host
+| makecontinuous _time span=5m
+| fillnull value=0 log_count
+| where log_count = 0
+| eval severity="CRITICAL -- log gap detected (no logs for 5-minute window)"
+| table _time, host, severity
 ```
 
-#### Understanding this SPL
+### Step 3 — - Validate
+(a) SmartConsole: Logs & Monitor > Statistics -- check log rate graph.
+(b) CLI: `cpview` > Overview > Log Rate -- verify current log rate.
+(c) CLI: `cpstat -f logging os` -- check log forwarding statistics and queue.
 
-**Check Point Log Rate and Capacity (Check Point)** — Check Point gateways forward logs to the management server or Log Server. When log rate exceeds the management capacity or network bandwidth, logs are queued, delayed, or dropped — creating blind spots in security monitoring. Tracking log rate per gateway and comparing to Log Server capacity prevents log loss before it impacts compliance and incident detection.
+### Step 4 — - Operationalize
+Dashboard ("Check Point -- Log Rate & Capacity"):
+* Row 1 -- Single-value: "Current log rate (/min)", "Peak rate", "Log gaps detected".
+* Row 2 -- Log rate timechart.
+* Row 3 -- Log gap detection table.
 
-Documented **Data sources**: `sourcetype=cp_log` (system/management logs), log server statistics. **App/TA** (typical add-on context): `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Alert: Critical (log gap > 5 minutes): log forwarding failure, investigate immediately.
 
-The first pipeline stage scopes events using **index**: checkpoint; **sourcetype**: cp_log. That sourcetype matches what this use case lists under Data sources.
+### Step 5 — - Troubleshooting
 
-**Pipeline walkthrough**
+* **Log gaps** -- Check SIC connectivity between gateway and log server. Verify: `cpca_client lscert`. Check disk space on log server: `df -h /var/log`. Check fw buffer: `fw logswitch` may be needed.
 
-- Scopes the data: index=checkpoint, sourcetype="cp_log", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Discretizes time or numeric ranges with `bin`/`bucket`.
-- `stats` rolls up events into metrics; results are split **by _time, orig** so each row reflects one combination of those dimensions.
-- `eventstats` rolls up events into metrics; results are split **by orig** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where events_5m > baseline*3 OR events_5m < baseline*0.2` — typically the threshold or rule expression for this monitoring goal.
-- `eval` defines or adjusts **anomaly** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Pipeline stage (see **Check Point Log Rate and Capacity (Check Point)**): table _time, orig, events_5m, baseline, anomaly
+* **Sustained high log rate** -- Review noisy rules. Enable "Log Implied Rules" selectively. Consider: dedicated Log Server, log indexing optimization, or Enable Log Compression.
 
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
-
-### Step 3 — Validate
-Compare key fields and timestamps in SmartConsole, SmartView, or the gateway’s local view so Splunk and Check Point match for the same events.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (log rate per gateway), Single value (current aggregate rate), Table (anomalies), Bar chart (rate by gateway).
+* **Log server disk full** -- Implement log rotation: `fw logswitch`. Configure auto-purge in SmartConsole. Consider exporting old logs to external storage before purge.
 
 ## SPL
 

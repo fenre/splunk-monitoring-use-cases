@@ -21,7 +21,7 @@ Uses Cisco Meraki location services to track foot traffic patterns and heat maps
 
 ## Value
 
-Uses Cisco Meraki location services to track foot traffic patterns and heat maps in physical spaces.
+Network operations teams inventory wireless client device types across Meraki networks, identifying OS distribution, IoT device presence on corporate SSIDs, and BYOD policy violations for security segmentation.
 
 ## Implementation
 
@@ -30,42 +30,65 @@ Use Meraki location API to get AP-based location estimates. Map to floor/zone.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki:api location_data=*`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Meraki providing wireless client operating system and device type data. Data in `index=meraki` with `sourcetype=meraki:api:clients` or `sourcetype=meraki:events`. Key fields: `client_mac`, `os` (operating system), `manufacturer`, `deviceTypePrediction`, `ssid`, `ap_name`.
+- Understanding the wireless client population is essential for: (1) capacity planning (how many devices per AP), (2) RF optimization (IoT devices on 2.4 GHz, laptops on 5 GHz), (3) security (identifying rogue device types), (4) BYOD policy enforcement.
 
 ### Step 1 — Configure data collection
-Use Meraki location API to get AP-based location estimates. Map to floor/zone.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify client device data:
 ```spl
-index=cisco_network sourcetype="meraki:api" ap_name=*
-| stats count as foot_traffic by ap_name, floor
-| geom geo_from_metric lat, lon
+index=meraki (sourcetype="meraki:api:clients" OR sourcetype="meraki:events") earliest=-4h
+| where isnotnull(client_mac) AND (isnotnull(os) OR isnotnull(manufacturer))
+| stats dc(client_mac) as devices by os, manufacturer
+| sort -devices
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**WiFi Geolocation and Location Analytics (Meraki MR)** — Uses Cisco Meraki location services to track foot traffic patterns and heat maps in physical spaces.
+**Primary search — Client device type inventory:**
+```spl
+index=meraki (sourcetype="meraki:api:clients" OR sourcetype="meraki:events") earliest=-4h
+| where isnotnull(client_mac)
+| stats latest(os) as os latest(manufacturer) as manufacturer latest(ssid) as ssid latest(ap_name) as ap latest(rssi) as rssi by client_mac
+| eval device_category=case(match(os, "(?i)(windows|macos|mac.os|chromeos)"), "Computer", match(os, "(?i)(ios|iphone|ipad|android)"), "Mobile", match(os, "(?i)(printer|zebra|hp.jet)"), "Printer", match(manufacturer, "(?i)(nest|ring|ecobee|sonos|alexa|roku)"), "IoT/Smart Home", match(manufacturer, "(?i)(axis|hikvision|dahua|arlo)"), "Camera", 1==1, "Unknown/Other")
+| stats count as device_count by device_category, os, ssid
+| sort device_category, -device_count
+```
 
-Documented **Data sources**: `sourcetype=meraki:api location_data=*`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki:api. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by ap_name, floor** so each row reflects one combination of those dimensions.
-- Pipeline stage (see **WiFi Geolocation and Location Analytics (Meraki MR)**): geom geo_from_metric lat, lon
-
+**Device type per SSID (security check):**
+```spl
+index=meraki (sourcetype="meraki:api:clients" OR sourcetype="meraki:events") earliest=-4h
+| where isnotnull(client_mac)
+| stats latest(os) as os latest(manufacturer) as manufacturer latest(ssid) as ssid by client_mac
+| eval is_iot=if(match(manufacturer, "(?i)(nest|ring|ecobee|sonos|axis|hikvision|dahua|shelly|tuya|espressif)"), "IoT", "Non-IoT")
+| stats count(eval(is_iot="IoT")) as iot_devices count(eval(is_iot="Non-IoT")) as non_iot count as total by ssid
+| eval iot_pct=round(100*iot_devices/total, 1)
+| where iot_devices > 0 AND NOT match(ssid, "(?i)(iot|sensor|device)")
+| eval concern="IoT devices on non-IoT SSID — check VLAN segmentation"
+| sort -iot_pct
+```
 
 ### Step 3 — Validate
-Open the Cisco Meraki Dashboard (organization or network scope, under Monitor as appropriate) and compare AP, client, security, or flow totals to the search for the same window. Spot-check a few device names, SSIDs, or MAC addresses against what you see live.
+(a) Connect a known device and verify its OS/manufacturer appears correctly in Splunk.
+(b) Compare device counts by OS with Meraki Dashboard: Network-wide > Clients > OS.
+(c) Identify IoT devices on the corporate SSID that should be on a dedicated IoT SSID.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heat map by physical location; AP heat map overlay; zone traffic comparison.
+Dashboard ("Meraki — Client Device Inventory"):
+- Row 1 — Single-value: "Total devices", "Computers", "Mobile", "IoT devices", "Unknown".
+- Row 2 — Device type breakdown by SSID.
+- Row 3 — IoT devices on non-IoT SSIDs (security concern).
+
+Alerting:
+- Warning (IoT devices > 5 on corporate SSID): VLAN segmentation issue.
+- Info (monthly): device type inventory report for capacity planning.
+
+### Step 5 — Troubleshooting
+
+- **Many "Unknown" devices** — Devices with MAC address randomization (iOS 14+, Android 10+) appear as unknown. This is increasingly common. Consider using Meraki's RADIUS-based fingerprinting or 802.1X certificates for accurate identification.
+
+- **IoT devices on corporate SSID** — These devices should be on a dedicated IoT SSID with restricted network access. Create a separate SSID with appropriate VLAN and firewall rules.
+
+- **Device count higher than employee count** — Normal: most users have 2-3 devices (laptop, phone, tablet). Factor this into capacity planning.
 
 ## SPL
 

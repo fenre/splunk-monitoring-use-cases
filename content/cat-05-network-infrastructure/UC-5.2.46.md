@@ -21,7 +21,7 @@ FortiGate UTM combines web filtering (FortiGuard URL categories), DNS filtering,
 
 ## Value
 
-FortiGate UTM combines web filtering (FortiGuard URL categories), DNS filtering, and application control in one policy pass. Reviewing blocked categories, high-risk apps, and allow/deny ratios shows policy drift, shadow IT, and risky user behavior without full packet capture. It also helps justify license spend and tune noisy categories that generate help-desk load.
+Security teams analyze FortiGate web filter and application control events by risk level, detecting malware access, policy violations, and evasion attempts through proxy/anonymizer usage.
 
 ## Implementation
 
@@ -30,72 +30,94 @@ Enable UTM logging on policies using web filter and application control; send UT
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `TA-fortinet_fortigate` (Splunkbase 2846).
-- Ensure the following data sources are available: `sourcetype=fgt_utm`, `sourcetype=fortinet_fortios_utm`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* FortiGate UTM web filter and application control logs. Data in `index=fortinet` or `index=firewall` with `sourcetype=fgt_utm` or `sourcetype=fgt_log`. Key fields: `catdesc` (URL category), `hostname`, `url`, `action` (blocked/allowed/monitored), `appcat` (application category), `app` (application name), `profile`, `policyid`.
+* FortiGate UTM: combines web filtering (FortiGuard URL categories, custom categories, DNS filtering), application control (deep packet inspection), and SSL inspection in a single policy. Categories defined in `config webfilter profile` and `config application list`.
 
-### Step 1 — Configure data collection
-Enable UTM logging on policies using web filter and application control; send UTM logs to a dedicated index if volume is high. Use the Fortinet TA for parsing. Build dashboards for top blocked categories and applications; alert on blocks for sensitive groups (executives, servers) or sudden spikes in `proxy`/`vpn` application blocks. Periodically review `act=blocked` outliers to refine explicit allow rules and DNS filter lists.
+### Step 1 — - Configure data collection
+```
+# FortiGate CLI -- enable UTM logging
+config webfilter profile
+    edit "default"
+        config ftgd-wf
+            config filters
+                edit 1
+                    set category 2    # Adult
+                    set action block
+                next
+                edit 2
+                    set category 7    # Malware
+                    set action block
+                next
+            end
+        end
+        set log-all-url enable
+    next
+end
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+config application list
+    edit "default"
+        set other-application-action pass
+        set other-application-log enable
+        config entries
+            edit 1
+                set category 5    # P2P
+                set action block
+            next
+        end
+    next
+end
+```
+Verify:
 ```spl
-index=firewall sourcetype IN ("fgt_utm","fortinet_fortios_utm")
-| eval cat=coalesce(catdesc, category, urlfilter_cat, web_cat)
-| eval app_name=coalesce(app, appname, applist, app_cat)
-| eval act=lower(coalesce(action, utm_action))
-| eval device=coalesce(devname, dvc, host)
-| stats count by device act cat app_name hostname src
-| sort -count
+index=fortinet sourcetype="fgt_utm" earliest=-4h
+| stats count by catdesc, action, app
+| sort -count | head 20
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**FortiGate Web Filter and Application Control Events (Fortinet)** — FortiGate UTM combines web filtering (FortiGuard URL categories), DNS filtering, and application control in one policy pass. Reviewing blocked categories, high-risk apps, and allow/deny ratios shows policy drift, shadow IT, and risky user behavior without full packet capture. It also helps justify license spend and tune noisy categories that generate help-desk load.
-
-Documented **Data sources**: `sourcetype=fgt_utm`, `sourcetype=fortinet_fortios_utm`. **App/TA** (typical add-on context): `TA-fortinet_fortigate` (Splunkbase 2846). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: firewall.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=firewall. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `eval` defines or adjusts **cat** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `eval` defines or adjusts **app_name** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `eval` defines or adjusts **act** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `eval` defines or adjusts **device** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `stats` rolls up events into metrics; results are split **by device act cat app_name hostname src** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Web filter and application control events:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Web.Web
-  by Web.status Web.url Web.http_method Web.dest span=1h
-| sort -count
+index=fortinet sourcetype="fgt_utm" earliest=-4h
+| eval url_category=coalesce(catdesc, cat, category)
+| eval application=coalesce(app, appcat, application)
+| eval act=lower(coalesce(action, utmaction))
+| eval hostname=coalesce(hostname, dstname)
+| eval user=coalesce(user, srcuser, unauthuser)
+| eval src=coalesce(srcip, src_ip, src)
+| eval risk_level=case(
+    match(url_category, "(?i)malware|phishing|botnet|command.and.control"), "CRITICAL -- threat category",
+    match(url_category, "(?i)proxy|vpn|anonymizer"), "HIGH -- evasion attempt",
+    match(act, "(?i)block") AND match(url_category, "(?i)adult|gambling|weapons"), "MEDIUM -- policy violation",
+    match(application, "(?i)tor|bitTorrent|p2p"), "HIGH -- high-risk application",
+    match(act, "(?i)block"), "INFO -- blocked",
+    1==1, "LOW")
+| where risk_level != "LOW"
+| stats count as events dc(src) as unique_users values(user) as users values(hostname) as sites by risk_level, url_category, application, act
+| sort risk_level, -events
 ```
 
-Understanding this CIM / accelerated SPL
+### Step 3 — - Validate
+(a) CLI: `diagnose wad stats` -- check web filter processing statistics.
+(b) CLI: `diagnose application list` -- verify application signatures are current.
+(c) Test: attempt to access a blocked category and verify block page appears.
 
-This block uses `tstats` on the Web data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 4 — - Operationalize
+Dashboard ("FortiGate -- UTM Web Filter & App Control"):
+* Row 1 -- Single-value: "Threat blocks", "Policy violations", "Evasion attempts".
+* Row 2 -- Category block distribution.
+* Row 3 -- Top blocked users and sites.
 
-**Pipeline walkthrough**
+Alert: Critical (malware/phishing/C2 category access): SOC investigation.
+High (anonymizer/proxy/Tor usage): potential policy evasion.
 
-- Uses `tstats` against accelerated summaries for the Web model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+### Step 5 — - Troubleshooting
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+* **Web filter not blocking HTTPS** -- SSL deep inspection must be enabled. Verify: `config firewall ssl-ssh-profile`. Without inspection, only SNI-based filtering works (category detection is limited).
 
+* **Application misidentified** -- FortiGuard application DB may need update: `exec update-now`. Custom application signatures can override default classification.
 
-
-### Step 3 — Validate
-Reconcile a sample of results with the FortiGate GUI or FortiManager for the same policies, objects, and time range.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (top categories), Table (user/src, app, action), Pie chart (block vs allow ratio).
+* **User not identified in logs** -- Enable FSSO (Fortinet Single Sign-On) or explicit proxy authentication. Without user identification, logs show only source IP.
 
 ## SPL
 

@@ -21,7 +21,7 @@ Application-aware routing and queuing are core to SD-WAN value. Monitoring which
 
 ## Value
 
-Application-aware routing and queuing are core to SD-WAN value. Monitoring which path each app uses, when drops occur in a class of service, and when steering decisions change frequently exposes misconfiguration, license limits, and congestion on steered traffic that affects voice, video, and business apps.
+Network operations teams validate Citrix SD-WAN application-aware routing and QoS enforcement, detecting missteered traffic and dropped packets in real-time quality-of-service classes.
 
 ## Implementation
 
@@ -29,7 +29,60 @@ Import application-to-QoS mapping from the orchestrator. Track drops and deep qu
 
 ## Detailed Implementation
 
-Prerequisites: Per-app routing and QoS with stable app key; reference table of primary path and expected qos_class. Step 1: Configure data collection — If very chatty, pre-aggregate on the forwarder; props [citrix:sdwan:app_route] and [citrix:sdwan:qos] with FIELDALIAS for app_name, path_selected, qos_class, and drops. Step 2: Create the search and alert — First alert on rising drops in the voice or call-control class; add a path drift report using streamstats on path_selected outside approved change windows; start with total_drops>0 and tune. Step 3: Validate — During maintenance on a reference site, compare Splunk to SD-WAN UI: `index=sdwan (sourcetype="citrix:sdwan:app_route" OR sourcetype="citrix:sdwan:qos") earliest=-1h | stats values(path_selected), sum(drops) by app, site_id`. Step 4: Operationalize — Feed steering review and carrier disputes; if drops persist post-tuning, escalate to Citrix SD-WAN and WAN architecture teams.
+### Prerequisites
+* Citrix SD-WAN syslog or Orchestrator API data. Key fields: `application`, `steering_policy`, `actual_path`, `expected_path`, `qos_class`, `bandwidth_used`, `bandwidth_limit`, `drop_count`.
+* Citrix SD-WAN application steering: routes traffic based on application type (Office 365, Zoom, SAP, web browsing) to the optimal WAN link. QoS classes: Realtime (voice/video), Interactive (business apps), Bulk (backups, updates), Best Effort (web browsing).
+
+### Step 1 — - Configure data collection
+Verify application steering data:
+```spl
+index=netscaler (sourcetype="citrix:sdwan:syslog" OR sourcetype="citrix:sdwan:perf") earliest=-4h
+| where isnotnull(application) OR isnotnull(qos_class)
+| stats count by application, qos_class
+```
+
+### Step 2 — - Create the search and alert
+
+**Primary search -- Application steering and QoS enforcement:**
+```spl
+index=netscaler (sourcetype="citrix:sdwan:syslog" OR sourcetype="citrix:sdwan:perf") earliest=-4h
+| eval app=coalesce(application, app_name)
+| eval policy=coalesce(steering_policy, routing_policy)
+| eval actual=coalesce(actual_path, path_used)
+| eval expected=coalesce(expected_path, preferred_path)
+| eval qos=coalesce(qos_class, traffic_class)
+| eval bw_used=coalesce(bandwidth_used, bytes_sent)
+| eval drops=coalesce(drop_count, dropped_packets, 0)
+| stats sum(bw_used) as total_bandwidth sum(drops) as total_drops dc(actual) as paths_used by app, qos, policy
+| eval steering_ok=if(paths_used=1, "CONSISTENT", "MULTI_PATH -- traffic split")
+| eval drop_concern=if(total_drops > 0, "DROPS -- QoS enforcement dropping packets", "No drops")
+| where total_drops > 0 OR steering_ok="MULTI_PATH"
+| eval severity=case(qos="Realtime" AND total_drops > 0, "HIGH -- voice/video packets dropped", total_drops > 100, "WARNING -- significant drops", 1==1, "INFO")
+| sort severity, -total_drops
+```
+
+### Step 3 — - Validate
+(a) Start a Zoom call and verify it's classified as "Realtime" and steered to the preferred path.
+(b) Compare with Citrix SD-WAN Orchestrator: Monitor > Applications.
+(c) Check QoS class distribution matches expected policy.
+
+### Step 4 — - Operationalize
+Dashboard ("Citrix SD-WAN -- Application Steering"):
+* Row 1 -- Single-value: "Applications tracked", "QoS drops", "Realtime drops", "Multi-path apps".
+* Row 2 -- Application steering analysis.
+* Row 3 -- Bandwidth by QoS class pie chart.
+
+Alerting:
+* High (Realtime class drops > 0): voice/video quality impacted by QoS enforcement.
+* Warning (significant drops in any class): bandwidth contention.
+
+### Step 5 — - Troubleshooting
+
+* **Realtime traffic being dropped** -- Not enough bandwidth allocated to Realtime class. Check QoS bandwidth allocation in Orchestrator: Configuration > QoS.
+
+* **Application misclassified** -- Citrix SD-WAN uses DPI for classification. If an application is in the wrong class, create a custom application rule in Orchestrator.
+
+* **Traffic not following expected path** -- If the preferred path has poor quality, SD-WAN will steer to an alternate path. Check path health (UC-5.3.38).
 
 ## SPL
 

@@ -21,7 +21,7 @@ Unexpected reboots indicate hardware failure or unauthorized reload.
 
 ## Value
 
-Unexpected reboots indicate hardware failure or unauthorized reload.
+Operations teams track network device uptime, reload events, and crash history to identify unstable devices requiring firmware upgrades, hardware replacement, or power infrastructure improvements.
 
 ## Implementation
 
@@ -30,41 +30,72 @@ Poll SNMP sysUpTime. Forward syslog reload messages. Alert when uptime drops. Cr
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: SNMP sysUpTime, `sourcetype=cisco:ios`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Device uptime and reload syslog messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%SYS-5-RESTART`, `%SYS-5-RELOAD`; SNMP `sysUpTime` OID (.1.3.6.1.2.1.1.3.0).
+* Unexpected reloads indicate hardware failure, software crash, power loss, or manual intervention. Tracking reload frequency and uptime trends helps identify unstable devices requiring RMA or firmware upgrade.
 
-### Step 1 — Configure data collection
-Poll SNMP sysUpTime. Forward syslog reload messages. Alert when uptime drops. Cross-reference with maintenance windows.
+### Step 1 — - Configure data collection
+```
+# SNMP polling for sysUpTime
+[snmp_uptime]
+interval = 300
+sourcetype = snmp:uptime
+index = network
+# OID: sysUpTime (.1.3.6.1.2.1.1.3.0) -- hundredths of a second
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Syslog captures reload events automatically
+```
+Verify:
 ```spl
-index=network sourcetype="cisco:ios" "%SYS-5-RESTART" OR "%SYS-5-RELOAD"
-| table _time host _raw | sort -_time
+index=network earliest=-30d
+| where match(_raw, "(?i)RESTART|RELOAD|reboot|uptime|System returned|warm.?start|cold.?start")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Device Uptime / Reload Tracking** — Unexpected reboots indicate hardware failure or unauthorized reload.
+**Primary search -- Device reload event tracking:**
+```spl
+index=network earliest=-30d
+| where match(_raw, "(?i)RESTART|RELOAD|reboot|System returned|warm.?start|cold.?start|reason.*reload|crashinfo")
+| eval device=coalesce(host, device_name)
+| eval reload_type=case(
+    match(_raw, "(?i)crash|exception|watchdog|assert"), "CRASH",
+    match(_raw, "(?i)power.*cycle|power.*fail|power.*loss"), "POWER_LOSS",
+    match(_raw, "(?i)manual|admin|reload.*command"), "MANUAL",
+    match(_raw, "(?i)upgrade|firmware|image"), "UPGRADE",
+    1==1, "UNKNOWN")
+| rex field=_raw "(?i)(?:reason|Reason).*?[:\s]+(?<reload_reason>[^,\n]+)"
+| stats count as reloads count(eval(reload_type="CRASH")) as crashes count(eval(reload_type="POWER_LOSS")) as power_events latest(_time) as last_reload latest(reload_type) as last_type by device
+| eval severity=case(
+    crashes > 0, "CRITICAL -- software crash detected",
+    reloads > 3, "WARNING -- frequent reloads (".reloads." in 30d)",
+    power_events > 0, "WARNING -- power loss event",
+    1==1, "INFO")
+| where severity != "INFO"
+| eval last_reload_time=strftime(last_reload, "%Y-%m-%d %H:%M:%S")
+| sort severity, -reloads
+```
 
-Documented **Data sources**: SNMP sysUpTime, `sourcetype=cisco:ios`. **App/TA** (typical add-on context): SNMP, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show version | include uptime` -- verify current uptime.
+(b) CLI: `show reload cause` (Cisco) -- check last reload reason.
+(c) CLI: `dir crashinfo:` -- check for crash dumps requiring TAC analysis.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- Device Uptime & Reloads"):
+* Row 1 -- Single-value: "Reloads (30d)", "Crashes", "Devices < 24h uptime".
+* Row 2 -- Reload event timeline.
+* Row 3 -- Device uptime ranking.
 
-**Pipeline walkthrough**
+Alert: Critical (crash/exception): collect crashinfo, open TAC case.
 
-- Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Pipeline stage (see **Device Uptime / Reload Tracking**): table _time host _raw
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **Software crash** -- Collect `show tech-support` and `crashinfo` file. Check bug database for known issues with current firmware version. Consider upgrade to fixed release.
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Power loss events** -- Check UPS, redundant power supplies, and facility power. CLI: `show environment power` to verify PSU status.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (device, uptime), Timeline, Single value (unexpected reboots).
+* **Frequent reloads on single device** -- May indicate failing hardware (memory DIMM, supervisor). Run diagnostics: `diagnostic start module <x> test all`.
 
 ## SPL
 

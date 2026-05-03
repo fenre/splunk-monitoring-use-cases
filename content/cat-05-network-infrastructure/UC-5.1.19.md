@@ -21,7 +21,7 @@ PoE budget exhaustion causes powered devices (IP phones, APs, cameras) to lose p
 
 ## Value
 
-PoE budget exhaustion causes powered devices (IP phones, APs, cameras) to lose power. Proactive monitoring prevents unplanned device outages.
+Operations teams monitor PoE power budget utilization across switches, preventing power denial to IP phones, wireless APs, and cameras when budget capacity is exhausted.
 
 ## Implementation
 
@@ -30,45 +30,72 @@ Poll POWER-ETHERNET-MIB every 300s. Track per-switch PoE budget utilization. Ale
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP Modular Input, POWER-ETHERNET-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=snmp:poe`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* PoE power budget data from SNMP or syslog. Data in `index=network` with SNMP data or syslog. Key SNMP OIDs: pethMainPseConsumptionPower (.1.3.6.1.2.1.105.1.3.1.1.4), pethMainPseOperStatus. Key syslog: Cisco `%ILPOWER-5-POWER_GRANTED`, `%ILPOWER-3-CONTROLLER_ERR`.
+* PoE budget: each switch has a finite power budget (total watts) shared across all PoE ports. When budget is exceeded, lower-priority devices are denied power. Monitoring budget utilization prevents IP phones, APs, and cameras from losing power.
 
-### Step 1 — Configure data collection
-Poll POWER-ETHERNET-MIB every 300s. Track per-switch PoE budget utilization. Alert at 80% utilization. Trend over time to plan for additional PoE capacity.
+### Step 1 — - Configure data collection
+```
+# SNMP polling for PoE data
+[snmp_poe]
+interval = 300
+sourcetype = snmp:poe
+index = network
+# OIDs: pethMainPseConsumptionPower, pethMainPseUsageThreshold
+# Cisco-specific: cpeExtPdStatsEntry
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Cisco syslog: PoE events are logged automatically
+```
+Verify:
 ```spl
-index=network sourcetype="snmp:poe"
-| stats latest(pethMainPseOperStatus) as status, latest(pethMainPsePower) as total_watts, latest(pethMainPseConsumptionPower) as used_watts by host
-| eval utilization_pct=round(used_watts/total_watts*100,1)
-| where utilization_pct > 80 | sort -utilization_pct
+index=network earliest=-24h
+| where match(_raw, "(?i)ILPOWER|PoE|power.*inline|power.*granted|power.*denied|power.*budget")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**PoE Power Budget Monitoring** — PoE budget exhaustion causes powered devices (IP phones, APs, cameras) to lose power. Proactive monitoring prevents unplanned device outages.
+**Primary search -- PoE power budget monitoring:**
+```spl
+index=network earliest=-4h
+| eval poe_consumed=tonumber(coalesce(pethMainPseConsumptionPower, poe_watts_used, power_consumed))
+| eval poe_available=tonumber(coalesce(poe_watts_available, power_available))
+| eval poe_budget=tonumber(coalesce(poe_watts_budget, power_budget))
+| eval device=coalesce(host, device_name)
+| where isnotnull(poe_consumed) OR match(_raw, "(?i)ILPOWER|power.*denied|power.*budget")
+| eval budget_total=coalesce(poe_budget, poe_consumed + poe_available)
+| eval budget_pct=if(budget_total > 0, round(100*poe_consumed/budget_total, 1), null())
+| eval power_denied=if(match(_raw, "(?i)power.*denied|ILPOWER.*DENIED"), 1, 0)
+| bin _time span=5m
+| stats latest(poe_consumed) as watts_used latest(budget_total) as watts_budget latest(budget_pct) as budget_pct sum(power_denied) as denials by _time, device
+| eval severity=case(
+    denials > 0, "CRITICAL -- PoE power denied to device(s)",
+    budget_pct > 90, "WARNING -- PoE budget near capacity (".budget_pct."%)",
+    budget_pct > 80, "INFO -- PoE budget utilization elevated",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, device, watts_used, watts_budget, budget_pct, denials, severity
+| sort severity, -budget_pct
+```
 
-Documented **Data sources**: `sourcetype=snmp:poe`. **App/TA** (typical add-on context): SNMP Modular Input, POWER-ETHERNET-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show power inline` -- check per-port PoE consumption and total budget.
+(b) CLI: `show power inline module <x>` -- per-module power summary.
+(c) Verify priority settings: `power inline port priority high` on critical devices.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:poe. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- PoE Budget"):
+* Row 1 -- Single-value: "Switches > 80% PoE", "Power denied events", "Total watts consumed".
+* Row 2 -- PoE budget utilization timechart.
 
-**Pipeline walkthrough**
+Alert: Critical (PoE power denied): device(s) without power, investigate.
 
-- Scopes the data: index=network, sourcetype="snmp:poe". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **utilization_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where utilization_pct > 80` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **Power denied** -- Budget exceeded. Options: (1) set PoE priority on critical devices (phones, APs), (2) add PoE power supply module (if available), (3) move devices to switch with available budget, (4) use PoE injectors for high-power devices.
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Unexpected high consumption** -- Check `show power inline` for devices consuming more than expected. Faulty PD (Powered Device) can draw excessive current.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (per switch), Line chart (utilization trending), Table (switch, budget, used, remaining).
+* **PoE budget planning** -- Calculate: total device power requirements vs switch PoE budget. Reserve headroom for powered device peak draw. Consider 802.3bt (60W/90W) requirements.
 
 ## SPL
 

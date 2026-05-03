@@ -3,90 +3,124 @@
 ---
 id: "5.9.30"
 title: "SASE Secure Edge Performance"
+status: "verified"
 criticality: "high"
 splunkPillar: "Observability"
 ---
 
 # UC-5.9.30 · SASE Secure Edge Performance
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
-*We look at the secure access edge from the user’s point of view, so SASE hiccups do not look like a mystery app slowness.*
+*We measure how fast the company's security gateway in the cloud processes our internet traffic, because when everything online feels slow, we need to know if it's the security checkpoint causing the delay or something else.*
 
 ---
 
 ## Description
 
-SASE architectures route traffic through cloud-based security edges (Zscaler, Cisco Umbrella, etc.). Monitoring latency and loss through these edges ensures the security layer does not unacceptably degrade user experience.
+Monitors the performance of SASE Secure Service Edge (SSE) / Secure Web Gateway (SWG) infrastructure from two perspectives: Endpoint Agents measure the user-to-proxy hop (local network to SASE PoP), and Enterprise Agent HTTP tests measure end-to-end performance through the SASE edge to backend applications. Together, these views isolate whether slowness is in the last mile to the proxy or in the proxy's processing and onward delivery.
 
 ## Value
 
-SASE architectures route traffic through cloud-based security edges (Zscaler, Cisco Umbrella, etc.). Monitoring latency and loss through these edges ensures the security layer does not unacceptably degrade user experience.
+SASE architectures route ALL web and SaaS traffic through a cloud-delivered security stack. When that stack degrades, it affects every application for every user — making SASE performance the single most impactful infrastructure metric in a SASE-first organization. Yet SASE vendors provide limited visibility into their own processing latency. ThousandEyes bridges this gap: the Endpoint Agent measures the network path TO the proxy, and the HTTP Server test measures the total trip THROUGH the proxy to the application. If the proxy hop is fast but the end-to-end test is slow, the SASE vendor's processing is the bottleneck. If the proxy hop is slow, the issue is between the user and the SASE PoP (ISP routing, DNS resolution to the wrong PoP). This data is essential for SASE vendor SLA enforcement and PoP selection optimization.
 
 ## Implementation
 
-Create Agent-to-Server tests in ThousandEyes that route through your SASE secure edge. Name tests descriptively to include the SASE provider. Compare latency with and without the secure edge to quantify the security overhead. Correlate with Endpoint Agent `target.type="proxy"` data for end-to-end visibility.
+Combines Endpoint Agent proxy hop data with Enterprise Agent HTTP Server test data. Endpoint Agent data requires Endpoint Agents deployed on user devices. HTTP Server tests should be configured to access target applications THROUGH the SASE proxy.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco ThousandEyes App for Splunk` (Splunkbase 7719).
-- Ensure the following data sources are available: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- All prerequisites from UC-5.9.24 apply (Endpoint Agents deployed).
+- All common prerequisites from UC-5.9.1 apply (for Enterprise Agent tests).
+- **SASE/SSE infrastructure in use.** Users' web traffic must route through a cloud proxy (Zscaler, Cisco Umbrella SIG, Netskope, Palo Alto Prisma Access, etc.).
+- **HTTP Server tests configured through SASE.** Create Agent-to-Server tests from Enterprise Agents that route through the SASE proxy to key applications.
 
 ### Step 1 — Configure data collection
-Create Agent-to-Server tests in ThousandEyes that route through your SASE secure edge. Name tests descriptively to include the SASE provider. Compare latency with and without the secure edge to quantify the security overhead. Correlate with Endpoint Agent `target.type="proxy"` data for end-to-end visibility.
+Endpoint Agent proxy data: flows automatically when Endpoint Agents detect a proxy in the network path.
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify proxy data:
 ```spl
-`stream_index` thousandeyes.test.type="agent-to-server"
-| search thousandeyes.test.name="*SASE*" OR thousandeyes.test.name="*Zscaler*" OR thousandeyes.test.name="*Umbrella*"
-| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss by thousandeyes.test.name, thousandeyes.source.agent.name
-| eval avg_latency_ms=round(avg_latency_s*1000,1)
-| sort -avg_latency_ms
+index=thousandeyes_metrics thousandeyes.test.domain="endpoint" target.type="proxy" earliest=-24h
+| stats dc(thousandeyes.source.agent.name) as endpoints count by server.address
+| sort -endpoints
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search
+**Endpoint perspective (user-to-proxy hop):**
+```spl
+`stream_index` thousandeyes.test.domain="endpoint" target.type="proxy"
+| stats avg(network.latency) as avg_latency avg(network.loss) as avg_loss avg(network.score) as avg_score dc(thousandeyes.source.agent.name) as users by server.address
+| eval avg_latency_ms=round(avg_latency*1000,1)
+| sort avg_score
+```
 
-**SASE Secure Edge Performance** — SASE architectures route traffic through cloud-based security edges (Zscaler, Cisco Umbrella, etc.). Monitoring latency and loss through these edges ensures the security layer does not unacceptably degrade user experience.
+**End-to-end through SASE** (Enterprise Agent HTTP tests):
+```spl
+`stream_index` thousandeyes.test.type="http-server" thousandeyes.test.name="*SASE*" OR thousandeyes.test.name="*proxy*"
+| stats avg(http.client.request.duration) as avg_ttfb avg(http.server.request.availability) as avg_avail by thousandeyes.test.name, server.address
+| eval avg_ttfb_ms=round(avg_ttfb*1000,1)
+| sort -avg_ttfb_ms
+```
 
-Documented **Data sources**: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics. **App/TA** (typical add-on context): `Cisco ThousandEyes App for Splunk` (Splunkbase 7719). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+**SASE processing latency estimate:**
+```spl
+`stream_index` thousandeyes.test.domain="endpoint" target.type="proxy" earliest=-4h
+| stats avg(network.latency) as proxy_hop_latency by thousandeyes.source.agent.name
+| eval proxy_hop_ms=round(proxy_hop_latency*1000,1)
+| stats avg(proxy_hop_ms) as avg_proxy_hop_ms
+| append [
+  search `stream_index` thousandeyes.test.type="http-server" thousandeyes.test.name="*SASE*" earliest=-4h
+  | stats avg(http.client.request.duration) as avg_e2e_s
+  | eval avg_e2e_ms=round(avg_e2e_s*1000,1)
+]
+```
+Compare `avg_proxy_hop_ms` with `avg_e2e_ms`. The difference includes SASE processing + server response time.
 
-**Pipeline walkthrough**
-
-- Invokes macro `stream_index` — in Search, use the UI or expand to inspect the underlying SPL.
-- Applies an explicit `search` filter to narrow the current result set.
-- `stats` rolls up events into metrics; results are split **by thousandeyes.test.name, thousandeyes.source.agent.name** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **avg_latency_ms** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+**Scheduling:** cron `*/15 * * * *`, time range `-30m to now`.
 
 ### Step 3 — Validate
-Compare the same tests and time window in the Cisco ThousandEyes App for Splunk dashboard or the test view at app.thousandeyes.com so Splunk’s metrics and states match the vendor. If they disagree, check streaming or HEC inputs, macros, and API or token health before retuning.
+(a) Verify proxy `server.address` values match your known SASE PoP IPs.
+(b) Check that HTTP Server tests are actually routing through the SASE proxy (verify via path visualization or HTTP headers in the test results).
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (latency through secure edge over time), Table (agent, SASE test, latency, loss), Comparison chart.
+**Dashboard** ("SASE Performance"):
+- Proxy hop scoreboard: per-PoP, per-user.
+- End-to-end performance through SASE.
+- SASE processing latency estimate.
+
+**Runbook** (owner: network security / SASE team):
+1. High proxy hop latency → ISP peering issue to SASE PoP. Contact SASE vendor about PoP selection. Consider forcing users to a different PoP.
+2. Low proxy hop latency but high end-to-end latency → SASE processing overhead. Check SASE vendor status page. Review TLS inspection policy (selective inspection reduces overhead).
+3. Proxy loss > 0.5% → SASE PoP may be overloaded. Contact SASE vendor.
+
+### Step 5 — Troubleshooting
+- **No `target.type="proxy"` data** — Users may not be configured with a proxy, or the Endpoint Agent can't detect the proxy. Check system proxy settings (PAC file, WPAD, manual proxy).
+- **Proxy data shows only one server.address** — All users may be routed to the same SASE PoP. This is normal for single-region deployments.
+- See UC-5.9.24 Step 5 for general endpoint troubleshooting.
 
 ## SPL
 
 ```spl
-`stream_index` thousandeyes.test.type="agent-to-server"
-| search thousandeyes.test.name="*SASE*" OR thousandeyes.test.name="*Zscaler*" OR thousandeyes.test.name="*Umbrella*"
-| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss by thousandeyes.test.name, thousandeyes.source.agent.name
-| eval avg_latency_ms=round(avg_latency_s*1000,1)
-| sort -avg_latency_ms
+`stream_index` thousandeyes.test.domain="endpoint" target.type="proxy"
+| stats avg(network.latency) as avg_latency avg(network.loss) as avg_loss avg(network.score) as avg_score dc(thousandeyes.source.agent.name) as users by server.address
+| eval avg_latency_ms=round(avg_latency*1000,1)
+| sort avg_score
 ```
 
 ## Visualization
 
-Line chart (latency through secure edge over time), Table (agent, SASE test, latency, loss), Comparison chart.
+(1) Table: SASE proxy addresses sorted by score. (2) Timechart: proxy latency trending. (3) Comparison: user-to-proxy latency vs end-to-end application latency. (4) Distribution: user count per SASE PoP.
 
 ## Known False Positives
 
-SASE edge numbers move with local PoP load, last-mile, and which agent hits which cloud enforcement stack.
+**Proxy bypass traffic.** Traffic that bypasses the SASE proxy (split-tunnel VPN direct access, proxy PAC exceptions) won't appear in `target.type="proxy"` data. This is expected — only proxied traffic is measured.
+
+**SASE PoP selection changes.** Users may be routed to different SASE PoPs over time based on DNS resolution, Anycast routing, or SASE vendor load balancing. The `server.address` may change, making trend analysis per-PoP difficult. Group by SASE vendor name rather than individual PoP IPs.
+
+**TLS inspection overhead.** SASE proxies performing TLS inspection add processing latency that increases with page complexity (more TLS connections = more inspection). This is expected behavior, not a bug — but it can be significant (20–100+ ms per request).
 
 ## References
 
-- [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+- [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
+- [ThousandEyes SASE monitoring](https://www.thousandeyes.com/solutions/sase)

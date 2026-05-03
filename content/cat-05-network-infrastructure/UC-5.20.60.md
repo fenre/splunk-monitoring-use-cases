@@ -1,0 +1,158 @@
+<!-- AUTO-GENERATED from UC-5.20.60.json — DO NOT EDIT -->
+
+---
+id: "5.20.60"
+title: "IPv6 Segment Routing (SRv6) SID Validation and Policy Health"
+status: "verified"
+criticality: "high"
+splunkPillar: "ITSI"
+---
+
+# UC-5.20.60 · IPv6 Segment Routing (SRv6) SID Validation and Policy Health
+
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
+
+*SRv6 is like GPS navigation for network packets — each packet carries a list of turn-by-turn directions embedded in its address. We watch for directions that lead nowhere (invalid turns), navigation routes that go offline (GPS path unavailable), and route recalculations. If the GPS system fails, packets get lost and services break.*
+
+---
+
+## Description
+
+Monitors SRv6 (Segment Routing over IPv6) infrastructure health including SID validation, SR policy state, locator reachability, and segment list integrity. SRv6 is the modern replacement for MPLS in service provider and data center networks — it uses IPv6 addresses as segment identifiers to program traffic paths. SRv6 failures cause traffic engineering paths to break, VPN services to fail, and traffic to take suboptimal paths or be black-holed.
+
+## Value
+
+SRv6 is increasingly deployed in tier-1 service providers and large enterprises as the next-generation transport technology replacing MPLS. It carries L3VPN (VPNv4/VPNv6), EVPN, and traffic-engineered paths. A SID validation failure or SR policy going down can impact thousands of customer VPN services simultaneously. Monitoring SRv6 health is critical for service assurance in modern networks that have migrated from MPLS to SRv6.
+
+## Implementation
+
+Collect SRv6 syslog events from all PE and P routers. Track SID validation status, SR policy state, and locator reachability. Alert on SID failures, policy down events, and locator unreachability.
+
+## Detailed Implementation
+
+### Prerequisites
+- SRv6 deployed with locators, SIDs, and SR policies configured.
+- Syslog forwarding from all SRv6-capable routers at severity 5+.
+- Understanding of the SRv6 topology, locators, and service policies.
+
+### Step 1 — Configure data collection
+
+**Cisco IOS-XR — SRv6 event logging:**
+```
+segment-routing
+ srv6
+  locators
+   locator MAIN
+    prefix 2001:db8:cafe::/48
+  logging policy status
+  logging sid status
+```
+
+**Key syslog messages:**
+```
+%SRV6-5-SID_INSTALLED: SID 2001:db8:cafe::1 installed (function: End)
+%SRV6-3-SID_VALIDATION_FAILED: SID 2001:db8:bad::1 validation failed (locator not found)
+%SR_POLICY-5-STATE_CHANGE: SR Policy color 100 endpoint 2001:db8::PE2 state changed to DOWN
+%SRV6-4-LOCATOR_UNREACHABLE: Locator MAIN (2001:db8:cafe::/48) unreachable via ISIS
+```
+
+**Verification:**
+```spl
+index=network (sourcetype="cisco:ios" OR sourcetype="cisco:xr") ("%SRV6" OR "%SR_POLICY") earliest=-7d
+| stats count by host
+```
+
+### Step 2 — Create the search and alert
+
+**SR policy down alert:**
+```spl
+index=network (sourcetype="cisco:ios" OR sourcetype="cisco:xr") "%SR_POLICY" "DOWN" earliest=-1h
+| rex field=_raw "color\s+(?<color>\d+).*endpoint\s+(?<endpoint>[0-9a-fA-F:.]+)"
+| eval alert="SR Policy DOWN: color=" . color . " endpoint=" . endpoint . " on " . host
+| table _time, host, color, endpoint, alert
+```
+
+**SID validation failure alert (CRITICAL):**
+```spl
+index=network (sourcetype="cisco:ios" OR sourcetype="cisco:xr") "%SRV6" "VALIDATION" "FAIL" earliest=-1h
+| rex field=_raw "SID\s+(?<failed_sid>[0-9a-fA-F:.]+)"
+| eval alert="SRv6 SID validation failure: " . failed_sid . " on " . host . " — check locator configuration"
+| table _time, host, failed_sid, alert
+```
+
+**Locator reachability monitoring:**
+```spl
+index=network (sourcetype="cisco:ios" OR sourcetype="cisco:xr") "%SRV6" "LOCATOR" "UNREACHABLE" earliest=-1h
+| rex field=_raw "Locator\s+(?<locator>\S+).*(?<prefix>[0-9a-fA-F:/]+)"
+| eval alert="SRv6 locator " . locator . " (" . prefix . ") unreachable — all SIDs under this locator are invalid"
+```
+
+### Step 3 — Validate
+(a) **SR policy status.** Compare `show segment-routing traffic-eng policy` with Splunk data.
+
+(b) **SID inventory.** Compare `show segment-routing srv6 sid` with SID_INSTALLED events.
+
+(c) **Policy failover.** Shut down a link used by an SR policy. Verify the policy DOWN and subsequent UP on the alternate path are both detected.
+
+### Step 4 — Operationalize
+
+**Dashboard** ("IPv6 — SRv6 Health"):
+- Row 1 — Single-value: active SR policies, policies DOWN, SID validation failures.
+- Row 2 — Table: current SR policy states with color, endpoint, and candidate paths.
+- Row 3 — Timechart: SRv6 events over 24 hours.
+- Row 4 — Alert panel: active SID failures and locator unreachability.
+
+**Scheduling:** Policy down alert real-time. SID validation continuous. Locator reachability every 5 minutes.
+
+**Runbook:**
+1. SR policy DOWN: check candidate path segment lists. Verify all SIDs in the segment list are reachable. Check IS-IS/OSPF adjacencies for the path.
+2. SID validation failure: verify the locator prefix is advertised in IGP. Check `show segment-routing srv6 locator` on the node that owns the SID.
+3. Locator unreachable: check IGP adjacency to the node. The locator is advertised via IS-IS/OSPFv3 — if the IGP adjacency to the node is down, the locator is unreachable.
+
+### Step 5 — Troubleshooting
+
+- **uSID (micro-SID) specifics** — Compressed SIDs (uSID, draft-ietf-spring-srv6-srh-compression) pack multiple micro-segments into a single 128-bit SID. A container SID may look valid but contain an invalid micro-instruction. Validate individual micro-SIDs when using uSID.
+
+- **SRv6 and PMTUD** — SRv6 adds the Segment Routing Header (SRH) to every packet, increasing the header size by 8 + (16 × number_of_segments) bytes. This reduces the effective MTU. Ensure PMTUD is working correctly (UC-5.20.38) or pre-adjust MTU to account for SRH overhead.
+
+- **Cross-domain SRv6** — In multi-domain SRv6, policies may span across autonomous systems. Inter-domain SID validation requires all domains to advertise their locators via BGP-LS or similar. Missing cross-domain locator advertisement causes SID validation failures at domain boundaries.
+
+## SPL
+
+```spl
+index=network (sourcetype="cisco:ios" OR sourcetype="cisco:xr") ("%SRV6" OR "%SR_POLICY" OR "%SEGMENT_ROUTING") earliest=-24h
+| eval srv6_event=case(
+    match(_raw, "(?i)SID.*invalid|validation.*fail"), "SID_VALIDATION_FAILURE",
+    match(_raw, "(?i)policy.*down|candidate.*down"), "POLICY_DOWN",
+    match(_raw, "(?i)policy.*up|candidate.*active"), "POLICY_UP",
+    match(_raw, "(?i)SID.*install|SID.*allocated"), "SID_INSTALLED",
+    match(_raw, "(?i)locator.*unreachable"), "LOCATOR_UNREACHABLE",
+    1=1, "OTHER")
+| eval severity=case(
+    srv6_event="SID_VALIDATION_FAILURE", "CRITICAL",
+    srv6_event="POLICY_DOWN", "HIGH",
+    srv6_event="LOCATOR_UNREACHABLE", "HIGH",
+    srv6_event="POLICY_UP", "INFO",
+    srv6_event="SID_INSTALLED", "INFO",
+    1=1, "LOW")
+| stats count by host, srv6_event, severity
+| sort -severity
+```
+
+## Visualization
+
+(1) Table: SRv6 events by type and severity. (2) Single-value: active SR policies, policies DOWN, SID failures. (3) Timechart: SRv6 events over 24 hours. (4) Network diagram: SRv6 policy paths with health status.
+
+## Known False Positives
+
+**SR policy recalculation after topology change.** When a link fails, SR policies that use the failed link are recalculated to use alternative paths. The policy goes DOWN momentarily and then comes back UP on a new path. This is normal reconvergence.
+
+**SID installation during boot.** When a router boots, it installs its local SIDs. This generates SID_INSTALLED events that are normal.
+
+**Policy preference changes.** When a higher-preference candidate path becomes available, the lower-preference path goes down. This is normal SR policy behaviour.
+
+## References
+
+- [RFC 8986 — Segment Routing over IPv6 (SRv6) Network Programming](https://www.rfc-editor.org/rfc/rfc8986)
+- [RFC 8754 — IPv6 Segment Routing Header (SRH)](https://www.rfc-editor.org/rfc/rfc8754)
+- [RFC 9252 — BGP Overlay Services Based on Segment Routing over IPv6 (SRv6)](https://www.rfc-editor.org/rfc/rfc9252)

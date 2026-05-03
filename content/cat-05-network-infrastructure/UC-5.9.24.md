@@ -3,87 +3,146 @@
 ---
 id: "5.9.24"
 title: "Endpoint Experience Score Monitoring"
+status: "verified"
 criticality: "high"
 splunkPillar: "Observability"
 ---
 
 # UC-5.9.24 · Endpoint Experience Score Monitoring
 
-> **Criticality:** High &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Performance
+> **Criticality:** High &middot; **Difficulty:** Beginner &middot; **Pillar:** Observability &middot; **Type:** Performance &middot; **Wave:** Crawl &middot; **Status:** Verified
 
-*We pull a single comfort score for laptops and home offices, so remote workers with bad paths do not get blamed as “the app.”*
+*We check how well each employee's computer and internet connection are working, so when someone says 'my computer is slow' we can immediately see if it's their Wi-Fi, their VPN, or their computer itself — without asking them to run a speed test.*
 
 ---
 
 ## Description
 
-ThousandEyes Endpoint Agents provide a composite experience score aggregating CPU, memory, and network performance from the end-user device perspective, enabling proactive digital experience management for hybrid workforces.
+Monitors ThousandEyes Endpoint Agent composite scores — `network.score` (aggregated from latency, loss, and jitter to the local network gateway) and `thousandeyes.endpoint.agent.score` (aggregated from CPU and memory utilization) — to identify endpoints experiencing poor digital experience. This UC shifts monitoring from "is the network path healthy?" (Enterprise Agent perspective) to "is the USER's experience healthy?" (Endpoint Agent perspective).
 
 ## Value
 
-ThousandEyes Endpoint Agents provide a composite experience score aggregating CPU, memory, and network performance from the end-user device perspective, enabling proactive digital experience management for hybrid workforces.
+Traditional network monitoring tells you the infrastructure is healthy — all links green, all devices responding. But the user calling the help desk says "my Teams calls keep dropping." The gap is that Enterprise Agents don't see the last mile: the employee's Wi-Fi, their VPN client, their overloaded laptop, their home ISP. Endpoint Agents bridge this gap by measuring from the user's actual device. The composite scores provide an instant health assessment: a low `network.score` means the local network (Wi-Fi, gateway, proxy, VPN) is degraded, while a low `agent.score` means the device itself is struggling (CPU/memory). This tells the help desk whether to troubleshoot the network or the device — before spending 30 minutes on the wrong track.
 
 ## Implementation
 
-Deploy ThousandEyes Endpoint Agents on user devices and configure Endpoint Agent tests in the Tests Stream input. The OTel metric `thousandeyes.endpoint.agent.score` is a composite of CPU and memory scores. `system.cpu.utilization` and `system.memory.utilization` are reported as percentages.
+Endpoint Agents must be deployed on user devices and configured to stream data to the same ThousandEyes → Splunk integration. Endpoint data flows through the same OTel stream as Enterprise Agent data, distinguished by `thousandeyes.test.domain="endpoint"`.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco ThousandEyes App for Splunk` (Splunkbase 7719).
-- Ensure the following data sources are available: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Endpoint tests).
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- All common prerequisites from UC-5.9.1 apply (app installed, OAuth authenticated, HEC configured, Tests Stream — Metrics input enabled).
+- **Endpoint Agents deployed on user devices.** Unlike Enterprise Agents (deployed on servers/VMs in data centers), Endpoint Agents are installed on employee laptops/desktops. Deployment typically uses an MDM solution (Intune, Jamf, SCCM) or manual installation. Endpoint Agents are available for Windows and macOS.
+- **Endpoint Agent data streaming enabled.** In the ThousandEyes UI, navigate to **Endpoint Agents → Agent Settings** and ensure agents are configured to send Local Network data. The Endpoint Agent must be associated with the same account that's connected to the Splunk integration.
+- **Data separation:** Endpoint data arrives in the same `thousandeyes_metrics` index with the same sourcetype but is distinguished by `thousandeyes.test.domain="endpoint"` (vs `"cea"` for Cloud/Enterprise Agent data).
 
 ### Step 1 — Configure data collection
-Deploy ThousandEyes Endpoint Agents on user devices and configure Endpoint Agent tests in the Tests Stream input. The OTel metric `thousandeyes.endpoint.agent.score` is a composite of CPU and memory scores. `system.cpu.utilization` and `system.memory.utilization` are reported as percentages.
+Endpoint data flows through the existing Tests Stream — Metrics input configured in UC-5.9.1. No separate input is needed.
+
+Verify endpoint data is arriving:
+```spl
+index=thousandeyes_metrics thousandeyes.test.domain="endpoint"
+| stats count by target.type
+```
+Expected output: rows for `dns`, `proxy`, `gateway`, `vpn` (Local Network categories) and potentially `agent-to-server` or `http-server` (Endpoint Scheduled Tests).
+
+**Understanding Endpoint Local Network data:**
+The Endpoint Agent automatically probes the local network path from the user's device to the internet, measuring each hop:
+- **Gateway** (`target.type="gateway"`) — the user's default gateway (home router, office switch)
+- **VPN** (`target.type="vpn"`) — the VPN concentrator (if VPN is active)
+- **Proxy** (`target.type="proxy"`) — the web proxy (if configured)
+- **DNS** (`target.type="dns"`) — the configured DNS resolver
+
+Each hop produces `network.latency`, `network.loss`, and either `network.score` (for gateway/VPN/proxy) or `dns.lookup.duration` (for DNS).
+
+The **System** category produces `system.cpu.utilization`, `system.memory.utilization`, and the composite `thousandeyes.endpoint.agent.score`.
 
 ### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
 ```spl
-`stream_index` thousandeyes.test.domain="endpoint"
-| stats avg(thousandeyes.endpoint.agent.score) as avg_score avg(system.cpu.utilization) as avg_cpu avg(system.memory.utilization) as avg_mem by thousandeyes.source.agent.name
-| where avg_score < 70
-| sort avg_score
+`stream_index` thousandeyes.test.domain="endpoint" target.type="gateway"
+| stats avg(network.score) as avg_network_score avg(thousandeyes.endpoint.agent.score) as avg_agent_score by thousandeyes.source.agent.name, thousandeyes.source.agent.os.type, thousandeyes.source.agent.connection.type
+| where avg_network_score < 0.7 OR avg_agent_score < 0.5
+| sort avg_network_score
 ```
 
-#### Understanding this SPL
+**Understanding the scores:**
+- `network.score` is a 0–1 composite (1.0 = perfect). It aggregates latency, loss, and jitter scores for the specific `target.type`. A score < 0.7 indicates meaningful degradation.
+- `thousandeyes.endpoint.agent.score` is a 0–1 composite (1.0 = perfect) from CPU and memory utilization. A score < 0.5 indicates the device is under significant resource pressure.
 
-**Endpoint Experience Score Monitoring** — ThousandEyes Endpoint Agents provide a composite experience score aggregating CPU, memory, and network performance from the end-user device perspective, enabling proactive digital experience management for hybrid workforces.
+**System health view:**
+```spl
+`stream_index` thousandeyes.test.domain="endpoint"
+| stats avg(system.cpu.utilization) as avg_cpu avg(system.memory.utilization) as avg_mem avg(thousandeyes.endpoint.agent.score) as agent_score by thousandeyes.source.agent.name, thousandeyes.source.agent.os.type
+| where avg_cpu > 80 OR avg_mem > 90
+| sort -avg_cpu
+```
 
-Documented **Data sources**: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Endpoint tests). **App/TA** (typical add-on context): `Cisco ThousandEyes App for Splunk` (Splunkbase 7719). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+**Distribution view:**
+```spl
+`stream_index` thousandeyes.test.domain="endpoint" target.type="gateway" earliest=-4h
+| stats avg(network.score) as score by thousandeyes.source.agent.name
+| eval health=case(score>=0.8, "Healthy", score>=0.5, "Warning", 1=1, "Critical")
+| stats count by health
+```
 
-**Pipeline walkthrough**
-
-- Invokes macro `stream_index` — in Search, use the UI or expand to inspect the underlying SPL.
-- `stats` rolls up events into metrics; results are split **by thousandeyes.source.agent.name** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where avg_score < 70` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+**Scheduling:** cron `*/15 * * * *`, time range `-30m to now`. Endpoint data arrives at variable intervals (typically every 2–5 minutes per agent).
 
 ### Step 3 — Validate
-Compare the same tests and time window in the Cisco ThousandEyes App for Splunk dashboard or the test view at app.thousandeyes.com so Splunk’s metrics and states match the vendor. If they disagree, check streaming or HEC inputs, macros, and API or token health before retuning.
+(a) **Verify score range.** Scores should be between 0 and 1. If you see scores > 1, check `thousandeyes.data.version` — v1 may use a different scale.
+
+(b) **Cross-reference with ThousandEyes UI.** Navigate to **Endpoint Agents → Views → Network Access** and compare the scores shown for a specific agent with what Splunk reports.
+
+(c) **Baseline healthy endpoints.** Run the search during normal business hours and identify what "healthy" looks like for your organization. A software development team with compile workloads may have lower agent scores than a sales team using only browser-based apps.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (experience score per user), Table (agent, score, CPU, memory), Trend line chart.
+**Dashboard** ("Endpoint Experience Overview"):
+- Distribution donut: healthy/warning/critical endpoints.
+- Table: endpoints with degraded scores, with connection type and OS.
+- Timechart: average network score by connection type (Wireless vs Ethernet) over 24 hours.
+- Single values: total endpoints reporting, % with healthy scores, average CPU/memory.
+
+**Runbook** (owner: service desk / digital experience team):
+1. Low `network.score` on Wireless → check Wi-Fi coverage, channel congestion, access point health.
+2. Low `network.score` on Ethernet → check switch port, VLAN, local network infrastructure.
+3. Low `agent.score` (high CPU) → check for runaway processes, pending updates, malware scans.
+4. Low `agent.score` (high memory) → check for memory leaks in applications, insufficient RAM.
+5. Both scores low → systemic issue; check for VPN client bugs, security agent conflicts, or OS update problems.
+
+### Step 5 — Troubleshooting
+
+- **No endpoint data in Splunk** — Check that Endpoint Agents are deployed AND that the ThousandEyes account has Endpoint Agent licenses. Endpoint Agent data streaming requires the Endpoint Agent module to be enabled in the account.
+
+- **`thousandeyes.test.domain` field missing** — Ensure `thousandeyes.data.version="v2"`. The `test.domain` attribute was introduced in v2.
+
+- **Scores all showing 0 or null** — Check whether the `network.score` and `thousandeyes.endpoint.agent.score` fields are being extracted. Run `| fieldsummary` to check field population.
+
+- **Very few endpoints reporting** — Endpoint Agents only send data when the device is powered on, connected to a network, and the agent process is running. Verify deployment coverage through your MDM solution.
 
 ## SPL
 
 ```spl
-`stream_index` thousandeyes.test.domain="endpoint"
-| stats avg(thousandeyes.endpoint.agent.score) as avg_score avg(system.cpu.utilization) as avg_cpu avg(system.memory.utilization) as avg_mem by thousandeyes.source.agent.name
-| where avg_score < 70
-| sort avg_score
+`stream_index` thousandeyes.test.domain="endpoint" target.type="gateway"
+| stats avg(network.score) as avg_network_score avg(thousandeyes.endpoint.agent.score) as avg_agent_score by thousandeyes.source.agent.name, thousandeyes.source.agent.os.type, thousandeyes.source.agent.connection.type
+| where avg_network_score < 0.7 OR avg_agent_score < 0.5
+| sort avg_network_score
 ```
 
 ## Visualization
 
-Gauge (experience score per user), Table (agent, score, CPU, memory), Trend line chart.
+(1) Single value: average network score across all endpoints. (2) Table: endpoints with low scores, showing agent name, OS, connection type, network score, agent score. (3) Pie chart: connection type distribution (Wireless vs Ethernet vs Modem). (4) Histogram: network score distribution — healthy (green > 0.8), warning (yellow 0.5–0.8), critical (red < 0.5). (5) Timechart: average network score trending over 24 hours.
 
 ## Known False Positives
 
-Endpoint experience scores move with home Wi‑Fi, VPN hairpins, and device CPU—not only corporate backbone.
+**Low scores during device startup.** When a laptop boots or wakes from sleep, the Endpoint Agent may report degraded scores for the first 1–2 measurement rounds as the OS initializes networking and loads startup applications. Filter by excluding the first 5 minutes after agent start.
+
+**Low agent score from legitimate heavy workloads.** A developer running a local build or a data analyst running a large query will spike CPU/memory utilization, lowering the `agent.score`. This is normal workload, not a problem. Focus on endpoints where low agent scores CORRELATE with low network scores (indicating systemic issues) rather than isolated high CPU.
+
+**Wi-Fi interference during specific hours.** Endpoints on Wi-Fi in dense office environments may show degraded `network.score` during peak hours (10am–12pm, 2pm–4pm) due to channel congestion. This is expected in some environments — compare with Ethernet-connected endpoints to distinguish infrastructure issues from wireless contention.
+
+**VPN split-tunnel effects.** Endpoints using split-tunnel VPN may show different scores for gateway vs VPN targets. This is expected — the gateway path bypasses VPN while the VPN path adds encryption overhead.
 
 ## References
 
-- [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+- [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
+- [ThousandEyes Endpoint Agent overview](https://docs.thousandeyes.com/product-documentation/endpoint-agent)
+- [ThousandEyes OTel v2 Data Model — Endpoint Experience metrics](https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics)

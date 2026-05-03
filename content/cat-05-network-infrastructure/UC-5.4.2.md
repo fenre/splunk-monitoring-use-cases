@@ -21,7 +21,7 @@ Failed associations frustrate users and indicate RADIUS/auth issues, RF problems
 
 ## Value
 
-Failed associations frustrate users and indicate RADIUS/auth issues, RF problems, or AP overload.
+Network operations teams classify wireless client association failures by root cause (credentials, RADIUS, capacity, roaming) to distinguish user errors from infrastructure issues and prioritize remediation by impact scope.
 
 ## Implementation
 
@@ -30,42 +30,81 @@ Forward WLC/AP syslog. Correlate with RADIUS logs (ISE). Alert on spike in failu
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: WLC syslog, Meraki TA.
-- Ensure the following data sources are available: WLC/AP syslog, RADIUS logs.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Wireless controller or cloud platform forwarding client association events to Splunk. Sources: (1) Cisco WLC syslog — `*DOT1X*`, `*ASSOC*` messages, (2) Meraki events (`sourcetype=meraki:events`) — association/disassociation events, (3) Aruba controller syslog — client authentication/association logs.
+- Data in `index=wireless` with platform-specific sourcetypes. Key fields: `client_mac`, `ap_name`, `ssid`, `reason_code` (802.11 deauthentication reason), `result` (success/failure), `auth_method` (WPA2-PSK, WPA3-Enterprise, 802.1X).
+- 802.11 association failures happen during: (1) initial connection (client fails to authenticate), (2) roaming (client fails to re-associate with new AP), (3) reauthentication (session timeout triggers re-auth). The reason code field identifies the specific failure cause.
 
 ### Step 1 — Configure data collection
-Forward WLC/AP syslog. Correlate with RADIUS logs (ISE). Alert on spike in failures per SSID or AP.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify association failure events:
 ```spl
-index=network sourcetype="cisco:wlc" ("association" OR "authentication") AND ("fail" OR "reject" OR "denied")
-| stats count by ap_name, ssid, reason | sort -count
+index=wireless earliest=-4h
+| where match(_raw, "(?i)(assoc.*fail|auth.*fail|deauth|disassoc|reject)")
+| stats count by sourcetype, ssid
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Client Association Failures** — Failed associations frustrate users and indicate RADIUS/auth issues, RF problems, or AP overload.
+**Primary search — Client association failures by cause:**
+```spl
+index=wireless earliest=-4h
+| where match(_raw, "(?i)(assoc.*fail|auth.*fail|deauth|reject)")
+| eval failure_reason=case(match(_raw, "(?i)wrong.password|invalid.key|PSK.mismatch"), "WRONG_PASSWORD", match(_raw, "(?i)radius|eap|802.1x|dot1x"), "RADIUS_AUTH_FAILURE", match(_raw, "(?i)timeout|no.response"), "AUTH_TIMEOUT", match(_raw, "(?i)max.client|capacity|full"), "AP_CAPACITY", match(_raw, "(?i)policy|acl|denied"), "POLICY_DENIED", match(_raw, "(?i)roam|reassoc"), "ROAMING_FAILURE", 1==1, "OTHER")
+| eval client_id=coalesce(client_mac, src_mac)
+| eval ap_id=coalesce(ap_name, name)
+| stats count as failures dc(client_id) as affected_clients dc(ap_id) as affected_aps by ssid, failure_reason
+| eval severity=case(failure_reason="RADIUS_AUTH_FAILURE" AND failures > 50, "CRITICAL", failures > 100, "HIGH", failures > 20, "MEDIUM", 1==1, "LOW")
+| sort severity, -failures
+```
 
-Documented **Data sources**: WLC/AP syslog, RADIUS logs. **App/TA** (typical add-on context): WLC syslog, Meraki TA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: The failure reason classification is key for troubleshooting. WRONG_PASSWORD affects individual users (user error or credential rotation not applied). RADIUS_AUTH_FAILURE affects all 802.1X users and indicates a RADIUS server issue (see UC-5.4.8). AP_CAPACITY means the AP has too many clients (capacity planning needed). ROAMING_FAILURE suggests RF design issues (insufficient AP overlap for seamless roaming).
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:wlc. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+**Client-level failure tracking:**
+```spl
+index=wireless earliest=-4h
+| where match(_raw, "(?i)(assoc.*fail|auth.*fail|deauth|reject)")
+| eval client_id=coalesce(client_mac, src_mac)
+| eval ap_id=coalesce(ap_name, name)
+| stats count as failures dc(ap_id) as aps_tried values(ssid) as ssids by client_id
+| where failures > 5
+| sort -failures
+| head 20
+```
 
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="cisco:wlc". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by ap_name, ssid, reason** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-
+**AP-level failure concentration:**
+```spl
+index=wireless earliest=-4h
+| where match(_raw, "(?i)(assoc.*fail|auth.*fail|deauth|reject)")
+| eval ap_id=coalesce(ap_name, name)
+| stats count as failures dc(client_mac) as clients by ap_id, ssid
+| where failures > 10
+| lookup wireless_ap_inventory.csv ap_name as ap_id OUTPUT building floor zone
+| sort -failures
+```
 
 ### Step 3 — Validate
-In the Cisco WLC or Catalyst 9800 wireless GUI (Monitor > Clients or Access Points), compare counts and statuses with the Splunk rows for the same period. Confirm a few client MACs or AP names.
+(a) Attempt to connect to the wireless with an incorrect password and verify the "WRONG_PASSWORD" failure appears.
+(b) Temporarily stop the RADIUS server and verify "RADIUS_AUTH_FAILURE" events are generated for 802.1X SSIDs.
+(c) Compare failure counts with the wireless controller's client troubleshooting dashboard.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (AP, SSID, reason, count), Bar chart by reason, Timechart.
+Dashboard ("Wireless — Association Failures"):
+- Row 1 — Single-value tiles: "Total failures (4h)", "Affected clients", "RADIUS failures", "Worst AP (failures)".
+- Row 2 — Failure breakdown table: SSID, failure reason, count, affected clients/APs, severity.
+- Row 3 — Top failing clients: client MAC, failure count, APs tried.
+- Row 4 — Top failing APs with building/floor context.
+
+Alerting:
+- Critical (RADIUS_AUTH_FAILURE > 50 in 15 minutes): RADIUS server issue — all 802.1X users affected.
+- High (> 100 association failures in 1 hour on single SSID): systemic issue on that SSID.
+- Warning (single AP with > 20 failures): investigate AP health or RF environment.
+
+### Step 5 — Troubleshooting
+
+- **Mass failures across all SSIDs and APs** — Controller issue or configuration push failure. Check the controller health and recent configuration changes.
+
+- **Failures only on 802.1X SSID** — RADIUS server issue (see UC-5.4.8). Check RADIUS server reachability, certificate validity, and EAP method configuration.
+
+- **Failures concentrated on one AP** — The AP may have a hardware issue (bad radio), RF interference (see UC-5.4.6), or be overloaded (see UC-5.4.5 for client count).
 
 ## SPL
 

@@ -21,7 +21,7 @@ API gateway policies on Citrix ADC enforce OpenAPI shapes, XML/JSON validation, 
 
 ## Value
 
-API gateway policies on Citrix ADC enforce OpenAPI shapes, XML/JSON validation, authentication, and rate limits. Mis-specified definitions cause load failures; validation errors may reflect attack traffic; 429 storms show mis-tuned quotas or abuse. Monitoring policy evaluation alongside latency keeps both security and user experience within SLO.
+API operations teams monitor Citrix ADC API Gateway policy evaluation including rate limiting, OAuth validation failures, and schema violations per API endpoint for API reliability.
 
 ## Implementation
 
@@ -29,7 +29,54 @@ Send AppFlow or security logs with status, vserver, and response time to `index=
 
 ## Detailed Implementation
 
-Prerequisites: API gateway feature enabled; OpenAPI bundle in change control; AppFlow with resp_time_ms and HTTP status. Step 1: Configure data collection — Structure logs or use HEC with acks; props [citrix:netscaler:appflow] for status, resp_time_ms, vserver; redact request bodies in syslog lines. Step 2: Create the search and alert — Split alerts: definition load/parse errors, validation spikes, and performance (start p95>1000ms, begin tuning at >500ms and raise only with baseline noise data). Step 3: Validate — In lab deploy a bad OpenAPI, send malformed JSON, and rate-test to 429; confirm throttled/val_fail fields in the index with `index=netscaler earliest=-1h vserver="*api*" | stats count by status`. Step 4: Operationalize — Playbook for WAF-style blocks vs client fixes vs quota changes vs spec rollback; if the same vserver repeats, escalate to Citrix ADC and API product owners after two consecutive alert windows.
+### Prerequisites
+* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). Citrix ADC API Gateway logs. Key fields: `api_name`, `method`, `path`, `status_code`, `response_time_ms`, `policy_name`, `rate_limit_action`, `oauth_status`, `client_id`.
+* Citrix ADC as API Gateway: (1) API rate limiting, (2) OAuth/JWT validation, (3) request/response transformation, (4) API schema validation, (5) traffic management per API endpoint.
+
+### Step 1 — - Configure data collection
+Enable API Gateway logging via AppFlow or syslog. Verify:
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:appflow") ("API" OR "api_" OR "oauth" OR "jwt" OR "rate.limit") earliest=-4h
+| stats count by host
+```
+
+### Step 2 — - Create the search and alert
+
+**Primary search -- API Gateway policy evaluation:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:appflow") ("API" OR "api_" OR "oauth" OR "jwt" OR "rate.limit") earliest=-4h
+| eval api=coalesce(api_name, api_endpoint, path)
+| eval policy_result=coalesce(policy_action, rate_limit_action, oauth_status)
+| eval status=coalesce(status_code, http_status)
+| eval rt=coalesce(response_time_ms, latency)
+| eval issue=case(match(policy_result, "(?i)rate.limit|throttle"), "RATE_LIMITED", match(policy_result, "(?i)oauth.*fail|jwt.*invalid|401"), "AUTH_FAILURE", match(policy_result, "(?i)schema.*fail|validation.*error"), "SCHEMA_VIOLATION", tonumber(status) >= 500, "BACKEND_ERROR", 1==1, null())
+| where isnotnull(issue)
+| stats count as events dc(client_id) as affected_clients by api, issue
+| eval severity=case(issue="AUTH_FAILURE" AND events > 50, "HIGH -- mass auth failures", issue="RATE_LIMITED" AND events > 100, "WARNING -- heavy throttling", issue="BACKEND_ERROR", "WARNING -- backend issues", 1==1, "INFO")
+| sort severity, -events
+```
+
+### Step 3 — - Validate
+(a) Send an API request with invalid OAuth token and verify AUTH_FAILURE appears.
+(b) Exceed rate limit and verify RATE_LIMITED events.
+(c) Compare with ADC API stats.
+
+### Step 4 — - Operationalize
+Dashboard ("Citrix ADC -- API Gateway"):
+* Row 1 -- Single-value: "API requests (4h)", "Rate limited", "Auth failures", "Backend errors".
+* Row 2 -- API policy evaluation issue table.
+
+Alerting:
+* High (mass auth failures > 50 in 15 min): potential API key compromise or misconfiguration.
+* Warning (rate limiting > 100 events): clients exceeding limits.
+
+### Step 5 — - Troubleshooting
+
+* **High rate limiting** -- Clients may need higher limits. Review: API rate limit policy on the ADC. Consider per-client or per-API tier limits.
+
+* **OAuth failures** -- Check: (1) OAuth token endpoint, (2) JWT signing key rotation, (3) clock skew between ADC and OAuth provider.
+
+* **Schema validation errors** -- API request payload doesn't match expected schema. Check the API definition and client implementation.
 
 ## SPL
 

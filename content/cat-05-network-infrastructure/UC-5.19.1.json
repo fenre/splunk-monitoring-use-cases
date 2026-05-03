@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.19.1",
+  "title": "Ansible Playbook/Job Failure Rate and Duration Trending",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": ["Performance", "Operations", "Reliability"],
+  "splunkPillar": "Observability",
+  "wave": "crawl",
+  "dataSources": "Detailed: `index=iac` or `index=main` (org-standard); `sourcetype` examples — `ansible:result`, `ansible:callback`, `awx:job_events`, `tower:job_events`, `automationcontroller:jobs` (JSON from AWX/Tower API export or HEC); normalize `job_id`, `job_template`, `playbook`, `status` (failed/changed/ok), `duration_sec`, `forks`, `environment`, `inventory`. Optional correlation with Git commit SHA from CI metadata.",
+  "app": "Ansible Automation Platform / AWX audit via Splunk HTTP Event Collector; Ansible Tower logging forwarder; Splunk Add-on for Ansible (community) or custom props for job event JSON; optional ARA (Ansible Run Analysis) exporter.",
+  "spl": "index IN (\"iac\",\"main\",\"ansible\")\n| eval st=lower(coalesce(sourcetype,_sourcetype,\"\"))\n| where match(st,\"ansible|awx|tower|automationcontroller\")\n| eval status_norm=lower(trim(coalesce(status,changed_status,final_status,job_status,\"\")))\n| eval failed=if(match(status_norm,\"fail|error|canceled|cancelled|unreachable\"),1,0)\n| eval dur=tonumber(coalesce(duration_sec,duration,elapsed_time,job_elapsed))\n| eval jt=coalesce(job_template,template_name,\"unknown\")\n| bin _time span=1h\n| stats count as jobs sum(failed) as failed_jobs avg(dur) as avg_dur perc95(dur) as p95_dur by _time, jt, st\n| eval fail_rate=round(100*failed_jobs/nullif(jobs,0),2)\n| where jobs>=3 AND (fail_rate>=10 OR p95_dur>3600)\n| sort -fail_rate,-p95_dur",
+  "description": "Splunk rolls up Ansible Automation Platform and AWX/Tower job telemetry into hourly failure ratios and duration percentiles per template so brittle playbooks, credential regressions, or slow network pushes surface before change windows stack up unresolved incidents.",
+  "value": "Network and platform teams stabilize automation-led rollouts because recurring playbook failures and runtime creep trigger proactive fixes instead of discovering broken convergence only after devices drift or rollback scripts fire during production incidents.",
+  "implementation": "Forward normalized job completion JSON with explicit duration seconds and terminal status; retain job_template identifiers; run hourly; tune minimum job counts and failure-rate thresholds per environment.",
+  "detailedImplementation": "Prerequisites\n• AWX/Tower logging enabled for job lifecycle events (started, running, successful, failed, canceled) with consistent timestamps (UTC).\n• Service account HEC token scoped to `iac` index; TLS termination validated.\n\nStep 1 — Normalize payloads\nMap AWX `job_events` summary records or Tower `/api/v2/jobs/` polling exports into flat fields: `job_id`, `job_template`, `status`, `started`, `finished`, `duration_sec`. Strip ANSI from stdout fields before indexing.\n\nStep 2 — props.conf\nAssign `KV_MODE=json` for structured callbacks; set `TIME_PREFIX` if `_time` skews; create field aliases `duration`→`duration_sec` when vendors differ.\n\nStep 3 — Saved search\nSave SPL as `ansible_job_fail_rate_duration_trend`; alert when hourly `fail_rate`≥10% for templates with ≥3 executions or when `p95_dur` exceeds baseline ×1.5 from lookup `ansible_runtime_baseline.csv`.\n\nStep 4 — Validate\nReplay a known failing playbook in lab; confirm failed increment and duration extraction versus AWX UI job metrics within one-minute skew.\n\nStep 5 — Operationalize\nDashboard: stacked column of failure rate by template; overlay line chart of p95 duration; drilldown saved search to raw `_raw` for playbook stderr correlation.",
+  "visualization": "Dashboard Studio: KPI tiles for overall failure % and worst template; `splunk.timechart` of fail_rate by job_template; table (`jt`,`jobs`,`failed_jobs`,`fail_rate`,`p95_dur`) sorted by impact.",
+  "references": [
+    {
+      "title": "Red Hat Ansible Automation Platform — Logging and aggregation",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/"
+    },
+    {
+      "title": "Ansible AWX — Integration overview",
+      "url": "https://ansible.readthedocs.io/projects/awx/en/latest/"
+    },
+    {
+      "title": "Splunk Lantern — observability patterns",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "**Transient infra:** Runner disk-full or container recycle spikes failures unrelated to playbooks.**Inventory churn:** dynamic inventory timeouts resemble playbook faults unless `unreachable` split out.**Long-running jobs:** backup-style templates inflate p95; baseline per template.**Parallel forks:** duration not comparable across templates with different fork counts unless normalized.**Canceled maintenance:** operator-cancel jobs count as failures unless filtered.",
+  "mitreAttack": ["N/A (operations monitoring)"],
+  "securityDomain": "network",
+  "detectionType": "Baseline",
+  "equipment": ["ansible", "linux"],
+  "equipmentModels": ["ansible AWX job event stream (HEC JSON)", "linux_automation_runner"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We track whether our batch updates to routers and switches finish on time and how often they fail. When failures or slowdowns bunch up, we fix the recipes before the whole network ends up half updated."
+}

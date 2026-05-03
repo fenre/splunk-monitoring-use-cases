@@ -21,7 +21,7 @@ Monitors DNS query resolution times and failures to identify misconfiguration or
 
 ## Value
 
-Monitors DNS query resolution times and failures to identify misconfiguration or server issues affecting user experience.
+Network operations teams monitoring Meraki-managed sites detect DNS resolution failures and upstream resolver health issues per site, enabling rapid failover to backup resolvers before users experience connectivity problems.
 
 ## Implementation
 
@@ -30,42 +30,78 @@ Extract DNS query timing from syslog events. Set SLA thresholds (e.g., <100ms av
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=security_event signature="*DNS*"`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Cisco Meraki event logs in `index=meraki` via Splunk_TA_cisco_meraki. DNS performance events come from the Meraki MX appliance, which acts as a DNS forwarder/caching resolver for LAN clients. The MX logs DNS resolution failures, timeouts, and can export DNS query data.
+- Meraki DNS events include: DNS resolution failures, upstream DNS timeout, DNS cache events. The Meraki Dashboard API also provides DNS statistics per network.
+- Meraki MX DNS behavior: the MX receives DNS queries from LAN clients and forwards to configured upstream resolvers (ISP DNS, Google 8.8.8.8, Cloudflare 1.1.1.1, or custom). If the upstream resolver is unreachable or slow, all LAN clients experience DNS failures.
+- Build an `upstream_resolvers.csv` lookup: `resolver_ip,resolver_name,provider` listing the upstream DNS servers configured on each MX.
 
 ### Step 1 — Configure data collection
-Extract DNS query timing from syslog events. Set SLA thresholds (e.g., <100ms average).
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify DNS-related Meraki events:
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*DNS*" resolution_time=*
-| stats avg(resolution_time) as avg_dns_time, max(resolution_time) as max_dns_time, count by ap_name
-| where avg_dns_time > 100
+index=meraki "dns" earliest=-24h
+| stats count by event_type, host
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**DNS Resolution Performance and Failures (Meraki)** — Monitors DNS query resolution times and failures to identify misconfiguration or server issues affecting user experience.
+**Primary search — DNS resolution failures by MX:**
+```spl
+index=meraki ("dns" AND ("fail" OR "timeout" OR "error" OR "unreachable")) earliest=-1h
+| rex field=_raw "(?i)(?:server|resolver|upstream)[\s:]+(?<resolver_ip>[\d.]+)"
+| stats count dc(src) as affected_clients by host, resolver_ip
+| eval severity=case(count > 50, "CRITICAL", count > 10, "HIGH", 1==1, "WARNING")
+| lookup upstream_resolvers.csv resolver_ip OUTPUT resolver_name provider
+| eval resolver_label=if(isnotnull(resolver_name), resolver_name." (".provider.")", resolver_ip)
+| sort -count
+```
 
-Documented **Data sources**: `sourcetype=meraki type=security_event signature="*DNS*"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: Identifies which Meraki MX appliances are experiencing DNS resolution failures and which upstream resolver is failing. If a specific resolver fails (e.g., 8.8.8.8), it affects all MX devices using that resolver. If all resolvers fail on one MX, it's likely a local connectivity issue.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+**DNS performance by site:**
+```spl
+index=meraki "dns" earliest=-24h
+| rex field=_raw "(?i)latency[\s:=]+(?<dns_latency_ms>\d+)"
+| stats avg(dns_latency_ms) as avg_latency perc95(dns_latency_ms) as p95_latency count as queries by host
+| where p95_latency > 100 OR avg_latency > 50
+| eval status=case(p95_latency > 500, "CRITICAL", p95_latency > 200, "HIGH", p95_latency > 100, "WARNING", 1==1, "OK")
+| sort -p95_latency
+```
 
-**Pipeline walkthrough**
-
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by ap_name** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where avg_dns_time > 100` — typically the threshold or rule expression for this monitoring goal.
-
+**DNS failure trending:**
+```spl
+index=meraki "dns" ("fail" OR "timeout") earliest=-7d
+| bin _time span=1h
+| stats count as failures by _time, host
+| where failures > 0
+```
 
 ### Step 3 — Validate
-Open the Cisco Meraki Dashboard (organization or network scope, under Monitor as appropriate) and compare AP, client, security, or flow totals to the search for the same window. Spot-check a few device names, SSIDs, or MAC addresses against what you see live.
+(a) In Meraki Dashboard: Security & SD-WAN > SD-WAN > check DNS resolution health. Compare with Splunk results.
+(b) From a client behind the MX: `nslookup google.com` should succeed. If it fails, the MX DNS forwarding is down.
+(c) Test: temporarily configure the MX to use a non-existent upstream resolver and verify failures appear in Splunk.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge showing average DNS time; histogram of query times; slow query detail table.
+Dashboard ("Meraki — DNS Health"):
+- Row 1 — Single-value tiles: "DNS failures (1h)", "Affected sites", "P95 latency (ms)", "Failing resolvers".
+- Row 2 — Site DNS health table: site, avg_latency, p95_latency, failures, status.
+- Row 3 — Failing resolver analysis: resolver_ip, resolver_name, failure count.
+- Row 4 — DNS failure trending by site over 7 days.
+
+Alerting:
+- Critical (DNS failures > 50 at any site in 1 hour): page site operations — users cannot resolve domains.
+- Warning (DNS P95 latency > 200ms): investigate upstream resolver health.
+
+Runbook:
+1. **Single upstream resolver failing**: Switch to alternative resolvers in Meraki Dashboard (Security & SD-WAN > Addressing & VLANs > DNS servers). Add redundant resolvers if only one was configured.
+2. **All DNS failing at one site**: Check the MX's WAN uplink status. If the uplink is down, DNS (and everything else) fails. Check Dashboard for WAN status.
+
+### Step 5 — Troubleshooting
+
+- **DNS events not in Meraki logs** — Not all Meraki firmware versions log detailed DNS events. Ensure firmware is current. Alternatively, use Splunk Stream or a local DNS server for more detailed DNS analytics.
+
+- **Cannot extract latency from Meraki events** — Meraki may not include latency in every DNS event. Use the Meraki Dashboard API's `/networks/{id}/health/dns` endpoint for latency data, or deploy external DNS monitoring (ThousandEyes).
+
+- **Meraki Dashboard shows DNS OK but Splunk shows failures** — Time range mismatch. Ensure Splunk and Meraki Dashboard are looking at the same time window.
 
 ## SPL
 

@@ -1,0 +1,56 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.111",
+  "title": "IPv6 Prefix Hijack and Route Origin Validation (RPKI/ROA)",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "ES",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=juniper:junos` or `index=threat_intel` — Detects IPv6 prefix hijacking by monitoring BGP updates for unauthorized origin AS changes, more-specific prefix injections, and RPKI/ROA validation failures. IPv6 prefix hijacking diverts traffic to attacker-controlled infrastructure for interception, credential theft, or cryptocurrency hijacking.\n\n**IPv6 prefix hijacking methods:**\n\n1. **Origin AS change.** An attacker announces your IPv6 prefix from their AS. Without RPKI, upstream routers accept the announcement.\n2. **More-specific prefix injection.** An attacker announces a more-specific prefix (e.g., /48 when you announce /32). BGP prefers more-specific routes, diverting traffic.\n3. **Path manipulation.** An attacker prepends your AS to their path, making the hijack look like a normal route.\n4. **RPKI invalid routes.** RPKI/ROA (Resource Public Key Infrastructure / Route Origin Authorization) allows prefix owners to declare which AS is authorized to originate their prefix. Routes that fail RPKI validation are flagged as 'Invalid' and should be dropped.\n5. **IPv6 specifics.** IPv6 address space is less mature in RPKI coverage than IPv4. Many IPv6 prefixes lack ROAs, making them more vulnerable to hijacking.",
+  "app": "Splunk Enterprise Security",
+  "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"juniper:junos\") earliest=-24h\n  (\"%BGP\" AND (\"ipv6\" OR \"afi.*2\") AND (\"UPDATE\" OR \"origin\" OR \"RPKI\" OR \"invalid\"))\n| eval bgp_event=case(\n    match(_raw, \"(?i)RPKI.*invalid|ROA.*invalid|origin.*validation.*fail\"), \"RPKI_INVALID\",\n    match(_raw, \"(?i)origin.*change|originator.*changed\"), \"ORIGIN_CHANGE\",\n    match(_raw, \"(?i)new.*prefix|prefix.*added\") AND match(_raw, \"/([4-9][0-9]|1[0-2][0-9])\"), \"MORE_SPECIFIC\",\n    match(_raw, \"(?i)hijack|anomal|unexpected\"), \"ANOMALY\",\n    match(_raw, \"(?i)UPDATE.*withdraw\"), \"WITHDRAW\",\n    1=1, \"UPDATE\")\n| rex field=_raw \"prefix\\s*=?\\s*(?<prefix>[0-9a-fA-F:/]+)\"\n| rex field=_raw \"(?:origin|AS)\\s*=?\\s*(?<origin_as>\\d+)\"\n| where bgp_event IN (\"RPKI_INVALID\", \"ORIGIN_CHANGE\", \"MORE_SPECIFIC\", \"ANOMALY\")\n| eval severity=case(\n    bgp_event=\"RPKI_INVALID\", \"CRITICAL — route fails RPKI validation (\" . prefix . \" from AS\" . origin_as . \")\",\n    bgp_event=\"ORIGIN_CHANGE\", \"HIGH — origin AS changed for \" . prefix . \" to AS\" . origin_as,\n    bgp_event=\"MORE_SPECIFIC\", \"HIGH — more-specific prefix injected: \" . prefix,\n    bgp_event=\"ANOMALY\", \"HIGH — BGP anomaly detected\")\n| stats count as events by host, bgp_event, prefix, origin_as, severity\n| sort -events",
+  "description": "Detects IPv6 prefix hijacking through BGP monitoring: unauthorized origin AS changes, more-specific prefix injections, and RPKI/ROA validation failures. Prefix hijacking is one of the most dangerous attacks on IPv6 infrastructure — it diverts traffic to attacker-controlled routers for interception, credential theft, or service impersonation. RPKI/ROA validation is the primary defense.",
+  "value": "IPv6 prefix hijacking has been used in real-world attacks for cryptocurrency theft (2018 MyEtherWallet attack via AWS Route 53), traffic surveillance, and spam routing. RPKI coverage for IPv6 is still maturing — many prefixes lack ROAs. This UC provides early detection of hijacking attempts by monitoring BGP update anomalies and RPKI validation results, enabling rapid response before significant traffic diversion occurs.",
+  "implementation": "Monitor BGP updates for IPv6 prefix origin changes and RPKI validation failures. Maintain a list of authorised origin ASes for your prefixes. Alert on any unauthorised origin or RPKI-invalid announcement.",
+  "visualization": "(1) Table: RPKI-invalid routes currently in the routing table. (2) Timeline: BGP anomaly events. (3) Single-value: RPKI coverage percentage for your prefixes. (4) Map: geographic location of suspicious origin ASes.",
+  "references": [
+    {
+      "title": "RFC 6811 — BGP Prefix Origin Validation (RPKI)",
+      "url": "https://www.rfc-editor.org/rfc/rfc6811"
+    },
+    {
+      "title": "RFC 7115 — Origin Validation Operation Based on the RPKI (BCP 185)",
+      "url": "https://www.rfc-editor.org/rfc/rfc7115"
+    },
+    {
+      "title": "MANRS — Mutually Agreed Norms for Routing Security",
+      "url": "https://www.manrs.org/"
+    }
+  ],
+  "knownFalsePositives": "**Legitimate origin changes.** When an organisation migrates to a new ISP or AS, the origin AS for their prefixes changes. Coordinate with change management.\n\n**Aggregate/deaggregate.** When a provider deaggregates a prefix for traffic engineering, more-specific announcements appear. These should be documented and excluded.\n\n**RPKI ROA expiration.** ROAs have expiration dates. If a ROA expires before renewal, valid routes are temporarily flagged as RPKI Not Found (not Invalid). Monitor ROA expiration separately.",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "arista"
+  ],
+  "equipmentModels": [
+    "cisco_asr_9000",
+    "juniper_mx",
+    "arista_7280"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• BGP peering with full or partial IPv6 routing table.\n• RPKI validator (Routinator, rpki-client, RIPE Validator) deployed.\n• BGP logging enabled on border routers.\n\nStep 1 — Configure RPKI validation\n\n**Deploy RPKI validator (Routinator):**\n```bash\nroutinator server --http 0.0.0.0:8323 --rtr 0.0.0.0:3323\n```\n\n**Cisco IOS-XE RPKI configuration:**\n```\nrouter bgp 65000\n bgp rpki server tcp 10.1.1.100 port 3323 refresh 300\n address-family ipv6 unicast\n  bgp bestpath prefix-validate allow-invalid\n```\nNote: `allow-invalid` keeps RPKI-invalid routes in the RIB but marks them. Use `bgp bestpath prefix-validate` without `allow-invalid` to drop invalid routes (recommended for production).\n\n**Juniper Junos RPKI configuration:**\n```\nrouting-options {\n    validation {\n        group rpki-validator {\n            session 10.1.1.100 {\n                port 3323;\n            }\n        }\n    }\n}\npolicy-options {\n    policy-statement rpki-reject {\n        term reject-invalid {\n            from validation-database invalid;\n            then reject;\n        }\n    }\n}\n```\n\nStep 2 — Create monitoring searches\n\n**Currently RPKI-invalid routes in the table:**\n```spl\nindex=network (sourcetype=\"cisco:ios\" OR sourcetype=\"juniper:junos\") earliest=-1h\n  \"RPKI\" AND \"invalid\" AND \"ipv6\"\n| rex field=_raw \"prefix\\s*=?\\s*(?<prefix>[0-9a-fA-F:/]+)\"\n| rex field=_raw \"AS\\s*(?<origin_as>\\d+)\"\n| dedup prefix, origin_as\n| table prefix, origin_as\n| eval risk=\"RPKI Invalid — this route should be dropped or deprioritised\"\n```\n\n**Your own prefix monitoring (hijack detection):**\n```spl\nindex=network (sourcetype=\"cisco:ios\" OR sourcetype=\"juniper:junos\") earliest=-24h\n  \"BGP\" AND \"2001:db8:your::/48\"\n| rex field=_raw \"(?:origin|AS)\\s*=?\\s*(?<origin_as>\\d+)\"\n| where origin_as != \"65000\"\n| eval alert=\"PREFIX HIJACK — Your prefix 2001:db8:your::/48 is being originated by AS\" . origin_as . \" (expected: AS65000)\"\n| table _time, host, origin_as, alert\n```\n\nStep 3 — Validate\n(a) **RPKI validator health.** Verify the RPKI validator is synchronised: `curl http://localhost:8323/api/v1/status`. Check VRP (Validated ROA Payload) count is reasonable (>200,000).\n\n(b) **RPKI coverage for your prefixes.** Verify ROAs exist for all your IPv6 prefixes: `whois -h rpki.gin.ntt.net 2001:db8:your::/48`.\n\n(c) **Hijack simulation.** In a lab environment, announce a test prefix from an unauthorized AS. Verify the RPKI validator flags it as invalid and the alert fires.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — BGP/RPKI Security\"):\n• Row 1 — Single-values: RPKI-invalid routes in table, RPKI coverage percentage.\n• Row 2 — Table: RPKI-invalid routes with prefix and origin AS.\n• Row 3 — Timeline: BGP anomaly events.\n• Row 4 — Your prefix monitoring: unauthorized origin alerts.\n\n**Alert 1:** Your prefix originated by unauthorized AS — critical. Immediate escalation.\n**Alert 2:** More-specific of your prefix appeared — critical. Possible hijack in progress.\n**Alert 3:** RPKI validator down — high. Validation cannot occur.\n\n**Incident response for prefix hijack:**\n1. Verify the hijack is real (not a configuration error on your side).\n2. Contact upstream ISP to filter the unauthorized announcement.\n3. Contact the hijacking AS's upstream providers.\n4. If RPKI ROAs are in place and policy is `reject invalid`, the hijack is mitigated automatically.\n5. Post-incident: review ROA coverage and create/update ROAs for all prefixes.\n\nStep 5 — Troubleshooting\n\n• **RPKI validator not connecting.** Verify TCP connectivity on port 3323 (RTR protocol). Check firewall rules between the router and the validator.\n\n• **ROA mismatch.** If your own routes are flagged as RPKI-invalid, your ROA may have an incorrect max-length or wrong origin AS. Verify and update the ROA in your RIR portal (ARIN, RIPE, APNIC).\n\n• **RPKI coverage gap.** If many routes are 'Not Found' (no ROA), they can still be hijacked. Work with your RIR to create ROAs for all your IPv6 prefixes. Target 100% RPKI coverage.",
+  "grandmaExplanation": "Every organisation's set of addresses (like a block of house numbers) is supposed to be announced only by the organisation that owns them. A hijacker is someone who announces your house numbers as their own, so letters meant for you go to them instead. We have a system (RPKI) that acts like a property deed — it proves who really owns each block of addresses. We watch for anyone trying to claim our addresses, and we verify the deeds for addresses we receive.",
+  "prerequisiteUseCases": [
+    "5.20.44"
+  ],
+  "wave": "run"
+}

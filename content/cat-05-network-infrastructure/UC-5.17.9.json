@@ -1,0 +1,64 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.17.9",
+  "title": "Traffic Distribution Imbalance Across Tool Ports",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Reliability",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "wave": "walk",
+  "dataSources": "Detailed: `index=visibility`; port-level counters (`tool_port`, `egress_kbps`, `flow_count`, `hash_bucket_id`) from `gigamon:tool`, `keysight:egress`, `apcon:destination`. Include synthetic hashes (`lb_alg`) documenting whether distribution uses symmetric L4 hashing or round-robin scheduling.",
+  "app": "Fabric manager REST integrations (Gigamon, Keysight, APCON) pushing JSON metrics to Splunk via HEC or scripted inputs; optional Splunk Observability metrics pipeline when brokers emit OTLP via gateways.",
+  "spl": "index=visibility earliest=-6h\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"gigamon\"),\"Gigamon\",match(v,\"keysight|ixia|vision\"),\"Keysight\",match(v,\"apcon\"),\"APCON\",\"other\")\n| where vendor!=\"other\"\n| eval tool_grp=coalesce(tool_cluster,map_destination_group,\"default\")\n| eval kbps=tonumber(coalesce(egress_kbps,tool_tx_kbps,outbound_mbps))*if(match(coalesce(rate_unit,\"\"),\"(?i)mbps\"),1000,1)\n| eval port_name=coalesce(tool_port,dest_if,hardware_port)\n| bin _time span=15m\n| stats sum(kbps) as slice_rate dc(flow_count) as approx_flows by _time vendor host tool_grp port_name\n| eventstats sum(slice_rate) as grp_total by _time vendor host tool_grp\n| eval share_pct=if(grp_total>0, round(100*slice_rate/grp_total,2), null())\n| eventstats max(share_pct) as max_share min(share_pct) as min_share stdev(share_pct) as share_std by _time vendor host tool_grp\n| eval imbalance_score=round(max_share-min_share,2)\n| where imbalance_score>35 OR share_std>15 OR max_share>=65\n| sort - imbalance_score vendor tool_grp _time",
+  "description": "Splunk measures fifteen-minute egress share percentages across tool ports inside each load-balanced group so asymmetric hashing, failed collector NICs, or silent map skew dumps disproportionate traffic onto single IDS sensors before drops cascade.",
+  "value": "Balanced tool farms regain predictable CPU headroom because Splunk exposes uneven feeder lanes early while autoscaling decisions reference empirical share entropy instead of averaged dashboards masking hotspots.",
+  "implementation": "Whitelist N+1 designs intentionally biased toward a primary sensor using lookup overrides; combine with UC-5.17.1 utilization to distinguish hashing imbalance from absolute saturation.",
+  "detailedImplementation": "Prerequisites\n• Documented expected fan-out counts (`expected_ports`) per tool_grp including maintenance spares.\n• Flow telemetry sampling tolerance understood—avoid comparing counts when sampling differs per port.\n• CMDB linkage between logical tool_grp and physical rack PDUs for targeted mitigation.\n\nStep 1 — Metric ingestion\nPoll per-destination octets counters from brokers at interval ≤ polling bucket width to minimize aliasing.\n\nStep 2 — SPL calibration\nTune imbalance thresholds per vendor hashing algorithm—symmetric 5-tuple setups tolerate narrower spreads than round-robin.\n\nStep 3 — Alerting strategy\nPage when `imbalance_score` exceeds forty for four consecutive buckets AND max_share corresponds to a production IDS—not lab sinkholes.\n\nStep 4 — Validate\nInduce asymmetry in lab by unplugging one tool leg—confirm Splunk ranks correct `port_name` hottest within ten minutes.\n\nStep 5 — Operationalize\nDashboard overlays predicted uniform share reference line; integrate automated recommendation engine suggesting map reshuffles logged back into Splunk notes.",
+  "visualization": "Stacked percentage bar per tool_grp showing share_pct by port_name; statistical overlay of share_std; drilldown raw table listing approx_flows for forensic imbalance causes.",
+  "references": [
+    {
+      "title": "Splunk Documentation — eventstats command",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eventstats"
+    },
+    {
+      "title": "APCON — IntellaView fabric management overview",
+      "url": "https://www.apcon.com/"
+    },
+    {
+      "title": "Splunk Lantern — Monitoring working examples (load balancing patterns)",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "**Cold standby ports:** intentionally near-zero share skews scores—mark standby in lookup.**Microburst workloads:** short-lived spikes resemble imbalance—require multi-bucket persistence.**Flow-count sampling mismatch:** std dev inflated artifactually—prefer octet-based shares only.**Maintenance drains:** purposeful steering during upgrades mimics faults.",
+  "mitreAttack": [
+    "N/A (load distribution monitoring)"
+  ],
+  "securityDomain": "network",
+  "detectionType": "Baseline",
+  "equipment": [
+    "gigamon",
+    "keysight",
+    "cpacket",
+    "apcon",
+    "garland"
+  ],
+  "equipmentModels": [
+    "gigamon_gigavue",
+    "keysight_vision",
+    "cpacket_cstor",
+    "apcon_visibility_platform",
+    "garland_network_tap"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "When traffic fans out to several watchers, we want slices close to even—not one plate piled high while others stay hungry. We measure those slices so we spot crooked sharing before one watcher chokes and drops crumbs everywhere."
+}

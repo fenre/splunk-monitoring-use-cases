@@ -21,7 +21,7 @@ Monitors API endpoint health and error rates to ensure automation reliability.
 
 ## Value
 
-Monitors API endpoint health and error rates to ensure automation reliability.
+Network operations teams monitor Meraki Dashboard API error rates and response codes to detect credential failures, rate limiting, and cloud infrastructure issues that disrupt data collection.
 
 ## Implementation
 
@@ -30,44 +30,64 @@ Log API responses with status codes. Alert on error rate threshold.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki:api (http_status_code=4* OR http_status_code=5*)`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Meraki Dashboard API error monitoring via TA internal logs and custom API health checks. The Meraki API returns standard HTTP status codes: 200 (success), 400 (bad request), 401 (unauthorized), 403 (forbidden), 404 (not found), 429 (rate limited), 500 (server error).
+- Data sources: (1) `index=_internal` for TA HTTP response errors, (2) `index=meraki sourcetype=meraki:api:audit` for custom API monitoring scripts, (3) Meraki Dashboard: Organization > API & Webhooks > API Usage for reference.
 
 ### Step 1 — Configure data collection
-Log API responses with status codes. Alert on error rate threshold.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify API error visibility:
 ```spl
-index=cisco_network sourcetype="meraki:api:*" (http_status_code=4* OR http_status_code=5*)
-| stats count as error_count, values(http_status_code) as status_codes by endpoint, method
-| eval error_rate=round(error_count*100/total_requests, 2)
-| where error_rate > 5
+index=_internal sourcetype=splunkd "meraki" ("error" OR "failed" OR "4[0-9][0-9]" OR "5[0-9][0-9]") earliest=-24h
+| stats count by log_level
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**API Error Rate and Endpoint Health (Meraki)** — Monitors API endpoint health and error rates to ensure automation reliability.
+**Primary search — API error rate by endpoint:**
+```spl
+index=_internal sourcetype=splunkd "meraki" earliest=-4h
+| rex "(?:status|response|http)[_=:\s]*(?P<http_status>\d{3})"
+| rex "(?:endpoint|url|path)[_=:\s]*(?P<api_endpoint>[^\s,"]+)"
+| where isnotnull(http_status) AND http_status >= 400
+| eval error_category=case(http_status="401" OR http_status="403", "AUTH_ERROR", http_status="404", "NOT_FOUND", http_status="429", "RATE_LIMITED", http_status >= "500", "SERVER_ERROR", 1==1, "CLIENT_ERROR")
+| stats count as errors by http_status, error_category, api_endpoint
+| sort -errors
+```
 
-Documented **Data sources**: `sourcetype=meraki:api (http_status_code=4* OR http_status_code=5*)`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: API errors indicate different failure modes: 401/403 = credential or permission issue (data collection stops); 404 = endpoint changed (API version mismatch); 429 = rate limiting (data delayed); 500+ = Meraki cloud issue (temporary or sustained). Each requires a different remediation approach.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki:api:*. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=cisco_network, sourcetype="meraki:api:*". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by endpoint, method** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **error_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where error_rate > 5` — typically the threshold or rule expression for this monitoring goal.
-
+**API health trending:**
+```spl
+index=_internal sourcetype=splunkd "meraki" earliest=-24h
+| rex "(?:status|response|http)[_=:\s]*(?P<http_status>\d{3})"
+| where isnotnull(http_status)
+| eval is_error=if(http_status >= 400, 1, 0)
+| bin _time span=1h
+| stats count as total_calls sum(is_error) as error_calls by _time
+| eval error_rate_pct=round(100*error_calls/total_calls, 1)
+```
 
 ### Step 3 — Validate
-In Meraki Dashboard, open the same organization or network, compare the metric (status, event feed, or admin log) to the Splunk result, and confirm the TA’s API key, org ID, and optional syslog reach the same index and sourcetype you used in the search.
+(a) Intentionally use an invalid API key and verify 401 errors appear in Splunk.
+(b) Compare API usage statistics with Meraki Dashboard: Organization > API & Webhooks.
+(c) During a Meraki cloud maintenance window, verify 5xx errors are captured.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: API error timeline; endpoint error breakdown; error rate gauge.
+Dashboard ("Meraki API Health"):
+- Row 1 — Single-value tiles: "API error rate %", "Auth errors", "Rate limit events", "Server errors".
+- Row 2 — Error breakdown by status code and endpoint.
+- Row 3 — API health trending (error rate % over 24h).
+
+Alerting:
+- Critical (401/403 errors sustained > 15 minutes): data collection stopped — credential issue.
+- Warning (error rate > 5%): API issues impacting data quality.
+
+### Step 5 — Troubleshooting
+
+- **Sustained 401 errors** — API key was revoked, expired, or the admin account was deactivated. Generate a new API key in Meraki Dashboard and update the TA configuration.
+
+- **Intermittent 500 errors** — Meraki cloud infrastructure issue. Check status.meraki.com for ongoing incidents. These typically self-resolve.
+
+- **429 errors increasing** — Too many API consumers sharing the rate limit. See UC-5.8.11 for detailed rate limit troubleshooting.
 
 ## SPL
 

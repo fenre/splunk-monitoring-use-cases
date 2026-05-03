@@ -1,0 +1,64 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.17.7",
+  "title": "GigaSMART / Advanced Feature Processing Health",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Fault",
+    "Performance",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "wave": "walk",
+  "dataSources": "Detailed: `index=visibility`; `gigamon:gigasmart`, `gigamon:blade`, `keysight:advanced_apps`, `cpacket:analytics` streaming `feature_state`, `fpga_temp_c`, `sess_table_pct`, `regex_compile_errors`, `ssl_decrypt_failures`. Temperature and memory metrics may arrive via SNMP alongside syslog heartbeats.",
+  "app": "Gigamon Fabric Manager / REST pollers, Keysight Vision application intelligence exporters, cPacket analytics node syslog; Splunk Supporting Add-on for SNMP for environmental sensors when syslog lacks thermal data.",
+  "spl": "index=visibility earliest=-8h\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"gigamon\"),\"Gigamon\",match(v,\"keysight|ixia|vision\"),\"Keysight\",match(v,\"cpacket\"),\"cPacket\",\"other\")\n| where vendor!=\"other\"\n| eval blade=coalesce(slot_id,module_name,feature_card,\"unknown\")\n| eval healthy=case(match(lower(coalesce(feature_state,svc_status,\"\")),\"up|ok|online|running\"),1,tonumber(coalesce(sess_table_pct,table_util_pct))>92,0,tonumber(coalesce(fpga_temp_c,die_temp_c))>85,0,match(_raw,\"(?i)(regex.?error|compile.?fail|decrypt.?fail)\"),0,1)\n| bin _time span=15m\n| stats min(healthy) as ok_window max(sess_table_pct) as peak_tbl max(fpga_temp_c) as peak_temp values(feature_state) as states dc(regex_compile_errors) as regex_err by _time vendor host blade\n| where ok_window=0 OR peak_tbl>90 OR peak_temp>80 OR regex_err>0\n| sort vendor host blade - _time",
+  "description": "Quarter-hour Splunk health windows combine FPGA-adjacent temperatures, session table saturation, and cryptographic feature errors across Gigamon GigaSMART-class blades and Keysight Vision advanced modules so latent hardware fatigue surfaces before features silently degrade.",
+  "value": "Platform owners justify proactive blade swaps using Splunk-backed thermal trends while SOC managers avoid unexplained decryption gaps during TLS-heavy incident weeks.",
+  "implementation": "Maintain vendor-specific temperature thresholds in a lookup by chassis SKU; escalate regex compile failures immediately—these rarely self-heal—while smoothing thermal alarms using rolling medians.",
+  "detailedImplementation": "Prerequisites\n• Hardware BOM noting FPGA-bearing SKUs vs CPU-only analytics blades.\n• Environmental baseline (ambient rack temperature, airflow direction).\n• Firmware cadence calendar so Splunk suppressions align with reboot-induced spikes.\n\nStep 1 — Instrumentation\nPoll REST endpoints exposing session table fills and crypto offload counters; augment with SNMP environmental OIDs where gaps exist.\n\nStep 2 — Parse failures distinctly\nFlag TLS handshake failures separately from hardware faults using structured codes—avoid lumping into generic ERROR severity buckets.\n\nStep 3 — Deploy Splunk searches\nSave composite SPL `pktbrk_advfeat_health`; acceleration optional via summary indexing due to moderate event volume.\n\nStep 4 — Validate\nStress-test lab appliance until vendor CLI reports table exhaustion—confirm Splunk crosses thresholds simultaneously.\n\nStep 5 — Operationalize\nDashboard overlays thermal curves with HVAC incidents pulled from facility feeds when integrated; attach firmware advisory links in drilldown.",
+  "visualization": "Small-multiples line charts per blade for peak_temp and peak_tbl; alert table prioritizing regex_err>0; optional geomap only when hosts carry geo metadata.",
+  "references": [
+    {
+      "title": "Splunk Documentation — Machine Learning Toolkit for adaptive thresholds (optional)",
+      "url": "https://docs.splunk.com/Documentation/MLApp/current/UserGuide/WhatsintheSplunkAppforMachineLearning"
+    },
+    {
+      "title": "Gigamon Documentation — GigaSMART packet modification applications",
+      "url": "https://docs.gigamon.com/"
+    },
+    {
+      "title": "Keysight Network Visibility — Hardware acceleration features",
+      "url": "https://www.keysight.com/us/en/products/network-test/network-visibility-solutions.html"
+    }
+  ],
+  "knownFalsePositives": "**Firmware upgrades:** temporary regex recompilation storms.**Seasonal HVAC drift:** harmless thermal rises below vendor max—tune thresholds.**Partial decrypt policies:** intentional failures on pinned suites mimic faults—annotate policy IDs.**Dual-controller failover:** session counters reset producing fake saturation spikes.",
+  "mitreAttack": [
+    "N/A (hardware feature monitoring)"
+  ],
+  "securityDomain": "network",
+  "detectionType": "Baseline",
+  "equipment": [
+    "gigamon",
+    "keysight",
+    "cpacket",
+    "apcon",
+    "garland"
+  ],
+  "equipmentModels": [
+    "gigamon_gigavue",
+    "keysight_vision",
+    "cpacket_cstor",
+    "apcon_visibility_platform",
+    "garland_network_tap"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "Some boxes do fancy math on live traffic—unpacking secrets or spotting patterns—and those brains can overheat or fill up like a crowded notebook. We watch those signs so we service the brain before it quietly starts skipping pages."
+}

@@ -21,7 +21,7 @@ Junos “Screen” features apply stateless, early-drop protections against floo
 
 ## Value
 
-Junos “Screen” features apply stateless, early-drop protections against floods, sweeps, malformed packets, and classic DoS patterns before sessions are fully created. Those drops often never appear in session or traffic logs, so screen telemetry is the only way to see perimeter volumetric or reconnaissance attacks. Sustained spikes in specific screen categories usually mean an active attack, a misconfigured peer, or a need to tune thresholds—not “normal” firewall noise.
+Security teams monitor Juniper SRX Screen counter drops by category and zone to detect active flood attacks, port scans, and IP sweeps with early-stage stateless protection.
 
 ## Implementation
 
@@ -30,81 +30,91 @@ Confirm screen options are enabled on untrust-facing interfaces and that `RT_SCR
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_juniper` (Splunkbase 2847), SNMP Modular Input.
-- Ensure the following data sources are available: `sourcetype=juniper:junos:firewall:structured` (syslog `RT_SCREEN_*`), SNMP screen or attack-related counters where published for your platform.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Juniper SRX Screen counter logs forwarded to Splunk. Data in `index=juniper` or `index=firewall` with `sourcetype=juniper:srx:structured` or `sourcetype=juniper:srx:screen`. Key fields: `screen_name`, `source_address`, `destination_address`, `zone_name`, `action`.
+* Junos Screen features: stateless, early-drop protections applied before session lookup. Categories include: SYN flood protection, ICMP flood, UDP flood, port scan detection, IP sweep detection, land attack, ping of death, Winnuke, teardrop, and various malformed packet protections. Configured per-zone under `security screen`.
 
-### Step 1 — Configure data collection
-Confirm screen options are enabled on untrust-facing interfaces and that `RT_SCREEN` syslog messages (or structured equivalents) reach Splunk. For SNMP, poll platform-specific screen/attack counters if your SRX model exposes them, and chart deltas alongside syslog. Baseline each `screen_type` per site; alert on order-of-magnitude jumps or sustained elevation. Investigate source `src` clusters and coordinate with upstream ISP scrubbing if attacks are large. Map to CIM `Intrusion_Detection` where …
+### Step 1 — - Configure data collection
+```
+# SRX configuration -- enable Screen protections and logging
+set security screen ids-option my-screen icmp ping-death
+set security screen ids-option my-screen icmp flood threshold 1000
+set security screen ids-option my-screen tcp syn-flood alarm-threshold 1024
+set security screen ids-option my-screen tcp syn-flood attack-threshold 1625
+set security screen ids-option my-screen tcp port-scan threshold 10
+set security screen ids-option my-screen ip source-route-option
+set security screen ids-option my-screen ip spoofing
+set security screen ids-option my-screen limit-session source-ip-based 128
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+# Apply to zone
+set security zones security-zone untrust screen my-screen
 
+# Enable logging
+set security log stream splunk-stream category all
+```
+Verify:
 ```spl
-index=network (sourcetype="juniper:junos:firewall:structured" OR sourcetype="juniper:junos:firewall")
-  "RT_SCREEN"
-| rex field=_raw "RT_SCREEN_(?<screen_type>[A-Z0-9_]+)"
-| rex field=_raw "source:\s*(?<src>\S+)"
-| rex field=_raw "destination:\s*(?<dest>\S+)"
+index=juniper sourcetype="juniper:srx:*" earliest=-4h
+| where match(_raw, "(?i)screen|RT_SCREEN")
+| stats count by screen_name, source_address
+| sort -count | head 20
+```
+
+### Step 2 — - Create the search and alert
+
+**Primary search -- Screen counter event monitoring:**
+```spl
+index=juniper sourcetype="juniper:srx:*" earliest=-4h
+| where match(_raw, "(?i)RT_SCREEN|screen") OR isnotnull(screen_name)
+| eval screen=coalesce(screen_name, attack_type)
+| eval src=coalesce(source_address, src_ip, src)
+| eval dst=coalesce(destination_address, dest_ip, dst)
+| eval zone=coalesce(zone_name, from_zone, ingress_zone)
+| eval screen_category=case(
+    match(screen, "(?i)syn.*flood"), "SYN Flood",
+    match(screen, "(?i)icmp.*flood|ping.*flood"), "ICMP Flood",
+    match(screen, "(?i)udp.*flood"), "UDP Flood",
+    match(screen, "(?i)port.*scan"), "Port Scan",
+    match(screen, "(?i)ip.*sweep|addr.*sweep"), "IP Sweep",
+    match(screen, "(?i)land|tear|winnuke|ping.*death"), "Malformed Packet",
+    match(screen, "(?i)spoof"), "IP Spoofing",
+    match(screen, "(?i)session.*limit"), "Session Limit",
+    1==1, "Other")
 | bin _time span=5m
-| stats count as screen_hits by _time host screen_type src dest
-| eventstats median(screen_hits) as med by screen_type, host
-| eval threshold=max(100, 5 * med)
-| where screen_hits > threshold
-| sort -screen_hits
+| stats count as drops dc(src) as unique_sources by _time, screen_category, zone
+| eventstats avg(drops) as avg_drops stdev(drops) as stdev_drops by screen_category, zone
+| eval z_score=if(stdev_drops > 0, round((drops - avg_drops)/stdev_drops, 2), 0)
+| eval severity=case(
+    screen_category="SYN Flood" AND drops > 5000, "CRITICAL -- active SYN flood attack",
+    z_score > 4, "CRITICAL -- anomalous screen counter spike",
+    z_score > 3 OR drops > 1000, "WARNING -- elevated screen drops",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, zone, screen_category, drops, unique_sources, z_score, severity
+| sort severity, -drops
 ```
 
-#### Understanding this SPL
+### Step 3 — - Validate
+(a) CLI: `show security screen statistics zone untrust` -- compare counters.
+(b) CLI: `show security monitoring` -- check current threat activity.
+(c) Verify Screen is applied to correct zones: `show security zones`.
 
-**Juniper SRX Screen Counter Monitoring (Juniper SRX)** — Junos “Screen” features apply stateless, early-drop protections against floods, sweeps, malformed packets, and classic DoS patterns before sessions are fully created. Those drops often never appear in session or traffic logs, so screen telemetry is the only way to see perimeter volumetric or reconnaissance attacks. Sustained spikes in specific screen categories usually mean an active attack, a misconfigured peer, or a need to tune thresholds—not “normal” firewall noise.
+### Step 4 — - Operationalize
+Dashboard ("Juniper SRX -- Screen Counters"):
+* Row 1 -- Single-value: "Screen drops (4h)", "SYN floods detected", "Port scans detected".
+* Row 2 -- Screen event timechart by category.
+* Row 3 -- Top sources triggering Screen drops.
 
-Documented **Data sources**: `sourcetype=juniper:junos:firewall:structured` (syslog `RT_SCREEN_*`), SNMP screen or attack-related counters where published for your platform. **App/TA** (typical add-on context): `Splunk_TA_juniper` (Splunkbase 2847), SNMP Modular Input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Alert: Critical (SYN flood screen drops > 5000/5min): activate DDoS mitigation.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: juniper:junos:firewall:structured, juniper:junos:firewall. Those sourcetypes align with what this use case lists under Data sources.
+### Step 5 — - Troubleshooting
 
-**Pipeline walkthrough**
+* **SYN flood thresholds too low** -- Adjust: `set security screen ids-option my-screen tcp syn-flood alarm-threshold` and `attack-threshold` based on normal traffic patterns. Monitor with `show security screen statistics`.
 
-- Scopes the data: index=network, sourcetype="juniper:junos:firewall:structured". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- Extracts fields with `rex` (regular expression).
-- Extracts fields with `rex` (regular expression).
-- Discretizes time or numeric ranges with `bin`/`bucket`.
-- `stats` rolls up events into metrics; results are split **by _time host screen_type src dest** so each row reflects one combination of those dimensions.
-- `eventstats` rolls up events into metrics; results are split **by screen_type, host** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **threshold** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where screen_hits > threshold` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+* **Port scan detection too sensitive** -- Increase threshold: `set security screen ids-option my-screen tcp port-scan threshold`. Default 10 may trigger on legitimate service health checks.
 
+* **Screen not applied to zone** -- Verify: `show security zones security-zone untrust` shows `Screen: my-screen`. Without zone binding, Screen protections are inactive.
 
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
-```spl
-| tstats `summariesonly` count
-  from datamodel=Intrusion_Detection.IDS_Attacks
-  by IDS_Attacks.signature IDS_Attacks.severity IDS_Attacks.src IDS_Attacks.dest span=1h
-| where count>0
-| sort -count
-```
-
-Understanding this CIM / accelerated SPL
-
-This block uses `tstats` on the Intrusion_Detection data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
-
-**Pipeline walkthrough**
-
-- Uses `tstats` against accelerated summaries for the Intrusion_Detection model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
-
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
-
-
-
-### Step 3 — Validate
-Compare a sample of events in J-Web or the SRX command line for the same time and rule context so on-box messages and Splunk stay aligned.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart (hits by screen type), Table (top sources), Single value (total screen drops vs prior day).
+**IPv6 Note:** ICMPv6 is architecturally critical for IPv6 — it carries NDP (Neighbor Discovery), Path MTU Discovery, and Multicast Listener Discovery. Unlike ICMP for IPv4, blocking ICMPv6 breaks IPv6 connectivity entirely. Ensure firewall policies permit at minimum ICMPv6 types 1-4 (Destination Unreachable, Packet Too Big, Time Exceeded, Parameter Problem) and types 133-137 (RS, RA, NS, NA, Redirect). See RFC 4890 for filtering recommendations.
 
 ## SPL
 

@@ -21,7 +21,7 @@ Unexpected topology changes in cabling/connections.
 
 ## Value
 
-Unexpected topology changes in cabling/connections.
+Network engineers detect LLDP/CDP neighbor additions and removals via SNMP polling, identifying physical topology changes and potential rogue device connections between poll intervals.
 
 ## Implementation
 
@@ -30,48 +30,72 @@ Poll LLDP-MIB lldpRemTable and CISCO-CDP-MIB; ingest syslog for CDP/LLDP neighbo
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: LLDP-MIB (lldpRemTable), CISCO-CDP-MIB, syslog CDP/LLDP events.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* CDP/LLDP neighbor change detection via SNMP polling. Extends UC-5.1.18 with SNMP-based neighbor table comparison. SNMP OIDs: cdpCacheDeviceId (.1.3.6.1.4.1.9.9.23.1.2.1.1.6), lldpRemSysName (.1.0.8802.1.1.2.1.4.1.1.9).
+* Periodic SNMP polling of neighbor tables enables detecting changes that don't generate syslog (e.g., slow neighbor timeout). Comparing consecutive polls reveals additions and removals.
 
-### Step 1 — Configure data collection
-Poll LLDP-MIB lldpRemTable and CISCO-CDP-MIB; ingest syslog for CDP/LLDP neighbor change events. Baseline neighbor table; alert on unexpected changes (new/removed neighbors). Useful for change validation and cable swap detection.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+[snmp_neighbors]
+interval = 300
+sourcetype = snmp:neighbors
+index = network
+# CDP: cdpCacheDeviceId, cdpCachePlatform, cdpCacheDevicePort
+# LLDP: lldpRemSysName, lldpRemPortId, lldpRemChassisId
+```
+Verify:
 ```spl
-index=network (sourcetype=snmp:lldp OR sourcetype=snmp:cdp OR sourcetype="cisco:ios") ("lldpRem" OR "CDP-4-NATIVE" OR "LLDP" OR "neighbor")
-| rex "neighbor (?<neighbor>\S+)|lldpRemSysName[=:]\s*(?<neighbor>\S+)|port (?<port>\S+)"
-| bin _time span=1h
-| stats dc(neighbor) as neighbor_changes, values(neighbor) as neighbors by host, port, _time
-| where neighbor_changes > 1
-| table host port _time neighbor_changes neighbors
+index=network sourcetype="snmp:neighbors" earliest=-4h
+| stats dc(neighbor_name) by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**LLDP / CDP Neighbor Change Detection** — Unexpected topology changes in cabling/connections.
+**Primary search -- Neighbor table change detection:**
+```spl
+index=network sourcetype="snmp:neighbors" earliest=-4h
+| eval device=coalesce(host, device_name)
+| eval neighbor=coalesce(cdpCacheDeviceId, lldpRemSysName, neighbor_name)
+| eval local_port=coalesce(local_interface, ifName, port)
+| eval remote_port=coalesce(cdpCacheDevicePort, lldpRemPortId, remote_interface)
+| eval protocol=if(isnotnull(cdpCacheDeviceId), "CDP", "LLDP")
+| bin _time span=5m
+| stats values(neighbor) as current_neighbors by _time, device, local_port, protocol
+| sort device, local_port, _time
+| streamstats current=f last(current_neighbors) as prev_neighbors by device, local_port
+| eval added=mvfilter(NOT match(current_neighbors, mvjoin(prev_neighbors, "|")))
+| eval removed=mvfilter(NOT match(prev_neighbors, mvjoin(current_neighbors, "|")))
+| where isnotnull(added) OR isnotnull(removed)
+| eval change_detail=case(
+    isnotnull(added) AND isnotnull(removed), "REPLACED: ".removed." -> ".added,
+    isnotnull(added), "ADDED: ".added,
+    isnotnull(removed), "REMOVED: ".removed)
+| eval severity=case(
+    isnotnull(removed), "WARNING -- neighbor removed on ".local_port,
+    isnotnull(added), "INFO -- new neighbor on ".local_port,
+    1==1, "INFO")
+| table _time, device, local_port, protocol, change_detail, severity
+| sort severity, _time
+```
 
-Documented **Data sources**: LLDP-MIB (lldpRemTable), CISCO-CDP-MIB, syslog CDP/LLDP events. **App/TA** (typical add-on context): SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show cdp neighbors` / `show lldp neighbors` -- verify current topology.
+(b) Cross-reference with physical topology documentation.
+(c) Check for unauthorized devices.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:lldp, snmp:cdp, cisco:ios. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+### Step 4 — - Operationalize
+Dashboard ("Network -- Neighbor Changes"):
+* Row 1 -- Single-value: "Neighbors added", "Neighbors removed".
+* Row 2 -- Neighbor change table.
 
-**Pipeline walkthrough**
+Alert: Warning (neighbor removed from uplink/trunk port): potential connectivity impact.
 
-- Scopes the data: index=network, sourcetype=snmp:lldp. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- Discretizes time or numeric ranges with `bin`/`bucket`.
-- `stats` rolls up events into metrics; results are split **by host, port, _time** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where neighbor_changes > 1` — typically the threshold or rule expression for this monitoring goal.
-- Pipeline stage (see **LLDP / CDP Neighbor Change Detection**): table host port _time neighbor_changes neighbors
+### Step 5 — - Troubleshooting
 
+* **Neighbor removed** -- Device disconnected, powered off, or cable pulled. Verify physical connection and remote device status.
 
-### Step 3 — Validate
-On the device, use `show cdp neighbor` and `show lldp neighbor` to confirm neighbor device and port match the syslog for the same minute.
+* **New unknown neighbor** -- Potential rogue device. Verify against inventory. Apply 802.1X if appropriate.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, port, changes), Timeline, Single value (unexpected changes).
+* **Neighbor oscillating** -- CDP/LLDP hold timer too short. Default CDP holdtime is 180s. Adjust if needed: `cdp holdtime <seconds>`.
 
 ## SPL
 

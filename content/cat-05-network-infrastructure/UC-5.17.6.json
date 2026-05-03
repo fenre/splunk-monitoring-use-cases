@@ -1,0 +1,64 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.17.6",
+  "title": "De-duplication and Header Stripping Statistics",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Data Quality",
+    "Performance",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "wave": "walk",
+  "dataSources": "Detailed: `index=visibility`; feature telemetry such as `gigamon:gigasmart`, `keysight:advanced_features`, `cpacket:analytics` exposing `dedup_removed_pct`, `strip_vlan_count`, `inner_ip_exposed`, `timestamp_normalized_events`, `payload_collapsed_frames`. Pair with tool-ingest byte counters (IDS/NDR) to sanity-check that stripping did not overshoot legitimate encapsulations.",
+  "app": "Gigamon GigaSMART application intelligence integrations, Keysight Vision advanced processing modules, generic syslog parsers plus Splunk-field extractions for JSON feature counters.",
+  "spl": "index=visibility earliest=-24h\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"gigamon\"),\"Gigamon\",match(v,\"keysight|ixia|vision\"),\"Keysight\",match(v,\"cpacket|cstor\"),\"cPacket\",\"other\")\n| where vendor!=\"other\"\n| eval feat_host=coalesce(host,chassis_name,\"unknown\")\n| eval dedup_pct=tonumber(coalesce(dedup_removed_pct,payload_dedup_ratio*100,null()))\n| eval strip_events=tonumber(coalesce(vlan_strip_count,header_strip_events,stripped_frames))\n| bin _time span=1h\n| stats avg(dedup_pct) as avg_dedup max(dedup_pct) as peak_dedup sum(strip_events) as strips by _time vendor feat_host feature_profile\n| streamstats global=f window=24 avg(avg_dedup) as dedup_baseline by vendor feat_host feature_profile\n| eval dedup_anomaly=if(peak_dedup>(dedup_baseline*3) AND dedup_baseline>1,1,0)\n| eval strip_spike=if(strips>1000000,1,0)\n| where dedup_anomaly=1 OR strip_spike=1\n| sort - peak_dedup vendor feat_host _time",
+  "description": "Hourly Splunk summarizes advanced-feature throughput shaping—duplicate removal ratios and header-strip volumes—so mis-tuned profiles that erase forensic VLAN tags or deduplicate away rare flows stop hiding inside opaque appliance dashboards.",
+  "value": "Blue teams keep evidentiary fidelity because Splunk highlights destructive preprocessing spikes while capacity owners quantify how much analytics traffic clever dedup reclaimed before ordering bigger tool ports.",
+  "implementation": "Document acceptable dedup ceilings per deployment tier; join Splunk results weekly with PCAP spot-checks on mirrored spans to validate retained headers match policy.",
+  "detailedImplementation": "Prerequisites\n• Signed architecture standards stating which encapsulations must survive to tools.\n• Lab PCAP corpus replay harness feeding identical traffic through profiles under test.\n• Namespaced `feature_profile` identifiers matching Git-managed templates.\n\nStep 1 — Enable telemetry\nActivate vendor counters for dedup sessions and strip engines; ensure logs include profile revision hashes after each deployment pipeline run.\n\nStep 2 — Normalize percentages\nConvert ratios to 0–100 scale consistently; ignore samples where denominator counters reset mid-hour.\n\nStep 3 — Build Splunk content\nMaterialize summary index `visibility_feat_hourly` from the rolling stats for twelve-month trending without re-scanning raw noisy streams.\n\nStep 4 — Validate\nReplay PCAP through staging appliance toggling dedup on/off—ensure Splunk deltas align with wireshark difference summaries within agreed tolerance.\n\nStep 5 — Operationalize\nAlert only after sustained anomalies (three consecutive hours) to ignore transient microbursts; dashboard annotate recent change tickets pulled via REST lookup.",
+  "visualization": "Stacked area chart of strips vs `_time`; overlaid line for avg_dedup; annotations from change-management lookup when profile hashes shift.",
+  "references": [
+    {
+      "title": "Splunk Documentation — About summary indexing",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Indexer/Usesummaryindexing"
+    },
+    {
+      "title": "Gigamon Documentation — GigaSMART overview",
+      "url": "https://docs.gigamon.com/"
+    },
+    {
+      "title": "IETF RFC 7014 — IP Flow Information Export (IPFIX) considerations for visibility",
+      "url": "https://www.rfc-editor.org/rfc/rfc7014"
+    }
+  ],
+  "knownFalsePositives": "**Backup VLAN tagging differences:** legitimate seasonal shifts raise dedup ratios.**Counter granularity:** vendors quantize small ratios to zero causing divide quirks.**Multi-tenant replay labs:** synthetic floods mimic strip spikes—segment indexes.**Profile rollback:** sudden drops interpreted as anomalies though intentional—join deployment logs.",
+  "mitreAttack": [
+    "N/A (data hygiene monitoring)"
+  ],
+  "securityDomain": "network",
+  "detectionType": "Anomaly",
+  "equipment": [
+    "gigamon",
+    "keysight",
+    "cpacket",
+    "apcon",
+    "garland"
+  ],
+  "equipmentModels": [
+    "gigamon_gigavue",
+    "keysight_vision",
+    "cpacket_cstor",
+    "apcon_visibility_platform",
+    "garland_network_tap"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "Before copies reach our watchers, machines sometimes remove repeats or peel off labels so the picture is clearer—but peel too much and we lose the story. We watch those knobs so trimming stays helpful instead of accidentally hiding clues."
+}

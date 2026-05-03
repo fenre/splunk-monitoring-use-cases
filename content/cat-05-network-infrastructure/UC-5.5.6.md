@@ -21,7 +21,7 @@ SD-WAN device certificates must be valid for overlay connectivity.
 
 ## Value
 
-SD-WAN device certificates must be valid for overlay connectivity.
+Network operations teams track SD-WAN device and CA certificate expiration dates across the entire fabric, enabling proactive renewal scheduling and preventing certificate-expiry-induced outages.
 
 ## Implementation
 
@@ -30,44 +30,80 @@ Poll vManage for certificate status. Alert at 60/30/7 day thresholds.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API.
-- Ensure the following data sources are available: vManage certificate inventory.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Cisco Catalyst Add-on for Splunk polling vManage for device certificate status. Data in `index=sdwan` with `sourcetype=cisco:sdwan:device` or `sourcetype=cisco:sdwan:certificate`. Key fields: `system_ip`, `site_id`, `certificate_status`, `expiration_date`, `serial_number`, `issuer`, `subject`.
+- SD-WAN relies on certificates for control plane authentication (DTLS between controllers and edges), data plane encryption (IPsec tunnel keying), and vManage web interface (HTTPS). Certificate expiration causes: control connection loss (device goes "headless"), tunnel failures, and management access loss.
+- Cisco SD-WAN uses two certificate types: (1) Enterprise root CA certificates (used for control plane authentication), (2) WAN edge certificates (device identity). Both have expiration dates that must be tracked.
 
 ### Step 1 — Configure data collection
-Poll vManage for certificate status. Alert at 60/30/7 day thresholds.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify certificate data:
 ```spl
-index=sdwan sourcetype="cisco:sdwan:certificate"
-| eval days_left=round((expiry_epoch-now())/86400,0) | where days_left<60
-| table hostname system_ip days_left | sort days_left
+index=sdwan (sourcetype="cisco:sdwan:device" OR sourcetype="cisco:sdwan:certificate") earliest=-1h
+| search certificate* OR expir*
+| stats count by sourcetype
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Certificate Expiration** — SD-WAN device certificates must be valid for overlay connectivity.
+**Primary search — Certificate expiration countdown:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:certificate" earliest=-1h
+| eval expiry_epoch=strptime(expiration_date, "%Y-%m-%dT%H:%M:%S")
+| eval days_until_expiry=round((expiry_epoch - now()) / 86400, 0)
+| eval urgency=case(days_until_expiry < 0, "EXPIRED", days_until_expiry < 7, "CRITICAL", days_until_expiry < 30, "WARNING", days_until_expiry < 90, "PLAN", 1==1, "OK")
+| where urgency!="OK"
+| lookup sdwan_sites.csv site_id OUTPUT site_name tier
+| lookup sdwan_devices.csv system_ip OUTPUT hostname device_model
+| eval device_label=if(isnotnull(hostname), hostname, system_ip)
+| table device_label, site_name, tier, certificate_status, expiration_date, days_until_expiry, urgency, issuer, serial_number
+| sort days_until_expiry
+```
 
-Documented **Data sources**: vManage certificate inventory. **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: Certificate expiration is one of the most common causes of SD-WAN outages because it's preventable but often overlooked. When a device certificate expires, all DTLS control connections fail, the device can't establish new IPsec tunnels, and the device effectively goes offline. The urgency tiers provide actionable lead time: 90 days for planning, 30 days for scheduling, 7 days for emergency.
 
-The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: cisco:sdwan:certificate. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+**Certificate inventory summary:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:certificate" earliest=-1h
+| eval expiry_epoch=strptime(expiration_date, "%Y-%m-%dT%H:%M:%S")
+| eval days_until_expiry=round((expiry_epoch - now()) / 86400, 0)
+| eval bucket=case(days_until_expiry < 0, "Expired", days_until_expiry < 30, "< 30 days", days_until_expiry < 90, "30-90 days", days_until_expiry < 365, "90-365 days", 1==1, "> 1 year")
+| stats count by bucket, issuer
+| sort bucket
+```
 
-**Pipeline walkthrough**
-
-- Scopes the data: index=sdwan, sourcetype="cisco:sdwan:certificate". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `eval` defines or adjusts **days_left** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where days_left<60` — typically the threshold or rule expression for this monitoring goal.
-- Pipeline stage (see **Certificate Expiration**): table hostname system_ip days_left
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+**Root CA expiration check:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:certificate" issuer="*root*" OR issuer="*CA*" earliest=-1h
+| eval expiry_epoch=strptime(expiration_date, "%Y-%m-%dT%H:%M:%S")
+| eval days_until_expiry=round((expiry_epoch - now()) / 86400, 0)
+| where days_until_expiry < 180
+| table issuer, subject, expiration_date, days_until_expiry
+```
 
 ### Step 3 — Validate
-In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
+(a) In vManage: Administration > Certificate Management. Compare certificate expiration dates with Splunk results.
+(b) On an edge device: `show certificate installed` — compare expiration date and serial number with Splunk.
+(c) Set up a test alert for certificates expiring within 365 days and verify it captures known certificates.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Single value, Status indicator.
+Dashboard ("SD-WAN — Certificate Management"):
+- Row 1 — Single-value tiles: "Expired certificates", "Expiring < 30 days", "Expiring < 90 days", "Total certificates tracked".
+- Row 2 — Certificate expiration timeline (bar chart: buckets by expiry window).
+- Row 3 — Urgent certificates table: device, site, expiration date, days remaining, urgency.
+- Row 4 — Root CA status: issuer, expiration date.
+
+Alerting:
+- Critical (any certificate expired): immediate — device has lost or will lose connectivity.
+- Critical (certificate expires within 7 days): emergency renewal needed.
+- Warning (certificate expires within 30 days): schedule renewal.
+- Info (certificate expires within 90 days): plan renewal during next maintenance window.
+
+### Step 5 — Troubleshooting
+
+- **Certificate data not in Splunk** — The TA may not poll the certificate API endpoint. Check if `/dataservice/certificate/vedge/list` is included in the TA's data collection.
+
+- **Expiration date parsing fails** — Different vManage versions may use different date formats (ISO 8601, epoch, or custom). Check raw events and adjust the `strptime` format string.
+
+- **Certificate shows expired but device still works** — The device may be using a cached session. Once the DTLS session times out or the device reboots, it won't be able to re-establish connections.
 
 ## SPL
 

@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.139",
+  "title": "IPv6 Neighbour Cache Exhaustion (NDP Table Overflow) Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": ["Availability", "Security"],
+  "splunkPillar": "ES",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Detects NDP neighbour cache exhaustion attacks where an attacker sends traffic to many addresses in a /64 subnet, forcing the router to perform NDP resolution for each address, overwhelming the neighbour cache (RFC 6583). The /64 subnet contains 2^64 addresses — scanning even a tiny fraction can overflow router memory.",
+  "app": "Splunk Enterprise Security",
+  "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-4h\n  (\"INCOMPLETE\" OR \"neighbor.*table.*full\" OR \"ND.*table.*overflow\" OR \"adjacency.*limit\" OR \"ipv6.*nd.*cache\")\n| eval cache_event=case(\n    match(_raw, \"(?i)table.*full|overflow|limit.*reached|exhausted\"), \"TABLE_FULL\",\n    match(_raw, \"(?i)INCOMPLETE.*count|incomplete.*exceed\"), \"EXCESSIVE_INCOMPLETE\",\n    match(_raw, \"(?i)rate.*limit|nd.*throttle\"), \"RATE_LIMITED\",\n    1=1, \"ND_EVENT\")\n| stats count as events by host, cache_event\n| eval severity=case(\n    cache_event=\"TABLE_FULL\", \"CRITICAL — NDP table full on \" . host . \" — \" . events . \" events — neighbour cache exhaustion attack or misconfigured /64\",\n    cache_event=\"EXCESSIVE_INCOMPLETE\" AND events > 100, \"HIGH — \" . events . \" incomplete NDP entries — possible scanning attack\",\n    cache_event=\"RATE_LIMITED\", \"MEDIUM — NDP rate limiting active — mitigating attack\",\n    1=1, null())\n| where isnotnull(severity)\n| sort -events",
+  "description": "Detects NDP neighbour cache exhaustion (RFC 6583), where an attacker forces a router to perform NDP resolution for many addresses in a /64 subnet. Because a /64 contains 2^64 addresses, even a small fraction can overflow router memory. Symptoms include neighbour cache table full errors and excessive INCOMPLETE NDP entries.",
+  "value": "Neighbour cache exhaustion is the IPv6 equivalent of an ARP exhaustion attack but vastly more severe due to the size of /64 subnets. A single host scanning the subnet can crash a router or prevent legitimate hosts from communicating. This attack is specifically called out in RFC 6583 and is a real operational threat in enterprise networks.",
+  "implementation": "Monitor for NDP table full events, excessive INCOMPLETE entries, and NDP rate-limiting triggers.",
+  "visualization": "(1) Single-value: NDP table utilization %. (2) Timechart: INCOMPLETE entries over time. (3) Table: affected routers. (4) Alert: table full events.",
+  "references": [
+    {"title": "RFC 6583 — Operational Neighbor Discovery Problems", "url": "https://www.rfc-editor.org/rfc/rfc6583"},
+    {"title": "Cisco — IPv6 Neighbor Discovery Cache Exhaustion Attack Mitigation", "url": "https://www.cisco.com/c/en/us/support/docs/ip/ip-version-6-ipv6/212768-ipv6-first-hop-security-best-practice.html"}
+  ],
+  "knownFalsePositives": "**Large subnets with many hosts.** A /64 with hundreds of active hosts may have high NDP cache utilization. This is a sizing issue, not an attack.\n\n**Network scanning tools.** Legitimate scanning (vulnerability assessment, inventory) can trigger high INCOMPLETE counts. Schedule scans and exclude from alerts.",
+  "equipment": ["cisco", "juniper"],
+  "equipmentModels": ["cisco_catalyst_9000", "juniper_mx"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Router syslog with NDP events.\n• NDP cache limits configured.\n\nStep 1 — Configure NDP cache limits and rate-limiting:\n```\nipv6 nd cache interface-limit 4096\nipv6 nd ns-interval 1000\n```\n\nStep 2 — Monitor NDP table utilization:\n```\nshow ipv6 neighbors statistics\n```\n\nStep 3 — Validate: Attempt subnet scan with `nmap -6 --script ipv6-multicast-mld-list`. Verify detection fires.\n\nStep 4 — Operationalize\n**Dashboard:** NDP cache health. **Alert:** NDP table utilization >80% or table full — critical.\n\nStep 5 — Troubleshooting\n• Reduce /64 attack surface: Use /120 or /126 subnets for point-to-point links.\n• Enable `ipv6 nd cache expire 300` to age out INCOMPLETE entries faster.",
+  "grandmaExplanation": "Your router keeps a phone book of all the IPv6 addresses it knows about. An attacker can flood it with millions of fake lookups until the phone book is completely full and it can't look up any more real addresses. We watch the phone book's capacity and sound the alarm before it overflows.",
+  "prerequisiteUseCases": ["5.20.21", "5.20.135"],
+  "wave": "walk"
+}

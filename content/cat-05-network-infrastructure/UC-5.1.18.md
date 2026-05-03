@@ -21,7 +21,7 @@ Unexpected neighbor changes indicate cabling modifications, device replacements,
 
 ## Value
 
-Unexpected neighbor changes indicate cabling modifications, device replacements, or unauthorized devices connecting to the network.
+Network engineers monitor CDP/LLDP neighbor changes to detect physical topology modifications, unauthorized device connections, and native VLAN mismatches across the switching fabric.
 
 ## Implementation
 
@@ -30,45 +30,72 @@ Poll CDP-MIB/LLDP-MIB at 600s intervals. Create a baseline lookup via `outputloo
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP Modular Input, CISCO-CDP-MIB, LLDP-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=snmp:cdp`, `sourcetype=cisco:ios`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* CDP (Cisco Discovery Protocol) and LLDP (Link Layer Discovery Protocol) neighbor change events. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%CDP-4-NATIVE_VLAN_MISMATCH`, `%CDP-4-DUPLEX_MISMATCH`; LLDP TLV changes.
+* CDP/LLDP neighbor changes indicate: physical topology changes (new device connected, cable moved), device replacement, or rogue device insertion. Baseline neighbor tables enable detecting unauthorized changes.
 
-### Step 1 — Configure data collection
-Poll CDP-MIB/LLDP-MIB at 600s intervals. Create a baseline lookup via `outputlookup`. Compare current neighbors against baseline. Alert on new/removed neighbors.
+### Step 1 — - Configure data collection
+```
+# Cisco IOS -- CDP is enabled by default
+# Enable LLDP (for multi-vendor environments)
+lldp run
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# SNMP polling for neighbor tables
+# CDP: cdpCacheDeviceId (.1.3.6.1.4.1.9.9.23.1.2.1.1.6)
+# LLDP: lldpRemSysName (.1.0.8802.1.1.2.1.4.1.1.9)
+```
+Verify:
 ```spl
-index=network sourcetype="snmp:cdp"
-| stats latest(cdpCacheDeviceId) as neighbor, latest(cdpCachePlatform) as platform by host, cdpCacheIfIndex
-| appendpipe [| inputlookup cdp_baseline.csv]
-| eventstats latest(neighbor) as current, first(neighbor) as baseline by host, cdpCacheIfIndex
-| where current!=baseline | table host, cdpCacheIfIndex, baseline, current, platform
+index=network earliest=-24h
+| where match(_raw, "(?i)CDP|LLDP|neighbor.*change|neighbor.*add|neighbor.*remove")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**CDP/LLDP Neighbor Changes** — Unexpected neighbor changes indicate cabling modifications, device replacements, or unauthorized devices connecting to the network.
+**Primary search -- CDP/LLDP neighbor change detection:**
+```spl
+index=network earliest=-24h
+| where match(_raw, "(?i)CDP|LLDP|neighbor.*change|neighbor.*add|neighbor.*remove|NATIVE_VLAN_MISMATCH")
+| rex field=_raw "(?i)(?:Device.?Id|neighbor|sysname).*?[:\s]+(?<neighbor_name>\S+)"
+| rex field=_raw "(?i)(?:Port.?Id|interface|port).*?[:\s]+(?<neighbor_port>\S+)"
+| rex field=_raw "(?i)(?:local|interface|port)\s+(?<local_port>\S+)"
+| eval device=coalesce(host, device_name)
+| eval neighbor=coalesce(neighbor_name, remote_device)
+| eval change_type=case(
+    match(_raw, "(?i)NATIVE_VLAN"), "NATIVE_VLAN_MISMATCH",
+    match(_raw, "(?i)DUPLEX_MISMATCH"), "DUPLEX_MISMATCH",
+    match(_raw, "(?i)add|new|appear"), "NEIGHBOR_ADDED",
+    match(_raw, "(?i)remov|delet|disappear|lost"), "NEIGHBOR_REMOVED",
+    1==1, "NEIGHBOR_CHANGE")
+| stats count as events values(change_type) as change_types values(neighbor) as neighbors values(local_port) as local_ports by device
+| eval severity=case(
+    match(mvjoin(change_types, ","), "NATIVE_VLAN_MISMATCH"), "WARNING -- native VLAN mismatch detected",
+    match(mvjoin(change_types, ","), "NEIGHBOR_REMOVED"), "WARNING -- neighbor(s) lost",
+    events > 10, "INFO -- significant topology changes",
+    1==1, "INFO")
+| where severity != "INFO" OR events > 5
+| sort severity, -events
+```
 
-Documented **Data sources**: `sourcetype=snmp:cdp`, `sourcetype=cisco:ios`. **App/TA** (typical add-on context): SNMP Modular Input, CISCO-CDP-MIB, LLDP-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show cdp neighbors` / `show lldp neighbors` -- current neighbor table.
+(b) Compare against documented physical topology.
+(c) Check for native VLAN consistency: `show cdp neighbors detail | include Native`.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:cdp. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- Topology Discovery"):
+* Row 1 -- Single-value: "Neighbor changes (24h)", "Native VLAN mismatches", "Neighbors lost".
+* Row 2 -- CDP/LLDP change event table.
 
-**Pipeline walkthrough**
+Alert: Warning (neighbor removed on critical port): cable or device failure.
 
-- Scopes the data: index=network, sourcetype="snmp:cdp". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by host, cdpCacheIfIndex** so each row reflects one combination of those dimensions.
-- Appends rows from a subsearch with `append`.
-- `eventstats` rolls up events into metrics; results are split **by host, cdpCacheIfIndex** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where current!=baseline` — typically the threshold or rule expression for this monitoring goal.
-- Pipeline stage (see **CDP/LLDP Neighbor Changes**): table host, cdpCacheIfIndex, baseline, current, platform
-### Step 3 — Validate
-On the device, use `show cdp neighbor` and `show lldp neighbor` to confirm neighbor device and port match the syslog for the same minute.
+### Step 5 — - Troubleshooting
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, interface, old neighbor, new neighbor), Change log timeline.
+* **Native VLAN mismatch** -- Trunk ports must agree on native VLAN. Fix: `switchport trunk native vlan <id>` on both sides. Mismatch causes traffic leaking between VLANs.
+
+* **Unexpected neighbor** -- Rogue device connected. Verify against inventory. If unauthorized, shut port and investigate. Consider 802.1X port authentication.
+
+* **Neighbor lost but link is up** -- CDP/LLDP may be disabled on the remote device. Check: `show cdp interface` and verify remote device configuration.
 
 ## SPL
 

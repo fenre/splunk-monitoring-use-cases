@@ -21,7 +21,7 @@ Client count trending informs capacity planning and AP density decisions.
 
 ## Value
 
-Client count trending informs capacity planning and AP density decisions.
+Network operations teams track wireless client counts per AP against model-specific capacity limits, identifying overloaded access points and generating capacity planning data for building and floor-level wireless density management.
 
 ## Implementation
 
@@ -30,40 +30,82 @@ Poll client counts via API or SNMP. Track per AP, per SSID, and per building ove
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: Meraki API, WLC SNMP.
-- Ensure the following data sources are available: WLC/Meraki client data.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Wireless controller or cloud platform reporting client count per AP. Sources: (1) Cisco WLC — client association data via SNMP or syslog, (2) Meraki API (`sourcetype=meraki:api:devices` or `meraki:api:wireless`) — client count per AP, (3) Aruba controller — client association table.
+- Key fields: `ap_name`, `client_count`/`num_clients`, `ssid`, `radio_band`, `max_clients` (AP capacity limit).
+- Build `wireless_ap_capacity.csv` lookup: `ap_model,max_clients_per_radio,recommended_max` (e.g., `MR46,128,80`, `AIR-AP3802I,200,120`). Recommended max is typically 60-70% of the hardware limit for good performance.
 
 ### Step 1 — Configure data collection
-Poll client counts via API or SNMP. Track per AP, per SSID, and per building over time.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify client count data:
 ```spl
-index=network sourcetype="meraki:api"
-| timechart span=1h dc(client_mac) as client_count by ap_name
+index=wireless earliest=-15m
+| where isnotnull(client_count) OR isnotnull(num_clients)
+| eval clients=coalesce(client_count, num_clients)
+| stats sum(clients) as total_clients dc(ap_name) as active_aps
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Client Count Trending** — Client count trending informs capacity planning and AP density decisions.
+**Primary search — Client count trending with capacity awareness:**
+```spl
+index=wireless earliest=-1h
+| where isnotnull(client_count) OR isnotnull(num_clients)
+| eval clients=coalesce(client_count, num_clients)
+| stats latest(clients) as current_clients by ap_name, radio_band
+| lookup wireless_ap_inventory.csv ap_name OUTPUT building floor zone ap_model
+| lookup wireless_ap_capacity.csv ap_model OUTPUT max_clients_per_radio recommended_max
+| eval utilization_pct=if(isnotnull(recommended_max), round(100*current_clients/recommended_max, 1), null())
+| eval status=case(utilization_pct > 100, "OVERLOADED", utilization_pct > 80, "HIGH", utilization_pct > 60, "ELEVATED", 1==1, "OK")
+| where status!="OK"
+| eval location=building." / ".floor
+| table ap_name, location, radio_band, current_clients, recommended_max, utilization_pct, status
+| sort status, -current_clients
+```
 
-Documented **Data sources**: WLC/Meraki client data. **App/TA** (typical add-on context): Meraki API, WLC SNMP. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+**Client count per building/floor:**
+```spl
+index=wireless earliest=-15m
+| where isnotnull(client_count) OR isnotnull(num_clients)
+| eval clients=coalesce(client_count, num_clients)
+| lookup wireless_ap_inventory.csv ap_name OUTPUT building floor
+| stats sum(clients) as total_clients dc(ap_name) as ap_count by building, floor
+| eval clients_per_ap=round(total_clients/ap_count, 1)
+| sort -total_clients
+```
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: meraki:api. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `timechart` plots the metric over time using **span=1h** buckets with a separate series **by ap_name** — ideal for trending and alerting on this use case.
-
+**Daily client count trending:**
+```spl
+index=wireless earliest=-7d
+| where isnotnull(client_count) OR isnotnull(num_clients)
+| eval clients=coalesce(client_count, num_clients)
+| bin _time span=1h
+| stats sum(clients) as total_clients by _time
+| timechart span=1h avg(total_clients) as "Total Wireless Clients"
+```
 
 ### Step 3 — Validate
-Open the Cisco Meraki Dashboard (organization or network scope, under Monitor as appropriate) and compare AP, client, security, or flow totals to the search for the same window. Spot-check a few device names, SSIDs, or MAC addresses against what you see live.
+(a) Compare client count on specific APs with the wireless controller dashboard.
+(b) During a known event (all-hands meeting), verify the client count spikes on APs near the meeting room.
+(c) Verify capacity lookup values against AP model datasheets.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (clients over time), Table (AP, count), Heatmap.
+Dashboard ("Wireless — Client Count"):
+- Row 1 — Single-value tiles: "Total wireless clients", "Overloaded APs", "Busiest AP", "Average clients/AP".
+- Row 2 — AP capacity table: AP, location, clients, capacity, utilization %, status.
+- Row 3 — Building/floor client density.
+- Row 4 — 7-day client count trending.
+
+Alerting:
+- Critical (AP > 100% of recommended capacity): user experience degradation — add APs.
+- Warning (AP > 80% capacity): approaching capacity limit.
+- Info (weekly): capacity planning report — buildings approaching limits.
+
+### Step 5 — Troubleshooting
+
+- **Client count on one AP much higher than others** — Sticky clients (devices not roaming to less-loaded APs). Enable client load balancing on the controller. Also check if the AP is near a high-density area (conference room, cafeteria).
+
+- **Total client count drops suddenly** — Controller issue, RADIUS failure, or DHCP pool exhaustion. Correlate with authentication events (UC-5.4.2) and DHCP events (UC-5.6.x).
+
+- **Client count data not available per-AP** — Some platforms report only aggregate counts. Configure per-AP polling via SNMP or ensure the API returns device-level client counts.
 
 ## SPL
 

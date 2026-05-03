@@ -21,7 +21,7 @@ A Citrix ADC cluster must keep a consistent configuration and routing view acros
 
 ## Value
 
-A Citrix ADC cluster must keep a consistent configuration and routing view across members. If replication lags, quorum drifts, or a split is possible, different nodes can run divergent policy—bad for availability and for policy enforcement. The goal is to detect async failures and membership changes before a maintenance window or failure widens the gap.
+Infrastructure teams monitor Citrix ADC cluster configuration replication, detecting sync failures and config mismatches that cause inconsistent traffic handling across cluster nodes.
 
 ## Implementation
 
@@ -30,19 +30,50 @@ Send cluster and nsync service logs to `index=netscaler`. If your deployment exp
 ## Detailed Implementation
 
 ### Prerequisites
-- High-severity `citrix:netscaler:syslog` in `index=netscaler` with cluster subsystems enabled for logging.
-- IP plan for CLIP, CCO, and node management documented.
+* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). Citrix ADC cluster syslog. Key fields: `cluster_node`, `node_state`, `config_sync_state`, `cluster_ip`, `clip_state`.
+* Citrix ADC Cluster: multiple ADC nodes working as one. All nodes share the same configuration via cluster IP (CLIP). Configuration changes on CLIP propagate to all nodes. Sync failures mean nodes have different configs -- leading to inconsistent behavior.
 
-### Step 1 — Configure data collection
-If logs are too sparse, add periodic scripted export of `show ns nsconfig` and parse version stamps only (no secrets) or send heartbeat metrics via HEC with consent.
+### Step 1 — - Configure data collection
+Verify cluster events:
+```spl
+index=netscaler sourcetype="citrix:netscaler:syslog" ("cluster" OR "CLIP" OR "sync" OR "propagat" OR "node") earliest=-24h
+| where match(_raw, "(?i)(sync|propagat|mismatch|fail|join|leave)")
+| stats count by host
+```
 
-### Step 2 — Create the search and alert
-Critical alert on any split or quorum loss. Warning on growing lag. Cross-check with network monitoring on cluster communication VLAN.
+### Step 2 — - Create the search and alert
 
-### Step 3 — Validate
-Compare vservers, services, and load-balancing state in the Citrix ADC management view or command line for the same time window and objects.
-### Step 4 — Operationalize
-Runbook includes forcing sync, reseeding, and vendor support bundle upload paths.
+**Primary search -- Cluster config replication health:**
+```spl
+index=netscaler sourcetype="citrix:netscaler:syslog" ("cluster" OR "CLIP" OR "sync" OR "propagat" OR "node") earliest=-4h
+| eval event_type=case(match(_raw, "(?i)sync.*fail|propagat.*fail"), "SYNC_FAILURE", match(_raw, "(?i)mismatch|config.*differ"), "CONFIG_MISMATCH", match(_raw, "(?i)node.*join"), "NODE_JOIN", match(_raw, "(?i)node.*leave|node.*down"), "NODE_LEAVE", match(_raw, "(?i)sync.*success|propagat.*success"), "SYNC_SUCCESS", 1==1, null())
+| where isnotnull(event_type)
+| eval severity=case(event_type="SYNC_FAILURE", "HIGH -- config not propagating", event_type="CONFIG_MISMATCH", "HIGH -- nodes have different configs", event_type="NODE_LEAVE", "WARNING -- cluster member left", 1==1, "INFO")
+| stats count as events latest(_time) as last_event by host, event_type, severity
+| sort severity
+```
+
+### Step 3 — - Validate
+(a) On ADC CLI: `show cluster instance` -- check node states and config sync status.
+(b) Make a config change on CLIP and verify it propagates to all nodes.
+(c) Check: `show cluster node` for individual node health.
+
+### Step 4 — - Operationalize
+Dashboard ("Citrix ADC -- Cluster Health"):
+* Row 1 -- Single-value: "Cluster nodes", "Sync failures", "Config mismatches", "Nodes active".
+* Row 2 -- Cluster event history.
+
+Alerting:
+* High (config sync failure): nodes may have inconsistent configs.
+* Warning (node left cluster): reduced cluster capacity.
+
+### Step 5 — - Troubleshooting
+
+* **Sync failure** -- Check: (1) network connectivity between nodes (cluster backplane), (2) cluster version mismatch (all nodes must be same firmware), (3) disk space on nodes.
+
+* **Config mismatch** -- Force sync: `force cluster sync`. If that fails, check for conflicting configs.
+
+* **Node won't rejoin** -- Check: (1) node state: `show cluster node <id>`, (2) network connectivity, (3) license status.
 
 ## SPL
 

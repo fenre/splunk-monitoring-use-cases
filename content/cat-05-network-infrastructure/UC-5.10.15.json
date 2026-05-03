@@ -1,0 +1,53 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.10.15",
+  "title": "Carrier BGP Session Failover and Prefix Acceptance Tracking",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "wave": "walk",
+  "monitoringType": [
+    "Availability",
+    "Resilience"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`index=network sourcetype=snmp:cisco_bgp` (or vendor-normalized `snmp:bgpPeerEntry`) exposing `bgpPeerRemoteAddr`, `bgpPeerState` (IANA: 6=Established), `cbgpPeerAcceptedPrefixes` / `cbgpPeerDeniedPrefixes` from CISCO-BGP4-MIB; correlated syslog `%BGP-5-ADJCHANGE` (`sourcetype=cisco:ios`) for flap timeline. Lookup `carrier_bgp_peers.csv` stores `peer_ip`, `carrier`, `site`, `baseline_accepted_min`, `criticality_tier`, optional `max_transition_delta` (SNMP counter threshold for `bgpPeerFsmEstablishedTransitions` spikes).",
+  "app": "SNMP Modular Input with CISCO-BGP4-MIB walks plus Cisco IOS syslog forwarding.",
+  "spl": "index=network sourcetype=\"snmp:cisco_bgp\" earliest=-30m\n| stats latest(bgpPeerState) as peer_state latest(cbgpPeerAcceptedPrefixes) as accepted latest(cbgpPeerDeniedPrefixes) as denied latest(bgpPeerFsmEstablishedTransitions) as transitions by host, bgpPeerRemoteAddr\n| lookup carrier_bgp_peers.csv peer_ip as bgpPeerRemoteAddr OUTPUT carrier site baseline_accepted_min criticality_tier max_transition_delta\n| eval peer_state_num=tonumber(peer_state)\n| eval established=(peer_state_num==6 OR lower(peer_state)==\"established\")\n| eval prefix_gap=isnotnull(baseline_accepted_min) AND accepted < baseline_accepted_min\n| eval session_alarm=NOT established\n| eval transition_spike=isnotnull(max_transition_delta) AND transitions>max_transition_delta\n| where session_alarm OR prefix_gap OR transition_spike\n| eval severity=case(prefix_gap AND session_alarm,\"critical\", session_alarm,\"high\", prefix_gap,\"medium\", transition_spike,\"medium\", true(), \"low\")\n| table host bgpPeerRemoteAddr carrier site peer_state accepted denied transitions baseline_accepted_min severity criticality_tier\n| sort peer_state accepted",
+  "description": "Combines SNMP BGP finite-state-machine status with accepted-prefix counters on carrier-facing peers—detecting simultaneous session impairment and silent partial reroutes when upstream filters shrink announcements without fully tearing sessions.",
+  "value": "Architecture teams prove whether redundant uplinks actually carried expected prefixes after failover drills or carrier policy tweaks—closing blind spots where BGP stays Established yet accepted routes drop below engineered minima.",
+  "implementation": "Poll SNMP every 60–120s; baseline `baseline_accepted_min` using steady-state observations per season; pair with syslog flap detection for root-cause narratives; throttle alerts on maintenance-flagged peers via lookup column.",
+  "detailedImplementation": "Prerequisites\n• CISCO-BGP4-MIB enabled on PE devices with SNMP community or token scoped read-only.\n• Known-good accepted-prefix counts per peer reflecting full IPv4/IPv6 families—maintain separate rows per AFI when dual-stack.\n• Splunk Transform guaranteeing numeric typing (`accepted`, `denied`).\n• Capacity planning for SNMP walks across hundreds of peers—consider Directed SNMP proxies.\n\nStep 1 — Normalize oid outputs into `snmp:cisco_bgp` sourcetype via TA props/transforms.\n\nStep 2 — Populate baseline CSV using thirty-day percentiles excluding maintenance spikes.\n\nStep 3 — Compose alerting: critical merges session_alarm + prefix_gap; informational logs gradual monotone declines >15% without crossing absolute floor.\n\nStep 4 — Visualization overlays transitions counter deltas versus syslog-derived flap intervals.\n\nStep 5 — Troubleshooting: vendor MIB omissions omit prefix counters—fallback to streaming telemetry gRPC export; vrf-aware peers require appended rd keys in lookup schema.",
+  "visualization": "Dual-axis chart of accepted prefixes and peer_state code; sankey from carrier→site→peer list filtered to alarms; single-value of Established peers below quota.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "CISCO-BGP4-MIB — BGP peer metrics reference",
+      "url": "https://www.cisco.com/c/en/us/td/docs/dcn/ios/asr9000/mib/pdf/CISCO-BGP4-MIB.pdf"
+    },
+    {
+      "title": "Splunk Lantern — SNMP onboarding best practices",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Carrier-managed RR withdrawals shrink counts legitimately during congestion routing exercises; SNMPwalk restarts duplicate transitions counters—baseline deltas instead of absolutes when vendor resets counters.",
+  "equipment": [
+    "cisco",
+    "snmp",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_ios",
+    "cisco_isr_4000",
+    "snmp_generic"
+  ],
+  "grandmaExplanation": "We check both whether the handshake line to our internet supplier stays up and whether we still receive the full bundle of directions we expect, so a half-working backup link cannot hide quietly.",
+  "telcoUseCase": "WAN BGP resilience validation",
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

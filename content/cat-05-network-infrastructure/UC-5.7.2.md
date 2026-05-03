@@ -21,7 +21,7 @@ Unusual flows (new protocols, unexpected destinations) indicate compromise, misc
 
 ## Value
 
-Unusual flows (new protocols, unexpected destinations) indicate compromise, misconfiguration, or shadow IT.
+Network and security teams detect anomalous traffic patterns — volume spikes/drops, new external destinations, protocol shifts — that may indicate attacks, data exfiltration, or infrastructure failures.
 
 ## Implementation
 
@@ -30,70 +30,100 @@ Baseline normal flow patterns over 30 days. Alert on new protocol/port combinati
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: Splunk Add-on for NetFlow.
-- Ensure the following data sources are available: `sourcetype=netflow`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- NetFlow/IPFIX data in `index=netflow` with normalized fields: `src`, `dest`, `bytes`, `packets`, `protocol`, `src_port`, `dest_port`. The Splunk Add-on for NetFlow or CIM Network_Traffic data model provides field normalization.
+- Baseline traffic patterns must be established before anomaly detection is meaningful. Run baseline collection for at least 7-14 days to capture weekly patterns (weekday vs. weekend, business hours vs. off-hours).
+- Understand what "anomalous" means in your environment: (a) Volume anomaly — sudden increase or decrease in total bytes; (b) Pattern anomaly — new source-destination pairs not seen before; (c) Protocol anomaly — unusual protocols or ports appearing; (d) Timing anomaly — traffic patterns shifting to unexpected hours. This UC focuses on statistical volume and pattern anomalies.
+- The Splunk Machine Learning Toolkit (MLTK) is recommended for advanced anomaly detection but not required — the SPL-native `eventstats` and `outlier` approaches work for most use cases.
 
 ### Step 1 — Configure data collection
-Baseline normal flow patterns over 30 days. Alert on new protocol/port combinations, new external destinations, or unusual volume patterns.
+Establish and store baselines:
+```spl
+index=netflow earliest=-7d latest=now
+| bin _time span=1h
+| stats sum(bytes) as hourly_bytes dc(src) as unique_sources dc(dest) as unique_dests by _time, host
+| stats avg(hourly_bytes) as avg_bytes stdev(hourly_bytes) as std_bytes avg(unique_sources) as avg_sources avg(unique_dests) as avg_dests by host
+```
+Save this as a lookup `netflow_baselines.csv` and refresh weekly.
 
 ### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
+**Primary search — Volume anomaly detection (hourly):**
 ```spl
-index=netflow
-| stats dc(dest_port) as unique_ports, dc(dest) as unique_dests by src
-| where unique_ports > 100 OR unique_dests > 500
-| sort -unique_ports
+index=netflow earliest=-24h
+| bin _time span=1h
+| stats sum(bytes) as hourly_bytes dc(src) as unique_sources dc(dest) as unique_dests dc(dest_port) as unique_ports by _time, host
+| eventstats avg(hourly_bytes) as avg_bytes stdev(hourly_bytes) as std_bytes by host
+| eval upper_threshold=avg_bytes + (3 * std_bytes)
+| eval lower_threshold=avg_bytes - (3 * std_bytes)
+| where hourly_bytes > upper_threshold OR hourly_bytes < lower_threshold
+| eval anomaly_type=if(hourly_bytes > upper_threshold, "Volume Spike", "Volume Drop")
+| eval deviation=round((hourly_bytes - avg_bytes) / std_bytes, 1)
+| sort -abs(deviation)
 ```
 
-#### Understanding this SPL
+#### Understanding this SPL: Statistical anomaly detection using 3-sigma thresholds. Volume spikes can indicate DDoS, data exfiltration, or backup jobs. Volume drops can indicate link failures, routing changes, or exporter issues. The `deviation` score shows how many standard deviations from normal — a score of 5+ is highly anomalous.
 
-**Anomalous Traffic Patterns** — Unusual flows (new protocols, unexpected destinations) indicate compromise, misconfiguration, or shadow IT.
-
-Documented **Data sources**: `sourcetype=netflow`. **App/TA** (typical add-on context): Splunk Add-on for NetFlow. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: netflow.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=netflow. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by src** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where unique_ports > 100 OR unique_dests > 500` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**New destination detection — first-seen external IPs:**
 ```spl
-| tstats `summariesonly` dc(All_Traffic.dest_port) as unique_ports dc(All_Traffic.dest) as unique_dests
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src span=1h
-| where unique_ports > 100 OR unique_dests > 500
-| sort -unique_ports
+index=netflow earliest=-1h
+| stats sum(bytes) as bytes dc(src) as internal_hosts by dest
+| where NOT cidrmatch("10.0.0.0/8", dest) AND NOT cidrmatch("172.16.0.0/12", dest) AND NOT cidrmatch("192.168.0.0/16", dest)
+| lookup known_destinations.csv dest OUTPUT first_seen
+| where isnull(first_seen)
+| eval bytes_MB=round(bytes/1048576, 1)
+| where bytes_MB > 10
+| sort -bytes_MB
+| head 20
 ```
 
-Understanding this CIM / accelerated SPL
+#### Understanding this SPL: Identifies external destinations that internal hosts are communicating with for the first time. New destinations with significant data volume (>10 MB in 1 hour) could indicate C2 beaconing, data exfiltration to a new drop site, or a newly compromised cloud service. The `known_destinations.csv` lookup should be populated from previous traffic history.
 
-**Anomalous Traffic Patterns** — Unusual flows (new protocols, unexpected destinations) indicate compromise, misconfiguration, or shadow IT.
+**Protocol distribution anomaly:**
+```spl
+index=netflow earliest=-24h
+| bin _time span=1h
+| stats sum(bytes) as bytes by _time, protocol
+| eventstats sum(bytes) as total_bytes by _time
+| eval pct=round(100*bytes/total_bytes, 2)
+| eventstats avg(pct) as avg_pct by protocol
+| where abs(pct - avg_pct) > 10
+| eval shift=round(pct - avg_pct, 1)
+| sort -abs(shift)
+```
 
-Documented **Data sources**: `sourcetype=netflow`. **App/TA** (typical add-on context): Splunk Add-on for NetFlow. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
-
-**Pipeline walkthrough**
-
-- Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.
-- `eval` defines or adjusts **bytes** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
+Schedule as Alert: volume anomaly runs hourly. New destination detection runs hourly. Trigger on volume deviation > 4 sigma or new destination with > 100 MB.
 
 ### Step 3 — Validate
-Compare port and destination diversity in Splunk to a known scan window or a labeled "noisy" host from your NetFlow/Stream or router flow export. Walk one alert through your firewall and DNS logs; exclude scheduled scanners and change windows you already know about.
+(a) During a known event (backup window, patch Tuesday), verify the anomaly detection correctly identifies the volume spike and that the type is labeled correctly.
+(b) Verify that the baseline is representative: compare the 7-day average to a normal week, not a holiday or maintenance week.
+(c) Test the new destination detection: access a previously unvisited external IP from a test host and verify it appears in the results.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Scatter plot (ports vs. destinations), Timechart.
+Dashboard ("Network — Traffic Anomaly Detection"):
+- Row 1 — Single-value tiles: "Anomalies detected (24h)", "Highest deviation score", "New external destinations (1h)", "Protocol shifts detected".
+- Row 2 — Timechart: hourly traffic volume by exporter with anomaly threshold bands.
+- Row 3 — Anomaly table: time, exporter, anomaly_type, deviation, volume.
+- Row 4 — New destination table: dest IP, bytes, internal hosts communicating, GeoIP lookup.
+
+Alerting:
+- Critical (deviation > 5 sigma, sustained for 2+ hours): page network/security team — likely infrastructure event or attack.
+- Warning (deviation > 3 sigma, single hour): notify for review.
+- Security (new destination with > 100 MB from sensitive subnet): alert security team.
+
+Runbook (owner: Network Operations / Security):
+1. **Volume spike**: Identify the top talkers during the spike period (cross-reference with UC-5.7.1). Determine if legitimate (backup, VM migration) or suspicious (DDoS, exfiltration).
+2. **Volume drop**: Check interface status on the exporter. A silent drop often means a link failure or routing change that diverted traffic.
+3. **New destination with high volume**: GeoIP lookup the destination. If it's in a high-risk country, escalate to security. Correlate with DNS logs to identify the domain.
+
+### Step 5 — Troubleshooting
+
+- **Too many false positives** — Increase the sigma threshold from 3 to 4, or add time-of-day awareness (separate weekday/weekend baselines). Exclude known noisy hours (backup windows) from the baseline.
+
+- **Anomalies detected but unactionable** — Enrich with context: add GeoIP, DNS reverse lookup, and asset inventory to every anomaly result. Without context, operators waste time investigating normal traffic.
+
+- **Baseline is unstable (high standard deviation)** — Your traffic may have high natural variance. Use median/MAD (Median Absolute Deviation) instead of mean/stdev for more robust anomaly detection.
+
+- **New destination detection returns too many results** — The `known_destinations.csv` lookup needs regular updates. Schedule a daily job to add all destinations seen in the last 24 hours to the lookup.
 
 ## SPL
 

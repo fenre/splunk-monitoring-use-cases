@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.134",
+  "title": "IPv6 RDNSS and DNSSL via Router Advertisement Monitoring (RFC 8106)",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": ["Availability", "Security"],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Monitors RDNSS (Recursive DNS Server) and DNSSL (DNS Search List) options advertised via Router Advertisements (RFC 8106). These RA options provide DNS configuration to SLAAC clients without requiring DHCPv6, but can be spoofed to redirect DNS queries to attacker-controlled resolvers.",
+  "app": "Splunk Enterprise",
+  "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-24h\n  (\"RDNSS\" OR \"DNSSL\" OR \"dns.*option\" OR \"RFC8106\")\n| eval rdnss_event=case(\n    match(_raw, \"(?i)RDNSS.*spoof|DNS.*rogue|unauthorized.*DNS\"), \"ROGUE_RDNSS\",\n    match(_raw, \"(?i)RDNSS.*lifetime.*0|RDNSS.*expired\"), \"RDNSS_EXPIRED\",\n    match(_raw, \"(?i)RDNSS|dns.server.*option\"), \"RDNSS_ADVERTISED\",\n    1=1, \"OTHER\")\n| rex field=_raw \"RDNSS\\s*(?<dns_server>[0-9a-fA-F:]+)\"\n| stats count as events values(dns_server) as advertised_dns by host, rdnss_event\n| eval severity=case(\n    rdnss_event=\"ROGUE_RDNSS\", \"CRITICAL — unauthorized DNS server in RA RDNSS option\",\n    rdnss_event=\"RDNSS_EXPIRED\", \"MEDIUM — RDNSS lifetime expired — clients may lose DNS\",\n    1=1, null())\n| where isnotnull(severity)\n| sort -events",
+  "description": "Monitors RDNSS and DNSSL options in IPv6 Router Advertisements (RFC 8106). These options provide DNS configuration to SLAAC clients. Detects rogue RDNSS advertisements (attacker redirecting DNS), expired RDNSS lifetimes, and inconsistent DNS server advertisements across routers.",
+  "value": "RDNSS is how SLAAC-configured hosts learn their DNS servers. If an attacker spoofs an RA with a rogue RDNSS option, they redirect all DNS queries from SLAAC clients to their resolver, enabling DNS spoofing, phishing, and traffic interception. This is more dangerous than rogue DHCP because SLAAC is preferred over DHCPv6 on many operating systems.",
+  "implementation": "Monitor RA RDNSS options for authorized DNS server addresses. Alert on unauthorized RDNSS advertisements.",
+  "visualization": "(1) Table: RDNSS advertisements with DNS servers. (2) Single-value: rogue RDNSS count. (3) Timeline: RDNSS changes.",
+  "references": [
+    {"title": "RFC 8106 — IPv6 Router Advertisement Options for DNS Configuration", "url": "https://www.rfc-editor.org/rfc/rfc8106"}
+  ],
+  "knownFalsePositives": "**Multiple legitimate DNS servers.** Redundant DNS servers in RDNSS options are normal. Verify all advertised servers are authorized.\n\n**DHCPv6 coexistence.** When both RDNSS and DHCPv6 provide DNS, clients may receive different servers. This should be harmonized but isn't necessarily an attack.",
+  "equipment": ["cisco", "juniper"],
+  "equipmentModels": ["cisco_catalyst_9000", "juniper_ex"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• RDNSS configured on routers.\n• RA Guard deployed (see UC-5.20.28) to prevent rogue RAs.\n\nStep 1 — Configure RDNSS on routers:\n```\ninterface GigabitEthernet0/0/0\n ipv6 nd ra dns server 2001:db8::53 3600\n ipv6 nd ra dns search-list example.com 3600\n```\n\nStep 2 — Monitor RDNSS advertisements in syslog.\n\nStep 3 — Validate: Verify SLAAC clients receive correct DNS from `ipconfig /all` or `resolvectl`.\n\nStep 4 — Operationalize: Dashboard and alerting for rogue RDNSS.\n\nStep 5 — Troubleshooting\n• RDNSS not received by clients: Verify router is sending RDNSS option. Check with packet capture of RA messages.",
+  "grandmaExplanation": "When devices join our network and get their new address (IPv6) automatically, the router also tells them which phone book (DNS server) to use. We watch to make sure nobody is telling devices to use a fake phone book that would send them to the wrong websites.",
+  "prerequisiteUseCases": ["5.20.21", "5.20.28"],
+  "wave": "walk"
+}

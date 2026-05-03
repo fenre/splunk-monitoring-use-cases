@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.128",
+  "title": "IPv6 BGP Route Leak Detection and Classification",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": ["Security"],
+  "splunkPillar": "ES",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=juniper:junos` — Detects IPv6 BGP route leaks (RFC 7908) where routes learned from one peer are incorrectly propagated to another, causing traffic redirection or black holes. Route leaks differ from prefix hijacks — the route is legitimate but propagated through an unauthorized path.",
+  "app": "Splunk Enterprise Security",
+  "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"juniper:junos\") earliest=-24h\n  \"%BGP\" AND (\"ipv6\" OR \"afi.*2\") AND (\"UPDATE\" OR \"AS_PATH\")\n| rex field=_raw \"AS_PATH\\s*(?<as_path>[\\d\\s]+)\"\n| rex field=_raw \"prefix\\s*(?<prefix>[0-9a-fA-F:/]+)\"\n| eval path_length=len(replace(trim(as_path), \"\\d+\", \".\")) + 1\n| eval route_leak=case(\n    path_length > 6 AND match(as_path, \"(?:^|\\s)(174|3356|1299|2914|6461|3257)(\\s|$)\"), \"POSSIBLE LEAK — transit AS in path from peer\",\n    match(as_path, \"(\\d+)\\s+\\1\"), \"PREPENDING detected (may indicate leak mitigation)\",\n    1=1, null())\n| where isnotnull(route_leak)\n| stats count as events by host, prefix, as_path, route_leak\n| sort -events",
+  "description": "Detects IPv6 BGP route leaks (RFC 7908) where routes are propagated through unauthorized paths. Route leaks can cause traffic to traverse unintended autonomous systems, enabling surveillance or causing congestion. Classifies leaks by type and severity.",
+  "value": "BGP route leaks are a frequent cause of internet outages and traffic interception. Unlike prefix hijacks (which forge the origin), route leaks propagate legitimate routes through unauthorized paths. Monitoring for anomalous AS paths — especially transit ASes appearing in paths from non-transit peers — provides early detection before the leak causes widespread impact.",
+  "implementation": "Monitor BGP UPDATE messages for anomalous AS path patterns. Detect transit ASes in non-transit peer paths. Track path length anomalies.",
+  "visualization": "(1) Table: detected route leaks. (2) Timeline: leak events. (3) AS path analysis. (4) Single-value: active leaks.",
+  "references": [
+    {"title": "RFC 7908 — Problem Definition and Classification of BGP Route Leaks", "url": "https://www.rfc-editor.org/rfc/rfc7908"},
+    {"title": "RFC 9234 — Route Leak Prevention and Detection Using Roles in UPDATE and OPEN Messages", "url": "https://www.rfc-editor.org/rfc/rfc9234"}
+  ],
+  "knownFalsePositives": "**Legitimate transit.** Some paths legitimately traverse transit ASes. Baseline normal paths before alerting.\n\n**BGP communities.** Some route leaks are mitigated before they reach you via BGP communities. The alert may fire for paths that are already mitigated upstream.",
+  "equipment": ["cisco", "juniper"],
+  "equipmentModels": ["cisco_asr_9000", "juniper_mx"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• BGP peering with AS path logging.\n• Knowledge of expected AS paths for your prefixes.\n\nStep 1 — Enable BGP UPDATE logging.\n\nStep 2 — Create monitoring searches for anomalous AS paths.\n\nStep 3 — Validate: Compare detected paths against expected paths.\n\nStep 4 — Operationalize\n**Dashboard:** BGP route leak detection. **Alert:** Route leak detected — critical.\n\nStep 5 — Troubleshooting\n• Deploy BGP Roles (RFC 9234) to prevent route leaks at the protocol level.",
+  "grandmaExplanation": "A route leak is when a postal worker accidentally shares your mail route with the wrong postal network, so your letters take a detour through places they shouldn't go. We watch for these routing mistakes because they can cause delays or let someone peek at the letters.",
+  "prerequisiteUseCases": ["5.20.44", "5.20.111"],
+  "wave": "run"
+}

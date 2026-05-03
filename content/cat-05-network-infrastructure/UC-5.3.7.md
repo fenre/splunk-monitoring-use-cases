@@ -21,7 +21,7 @@ Broken persistence causes lost sessions, shopping carts, or random logouts.
 
 ## Value
 
-Broken persistence causes lost sessions, shopping carts, or random logouts.
+Application delivery teams detect F5 BIG-IP session persistence failures where clients are incorrectly routed to multiple backends, causing session state loss and user experience degradation.
 
 ## Implementation
 
@@ -30,40 +30,53 @@ Monitor persistence failures. Track same client hitting different backends from 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_f5-bigip`.
-- Ensure the following data sources are available: F5 LTM logs, request logs.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Splunk Add-on for F5 BIG-IP (`Splunk_TA_f5-bigip`, Splunkbase 2680). F5 request logging with persistence fields or LTM syslog. Key fields: `virtual_server`, `persistence_profile`, `persistence_cookie`, `client_ip`, `pool_member`, `session_id`.
+* Session persistence ensures a client always reaches the same backend. Persistence failures cause: (1) lost shopping carts, (2) re-authentication, (3) session state loss. Persistence methods: cookie persistence (most common), source address affinity, SSL session ID, universal persistence.
 
-### Step 1 — Configure data collection
-Monitor persistence failures. Track same client hitting different backends from request logs.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+Verify persistence events:
 ```spl
-index=network sourcetype="f5:bigip:syslog" "persistence" ("failed" OR "expired")
-| stats count by virtual_server, persistence_type | sort -count
+index=network sourcetype="f5:bigip:syslog" ("persist" OR "persistence" OR "session affinity") earliest=-4h
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Session Persistence Issues (F5 BIG-IP)** — Broken persistence causes lost sessions, shopping carts, or random logouts.
+**Primary search -- Persistence failures and session bouncing:**
+```spl
+index=network (sourcetype="f5:bigip:ltm:http:request" OR sourcetype="f5:bigip:syslog") earliest=-4h
+| eval vs=coalesce(virtual_server, virtual_name)
+| eval member=coalesce(pool_member, server_ip)
+| eval session=coalesce(persistence_cookie, session_id, client_ip)
+| where isnotnull(session) AND isnotnull(member)
+| stats dc(member) as members_hit count as requests values(member) as servers by vs, session
+| where members_hit > 1
+| eval issue=case(members_hit > 3, "SEVERE -- session hitting ".members_hit." different backends", members_hit > 1, "BROKEN -- session split across ".members_hit." backends")
+| stats count as affected_sessions sum(requests) as total_requests by vs, issue
+| lookup f5_vip_inventory.csv virtual_server as vs OUTPUT application, persistence_profile
+| sort -affected_sessions
+```
 
-Documented **Data sources**: F5 LTM logs, request logs. **App/TA** (typical add-on context): `Splunk_TA_f5-bigip`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Check persistence records on F5: `tmsh show ltm persistence persist-records all` and verify active sessions.
+(b) Open a browser, make several requests to the same VIP, and verify all go to the same pool member.
+(c) Clear persistence records and verify the session may be redirected.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: f5:bigip:syslog. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+### Step 4 — - Operationalize
+Dashboard ("F5 -- Session Persistence"):
+* Row 1 -- Single-value: "Broken sessions", "Affected VIPs", "Total sessions tracked".
+* Row 2 -- Per-VIP persistence failure table.
 
-**Pipeline walkthrough**
+Alerting:
+* Warning (> 10 sessions hitting multiple backends in 15 min on a VIP with persistence): persistence failing.
 
-- Scopes the data: index=network, sourcetype="f5:bigip:syslog". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by virtual_server, persistence_type** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **Persistence broken after F5 failover** -- In an HA pair, persistence records are mirrored. Check: `tmsh show sys ha-mirror` -- if mirroring is not enabled, failover loses persistence.
 
-### Step 3 — Validate
-In the F5 virtual server, pool, and persistence profile, confirm a sample client and cookie path matches the Splunk-parsed fields.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Line chart, Bar chart.
+* **Cookie persistence not working** -- Check: (1) Client is accepting cookies, (2) Cookie name matches the profile, (3) Browser dev tools shows the persistence cookie. For HTTPS, ensure the cookie isn't being stripped by security headers.
+
+* **Source address persistence failing** -- If clients come through a proxy or NAT, all clients have the same source IP. Switch to cookie persistence instead.
 
 ## SPL
 

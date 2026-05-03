@@ -21,7 +21,7 @@ Decryption failures create blind spots in security inspection. Tracking failures
 
 ## Value
 
-Decryption failures create blind spots in security inspection. Tracking failures by destination reveals certificate pinning, protocol mismatches, or policy gaps.
+Operations teams monitor SSL/TLS decryption engine performance, detecting resource exhaustion and protocol errors that cause traffic to bypass security inspection.
 
 ## Implementation
 
@@ -30,41 +30,51 @@ Enable decryption logging. Group failures by reason (unsupported cipher, certifi
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX).
-- Ensure the following data sources are available: `sourcetype=pan:decryption`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Firewall SSL/TLS decryption performance logs. Palo Alto: `pan:system` and `pan:decryption`, Fortinet: `fgt_event` with SSL events. Key metrics: decryption sessions, decryption failures, decryption bypass events, certificate errors.
+* SSL/TLS decryption failures create visibility gaps -- traffic that should be inspected passes through uninspected. Distinct from certificate inspection failures (UC-5.2.8): this UC focuses on the decryption engine performance (resource exhaustion, protocol errors, capacity).
 
-### Step 1 — Configure data collection
-Enable decryption logging. Group failures by reason (unsupported cipher, certificate pinning, policy exclude). Review and update decryption policy based on findings.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+Verify decryption events:
 ```spl
-index=network sourcetype="pan:decryption" action="decrypt-error" OR action="no-decrypt"
-| stats count by reason, dest, dest_port
-| sort 50 -count
+index=firewall earliest=-4h
+| where match(_raw, "(?i)decrypt|ssl.*(fail|error|bypass|offload|session)|tls.*(fail|error)")
+| stats count by sourcetype, host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**SSL/TLS Decryption Failures** — Decryption failures create blind spots in security inspection. Tracking failures by destination reveals certificate pinning, protocol mismatches, or policy gaps.
+**Primary search -- SSL/TLS decryption failure analysis:**
+```spl
+index=firewall earliest=-4h
+| where match(_raw, "(?i)decrypt.*(fail|error|resource|capacity|timeout)|ssl.*(fail|error|bypass)|tls.*(error|unsupported)")
+| eval failure_type=case(match(_raw, "(?i)resource|capacity|limit|no.*hw.accel"), "RESOURCE_EXHAUSTION", match(_raw, "(?i)unsupported.*(version|protocol|cipher)"), "UNSUPPORTED_PROTOCOL", match(_raw, "(?i)timeout|handshake.*timeout"), "HANDSHAKE_TIMEOUT", match(_raw, "(?i)bypass|exclude|skip"), "POLICY_BYPASS", match(_raw, "(?i)error|fail"), "DECRYPTION_ERROR", 1==1, "OTHER")
+| stats count as failures dc(coalesce(dest_ip, dest)) as affected_destinations by host, failure_type
+| eval severity=case(failure_type="RESOURCE_EXHAUSTION", "CRITICAL -- decryption hardware/software saturated", failure_type="HANDSHAKE_TIMEOUT", "HIGH -- SSL handshakes timing out", failure_type="UNSUPPORTED_PROTOCOL" AND failures > 100, "WARNING -- many unsupported protocol errors", 1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -failures
+```
 
-Documented **Data sources**: `sourcetype=pan:decryption`. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Palo Alto: `show system setting ssl-decrypt` -- shows decryption statistics and capacity.
+(b) Check hardware acceleration: PA `show running resource-monitor` -- SSL proxy utilization.
+(c) Verify decryption is functioning: browse a test HTTPS site through the firewall and check for decryption log entries.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: pan:decryption. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Firewall -- SSL Decryption Health"):
+* Row 1 -- Single-value: "Decryption failures", "Resource exhaustion events", "Handshake timeouts", "Bypassed flows".
+* Row 2 -- Failure type breakdown.
 
-**Pipeline walkthrough**
+Alerting:
+* Critical (resource exhaustion): decryption engine overloaded -- traffic passing uninspected.
+* High (handshake timeouts > 50/hr): performance degradation.
 
-- Scopes the data: index=network, sourcetype="pan:decryption". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by reason, dest, dest_port** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **Resource exhaustion** -- Decryption hardware accelerator is saturated. Options: (1) upgrade to a model with higher SSL throughput, (2) reduce decryption scope (exclude low-risk categories), (3) enable hardware offloading if not already active.
 
-### Step 3 — Validate
-Sample the same time range in your firewall management console, Panorama, FortiManager, or Check Point SmartConsole and confirm that counts, usernames, and object names line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (failure reasons), Table (top undecrypted destinations), Pie chart (by reason).
+* **Handshake timeouts** -- SSL handshakes taking too long. Check: (1) OCSP/CRL responder latency, (2) certificate chain validation time, (3) network latency to external sites.
+
+* **Unsupported protocol (TLS 1.3/QUIC)** -- Some firewall models don't support TLS 1.3 decryption. Update firmware. QUIC (HTTP/3) often bypasses decryption entirely -- consider blocking QUIC to force HTTP/2 over TLS.
 
 ## SPL
 

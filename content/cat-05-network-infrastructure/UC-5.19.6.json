@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.19.6",
+  "title": "Rollback Event Detection and Frequency",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": ["Change", "Reliability", "Operations"],
+  "splunkPillar": "Observability",
+  "wave": "walk",
+  "dataSources": "Detailed: `index=iac` Ansible job stderr/stdout callbacks mentioning rollback (`ansible:result`, `awx:job_events`), Terraform state operation logs (`terraform:apply`, `tfc:run`) with `destroy`/rollback annotations, vendor rollback syslog (`cisco:ios_xe` configuration rollback, Junos `rollback` commits), Nornir runner transcripts (`network_audit:nornir`) tagging `rollback_playbook`; enrich with `change_ticket` field when present.",
+  "app": "Ansible Automation Platform HEC; Terraform Enterprise notifications; Cisco IOS-XE configuration rollback syslog via `TA-cisco_ios`; generic syslog or HEC for custom rollback orchestrators; GitLab/Jenkins bridge logs when rollback pipelines execute.",
+  "spl": "index IN (\"iac\",\"network\",\"main\") earliest=-30d@d latest=now\n| eval blob=lower(_raw)\n| eval st=lower(coalesce(sourcetype,_sourcetype,\"\"))\n| eval rb=case(\n    match(blob,\"\\\\brollback\\\\b|rolling\\\\s*back|revert(ed)?\\\\s+config|restore\\\\s+prior|checkpoint\\\\s+restore|configure\\\\s+replace\\\\s+revert\"),1,\n    match(st,\"ansible|awx|tower\") AND match(blob,\"\\\\bfailed\\\\b.*(?:rollback|revert)|rescuer\\\\s*:.*rollback\"),1,\n    match(st,\"terraform|tfc\") AND match(blob,\"destroy|state\\\\s*rollback|policy\\\\s*override.*rollback\"),1,\n    match(blob,\"jb\\\\s*rollback|configuration\\\\s+rollback|commit\\\\s+rollback\"),1,\n    0)\n| where rb=1\n| eval hn=coalesce(host,device,network_device,\"orchestrator\")\n| eval ticket=coalesce(change_ticket,chg,snow_ticket,\"none\")\n| bin _time span=1d\n| stats count earliest(_time) as first_seen latest(_time) as last_seen values(st) as sources values(ticket) as tickets by _time hn\n| eventstats median(count) as med_cnt\n| where count>=2 OR count>=med_cnt*3\n| sort -count",
+  "description": "Splunk fingerprints rollback verbs across automation transcripts and device configuration journals so teams quantify how often production reversals occur, which hosts accumulate rollback churn, and whether failures correlate with repeated ticket numbers.",
+  "value": "Stability improves because frequent rollbacks—often precursors to latent automation defects or flaky QA—trigger engineering reviews before the next maintenance window repeats the same destructive pattern across device fleets.",
+  "implementation": "Centralize rollback phrases per toolchain locale; dedupe on `(hn,_time)` bursts; monthly tune regex against vendor wording; route alerts to automation SMEs when daily count exceeds statistical baseline.",
+  "detailedImplementation": "Prerequisites\n• Collect Ansible failure handlers that invoke rollback roles as structured logs.\n• Document IOS-XE / Junos rollback syslog mnemonics actually emitted.\n\nStep 1 — Phrase inventory\nInterview SMEs for canonical rollback strings in English/localized builds; encode into macro `rollback_terms`.\n\nStep 2 — Ingest breadth\nEnsure rollback-capable jobs ship stdout/stderr excerpts without credential leakage.\n\nStep 3 — Saved search\nPersist `network_automation_rollback_frequency`; alert weekly when any host exceeds three rollbacks or spikes above triple median.\n\nStep 4 — Validate\nExecute playbook with intentional rollback handler in lab; confirm hit counts versus manual observation.\n\nStep 5 — Operationalize\nDashboard: timeline of rollback counts; host leaderboard; drilldown to originating job IDs and change tickets for RCA workshops.",
+  "visualization": "Dashboard Studio: KPI rollbacks last thirty days; `splunk.timechart` of daily rollback count; bar chart top hosts; detail table with tickets and source sourcetypes.",
+  "references": [
+    {
+      "title": "Cisco IOS Configuration Replace and Rollback — Configuration guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ioswx_backup_restore/configuration/xe-16-9/ios-xe-16-9-book/b-ios-xe-16-9-book_chapter_0100.html"
+    },
+    {
+      "title": "Ansible documentation — Blocks and rescue/always for error handling",
+      "url": "https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_blocks.html"
+    },
+    {
+      "title": "HashiCorp Terraform — State recovery and refused applies",
+      "url": "https://developer.hashicorp.com/terraform/cli/commands/state"
+    }
+  ],
+  "knownFalsePositives": "**Documentation hits:** knowledge-base crawlers matching rollback vocabulary.**ChatOps exports:** Slack transcripts mentioning rollback.**Semantic overlap:** \"rollback\" in unrelated database contexts if indices mixed.**Scheduled drills:** DR exercises spike counts—tag `drill=true`.**Vendor synonyms:** phrases like \"abort transaction\" missed until localized.",
+  "mitreAttack": ["N/A (change reliability monitoring)"],
+  "securityDomain": "network",
+  "detectionType": "Baseline",
+  "equipment": ["ansible", "hashicorp", "cisco"],
+  "equipmentModels": ["hashicorp_terraform", "cisco_ios", "nornir_runner_rollback_transcripts"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We notice whenever automated updates get undone or backed out on network gear. Tracking how often that happens helps us find flaky procedures early instead of fighting the same fire every month."
+}

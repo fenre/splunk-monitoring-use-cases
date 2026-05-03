@@ -21,7 +21,7 @@ OSPF neighbor loss triggers SPF recalculation, disrupting traffic.
 
 ## Value
 
-OSPF neighbor loss triggers SPF recalculation, disrupting traffic.
+NOC teams track OSPF neighbor adjacency state changes, detecting lost adjacencies and flapping that cause routing reconvergence and potential traffic disruption.
 
 ## Implementation
 
@@ -30,47 +30,75 @@ Forward syslog from all OSPF routers. Alert on adjacency changes to/from FULL. T
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=cisco:ios`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* OSPF neighbor adjacency syslog messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%OSPF-5-ADJCHG`; Juniper `RPD_OSPF_NBRSTATE`; Arista `OSPF-5-ADJCHG`.
+* OSPF adjacency: routers form neighbor relationships (states: Down → Init → 2-Way → ExStart → Exchange → Loading → Full). Loss of Full adjacency causes routing reconvergence and potential traffic disruption. Flapping adjacencies indicate underlying issues (MTU mismatch, authentication, timer mismatch, interface instability).
 
-### Step 1 — Configure data collection
-Forward syslog from all OSPF routers. Alert on adjacency changes to/from FULL. Track frequency for instability.
+### Step 1 — - Configure data collection
+```
+# Cisco IOS/IOS-XE
+router ospf 1
+ log-adjacency-changes detail
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+logging host <splunk-syslog-ip>
+logging trap informational
+```
+Verify:
 ```spl
-index=network sourcetype="cisco:ios" "%OSPF-5-ADJCHG"
-| rex "Nbr (?<neighbor_ip>\S+) on (?<interface>\S+) from (?<from_state>\S+) to (?<to_state>\S+)"
-| table _time host neighbor_ip interface from_state to_state
+index=network earliest=-24h
+| where match(_raw, "(?i)OSPF.*ADJ|OSPF.*NBRSTATE|ospf.*neighbor|ospf.*full|ospf.*down")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**OSPF Neighbor Adjacency** — OSPF neighbor loss triggers SPF recalculation, disrupting traffic.
+**Primary search -- OSPF neighbor adjacency changes:**
+```spl
+index=network earliest=-24h
+| where match(_raw, "(?i)OSPF.*ADJ|OSPF.*NBRSTATE|ospf.*neighbor.*state|ospf.*full|ospf.*down")
+| rex field=_raw "(?i)(?:neighbor|Nbr)\s+(?<neighbor_ip>\d+\.\d+\.\d+\.\d+)"
+| rex field=_raw "(?i)(?:area|Area)\s+(?<ospf_area>[\d\.]+)"
+| rex field=_raw "(?i)(?:state|State).*?(?:to|:)\s*(?<ospf_state>\w+)"
+| eval neighbor=coalesce(neighbor_ip, ospf_neighbor)
+| eval state=lower(coalesce(ospf_state, new_state))
+| eval device=coalesce(host, device_name)
+| sort device, neighbor, _time
+| stats count as events count(eval(state="down" OR state="init")) as down_events count(eval(state="full")) as full_events latest(state) as current_state latest(_time) as last_event by device, neighbor, ospf_area
+| eval flapping=if(events > 4, "YES", "NO")
+| eval severity=case(
+    current_state!="full" AND flapping="YES", "CRITICAL -- OSPF adjacency DOWN and flapping",
+    current_state!="full", "WARNING -- OSPF adjacency not FULL (state: ".current_state.")",
+    flapping="YES", "WARNING -- OSPF adjacency flapping (currently full)",
+    1==1, "OK")
+| where severity != "OK"
+| sort severity, -events
+```
 
-Documented **Data sources**: `sourcetype=cisco:ios`. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show ip ospf neighbor` -- verify current neighbor states.
+(b) CLI: `show ip ospf interface` -- check hello/dead timers match.
+(c) CLI: `debug ip ospf adj` (brief, remove after) -- verify hello exchange.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- OSPF Adjacency"):
+* Row 1 -- Single-value: "Adjacencies DOWN", "Flapping adjacencies", "Events (24h)".
+* Row 2 -- OSPF adjacency event timeline.
 
-**Pipeline walkthrough**
+Alert: Critical (core OSPF adjacency lost): routing reconvergence, page NOC.
 
-- Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- Pipeline stage (see **OSPF Neighbor Adjacency**): table _time host neighbor_ip interface from_state to_state
+### Step 5 — - Troubleshooting
 
+* **Stuck in ExStart/Exchange** -- MTU mismatch between neighbors. Check: `show ip ospf interface` on both sides. Match MTU or use `ip ospf mtu-ignore`.
 
-### Step 3 — Validate
-On the device, run `show ip ospf neighbor` and compare router IDs and state to the neighbor fields in the search for the same minute.
+* **Dead timer expired** -- Hellos not received. Check: interface up/down, ACLs blocking OSPF multicast (224.0.0.5/6), timer mismatch.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Events timeline, Table (router, neighbor, states).
+* **Authentication failure** -- Check OSPF authentication configuration matches on both sides. CLI: `show ip ospf interface <intf> | include Auth`.
+
+**IPv6 Coverage:** OSPFv3 (RFC 5340) uses link-local addresses for adjacency, multicast FF02::5 (AllSPFRouters) and FF02::6 (AllDRRouters) instead of 224.0.0.5/6. Validate with `show ospfv3 neighbor`. ACLs blocking ICMPv6 or OSPFv3 multicast can silently break adjacency.
 
 ## SPL
 
 ```spl
-index=network sourcetype="cisco:ios" "%OSPF-5-ADJCHG"
+index=network ((sourcetype="cisco:ios" ("%OSPF-5-ADJCHG" OR "%OSPFv3-5-ADJCHG")) OR "RPD_OSPF3_NBRSTATE")
 | rex "Nbr (?<neighbor_ip>\S+) on (?<interface>\S+) from (?<from_state>\S+) to (?<to_state>\S+)"
 | table _time host neighbor_ip interface from_state to_state
 ```

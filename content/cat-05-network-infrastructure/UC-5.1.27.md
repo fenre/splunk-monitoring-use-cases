@@ -21,7 +21,7 @@ CRC, runts, giants, input/output errors as rate over time.
 
 ## Value
 
-CRC, runts, giants, input/output errors as rate over time.
+Network engineers analyze 30-day interface error rate trends to detect gradually degrading links and schedule proactive cable or optic replacement before complete failure.
 
 ## Implementation
 
@@ -30,49 +30,75 @@ Poll IF-MIB (ifInErrors, ifOutErrors) and EtherLike-MIB (dot3StatsFCSErrors) eve
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: IF-MIB (ifInErrors, ifOutErrors), EtherLike-MIB.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Interface error rate trending data from SNMP. Data in `index=network` with SNMP counter data. Extends UC-5.1.2 with long-term trending and predictive analysis.
+* Error rate trending: tracks error counter growth over days/weeks to identify slowly degrading links before they fail. A cable or SFP developing marginal performance may show gradually increasing error rates.
 
-### Step 1 — Configure data collection
-Poll IF-MIB (ifInErrors, ifOutErrors) and EtherLike-MIB (dot3StatsFCSErrors) every 300s. Use streamstats for delta calculation. Alert when error rate exceeds threshold (e.g., >1/min on uplinks). Exclude admin-down interfaces.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Same SNMP polling as UC-5.1.2
+# Ensure historical data retention > 30 days for trending
+# Summary indexing recommended for long-term analysis
+```
+Verify:
 ```spl
-index=network sourcetype=snmp:interface
-| streamstats current=f last(ifInErrors) as prev_in, last(ifOutErrors) as prev_out, last(_time) as prev_time by host, ifDescr
-| eval delta_in=ifInErrors-coalesce(prev_in,0), delta_out=ifOutErrors-coalesce(prev_out,0)
-| eval interval_sec=_time-prev_time | where interval_sec>0 AND interval_sec<900
-| eval in_err_rate=round(delta_in/interval_sec*60,2), out_err_rate=round(delta_out/interval_sec*60,2)
-| where in_err_rate>0 OR out_err_rate>0
-| timechart span=5m avg(in_err_rate) as in_errors_per_min, avg(out_err_rate) as out_errors_per_min by host
+index=network earliest=-30d
+| eval in_errors=tonumber(coalesce(ifInErrors, input_errors))
+| where isnotnull(in_errors)
+| stats latest(in_errors) by host, ifName
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Interface Error Rate Trending** — CRC, runts, giants, input/output errors as rate over time.
+**Primary search -- Error rate trend analysis (30-day):**
+```spl
+index=network earliest=-30d
+| eval in_errors=tonumber(coalesce(ifInErrors, input_errors, in_errors))
+| eval out_errors=tonumber(coalesce(ifOutErrors, output_errors, out_errors))
+| eval interface=coalesce(ifName, interface, port)
+| eval device=coalesce(host, device_name)
+| where isnotnull(in_errors) OR isnotnull(out_errors)
+| bin _time span=1d
+| stats latest(in_errors) as daily_in_err latest(out_errors) as daily_out_err by _time, device, interface
+| sort device, interface, _time
+| streamstats current=f last(daily_in_err) as prev_in last(daily_out_err) as prev_out by device, interface
+| eval delta_in=daily_in_err - prev_in
+| eval delta_out=daily_out_err - prev_out
+| eval daily_total=max(delta_in, 0) + max(delta_out, 0)
+| where daily_total > 0
+| stats sum(daily_total) as total_errors avg(daily_total) as avg_daily_errors max(daily_total) as peak_daily_errors count as days_with_errors by device, interface
+| eval trend=case(
+    days_with_errors > 20 AND avg_daily_errors > 10, "DEGRADING -- consistent daily errors",
+    peak_daily_errors > 1000, "SPIKE -- single day with >1000 errors",
+    total_errors > 5000, "ACCUMULATED -- high total error count",
+    1==1, "STABLE")
+| where trend != "STABLE"
+| eval severity=case(
+    trend="DEGRADING", "WARNING -- link is degrading, plan replacement",
+    trend="SPIKE", "INFO -- investigate spike cause",
+    trend="ACCUMULATED", "INFO -- high cumulative errors",
+    1==1, "INFO")
+| sort severity, -total_errors
+```
 
-Documented **Data sources**: IF-MIB (ifInErrors, ifOutErrors), EtherLike-MIB. **App/TA** (typical add-on context): SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show interface <intf>` -- check current error counters.
+(b) CLI: `show interface transceiver` -- check optic power level trends.
+(c) Correlate with CRC error trending (UC-5.1.21).
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:interface. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+### Step 4 — - Operationalize
+Dashboard ("Network -- Error Rate Trends"):
+* Row 1 -- Single-value: "Degrading links", "Interfaces with errors (30d)".
+* Row 2 -- Error rate trend timechart.
 
-**Pipeline walkthrough**
+Alert: Warning (consistent daily errors for >20 days): schedule cable/optic replacement.
 
-- Scopes the data: index=network, sourcetype=snmp:interface. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `streamstats` rolls up events into metrics; results are split **by host, ifDescr** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **delta_in** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `eval` defines or adjusts **interval_sec** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where interval_sec>0 AND interval_sec<900` — typically the threshold or rule expression for this monitoring goal.
-- `eval` defines or adjusts **in_err_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where in_err_rate>0 OR out_err_rate>0` — typically the threshold or rule expression for this monitoring goal.
-- `timechart` plots the metric over time using **span=5m** buckets with a separate series **by host** — ideal for trending and alerting on this use case.
-### Step 3 — Validate
-On the switch, run `show interface` for a row’s interface and check error counters in the same five-minute window as your poll. If you use an NMS, open the same ifDescr and counter there and make sure the SNMP object IDs line up with what Splunk indexes.
+### Step 5 — - Troubleshooting
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (error rate over time), Table (host, interface, rate), Heatmap.
+* **Gradually increasing errors** -- Physical layer degradation in progress. Schedule cable/optic replacement during next maintenance window. Don't wait for failure.
+
+* **Error spikes correlating with time of day** -- May indicate congestion-related discards (not physical). Correlate with interface utilization (UC-5.1.3).
+
+* **Errors on multiple interfaces same device** -- May indicate device hardware issue (linecard, backplane) rather than individual port/cable. Investigate chassis health.
 
 ## SPL
 

@@ -1,0 +1,57 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.51",
+  "title": "DNS AAAA Record Query Ratio and IPv6 Resolution Health",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "ITSI",
+  "dataSources": "`index=network sourcetype=infoblox:dns` or `sourcetype=named:querylog` or `sourcetype=msad:nt6:dns` containing DNS query logs with query type (AAAA, A, PTR). DNS AAAA records map hostnames to IPv6 addresses, just as A records map to IPv4 addresses. The AAAA-to-A query ratio is a key adoption metric:\n\n- **0%** — No IPv6 DNS resolution (IPv6 not deployed or clients not using it)\n- **10-30%** — Typical enterprise dual-stack with Happy Eyeballs (RFC 8305)\n- **30-50%** — Mature IPv6 deployment, many services IPv6-enabled\n- **>50%** — Advanced deployment or IPv6-preferred environment\n\nHappy Eyeballs (RFC 8305) sends both A and AAAA queries simultaneously, then uses whichever responds first (with a slight IPv6 preference). This means that in a dual-stack environment, every DNS lookup generates both A and AAAA queries, and the AAAA ratio should be close to 50%.\n\nDNS64 (RFC 6147) synthesises AAAA records for IPv4-only destinations, enabling IPv6-only hosts to reach IPv4 servers via NAT64. Monitoring DNS64 synthesis rates tracks the dependency on NAT64 for connectivity.\n\nIPv6-specific DNS considerations:\n- **Reverse DNS (ip6.arpa)** — PTR records for IPv6 use the ip6.arpa zone, not in-addr.arpa\n- **DNSSEC with IPv6** — DNSSEC-signed AAAA responses are significantly larger, impacting UDP payload sizes\n- **Glue records** — NS records for IPv6-enabled nameservers need AAAA glue records",
+  "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2946). Splunk Add-on for Microsoft DNS.",
+  "spl": "index=network (sourcetype=\"infoblox:dns\" OR sourcetype=\"named:querylog\" OR sourcetype=\"msad:nt6:dns\") earliest=-24h\n| eval query_type=case(\n    match(_raw, \"\\bAAAA\\b\"), \"AAAA\",\n    match(_raw, \"\\b(?:type.?1\\b|\\bIN A\\b|query_type=A\\b)\"), \"A\",\n    match(_raw, \"\\bPTR\\b\"), \"PTR\",\n    1=1, \"other\")\n| stats count as total count(eval(query_type=\"AAAA\")) as aaaa_queries count(eval(query_type=\"A\")) as a_queries count(eval(query_type=\"PTR\")) as ptr_queries\n| eval aaaa_ratio=round(aaaa_queries / (aaaa_queries + a_queries) * 100, 1)\n| eval aaaa_trend=case(\n    aaaa_ratio > 40, \"Strong IPv6 adoption — approaching dual-stack parity\",\n    aaaa_ratio > 20, \"Moderate IPv6 adoption — Happy Eyeballs active\",\n    aaaa_ratio > 5, \"Low IPv6 adoption — limited IPv6 clients\",\n    1=1, \"Minimal IPv6 DNS activity\")",
+  "description": "Measures the DNS AAAA query ratio relative to A queries as a primary indicator of IPv6 adoption and DNS resolution health. The AAAA-to-A ratio reveals how many clients and applications are actively resolving IPv6 addresses. In a properly configured dual-stack environment with Happy Eyeballs (RFC 8305), the ratio approaches 50% because every connection attempt triggers both A and AAAA queries. A declining AAAA ratio may indicate IPv6 connectivity issues causing clients to stop trying IPv6, or a DNS resolver configuration change that affects AAAA responses.",
+  "value": "The AAAA query ratio is the most accessible and accurate measure of IPv6 adoption from the network perspective. It captures actual client behaviour rather than configuration intent. A declining AAAA ratio is an early warning signal — it may indicate that Happy Eyeballs is falling back to IPv4 due to IPv6 connectivity problems, or that a DNS resolver change has broken AAAA resolution. Tracking this ratio over time provides the adoption trend that management needs for IPv6 migration planning and the operational signal that engineers need for troubleshooting.",
+  "implementation": "Collect DNS query logs from recursive resolvers. Parse query types (A, AAAA, PTR). Calculate the AAAA/(A+AAAA) ratio. Track over time. Alert on significant ratio changes.",
+  "visualization": "(1) Single-value: current AAAA-to-A ratio. (2) Timechart: AAAA ratio over 30 days with trend line. (3) Stacked area: query types over 24 hours. (4) By-client breakdown: AAAA ratio per client subnet.",
+  "references": [
+    {
+      "title": "RFC 8305 — Happy Eyeballs Version 2: Better Connectivity Using Concurrency",
+      "url": "https://www.rfc-editor.org/rfc/rfc8305"
+    },
+    {
+      "title": "RFC 6147 — DNS64: DNS Extensions for Network Address Translation from IPv6 Clients to IPv4 Servers",
+      "url": "https://www.rfc-editor.org/rfc/rfc6147"
+    },
+    {
+      "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6 — DNS considerations)",
+      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+    }
+  ],
+  "knownFalsePositives": "**IPv4-only applications.** Legacy applications that only resolve A records will lower the AAAA ratio. This is expected in environments with a significant legacy application estate.\n\n**DNS caching.** Client-side DNS caching means not every connection attempt generates a DNS query. The ratio at the resolver level reflects unique resolutions, not connection attempts.\n\n**AAAA filtering.** Some enterprise DNS resolvers filter AAAA responses (returning NODATA) to prevent IPv6 connectivity on networks that don't support it. This intentionally suppresses the AAAA ratio and is a valid operational choice during phased migration.",
+  "equipment": [
+    "infoblox",
+    "microsoft",
+    "bind",
+    "unbound"
+  ],
+  "equipmentModels": [
+    "infoblox_nios",
+    "microsoft_dns",
+    "isc_bind",
+    "nlnetlabs_unbound"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• DNS query logging enabled on recursive resolvers (Infoblox, BIND, Unbound, Windows DNS).\n• Query log forwarding to Splunk via syslog, HEC, or file monitoring.\n• Sufficient retention for trend analysis (30+ days recommended).\n\nStep 1 — Configure data collection\n\n**Infoblox DNS query logging:**\nQueries & Responses → Logging → enable query logging. Forward via syslog to Splunk.\n\nSample Infoblox query log:\n```\nclient 10.1.2.3#12345: query: www.example.com IN AAAA +ED (2001:db8::53)\n```\n\n**BIND query logging:**\n```\nlogging {\n  channel query_log {\n    syslog local3;\n    severity info;\n    print-time yes;\n  };\n  category queries { query_log; };\n};\n```\n\n**Windows DNS:**\nEnable DNS Analytic/Audit logging via Event Tracing (ETW) or DNS Debug Logging.\n\n**Verification:**\n```spl\nindex=network (sourcetype=\"infoblox:dns\" OR sourcetype=\"named:querylog\" OR sourcetype=\"msad:nt6:dns\") earliest=-24h\n| stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n\n**AAAA ratio trending:**\n```spl\nindex=network (sourcetype=\"infoblox:dns\" OR sourcetype=\"named:querylog\" OR sourcetype=\"msad:nt6:dns\") earliest=-30d\n| eval qtype=case(\n    match(_raw, \"\\bAAAA\\b\"), \"AAAA\",\n    match(_raw, \"\\bIN A\\b|query_type=A\\b|type A\\b\"), \"A\",\n    1=1, null())\n| where isnotnull(qtype)\n| timechart span=1d count by qtype\n| eval aaaa_ratio=round(AAAA / (AAAA + A) * 100, 1)\n```\n\n**AAAA ratio anomaly alert:**\n```spl\nindex=network (sourcetype=\"infoblox:dns\" OR sourcetype=\"named:querylog\") earliest=-4h\n| eval qtype=if(match(_raw, \"\\bAAAA\\b\"), \"AAAA\", if(match(_raw, \"\\bIN A\\b\"), \"A\", null()))\n| where isnotnull(qtype)\n| stats count(eval(qtype=\"AAAA\")) as aaaa count(eval(qtype=\"A\")) as a\n| eval ratio=round(aaaa / (aaaa + a) * 100, 1)\n| where ratio < 5\n| eval alert=\"AAAA ratio dropped to \" . ratio . \"% — possible IPv6 DNS resolution issue\"\n```\n\n**AAAA NXDOMAIN/SERVFAIL rate:**\n```spl\nindex=network (sourcetype=\"infoblox:dns\" OR sourcetype=\"named:querylog\") \"AAAA\" earliest=-24h\n| eval response=case(\n    match(_raw, \"NXDOMAIN\"), \"NXDOMAIN\",\n    match(_raw, \"SERVFAIL\"), \"SERVFAIL\",\n    match(_raw, \"NOERROR\"), \"NOERROR\",\n    1=1, \"other\")\n| stats count by response\n| eventstats sum(count) as total\n| eval pct=round(count / total * 100, 1)\n```\nHigh NXDOMAIN rate for AAAA queries is expected (many domains don't have AAAA records). High SERVFAIL rate indicates DNS resolver problems.\n\n**DNS64 synthesis monitoring:**\n```spl\nindex=network sourcetype=\"infoblox:dns\" \"dns64\" OR \"64:ff9b\" earliest=-24h\n| stats count as dns64_syntheses\n| eval note=\"DNS64 synthesised \" . dns64_syntheses . \" AAAA responses in 24h — these hosts are using NAT64 to reach IPv4 destinations\"\n```\n\nStep 3 — Validate\n(a) **Query ratio calculation.** Manually count A and AAAA queries from a 1-hour sample. Compare with the Splunk-calculated ratio.\n\n(b) **Trend validation.** Compare the 30-day AAAA ratio trend with known IPv6 deployment activities (e.g., enabling IPv6 on a new VLAN should increase the ratio).\n\n(c) **SERVFAIL check.** Intentionally query a broken DNS zone. Verify the SERVFAIL appears in the DNS health search.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — DNS Resolution Health\"):\n• Row 1 — Single-value: current AAAA-to-A ratio, AAAA SERVFAIL count.\n• Row 2 — Timechart: AAAA ratio over 30 days with trend line.\n• Row 3 — Stacked area: A/AAAA/PTR query volumes over 24 hours.\n• Row 4 — Per-subnet AAAA ratio: which networks are actively using IPv6 DNS.\n• Row 5 — DNS64 synthesis count (if applicable).\n\n**Scheduling:** Ratio trending daily. SERVFAIL alert every 15 minutes. DNS64 monitoring daily.\n\n**Runbook:**\n1. AAAA ratio drop: check if AAAA queries are being filtered at the resolver. Check if IPv6 connectivity issues are causing Happy Eyeballs to stop sending AAAA queries.\n2. AAAA SERVFAIL: check DNS resolver IPv6 connectivity. Can the resolver reach authoritative servers over IPv6?\n3. High DNS64 rate: indicates significant IPv6-only client population depending on NAT64. Monitor NAT64 health.\n\nStep 5 — Troubleshooting\n\n• **AAAA query parsing** — Different DNS log formats use different notation for AAAA queries. Infoblox uses `IN AAAA`, BIND uses `AAAA`, Windows uses query type numbers. Ensure the regex matches all formats.\n\n• **EDNS0 and large AAAA responses** — DNSSEC-signed AAAA responses can exceed 512 bytes (the traditional DNS UDP limit). If EDNS0 is not supported by the client or intermediate devices, AAAA queries may fail while A queries succeed. Monitor for DNS over TCP fallback rates as an indicator.",
+  "grandmaExplanation": "When you type a website name, the computer needs to look up both the old-style address (IPv4, like a phone number) and the new-style address (IPv6, like a longer phone number). We count how often the computer asks for each type. If it stops asking for new-style addresses, something is wrong with the new phone system — even though the old phone still works fine.",
+  "prerequisiteUseCases": [],
+  "wave": "walk"
+}

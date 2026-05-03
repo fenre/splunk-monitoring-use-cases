@@ -1,0 +1,56 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.116",
+  "title": "IPv6 Dual-Stack Monitoring Parity Audit",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=network` — Audits whether IPv6 monitoring coverage matches IPv4 across all operational domains: firewall logging, flow data, IDS/IPS inspection, syslog, SNMP polling, synthetic testing, and application monitoring. RFC 9099 §2.6 explicitly requires operational monitoring parity between IPv4 and IPv6.\n\n**The monitoring parity problem:**\n\nMost organisations deploy IPv6 but leave their monitoring toolchain configured for IPv4 only. This creates a 'shadow network' where IPv6 traffic flows unmonitored. Common parity gaps include:\n1. Firewalls logging IPv4 traffic but not IPv6 (or logging with fewer fields).\n2. NetFlow/IPFIX exporting IPv4 templates but missing IPv6 templates.\n3. IDS/IPS rules covering IPv4 attack patterns but lacking IPv6 equivalents.\n4. SNMP monitoring of IPv4 interfaces but not IPv6 interface counters.\n5. Synthetic monitoring (ping, HTTP checks) running over IPv4 only.\n6. Application logs recording IPv4 client addresses but truncating or omitting IPv6.\n7. SIEM correlation rules referencing IPv4 addresses without IPv6 equivalents.",
+  "app": "Splunk Enterprise",
+  "spl": "index=* earliest=-24h\n| eval has_ipv6_src=if(match(src, \":\"), 1, 0)\n| eval has_ipv4_src=if(match(src, \"^\\d+\\.\\d+\\.\\d+\\.\\d+$\"), 1, 0)\n| stats count as total count(eval(has_ipv6_src=1)) as ipv6_events count(eval(has_ipv4_src=1)) as ipv4_events by sourcetype\n| eval ipv6_pct=round(ipv6_events / max(total, 1) * 100, 1)\n| eval parity_status=case(\n    ipv6_events=0 AND ipv4_events > 1000, \"NO IPv6 — this sourcetype has zero IPv6 events despite significant IPv4 volume\",\n    ipv6_pct < 1 AND ipv4_events > 1000, \"MINIMAL IPv6 — only \" . ipv6_pct . \"% IPv6 (expected >10% in dual-stack environment)\",\n    ipv6_pct < 10 AND ipv4_events > 1000, \"LOW IPv6 — \" . ipv6_pct . \"% IPv6 (investigate possible logging gap)\",\n    1=1, \"OK — \" . ipv6_pct . \"% IPv6\")\n| where ipv4_events > 1000 AND ipv6_pct < 10\n| sort ipv6_pct\n| table sourcetype, total, ipv4_events, ipv6_events, ipv6_pct, parity_status",
+  "description": "Audits monitoring parity between IPv4 and IPv6 across all sourcetypes in Splunk. Identifies sourcetypes with significant IPv4 traffic but little or no IPv6 representation, indicating monitoring blind spots where IPv6 traffic flows unlogged. RFC 9099 §2.6 requires that IPv6 monitoring be at least as comprehensive as IPv4.",
+  "value": "The most dangerous IPv6 vulnerability is not a protocol flaw — it's the monitoring gap. Organisations deploy IPv6 but continue monitoring only IPv4, creating a shadow network that attackers can exploit with impunity. This UC systematically identifies every sourcetype where IPv6 monitoring falls short of IPv4, providing a roadmap for achieving monitoring parity. Without parity, every other IPv6 security control is undermined because attacks go undetected.",
+  "implementation": "Compare IPv6 vs IPv4 event volumes across all sourcetypes. Identify sourcetypes with IPv4 traffic but no IPv6. Generate a parity remediation report.",
+  "visualization": "(1) Table: sourcetypes with parity status. (2) Bar chart: IPv6 percentage by sourcetype. (3) Single-value: sourcetypes with zero IPv6 (the gap count). (4) Trend: parity improvement over time.",
+  "references": [
+    {
+      "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6 — Monitoring)",
+      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+    },
+    {
+      "title": "NIST SP 800-119 — Guidelines for the Secure Deployment of IPv6 (§6 — monitoring)",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final"
+    }
+  ],
+  "knownFalsePositives": "**IPv4-only sourcetypes.** Some sourcetypes are inherently IPv4-only (e.g., legacy mainframe, SCADA protocols). These should be documented and excluded from parity calculations.\n\n**Infrastructure-only IPv6.** If IPv6 is only deployed on infrastructure (routers, switches) but not on user segments, user-facing sourcetypes will correctly show low IPv6 percentages.\n\n**Regional deployment.** If IPv6 is deployed in some regions but not others, aggregated parity numbers may be misleading. Segment the analysis by region.",
+  "equipment": [
+    "cisco",
+    "paloalto",
+    "zeek",
+    "splunk"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9000",
+    "paloalto_pa",
+    "zeek_sensor",
+    "splunk_enterprise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Dual-stack network deployment.\n• Multiple sourcetypes in Splunk covering different monitoring domains.\n\nStep 1 — Establish baseline\n\nRun the main SPL search to identify all sourcetypes with parity gaps. This creates the initial remediation backlog.\n\n**Detailed parity analysis by monitoring domain:**\n```spl\n| makeresults\n| eval domain=mvappend(\n    \"Firewall logging (paloalto:traffic, cisco:asa, cisco:ftd)\",\n    \"Flow data (netflow, sflow, ipfix)\",\n    \"IDS/IPS (suricata:alert, snort:alert, zeek:notice)\",\n    \"Network device syslog (cisco:ios, juniper:junos)\",\n    \"DNS (zeek:dns, named:querylog)\",\n    \"Web server (access_combined, iis)\",\n    \"Authentication (cisco:ise, radius)\",\n    \"SNMP (snmp:trap, snmp:interface)\")\n| mvexpand domain\n| eval expected_ipv6=\"yes\"\n| eval actual_ipv6=\"check manually\"\n| table domain, expected_ipv6, actual_ipv6\n```\n\nStep 2 — Deep-dive per sourcetype\n\n**Firewall parity (most critical):**\n```spl\nindex=network sourcetype=\"paloalto:traffic\" earliest=-24h\n| eval ip_ver=case(\n    match(src, \":\") OR match(dest, \":\"), \"IPv6\",\n    match(src, \"^\\d+\\.\"), \"IPv4\",\n    1=1, \"Unknown\")\n| stats count as events dc(src) as unique_sources dc(dest) as unique_dests by ip_ver\n| eval total_events=events\n| eval pct=round(events / sum(events) * 100, 1)\n```\n\n**Flow data parity:**\n```spl\nindex=network sourcetype=\"netflow\" earliest=-24h\n| eval ip_ver=if(match(src, \":\") OR match(dest, \":\"), \"IPv6\", \"IPv4\")\n| stats sum(bytes) as total_bytes count as flows by ip_ver\n| eval pct=round(flows / sum(flows) * 100, 1)\n```\n\nStep 3 — Validate\n(a) **Generate IPv6 traffic.** From a test host, generate known IPv6 traffic (HTTP, DNS, SSH). Verify each sourcetype captures the IPv6 events with full field fidelity.\n\n(b) **Field fidelity check.** For each sourcetype, verify that IPv6 events have the same fields as IPv4 events (src, dest, port, protocol, action, bytes).\n\n(c) **Synthetic test.** If synthetic monitoring is IPv4-only, add IPv6 synthetic tests for each monitored service.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — Monitoring Parity\"):\n• Row 1 — Single-values: sourcetypes with zero IPv6, total parity gap count.\n• Row 2 — Table: sourcetypes sorted by IPv6 percentage.\n• Row 3 — Bar chart: IPv6 percentage by sourcetype.\n• Row 4 — Trend: parity improvement over time (weekly snapshots).\n\n**Scheduled report:** Monthly. Send to security team with remediation priorities.\n\n**Remediation priorities:**\n1. Firewall logging (most critical — security inspection).\n2. Flow data (traffic analysis and forensics).\n3. IDS/IPS (attack detection).\n4. DNS (IPv6 resolution monitoring).\n5. Authentication (user attribution).\n6. Web server logs (application monitoring).\n7. SNMP (infrastructure monitoring).\n\nStep 5 — Troubleshooting\n\n• **Firewall not logging IPv6.** Verify firewall policies include IPv6 address objects. Some firewalls require separate IPv6 rules or 'any' rules that explicitly include IPv6.\n\n• **NetFlow missing IPv6 templates.** Verify the NetFlow exporter is configured to export IPv6 templates. On Cisco IOS: `flow exporter EXPORT / ip flow-export version 9 / ip flow-export template ipv6`. See UC-5.20.58.\n\n• **Web server log format.** Some web servers truncate IPv6 addresses in logs. Verify the log format supports full IPv6 addresses (128-bit). Apache: use `%a` or `%{REMOTE_ADDR}e`.",
+  "grandmaExplanation": "We have security cameras, alarm systems, and visitor logs that watch everything coming and going through the old address system (IPv4). We need to make sure we have the exact same security cameras and alarm systems watching the new address system (IPv6). This tool checks every security system to make sure IPv6 isn't a blind spot — because burglars will always go through the unwatched door.",
+  "prerequisiteUseCases": [
+    "5.20.1",
+    "5.20.58"
+  ],
+  "wave": "walk"
+}

@@ -21,7 +21,7 @@ Monitors latency and jitter on VPN tunnels to ensure quality of critical busines
 
 ## Value
 
-Monitors latency and jitter on VPN tunnels to ensure quality of critical business traffic.
+Operations teams trend Meraki MX site-to-site VPN latency, packet loss, and jitter per tunnel, detecting performance degradation that impacts inter-site application quality.
 
 ## Implementation
 
@@ -30,41 +30,64 @@ Extract VPN latency and jitter metrics. Monitor tunnel performance.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=vpn sourcetype=meraki:api`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MX VPN performance data from Dashboard API. Data in `index=meraki` with `sourcetype=meraki:api:vpnstatus`. Key metrics: site-to-site VPN tunnel latency, packet loss, jitter per tunnel.
+* Meraki Auto VPN: automatic mesh or hub-and-spoke VPN between MX appliances. Performance metrics are available per tunnel via API: `/organizations/{orgId}/appliance/vpn/stats`.
 
-### Step 1 — Configure data collection
-Extract VPN latency and jitter metrics. Monitor tunnel performance.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+API input for VPN performance:
+```
+# inputs.conf
+[meraki_vpn_stats]
+interval = 300
+sourcetype = meraki:api:vpnstatus
+index = meraki
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=vpn latency=*
-| stats avg(latency) as avg_vpn_latency, max(jitter) as max_jitter by tunnel_id, remote_site
-| where avg_vpn_latency > 50
+index=meraki sourcetype="meraki:api:vpnstatus" earliest=-4h
+| where isnotnull(latencyMs) OR isnotnull(lossPercent)
+| stats avg(latencyMs) avg(lossPercent) by networkName, peerNetworkName
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Site-to-Site VPN Latency and Performance (Meraki MX)** — Monitors latency and jitter on VPN tunnels to ensure quality of critical business traffic.
+**Primary search -- Site-to-site VPN performance trending:**
+```spl
+index=meraki sourcetype="meraki:api:vpnstatus" earliest=-24h
+| eval latency=tonumber(coalesce(latencyMs, latency_ms))
+| eval loss=tonumber(coalesce(lossPercent, loss_percent))
+| eval jitter=tonumber(coalesce(jitterMs, jitter_ms))
+| eval tunnel=networkName." <-> ".peerNetworkName
+| lookup meraki_networks.csv networkId OUTPUT site, criticality
+| bin _time span=15m
+| stats avg(latency) as avg_latency avg(loss) as avg_loss avg(jitter) as avg_jitter max(latency) as max_latency max(loss) as max_loss by _time, tunnel, criticality
+| eval quality=case(avg_loss > 2 OR avg_latency > 150 OR avg_jitter > 30, "DEGRADED", avg_loss > 5 OR avg_latency > 300, "POOR", 1==1, "GOOD")
+| where quality != "GOOD"
+| eval severity=case(quality="POOR" AND criticality="high", "CRITICAL", quality="POOR", "HIGH", 1==1, "WARNING")
+| table _time, tunnel, avg_latency, avg_loss, avg_jitter, quality, severity
+```
 
-Documented **Data sources**: `sourcetype=meraki type=vpn sourcetype=meraki:api`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Security & SD-WAN > VPN Status -- check per-tunnel metrics.
+(b) Compare with network monitoring tools (ping, traceroute between sites).
+(c) Correlate VPN performance with WAN uplink utilization.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MX -- VPN Performance"):
+* Row 1 -- Single-value: "Degraded tunnels", "Avg latency", "Max packet loss".
+* Row 2 -- VPN performance timechart (latency, loss, jitter).
 
-**Pipeline walkthrough**
+Alerting:
+* Critical (critical tunnel with loss > 5% or latency > 300ms): severe VPN degradation.
+* Warning (loss > 2% or latency > 150ms): performance degradation.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by tunnel_id, remote_site** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where avg_vpn_latency > 50` — typically the threshold or rule expression for this monitoring goal.
+### Step 5 — - Troubleshooting
 
+* **High latency** -- Check: (1) WAN uplink utilization at both sites, (2) ISP path issues (traceroute), (3) MX CPU utilization, (4) number of VPN tunnels (hub MX may be overloaded).
 
-### Step 3 — Validate
-In the Meraki cloud dashboard, use the same organization, network, and time range as the search. Confirm VPN paths, tunnel states, uplinks, and device names you expect there match the Splunk view.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge of VPN latency; latency trend line; jitter comparison chart.
+* **Packet loss** -- Check: (1) WAN link quality, (2) traffic shaping dropping VPN traffic, (3) MTU issues (reduce to 1400 for VPN).
+
+* **Jitter** -- Common on shared WAN links. Enable QoS/traffic shaping to prioritize VPN traffic. Consider MPLS or dedicated WAN link for critical tunnels.
 
 ## SPL
 

@@ -21,7 +21,7 @@ Detects VLAN configuration errors and tagging violations that disrupt network se
 
 ## Value
 
-Detects VLAN configuration errors and tagging violations that disrupt network segmentation.
+Network engineers detect Meraki MS VLAN configuration mismatches including access ports on default VLAN 1 and unrestricted trunk ports, ensuring proper network segmentation.
 
 ## Implementation
 
@@ -30,42 +30,60 @@ Monitor VLAN-related error events. Cross-reference with API device VLAN config.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki:api` (MS), `sourcetype=meraki` (security/syslog).
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MS VLAN configuration data from Dashboard API. Data in `index=meraki` with `sourcetype=meraki:api:switch:ports`. Key fields: `vlan`, `type` (access/trunk), `allowedVlans`, `portId`.
+* VLAN mismatches: access port on wrong VLAN, trunk port missing required VLANs, native VLAN inconsistency between connected switches. These cause connectivity issues and potential security exposure.
 
-### Step 1 — Configure data collection
-Monitor VLAN-related error events. Cross-reference with API device VLAN config.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# API: GET /devices/{serial}/switch/ports
+# Returns VLAN assignment, trunk allowed VLANs, native VLAN
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*VLAN*"
-| stats count as vlan_error_count by switch_name, vlan_id
-| where vlan_error_count > 5
+index=meraki sourcetype="meraki:api:switch:ports" earliest=-4h
+| stats dc(portId) by host, vlan
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**VLAN Configuration Mismatches and Tagging Violations (Meraki MS)** — Detects VLAN configuration errors and tagging violations that disrupt network segmentation.
+**Primary search -- VLAN configuration mismatch detection:**
+```spl
+index=meraki sourcetype="meraki:api:switch:ports" earliest=-4h
+| eval port=coalesce(portId, port_id)
+| eval port_type=coalesce(type, port_type)
+| eval port_vlan=tonumber(coalesce(vlan, access_vlan))
+| eval device=coalesce(serial, host)
+| lookup meraki_networks.csv serial AS device OUTPUT network_name
+| eval issue=case(
+    port_type="access" AND (isnull(port_vlan) OR port_vlan=1), "Access port on default VLAN 1",
+    port_type="trunk" AND match(allowedVlans, "(?i)all"), "Trunk allows ALL VLANs (not restricted)",
+    1==1, null())
+| where isnotnull(issue)
+| stats count as ports values(port) as affected_ports by network_name, device, issue
+| eval severity=case(
+    match(issue, "(?i)VLAN 1"), "WARNING -- ".ports." access ports on default VLAN 1",
+    match(issue, "(?i)ALL VLANs"), "INFO -- trunk ports not restricted",
+    1==1, "INFO")
+| sort severity, -ports
+```
 
-Documented **Data sources**: `sourcetype=meraki:api` (MS), `sourcetype=meraki` (security/syslog). **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Switch > Switch ports -- check VLAN assignments per port.
+(b) Verify intended VLAN design against actual configuration.
+(c) Check trunk allowed VLANs against required VLANs.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MS -- VLAN Configuration"):
+* Row 1 -- Single-value: "Ports on VLAN 1", "Unrestricted trunks".
+* Row 2 -- VLAN mismatch table.
 
-**Pipeline walkthrough**
+### Step 5 — - Troubleshooting
 
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by switch_name, vlan_id** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where vlan_error_count > 5` — typically the threshold or rule expression for this monitoring goal.
+* **Access port on wrong VLAN** -- Update VLAN assignment in Dashboard: Switch > Switch ports. Verify DHCP scope matches new VLAN.
 
+* **Trunk allows all VLANs** -- Restrict to required VLANs only: Dashboard > Switch ports > VLAN configuration > Allowed VLANs. This reduces broadcast domain scope.
 
-### Step 3 — Validate
-In the Meraki dashboard, select the same organization, site, and UTC window as the Splunk search. Open Network-wide event log or the device event log and confirm a sample event count and field (for example `event_type` or `carrier_name`) matches what you see in Splunk.
-
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of VLAN issues; timeline of configuration changes; network diagram with VLAN details.
+* **VLAN tagging violation** -- 802.1Q tagged frames on an access port. Check if connected device is sending tagged frames (e.g., IP phone with voice VLAN).
 
 ## SPL
 

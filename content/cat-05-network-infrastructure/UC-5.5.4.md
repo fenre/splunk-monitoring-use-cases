@@ -21,7 +21,7 @@ Tracks when traffic switches between WAN transports. Frequent failovers indicate
 
 ## Value
 
-Tracks when traffic switches between WAN transports. Frequent failovers indicate unstable links.
+Network operations teams track SD-WAN path failover events to detect transport degradation, identify flapping circuits, quantify cost impact of metered backup transports, and validate automatic failover/failback behavior.
 
 ## Implementation
 
@@ -30,41 +30,85 @@ Collect vManage alarm/event data. Track path changes and failover frequency. Ale
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).
-- Ensure the following data sources are available: vManage events.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Cisco Catalyst Add-on for Splunk polling vManage for application-aware routing events and control connection logs. Data in `index=sdwan` with `sourcetype=cisco:sdwan:approute` (path changes) or `sourcetype=cisco:sdwan:alarm` (tunnel/path alarms). Key fields: `site_id`, `system_ip`, `old_sla_class`, `new_sla_class`, `old_preferred_color`, `new_preferred_color`, `reason`.
+- SD-WAN path failover occurs when: (1) tunnel SLA degrades below the configured SLA class threshold, (2) a tunnel goes down entirely, (3) BFD detects loss of connectivity. The SD-WAN controller (vSmart) updates the routing to use the next-best path.
+- Build a `sdwan_transports.csv` lookup: `color,transport_name,provider,monthly_cost` (e.g., `mpls,MPLS-Primary,AT&T,$5000`, `biz-internet,Internet-Backup,Comcast,$500`, `lte,LTE-Failover,Verizon,metered`). This helps quantify the cost impact of failovers (e.g., traffic shifting from MPLS to metered LTE).
 
 ### Step 1 — Configure data collection
-Collect vManage alarm/event data. Track path changes and failover frequency. Alert on frequent failovers.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify path change events:
 ```spl
-index=sdwan sourcetype="cisco:sdwan:events" ("failover" OR "path-change" OR "transport-switch")
-| stats count by site, from_transport, to_transport | sort -count
+index=sdwan (sourcetype="cisco:sdwan:approute" OR sourcetype="cisco:sdwan:alarm") earliest=-24h
+| search "path" OR "failover" OR "sla" OR "color"
+| stats count by sourcetype, site_id
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Path Failover Events** — Tracks when traffic switches between WAN transports. Frequent failovers indicate unstable links.
+**Primary search — Path failover events:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:approute" earliest=-4h
+| where old_preferred_color != new_preferred_color
+| lookup sdwan_sites.csv site_id OUTPUT site_name tier
+| lookup sdwan_transports.csv color as old_preferred_color OUTPUT transport_name as from_transport provider as from_provider
+| lookup sdwan_transports.csv color as new_preferred_color OUTPUT transport_name as to_transport provider as to_provider
+| eval failover_direction=from_transport." → ".to_transport
+| eval cost_impact=case(new_preferred_color="lte", "HIGH (metered)", new_preferred_color="biz-internet" AND old_preferred_color="mpls", "MEDIUM (lower SLA)", 1==1, "LOW")
+| stats count as failover_count latest(_time) as last_failover values(failover_direction) as paths by site_name, tier, system_ip
+| eval last_failover=strftime(last_failover, "%Y-%m-%d %H:%M:%S")
+| sort -failover_count
+```
 
-Documented **Data sources**: vManage events. **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: Detects when SD-WAN changes the preferred transport path for traffic. `old_preferred_color` and `new_preferred_color` indicate the transport switch. The cost_impact evaluation is critical: failover to LTE incurs metered charges that can be expensive if sustained; failover from MPLS to internet means lower SLA guarantees.
 
-The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: cisco:sdwan:events. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+**Flapping detection (frequent back-and-forth failovers):**
+```spl
+index=sdwan sourcetype="cisco:sdwan:approute" earliest=-2h
+| where old_preferred_color != new_preferred_color
+| bin _time span=10m
+| stats count as failovers dc(new_preferred_color) as paths_used by _time, site_id, system_ip
+| where failovers > 4
+| lookup sdwan_sites.csv site_id OUTPUT site_name
+| eval flap_severity=case(failovers > 20, "CRITICAL", failovers > 10, "HIGH", 1==1, "WARNING")
+```
 
-**Pipeline walkthrough**
-
-- Scopes the data: index=sdwan, sourcetype="cisco:sdwan:events". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by site, from_transport, to_transport** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+**Failover duration analysis:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:approute" earliest=-24h
+| where old_preferred_color != new_preferred_color
+| sort system_ip, _time
+| streamstats current=f window=1 last(_time) as prev_time last(new_preferred_color) as prev_color by system_ip
+| eval time_on_failover=if(isnotnull(prev_time), _time - prev_time, null())
+| where isnotnull(time_on_failover) AND prev_color != old_preferred_color
+| eval duration_min=round(time_on_failover/60, 1)
+| stats avg(duration_min) as avg_failover_min max(duration_min) as max_failover_min count as failbacks by site_id
+| lookup sdwan_sites.csv site_id OUTPUT site_name
+| sort -avg_failover_min
+```
 
 ### Step 3 — Validate
-In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
+(a) In vManage: Monitor > Application-Aware Routing > check path history for a device. Failover events should correspond.
+(b) Simulate a failover: on a test device, shut down an interface and verify the failover event appears in Splunk within the polling interval.
+(c) Check a known ISP outage window and verify failover events occurred for affected sites.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Sankey diagram (from/to transport), Timeline.
+Dashboard ("SD-WAN — Path Failovers"):
+- Row 1 — Single-value tiles: "Failovers (4h)", "Sites with active failovers", "Flapping devices", "LTE failovers (cost alert)".
+- Row 2 — Failover events table: site, device, from transport, to transport, cost impact, count.
+- Row 3 — Flapping detection: devices with > 4 failovers per 10-minute window.
+- Row 4 — Failover trending over 24h.
+
+Alerting:
+- Critical (flapping > 20 failovers in 10 minutes): device is oscillating between paths — investigate immediately.
+- High (failover to LTE on Tier1 site): metered costs accumulating — restore primary transport.
+- Warning (any path failover): informational — track for pattern analysis.
+
+### Step 5 — Troubleshooting
+
+- **No failover events detected** — The TA may not be collecting approute change data. Check if the vManage API endpoint `/dataservice/statistics/approute` returns path change events.
+
+- **Excessive flapping between MPLS and Internet** — Both transports are near the SLA threshold. The solution is to: widen the SLA hysteresis (configure different thresholds for failover vs. failback), or fix the underlying transport quality issue.
+
+- **Failover to LTE never fails back** — The primary transport recovered but AAR didn't switch back. Check the failback timer in the AAR policy. Some configurations require manual failback or have a long timer (30+ min) to avoid flapping.
 
 ## SPL
 

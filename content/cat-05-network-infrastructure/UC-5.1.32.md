@@ -21,7 +21,7 @@ Devices approaching EOL/EOS dates.
 
 ## Value
 
-Devices approaching EOL/EOS dates.
+Operations teams track network device end-of-life and end-of-support dates, identifying devices that can no longer receive security patches and planning hardware refresh cycles.
 
 ## Implementation
 
@@ -30,46 +30,66 @@ Maintain device_inventory lookup (host, model) and eol_lookup (model, eol_date) 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: Lookup table with vendor EOL dates, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: Device inventory + EOL lookup.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Device end-of-life (EoL) and end-of-support (EoS) data. Data from vendor lifecycle databases (Cisco EoX API, Juniper), network management platforms, or custom inventory enrichment. Data in `index=network` or `index=cmdb`.
+* EoL tracking: devices past End-of-Sale, End-of-Software-Maintenance, End-of-Security-Vulnerability-Support, or End-of-Support dates are at risk of unpatched vulnerabilities, no hardware replacement, and no TAC support.
 
-### Step 1 — Configure data collection
-Maintain device_inventory lookup (host, model) and eol_lookup (model, eol_date) from Cisco EOL/EOS bulletins. Run scheduled search or dashboard. Alert when days_to_eol < 180. Update lookups annually.
+### Step 1 — - Configure data collection
+```
+# Create or maintain EoL lookup
+# eol_lifecycle.csv
+# model, eos_date (end-of-sale), eosw_date (end-of-sw-maintenance),
+# eovs_date (end-of-vulnerability-support), eol_date (end-of-support), replacement_model
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Cisco EoX API (automated):
+# GET https://apix.cisco.com/supporttools/eox/rest/5/EOXByProductID/1/WS-C3850-48T-S
+```
+Verify:
 ```spl
-| inputlookup device_inventory
-| lookup eol_lookup model OUTPUT eol_date eos_date
-| eval days_to_eol=round((strptime(eol_date,"%Y-%m-%d")-now())/86400,0)
-| where days_to_eol < 365 OR days_to_eol < 0
-| table host model eol_date days_to_eol
-| sort days_to_eol
+| inputlookup eol_lifecycle.csv | stats count by model
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Network Device End-of-Life Tracking** — Devices approaching EOL/EOS dates.
+**Primary search -- EoL device inventory:**
+```spl
+index=network sourcetype="snmp:inventory" earliest=-2d
+| rex field=sysDescr "(?i)(?<hw_model>[A-Z]+-?\d{4}\S*)"
+| eval device=coalesce(host, device_name)
+| eval model=coalesce(hw_model, hardware_model)
+| lookup eol_lifecycle.csv model OUTPUT eos_date, eosw_date, eovs_date, eol_date, replacement_model
+| where isnotnull(eol_date) OR isnotnull(eos_date)
+| eval today=strftime(now(), "%Y-%m-%d")
+| eval days_to_eol=if(isnotnull(eol_date), round((strptime(eol_date, "%Y-%m-%d") - now())/86400), null())
+| eval severity=case(
+    isnotnull(days_to_eol) AND days_to_eol < 0, "CRITICAL -- device past End-of-Life",
+    isnotnull(eovs_date) AND today > eovs_date, "HIGH -- past End-of-Vulnerability-Support",
+    isnotnull(eosw_date) AND today > eosw_date, "WARNING -- past End-of-SW-Maintenance",
+    isnotnull(days_to_eol) AND days_to_eol < 365, "INFO -- End-of-Life within 12 months",
+    1==1, "OK")
+| where severity != "OK"
+| table device, model, eos_date, eosw_date, eovs_date, eol_date, days_to_eol, replacement_model, severity
+| sort severity, days_to_eol
+```
 
-Documented **Data sources**: Device inventory + EOL lookup. **App/TA** (typical add-on context): Lookup table with vendor EOL dates, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Verify lifecycle dates against vendor official announcements.
+(b) Cross-reference with hardware asset management system.
+(c) Confirm replacement models are approved and available.
 
-**Pipeline walkthrough**
+### Step 4 — - Operationalize
+Dashboard ("Network -- EoL Tracking"):
+* Row 1 -- Single-value: "Past EoL", "Past EoVS (no security patches)", "EoL within 12 months".
+* Row 2 -- EoL device inventory table.
 
-- Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.
-- Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
-- `eval` defines or adjusts **days_to_eol** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where days_to_eol < 365 OR days_to_eol < 0` — typically the threshold or rule expression for this monitoring goal.
-- Pipeline stage (see **Network Device End-of-Life Tracking**): table host model eol_date days_to_eol
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+Alert: Critical (device past EoVS): no security patches available.
 
+### Step 5 — - Troubleshooting
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Budget planning** -- Use EoL dates to plan hardware refresh budget cycles. Group devices by lifecycle stage for batch replacement.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (device, model, days to EOL), Single value (devices within 6 months), Gauge.
+* **Risk assessment** -- Devices past EoVS have no security patches. Compensating controls: network segmentation, enhanced monitoring, IPS protection.
+
+* **Migration planning** -- Map replacement models and verify feature parity. Plan migration timeline based on EoL urgency.
 
 ## SPL
 

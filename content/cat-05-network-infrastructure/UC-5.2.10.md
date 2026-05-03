@@ -21,7 +21,7 @@ Firewall admin access is highly privileged. Audit trail is a compliance must-hav
 
 ## Value
 
-Firewall admin access is highly privileged. Audit trail is a compliance must-have.
+Security teams audit firewall admin access attempts, detecting brute force attacks, suspicious external logins, and successful authentication following multiple failures.
 
 ## Implementation
 
@@ -30,65 +30,56 @@ Forward system/auth logs. Alert on failed admin logins. Track all successful log
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX).
-- Ensure the following data sources are available: Firewall system/auth logs.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Firewall management access logs. Palo Alto: `sourcetype=pan:system` (login events), Fortinet: `sourcetype=fgt_event` (admin events), Cisco FTD: admin login events. Key fields: `user`/`admin`, `src_ip`, `action` (login-success/login-fail), `auth_method`.
+* Admin access audit tracks: (1) who accessed the firewall, (2) from where, (3) authentication method, (4) failed login attempts.
 
-### Step 1 — Configure data collection
-Forward system/auth logs. Alert on failed admin logins. Track all successful logins. Alert on unexpected source IPs.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+Verify admin login events:
 ```spl
-index=firewall sourcetype="pan:system" ("login" OR "logout" OR "auth")
-| eval status=case(match(_raw,"success"),"Success", match(_raw,"fail"),"Failed", 1=1,"Other")
-| stats count by admin_user, src, status | sort -count
+index=firewall earliest=-24h
+| where match(_raw, "(?i)admin.*login|auth.*success|auth.*fail|login.*success|login.*fail|management.*session")
+| stats count by sourcetype, host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Admin Access Audit** — Firewall admin access is highly privileged. Audit trail is a compliance must-have.
-
-Documented **Data sources**: Firewall system/auth logs. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: firewall; **sourcetype**: pan:system. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=firewall, sourcetype="pan:system". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `eval` defines or adjusts **status** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `stats` rolls up events into metrics; results are split **by admin_user, src, status** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Admin access audit:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  by Authentication.user Authentication.action Authentication.src Authentication.app span=1h
-| sort -count
+index=firewall earliest=-24h
+| where match(_raw, "(?i)admin.*login|auth.*(success|fail)|login.*(success|fail)|management.*session|web.*ui.*login|cli.*login|api.*login")
+| eval login_result=case(match(_raw, "(?i)success|succeeded|authenticated"), "SUCCESS", match(_raw, "(?i)fail|denied|rejected|invalid|wrong"), "FAILURE", 1==1, "OTHER")
+| eval admin_user=coalesce(user, admin, src_user)
+| eval admin_src=coalesce(src_ip, src, srcaddr)
+| eval method=case(match(_raw, "(?i)web|https|gui|UI"), "Web-UI", match(_raw, "(?i)cli|ssh|console"), "CLI/SSH", match(_raw, "(?i)api|rest|xml"), "API", 1==1, "Unknown")
+| stats count as attempts count(eval(login_result="FAILURE")) as failures count(eval(login_result="SUCCESS")) as successes latest(_time) as last_attempt by admin_user, admin_src, method, host
+| eval failure_rate=if(attempts > 0, round(100*failures/attempts, 1), 0)
+| eval severity=case(failures > 10 AND successes=0, "CRITICAL -- brute force (no success)", failures > 5 AND successes > 0, "HIGH -- multiple failures then success (possible compromise)", match(admin_src, "^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)") = 0 AND successes > 0, "WARNING -- external admin access", 1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -failures
 ```
 
-Understanding this CIM / accelerated SPL
+### Step 3 — - Validate
+(a) Attempt a failed login and verify it appears in Splunk.
+(b) Compare with firewall audit: Palo Alto `show admins all`, Fortinet `get system admin`.
+(c) Verify source IP attribution -- some firewalls log the management interface IP, not the admin client IP.
 
-This block uses `tstats` on the Authentication data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 4 — - Operationalize
+Dashboard ("Firewall -- Admin Access Audit"):
+* Row 1 -- Single-value: "Failed logins (24h)", "Successful logins", "External admin access", "Unique admin IPs".
+* Row 2 -- Admin login events table with failure analysis.
 
-**Pipeline walkthrough**
+Alerting:
+* Critical (> 10 failures with no success): brute force attempt.
+* High (failures followed by success): potential account compromise.
+* Warning (successful login from external IP): verify authorized remote admin.
 
-- Uses `tstats` against accelerated summaries for the Authentication model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+### Step 5 — - Troubleshooting
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+* **Brute force on admin interface** -- Restrict management access: (1) limit to specific IPs, (2) enable MFA for admin access, (3) lockout after N failed attempts, (4) use RADIUS/TACACS+ with accounting.
 
+* **Admin user unknown** -- API or service account access may use different usernames. Check: API key configuration, service accounts in identity management.
 
-
-### Step 3 — Validate
-Sample the same time range in your firewall management console, Panorama, FortiManager, or Check Point SmartConsole and confirm that counts, usernames, and object names line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (admin, source, status), Timeline, Bar chart.
+* **External admin login** -- If not expected, check: (1) management interface is not exposed to internet, (2) VPN is required for remote admin access, (3) IP belongs to a known admin location.
 
 ## SPL
 

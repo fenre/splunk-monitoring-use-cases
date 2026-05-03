@@ -21,7 +21,7 @@ Poor roaming causes dropped calls, video freezes, and application timeouts. Anal
 
 ## Value
 
-Poor roaming causes dropped calls, video freezes, and application timeouts. Analyzing roaming patterns identifies coverage gaps.
+Network operations teams analyze wireless client roaming quality across SSIDs, measuring roam time, method effectiveness (802.11r vs. full re-auth), and failure rates to optimize RF design and ensure seamless mobility for voice and video.
 
 ## Implementation
 
@@ -30,46 +30,84 @@ Enable client roaming event logging on the WLC. Track roaming frequency per clie
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: Cisco WLC syslog, Meraki API.
-- Ensure the following data sources are available: `sourcetype=cisco:wlc`, `sourcetype=meraki:api`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Wireless controller or cloud platform reporting client roaming events. Sources: (1) Cisco WLC syslog — client roaming events, 802.11r/k/v messages, (2) Meraki events — client roaming between APs, (3) Aruba controller — mobility events.
+- Key fields: `client_mac`, `from_ap` (source AP), `to_ap` (destination AP), `roam_type` (802.11r fast BSS transition, OKC, full re-auth), `roam_time_ms` (transition time), `ssid`, `result` (success/failure).
+- Roaming quality directly impacts user experience: voice calls drop if roaming takes > 50ms, video freezes, and applications timeout on slow roams. Fast BSS Transition (802.11r) reduces roam time to < 50ms vs. 500-2000ms for full re-authentication.
 
 ### Step 1 — Configure data collection
-Enable client roaming event logging on the WLC. Track roaming frequency per client. Investigate clients with >10 roams/hour — indicates poor RF design or sticky client behavior.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify roaming events:
 ```spl
-index=network sourcetype="cisco:wlc" "roam" OR "reassociation"
-| transaction client_mac maxspan=1h maxpause=5m
-| eval roam_count=eventcount-1
-| stats avg(roam_count) as avg_roams, max(roam_count) as max_roams by client_mac, ssid
-| where avg_roams > 10
+index=wireless earliest=-4h
+| where match(_raw, "(?i)(roam|handoff|reassoc|bss.transition|mobility)")
+| stats count by sourcetype, ssid
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Client Roaming Analysis** — Poor roaming causes dropped calls, video freezes, and application timeouts. Analyzing roaming patterns identifies coverage gaps.
+**Primary search — Client roaming analysis:**
+```spl
+index=wireless earliest=-4h
+| where match(_raw, "(?i)(roam|handoff|reassoc|bss.transition)")
+| eval client_id=coalesce(client_mac, src_mac)
+| eval source_ap=coalesce(from_ap, ap_name)
+| eval dest_ap=coalesce(to_ap, new_ap)
+| eval roam_method=case(match(_raw, "(?i)11r|fast.bss|ft"), "802.11r (Fast)", match(_raw, "(?i)okc|pmkid"), "OKC/PMK Cache", match(_raw, "(?i)full.auth|re.?auth"), "Full Re-Auth", 1==1, "Standard")
+| eval roam_success=case(match(_raw, "(?i)(success|complete|associated)"), "YES", match(_raw, "(?i)(fail|timeout|reject)"), "NO", 1==1, "UNKNOWN")
+| stats count as roams count(eval(roam_success="NO")) as failed_roams avg(roam_time_ms) as avg_roam_ms by ssid, roam_method
+| eval failure_rate=round(100*failed_roams/roams, 1)
+| eval quality=case(avg_roam_ms < 50, "EXCELLENT", avg_roam_ms < 200, "GOOD", avg_roam_ms < 500, "FAIR", 1==1, "POOR")
+| sort -failure_rate
+```
 
-Documented **Data sources**: `sourcetype=cisco:wlc`, `sourcetype=meraki:api`. **App/TA** (typical add-on context): Cisco WLC syslog, Meraki API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: Roaming method determines quality. 802.11r (Fast BSS Transition) roams in < 50ms — seamless for voice/video. OKC/PMK caching roams in 50-200ms — acceptable for most applications. Full re-authentication takes 500-2000ms — causes voice call drops and noticeable application pauses. A high percentage of full re-auth roams on an 802.1X SSID indicates 802.11r is not properly configured.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:wlc. That sourcetype matches what this use case lists under Data sources.
+**Frequently roaming clients (sticky or problematic):**
+```spl
+index=wireless earliest=-4h
+| where match(_raw, "(?i)(roam|handoff|reassoc)")
+| eval client_id=coalesce(client_mac, src_mac)
+| stats count as roam_count dc(ap_name) as aps_visited by client_id, ssid
+| where roam_count > 20
+| eval roaming_pattern=case(roam_count > 100, "EXCESSIVE", roam_count > 50, "FREQUENT", 1==1, "ELEVATED")
+| sort -roam_count
+| head 20
+```
 
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="cisco:wlc". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Groups related events into transactions — prefer `maxspan`/`maxpause`/`maxevents` for bounded memory.
-- `eval` defines or adjusts **roam_count** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `stats` rolls up events into metrics; results are split **by client_mac, ssid** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where avg_roams > 10` — typically the threshold or rule expression for this monitoring goal.
-
+**AP-to-AP roaming heatmap:**
+```spl
+index=wireless earliest=-4h
+| where match(_raw, "(?i)(roam|handoff|reassoc)")
+| eval from=coalesce(from_ap, ap_name)
+| eval to=coalesce(to_ap, new_ap)
+| where isnotnull(from) AND isnotnull(to) AND from!=to
+| stats count as roams by from, to
+| sort -roams
+| head 30
+```
 
 ### Step 3 — Validate
-In the Cisco WLC or Catalyst 9800 wireless GUI (Monitor > Clients or Access Points), compare counts and statuses with the Splunk rows for the same period. Confirm a few client MACs or AP names.
+(a) Walk between two AP coverage areas with a voice call active and verify the roaming event appears in Splunk.
+(b) Compare roaming statistics with the wireless controller's client tracking dashboard.
+(c) Verify 802.11r is enabled: check the SSID configuration on the controller.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (client, SSID, roam count), Heatmap (AP-to-AP roaming), Choropleth (floor plan).
+Dashboard ("Wireless — Client Roaming"):
+- Row 1 — Single-value tiles: "Total roams (4h)", "Failed roams", "Average roam time (ms)", "802.11r adoption %".
+- Row 2 — Roaming quality by SSID and method.
+- Row 3 — Frequently roaming clients.
+- Row 4 — AP-to-AP roaming heatmap.
+
+Alerting:
+- High (roaming failure rate > 10%): RF design or configuration issue — investigate AP overlap.
+- Warning (average roam time > 200ms): 802.11r may not be configured — voice quality at risk.
+
+### Step 5 — Troubleshooting
+
+- **All roams are "Full Re-Auth" despite 802.11r being enabled** — The client devices may not support 802.11r, or the SSID's 802.11r configuration is in mixed mode. Check client driver support for 802.11r/FT.
+
+- **Excessive roaming for specific clients** — The client may have aggressive roaming settings or is moving in an area with overlapping AP coverage that causes "ping-pong" between APs. Adjust AP power levels to create cleaner cell boundaries.
+
+- **Roaming failures between specific AP pairs** — These APs may not have proper mobility group configuration (Cisco) or they're on different VLANs without inter-controller mobility tunnels. Check mobility domain configuration.
 
 ## SPL
 

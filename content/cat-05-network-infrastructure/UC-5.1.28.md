@@ -21,7 +21,7 @@ Frequent topology changes indicating Layer 2 instability.
 
 ## Value
 
-Frequent topology changes indicating Layer 2 instability.
+Network engineers analyze STP topology change rates to distinguish normal port transitions from TC storms indicating network loops or severe link flapping.
 
 ## Implementation
 
@@ -30,48 +30,71 @@ Poll BRIDGE-MIB dot1dStpTopChanges every 300s; ingest syslog for SPANTREE events
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: BRIDGE-MIB (dot1dStpTopChanges), syslog STP events.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* STP topology change rate data from SNMP or syslog. Extends UC-5.1.6 with rate-based analysis. SNMP OID: dot1dStpTopChanges (.1.3.6.1.2.1.17.2.4) -- cumulative TC count per bridge.
+* STP topology change rate: tracking the TC rate over time helps distinguish between normal occasional changes (device plugged in) and abnormal storms (flapping link, loop). High TC rates cause network-wide MAC table flushes.
 
-### Step 1 — Configure data collection
-Poll BRIDGE-MIB dot1dStpTopChanges every 300s; ingest syslog for SPANTREE events. Alert when topology changes exceed 3 in 10 minutes. Correlate with root bridge changes for critical alerts.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# SNMP polling for STP counters
+[snmp_stp]
+interval = 300
+sourcetype = snmp:stp
+index = network
+# OID: dot1dStpTopChanges (.1.3.6.1.2.1.17.2.4)
+# dot1dStpTimeSinceTopologyChange (.1.3.6.1.2.1.17.2.3)
+```
+Verify:
 ```spl
-index=network (sourcetype=snmp:stp OR sourcetype="cisco:ios") ("dot1dStpTopChanges" OR "%SPANTREE-5-TOPOTCHANGE" OR "%SPANTREE-2-ROOTCHANGE")
-| eval stp_event=if(match(_raw,"TOPOTCHANGE|ROOTCHANGE|dot1dStpTopChanges"),1,0)
-| bin _time span=10m
-| stats sum(stp_event) as topo_changes by host, _time
-| where topo_changes > 3
-| sort -topo_changes
+index=network (sourcetype="snmp:stp" OR sourcetype="cisco:ios") earliest=-4h
+| eval tc_count=tonumber(coalesce(dot1dStpTopChanges, stp_tc_count))
+| where isnotnull(tc_count)
+| stats latest(tc_count) by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**STP Topology Change Rate** — Frequent topology changes indicating Layer 2 instability.
+**Primary search -- STP topology change rate analysis:**
+```spl
+index=network earliest=-4h
+| eval tc_count=tonumber(coalesce(dot1dStpTopChanges, stp_tc_count))
+| eval device=coalesce(host, device_name)
+| where isnotnull(tc_count)
+| bin _time span=5m
+| stats latest(tc_count) as tc by _time, device
+| sort device, _time
+| streamstats current=f last(tc) as prev_tc last(_time) as prev_time by device
+| eval delta_tc=tc - prev_tc
+| eval interval_min=(_time - prev_time)/60
+| eval tc_rate=if(interval_min > 0, round(delta_tc/interval_min, 2), 0)
+| where delta_tc > 0
+| eval severity=case(
+    tc_rate > 10, "CRITICAL -- STP TC storm (".tc_rate." TCs/min)",
+    delta_tc > 5, "WARNING -- elevated TC rate",
+    1==1, "INFO")
+| where severity != "INFO"
+| table _time, device, delta_tc, tc_rate, severity
+| sort severity, -tc_rate
+```
 
-Documented **Data sources**: BRIDGE-MIB (dot1dStpTopChanges), syslog STP events. **App/TA** (typical add-on context): SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show spanning-tree detail | include topology` -- check TC count and last TC time.
+(b) CLI: `show spanning-tree summary` -- overview of TC stats per VLAN.
+(c) Identify port generating TCs: `show spanning-tree detail` and look for "forwarding" transitions.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:stp, cisco:ios. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+### Step 4 — - Operationalize
+Dashboard ("Network -- STP TC Rate"):
+* Row 1 -- Single-value: "TC storms detected", "Total TCs (4h)".
+* Row 2 -- STP TC rate timechart.
 
-**Pipeline walkthrough**
+Alert: Critical (>10 TCs/min sustained): network loop or severe flapping.
 
-- Scopes the data: index=network, sourcetype=snmp:stp. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `eval` defines or adjusts **stp_event** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Discretizes time or numeric ranges with `bin`/`bucket`.
-- `stats` rolls up events into metrics; results are split **by host, _time** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where topo_changes > 3` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **TC storm** -- A port is rapidly transitioning. Identify: `show spanning-tree detail`. Enable portfast on access ports. Check for loop: trace the flapping port to the connected device.
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Constant low-rate TCs** -- May be normal if many devices are connecting/disconnecting (conference rooms, hot-desking). Portfast on access ports prevents these.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (topology changes per host), Table (host, count), Timeline.
+* **TC after topology change** -- Expected after adding new switch or recabling. Should stabilize within minutes. If persistent, investigate root cause.
 
 ## SPL
 

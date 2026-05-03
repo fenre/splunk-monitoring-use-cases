@@ -21,7 +21,7 @@ Tracks blocked URLs and categories to monitor policy compliance and identify mis
 
 ## Value
 
-Tracks blocked URLs and categories to monitor policy compliance and identify misclassified content.
+Security teams analyze Meraki MX content filtering blocks by risk category, prioritizing malware/phishing blocks and proxy evasion attempts over routine policy enforcement.
 
 ## Implementation
 
@@ -30,67 +30,60 @@ Ingest URL filtering events from MX syslog. Categorize by policy.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=urls action="blocked"`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MX content filtering logs via syslog or API. Data in `index=meraki` with `sourcetype=meraki:events` (syslog) or `sourcetype=meraki:api:contentfiltering`. Key fields: `url`, `category`, `action` (block/allow), `client_mac`, `client_ip`.
+* Meraki content filtering: MX appliances categorize web traffic and enforce per-category allow/block policies. Categories include: adult content, social networking, streaming media, gambling, etc. URL categories are provided by Meraki's cloud-based classification service.
 
-### Step 1 — Configure data collection
-Ingest URL filtering events from MX syslog. Categorize by policy.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+Syslog configuration:
+```
+# Dashboard > Network-wide > General > Syslog servers
+# Roles: URLs
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=urls action="blocked"
-| stats count as block_count by url_category, src
-| sort - block_count
-| head 20
+index=meraki sourcetype="meraki:events" earliest=-4h
+| where match(_raw, "(?i)content_filter|url.*block|category.*block|web.*filter")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Content Filtering and URL Category Blocks (Meraki MX)** — Tracks blocked URLs and categories to monitor policy compliance and identify misclassified content.
-
-Documented **Data sources**: `sourcetype=meraki type=urls action="blocked"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by url_category, src** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-- Limits the number of rows with `head`.
-
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Content filtering and URL category blocks:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Web.Web
-  by Web.status Web.url Web.http_method Web.dest span=1h
-| sort -count
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:contentfiltering") earliest=-4h
+| where match(_raw, "(?i)content.filter.*block|url.*block|category.*deny|web.*filter.*block")
+| eval category=coalesce(category, url_category)
+| eval url=coalesce(url, request_url, dest_url)
+| eval client=coalesce(client_ip, src_ip, src)
+| eval risk=case(match(category, "(?i)malware|phishing|botnet|command"), "HIGH_RISK", match(category, "(?i)proxy|anonymizer|vpn|tor"), "EVASION", match(category, "(?i)adult|gambling|drugs"), "POLICY", 1==1, "STANDARD")
+| stats count as blocks dc(url) as unique_urls dc(client) as affected_clients by category, risk
+| eval severity=case(risk="HIGH_RISK", "CRITICAL -- security threat category blocked", risk="EVASION", "HIGH -- proxy/anonymizer evasion attempt", 1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -blocks
 ```
 
-Understanding this CIM / accelerated SPL
+### Step 3 — - Validate
+(a) Dashboard: Security & SD-WAN > Content filtering -- check blocked categories and rules.
+(b) Visit a known blocked category URL through the MX and verify the block event appears.
+(c) Compare block counts with Dashboard content filtering reports.
 
-This block uses `tstats` on the Web data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MX -- Content Filtering"):
+* Row 1 -- Single-value: "Malware/phishing blocks", "Evasion blocks", "Policy blocks".
+* Row 2 -- Blocks by category.
+* Row 3 -- Top blocked clients.
 
-**Pipeline walkthrough**
+Alerting:
+* Critical (malware/phishing blocks from specific client): investigate for compromise.
+* High (proxy/anonymizer evasion from client): policy violation attempt.
 
-- Uses `tstats` against accelerated summaries for the Web model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+### Step 5 — - Troubleshooting
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+* **Legitimate site blocked** -- Submit URL recategorization via Meraki Dashboard or Webroot BrightCloud lookup. Add temporary URL whitelist if business-critical.
 
+* **Content filtering not blocking** -- Check: (1) content filtering policy is applied to the network, (2) HTTPS inspection is enabled (SSL/TLS decryption in MX), (3) client is routing through MX.
 
-
-### Step 3 — Validate
-In the Meraki cloud dashboard, use the same organization, network, and time range as the search. Confirm the same events, site or appliance names, and policy context you see in the dashboard line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of top blocked categories; bar chart by category; user detail table.
+* **High blocks from single client** -- May indicate: malware on the device, unauthorized browsing, or misconfigured application. Investigate the client device.
 
 ## SPL
 

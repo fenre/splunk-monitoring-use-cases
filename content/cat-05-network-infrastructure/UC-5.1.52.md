@@ -21,7 +21,7 @@ Monitors cellular signal strength to ensure reliable backup connectivity.
 
 ## Value
 
-Monitors cellular signal strength to ensure reliable backup connectivity.
+Operations teams trend Meraki MG cellular gateway signal strength (RSRP, RSRQ, SINR) to detect degradation and optimize antenna placement for reliable cellular WAN connectivity.
 
 ## Implementation
 
@@ -30,42 +30,74 @@ Query MG device API for signal metrics. Alert on degraded signal.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki:api device_type=MG`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MG cellular signal data from Dashboard API. Data in `index=meraki` with `sourcetype=meraki:api:cellular:signal` or `sourcetype=meraki:api:device:status`. Key fields: `rsrp` (Reference Signal Received Power), `rsrq` (Reference Signal Received Quality), `sinr` (Signal-to-Interference-plus-Noise Ratio), `rssi`.
+* Meraki MG: dedicated cellular gateway providing primary or backup WAN connectivity over 4G LTE / 5G. Signal strength directly impacts throughput and reliability. API: `GET /devices/{serial}/cellular/sims`.
 
-### Step 1 — Configure data collection
-Query MG device API for signal metrics. Alert on degraded signal.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+[meraki_mg_signal]
+interval = 300
+sourcetype = meraki:api:cellular:signal
+index = meraki
+# API: GET /devices/{serial}/cellular/sims
+# Returns signal metrics per SIM
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki:api" device_type=MG
-| stats avg(signal_strength) as avg_signal, min(signal_strength) as min_signal by cellular_gateway_id
-| eval signal_quality=case(avg_signal > -90, "Excellent", avg_signal > -110, "Good", 1=1, "Poor")
+index=meraki sourcetype="meraki:api:cellular:signal" earliest=-4h
+| stats latest(rsrp) latest(rsrq) latest(sinr) by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Cellular Gateway Signal Strength Trending (Meraki MG)** — Monitors cellular signal strength to ensure reliable backup connectivity.
+**Primary search -- Cellular signal strength trending:**
+```spl
+index=meraki sourcetype="meraki:api:cellular:signal" earliest=-24h
+| eval device=coalesce(serial, host)
+| eval rsrp=tonumber(rsrp)
+| eval rsrq=tonumber(rsrq)
+| eval sinr=tonumber(sinr)
+| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
+| bin _time span=15m
+| stats avg(rsrp) as avg_rsrp avg(rsrq) as avg_rsrq avg(sinr) as avg_sinr by _time, network_name, device
+| eval avg_rsrp=round(avg_rsrp, 1)
+| eval avg_rsrq=round(avg_rsrq, 1)
+| eval avg_sinr=round(avg_sinr, 1)
+| eval signal_quality=case(
+    avg_rsrp > -80, "Excellent",
+    avg_rsrp > -90, "Good",
+    avg_rsrp > -100, "Fair",
+    avg_rsrp > -110, "Poor",
+    1==1, "Very Poor")
+| eval severity=case(
+    avg_rsrp < -110 OR avg_sinr < 0, "CRITICAL -- very poor signal, unreliable connectivity",
+    avg_rsrp < -100 OR avg_sinr < 5, "WARNING -- poor signal quality",
+    avg_rsrp < -90, "INFO -- fair signal",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, network_name, device, avg_rsrp, avg_rsrq, avg_sinr, signal_quality, severity
+| sort severity, avg_rsrp
+```
 
-Documented **Data sources**: `sourcetype=meraki:api device_type=MG`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Cellular gateway > Overview -- check signal metrics.
+(b) Compare with carrier coverage maps for the site location.
+(c) Monitor signal variation by time of day (congestion patterns).
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki:api. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MG -- Signal Strength"):
+* Row 1 -- Single-value: "Signal quality", "RSRP (dBm)", "SINR (dB)".
+* Row 2 -- Signal strength timechart (RSRP, RSRQ, SINR).
 
-**Pipeline walkthrough**
+Alert: Warning (RSRP < -100 sustained): poor signal, investigate antenna/placement.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by cellular_gateway_id** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **signal_quality** — often to normalize units, derive a ratio, or prepare for thresholds.
+### Step 5 — - Troubleshooting
 
+* **Poor signal** -- Options: (1) reposition antenna, (2) install external high-gain antenna, (3) adjust MG mounting location for better line-of-sight, (4) consider signal booster/repeater.
 
-### Step 3 — Validate
-In the Meraki dashboard, select the same organization, site, and UTC window as the Splunk search. Open Network-wide event log or the device event log and confirm a sample event count and field (for example `event_type` or `carrier_name`) matches what you see in Splunk.
+* **Signal degradation at specific times** -- Cell tower congestion during peak hours. Consider: carrier change, multi-SIM with different carriers, or fixed wireless alternative.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Signal strength gauge; trend timeline; cellular quality status.
+* **Sudden signal drop** -- Check: (1) antenna cable connection, (2) nearby construction blocking signal, (3) carrier network issue.
 
 ## SPL
 

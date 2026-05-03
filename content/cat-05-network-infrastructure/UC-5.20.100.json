@@ -1,0 +1,59 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.100",
+  "title": "OMB M-21-07 Federal IPv6-Only Mandate Compliance Tracking",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=network` — Tracks compliance with OMB Memorandum M-21-07, which mandates that U.S. federal agencies complete the transition to IPv6-only by FY2025 (for at least 80% of IP-enabled assets in IPv6-only or dual-stack operation) and achieve 100% IPv6-only operation by FY2028.\n\n**OMB M-21-07 key requirements:**\n\n1. **IPv6-only capable.** By end of FY2025, at least 80% of IP-enabled assets on federal networks must be operating in IPv6-only or dual-stack environments (§3.1).\n2. **IPv6-only operation.** By end of FY2028, all federal networks must operate in IPv6-only mode, with IPv4 retained only for legacy systems that cannot be migrated (§3.2).\n3. **Procurement.** All new networked federal IT acquisitions must be IPv6-enabled (§4).\n4. **Inventory.** Agencies must maintain an inventory of all IP-enabled assets with their IPv6 readiness status (§5).\n5. **Annual reporting.** Agencies must report IPv6 adoption metrics to OMB annually (§6).\n\nThis use case creates an automated compliance dashboard that calculates IPv6 adoption percentages across the network and tracks progress toward the mandated thresholds.",
+  "app": "Splunk Enterprise",
+  "spl": "index=network earliest=-30d\n| eval has_ipv6=if(match(_raw, \"[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){2,}\") OR match(_raw, \"(?i)ipv6\"), 1, 0)\n| eval has_ipv4=if(match(_raw, \"\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\"), 1, 0)\n| stats max(has_ipv6) as ipv6_capable max(has_ipv4) as ipv4_present by host\n| eval asset_status=case(\n    ipv6_capable=1 AND ipv4_present=0, \"IPv6-only\",\n    ipv6_capable=1 AND ipv4_present=1, \"Dual-stack\",\n    ipv6_capable=0 AND ipv4_present=1, \"IPv4-only\",\n    1=1, \"Unknown\")\n| stats count as total_assets count(eval(asset_status=\"IPv6-only\")) as ipv6_only count(eval(asset_status=\"Dual-stack\")) as dual_stack count(eval(asset_status=\"IPv4-only\")) as ipv4_only\n| eval fy25_target_pct=80\n| eval fy28_target_pct=100\n| eval ipv6_capable_pct=round((ipv6_only + dual_stack) / total_assets * 100, 1)\n| eval ipv6_only_pct=round(ipv6_only / total_assets * 100, 1)\n| eval fy25_compliant=if(ipv6_capable_pct >= 80, \"COMPLIANT\", \"NON-COMPLIANT — \" . round(80 - ipv6_capable_pct, 1) . \"% below target\")\n| eval fy28_compliant=if(ipv6_only_pct >= 100, \"COMPLIANT\", \"IN PROGRESS — \" . ipv6_only_pct . \"% IPv6-only (target: 100%)\")\n| table total_assets, ipv6_only, dual_stack, ipv4_only, ipv6_capable_pct, ipv6_only_pct, fy25_compliant, fy28_compliant",
+  "description": "Automates compliance tracking for OMB Memorandum M-21-07, which mandates U.S. federal agencies transition to IPv6-only. Calculates IPv6 adoption percentages across all network assets, categorises assets as IPv6-only, dual-stack, or IPv4-only, and tracks progress against the FY2025 (80% IPv6-capable) and FY2028 (100% IPv6-only) milestones. While primarily applicable to federal agencies, this UC is valuable for any large organization tracking IPv6 migration progress.",
+  "value": "OMB M-21-07 is a binding federal mandate with annual reporting requirements. Manual compliance tracking is error-prone and labour-intensive across large agencies with thousands of network assets. This automated dashboard provides real-time compliance visibility, identifies IPv4-only holdouts requiring remediation, and generates the data needed for OMB annual reporting. The same framework is applicable to enterprise IPv6 migration programs.",
+  "implementation": "Collect network device and host data. Classify each asset as IPv6-only, dual-stack, or IPv4-only based on observed traffic and configuration. Calculate compliance percentages against OMB milestones.",
+  "visualization": "(1) Gauge: IPv6-capable percentage vs 80% target. (2) Gauge: IPv6-only percentage vs 100% target. (3) Pie chart: asset distribution by status. (4) Table: IPv4-only assets requiring remediation. (5) Trend: monthly IPv6 adoption progress.",
+  "references": [
+    {
+      "title": "OMB Memorandum M-21-07 — Completing the Transition to Internet Protocol Version 6 (IPv6)",
+      "url": "https://www.whitehouse.gov/wp-content/uploads/2020/11/M-21-07.pdf"
+    },
+    {
+      "title": "NIST SP 800-119 — Guidelines for the Secure Deployment of IPv6",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final"
+    },
+    {
+      "title": "USGv6 Program — federal IPv6 conformance and interoperability testing",
+      "url": "https://www.nist.gov/programs-projects/usgv6-program"
+    }
+  ],
+  "knownFalsePositives": "**Network infrastructure devices.** Routers, switches, and firewalls are inherently dual-stack (they must process both IPv4 and IPv6). These should be classified as 'dual-stack capable' rather than penalised for having IPv4.\n\n**Legacy systems with waiver.** OMB M-21-07 allows agencies to retain IPv4 for legacy systems that cannot be migrated, with documentation. Maintain a waiver list and exclude these assets from compliance calculations.\n\n**Monitoring-only IPv4.** Some management protocols (SNMP, legacy monitoring) may use IPv4 while the production traffic is IPv6-only. Classify based on production traffic, not management plane.",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "paloalto",
+    "arista"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9000",
+    "juniper_mx",
+    "paloalto_pa",
+    "arista_7000"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Network asset inventory in Splunk (device type, location, function).\n• Traffic data from firewalls, flow collectors, or packet brokers.\n• Configuration data from network devices.\n\nStep 1 — Configure data collection\n\n**Asset inventory lookup:**\nCreate a CSV lookup mapping hosts to asset metadata:\n```csv\nhost,asset_type,location,business_unit,waiver,waiver_reason\nfw-dc-01,firewall,DC-East,Infrastructure,no,\nlegacy-mainframe,server,DC-East,Finance,yes,\"COBOL application cannot be modified\"\n```\n\nUpload to Splunk:\n```spl\n| inputlookup asset_inventory.csv | stats count by asset_type, waiver\n```\n\n**Configuration-based classification:**\nFor more accurate classification, parse device configs:\n```spl\nindex=network sourcetype=\"cisco:*:config\" earliest=-7d\n| dedup host\n| eval has_ipv6_interface=if(match(_raw, \"(?i)ipv6 address\"), 1, 0)\n| eval has_ipv4_interface=if(match(_raw, \"(?i)ip address \\d\"), 1, 0)\n| eval config_status=case(\n    has_ipv6_interface=1 AND has_ipv4_interface=0, \"IPv6-only\",\n    has_ipv6_interface=1 AND has_ipv4_interface=1, \"Dual-stack\",\n    has_ipv6_interface=0 AND has_ipv4_interface=1, \"IPv4-only\",\n    1=1, \"Unknown\")\n| stats count by config_status\n```\n\nStep 2 — Create compliance dashboard\n\n**Monthly trend for OMB annual report:**\n```spl\nindex=network earliest=-365d\n| eval month=strftime(_time, \"%Y-%m\")\n| eval has_ipv6=if(match(_raw, \"[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){2,}\"), 1, 0)\n| stats max(has_ipv6) as ipv6_capable by host, month\n| stats count as total dc(eval(if(ipv6_capable=1, host, null()))) as ipv6_hosts by month\n| eval ipv6_pct=round(ipv6_hosts / total * 100, 1)\n| table month, total, ipv6_hosts, ipv6_pct\n```\n\n**IPv4-only remediation list:**\n```spl\nindex=network earliest=-30d\n| eval has_ipv6=if(match(_raw, \"[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){2,}\"), 1, 0)\n| stats max(has_ipv6) as ipv6_capable by host\n| where ipv6_capable=0\n| lookup asset_inventory.csv host OUTPUT asset_type, location, business_unit, waiver\n| where waiver!=\"yes\" OR isnull(waiver)\n| table host, asset_type, location, business_unit\n| sort asset_type, location\n```\n\nStep 3 — Validate\n(a) **Accuracy check.** Select 10 random assets from each category. SSH/RDP to each and verify IPv6 status manually (Windows: `ipconfig`; Linux: `ip -6 addr`; IOS: `show ipv6 interface brief`).\n\n(b) **Waiver verification.** Review all waivered assets to confirm documentation is current and the waiver reason is still valid.\n\n(c) **Procurement check.** Verify recent IT acquisitions appear in the IPv6-capable category.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — OMB M-21-07 Compliance\"):\n• Row 1 — Gauges: FY2025 target (80% IPv6-capable) and FY2028 target (100% IPv6-only).\n• Row 2 — Pie chart: asset distribution by IPv6 status.\n• Row 3 — Trend: monthly IPv6 adoption progress.\n• Row 4 — Table: IPv4-only assets requiring remediation (excluding waivered).\n• Row 5 — Table: waivered assets with reason and review date.\n\n**Scheduled report:** Monthly. Send to CIO/CISO office for OMB reporting.\n\n**Alert:** IPv6-capable percentage drops below previous month — indicates regression.\n\nStep 5 — Troubleshooting\n\n• **Classification accuracy.** The traffic-based classification may miss assets with low traffic volume. Supplement with configuration-based classification and active scanning.\n\n• **Dual-stack vs IPv6-only distinction.** The FY2025 target counts both dual-stack and IPv6-only as 'capable.' The FY2028 target requires IPv6-only. Plan the dual-stack → IPv6-only transition early.\n\n• **Asset inventory completeness.** If the asset inventory is incomplete, the compliance percentage is inaccurate. Cross-reference with CMDB and network discovery tools to ensure coverage.",
+  "grandmaExplanation": "The government has told all its offices that by a certain year, everyone must switch from old-format addresses (IPv4) to new-format addresses (IPv6). We built a big scoreboard that shows exactly how many of our computers and devices have switched, how many still need to switch, and how close we are to meeting the deadline. It's like tracking homework completion for a very large class.",
+  "prerequisiteUseCases": [
+    "5.20.1",
+    "5.20.79"
+  ],
+  "wave": "walk"
+}

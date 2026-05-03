@@ -21,7 +21,7 @@ Unused firewall rules increase attack surface and complexity. Identifying zero-h
 
 ## Value
 
-Unused firewall rules increase attack surface and complexity. Identifying zero-hit rules enables rule base cleanup and reduces risk.
+Security teams analyze firewall rule hit counts to identify unused rules for cleanup, overly permissive catchall rules, and shadow rules that never match traffic.
 
 ## Implementation
 
@@ -30,67 +30,55 @@ Collect traffic logs with rule names. Run weekly reports to identify unused rule
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX).
-- Ensure the following data sources are available: `sourcetype=pan:traffic`, `sourcetype=fgt_traffic`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Firewall traffic logs with rule/policy identification. Key fields: `rule` (PA: rule name), `policyid` (Fortinet: policy ID), `policy_name`, `action`, traffic counts. Data in `index=firewall`.
+* Rule hit count analysis identifies: (1) unused rules (zero hits) that should be removed, (2) overly permissive "any-any" rules handling most traffic, (3) shadow rules (rules that never match because a higher-priority rule catches all traffic), (4) rules generating the most denials.
 
-### Step 1 — Configure data collection
-Collect traffic logs with rule names. Run weekly reports to identify unused rules. Review rules with zero hits over 90 days for removal. Document cleanup actions.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+Verify rule identification:
 ```spl
-index=network sourcetype="pan:traffic"
-| stats count as hit_count dc(src) as unique_sources dc(dest) as unique_dests by rule
-| sort hit_count
-| eval status=if(hit_count=0,"UNUSED",if(hit_count<10,"RARELY_USED","ACTIVE"))
+index=firewall earliest=-7d
+| eval rule=coalesce(rule, policy_name, policyid, rule_name)
+| stats count by rule, action | sort -count | head 30
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Firewall Rule Hit Count Analysis** — Unused firewall rules increase attack surface and complexity. Identifying zero-hit rules enables rule base cleanup and reduces risk.
-
-Documented **Data sources**: `sourcetype=pan:traffic`, `sourcetype=fgt_traffic`. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: network; **sourcetype**: pan:traffic. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="pan:traffic". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by rule** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-- `eval` defines or adjusts **status** — often to normalize units, derive a ratio, or prepare for thresholds.
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Rule hit count analysis:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action All_Traffic.dvc span=1h
-| where count>0
-| sort -count
+index=firewall earliest=-7d
+| eval rule=coalesce(rule, policy_name, policyid, rule_name, acl_name)
+| eval act=lower(coalesce(action, policy_action))
+| eval is_allow=if(match(act, "(?i)allow|pass|accept|permit"), 1, 0)
+| eval is_deny=if(match(act, "(?i)deny|block|drop|reject"), 1, 0)
+| stats count as total_hits sum(is_allow) as allows sum(is_deny) as denials dc(coalesce(src_ip, src)) as unique_sources dc(coalesce(dest_ip, dest)) as unique_targets by rule, host
+| eval allow_pct=round(100*allows/total_hits, 1)
+| eval deny_pct=round(100*denials/total_hits, 1)
+| eval concern=case(total_hits=0, "UNUSED -- remove rule", total_hits > 1000000 AND match(rule, "(?i)any|default|catch"), "OVERLY_PERMISSIVE -- catchall rule handling ".total_hits." hits", denials > allows AND total_hits > 1000, "HIGH_DENY -- mostly denying traffic (".deny_pct."%)", unique_sources > 10000 AND unique_targets > 10000, "BROAD -- very wide scope", 1==1, null())
+| where isnotnull(concern)
+| sort concern, -total_hits
 ```
 
-Understanding this CIM / accelerated SPL
+### Step 3 — - Validate
+(a) Palo Alto: Policies > Security > Hit Count column -- compare with Splunk.
+(b) Fortinet: `diagnose firewall policy-hit-count` -- shows per-policy hit counts.
+(c) Check for shadow rules by reviewing rule ordering vs hit counts.
 
-This block uses `tstats` on the Network_Traffic data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 4 — - Operationalize
+Dashboard ("Firewall -- Rule Analysis"):
+* Row 1 -- Single-value: "Unused rules", "Overly permissive rules", "High-deny rules".
+* Row 2 -- Rule hit count table with concern flags.
 
-**Pipeline walkthrough**
+Alerting:
+* Warning (unused rules > 10): rule cleanup needed.
+* Info (monthly report): rule hygiene review.
 
-- Uses `tstats` against accelerated summaries for the Network_Traffic model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+### Step 5 — - Troubleshooting
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+* **Unused rules** -- May be backup/legacy rules. Document and remove after confirming with stakeholders. Set a review period (30-90 days with logging).
 
+* **Overly permissive rules** -- Break down into specific source/destination/service rules. Use firewall rule recommendation features: PA "Rule Usage" or "Expedition" tool.
 
-
-### Step 3 — Validate
-Sample the same time range in your firewall management console, Panorama, FortiManager, or Check Point SmartConsole and confirm that counts, usernames, and object names line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (rule, hit count, status), Bar chart (hit count distribution), Single value (unused rule count).
+* **Shadow rules** -- A rule that never matches because a prior rule is more general. Reorder rules or remove the shadowed rule. PA: Security Policy Optimizer identifies shadows.
 
 ## SPL
 

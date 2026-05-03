@@ -17,11 +17,11 @@ splunkPillar: "Security"
 
 ## Description
 
-Identifies top blocked traffic sources — useful for rule tuning, detecting scanning, and misconfigured apps.
+Identifies top blocked traffic sources — useful for rule tuning, detecting scanning, and misconfigured apps. NIST SP 800-119 expects IPv6 firewall and filtering parity with IPv4 — include IPv6 deny visibility in the same program.
 
 ## Value
 
-Identifies top blocked traffic sources — useful for rule tuning, detecting scanning, and misconfigured apps.
+Security teams identify top denied traffic sources across multi-vendor firewalls, distinguishing reconnaissance scanning from misconfigured applications using target diversity and port spread analysis.
 
 ## Implementation
 
@@ -30,67 +30,83 @@ Forward firewall traffic logs via syslog. Install vendor TA for CIM-compliant fi
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX).
-- Ensure the following data sources are available: `sourcetype=pan:traffic`, `sourcetype=fgt_traffic`, `sourcetype=cisco:firepower:syslog`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Firewall traffic logs forwarded to Splunk. Data in `index=firewall` with sourcetypes per vendor: Palo Alto `pan:traffic`, Fortinet `fgt_traffic`, Cisco FTD `cisco:firepower:syslog`, Juniper SRX `juniper:junos:firewall`. Key fields: `action=denied/blocked/drop`, `src_ip`, `dest_ip`, `dest_port`, `rule`, `app`.
+* Install the appropriate TA: `Splunk_TA_paloalto` (Splunkbase 2757), `TA-fortinet_fortigate` (Splunkbase 2846), `Splunk_TA_cisco-firepower` (Splunkbase 4830), `Splunk_TA_juniper` (Splunkbase 2847).
+* Create `firewall_zones.csv` lookup: `src_zone`, `dest_zone`, `zone_classification` (internal/dmz/external/partner).
 
-### Step 1 — Configure data collection
-Forward firewall traffic logs via syslog. Install vendor TA for CIM-compliant fields. Create top-N dashboard.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+**Palo Alto (syslog):**
+```
+# Device > Server Profiles > Syslog > add profile
+# Objects > Log Forwarding > add traffic log filter: action=deny
+# Commit and push to managed devices
+```
+**Fortinet (syslog):**
+```
+config log syslogd setting
+    set status enable
+    set server <splunk_syslog_ip>
+    set port 514
+    set facility local7
+end
+```
+Verify ingestion:
 ```spl
-index=firewall action="denied" OR action="drop"
-| stats count as denials, dc(dest) as unique_dests by src
-| sort -denials | head 20 | lookup geoip ip as src OUTPUT Country
+index=firewall (action=denied OR action=blocked OR action=drop OR action=deny) earliest=-4h
+| stats count by sourcetype, host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Top Denied Traffic Sources** — Identifies top blocked traffic sources — useful for rule tuning, detecting scanning, and misconfigured apps.
-
-Documented **Data sources**: `sourcetype=pan:traffic`, `sourcetype=fgt_traffic`, `sourcetype=cisco:firepower:syslog`. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: firewall.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=firewall. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by src** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-- Limits the number of rows with `head`.
-- Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Top denied traffic sources with context:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Traffic.All_Traffic
-  where All_Traffic.action IN ("deny","denied","drop","dropped","blocked","block")
-  by All_Traffic.src All_Traffic.dest span=1h
-| sort -count
+index=firewall (action=denied OR action=blocked OR action=drop OR action=deny) earliest=-4h
+| eval src=coalesce(src_ip, src, srcaddr)
+| eval dst=coalesce(dest_ip, dest, dstaddr)
+| eval dport=coalesce(dest_port, dstport, dst_port)
+| eval fw_action=lower(coalesce(action, policy_action))
+| eval app_name=coalesce(app, application, service)
+| lookup firewall_zones.csv src_zone, dest_zone OUTPUT zone_classification
+| stats count as denials dc(dst) as unique_targets dc(dport) as unique_ports values(app_name) as apps latest(_time) as last_seen by src, host
+| eval severity=case(denials > 10000 AND unique_targets > 100, "CRITICAL -- possible scanning/worm", denials > 5000 AND unique_ports > 50, "HIGH -- port sweep", denials > 1000, "WARNING -- elevated denials", 1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -denials
 ```
 
-Understanding this CIM / accelerated SPL
+**Denied traffic by zone pair (identifies policy gaps):**
+```spl
+index=firewall (action=denied OR action=blocked OR action=drop) earliest=-4h
+| eval src_z=coalesce(src_zone, from_zone, ingress_zone)
+| eval dst_z=coalesce(dest_zone, to_zone, egress_zone)
+| stats count as denials dc(src_ip) as unique_sources by src_z, dst_z
+| sort -denials
+```
 
-This block uses `tstats` on the Network_Traffic data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 3 — - Validate
+(a) Cross-reference top denied source with firewall management console (Panorama, FortiAnalyzer, FMC).
+(b) Verify action field normalization: run `| stats count by action` and confirm deny/block/drop variants are captured.
+(c) Confirm no legitimate traffic is being denied by checking a sample of denied flows against change tickets.
 
-**Pipeline walkthrough**
+### Step 4 — - Operationalize
+Dashboard ("Firewall -- Denied Traffic Analysis"):
+* Row 1 -- Single-value: "Total denials (4h)", "Unique denied sources", "Unique targets", "Top denied app".
+* Row 2 -- Top denied sources with severity rating.
+* Row 3 -- Denied flows by zone pair.
 
-- Uses `tstats` against accelerated summaries for the Network_Traffic model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+Alerting:
+* Critical (> 10K denials from single source with > 100 targets): active scanning.
+* High (> 5K denials with > 50 ports): port sweep reconnaissance.
+* Warning (new source with > 1K denials): investigate new deny patterns.
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+### Step 5 — - Troubleshooting
 
+* **Legitimate traffic denied** -- Check: (1) recent firewall policy change (UC-5.2.2), (2) expired temporary rule, (3) application update using new ports/IPs. Cross-reference with change management.
 
+* **Single IP generating massive denials** -- Possible causes: (1) compromised host scanning internally, (2) misconfigured application retrying failed connections, (3) worm propagation. Quarantine and investigate.
 
-### Step 3 — Validate
-Sample the same time range in your firewall management console, Panorama, FortiManager, or Check Point SmartConsole and confirm that counts, usernames, and object names line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (source, denials, dests), Map (GeoIP), Bar chart.
+* **Deny counts differ between Splunk and firewall console** -- Verify: (1) all firewall nodes are forwarding logs, (2) syslog transport is reliable (use TCP, not UDP), (3) Splunk indexing lag.
+
+**IPv6 Coverage:** NIST SP 800-119 requires equivalent IPv6 firewall rules. Add `| eval ip_version=if(match(src, ":"), "IPv6", "IPv4")` to segment by protocol version. Verify IPv6 deny logs are being captured — many firewalls have IPv6 logging disabled by default.
 
 ## SPL
 

@@ -1,0 +1,56 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.91",
+  "title": "CIS Benchmark IPv6 Hardening Compliance Audit",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=network sourcetype=syslog` or `index=os sourcetype=linux:sysctl` — verification of CIS Benchmark IPv6 hardening controls on Linux, Windows, and network devices. The Center for Internet Security (CIS) publishes specific IPv6 hardening controls in their benchmarks for multiple platforms:\n\n**CIS Linux Benchmark (Ubuntu/RHEL/SLES/Debian):**\n• **3.1.1** — Disable IPv6 when unused: `net.ipv6.conf.all.disable_ipv6 = 1`\n• **3.2.9** — Disable IPv6 router advertisements acceptance: `net.ipv6.conf.all.accept_ra = 0`\n• **3.2.10** — Disable IPv6 redirects: `net.ipv6.conf.all.accept_redirects = 0`\n• **3.2.11** — Disable IPv6 forwarding (unless router): `net.ipv6.conf.all.forwarding = 0`\n• **3.5.3** — ip6tables default DROP for INPUT and FORWARD chains\n\n**CIS Windows Benchmark:**\n• **18.4.21** — IPv6 source routing disabled (MSS: DisableIPSourceRouting (IPv6))\n• **18.4.8** — Disable IPv6 transition technologies (6to4, Teredo, ISATAP)\n\n**CIS Network Device Benchmarks (IOS/JunOS):**\n• Disable IPv6 on interfaces where not required\n• Block IPv6 Router Advertisements on host-facing ports\n• Configure IPv6 ACLs with explicit deny for bogon/reserved addresses",
+  "app": "Splunk Add-on for Linux / Splunk Add-on for Windows",
+  "spl": "index=os (sourcetype=\"linux:sysctl\" OR sourcetype=\"WinRegistry\") earliest=-7d\n| eval control=case(\n    match(_raw, \"net.ipv6.conf.all.accept_ra\"), \"accept_ra\",\n    match(_raw, \"net.ipv6.conf.all.accept_redirects\"), \"accept_redirects\",\n    match(_raw, \"net.ipv6.conf.all.forwarding\"), \"forwarding\",\n    match(_raw, \"net.ipv6.conf.all.disable_ipv6\"), \"disable_ipv6\",\n    match(_raw, \"DisableIPSourceRouting.*IPv6\"), \"source_routing_win\",\n    1=1, null())\n| where isnotnull(control)\n| rex field=_raw \"=\\s*(?<value>\\d+)\"\n| eval compliant=case(\n    control=\"accept_ra\" AND value=\"0\", 1,\n    control=\"accept_redirects\" AND value=\"0\", 1,\n    control=\"forwarding\" AND value=\"0\", 1,\n    control=\"disable_ipv6\" AND value=\"1\", 1,\n    control=\"source_routing_win\" AND value=\"2\", 1,\n    1=1, 0)\n| stats count(eval(compliant=1)) as passed count(eval(compliant=0)) as failed by host, control\n| where failed > 0\n| eval finding=case(\n    control=\"accept_ra\", \"CIS 3.2.9 — Host accepts Router Advertisements (should be disabled on servers)\",\n    control=\"accept_redirects\", \"CIS 3.2.10 — Host accepts ICMPv6 Redirects (MITM risk)\",\n    control=\"forwarding\", \"CIS 3.2.11 — IPv6 forwarding enabled on non-router (host acting as router)\",\n    control=\"disable_ipv6\", \"CIS 3.1.1 — IPv6 NOT disabled (required if not in use)\",\n    control=\"source_routing_win\", \"CIS 18.4.21 — IPv6 source routing not disabled on Windows\")\n| sort host, control",
+  "description": "Audits host and network device configurations against CIS Benchmark IPv6 hardening controls. CIS Benchmarks provide specific, testable requirements for disabling unnecessary IPv6 features, blocking dangerous IPv6 protocol behaviour, and hardening IPv6 firewall rules. Key controls include disabling RA acceptance on servers (prevents rogue RA attacks), disabling IPv6 redirects (prevents MITM), and configuring ip6tables/nftables with default DROP policies.",
+  "value": "CIS Benchmarks are the most widely-adopted hardening standards used in compliance audits (SOC 2, PCI DSS, HIPAA). IPv6-specific CIS controls are frequently overlooked because many organisations have not explicitly deployed IPv6. However, IPv6 is enabled by default on all modern operating systems, making these controls security-critical even in 'IPv4-only' environments. Automated compliance checking ensures consistent hardening across the fleet.",
+  "implementation": "Collect sysctl values from Linux hosts and registry settings from Windows hosts. Compare against CIS Benchmark requirements. Score compliance percentage per host and per control. Alert on non-compliant systems.",
+  "visualization": "(1) Single-value: fleet CIS IPv6 compliance percentage. (2) Heatmap: compliance by control and host group. (3) Table: non-compliant hosts with specific findings. (4) Trend: compliance improvement over time.",
+  "references": [
+    {
+      "title": "CIS Benchmarks — Download Center (Linux, Windows, Network Device benchmarks)",
+      "url": "https://www.cisecurity.org/cis-benchmarks"
+    },
+    {
+      "title": "CIS Ubuntu Linux 22.04 LTS Benchmark v2.0.0 (§3.1-3.5 — IPv6 hardening)",
+      "url": "https://www.cisecurity.org/benchmark/ubuntu_linux"
+    },
+    {
+      "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3 — host hardening)",
+      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+    }
+  ],
+  "knownFalsePositives": "**IPv6 intentionally deployed.** On systems where IPv6 is intentionally used, `disable_ipv6 = 1` would break connectivity. Apply this control only to systems that do not need IPv6.\n\n**Routers and gateways.** `forwarding = 0` and `accept_ra = 0` do not apply to systems acting as IPv6 routers or gateways. Exclude router-role hosts from these checks.\n\n**Dynamic workstations.** Desktop/laptop systems that roam between networks may need `accept_ra = 1` for SLAAC. Apply the RA rejection control only to servers with static addresses.\n\n**Docker/container hosts.** Container networking may require IPv6 forwarding enabled. Document these as accepted exceptions.",
+  "equipment": [
+    "linux",
+    "windows",
+    "cisco"
+  ],
+  "equipmentModels": [
+    "linux_server",
+    "windows_server",
+    "cisco_ios"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Splunk Universal Forwarder on Linux/Windows hosts.\n• sysctl collection configured (Linux).\n• Registry monitoring configured (Windows).\n• CIS Benchmark documents for applicable platforms.\n\nStep 1 — Configure data collection\n\n**Linux sysctl collection (inputs.conf):**\n```\n[script://./bin/sysctl_ipv6.sh]\ninterval = 86400\nsourcetype = linux:sysctl\nindex = os\n\n# sysctl_ipv6.sh:\n#!/bin/bash\nsysctl net.ipv6.conf.all.accept_ra\nsysctl net.ipv6.conf.all.accept_redirects\nsysctl net.ipv6.conf.all.forwarding\nsysctl net.ipv6.conf.all.disable_ipv6\nsysctl net.ipv6.conf.default.accept_ra\nsysctl net.ipv6.conf.default.accept_redirects\n```\n\n**Windows registry monitoring (inputs.conf):**\n```\n[WinRegMon://IPv6Settings]\nhive = HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters\nbaseline = 1\nindex = os\nsourcetype = WinRegistry\n```\n\n**ip6tables/nftables default policy check:**\n```bash\n#!/bin/bash\n# Check ip6tables default policies\nip6tables -L INPUT -n | head -1 | grep -q 'DROP\\|REJECT' && echo 'ip6tables.input.default_policy=DROP' || echo 'ip6tables.input.default_policy=ACCEPT'\nip6tables -L FORWARD -n | head -1 | grep -q 'DROP\\|REJECT' && echo 'ip6tables.forward.default_policy=DROP' || echo 'ip6tables.forward.default_policy=ACCEPT'\n```\n\n**Verification:**\n```spl\nindex=os sourcetype=\"linux:sysctl\" \"net.ipv6\" | stats count by host\n```\n\nStep 2 — Create compliance dashboard\n\n**Per-control compliance rate:**\n```spl\nindex=os sourcetype=\"linux:sysctl\" earliest=-7d\n| rex field=_raw \"(?<sysctl_key>net\\.ipv6\\.[^=]+)\\s*=\\s*(?<value>\\d+)\"\n| eval expected=case(\n    sysctl_key=\"net.ipv6.conf.all.accept_ra\", 0,\n    sysctl_key=\"net.ipv6.conf.all.accept_redirects\", 0,\n    sysctl_key=\"net.ipv6.conf.all.forwarding\", 0,\n    sysctl_key=\"net.ipv6.conf.default.accept_ra\", 0,\n    sysctl_key=\"net.ipv6.conf.default.accept_redirects\", 0)\n| eval compliant=if(tonumber(value)=expected, 1, 0)\n| stats count(eval(compliant=1)) as passed count(eval(compliant=0)) as failed by sysctl_key\n| eval compliance_pct=round(passed / (passed + failed) * 100, 0) . \"%\"\n| sort compliance_pct\n```\n\n**Windows CIS IPv6 compliance:**\n```spl\nindex=os sourcetype=\"WinRegistry\" \"DisableIPSourceRouting\" \"IPv6\"\n| rex field=data \"(?<reg_value>\\d+)\"\n| eval compliant=if(reg_value=\"2\", \"PASS\", \"FAIL — CIS 18.4.21\")\n| stats count by host, compliant\n```\n\nStep 3 — Validate\n(a) **Manual verification.** SSH to 3 sample Linux servers. Run `sysctl net.ipv6.conf.all.accept_ra` and compare with SPL results.\n\n(b) **Remediation test.** On a non-compliant test host, apply `sysctl -w net.ipv6.conf.all.accept_ra=0`. Verify the next collection shows compliance.\n\n(c) **ip6tables check.** Run `ip6tables -L -n` on sample hosts. Verify INPUT and FORWARD default policies are DROP.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — CIS Benchmark Compliance\"):\n• Row 1 — Single-value: fleet CIS IPv6 compliance percentage (target: 100% for servers).\n• Row 2 — Bar chart: compliance rate by CIS control.\n• Row 3 — Table: non-compliant hosts with specific findings and CIS control IDs.\n• Row 4 — Trend: compliance improvement over quarterly assessments.\n\n**Alert:** Server with `accept_ra = 1` — high severity. Server accepting Router Advertisements is vulnerable to rogue RA attack.\n\n**Runbook:**\n1. `accept_ra = 1` on server: Apply `sysctl -w net.ipv6.conf.all.accept_ra=0` and make persistent in `/etc/sysctl.d/99-ipv6-hardening.conf`.\n2. `accept_redirects = 1`: Apply `sysctl -w net.ipv6.conf.all.accept_redirects=0`.\n3. ip6tables default ACCEPT: Configure `ip6tables -P INPUT DROP` and `ip6tables -P FORWARD DROP` with explicit allow rules.\n\nStep 5 — Troubleshooting\n\n• **CIS control applicability.** Not all CIS IPv6 controls apply to all systems. Disable-IPv6 (3.1.1) breaks systems that need IPv6. Create an exceptions lookup with justification.\n\n• **sysctl persistence.** Runtime sysctl changes (`sysctl -w`) are lost on reboot. Ensure changes are persisted in `/etc/sysctl.d/` or `/etc/sysctl.conf`.\n\n• **Container hosts.** Docker and Kubernetes hosts may need `forwarding = 1` and `accept_ra = 1` for container networking. Document these as justified exceptions in the compliance framework.",
+  "grandmaExplanation": "There's an international safety checklist (CIS Benchmarks) for securing computers. Several items on the checklist are about the new postal system (IPv6). We check every computer against the list: 'Is the new mailbox locked when not in use? Does it reject fake postman announcements? Is the firewall configured for new-format letters?' We report which computers aren't following the safety rules.",
+  "prerequisiteUseCases": [
+    "5.20.85"
+  ],
+  "wave": "walk"
+}

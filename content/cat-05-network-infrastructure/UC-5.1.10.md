@@ -21,7 +21,7 @@ VLAN changes affect segmentation. Unauthorized changes can bypass security contr
 
 ## Value
 
-VLAN changes affect segmentation. Unauthorized changes can bypass security controls.
+Network engineers track VLAN configuration changes including additions, deletions, and trunk modifications to detect unauthorized changes and correlate with connectivity incidents.
 
 ## Implementation
 
@@ -30,41 +30,71 @@ Forward syslog. Alert on VLAN creation/deletion. Correlate with change tickets.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=cisco:ios`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* VLAN configuration change syslog messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key events: VLAN added/deleted/modified, trunk allowed VLAN changes, access VLAN assignments.
+* VLAN changes affect layer-2 segmentation and can cause widespread connectivity issues if incorrect. Unauthorized VLAN changes may indicate configuration drift or security bypass attempts.
 
-### Step 1 — Configure data collection
-Forward syslog. Alert on VLAN creation/deletion. Correlate with change tickets.
+### Step 1 — - Configure data collection
+```
+# Cisco IOS -- VLAN changes logged via config change logging
+archive
+ log config
+  logging enable
+  notify syslog contenttype plaintext
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# VTP events: %SW_VLAN-6-VTP_DOMAIN_CHG, %SW_VLAN-4-VTP_USER_NOTIFICATION
+```
+Verify:
 ```spl
-index=network sourcetype="cisco:ios" "%VLAN_MANAGER-6-VLAN_CREATE" OR "%VLAN_MANAGER-6-VLAN_DELETE"
-| table _time host _raw | sort -_time
+index=network earliest=-30d
+| where match(_raw, "(?i)VLAN|vlan.*add|vlan.*delete|vlan.*change|switchport|VTP|trunk.*allow")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**VLAN Configuration Changes** — VLAN changes affect segmentation. Unauthorized changes can bypass security controls.
+**Primary search -- VLAN configuration change tracking:**
+```spl
+index=network earliest=-24h
+| where match(_raw, "(?i)VLAN|vlan.*add|vlan.*delete|vlan.*modif|switchport.*access.*vlan|switchport.*trunk.*allowed|VTP")
+| rex field=_raw "(?i)vlan\s+(?<vlan_id>\d+)"
+| eval device=coalesce(host, device_name)
+| eval change_type=case(
+    match(_raw, "(?i)add|create|new"), "VLAN_ADDED",
+    match(_raw, "(?i)delet|remov"), "VLAN_DELETED",
+    match(_raw, "(?i)modif|change|rename"), "VLAN_MODIFIED",
+    match(_raw, "(?i)switchport.*access"), "ACCESS_VLAN_CHANGE",
+    match(_raw, "(?i)trunk.*allowed"), "TRUNK_ALLOWED_CHANGE",
+    match(_raw, "(?i)VTP"), "VTP_EVENT",
+    1==1, "VLAN_EVENT")
+| stats count as events values(vlan_id) as vlans dc(vlan_id) as unique_vlans by device, change_type
+| eval severity=case(
+    change_type="VLAN_DELETED", "WARNING -- VLAN(s) deleted",
+    change_type="VTP_EVENT", "WARNING -- VTP event detected",
+    events > 10, "INFO -- high VLAN change volume",
+    1==1, "INFO")
+| table device, change_type, events, unique_vlans, vlans, severity
+| sort severity, -events
+```
 
-Documented **Data sources**: `sourcetype=cisco:ios`. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show vlan brief` -- verify current VLAN configuration.
+(b) CLI: `show vtp status` -- check VTP mode and revision number.
+(c) Cross-reference changes with change management tickets.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- VLAN Changes"):
+* Row 1 -- Single-value: "VLAN changes (24h)", "VLANs added", "VLANs deleted".
+* Row 2 -- VLAN change event table.
 
-**Pipeline walkthrough**
+Alert: Warning (VLAN deleted): verify intentional change.
 
-- Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Pipeline stage (see **VLAN Configuration Changes**): table _time host _raw
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **Accidental VLAN deletion** -- Impacts all ports assigned to that VLAN (ports move to "inactive" state). Restore: recreate VLAN and rename. Check `show interfaces status` for inactive ports.
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **VTP propagation issue** -- VTP revision number mismatch can cause VLAN database overwrite. Verify VTP mode (server/client/transparent) and domain name match. Consider VTP transparent mode for safety.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Timeline.
+* **Trunk pruning incorrect** -- Allowed VLAN changes on trunks can isolate segments. Verify: `show interfaces trunk` to check allowed VLANs match requirements.
 
 ## SPL
 

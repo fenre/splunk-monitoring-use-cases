@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.7.20",
+  "title": "NetFlow v5 vs v9/IPFIX Template Coverage Audit",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Data Quality",
+    "Governance",
+    "Operations"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=netflow` ingested through Splunk Add-on for NetFlow (Splunkbase 1759) exposing `version`, `nf_version`, or `netflow_version` alongside `template_id`, `observation_domain_id`, `host`, `exporter_ip`, `sourcetype` (`netflow`, `stream:ipfix`, `stream:netflow`); optional `fields_present` when augmented via custom transforms.",
+  "app": "Splunk Add-on for NetFlow (Splunkbase 1759)",
+  "spl": "index=netflow earliest=-24h\n| eval nf_ver=coalesce(version, nf_version, netflow_version, \"UNKNOWN\")\n| eval tmpl=coalesce(template_id, flowset_id, \"NONE\")\n| eval exporter=coalesce(exporter_ip, agent, \"UNSPECIFIED\")\n| stats count dc(tmpl) as distinct_templates values(tmpl) as template_list dc(sourcetype) as sourcetypes sum(bytes) as bytes\n  by nf_ver exporter host\n| eval gb=round(bytes/1073741824, 3)\n| eval coverage_flag=case(\n    nf_ver=\"5\" OR nf_ver=\"v5\" OR nf_ver=\"V5\", \"LEGACY_FIXED_SCHEMA\",\n    nf_ver=\"9\" OR nf_ver=\"v9\" OR nf_ver=\"V9\" OR nf_ver=\"10\" OR nf_ver=\"IPFIX\" OR nf_ver=\"ipfix\", if(distinct_templates>=3, \"TEMPLATE_HEALTHY\", \"LOW_TEMPLATE_DIVERSITY\"),\n    true(), \"VERSION_PARSE_REVIEW\"\n)\n| sort nf_ver -count\n| head 200",
+  "description": "Aggregates observed NetFlow protocol generations, template identifiers, and byte volumes per exporter so engineers can spot outdated fixed-schema collectors, missing flexible templates, or parsers stuck on unknown versions.",
+  "value": "Platform owners accelerate migrations toward Internet Protocol Flow Information Export-capable exporters, justify firewall rule updates for template traffic, and produce audit trails proving sensitive fields remain populated after upgrades.",
+  "implementation": "Schedule daily audit; reconcile against configuration management intended versions; gate hardware refresh milestones on healthy template diversity; alert when legacy version five dominates critical sites.",
+  "detailedImplementation": "Prerequisites\n• Inventory of mandated information elements such as application identifiers and interface indices.\n• Lab packet captures validating Splunk’s decoded `version` field naming.\n• Capacity planning numbers for template-record overhead.\n\nStep 1 — Configure data collection\nEnable debug-template logging temporarily during migrations; capture exporter clocks and observation domain identifiers for multi-tenant collectors.\n\nStep 2 — Create the search\nExtend with `| where coverage_flag=\"LOW_TEMPLATE_DIVERSITY\" AND gb>10` for prioritized remediation. Push outputs into a metrics index for trending.\n\nStep 3 — Validate\nCompare Splunk metrics to `show flow exporter statistics` on Cisco devices during cutover weekends.\n\nStep 4 — Operationalize\nExecutive PDF summarizes percentage of bytes still on version five; automation opens firewall-change tasks when new template ports appear.\n\nStep 5 — Troubleshooting\nParsing UNKNOWN versions usually indicates fragmented datagrams—increase maximum transmission unit checks on forwarding paths. Duplicate template IDs across domains require composite keys—append observation domain to stats grouping.",
+  "visualization": "Pie chart of bytes by nf_ver; heatmap exporters × distinct_templates; timeline of LOW_TEMPLATE_DIVERSITY incidents.",
+  "references": [
+    {
+      "title": "RFC 3954 — Cisco Systems NetFlow Services Export Version 9",
+      "url": "https://www.rfc-editor.org/rfc/rfc3954"
+    },
+    {
+      "title": "RFC 7011 — Specification for IP Flow Information Export (IPFIX)",
+      "url": "https://www.rfc-editor.org/rfc/rfc7011"
+    }
+  ],
+  "knownFalsePositives": "Maintenance windows briefly collapse template diversity while exporters reload. Multi-slot routers export independent streams that appear redundant until folded by observation domain. Synthetic replay labs skew distributions.",
+  "equipment": [
+    "netflow"
+  ],
+  "equipmentModels": [
+    "netflow_netflow",
+    "netflow_sflow",
+    "netflow_ipfix"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We check whether our traffic summaries arrive in the older fixed form or the newer flexible form and whether each sender shares enough variety of templates. That tells planners who still owes an upgrade so fields do not quietly vanish.",
+  "wave": "walk"
+}

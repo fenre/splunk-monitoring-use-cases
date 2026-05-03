@@ -21,7 +21,7 @@ SecureXL offloads connection handling from the firewall kernel to an acceleratio
 
 ## Value
 
-SecureXL offloads connection handling from the firewall kernel to an acceleration layer, increasing throughput by 2–10×. When SecureXL cannot accelerate a connection (due to complex NAT, certain blade inspections, or resource limits), traffic falls back to the slow path (Firewall kernel or even Medium path). A rising percentage of non-accelerated connections signals policy complexity growth, blade misconfiguration, or capacity limits — reducing effective throughput well before CPU saturation appears.
+Operations teams monitor Check Point SecureXL acceleration status and packet processing ratios, detecting disabled acceleration or degraded offload that causes firewall performance degradation.
 
 ## Implementation
 
@@ -30,75 +30,75 @@ Use `fwaccel stat` and `fwaccel conns` via scripted input on the gateway (every 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259).
-- Ensure the following data sources are available: `sourcetype=cp_log` (performance/system logs), `fwaccel` CLI output via scripted input.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Check Point SecureXL acceleration status data. Data in `index=checkpoint` with `sourcetype=cp_log` or custom scripted input from `fwaccel stat`. Key fields: `acceleration_status`, `accel_connections`, `accel_packets`, `pxl_connections`.
+* SecureXL: hardware/software acceleration layer that offloads established connections from the firewall kernel (F2F path) to the accelerated path (SecureXL). When enabled, throughput increases 2-10x. Connections can be accelerated (fast path), medium-path (partial inspection), or slow-path (full inspection). Monitoring: `fwaccel stat`, `fwaccel stats -s`.
 
-### Step 1 — Configure data collection
-Use `fwaccel stat` and `fwaccel conns` via scripted input on the gateway (every 5 min) or parse SecureXL log messages from system events. Baseline accelerated vs slow-path ratio per gateway. Alert when slow-path percentage exceeds 30% sustained for 1 hour. Correlate with policy install events (UC-5.2.48) — new rules with unsupported features often shift traffic to slow path. Report on acceleration trends after blade enablement changes.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
-```spl
-index=firewall sourcetype="cp_log" earliest=-24h
-| where match(lower(product),"(?i)securexl|fwaccel") OR match(lower(logdesc),"(?i)accel|template|f2f|medium.path|pxl")
-| eval gw=coalesce(orig, src, hostname)
-| eval path=case(
-    match(lower(_raw),"(?i)accel|template"),"accelerated",
-    match(lower(_raw),"(?i)medium.path|pxl"),"medium_path",
-    match(lower(_raw),"(?i)f2f|slow|firewall.path"),"slow_path",
-    1=1,"unknown")
-| stats count by gw, path
-| eventstats sum(count) as total by gw
-| eval pct=round(100*count/total,1)
-| where path!="accelerated" AND pct>20
+### Step 1 — - Configure data collection
 ```
-
-#### Understanding this SPL
-
-**Check Point SecureXL Acceleration Status (Check Point)** — SecureXL offloads connection handling from the firewall kernel to an acceleration layer, increasing throughput by 2–10×. When SecureXL cannot accelerate a connection (due to complex NAT, certain blade inspections, or resource limits), traffic falls back to the slow path (Firewall kernel or even Medium path). A rising percentage of non-accelerated connections signals policy complexity growth, blade misconfiguration, or capacity limits — reducing effective throughput well…
-
-Documented **Data sources**: `sourcetype=cp_log` (performance/system logs), `fwaccel` CLI output via scripted input. **App/TA** (typical add-on context): `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: firewall; **sourcetype**: cp_log. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=firewall, sourcetype="cp_log", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Filters the current rows with `where match(lower(product),"(?i)securexl|fwaccel") OR match(lower(logdesc),"(?i)accel|template|f2f|medium.path|pxl")` — typically the threshold or rule expression for this monitoring goal.
-- `eval` defines or adjusts **gw** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `eval` defines or adjusts **path** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `stats` rolls up events into metrics; results are split **by gw, path** so each row reflects one combination of those dimensions.
-- `eventstats` rolls up events into metrics; results are split **by gw** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where path!="accelerated" AND pct>20` — typically the threshold or rule expression for this monitoring goal.
-
-### Step 3 — Validate
-Compare key fields and timestamps in SmartConsole, SmartView, or the gateway’s local view so Splunk and Check Point match for the same events.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart (accelerated vs medium vs slow path), Line chart (acceleration ratio over time), Table (gateways with low acceleration), Bar chart (slow-path reasons).
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
+# Custom scripted input to collect SecureXL stats
+# inputs.conf
+[script:///opt/splunk/etc/apps/checkpoint_inputs/bin/secureXL_stats.sh]
 interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
+sourcetype = checkpoint:securexl
+index = checkpoint
+disabled = false
+
+# secureXL_stats.sh
+#!/bin/bash
+echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+fwaccel stat 2>/dev/null | while read line; do echo "securexl_stat="$line""; done
+fwaccel stats -s 2>/dev/null | while read line; do echo "securexl_detail="$line""; done
+fwaccel conns 2>/dev/null | head -5 | while read line; do echo "securexl_conns="$line""; done
+```
+Verify:
+```spl
+index=checkpoint sourcetype="checkpoint:securexl" earliest=-1h
+| stats count by host
 ```
 
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
+### Step 2 — - Create the search and alert
 
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
+**Primary search -- SecureXL acceleration status monitoring:**
+```spl
+index=checkpoint (sourcetype="checkpoint:securexl" OR sourcetype="cp_log") earliest=-4h
+| eval accel_enabled=if(match(_raw, "(?i)accelerator.*status.*on|securexl.*enabled"), "ON", if(match(_raw, "(?i)accelerator.*status.*off|securexl.*disabled"), "OFF", null()))
+| eval accel_packets=tonumber(coalesce(accel_packets, "0"))
+| eval pxl_packets=tonumber(coalesce(pxl_packets, "0"))
+| eval f2f_packets=tonumber(coalesce(f2f_packets, "0"))
+| eval total_packets=accel_packets + pxl_packets + f2f_packets
+| eval accel_pct=if(total_packets > 0, round(100*accel_packets/total_packets, 1), 0)
+| eval pxl_pct=if(total_packets > 0, round(100*pxl_packets/total_packets, 1), 0)
+| eval f2f_pct=if(total_packets > 0, round(100*f2f_packets/total_packets, 1), 0)
+| bin _time span=5m
+| stats latest(accel_enabled) as status avg(accel_pct) as accel_pct avg(pxl_pct) as medium_pct avg(f2f_pct) as slow_pct by _time, host
+| eval severity=case(
+    status="OFF", "CRITICAL -- SecureXL disabled, performance severely degraded",
+    accel_pct < 50, "WARNING -- low acceleration ratio (".accel_pct."%), high kernel processing",
+    accel_pct < 70, "INFO -- suboptimal acceleration ratio",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, host, status, accel_pct, medium_pct, slow_pct, severity
 ```
 
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
+### Step 3 — - Validate
+(a) CLI (expert mode): `fwaccel stat` -- verify SecureXL is enabled and check status.
+(b) CLI: `fwaccel stats -s` -- show acceleration statistics (packets accelerated/not-accelerated).
+(c) CLI: `fwaccel conns` -- show accelerated connection table count.
+
+### Step 4 — - Operationalize
+Dashboard ("Check Point -- SecureXL Acceleration"):
+* Row 1 -- Single-value: "SecureXL status", "Acceleration ratio (%)", "Slow-path packets (%)".
+* Row 2 -- Acceleration ratio timechart.
+
+Alert: Critical (SecureXL disabled or acceleration < 50%): performance impact, investigate.
+
+### Step 5 — - Troubleshooting
+
+* **SecureXL disabled** -- Re-enable: `fwaccel on`. If disabled intentionally for debugging, re-enable after troubleshooting. Check `cpinfo -y all` for known issues.
+
+* **Low acceleration ratio** -- Many connections may be in slow-path due to: (1) security blades requiring deep inspection (IPS, Application Control), (2) HTTPS inspection enabled, (3) fragmented packets. Check which blades are forcing F2F: `fwaccel stat` shows blade impact.
+
+* **SecureXL template count high** -- Connection templates consume memory. Monitor with `fwaccel conns -s`. Consider connection table optimization.
 
 ## SPL
 

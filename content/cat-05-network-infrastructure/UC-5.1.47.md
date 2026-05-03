@@ -21,7 +21,7 @@ Monitors inter-switch and uplink trunk utilization to identify bandwidth constra
 
 ## Value
 
-Monitors inter-switch and uplink trunk utilization to identify bandwidth constraints.
+Network engineers monitor Meraki MS trunk link utilization, detecting inter-switch uplink saturation that impacts all downstream VLANs and devices.
 
 ## Implementation
 
@@ -30,44 +30,65 @@ Query MS API for trunk port utilization. Alert on sustained high utilization.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki:api device_type=MS`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MS trunk link utilization data from API. Data in `index=meraki` with `sourcetype=meraki:api:switch:portstatus`. Key fields: ports configured as trunk, traffic counters per port.
+* Trunk links: inter-switch uplinks carrying multiple VLANs. Trunk saturation affects all VLANs and all devices behind the trunk. Critical for data center and distribution layer monitoring.
 
-### Step 1 — Configure data collection
-Query MS API for trunk port utilization. Alert on sustained high utilization.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Same API polling as UC-5.1.36
+# Filter for trunk ports in analysis
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki:api" device_type=MS port_type="trunk"
-| stats avg(port_utilization) as avg_trunk_util, max(port_utilization) as peak_util by switch_name, port_id
-| where peak_util > 70
-| sort - peak_util
+index=meraki sourcetype="meraki:api:switch:ports" earliest=-4h
+| where type="trunk"
+| stats count by host, portId
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Trunk Link Utilization and Performance (Meraki MS)** — Monitors inter-switch and uplink trunk utilization to identify bandwidth constraints.
+**Primary search -- Trunk link utilization:**
+```spl
+index=meraki (sourcetype="meraki:api:switch:portstatus" OR sourcetype="meraki:api:switch:ports") earliest=-4h
+| where type="trunk" OR match(port_type, "(?i)trunk")
+| eval port=coalesce(portId, port_id)
+| eval speed_mbps=case(match(speed, "(?i)10 G"), 10000, match(speed, "(?i)1 G"), 1000, 1==1, 1000)
+| eval sent_kbps=tonumber(coalesce(usageInKb.sent, sent_kbps))/300
+| eval recv_kbps=tonumber(coalesce(usageInKb.recv, recv_kbps))/300
+| eval total_mbps=round((sent_kbps + recv_kbps)/1024, 2)
+| eval util_pct=round(100*total_mbps/speed_mbps, 1)
+| eval device=coalesce(serial, host)
+| lookup meraki_networks.csv serial AS device OUTPUT network_name
+| bin _time span=5m
+| stats avg(util_pct) as avg_util max(util_pct) as max_util avg(total_mbps) as avg_mbps by _time, network_name, device, port
+| eval severity=case(
+    max_util > 85, "CRITICAL -- trunk port ".port." near saturation",
+    max_util > 70, "WARNING -- trunk port ".port." high utilization",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, network_name, device, port, avg_mbps, avg_util, max_util, severity
+| sort severity, -max_util
+```
 
-Documented **Data sources**: `sourcetype=meraki:api device_type=MS`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Switch > Switch ports -- filter for trunk ports.
+(b) Check LACP/link aggregation status if applicable.
+(c) Verify trunk allowed VLANs are properly restricted.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki:api. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MS -- Trunk Utilization"):
+* Row 1 -- Single-value: "Trunk ports > 70%", "Peak trunk utilization (%)".
+* Row 2 -- Trunk utilization timechart.
 
-**Pipeline walkthrough**
+Alert: Warning (trunk > 85%): capacity planning needed.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by switch_name, port_id** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where peak_util > 70` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **Trunk saturated** -- Options: (1) add link aggregation members, (2) upgrade to higher speed (1G → 10G), (3) redistribute VLANs across multiple trunks.
 
-### Step 3 — Validate
-In the Meraki dashboard, select the same organization, site, and UTC window as the Splunk search. Open Network-wide event log or the device event log and confirm a sample event count and field (for example `event_type` or `carrier_name`) matches what you see in Splunk.
+* **Asymmetric trunk utilization** -- Check LACP hashing algorithm. May need to adjust hash policy for better distribution.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Trunk link utilization heatmap; timeline showing peak demand; capacity planning chart.
+* **Single trunk failure in LAG** -- Remaining members absorb traffic. May push utilization over threshold. Replace failed member.
 
 ## SPL
 

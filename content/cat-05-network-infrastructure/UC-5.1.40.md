@@ -21,7 +21,7 @@ Identifies port flapping, cable issues, and unstable link states that cause inte
 
 ## Value
 
-Identifies port flapping, cable issues, and unstable link states that cause intermittent connectivity.
+NOC teams detect Meraki MS switch interface up/down events and link flapping, enabling rapid identification of cable failures and unstable links affecting downstream connectivity.
 
 ## Implementation
 
@@ -30,44 +30,62 @@ Track interface up/down state changes over 24 hours. Alert on flapping (>2 chang
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=security_event signature="*link*" OR signature="*Interface*"`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MS interface up/down events from syslog. Data in `index=meraki` with `sourcetype=meraki:events`. Key events: port up, port down, link flapping.
+* Meraki MS logs port status changes via syslog. Link flapping (rapid up/down cycling) indicates cable issues, SFP problems, or auto-negotiation failures.
 
-### Step 1 — Configure data collection
-Track interface up/down state changes over 24 hours. Alert on flapping (>2 changes/hour).
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Meraki Dashboard > Network-wide > General > Reporting
+# Syslog: enable Event log (includes port status changes)
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*link*" OR signature="*Interface*" OR signature="*up*" OR signature="*down*")
-| stats count as event_count by switch_name, port_id
-| eval flap_rate=round(event_count/24, 2)
-| where flap_rate > 2
+index=meraki sourcetype="meraki:events" earliest=-4h
+| where match(_raw, "(?i)port.*up|port.*down|link.*up|link.*down|connected|disconnected")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Switch Interface Up/Down Events and Link Flapping (Meraki MS)** — Identifies port flapping, cable issues, and unstable link states that cause intermittent connectivity.
+**Primary search -- Interface up/down and link flapping:**
+```spl
+index=meraki sourcetype="meraki:events" earliest=-4h
+| where match(_raw, "(?i)port.*up|port.*down|link.*up|link.*down|connected|disconnected|flap")
+| eval device=coalesce(serial, host)
+| lookup meraki_networks.csv serial AS device OUTPUT network_name
+| rex field=_raw "(?i)(?:port|Port)\s+(?<port_id>\d+)"
+| eval state=if(match(_raw, "(?i)down|disconnect"), "DOWN", "UP")
+| sort device, port_id, _time
+| stats count as events count(eval(state="DOWN")) as downs count(eval(state="UP")) as ups latest(state) as current by device, network_name, port_id
+| eval flapping=if(events > 4, "YES", "NO")
+| eval severity=case(
+    current="DOWN" AND flapping="YES", "CRITICAL -- port ".port_id." DOWN and flapping",
+    current="DOWN", "WARNING -- port ".port_id." DOWN",
+    flapping="YES", "WARNING -- port ".port_id." flapping",
+    1==1, "OK")
+| where severity != "OK"
+| sort severity, -events
+```
 
-Documented **Data sources**: `sourcetype=meraki type=security_event signature="*link*" OR signature="*Interface*"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Switch > Switch ports -- check port status and connected device.
+(b) Dashboard: Live tools > Cable test -- test cable on affected port.
+(c) Check port configuration and connected device.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MS -- Port Status"):
+* Row 1 -- Single-value: "Ports DOWN", "Flapping ports".
+* Row 2 -- Port status event timeline.
 
-**Pipeline walkthrough**
+Alert: Critical (uplink port DOWN): connectivity impact to downstream devices.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by switch_name, port_id** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **flap_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where flap_rate > 2` — typically the threshold or rule expression for this monitoring goal.
+### Step 5 — - Troubleshooting
 
+* **Port flapping** -- Run cable test from Dashboard. Replace patch cable. Check SFP module.
 
-### Step 3 — Validate
-In the Meraki dashboard, select the same organization, site, and UTC window as the Splunk search. Open Network-wide event log or the device event log and confirm a sample event count and field (for example `event_type` or `carrier_name`) matches what you see in Splunk.
+* **Port DOWN after change** -- Verify VLAN assignment, access policy, and PoE settings.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Time-series showing flap events; table of affected ports; link state history.
+* **Uplink DOWN** -- Check upstream switch port status. Verify SFP compatibility.
 
 ## SPL
 

@@ -21,7 +21,7 @@ Identifies channel congestion and interference sources to optimize channel assig
 
 ## Value
 
-Identifies channel congestion and interference sources to optimize channel assignments and reduce co-channel interference.
+Wireless operations teams track Meraki MR DHCP transaction completion rates per AP and SSID to detect IP addressing failures that leave clients connected but without network access.
 
 ## Implementation
 
@@ -30,46 +30,63 @@ Query API device data for MR access points; track channel assignments. Correlate
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki:api`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Meraki MR sending client DHCP events. Data in `index=meraki` with `sourcetype=meraki:events`. Key fields: `type` (DHCP events — discover, offer, request, ack, nak), `client_mac`, `client_ip`, `dhcp_server`, `ap_name`.
+- DHCP failures on wireless: A client successfully associates to the SSID (layer 2) but fails to obtain an IP address (layer 3). This leaves the client in a "connected but no Internet" state — the most frustrating user experience. Common causes: (1) DHCP scope exhaustion, (2) VLAN misconfiguration on the AP/switch trunk, (3) DHCP relay agent issues, (4) DHCP server down.
 
 ### Step 1 — Configure data collection
-Query API device data for MR access points; track channel assignments. Correlate with interference signature logs.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify DHCP events from Meraki:
 ```spl
-index=cisco_network sourcetype="meraki:api" device_type=MR
-| stats count by channel, band
-| eval utilization_pct=round(count*100/sum(count), 2)
-| where utilization_pct > 40
-| sort - utilization_pct
+index=meraki sourcetype="meraki:events" earliest=-4h
+| where match(type, "(?i)dhcp")
+| stats count by type
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**WiFi Channel Utilization and Interference Detection (Meraki MR)** — Identifies channel congestion and interference sources to optimize channel assignments and reduce co-channel interference.
+**Primary search — DHCP failure analysis:**
+```spl
+index=meraki sourcetype="meraki:events" earliest=-4h
+| where match(type, "(?i)dhcp")
+| eval dhcp_state=case(match(type, "(?i)discover"), "discover", match(type, "(?i)offer"), "offer", match(type, "(?i)request"), "request", match(type, "(?i)ack"), "ack", match(type, "(?i)nak"), "nak", 1==1, "other")
+| stats count(eval(dhcp_state="discover")) as discovers count(eval(dhcp_state="offer")) as offers count(eval(dhcp_state="ack")) as acks count(eval(dhcp_state="nak")) as naks by ap_name, ssid
+| eval offer_rate=if(discovers > 0, round(100*offers/discovers, 1), "N/A")
+| eval ack_rate=if(discovers > 0, round(100*acks/discovers, 1), "N/A")
+| eval status=case(naks > 5, "NAK — scope exhausted?", ack_rate < 50 AND discovers > 10, "DHCP failure — server unreachable?", offer_rate < 80 AND discovers > 10, "DHCP relay issue?", 1==1, "OK")
+| where status != "OK"
+| sort -discovers
+```
 
-Documented **Data sources**: `sourcetype=meraki:api`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki:api. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by channel, band** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **utilization_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where utilization_pct > 40` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+**Client-level DHCP failures:**
+```spl
+index=meraki sourcetype="meraki:events" earliest=-4h
+| where match(type, "(?i)dhcp") AND (match(type, "(?i)nak") OR match(type, "(?i)timeout") OR match(type, "(?i)no.offer"))
+| stats count as dhcp_failures latest(ap_name) as last_ap latest(ssid) as last_ssid by client_mac
+| where dhcp_failures > 3
+| sort -dhcp_failures
+```
 
 ### Step 3 — Validate
-Open the Cisco Meraki Dashboard (organization or network scope, under Monitor as appropriate) and compare AP, client, security, or flow totals to the search for the same window. Spot-check a few device names, SSIDs, or MAC addresses against what you see live.
+(a) Force a DHCP renewal (ipconfig /renew or dhclient -r) on a wireless client and verify the DHCP sequence appears in Splunk.
+(b) If possible, test a DHCP failure scenario (disconnect the DHCP server on a test VLAN) and verify the alarm triggers.
+(c) Compare with Meraki Dashboard: Network-wide > Clients > DHCP events.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar chart of channel utilization by band; channel heatmap over time; interference event timeline.
+Dashboard ("Meraki — Wireless DHCP Health"):
+- Row 1 — Single-value: "DHCP Discovers (4h)", "Offer Rate", "ACK Rate", "NAK Count".
+- Row 2 — Per-AP DHCP health table with status classification.
+- Row 3 — Client-level DHCP failure detail.
+
+Alerting:
+- Critical (ACK rate < 50% with > 20 discovers in 15 min on any AP): likely DHCP server or VLAN issue.
+- Warning (NAK count > 5 in 1 hour): possible scope exhaustion.
+
+### Step 5 — Troubleshooting
+
+- **Low offer rate, NAKs are zero** — DHCP discover packets are not reaching the DHCP server. Check: (1) VLAN tagging on the switch trunk to the AP, (2) DHCP relay/helper address on the SVI, (3) ACLs blocking UDP 67/68.
+
+- **NAKs present** — DHCP server is responding but rejecting requests. Usually scope exhaustion or MAC-based reservation conflict.
+
+- **DHCP issues only on specific SSID** — Each SSID maps to a VLAN. Check the SSID-to-VLAN mapping in Meraki Dashboard: Wireless > SSIDs > Addressing and traffic.
 
 ## SPL
 

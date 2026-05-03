@@ -21,7 +21,7 @@ Site-to-site and client VPN tunnel state directly impacts remote site and user c
 
 ## Value
 
-Site-to-site and client VPN tunnel state directly impacts remote site and user connectivity. Detecting tunnel down or failover events supports quick remediation.
+NOC teams monitor Meraki MX site-to-site and client VPN tunnel status, detecting tunnel failures and flapping to maintain inter-site connectivity and remote user access.
 
 ## Implementation
 
@@ -30,67 +30,87 @@ Poll Meraki API for VPN tunnel status or ingest MX syslog for tunnel events. Ale
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), Meraki dashboard API.
-- Ensure the following data sources are available: `sourcetype=meraki:api` (VPN status), syslog from MX.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MX VPN tunnel status data. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki:api:vpn`. Key fields: `vpn_type` (site-to-site, client), `tunnel_status`, `peer_serial`, `peer_network`.
+* Meraki Auto VPN: creates full-mesh or hub-spoke IPsec tunnels between MX devices. Client VPN: AnyConnect or L2TP/IPsec for remote users. Dashboard > Security & SD-WAN > Site-to-site VPN and Client VPN.
 
-### Step 1 — Configure data collection
-Poll Meraki API for VPN tunnel status or ingest MX syslog for tunnel events. Alert when any tunnel is down. Track failover events for active/standby links.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Meraki Dashboard > Security & SD-WAN > Site-to-site VPN
+# Type: Hub, Spoke, or Off (per network)
+# Client VPN: Security & SD-WAN > Client VPN > Enabled
+# API polling: GET /networks/{networkId}/appliance/vpn/statuses
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki:api" vpn_tunnel=*
-| stats latest(tunnel_state) as state, latest(peer_ip) as peer by device_serial, tunnel_id
-| where state != "up"
-| table device_serial tunnel_id peer state _time
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:vpn") earliest=-24h
+| where match(_raw, "(?i)vpn|tunnel|ipsec")
+| stats count by sourcetype, host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Meraki VPN Tunnel and Failover Health** — Site-to-site and client VPN tunnel state directly impacts remote site and user connectivity. Detecting tunnel down or failover events supports quick remediation.
-
-Documented **Data sources**: `sourcetype=meraki:api` (VPN status), syslog from MX. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), Meraki dashboard API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki:api. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by device_serial, tunnel_id** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where state != "up"` — typically the threshold or rule expression for this monitoring goal.
-- Pipeline stage (see **Meraki VPN Tunnel and Failover Health**): table device_serial tunnel_id peer state _time
-
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- VPN tunnel status and health:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Sessions.All_Sessions
-  by All_Sessions.user All_Sessions.src All_Sessions.dest All_Sessions.action span=1h
-| sort -count
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:vpn") earliest=-24h
+| eval device=coalesce(serial, host, deviceSerial)
+| lookup meraki_networks.csv serial AS device OUTPUT network_name AS local_network, site_name AS local_site
+| eval peer=coalesce(peerSerial, peer, peer_serial)
+| lookup meraki_networks.csv serial AS peer OUTPUT network_name AS peer_network
+| eval tunnel_type=case(match(_raw, "(?i)site.?to.?site|s2s|auto.?vpn"), "Site-to-Site", match(_raw, "(?i)client|anyconnect|l2tp|remote"), "Client VPN", 1==1, "Unknown")
+| eval status=case(
+    match(_raw, "(?i)up|established|connected|online"), "UP",
+    match(_raw, "(?i)down|disconnected|failed|offline|lost"), "DOWN",
+    match(_raw, "(?i)negotiat|establish|connect"), "NEGOTIATING",
+    1==1, "UNKNOWN")
+| sort device, peer, _time
+| dedup device, peer sortby -_time
+| eval severity=case(
+    status="DOWN" AND tunnel_type="Site-to-Site", "CRITICAL -- site-to-site VPN tunnel down",
+    status="DOWN" AND tunnel_type="Client VPN", "WARNING -- client VPN disconnected",
+    status="NEGOTIATING", "INFO -- tunnel re-establishing",
+    1==1, "OK")
+| where severity != "OK"
+| table local_network, local_site, peer_network, tunnel_type, status, _time, severity
+| sort severity
 ```
 
-Understanding this CIM / accelerated SPL
+**Secondary search -- VPN tunnel flapping (up/down cycling):**
+```spl
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:vpn") earliest=-24h
+| where match(_raw, "(?i)vpn|tunnel|ipsec")
+| eval device=coalesce(serial, host, deviceSerial)
+| eval peer=coalesce(peerSerial, peer)
+| eval status=if(match(_raw, "(?i)up|established|connected"), "UP", "DOWN")
+| lookup meraki_networks.csv serial AS device OUTPUT network_name
+| bin _time span=1h
+| stats count as state_changes dc(eval(status)) as unique_states by _time, device, network_name, peer
+| where state_changes > 4
+| eval severity="WARNING -- VPN tunnel flapping (".state_changes." state changes/hour)"
+| sort -state_changes
+```
 
-This block uses `tstats` on the Network_Sessions data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 3 — - Validate
+(a) Dashboard: Security & SD-WAN > VPN status -- verify tunnel states match.
+(b) Test: temporarily disable VPN on a spoke and verify DOWN event.
+(c) Compare with uplink failover events (UC-5.2.34) for correlation.
 
-**Pipeline walkthrough**
+### Step 4 — - Operationalize
+Dashboard ("Meraki MX -- VPN Tunnel Health"):
+* Row 1 -- Single-value: "Tunnels DOWN", "Tunnels UP", "Flapping tunnels".
+* Row 2 -- VPN tunnel status table (all tunnels with current state).
+* Row 3 -- Tunnel state change timeline.
 
-- Uses `tstats` against accelerated summaries for the Network_Sessions model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+Alerting:
+* Critical (site-to-site tunnel DOWN > 5 minutes): page NOC.
+* Warning (tunnel flapping > 4 state changes/hour): investigate WAN stability.
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+### Step 5 — - Troubleshooting
 
+* **Tunnel won't establish** -- Check: (1) both MX devices are online, (2) uplink IPs are reachable, (3) firewall allows UDP 500 and 4500 (IKE/IPsec), (4) NAT-T is functioning.
 
+* **Tunnel flapping** -- Often caused by underlying WAN instability. Correlate with WAN quality (UC-5.2.33) and uplink failover (UC-5.2.34). Consider adjusting DPD (Dead Peer Detection) timers.
 
-### Step 3 — Validate
-In the Meraki cloud dashboard, use the same organization, network, and time range as the search. Confirm VPN paths, tunnel states, uplinks, and device names you expect there match the Splunk view.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (tunnel, state), Table (down tunnels), Timeline (failover events).
+* **Client VPN disconnections** -- Check AnyConnect or L2TP client configuration. Verify authentication (RADIUS/Meraki auth). Check concurrent user limits on MX model.
 
 ## SPL
 

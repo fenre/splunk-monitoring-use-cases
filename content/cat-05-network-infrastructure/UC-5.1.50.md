@@ -21,7 +21,7 @@ Analyzes cable integrity test results to identify wiring faults before they caus
 
 ## Value
 
-Analyzes cable integrity test results to identify wiring faults before they cause outages.
+Operations teams run and analyze Meraki MS cable test diagnostics (TDR), identifying cable breaks, shorts, and impedance mismatches causing port connectivity issues.
 
 ## Implementation
 
@@ -30,42 +30,65 @@ Periodically run cable tests on switch ports. Ingest results into syslog.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=security_event signature="*cable*" OR signature="*diagnostic*"`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MS cable test and port diagnostic data. Data in `index=meraki` from Dashboard API live tools. Key API: `POST /devices/{serial}/liveTools/cableTest` and results from `GET /devices/{serial}/liveTools/cableTest/{cableTestId}`.
+* Meraki Dashboard live tools: cable test performs time-domain reflectometry (TDR) to check cable quality, length, and pair status. Results indicate: OK, open (broken), short (wires touching), or impedance mismatch.
 
-### Step 1 — Configure data collection
-Periodically run cable tests on switch ports. Ingest results into syslog.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Scripted input to run periodic cable tests on critical ports
+[script:///opt/splunk/etc/apps/meraki_mon/bin/cable_test.py]
+interval = 86400
+sourcetype = meraki:cabletest
+index = meraki
+# Runs cable test API on configured critical ports
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*cable*" OR signature="*diagnostic*")
-| stats count as test_count by switch_name, port_id, test_result
-| where test_result="FAIL"
+index=meraki sourcetype="meraki:cabletest" earliest=-7d
+| stats count by host, port
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Cable Test Results and Port Diagnostics (Meraki MS)** — Analyzes cable integrity test results to identify wiring faults before they cause outages.
+**Primary search -- Cable test results and port diagnostics:**
+```spl
+index=meraki sourcetype="meraki:cabletest" earliest=-7d
+| eval device=coalesce(serial, host)
+| eval port=coalesce(portId, port_id)
+| lookup meraki_networks.csv serial AS device OUTPUT network_name
+| eval cable_status=coalesce(status, result)
+| eval pair_statuses=coalesce(pairs, pair_status)
+| eval cable_length=tonumber(coalesce(lengthMeters, length))
+| eval is_ok=if(match(cable_status, "(?i)ok|good|pass"), "YES", "NO")
+| where is_ok="NO"
+| eval issue=case(
+    match(cable_status, "(?i)open"), "OPEN -- cable break detected",
+    match(cable_status, "(?i)short"), "SHORT -- wire pairs shorted",
+    match(cable_status, "(?i)impedance|mismatch"), "IMPEDANCE MISMATCH",
+    match(cable_status, "(?i)crosstalk"), "CROSSTALK -- interference between pairs",
+    1==1, "CABLE ISSUE: ".cable_status)
+| table network_name, device, port, issue, cable_length, _time
+| eval severity="WARNING -- cable issue on port ".port.": ".issue
+| sort network_name, device, port
+```
 
-Documented **Data sources**: `sourcetype=meraki type=security_event signature="*cable*" OR signature="*diagnostic*"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Switch > Switch ports > Live tools > Cable test -- run on-demand test.
+(b) Physical inspection of the cable and connectors.
+(c) Compare cable length reported vs expected.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MS -- Cable Diagnostics"):
+* Row 1 -- Single-value: "Cable issues detected", "Ports tested".
+* Row 2 -- Cable test results table.
 
-**Pipeline walkthrough**
+### Step 5 — - Troubleshooting
 
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by switch_name, port_id, test_result** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where test_result="FAIL"` — typically the threshold or rule expression for this monitoring goal.
+* **Open cable** -- Break in the cable. Replace the patch cable. Check cable length reported to estimate break location.
 
+* **Short** -- Wires touching inside the cable. Usually indicates damaged RJ-45 termination. Re-terminate or replace cable.
 
-### Step 3 — Validate
-In the Meraki dashboard, select the same organization, site, and UTC window as the Splunk search. Open Network-wide event log or the device event log and confirm a sample event count and field (for example `event_type` or `carrier_name`) matches what you see in Splunk.
-
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of failed cable tests; port detail with diagnostic results; failure timeline.
+* **Impedance mismatch** -- Mixing cable categories (Cat5e/Cat6/Cat6a) or bad connector. Replace cable with consistent category throughout.
 
 ## SPL
 

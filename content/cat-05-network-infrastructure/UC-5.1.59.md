@@ -21,7 +21,7 @@ Virtual Chassis merges multiple switches into one control plane; a member discon
 
 ## Value
 
-Virtual Chassis merges multiple switches into one control plane; a member disconnect or role churn can blackhole VLANs or split forwarding across members. VCCP and member state messages are the earliest signal of stack cable, power, or software issues. Centralized monitoring reduces time to detect partial stack failures that users report as intermittent “random” connectivity loss.
+NOC teams monitor Juniper Virtual Chassis health, detecting member losses, VC port failures, and VC splits that reduce switch fabric capacity and break single-chassis operation.
 
 ## Implementation
 
@@ -30,46 +30,66 @@ Baseline normal VCCP chatter; alert on member disconnect, not-primary transition
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_juniper`, syslog.
-- Ensure the following data sources are available: `sourcetype=juniper:junos:structured`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Juniper Virtual Chassis (VC) health data from syslog. Data in `index=juniper` with `sourcetype=juniper:structured`. Key syslog: `VC_*` messages, `VCCPD`, member join/leave, VC port status.
+* Juniper Virtual Chassis: multiple physical switches operate as a single logical device. Members connected via VC ports (dedicated or uplink). Master RE elected from member pool. Member failures reduce available ports and may split the VC.
 
-### Step 1 — Configure data collection
-Baseline normal VCCP chatter; alert on member disconnect, not-primary transitions, or split-brain indicators per Juniper KB wording in your release. Correlate with interface errors on VCP ports. Map `host` to stack ID in a lookup for faster operator response.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Junos -- Virtual Chassis logging
+set system syslog host <splunk-ip> any info
+set system syslog host <splunk-ip> match "VCCPD|VC_|virtual-chassis|member"
+```
+Verify:
 ```spl
-index=network sourcetype="juniper:junos:structured"
-| search VCCPD OR "Virtual Chassis" OR "vcp-" OR "member.*state" OR "VC member"
-| rex field=_raw "(?i)member\s+(?<member_id>\d+)"
-| stats count as vc_events, dc(member_id) as members_seen, latest(_raw) as last_event by host
-| sort -vc_events
+index=juniper earliest=-30d
+| where match(_raw, "(?i)VCCPD|VC_|virtual.chassis|member.*join|member.*leave|vc.*port")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Junos Virtual Chassis Health (Juniper)** — Virtual Chassis merges multiple switches into one control plane; a member disconnect or role churn can blackhole VLANs or split forwarding across members. VCCP and member state messages are the earliest signal of stack cable, power, or software issues. Centralized monitoring reduces time to detect partial stack failures that users report as intermittent “random” connectivity loss.
+**Primary search -- Virtual Chassis health monitoring:**
+```spl
+index=juniper earliest=-30d
+| where match(_raw, "(?i)VCCPD|VC_|virtual.chassis|member.*join|member.*leave|vc.*port.*down|split")
+| eval device=coalesce(host, device_name)
+| eval vc_event=case(
+    match(_raw, "(?i)member.*leave|member.*down|member.*lost"), "MEMBER_LOST",
+    match(_raw, "(?i)member.*join|member.*add|member.*up"), "MEMBER_JOINED",
+    match(_raw, "(?i)vc.*port.*down|vcp.*down"), "VC_PORT_DOWN",
+    match(_raw, "(?i)vc.*port.*up|vcp.*up"), "VC_PORT_UP",
+    match(_raw, "(?i)split|partition"), "VC_SPLIT",
+    match(_raw, "(?i)master.*change|mastership"), "MASTERSHIP_CHANGE",
+    1==1, "VC_EVENT")
+| stats count as events count(eval(vc_event="MEMBER_LOST")) as members_lost count(eval(vc_event="VC_SPLIT")) as splits count(eval(vc_event="VC_PORT_DOWN")) as vcp_downs by device
+| eval severity=case(
+    splits > 0, "CRITICAL -- Virtual Chassis split detected",
+    members_lost > 0, "CRITICAL -- VC member lost",
+    vcp_downs > 0, "WARNING -- VC port down (redundancy reduced)",
+    1==1, "OK")
+| where severity != "OK"
+| sort severity
+```
 
-Documented **Data sources**: `sourcetype=juniper:junos:structured`. **App/TA** (typical add-on context): `Splunk_TA_juniper`, syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show virtual-chassis status` -- member list and roles (Master/Backup/Linecard).
+(b) CLI: `show virtual-chassis vc-port` -- VC port status.
+(c) CLI: `show virtual-chassis information` -- VC configuration mode.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: juniper:junos:structured. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Juniper -- Virtual Chassis"):
+* Row 1 -- Single-value: "VC members online", "Members lost", "VC splits".
+* Row 2 -- VC health event timeline.
 
-**Pipeline walkthrough**
+Alert: Critical (VC split or member lost): immediate investigation.
 
-- Scopes the data: index=network, sourcetype="juniper:junos:structured". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Applies an explicit `search` filter to narrow the current result set.
-- Extracts fields with `rex` (regular expression).
-- `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **VC split** -- Members can no longer communicate. Check VC cable connections. Split-brain causes duplicate virtual IP/MAC. Resolve by reconnecting VC cables and resolving mastership.
 
-### Step 3 — Validate
-SSH to the device and run `show chassis alarms`, `show chassis routing-engine`, or `show virtual-chassis` as appropriate, and check that the same FRU, member, or RE state appears in syslog timestamps around your Splunk hit.
+* **Member lost** -- Check: (1) power to member, (2) VC cable connections, (3) member LED indicators. Try: `request virtual-chassis renumber`.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: VC member status matrix; event timeline for stack role changes; table of stacks with elevated event rate.
+* **VC port down** -- Check VC cable integrity. VC ports use specific cable types (DAC, fiber). Replace cable and verify with `show virtual-chassis vc-port`.
 
 ## SPL
 

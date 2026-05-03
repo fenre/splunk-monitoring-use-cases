@@ -21,7 +21,7 @@ Radar (DFS), non-WiFi interference, and channel changes degrade wireless quality
 
 ## Value
 
-Radar (DFS), non-WiFi interference, and channel changes degrade wireless quality.
+Network operations teams detect and classify RF interference sources (microwaves, Bluetooth, radar, jammers) impacting wireless performance, track DFS channel changes, and identify security threats from RF jamming devices.
 
 ## Implementation
 
@@ -30,41 +30,68 @@ Forward AP/WLC syslog. Alert on DFS radar events. Track channel change frequency
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: WLC syslog, Meraki TA.
-- Ensure the following data sources are available: WLC/AP syslog.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Wireless controller or spectrum analysis tool reporting RF interference events. Sources: (1) Cisco CleanAir — spectrum analysis via WLC syslog (`sourcetype=cisco:wlc`), (2) Meraki — RF interference events via API, (3) Aruba ARM — interference detection.
+- Key fields: `ap_name`, `radio_band`, `channel`, `interference_type` (microwave, bluetooth, cordless phone, video bridge, radar, jammer), `severity`, `duty_cycle` (% of time the interferer is active), `rssi` (interferer signal strength).
 
 ### Step 1 — Configure data collection
-Forward AP/WLC syslog. Alert on DFS radar events. Track channel change frequency per AP.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify RF interference events:
 ```spl
-index=network sourcetype="cisco:wlc" ("radar" OR "DFS" OR "interference" OR "channel change")
-| stats count by ap_name, channel | sort -count
+index=wireless earliest=-24h
+| where match(_raw, "(?i)(interference|cleanair|spectrum|radar|dfs|jammer|microwave|bluetooth)")
+| stats count by sourcetype, ap_name
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**RF Interference Events** — Radar (DFS), non-WiFi interference, and channel changes degrade wireless quality.
+**Primary search — RF interference events by type and impact:**
+```spl
+index=wireless earliest=-24h
+| where match(_raw, "(?i)(interference|cleanair|spectrum|radar|dfs|jammer|microwave)")
+| eval interferer=case(match(_raw, "(?i)microwave"), "Microwave Oven", match(_raw, "(?i)bluetooth"), "Bluetooth", match(_raw, "(?i)radar|dfs"), "Radar/DFS", match(_raw, "(?i)jammer"), "RF Jammer", match(_raw, "(?i)cordless"), "Cordless Phone", match(_raw, "(?i)video.bridge"), "Video Bridge", 1==1, "Unknown")
+| eval ap_id=coalesce(ap_name, name)
+| eval band=coalesce(radio_band, case(match(channel, "^(1|6|11)$"), "2.4GHz", 1==1, "5GHz"))
+| lookup wireless_ap_inventory.csv ap_name as ap_id OUTPUT building floor zone
+| stats count as events dc(ap_id) as affected_aps latest(_time) as last_seen by interferer, band, building
+| eval impact=case(interferer="RF Jammer", "CRITICAL", interferer="Radar/DFS" AND events > 5, "HIGH", events > 20, "HIGH", events > 5, "MEDIUM", 1==1, "LOW")
+| sort impact, -events
+```
 
-Documented **Data sources**: WLC/AP syslog. **App/TA** (typical add-on context): WLC syslog, Meraki TA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: Interference classification drives the response. Microwave ovens (2.4GHz, intermittent) require user education or shielding. Radar/DFS events force the AP off its channel — frequent DFS events indicate the AP is on a channel near an airport or weather radar. An RF jammer is a security incident. Bluetooth is usually benign unless from a medical device interfering with clinical WiFi.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:wlc. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="cisco:wlc". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by ap_name, channel** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+**DFS channel change tracking:**
+```spl
+index=wireless earliest=-7d
+| where match(_raw, "(?i)(dfs|radar|channel.change)")
+| eval ap_id=coalesce(ap_name, name)
+| stats count as dfs_events by ap_id
+| where dfs_events > 3
+| lookup wireless_ap_inventory.csv ap_name as ap_id OUTPUT building floor
+| sort -dfs_events
+```
 
 ### Step 3 — Validate
-In the Cisco WLC or Catalyst 9800 wireless GUI (Monitor > Clients or Access Points), compare counts and statuses with the Splunk rows for the same period. Confirm a few client MACs or AP names.
+(a) If using Cisco CleanAir: check the WLC's CleanAir dashboard for spectrum analysis results. Compare detected interferers.
+(b) For DFS: check if the building is near an airport or weather radar station. Frequent DFS events are expected in these locations.
+(c) Verify by generating known interference: turn on a microwave oven near a 2.4GHz AP and confirm the event.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (AP, event type, count), Timeline, Bar chart.
+Dashboard ("Wireless — RF Interference"):
+- Row 1 — Single-value tiles: "Interference events (24h)", "DFS channel changes", "Affected APs", "RF jammers detected".
+- Row 2 — Interference table: type, band, building, events, affected APs, impact.
+- Row 3 — DFS event frequency per AP.
+
+Alerting:
+- Critical (RF jammer detected): security incident — locate and remove immediately.
+- High (> 5 DFS events on same AP in 24h): persistent radar interference — consider disabling DFS channels for that AP.
+- Warning (sustained interference > 20% duty cycle): investigate and mitigate.
+
+### Step 5 — Troubleshooting
+
+- **Constant microwave interference on 2.4GHz** — Common in break rooms and kitchens. Solutions: move APs away from kitchens, switch clients to 5GHz band steering, or use channel 1 or 11 (less overlap with 2.45GHz microwave frequency).
+
+- **Frequent DFS events forcing channel changes** — The AP is detecting radar on 5GHz DFS channels. Solutions: disable DFS channels in the AP configuration (use only UNII-1 channels 36-48 and UNII-3 channels 149-165), or accept the channel changes if coverage isn't impacted.
+
+- **No interference data available** — Spectrum analysis requires: Cisco CleanAir (specific AP models with dedicated spectrum radios), Meraki auto-RF, or Aruba ARM. Not all AP models support interference classification.
 
 ## SPL
 

@@ -21,7 +21,7 @@ Power over Ethernet budget approaching capacity per switch.
 
 ## Value
 
-Power over Ethernet budget approaching capacity per switch.
+Operations teams trend PoE power budget utilization over 30 days to project capacity exhaustion and plan PoE infrastructure expansion before powered devices are denied power.
 
 ## Implementation
 
@@ -30,46 +30,67 @@ Poll POWER-ETHERNET-MIB (pethMainPsePower, pethMainPseConsumptionPower) every 30
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: POWER-ETHERNET-MIB (pethMainPseOperStatus, pethMainPseConsumptionPower, pethMainPsePower).
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* PoE power utilization trending data from SNMP. Extends UC-5.1.19 with capacity planning focus. Key SNMP: pethMainPseConsumptionPower over time, per-port cpeExtPdStatsPower.
+* PoE budget utilization trending: tracks power consumption growth over weeks/months to predict when additional PoE capacity will be needed, particularly as IoT devices and 802.3bt high-power devices proliferate.
 
-### Step 1 — Configure data collection
-Poll POWER-ETHERNET-MIB (pethMainPsePower, pethMainPseConsumptionPower) every 300s. Alert when utilization exceeds 80%. Track per PSE unit on modular switches.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Same SNMP polling as UC-5.1.19
+# Ensure data retained > 30 days for capacity trending
+```
+Verify:
 ```spl
-index=network sourcetype=snmp:poe
-| eval util_pct=round(pethMainPseConsumptionPower/pethMainPsePower*100,1)
-| where pethMainPseOperStatus="on" AND util_pct > 80
-| stats latest(util_pct) as poe_util, latest(pethMainPseConsumptionPower) as used_w, latest(pethMainPsePower) as total_w by host
-| table host poe_util used_w total_w
+index=network earliest=-30d
+| eval poe_watts=tonumber(coalesce(pethMainPseConsumptionPower, poe_watts_used))
+| where isnotnull(poe_watts)
+| bin _time span=1d | stats avg(poe_watts) by _time, host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**PoE Power Budget Utilization** — Power over Ethernet budget approaching capacity per switch.
+**Primary search -- PoE budget utilization trending:**
+```spl
+index=network earliest=-30d
+| eval poe_watts=tonumber(coalesce(pethMainPseConsumptionPower, poe_watts_used))
+| eval poe_budget=tonumber(coalesce(poe_watts_budget, power_budget))
+| eval device=coalesce(host, device_name)
+| where isnotnull(poe_watts)
+| bin _time span=1d
+| stats avg(poe_watts) as avg_watts max(poe_watts) as peak_watts latest(poe_budget) as budget by _time, device
+| eval util_pct=if(budget > 0, round(100*avg_watts/budget, 1), null())
+| eventstats first(avg_watts) as start_watts last(avg_watts) as end_watts by device
+| eval growth_rate=round((end_watts - start_watts)/30, 1)
+| eval days_to_capacity=if(growth_rate > 0 AND isnotnull(budget), round((budget - end_watts)/growth_rate), null())
+| eval severity=case(
+    util_pct > 85, "WARNING -- PoE utilization at ".util_pct."% (near capacity)",
+    days_to_capacity < 90 AND days_to_capacity > 0, "INFO -- PoE capacity exhaustion projected in ".days_to_capacity." days",
+    growth_rate > 5, "INFO -- PoE consumption growing at ".growth_rate."W/day",
+    1==1, "OK")
+| where severity != "OK"
+| dedup device sortby -_time
+| table device, end_watts, budget, util_pct, growth_rate, days_to_capacity, severity
+| sort severity, days_to_capacity
+```
 
-Documented **Data sources**: POWER-ETHERNET-MIB (pethMainPseOperStatus, pethMainPseConsumptionPower, pethMainPsePower). **App/TA** (typical add-on context): SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show power inline` -- current per-port and total consumption.
+(b) Identify high-power devices: 802.3bt devices consuming 60-90W.
+(c) Plan for new device deployments and their PoE requirements.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:poe. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+### Step 4 — - Operationalize
+Dashboard ("Network -- PoE Capacity Planning"):
+* Row 1 -- Single-value: "Switches > 85% PoE", "Fastest growing", "Days to capacity".
+* Row 2 -- PoE utilization trend timechart.
 
-**Pipeline walkthrough**
+Alert: Warning (PoE utilization > 85%): plan capacity expansion.
 
-- Scopes the data: index=network, sourcetype=snmp:poe. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `eval` defines or adjusts **util_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where pethMainPseOperStatus="on" AND util_pct > 80` — typically the threshold or rule expression for this monitoring goal.
-- `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
-- Pipeline stage (see **PoE Power Budget Utilization**): table host poe_util used_w total_w
+### Step 5 — - Troubleshooting
 
+* **Approaching capacity** -- Options: (1) add external PoE power supply module, (2) deploy PoE injectors for high-power devices, (3) upgrade switch to model with higher PoE budget, (4) redistribute devices across switches.
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Sudden capacity increase** -- New high-power devices (802.3bt cameras, APs) may consume 30-90W each. Plan PoE budget before deployment.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (utilization), Table (host, used, total), Line chart.
+* **Growth projection inaccurate** -- Seasonal patterns (conference room usage, heating) may skew trends. Analyze by time-of-day and day-of-week for accurate forecasting.
 
 ## SPL
 

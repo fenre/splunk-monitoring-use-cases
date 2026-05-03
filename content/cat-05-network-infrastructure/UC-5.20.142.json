@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.142",
+  "title": "IPv6 First-Hop Security (FHS) Feature Deployment Audit",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": ["Compliance", "Security"],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Audits deployment of IPv6 First-Hop Security (FHS) features across the switching infrastructure. FHS includes RA Guard, DHCPv6 Guard, ND Inspection, Source Guard, Destination Guard, and IPv6 Binding Table (SISF). Missing FHS features leave the network vulnerable to NDP-based attacks.",
+  "app": "Splunk Enterprise",
+  "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-7d\n  (\"RA Guard\" OR \"DHCPv6 Guard\" OR \"ND Inspection\" OR \"Source Guard\" OR \"Destination Guard\" OR \"SISF\" OR \"ipv6 snooping\" OR \"device-tracking\" OR \"binding-table\")\n| eval fhs_feature=case(\n    match(_raw, \"(?i)RA.?Guard\"), \"RA Guard\",\n    match(_raw, \"(?i)DHCPv6.?Guard\"), \"DHCPv6 Guard\",\n    match(_raw, \"(?i)ND.?Inspection|nd-inspection\"), \"ND Inspection\",\n    match(_raw, \"(?i)Source.?Guard|source-guard\"), \"IPv6 Source Guard\",\n    match(_raw, \"(?i)Destination.?Guard|destination-guard\"), \"IPv6 Destination Guard\",\n    match(_raw, \"(?i)SISF|snooping|device.?tracking|binding.?table\"), \"SISF/Device Tracking\",\n    1=1, \"Other FHS\")\n| eval fhs_status=case(\n    match(_raw, \"(?i)enabled|active|configured|applied\"), \"ENABLED\",\n    match(_raw, \"(?i)disabled|removed|not.?configured|missing\"), \"DISABLED\",\n    match(_raw, \"(?i)violation|denied|dropped|blocked\"), \"ENFORCEMENT\",\n    1=1, \"UNKNOWN\")\n| stats count as events values(fhs_status) as statuses by host, fhs_feature\n| eval compliance=case(\n    mvcount(mvfilter(match(statuses, \"DISABLED\"))) > 0, \"NON-COMPLIANT — \" . fhs_feature . \" disabled on \" . host,\n    mvcount(mvfilter(match(statuses, \"ENABLED\"))) > 0, \"COMPLIANT\",\n    1=1, \"UNKNOWN\")\n| sort compliance, fhs_feature",
+  "description": "Audits the deployment of IPv6 First-Hop Security (FHS) features across all access-layer switches. FHS is the IPv6 equivalent of ARP inspection and DHCP snooping. Missing FHS features leave networks vulnerable to Rogue RA, DHCPv6 spoofing, NDP spoofing, and neighbour cache attacks.",
+  "value": "IPv6 FHS is critical for access-layer security. Without RA Guard, any host can become the default router. Without DHCPv6 Guard, any host can assign addresses. Without ND Inspection, any host can spoof neighbour entries. This audit ensures all switches have FHS deployed consistently, preventing gaps that attackers exploit.",
+  "implementation": "Parse switch configurations for FHS feature presence. Report switches missing required FHS features.",
+  "visualization": "(1) Compliance matrix: switches vs FHS features. (2) Pie chart: compliant vs non-compliant. (3) Table: missing features by switch. (4) Trend: compliance over time.",
+  "references": [
+    {"title": "Cisco — IPv6 First-Hop Security Configuration Guide", "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6_fhsec/configuration/xe-3s/ip6f-xe-3s-book.html"},
+    {"title": "RFC 6105 — IPv6 Router Advertisement Guard (RA Guard)", "url": "https://www.rfc-editor.org/rfc/rfc6105"}
+  ],
+  "knownFalsePositives": "**Router-facing ports.** Uplink ports to routers should have RA Guard in 'router' role, not 'host' role. Don't flag these as non-compliant.\n\n**Legacy switches.** Some older switches don't support FHS. These should be flagged for hardware refresh.",
+  "equipment": ["cisco"],
+  "equipmentModels": ["cisco_catalyst_9000", "cisco_catalyst_3850"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Cisco IOS-XE switches with SISF support.\n• Switch configuration collection (SCP, NETCONF, or running-config capture).\n\nStep 1 — Define required FHS features per switch role.\n\nStep 2 — Collect switch configurations and parse for FHS feature presence.\n\nStep 3 — Validate: Manually verify FHS on sample switches:\n```\nshow ipv6 snooping policies\nshow device-tracking policies\nshow ipv6 nd raguard policy\n```\n\nStep 4 — Operationalize\n**Dashboard:** FHS compliance matrix. **Report:** Monthly FHS audit.\n\nStep 5 — Troubleshooting\n• Enable SISF as the foundation: `device-tracking policy SISF_POLICY` → apply to all access VLANs.\n• Then layer RA Guard and DHCPv6 Guard on top of SISF.",
+  "grandmaExplanation": "Our network switches have security guards at every entry point that check IPv6 'ID cards.' We audit all entry points to make sure every guard is on duty and properly trained. If a guard is missing from one entrance, that's where the burglars get in. This check ensures every entrance is properly covered.",
+  "prerequisiteUseCases": ["5.20.28", "5.20.135", "5.20.139"],
+  "wave": "walk"
+}

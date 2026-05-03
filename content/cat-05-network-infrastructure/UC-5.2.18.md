@@ -21,7 +21,7 @@ Outdated threat signatures leave the firewall blind to new attacks. Monitoring s
 
 ## Value
 
-Outdated threat signatures leave the firewall blind to new attacks. Monitoring signature versions ensures security posture is current.
+Security teams track firewall threat prevention signature update freshness across all devices, detecting stale databases and failed updates that leave the network exposed to new threats.
 
 ## Implementation
 
@@ -30,69 +30,62 @@ Forward system logs. Alert when signature updates are >7 days old. Compare acros
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX).
-- Ensure the following data sources are available: `sourcetype=pan:system`, `sourcetype=fgt_event`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Firewall threat prevention logs and signature database version information. Key data: signature update timestamps, threat prevention signature coverage, vulnerability signatures applied, anti-spyware signatures active.
+* Threat prevention coverage gaps: (1) outdated signature databases, (2) signatures in detect-only mode, (3) critical signatures disabled by exceptions, (4) signature categories not enabled.
 
-### Step 1 — Configure data collection
-Forward system logs. Alert when signature updates are >7 days old. Compare across firewalls to detect update failures. Schedule weekly compliance reports.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+**Palo Alto:**
+```
+show system info | match content  # shows content version and update time
+show system info | match threat    # threat signature version
+request content upgrade check      # check for updates
+```
+Verify:
 ```spl
-index=network sourcetype="pan:system" "threat version" OR "content update"
-| rex "installed (?<content_type>threats|antivirus|wildfire) version (?<version>\S+)"
-| stats latest(version) as current_version, latest(_time) as last_update by dvc, content_type
-| eval days_since_update=round((now()-last_update)/86400,0)
-| where days_since_update > 7
+index=firewall earliest=-7d
+| where match(_raw, "(?i)content.*update|signature.*update|threat.*update|av.*update|antivirus.*update|database.*update")
+| stats count latest(_time) as last_update by host
+| eval days_since_update=round((now()-last_update)/86400, 1)
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Threat Prevention Signature Coverage** — Outdated threat signatures leave the firewall blind to new attacks. Monitoring signature versions ensures security posture is current.
-
-Documented **Data sources**: `sourcetype=pan:system`, `sourcetype=fgt_event`. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: network; **sourcetype**: pan:system. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="pan:system". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- `stats` rolls up events into metrics; results are split **by dvc, content_type** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **days_since_update** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where days_since_update > 7` — typically the threshold or rule expression for this monitoring goal.
-
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Signature coverage and update status:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object All_Changes.action span=1h
-| sort -count
+index=firewall earliest=-7d
+| where match(_raw, "(?i)content.*update|signature.*update|threat.*update|av.*update|database.*update|dynamic.*update")
+| eval update_type=case(match(_raw, "(?i)threat|ips|vulnerability"), "THREAT_PREVENTION", match(_raw, "(?i)antivirus|av"), "ANTIVIRUS", match(_raw, "(?i)wildfire|sandbox"), "WILDFIRE", match(_raw, "(?i)url|pandb|fortiguard"), "URL_DATABASE", match(_raw, "(?i)app.*id|application"), "APP_SIGNATURES", 1==1, "OTHER")
+| eval update_status=case(match(_raw, "(?i)success|complete|installed"), "SUCCESS", match(_raw, "(?i)fail|error|timeout"), "FAILURE", match(_raw, "(?i)download|checking|start"), "IN_PROGRESS", 1==1, "UNKNOWN")
+| stats latest(_time) as last_update values(update_status) as statuses by host, update_type
+| eval days_since_update=round((now()-last_update)/86400, 1)
+| eval severity=case(match(mvjoin(statuses, ","), "FAILURE"), "CRITICAL -- update failed", days_since_update > 7, "HIGH -- signatures >7 days old", days_since_update > 3, "WARNING -- signatures >3 days old", 1==1, "OK")
+| where severity != "OK"
+| table host, update_type, days_since_update, statuses, last_update, severity
+| sort severity, -days_since_update
 ```
 
-Understanding this CIM / accelerated SPL
+### Step 3 — - Validate
+(a) Palo Alto: Device > Dynamic Updates -- shows last update time and version.
+(b) Fortinet: `get system auto-update status` -- shows FortiGuard update status.
+(c) Compare signature version with vendor's latest published version.
 
-This block uses `tstats` on the Change data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 4 — - Operationalize
+Dashboard ("Firewall -- Threat Signature Coverage"):
+* Row 1 -- Single-value: "Outdated firewalls", "Failed updates", "Avg days since update".
+* Row 2 -- Signature update status per firewall.
 
-**Pipeline walkthrough**
+Alerting:
+* Critical (update failed): signatures not updating -- new threats unprotected.
+* High (signatures > 7 days old): investigate update mechanism.
+* Warning (signatures > 3 days old): may miss latest threats.
 
-- Uses `tstats` against accelerated summaries for the Change model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+### Step 5 — - Troubleshooting
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+* **Update failures** -- Check: (1) internet connectivity from firewall management plane, (2) DNS resolution for update servers (updates.paloaltonetworks.com, update.fortiguard.net), (3) proxy configuration for updates, (4) support/maintenance license is valid.
 
+* **Signatures old despite scheduled updates** -- Verify: (1) automatic update schedule is configured, (2) update download completes but install fails, (3) disk space on firewall for content packages.
 
-
-### Step 3 — Validate
-Sample the same time range in your firewall management console, Panorama, FortiManager, or Check Point SmartConsole and confirm that counts, usernames, and object names line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (firewall, content type, version, days since update), Single value (outdated count).
+* **Specific signature disabled** -- Security exceptions may have disabled critical signatures. Audit: PA `show running security-profile` to list active signatures and exceptions.
 
 ## SPL
 

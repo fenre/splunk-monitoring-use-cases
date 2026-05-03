@@ -21,7 +21,7 @@ splunkPillar: "Security"
 
 ## Value
 
-802.1X success/failure rates indicate RADIUS health, certificate issues, or expired credentials.
+Network operations teams monitor wireless authentication trends across all SSIDs and methods (802.1X, PSK, MAB) to detect systemic RADIUS failures, credential rotation issues, and authentication method performance degradation.
 
 ## Implementation
 
@@ -30,43 +30,68 @@ Forward ISE/RADIUS authentication logs. Track success/failure ratio over time. A
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: WLC syslog, RADIUS/ISE logs.
-- Ensure the following data sources are available: RADIUS logs, WLC auth events.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Wireless authentication events from controllers, RADIUS servers, or cloud platforms. Sources: (1) RADIUS server logs (`sourcetype=radius` or vendor-specific), (2) Cisco WLC syslog — DOT1X events, (3) Meraki events — 802.1X authentication results, (4) Aruba ClearPass logs.
+- Key fields: `auth_method` (WPA2-PSK, WPA2-Enterprise, WPA3-Enterprise, Open+Captive, MAC Auth), `result` (success/failure/timeout), `ssid`, `client_mac`, `username` (for 802.1X), `reason` (failure reason code).
+- Authentication methods by security level: Open (no auth — guest networks), WPA2-PSK (shared password — small offices), WPA2/3-Enterprise (802.1X with RADIUS — corporate), MAC Authentication Bypass (MAB — for devices without 802.1X support like printers, IoT).
 
 ### Step 1 — Configure data collection
-Forward ISE/RADIUS authentication logs. Track success/failure ratio over time. Alert on sustained failure rate increase.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify authentication event data:
 ```spl
-index=network sourcetype="cisco:ise:syslog" ("Passed" OR "Failed") AND "Wireless"
-| eval status=if(match(_raw,"Passed"),"Success","Failed")
-| timechart span=1h count by status
+index=wireless earliest=-4h
+| where match(_raw, "(?i)(auth|dot1x|radius|eap|802\.1x|wpa|psk)")
+| stats count by sourcetype, ssid
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Wireless Authentication Trends** — 802.1X success/failure rates indicate RADIUS health, certificate issues, or expired credentials.
+**Primary search — Authentication method distribution and failure rates:**
+```spl
+index=wireless earliest=-4h
+| where match(_raw, "(?i)(auth|dot1x|radius|eap)")
+| eval auth_type=case(match(_raw, "(?i)eap|802\.1x|dot1x|enterprise"), "802.1X", match(_raw, "(?i)psk|pre.shared"), "PSK", match(_raw, "(?i)mac.auth|mab"), "MAB", match(_raw, "(?i)open|captive"), "Open/Captive", 1==1, "Other")
+| eval auth_result=case(match(_raw, "(?i)(success|accept|permit|authenticated)"), "SUCCESS", match(_raw, "(?i)(fail|reject|deny|timeout)"), "FAILURE", 1==1, "OTHER")
+| stats count as total count(eval(auth_result="SUCCESS")) as success count(eval(auth_result="FAILURE")) as failures by ssid, auth_type
+| eval failure_rate=round(100*failures/total, 1)
+| eval severity=case(failure_rate > 20, "CRITICAL", failure_rate > 10, "HIGH", failure_rate > 5, "WARNING", 1==1, "OK")
+| sort severity, -failure_rate
+```
 
-Documented **Data sources**: RADIUS logs, WLC auth events. **App/TA** (typical add-on context): WLC syslog, RADIUS/ISE logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: Authentication failure rate by SSID and method reveals systemic issues. A 20% failure rate on 802.1X means 1 in 5 users can't connect — likely a RADIUS issue. A 5% failure rate on PSK might mean a few users have the wrong password after a rotation. Trending this over time shows whether wireless security is improving or degrading.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ise:syslog. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="cisco:ise:syslog". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `eval` defines or adjusts **status** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `timechart` plots the metric over time using **span=1h** buckets with a separate series **by status** — ideal for trending and alerting on this use case.
-
-
+**Authentication trending by method:**
+```spl
+index=wireless earliest=-7d
+| where match(_raw, "(?i)(auth|dot1x|radius|eap)")
+| eval auth_result=case(match(_raw, "(?i)(success|accept)"), "SUCCESS", match(_raw, "(?i)(fail|reject)"), "FAILURE", 1==1, "OTHER")
+| bin _time span=1h
+| stats count(eval(auth_result="FAILURE")) as failures count as total by _time, ssid
+| eval fail_rate=round(100*failures/total, 1)
+| timechart span=1h avg(fail_rate) by ssid
+```
 
 ### Step 3 — Validate
-In Cisco ISE (Operations > RADIUS Live Log or authentication reports), compare pass/fail counts and usernames to the Splunk search for the same time range. Spot-check a few failure reasons against ISE.
+(a) Connect to each SSID and verify the authentication event appears in Splunk with the correct method and result.
+(b) Compare failure rates with the RADIUS server's own statistics.
+(c) Rotate a PSK password and verify the expected increase in PSK failures (users with old password).
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar chart (success vs. failure), Line chart, Single value (failure rate %).
+Dashboard ("Wireless — Authentication"):
+- Row 1 — Single-value tiles: "Auth success rate", "802.1X failures", "PSK failures", "Total authentications (4h)".
+- Row 2 — Auth method table: SSID, method, total, success, failures, failure rate, severity.
+- Row 3 — 7-day failure rate trending by SSID.
+
+Alerting:
+- Critical (802.1X failure rate > 20%): RADIUS server issue — page NOC.
+- High (PSK failure rate > 30%): possible credential rotation issue.
+- Warning (authentication failure rate increasing): trend-based alert.
+
+### Step 5 — Troubleshooting
+
+- **High 802.1X failure rate across all APs** — RADIUS server down, certificate expired, or EAP method mismatch. Check RADIUS server health (UC-5.4.8) and server certificate validity.
+
+- **High PSK failure rate after password change** — Expected for the first 24-48 hours as users update credentials. If it persists, communicate the new password more broadly.
+
+- **MAB failures for IoT devices** — The device MAC may not be in the RADIUS MAB database. Add the MAC to the authorization list in ISE/ClearPass/NPS.
 
 ## SPL
 

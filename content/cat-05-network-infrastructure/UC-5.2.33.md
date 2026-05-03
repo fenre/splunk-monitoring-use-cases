@@ -21,7 +21,7 @@ Continuously monitors WAN quality metrics to detect link degradation before impa
 
 ## Value
 
-Continuously monitors WAN quality metrics to detect link degradation before impacting users.
+NOC teams monitor Meraki MX WAN uplink latency, loss, and jitter in real time to detect link degradation and trigger failover or ISP escalation before users are impacted.
 
 ## Implementation
 
@@ -30,41 +30,68 @@ Query appliance API for uplink WAN metrics. Monitor quality KPIs.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki:api wan_metrics=*`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MX WAN uplink performance data. Data in `index=meraki` with `sourcetype=meraki:api:uplinks` or `sourcetype=meraki:api:uplinkstats`. Key fields: `latencyMs`, `lossPct`, `jitterMs`, `interface` (wan1/wan2), `serial`, `network_name`.
+* Meraki Dashboard API endpoint: `GET /organizations/{orgId}/devices/uplinksLossAndLatency` returns per-uplink latency, loss, and jitter sampled every ~5 minutes.
 
-### Step 1 — Configure data collection
-Query appliance API for uplink WAN metrics. Monitor quality KPIs.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# inputs.conf -- poll uplink loss and latency
+[meraki_uplink_quality]
+interval = 300
+sourcetype = meraki:api:uplinkstats
+index = meraki
+# API: GET /organizations/{orgId}/devices/uplinksLossAndLatency?timespan=300
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki:api" uplink=*
-| stats avg(latency) as avg_latency, avg(jitter) as avg_jitter, avg(packet_loss) as avg_loss by uplink_id
-| eval link_quality=case(avg_loss > 5, "Critical", avg_latency > 100, "Poor", avg_jitter > 50, "Fair", 1=1, "Good")
+index=meraki sourcetype="meraki:api:uplinkstats" earliest=-1h
+| stats avg(latencyMs) avg(lossPct) avg(jitterMs) by serial, interface
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**WAN Link Quality Monitoring — Jitter, Latency, Packet Loss (Meraki MX)** — Continuously monitors WAN quality metrics to detect link degradation before impacting users.
+**Primary search -- WAN quality degradation detection:**
+```spl
+index=meraki sourcetype="meraki:api:uplinkstats" earliest=-4h
+| eval latency=tonumber(latencyMs)
+| eval loss=tonumber(lossPct)
+| eval jitter=tonumber(jitterMs)
+| lookup meraki_networks.csv serial OUTPUT network_name, site_name
+| bin _time span=5m
+| stats avg(latency) as avg_latency avg(loss) as avg_loss avg(jitter) as avg_jitter by _time, serial, network_name, interface
+| eval avg_latency=round(avg_latency, 1)
+| eval avg_loss=round(avg_loss, 2)
+| eval avg_jitter=round(avg_jitter, 1)
+| eval severity=case(
+    avg_loss > 5 OR avg_latency > 200, "CRITICAL -- severe WAN degradation",
+    avg_loss > 2 OR avg_latency > 100 OR avg_jitter > 30, "WARNING -- WAN quality degraded",
+    avg_loss > 0.5 OR avg_latency > 50, "INFO -- minor WAN quality fluctuation",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, network_name, serial, interface, avg_latency, avg_loss, avg_jitter, severity
+| sort severity, -avg_loss
+```
 
-Documented **Data sources**: `sourcetype=meraki:api wan_metrics=*`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Security & SD-WAN > Uplink status -- compare latency/loss graphs.
+(b) Ping from MX: Tools > Ping to verify reported latency.
+(c) Correlate with ISP-reported circuit quality.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki:api. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MX -- WAN Link Quality"):
+* Row 1 -- Single-value: "Avg latency (ms)", "Avg loss (%)", "Avg jitter (ms)".
+* Row 2 -- WAN quality timechart (latency, loss, jitter by uplink).
+* Row 3 -- Sites with degraded WAN quality table.
 
-**Pipeline walkthrough**
+Alert: Critical (loss >5% or latency >200ms sustained for 15+ minutes): page NOC.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by uplink_id** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **link_quality** — often to normalize units, derive a ratio, or prepare for thresholds.
+### Step 5 — - Troubleshooting
 
+* **Sustained high latency** -- Check ISP circuit health. Verify no saturation (check bandwidth utilization). Consider QoS adjustments or traffic shaping.
 
-### Step 3 — Validate
-In the Meraki cloud dashboard, use the same organization, network, and time range as the search. Confirm the same events, site or appliance names, and policy context you see in the dashboard line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Uplink quality scorecard; latency/jitter/loss timeline; quality gauge per uplink.
+* **Intermittent packet loss** -- Check physical cabling, ISP peering, and last-mile connectivity. Compare both WAN uplinks to isolate.
+
+* **Jitter spikes** -- Often caused by congestion or bufferbloat. Verify MX traffic shaping is enabled. Consider SD-WAN path preference changes.
 
 ## SPL
 

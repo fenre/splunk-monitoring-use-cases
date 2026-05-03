@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.10.14",
+  "title": "Internet Exchange Point (IXP) Peering Health",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "wave": "run",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`index=network` BGP syslog (`sourcetype=cisco:ios`, `sourcetype=juniper:junos`) filtered to peers documented in `ix_peering_neighbors.csv` (`neighbor_ip`, `ix_name`, `ix_lan`, `asn_peer`, `route_server_flag`). NetFlow (`index=netflow`) toward IX-facing interfaces optionally supplements traffic-plane visibility via lookup `ix_interfaces.csv` mapping exporter/interface tuples.",
+  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, optional NetFlow TA.",
+  "spl": "index=network earliest=-4h (sourcetype=\"cisco:ios\" OR sourcetype=\"juniper:junos\")\n    (\"%BGP-5-ADJCHANGE\" OR \"%BGP-3-NOTIFICATION\" OR \"BGP_PEER_UP\" OR \"BGP_PEER_DOWN\" OR \"Notification sent\")\n| rex field=_raw \"neighbor (?<peer>[0-9a-fA-F:\\.:\\]]+)\"\n| lookup ix_peering_neighbors.csv neighbor_ip as peer OUTPUT ix_name asn_peer route_server_flag\n| where isnotnull(ix_name)\n| rex field=_raw \"(?i)(?<transition>(?:Established|Idle|Active|Connect|OpenSent|Down)[^\\n]*)\"\n| eval unhealthy=if(match(transition,\"(?i)Idle|Active|Connect|Down|Notification\"),1,0)\n| bin _time span=30m\n| stats sum(unhealthy) as bad_samples count as msgs dc(transition) as state_entropy values(transition) as last_states by _time ix_name peer asn_peer route_server_flag host\n| where bad_samples>0 OR state_entropy>3\n| stats latest(bad_samples) as alerts latest(msgs) as chatter latest(last_states) as transitions latest(route_server_flag) as rs_mode by ix_name peer asn_peer host\n| sort -alerts",
+  "description": "Monitors only BGP neighbors classified as Internet Exchange peers—surfacing session instability, notification storms, or route-server-specific flap patterns distinct from upstream transit links sitting on different interfaces.",
+  "value": "Peering teams isolate IX-specific regressions (fabric partitions, MAC-learning errors, RS policy edits) faster than generic BGP dashboards that bury IX peers among dozens of carrier sessions.",
+  "implementation": "Maintain gold-standard CSV whenever peers move ports; annotate route-server vs bilateral peers to tune thresholds; integrate IX participant portal outage RSS optional enrichment.",
+  "detailedImplementation": "Prerequisites\n• Accurate neighbor-to-IX mapping refreshed after every IX migration.\n• Understanding bilateral versus route-server operational expectations (RS peers tolerate controlled resets).\n• Clock sync across route reflectors logging duplicates.\n• Optional NetFlow validation proving traffic collapse aligns with control-plane logs.\n\nStep 1 — Import `ix_peering_neighbors.csv` via automation consuming IRR/peering DB exports plus manual overrides.\n\nStep 2 — Tune rex statements per Junos `RPD_BGP_NEIGHBOR_STATE_CHANGED` vs Cisco `%BGP-5-ADJCHANGE` formats.\n\nStep 3 — Severity matrix flags RS peers differently—idle/connect churn may indicate LAN duplex mismatch.\n\nStep 4 — Dashboard overlays IX LAN SNMP errors (from UC-5.1.x physical monitors) when BGP alerts fire.\n\nStep 5 — Troubleshooting: duplicate syslog paths inflate counts—dedup via `dedup` on signature hash; private interconnect VLAN tagging mistakes misassociate peers—verify CMDB.",
+  "visualization": "Per-IX bubble chart (peer ASN vs flap score); timeline bands colored by IX fabric outage hypotheses; table linking peer IPs to MAC addresses when ARP logs exist.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Euro-IX — Internet Exchange Points resources",
+      "url": "https://www.euro-ix.net/"
+    },
+    {
+      "title": "RFC 4271 — BGP-4",
+      "url": "https://www.rfc-editor.org/rfc/rfc4271"
+    }
+  ],
+  "knownFalsePositives": "RS soft resets during IRR refresh windows resemble outages; bilateral peers negotiating ADD-PATH toggle sessions briefly; metro Ethernet protective switching duplicates BGP logs.",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_ios",
+    "juniper_mx"
+  ],
+  "grandmaExplanation": "We keep an eye on the special club connections where internet providers swap traffic cheaply, so when those handshake lines flicker we know which shared meeting room broke instead of blaming the whole world.",
+  "telcoUseCase": "IX fabric observability",
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

@@ -21,7 +21,7 @@ Tracks cellular backup activation to monitor failover effectiveness and cellular
 
 ## Value
 
-Tracks cellular backup activation to monitor failover effectiveness and cellular data usage.
+NOC teams track Meraki MX cellular modem failover activations and usage duration to monitor backup connectivity effectiveness and manage cellular data costs.
 
 ## Implementation
 
@@ -30,41 +30,61 @@ Ingest cellular failover events. Track data consumption.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=security_event signature="*cellular*" OR signature="*4G*"`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MX cellular modem status events. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki:api:uplinks`. Key fields: `interface` (cellular), `status`, `provider`, `signalStat`, `connectionType` (3G/4G/LTE/5G).
+* Meraki MX models with built-in cellular modem (MX67C, MX68CW) or USB cellular dongle. Cellular serves as last-resort WAN backup when WAN1 and WAN2 are both down.
 
-### Step 1 — Configure data collection
-Ingest cellular failover events. Track data consumption.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Meraki Dashboard > Security & SD-WAN > SD-WAN & traffic shaping
+# Uplink configuration: ensure cellular is configured as failover
+# Syslog: enable Events category
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*cellular*" OR signature="*4G*" OR signature="*LTE*")
-| stats count as cellular_events, sum(data_usage_mb) as total_cellular_data by event_type
-| where total_cellular_data > 0
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:uplinks") earliest=-30d
+| where match(_raw, "(?i)cellular|lte|3g|4g|5g|modem")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Cellular Modem Failover Activation and Usage (Meraki MX)** — Tracks cellular backup activation to monitor failover effectiveness and cellular data usage.
+**Primary search -- Cellular failover activation tracking:**
+```spl
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:uplinks") earliest=-30d
+| where match(_raw, "(?i)cellular") OR interface="cellular"
+| eval device=coalesce(serial, host, deviceSerial)
+| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
+| eval cell_status=case(match(_raw, "(?i)active|up|connected"), "ACTIVATED", match(_raw, "(?i)down|disconnect|standby"), "DEACTIVATED", 1==1, "STATUS_CHANGE")
+| sort device, _time
+| streamstats current=f last(_time) as prev_time last(cell_status) as prev_status by device
+| eval duration_min=if(cell_status="DEACTIVATED" AND prev_status="ACTIVATED", round((_time - prev_time)/60, 1), null())
+| stats count(eval(cell_status="ACTIVATED")) as activations sum(duration_min) as total_cell_min avg(duration_min) as avg_cell_min max(duration_min) as max_cell_min by device, network_name
+| eval avg_cell_min=round(avg_cell_min, 1)
+| eval total_cell_hours=round(total_cell_min/60, 1)
+| eval severity=case(total_cell_hours > 24, "CRITICAL -- extended cellular usage (>24h in period)", activations > 10, "WARNING -- frequent cellular activations", activations > 0, "INFO -- cellular failover used", 1==1, "OK")
+| where severity != "OK"
+| sort severity, -total_cell_hours
+```
 
-Documented **Data sources**: `sourcetype=meraki type=security_event signature="*cellular*" OR signature="*4G*"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Security & SD-WAN > Uplink status -- verify cellular connection history.
+(b) Check carrier data usage against Splunk-reported duration.
+(c) Verify SIM activation and data plan limits.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MX -- Cellular Failover"):
+* Row 1 -- Single-value: "Cellular activations (30d)", "Total cellular hours", "Sites using cellular".
+* Row 2 -- Cellular activation timeline.
 
-**Pipeline walkthrough**
+Alert: Critical (cellular active > 4 hours continuously): investigate primary WAN circuits.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by event_type** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where total_cellular_data > 0` — typically the threshold or rule expression for this monitoring goal.
+### Step 5 — - Troubleshooting
 
+* **Extended cellular usage** -- Primary WAN circuits are down. Check ISP status, circuit provisioning, and physical connectivity. Cellular data costs can escalate rapidly.
 
-### Step 3 — Validate
-In the Meraki cloud dashboard, use the same organization, network, and time range as the search. Confirm VPN paths, tunnel states, uplinks, and device names you expect there match the Splunk view.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Cellular usage timeline; failover event table; data usage gauge.
+* **Cellular signal quality poor** -- Check antenna placement, signal strength (RSSI/RSRP). Consider external antenna or signal booster for remote sites.
+
+* **Data plan exceeded** -- Set up Meraki bandwidth limits for cellular uplink. Restrict to business-critical traffic only during cellular failover.
 
 ## SPL
 

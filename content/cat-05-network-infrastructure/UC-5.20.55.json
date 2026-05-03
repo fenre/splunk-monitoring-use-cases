@@ -1,0 +1,59 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.55",
+  "title": "DNS Resolver IPv6 Transport Health (Do53/DoT/DoH over IPv6)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "ITSI",
+  "dataSources": "`index=network sourcetype=infoblox:dns` or `sourcetype=named:querylog` containing DNS resolver upstream query logs, and `index=network sourcetype=netflow` for DNS traffic flow analysis. DNS resolvers must be able to reach authoritative nameservers over IPv6 to resolve queries when only IPv6 transport is available or when authoritative servers are IPv6-only. This use case monitors the DNS resolver's ability to use IPv6 transport for upstream queries, not just the content of DNS responses (A/AAAA records).\n\nIPv6 DNS transport considerations:\n1. **Do53 (traditional DNS over UDP/TCP port 53)** — must work over both IPv4 and IPv6\n2. **DoT (DNS over TLS, RFC 7858, port 853)** — encrypted DNS, commonly used for privacy. Must support IPv6 transport.\n3. **DoH (DNS over HTTPS, RFC 8484)** — DNS over HTTP/2, increasingly common in browsers. Must support IPv6 transport.\n\nFailure modes:\n- Resolver cannot reach IPv6-only authoritative nameservers (e.g., some ccTLDs have IPv6-only NS)\n- IPv6 transport failures cause SERVFAIL for domains where IPv6 is the only available path\n- MTU issues with IPv6 DNS (EDNS0 + DNSSEC responses can exceed 1280 bytes)\n- Firewall blocking IPv6 UDP/TCP port 53 or DoT/DoH ports",
+  "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2946). Splunk Add-on for BIND DNS.",
+  "spl": "index=network (sourcetype=\"infoblox:dns\" OR sourcetype=\"named:querylog\") earliest=-24h\n| eval upstream_transport=case(\n    match(_raw, \"(?:query|sending).*(?:via|to)\\s*[0-9a-fA-F]+:[0-9a-fA-F:]+\"), \"IPv6\",\n    match(_raw, \"(?:query|sending).*(?:via|to)\\s*[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+\"), \"IPv4\",\n    1=1, null())\n| where isnotnull(upstream_transport)\n| eval outcome=case(\n    match(_raw, \"SERVFAIL|timeout|refused\"), \"failure\",\n    match(_raw, \"NOERROR|success\"), \"success\",\n    1=1, \"other\")\n| stats count(eval(upstream_transport=\"IPv6\" AND outcome=\"success\")) as v6_success count(eval(upstream_transport=\"IPv6\" AND outcome=\"failure\")) as v6_fail count(eval(upstream_transport=\"IPv4\" AND outcome=\"success\")) as v4_success count(eval(upstream_transport=\"IPv4\" AND outcome=\"failure\")) as v4_fail\n| eval v6_failure_rate=round(v6_fail / (v6_success + v6_fail) * 100, 2)\n| eval v4_failure_rate=round(v4_fail / (v4_success + v4_fail) * 100, 2)\n| eval disparity=v6_failure_rate - v4_failure_rate\n| eval health=case(\n    disparity > 5, \"WARNING — IPv6 DNS transport failure rate significantly higher than IPv4\",\n    v6_failure_rate > 1, \"MONITOR — elevated IPv6 DNS failures\",\n    1=1, \"OK\")",
+  "description": "Monitors the DNS resolver's ability to reach authoritative nameservers over IPv6 transport, detecting IPv6-specific DNS resolution failures that would cause SERVFAIL responses for domains served by IPv6-only nameservers. As more authoritative nameservers become IPv6-enabled (and some ccTLDs have IPv6-only NS records), the resolver's IPv6 transport health directly impacts DNS resolution reliability.",
+  "value": "A DNS resolver that cannot reach authoritative servers over IPv6 will fail to resolve any domain served exclusively by IPv6-only nameservers. While this is currently rare, the number of IPv6-only authoritative servers is growing. More commonly, if a resolver's IPv6 transport is intermittently failing, it causes sporadic SERVFAIL responses that are difficult to troubleshoot because the failures depend on which authoritative server the resolver happens to contact — if it picks an IPv4 server, the query succeeds; if it picks an IPv6 server, it fails. Monitoring IPv6 vs IPv4 transport failure rates reveals this intermittent pattern.",
+  "implementation": "Collect DNS resolver upstream query logs. Parse the transport protocol (IPv4 vs IPv6) used for upstream queries. Compare failure rates between IPv4 and IPv6 transport. Alert on elevated IPv6 transport failures.",
+  "visualization": "(1) Dual gauge: IPv4 vs IPv6 DNS transport success rates. (2) Timechart: IPv6 upstream query failures over 24 hours. (3) Table: upstream nameservers with highest IPv6 failure rates. (4) Comparison chart: IPv4 vs IPv6 transport health over 7 days.",
+  "references": [
+    {
+      "title": "RFC 3901 — DNS IPv6 Transport Operational Guidelines",
+      "url": "https://www.rfc-editor.org/rfc/rfc3901"
+    },
+    {
+      "title": "RFC 7858 — Specification for DNS over Transport Layer Security (DoT)",
+      "url": "https://www.rfc-editor.org/rfc/rfc7858"
+    },
+    {
+      "title": "RFC 8484 — DNS Queries over HTTPS (DoH)",
+      "url": "https://www.rfc-editor.org/rfc/rfc8484"
+    }
+  ],
+  "knownFalsePositives": "**Authoritative server maintenance.** When an authoritative nameserver is temporarily offline, queries to it fail regardless of transport version. This is not an IPv6 transport issue but a server availability issue.\n\n**Network-specific IPv6 issues.** If the resolver's IPv6 upstream connectivity has a specific routing problem (e.g., a particular transit provider has IPv6 issues), only queries routed through that path will fail. This is a real problem but may not affect all IPv6 queries.\n\n**EDNS0 interaction.** Large DNS responses (>1280 bytes) over IPv6 UDP may fail if the path has an MTU constraint. The resolver should fall back to TCP, but if TCP is also blocked, the query fails. This is technically an MTU/firewall issue, not a transport issue.",
+  "equipment": [
+    "infoblox",
+    "bind",
+    "unbound",
+    "microsoft"
+  ],
+  "equipmentModels": [
+    "infoblox_nios",
+    "isc_bind",
+    "nlnetlabs_unbound",
+    "microsoft_dns"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• DNS resolver with upstream query logging that includes the transport address (IPv4 or IPv6) and outcome.\n• The resolver must be configured to use both IPv4 and IPv6 transport for upstream queries (dual-stack resolver).\n• Understanding of the resolver's upstream connectivity paths.\n\nStep 1 — Configure data collection\n\n**BIND — query logging with upstream transport:**\nBIND logs the upstream server address in its response log when `category resolver` is enabled:\n```\nlogging {\n  channel resolver_log {\n    syslog local3;\n    severity info;\n    print-time yes;\n  };\n  category resolver { resolver_log; };\n};\n```\nSample log: `resolver: query 'example.com/AAAA/IN' to 2001:500:2d::d#53 timed out`\n\n**Unbound — verbosity level 2+:**\n```\nserver:\n  verbosity: 2\n  log-queries: yes\n  log-replies: yes\n```\n\n**Verification:**\n```spl\nindex=network (sourcetype=\"named:querylog\" OR sourcetype=\"infoblox:dns\") (\"to\" OR \"sending\") (\"#53\" OR \"#853\") earliest=-24h\n| stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n\n**IPv6 vs IPv4 transport comparison:**\n```spl\nindex=network (sourcetype=\"named:querylog\" OR sourcetype=\"infoblox:dns\") (\"to\" AND (\"#53\" OR \"#853\")) earliest=-24h\n| rex field=_raw \"to\\s+(?<upstream_server>[0-9a-fA-F:.]+)#\"\n| eval transport=if(match(upstream_server, \":\"), \"IPv6\", \"IPv4\")\n| eval failed=if(match(_raw, \"(?i)timeout|SERVFAIL|refused|error\"), 1, 0)\n| stats count as queries sum(failed) as failures by transport\n| eval failure_rate_pct=round(failures / queries * 100, 2)\n```\n\n**IPv6 transport failure alert:**\n```spl\nindex=network (sourcetype=\"named:querylog\" OR sourcetype=\"infoblox:dns\") earliest=-1h\n| rex field=_raw \"to\\s+(?<upstream>[0-9a-fA-F:.]+)#\"\n| eval is_v6=if(match(upstream, \":\"), 1, 0)\n| eval is_fail=if(match(_raw, \"(?i)timeout|SERVFAIL\"), 1, 0)\n| stats sum(eval(is_v6 * is_fail)) as v6_failures sum(is_v6) as v6_total sum(eval((1-is_v6) * is_fail)) as v4_failures sum(eval(1-is_v6)) as v4_total\n| eval v6_rate=round(v6_failures / v6_total * 100, 2)\n| eval v4_rate=round(v4_failures / v4_total * 100, 2)\n| where v6_rate > v4_rate + 5\n| eval alert=\"IPv6 DNS transport failure rate (\" . v6_rate . \"%) significantly exceeds IPv4 (\" . v4_rate . \"%) — investigate IPv6 connectivity to upstream nameservers\"\n```\nTrigger: IPv6 failure rate more than 5 percentage points higher than IPv4.\n\nStep 3 — Validate\n(a) **Normal operation.** Verify that IPv6 and IPv4 failure rates are similar (within 1-2%).\n\n(b) **IPv6 transport block.** Temporarily block outbound IPv6 UDP/TCP port 53 at the firewall. Verify IPv6 failure rate spikes while IPv4 remains normal.\n\n(c) **IPv6-only authoritative test.** Query a domain with IPv6-only NS records. Verify the query is resolved over IPv6 transport.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — DNS Transport Health\"):\n• Row 1 — Dual gauge: IPv4 transport success rate vs IPv6 transport success rate.\n• Row 2 — Timechart: IPv6 upstream failures vs IPv4 upstream failures over 24 hours.\n• Row 3 — Table: upstream nameservers with highest IPv6 failure rates.\n\n**Scheduling:** Transport health comparison every 15 minutes. Alert on disparity continuous.\n\n**Runbook:**\n1. Elevated IPv6 DNS transport failures: check resolver IPv6 connectivity. Test: `dig +tcp @2001:500:2d::d example.com AAAA` (tests IPv6 transport to a root server).\n2. Specific nameserver failing: check if that nameserver's IPv6 address is reachable. Check for firewall rules blocking IPv6 port 53.\n3. All IPv6 transport failing: check resolver's IPv6 default route, IPv6 interface status, and upstream firewall rules.\n\nStep 5 — Troubleshooting\n\n• **BIND do-not-query-localhost** — BIND's `do-not-query-localhost` option may inadvertently block queries to ::1 if the resolver is also acting as an authoritative server on the same host.\n\n• **Source address selection** — The resolver's IPv6 source address for upstream queries depends on the routing table and source address selection algorithm (RFC 6724). If the selected source address is a temporary privacy address, some upstream servers may refuse queries from non-stable addresses.\n\n• **DNS flag day** — DNS Flag Day 2020 required support for EDNS0 buffer sizes of at least 1232 bytes over IPv6. Resolvers that do not support EDNS0 or that set buffer sizes below 1232 bytes may experience failures with IPv6 DNS transport.",
+  "grandmaExplanation": "Our phone book lookup service needs to call other phone book services around the world to find answers. It can call them using the old phone system (IPv4) or the new phone system (IPv6). We compare how often calls on each system fail. If the new phone system is dropping more calls than the old one, there's a problem with our new phone line to the outside world.",
+  "prerequisiteUseCases": [
+    "5.20.51"
+  ],
+  "wave": "run"
+}

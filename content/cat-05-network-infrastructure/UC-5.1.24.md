@@ -21,7 +21,7 @@ Last backup age tracking; stale backups risk config loss during failures.
 
 ## Value
 
-Last backup age tracking; stale backups risk config loss during failures.
+Operations teams monitor network device configuration backup freshness, identifying stale backups that risk data loss during device failure or RMA replacement.
 
 ## Implementation
 
@@ -30,67 +30,72 @@ Ingest backup job output from Oxidized, RANCID, or NCM. Parse success/failure an
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: Custom (Oxidized/RANCID output, SolarWinds NCM equivalent), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: Backup system logs (timestamps of last successful backup per device).
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Configuration backup freshness data. Data from network management tools (RANCID, Oxidized, Cisco DNA Center, SolarWinds NCM) or custom scripted inputs. Data in `index=network` or `index=cmdb`.
+* Configuration backup freshness: tracks when the last known-good backup was taken for each device. Stale backups mean that in case of device failure, the restored configuration may not match current production state.
 
-### Step 1 — Configure data collection
-Ingest backup job output from Oxidized, RANCID, or NCM. Parse success/failure and timestamp. Create lookup or index with device→last_backup mapping. Alert when last successful backup exceeds 24 hours. Schedule backup jobs daily; verify Splunk receives logs via scripted input or syslog.
+### Step 1 — - Configure data collection
+```
+# Scripted input to check backup timestamps
+# inputs.conf
+[script:///opt/splunk/etc/apps/network_mon/bin/backup_freshness.sh]
+interval = 86400
+sourcetype = network:backup:freshness
+index = network
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# backup_freshness.sh
+#!/bin/bash
+BACKUP_DIR="/var/backups/network"
+for f in "$BACKUP_DIR"/*.cfg; do
+    device=$(basename "$f" .cfg)
+    mod_epoch=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null)
+    echo "device=$device backup_file=$f last_backup_epoch=$mod_epoch"
+done
+```
+Verify:
 ```spl
-index=network sourcetype=config_backup OR sourcetype=oxidized OR sourcetype=rancid
-| stats latest(_time) as last_backup by host, device_hostname
-| eval age_hours=round((now()-last_backup)/3600,1)
-| where age_hours > 24 OR isnull(last_backup)
-| table device_hostname host last_backup age_hours
+index=network sourcetype="network:backup:freshness" earliest=-2d
+| stats count by device
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Network Device Configuration Backup Freshness** — Last backup age tracking; stale backups risk config loss during failures.
-
-Documented **Data sources**: Backup system logs (timestamps of last successful backup per device). **App/TA** (typical add-on context): Custom (Oxidized/RANCID output, SolarWinds NCM equivalent), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: network; **sourcetype**: config_backup, oxidized, rancid. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype=config_backup. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by host, device_hostname** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **age_hours** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where age_hours > 24 OR isnull(last_backup)` — typically the threshold or rule expression for this monitoring goal.
-- Pipeline stage (see **Network Device Configuration Backup Freshness**): table device_hostname host last_backup age_hours
-
-
-### Step 3 — Validate
-In your backup product or Git repo UI, find the last successful job for a device in the table and check its timestamp and size against the fields you ingest. Spot-check that devices in maintenance or RMA are in an expected exclude list if they always miss runs.
-
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (device, last backup, age), Single value (devices with stale backup), Gauge (hours since last backup).
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
+**Primary search -- Backup freshness monitoring:**
+```spl
+index=network sourcetype="network:backup:freshness" earliest=-2d
+| eval device=coalesce(device, hostname, host)
+| eval last_backup=tonumber(last_backup_epoch)
+| eval days_since=round((now() - last_backup)/86400, 1)
+| eval last_backup_time=strftime(last_backup, "%Y-%m-%d %H:%M:%S")
+| lookup network_devices.csv hostname AS device OUTPUT device_type, site, criticality
+| eval severity=case(
+    days_since > 30, "CRITICAL -- backup older than 30 days",
+    days_since > 14, "WARNING -- backup older than 14 days",
+    days_since > 7, "INFO -- backup older than 7 days",
+    1==1, "OK")
+| where severity != "OK"
+| table device, device_type, site, criticality, last_backup_time, days_since, severity
+| sort severity, -days_since
 ```
 
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
+### Step 3 — - Validate
+(a) Verify backup tool (RANCID/Oxidized) is running: check process/cron.
+(b) Attempt manual backup of a stale device: `copy running-config tftp://...`.
+(c) Verify backed-up config matches running-config.
 
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
+### Step 4 — - Operationalize
+Dashboard ("Network -- Backup Freshness"):
+* Row 1 -- Single-value: "Stale backups (>14d)", "Fresh backups (<7d)", "Never backed up".
+* Row 2 -- Backup freshness table sorted by staleness.
 
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
+Alert: Warning (critical device backup >14 days stale): take immediate backup.
+
+### Step 5 — - Troubleshooting
+
+* **Backup tool failing** -- Check RANCID/Oxidized logs. Common causes: SSH credential rotation, device unreachable, disk space full.
+
+* **New device not in backup schedule** -- Add to backup tool configuration. Ensure SSH/SNMP credentials are provisioned.
+
+* **Running-config differs from backup** -- Device was changed without triggering a backup. Enable RANCID/Oxidized to poll more frequently or trigger backup on config change (EEM script).
 
 ## SPL
 

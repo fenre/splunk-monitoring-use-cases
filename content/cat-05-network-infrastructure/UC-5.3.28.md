@@ -21,7 +21,7 @@ Citrix ADC multiplexes many client connections onto fewer server-side connection
 
 ## Value
 
-Citrix ADC multiplexes many client connections onto fewer server-side connections through reuse and keep-alive, improving efficiency on backends. A falling reuse rate with rising front-end TPS, paired with high tail latency, can signal pool saturation, keep-alive misconfiguration, or backend slowness. The goal is to connect traffic shape to latency before servers exhaust ephemeral ports or file descriptors.
+Application delivery teams monitor Citrix ADC TCP connection multiplexing ratios and server busy errors, ensuring efficient backend connection reuse and detecting multiplexing failures.
 
 ## Implementation
 
@@ -30,19 +30,56 @@ Populate `citrix:netscaler:perf` from NITRO with TCP and HTTP vserver service me
 ## Detailed Implementation
 
 ### Prerequisites
-- Metrics fields in `index=netscaler` from NITRO poll or HEC: connection reuse, keep-alive, TPS, response-time histograms.
-- Documented mapping from vserver to microservice SLOs.
+* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). NITRO API stats for TCP multiplexing. Key metrics: `server_busy_errors`, `tcp_connections_client`, `tcp_connections_server`, `surgecount`, `http_tot_requests`.
+* TCP multiplexing (connection reuse): Citrix ADC maintains persistent backend TCP connections and multiplexes multiple client requests over fewer server connections. This reduces backend connection overhead. When multiplexing breaks down (server busy errors), each client request needs its own backend connection, causing connection explosion.
 
-### Step 1 — Configure data collection
-Set poll interval 1–5 minutes; align system clock. Store raw counters and precompute deltas in scheduled search if needed (delta of new connections, etc.).
+### Step 1 — - Configure data collection
+Poll NITRO API: `GET /nitro/v1/stat/lbvserver` for per-vserver client/server connection counts. Verify:
+```spl
+index=netscaler sourcetype="citrix:netscaler:perf" earliest=-4h
+| where isnotnull(tcp_connections_client) OR isnotnull(tcp_connections_server)
+| eval ratio=round(tcp_connections_client/tcp_connections_server, 1)
+| stats avg(ratio) as avg_ratio by host
+```
 
-### Step 2 — Create the search and alert
-Adjust `coalesce` field list to your deployment. Use anomaly detection (predict or ML Toolkit) for optional adaptive thresholds on p95. Alert when reuse drops below baseline and p95 exceeds SLO for two consecutive windows.
+### Step 2 — - Create the search and alert
 
-### Step 3 — Validate
-Compare vservers, services, and load-balancing state in the Citrix ADC management view or command line for the same time window and objects.
-### Step 4 — Operationalize
-Hand off to platform owners with a recommendation tree: check pool size, check backend time, review TCP parameters on vserver and service group.
+**Primary search -- Multiplexing efficiency:**
+```spl
+index=netscaler sourcetype="citrix:netscaler:perf" earliest=-4h
+| eval client_conns=coalesce(tcp_connections_client, clientconnections)
+| eval server_conns=coalesce(tcp_connections_server, serverconnections)
+| eval server_busy=coalesce(server_busy_errors, svrbusy, 0)
+| eval vs=coalesce(vserver_name, vs_name)
+| bin _time span=5m
+| stats avg(client_conns) as avg_client avg(server_conns) as avg_server sum(server_busy) as total_busy by _time, host, vs
+| eval mux_ratio=if(avg_server > 0, round(avg_client/avg_server, 1), null())
+| eval status=case(total_busy > 0, "SERVER_BUSY -- multiplexing failing", isnotnull(mux_ratio) AND mux_ratio < 2, "LOW_MUX -- poor connection reuse", isnotnull(mux_ratio) AND mux_ratio > 50, "HIGH_MUX -- excellent reuse", 1==1, "OK")
+| where status != "OK" AND NOT match(status, "HIGH_MUX")
+| sort status, -total_busy
+```
+
+### Step 3 — - Validate
+(a) On ADC CLI: `stat lb vserver <vs>` -- check client connections, server connections, and server busy errors.
+(b) Calculate expected ratio: HTTP/1.1 with keep-alive should show 5-20x multiplexing. HTTP/2 even higher.
+(c) If server_busy > 0, the backend is rejecting connections.
+
+### Step 4 — - Operationalize
+Dashboard ("Citrix ADC -- Connection Multiplexing"):
+* Row 1 -- Single-value: "Avg mux ratio", "Server busy errors", "Client conns", "Server conns".
+* Row 2 -- Per-vserver multiplexing analysis.
+
+Alerting:
+* Warning (server busy errors > 0): backend connection limit hit.
+* Info (mux ratio < 2): connection reuse not effective.
+
+### Step 5 — - Troubleshooting
+
+* **Server busy errors** -- Backend can't accept more connections. Check: (1) backend `max-connections` setting, (2) backend server ulimit / connection limit, (3) TIME_WAIT connections consuming backend ports.
+
+* **Low multiplexing ratio** -- Check: (1) backend HTTP profile allows keep-alive, (2) ADC service has `maxReq` set too low, (3) backend returning `Connection: close` headers.
+
+* **Improving multiplexing** -- Enable HTTP/2 on the ADC frontend profile. Configure backend keep-alive timeout to match expected inter-request intervals.
 
 ## SPL
 

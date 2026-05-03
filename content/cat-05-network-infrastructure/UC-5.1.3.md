@@ -21,7 +21,7 @@ Saturated links cause drops and congestion. Trending enables proactive upgrades.
 
 ## Value
 
-Saturated links cause drops and congestion. Trending enables proactive upgrades.
+Network engineers monitor interface utilization percentage across routers and switches, identifying bandwidth saturation and trending capacity for proactive planning.
 
 ## Implementation
 
@@ -30,45 +30,81 @@ Poll 64-bit counters every 300s. Alert at 80% sustained. Use `predict` for capac
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP Modular Input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: SNMP IF-MIB (ifHCInOctets, ifHCOutOctets, ifSpeed).
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* SNMP polling data with interface utilization counters. Data in `index=network` with `sourcetype=snmp:interface` or SNMP MIB data. Key fields: `ifHCInOctets`, `ifHCOutOctets`, `ifSpeed`, `ifName`, `host`.
+* Interface utilization: percentage of available bandwidth consumed in each direction. Calculated from delta of octet counters divided by polling interval and interface speed. High utilization causes packet loss and latency; sustained >80% typically requires capacity planning.
 
-### Step 1 — Configure data collection
-Poll 64-bit counters every 300s. Alert at 80% sustained. Use `predict` for capacity planning.
+### Step 1 — - Configure data collection
+```
+# SNMP polling via SC4SNMP or Splunk Add-on for SNMP
+# Poll IF-MIB HC counters every 5 minutes:
+# ifHCInOctets (.1.3.6.1.2.1.31.1.1.1.6) -- 64-bit counters
+# ifHCOutOctets (.1.3.6.1.2.1.31.1.1.1.10)
+# ifSpeed (.1.3.6.1.2.1.2.2.1.5) or ifHighSpeed (.1.3.6.1.2.1.31.1.1.1.15)
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+[snmp_interface_util]
+interval = 300
+sourcetype = snmp:interface
+index = network
+```
+Verify:
 ```spl
-index=network sourcetype="snmp:interface"
-| streamstats current=f last(ifHCInOctets) as prev_in, last(_time) as prev_time by host, ifDescr
-| eval in_bps=((ifHCInOctets-prev_in)*8)/(_time-prev_time)
-| eval util_pct=round(in_bps/ifSpeed*100,1) | where util_pct>80
+index=network sourcetype="snmp:interface" earliest=-1h
+| stats latest(ifHCInOctets) latest(ifHCOutOctets) latest(ifSpeed) by host, ifName
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Interface Utilization** — Saturated links cause drops and congestion. Trending enables proactive upgrades.
+**Primary search -- Interface utilization monitoring:**
+```spl
+index=network earliest=-4h
+| eval in_octets=tonumber(coalesce(ifHCInOctets, ifInOctets))
+| eval out_octets=tonumber(coalesce(ifHCOutOctets, ifOutOctets))
+| eval speed_bps=tonumber(coalesce(ifHighSpeed, ifSpeed))*if(isnotnull(ifHighSpeed), 1000000, 1)
+| eval interface=coalesce(ifName, interface, port)
+| eval device=coalesce(host, device_name)
+| bin _time span=5m
+| stats latest(in_octets) as in_oct latest(out_octets) as out_oct latest(speed_bps) as speed by _time, device, interface
+| sort device, interface, _time
+| streamstats current=f last(in_oct) as prev_in last(out_oct) as prev_out last(_time) as prev_time by device, interface
+| eval interval_sec=_time - prev_time
+| where interval_sec > 0 AND isnotnull(prev_in)
+| eval in_bps=round(8*(in_oct - prev_in)/interval_sec, 0)
+| eval out_bps=round(8*(out_oct - prev_out)/interval_sec, 0)
+| eval in_util_pct=if(speed > 0, round(100*in_bps/speed, 1), 0)
+| eval out_util_pct=if(speed > 0, round(100*out_bps/speed, 1), 0)
+| eval max_util=max(in_util_pct, out_util_pct)
+| eval in_mbps=round(in_bps/1000000, 1)
+| eval out_mbps=round(out_bps/1000000, 1)
+| eval severity=case(
+    max_util > 90, "CRITICAL -- interface near saturation (".max_util."%)",
+    max_util > 80, "WARNING -- high utilization (".max_util."%)",
+    max_util > 70, "INFO -- elevated utilization",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, device, interface, in_mbps, out_mbps, in_util_pct, out_util_pct, severity
+| sort severity, -max_util
+```
 
-Documented **Data sources**: SNMP IF-MIB (ifHCInOctets, ifHCOutOctets, ifSpeed). **App/TA** (typical add-on context): SNMP Modular Input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show interface <intf>` -- check 5-minute input/output rate.
+(b) Cross-reference with application traffic (NetFlow/sFlow) to identify top talkers.
+(c) Verify interface speed is correctly reported (no speed/duplex mismatch).
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:interface. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+### Step 4 — - Operationalize
+Dashboard ("Network -- Interface Utilization"):
+* Row 1 -- Single-value: "Interfaces > 80%", "Peak utilization", "Avg utilization".
+* Row 2 -- Utilization timechart (top interfaces by peak).
+* Row 3 -- High-utilization interface table.
 
-**Pipeline walkthrough**
+Alert: Warning (sustained >80% for 30+ min): capacity planning trigger.
 
-- Scopes the data: index=network, sourcetype="snmp:interface". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `streamstats` rolls up events into metrics; results are split **by host, ifDescr** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **in_bps** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `eval` defines or adjusts **util_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where util_pct>80` — typically the threshold or rule expression for this monitoring goal.
+### Step 5 — - Troubleshooting
 
+* **Counter wrap** -- 32-bit counters (ifInOctets) wrap on high-speed interfaces. Always use 64-bit HC counters (ifHCInOctets). If negative delta detected, discard that sample.
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Sustained high utilization** -- Identify top talkers via NetFlow/sFlow. Consider: QoS traffic shaping, link aggregation, or capacity upgrade.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart, Gauge per critical link, Table sorted by utilization.
+* **Utilization spikes at specific times** -- Correlate with backup schedules, patch distribution, or business activity patterns. Schedule bandwidth-heavy operations during off-peak.
 
 ## SPL
 

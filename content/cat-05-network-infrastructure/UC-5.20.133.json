@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.133",
+  "title": "IPv6 Anycast Service Health and Routing Consistency",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": ["Availability", "Performance"],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=netflow` — Monitors IPv6 anycast service health by tracking which anycast instance clients reach, detecting routing instability causing flapping between instances, and verifying consistent service responses. IPv6 anycast is commonly used for DNS (root servers, resolvers), CDN, and DDoS mitigation services.",
+  "app": "Splunk Enterprise",
+  "spl": "index=network sourcetype=\"netflow\" earliest=-4h\n| eval is_anycast=if(match(dest, \"^2001:4860:4860::(8888|8844)$\") OR match(dest, \"^2606:4700:4700::(1111|1001)$\") OR match(dest, \"^2620:119:35::35$\"), 1, 0)\n| where is_anycast=1\n| stats dc(next_hop) as anycast_instances count as flows by dest\n| eval status=case(\n    anycast_instances > 3, \"WARNING — \" . anycast_instances . \" different anycast instances seen — possible routing instability\",\n    anycast_instances > 1, \"OK — \" . anycast_instances . \" anycast instances (normal for multi-homed)\",\n    1=1, \"OK — stable single instance\")\n| table dest, anycast_instances, flows, status",
+  "description": "Monitors IPv6 anycast service health and routing consistency. Tracks which anycast instances clients are reaching, detects routing instability causing flapping between instances, and verifies consistent service behavior. Essential for DNS resolvers, CDN endpoints, and other anycast-dependent services.",
+  "value": "Anycast is fundamental to IPv6 service delivery (DNS root servers, CDN, DDoS mitigation). Routing instability can cause clients to rapidly switch between anycast instances, potentially causing cache misses (DNS), session resets (TCP), and inconsistent responses. Monitoring anycast routing stability ensures optimal service delivery.",
+  "implementation": "Track next-hop diversity for known anycast destinations. Monitor for rapid anycast instance changes.",
+  "visualization": "(1) Table: anycast destinations with instance count. (2) Timeline: instance changes. (3) Latency to anycast services.",
+  "references": [
+    {"title": "RFC 4786 — Operation of Anycast Services", "url": "https://www.rfc-editor.org/rfc/rfc4786"},
+    {"title": "RFC 7094 — Architectural Considerations of IP Anycast", "url": "https://www.rfc-editor.org/rfc/rfc7094"}
+  ],
+  "knownFalsePositives": "**Multi-path routing.** ECMP may distribute flows across different anycast instances. This is normal for load-balanced anycast.\n\n**BGP convergence.** During BGP convergence after a topology change, temporary anycast instance changes are expected.",
+  "equipment": ["cisco", "juniper"],
+  "equipmentModels": ["cisco_catalyst_9000", "juniper_mx"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• NetFlow/IPFIX with next-hop information.\n• List of known anycast IPv6 addresses.\n\nStep 1 — Create anycast address lookup.\nStep 2 — Monitor next-hop diversity for anycast destinations.\nStep 3 — Validate: Verify DNS queries to anycast resolvers return consistent results.\nStep 4 — Operationalize: Dashboard and alerting for anycast routing instability.\nStep 5 — Troubleshooting: Excessive instance changes indicate BGP instability on the anycast prefix path.",
+  "grandmaExplanation": "Some important services (like the phone book for the internet) have copies in many cities. Your computer automatically goes to the nearest copy. We make sure your computer consistently reaches the same copy and doesn't keep switching between cities, which would slow things down.",
+  "prerequisiteUseCases": ["5.20.44", "5.20.110"],
+  "wave": "run"
+}

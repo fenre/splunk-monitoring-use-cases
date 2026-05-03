@@ -21,7 +21,7 @@ Identifies recurring authentication failures and SSID configuration issues that 
 
 ## Value
 
-Identifies recurring authentication failures and SSID configuration issues that prevent users from connecting to wireless networks.
+Network operations teams classify Meraki MR wireless client association failures by root cause (credentials, RADIUS, capacity, timeouts) to distinguish infrastructure issues from user errors and prioritize remediation.
 
 ## Implementation
 
@@ -30,42 +30,64 @@ Monitor syslog events from Meraki MR access points for failed association attemp
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=security_event`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Cisco Meraki Add-on for Splunk (Splunkbase 5580) collecting wireless events via API and/or Meraki syslog. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki`. Key fields: `type` (association/disassociation), `client_mac`, `ssid`, `ap_name`/`deviceName`, `reason` (802.11 reason code), `rssi`.
+- Meraki MR events include: client association events (successful join), disassociation events (with IEEE 802.11 reason codes), DHCP events, and splash page events. The reason code field is key for troubleshooting: code 1 = "unspecified", code 4 = "disassociated due to inactivity", code 8 = "STA left BSS" (roaming).
 
 ### Step 1 — Configure data collection
-Monitor syslog events from Meraki MR access points for failed association attempts. Correlate with SSID configuration and 802.1X radius responses.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify Meraki wireless event data:
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*Association*" OR signature="*authentication*" status="failure"
-| stats count by ap_name, client_mac, reason, signature
-| sort -count
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki") earliest=-4h
+| where match(type, "(?i)(assoc|disassoc|deauth)")
+| stats count by type, ssid
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Wireless Client Association Failures (Meraki MR)** — Identifies recurring authentication failures and SSID configuration issues that prevent users from connecting to wireless networks.
+**Primary search — Association failure analysis:**
+```spl
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki") earliest=-4h
+| where match(type, "(?i)(disassoc|deauth|fail)")
+| eval failure_type=case(match(reason, "(?i)(wrong.*password|psk|key)"), "WRONG_PASSWORD", match(reason, "(?i)(radius|eap|802\.1x)"), "RADIUS_FAILURE", match(reason, "(?i)(timeout|no.response)"), "TIMEOUT", match(reason, "(?i)(capacity|full)"), "AP_FULL", match(reason, "(?i)(roam|left.bss)"), "ROAMING", match(reason, "(?i)(inactiv|idle)"), "INACTIVITY", 1==1, "OTHER")
+| eval ap_id=coalesce(ap_name, deviceName, name)
+| lookup meraki_networks.csv network OUTPUT site_name
+| stats count as failures dc(client_mac) as affected_clients by ssid, failure_type, site_name
+| eval severity=case(failure_type="RADIUS_FAILURE" AND failures > 50, "CRITICAL", failures > 100, "HIGH", failures > 20, "MEDIUM", 1==1, "LOW")
+| sort severity, -failures
+```
 
-Documented **Data sources**: `sourcetype=meraki type=security_event`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by ap_name, client_mac, reason, signature** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+**Per-AP failure concentration:**
+```spl
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki") earliest=-4h
+| where match(type, "(?i)(disassoc|deauth|fail)") AND NOT match(reason, "(?i)(roam|left|inactiv)")
+| eval ap_id=coalesce(ap_name, deviceName)
+| stats count as failures dc(client_mac) as clients by ap_id, ssid
+| where failures > 10
+| sort -failures
+```
 
 ### Step 3 — Validate
-Open the Cisco Meraki Dashboard (organization or network scope, under Monitor as appropriate) and compare AP, client, security, or flow totals to the search for the same window. Spot-check a few device names, SSIDs, or MAC addresses against what you see live.
+(a) Connect a client with wrong PSK and verify the failure appears with "WRONG_PASSWORD" classification.
+(b) Compare failure counts with Meraki Dashboard: Wireless > Monitor > Clients (filter by failed associations).
+(c) Verify that normal roaming events are correctly classified as "ROAMING" and excluded from failure analysis.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table with top APs/clients by failure count; time-series chart of failures over time by AP.
+Dashboard ("Meraki — Wireless Associations"):
+- Row 1 — Single-value tiles: "Association failures (4h)", "RADIUS failures", "Affected clients", "Worst AP".
+- Row 2 — Failure breakdown: SSID, type, site, failures, affected clients.
+- Row 3 — Per-AP failure concentration.
+
+Alerting:
+- Critical (RADIUS failures > 50 in 15 min): RADIUS server issue.
+- High (> 100 failures on single SSID): systemic issue.
+- Warning (AP with > 20 non-roaming failures): investigate AP health.
+
+### Step 5 — Troubleshooting
+
+- **High failure count but all "ROAMING"** — These are normal 802.11 disassociation events during roaming. Filter them from failure analysis.
+
+- **"OTHER" failures dominating** — The reason codes may not match the regex patterns. Check raw events for actual reason text and add patterns.
+
+- **Meraki syslog not showing wireless events** — In Meraki Dashboard: Network > General > Reporting > Syslog servers. Enable "Wireless event log" in the roles.
 
 ## SPL
 

@@ -21,7 +21,7 @@ Provides high-level network health metric for executive dashboards and trend rep
 
 ## Value
 
-Provides high-level network health metric for executive dashboards and trend reporting.
+Network operations teams generate composite network health scores across all Meraki sites for executive reporting, combining device availability and security posture into a single, actionable metric per site.
 
 ## Implementation
 
@@ -30,44 +30,79 @@ Aggregate device health scores. Calculate composite network score.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki:api`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Meraki Dashboard API providing device status, network health, and performance metrics via Splunk_TA_cisco_meraki. Data in `index=meraki` with sourcetypes: `meraki:api:devices` (device status), `meraki:api:networks` (network info), `meraki:events` (event log).
+- A network health score aggregates multiple signals: device availability, client connectivity rates, WAN uplink status, wireless air quality, and security event levels. This is a composite score calculated in Splunk from available Meraki data.
 
 ### Step 1 — Configure data collection
-Aggregate device health scores. Calculate composite network score.
+Verify multi-signal data availability:
+```spl
+index=meraki earliest=-1h
+| stats count by sourcetype
+```
+You should see events from device, network, and event sourcetypes.
 
 ### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
+**Primary search — Composite network health score:**
 ```spl
-index=cisco_network sourcetype="meraki:api"
-| stats avg(health_score) as device_health, count(eval(status="offline")) as offline_count by network_id
-| eval network_health=round(device_health - (offline_count*5), 2)
-| eval health_status=case(network_health >= 85, "Healthy", network_health >= 70, "Degraded", 1=1, "Critical")
+index=meraki sourcetype="meraki:api:devices" earliest=-15m
+| dedup serial sortby -_time
+| eval is_online=if(status="online", 1, 0)
+| stats count as total_devices sum(is_online) as online_devices by network
+| eval device_health=round(100*online_devices/total_devices, 1)
+| join type=left network [search index=meraki sourcetype="meraki:events" earliest=-1h | where match(_raw, "(?i)(security|threat|intrusion|malware)") | stats count as security_events by network]
+| eval security_events=coalesce(security_events, 0)
+| eval security_score=case(security_events > 50, 50, security_events > 10, 75, security_events > 0, 90, 1==1, 100)
+| eval composite_health=round((device_health * 0.6) + (security_score * 0.4), 1)
+| lookup meraki_networks.csv network OUTPUT site_name tier
+| eval health_rating=case(composite_health > 90, "Excellent", composite_health > 75, "Good", composite_health > 60, "Fair", 1==1, "Poor")
+| sort composite_health
 ```
 
-#### Understanding this SPL
+#### Understanding this SPL: Executive reporting requires a single number per site/network. The composite health score weights device availability (60%) and security posture (40%). A site with all devices online but many security events scores lower than a site with one offline device and no security events — this reflects the reality that security incidents can be more impactful than a single device failure.
 
-**Network Health Score Aggregation and Executive Reporting (Meraki)** — Provides high-level network health metric for executive dashboards and trend reporting.
+**Executive summary dashboard data:**
+```spl
+index=meraki sourcetype="meraki:api:devices" earliest=-15m
+| dedup serial sortby -_time
+| eval device_type=case(match(model, "^MX"), "Security", match(model, "^MR"), "Wireless", match(model, "^MS"), "Switching", 1==1, "Other")
+| stats count as total count(eval(status="online")) as online by device_type
+| eval health_pct=round(100*online/total, 1)
+```
 
-Documented **Data sources**: `sourcetype=meraki:api`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki:api. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by network_id** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **network_health** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `eval` defines or adjusts **health_status** — often to normalize units, derive a ratio, or prepare for thresholds.
-
+**Weekly health trend:**
+```spl
+index=meraki sourcetype="meraki:api:devices" earliest=-30d
+| bin _time span=1d
+| eval is_online=if(status="online", 1, 0)
+| stats count as total sum(is_online) as online by _time
+| eval daily_health=round(100*online/total, 1)
+| timechart span=1d avg(daily_health) as "Network Health %"
+```
 
 ### Step 3 — Validate
-In Meraki Dashboard, open the same organization or network, compare the metric (status, event feed, or admin log) to the Splunk result, and confirm the TA’s API key, org ID, and optional syslog reach the same index and sourcetype you used in the search.
+(a) Compare device availability percentages with Meraki Dashboard: Organization > Overview.
+(b) Verify the composite score reflects actual network state: take down a device and confirm the score decreases appropriately.
+(c) Review the weighting factors (60% device, 40% security) with stakeholders — adjust based on organizational priorities.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Network health gauge; health trend sparkline; status KPI dashboard.
+Dashboard ("Meraki Executive Summary"):
+- Row 1 — Single-value: "Overall Network Health Score" (large, colored by rating).
+- Row 2 — Health score by network/site: table with site, health score, rating, device health, security score.
+- Row 3 — Device availability by type: security, wireless, switching.
+- Row 4 — 30-day health trend line.
+
+Alerting:
+- Weekly (scheduled report): executive health summary emailed to leadership.
+- Warning (any network health score < 60): attention needed for that site.
+
+### Step 5 — Troubleshooting
+
+- **Health score seems too low** — Check the security event component. A spike in benign security events (e.g., content filtering blocks) can drag down the score. Adjust the security weighting or filter out informational security events.
+
+- **Health score 100% but users report issues** — Device online/offline is a coarse metric. A device can be "online" but performing poorly. For more granularity, add client connection success rate and latency metrics to the composite score.
+
+- **Missing networks** — Some networks may not have any devices (staging networks). Filter out empty networks from the report.
 
 ## SPL
 

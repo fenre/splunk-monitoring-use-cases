@@ -21,7 +21,7 @@ MAC flapping indicates loops, misconfigurations, or layer-2 attacks.
 
 ## Value
 
-MAC flapping indicates loops, misconfigurations, or layer-2 attacks.
+Security and operations teams detect ARP/MAC table anomalies including MAC flapping, duplicate IPs, and ARP conflicts that indicate network loops, misconfigurations, or security attacks.
 
 ## Implementation
 
@@ -30,43 +30,72 @@ Forward syslog. Alert on MACFLAP events. Investigate the MAC to find the device.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=cisco:ios`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* ARP and MAC table data from SNMP polling or syslog. Data in `index=network` with SNMP MIB data or syslog. Key SNMP OIDs: ipNetToMediaPhysAddress (ARP), dot1dTpFdbAddress (MAC table). Key syslog: `%IP-4-DUPADDR`, `%SW_MATM-4-MACFLAP_NOTIF`.
+* ARP anomalies: duplicate IP addresses, ARP storms, ARP poisoning. MAC anomalies: MAC flapping (same MAC seen on multiple ports), MAC table overflow, rogue MAC addresses. These indicate misconfigurations, loops, or security attacks.
 
-### Step 1 — Configure data collection
-Forward syslog. Alert on MACFLAP events. Investigate the MAC to find the device.
+### Step 1 — - Configure data collection
+```
+# Cisco IOS -- MAC flap notifications are logged by default
+# Key syslog: %SW_MATM-4-MACFLAP_NOTIF
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# SNMP: poll ARP and MAC tables periodically
+[snmp_mac_table]
+interval = 300
+sourcetype = snmp:mac:table
+index = network
+```
+Verify:
 ```spl
-index=network sourcetype="cisco:ios" "%SW_MATM-4-MACFLAP_NOTIF"
-| rex "(?<mac>[0-9a-fA-F]{4}\.[0-9a-fA-F]{4}\.[0-9a-fA-F]{4})"
-| stats count by host, mac | sort -count
+index=network earliest=-24h
+| where match(_raw, "(?i)MACFLAP|DUPADDR|arp.*conflict|mac.*flap|mac.*move|duplicate.*ip")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**ARP/MAC Table Anomalies** — MAC flapping indicates loops, misconfigurations, or layer-2 attacks.
+**Primary search -- ARP/MAC anomaly detection:**
+```spl
+index=network earliest=-4h
+| where match(_raw, "(?i)MACFLAP|DUPADDR|arp.*conflict|mac.*flap|mac.*move|duplicate.*ip|gratuitous.*arp")
+| rex field=_raw "(?i)(?:mac|MAC|address)\s+(?<mac_addr>[0-9a-fA-F]{4}\.[0-9a-fA-F]{4}\.[0-9a-fA-F]{4})"
+| rex field=_raw "(?i)(?:from|port)\s+(?<from_port>\S+)\s+(?:to|port)\s+(?<to_port>\S+)"
+| rex field=_raw "(?i)VLAN\s*(?<vlan_id>\d+)"
+| eval device=coalesce(host, device_name)
+| eval anomaly_type=case(
+    match(_raw, "(?i)MACFLAP|mac.*flap|mac.*move"), "MAC_FLAP",
+    match(_raw, "(?i)DUPADDR|duplicate.*ip"), "DUPLICATE_IP",
+    match(_raw, "(?i)arp.*conflict|gratuitous.*arp"), "ARP_CONFLICT",
+    1==1, "ARP_MAC_ANOMALY")
+| bin _time span=5m
+| stats count as events dc(mac_addr) as unique_macs values(mac_addr) as macs values(vlan_id) as vlans by _time, device, anomaly_type
+| eval severity=case(
+    anomaly_type="MAC_FLAP" AND events > 50, "CRITICAL -- severe MAC flapping (possible loop)",
+    anomaly_type="DUPLICATE_IP", "WARNING -- duplicate IP address detected",
+    events > 20, "WARNING -- excessive ".anomaly_type." events",
+    1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -events
+```
 
-Documented **Data sources**: `sourcetype=cisco:ios`. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show mac address-table count` -- check table utilization.
+(b) CLI: `show ip arp` -- verify ARP table for duplicates.
+(c) CLI: `show mac address-table notifications mac-move` -- check MAC move history.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- ARP/MAC Anomalies"):
+* Row 1 -- Single-value: "MAC flaps (4h)", "Duplicate IPs", "Anomaly events".
+* Row 2 -- ARP/MAC anomaly timeline.
 
-**Pipeline walkthrough**
+Alert: Critical (>50 MAC flaps/5min): possible network loop.
 
-- Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- `stats` rolls up events into metrics; results are split **by host, mac** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **MAC flapping** -- Same MAC seen on multiple ports indicates loop or dual-homed device without proper link aggregation. Check STP convergence (UC-5.1.6). Identify the physical device behind the MAC.
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Duplicate IP address** -- Two devices configured with the same IP. Use ARP entry to identify MAC addresses of both devices, then trace to physical ports. Resolve IP conflict.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Timeline, Bar chart.
+* **ARP storm** -- Excessive ARP broadcasts. May indicate scanning or worm. Check source MAC/IP and apply port security or DHCP snooping with DAI (Dynamic ARP Inspection).
 
 ## SPL
 

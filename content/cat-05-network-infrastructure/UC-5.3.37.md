@@ -21,7 +21,7 @@ Pooled licensing ties multiple instances to a shared consumption meter (vCPUs, t
 
 ## Value
 
-Pooled licensing ties multiple instances to a shared consumption meter (vCPUs, throughput, or other entitlements on supported platforms). Approaching the pool cap or entering grace or violation states risks forced throttling, feature loss, or audit findings where license position must be provable. Monitoring utilization versus entitlement is both a capacity and a compliance control.
+Infrastructure teams monitor Citrix ADC pooled license bandwidth utilization and expiry dates, preventing instance provisioning failures from pool exhaustion and license lapses.
 
 ## Implementation
 
@@ -29,7 +29,56 @@ Ingest NITRO license and pooled-capacity output via TA scripted input into `citr
 
 ## Detailed Implementation
 
-Prerequisites: Stable access to the license service or NITRO; pool_name labels aligned to procurement. Step 1: Configure data collection — Schedule citrix:netscaler:perf poll hourly or every 15 minutes; capture syslog for grace/violation; props EXTRACT for license_pool_use_pct, allocated_vcpus, throughput_mbps. Step 2: Create the search and alert — Open capacity ticket at 80% pool use, page at 90%, sev-1 for grace or implied denial; join asset lookup adcpool_owners.csv for routing. Step 3: Validate — `index=netscaler (sourcetype="citrix:netscaler:perf" OR sourcetype="citrix:netscaler:syslog") (pool OR license) earliest=-2h | stats max(pool_pct) by pool_name, host` and reconcile to Citrix license portal or CLI. Step 4: Operationalize — Monthly CSV/scheduled report to procurement and finance; if grace repeats or counters stall, escalate to Citrix licensing administrators; alert threshold tuning: start at 80/90% and document baseline delta weekly.
+### Prerequisites
+* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). Citrix ADC pooled licensing data from Citrix ADM or NITRO stats. Key fields: `license_type`, `allocated_bandwidth`, `used_bandwidth`, `available_bandwidth`, `instance_count`, `expiry_date`.
+* Citrix Pooled Licensing: instead of per-appliance licenses, bandwidth is allocated from a central pool in Citrix ADM. Instances check out bandwidth on startup. If the pool is exhausted, new instances can't start or existing instances may lose bandwidth.
+
+### Step 1 — - Configure data collection
+Citrix ADM manages the license pool. Poll ADM API or collect ADM syslog. Verify:
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:perf") ("license" OR "bandwidth" OR "pool" OR "expir") earliest=-7d
+| where match(_raw, "(?i)(license|bandwidth|pool|allocat)")
+| stats count by host
+```
+
+### Step 2 — - Create the search and alert
+
+**Primary search -- License pool utilization:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:perf") ("license" OR "bandwidth pool" OR "pooled") earliest=-4h
+| eval total_bw=coalesce(allocated_bandwidth, total_pool_bandwidth)
+| eval used_bw=coalesce(used_bandwidth, consumed_bandwidth)
+| eval available=coalesce(available_bandwidth, remaining_bandwidth)
+| eval instances=coalesce(instance_count, licensed_instances)
+| eval expiry=coalesce(expiry_date, license_expiry)
+| stats latest(total_bw) as total latest(used_bw) as used latest(available) as available latest(instances) as instances latest(expiry) as expiry by host
+| eval utilization_pct=if(total > 0, round(100*used/total, 1), null())
+| eval days_to_expiry=if(isnotnull(expiry), round((strptime(expiry, "%Y-%m-%d") - now()) / 86400, 0), null())
+| eval status=case(utilization_pct > 90, "CRITICAL -- pool nearly exhausted", utilization_pct > 75, "WARNING -- high utilization", days_to_expiry < 30 AND isnotnull(days_to_expiry), "WARNING -- license expiring soon", 1==1, "OK")
+| where status != "OK"
+```
+
+### Step 3 — - Validate
+(a) Check Citrix ADM: Infrastructure > Pooled Licensing -- compare utilization.
+(b) Verify each instance's allocated bandwidth: ADM > Infrastructure > Instances.
+(c) Check license expiry dates.
+
+### Step 4 — - Operationalize
+Dashboard ("Citrix ADC -- License Pool"):
+* Row 1 -- Single-value: "Pool utilization %", "Total bandwidth (Gbps)", "Available (Gbps)", "Instances", "Days to expiry".
+* Row 2 -- License status with expiry alerts.
+
+Alerting:
+* Critical (pool utilization > 90%): cannot provision new instances.
+* Warning (license expiring < 30 days): renewal needed.
+
+### Step 5 — - Troubleshooting
+
+* **Pool exhausted** -- Instances may have checked out more bandwidth than needed. Review per-instance allocation in ADM and reduce over-provisioned instances.
+
+* **Instance can't start** -- Insufficient pool bandwidth. Either free bandwidth from another instance or purchase additional pool capacity.
+
+* **License expired** -- Grace period typically applies. Contact Citrix for renewal. Instances will continue running but may lose features.
 
 ## SPL
 

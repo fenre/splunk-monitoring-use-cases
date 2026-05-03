@@ -21,7 +21,7 @@ Monitors primary/secondary uplink status to detect failover events and connectio
 
 ## Value
 
-Monitors primary/secondary uplink status to detect failover events and connection issues.
+NOC teams monitor Meraki MS uplink health and failover events, detecting uplink failures that disconnect all downstream devices and trigger failover to redundant paths.
 
 ## Implementation
 
@@ -30,42 +30,65 @@ Monitor uplink status change events in syslog. Alert on failover.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=security_event signature="*Uplink*" OR signature="*failover*"`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MS uplink health and failover events. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki:api:switch:portstatus`. Key events: uplink port status changes, uplink failover (for switches with dual uplinks or stacked switches).
+* Meraki MS uplinks: connection from access/distribution switch to upstream network. Uplink failure disconnects all downstream devices. Stacked switches may have multiple uplinks with failover capability.
 
-### Step 1 — Configure data collection
-Monitor uplink status change events in syslog. Alert on failover.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Syslog: enable Event log
+# API: GET /devices/{serial}/switch/ports/statuses
+# Filter for uplink ports
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*Uplink*" OR signature="*failover*")
-| stats count as failover_count by uplink_name, event_type
-| where failover_count > 0
+index=meraki sourcetype="meraki:events" earliest=-7d
+| where match(_raw, "(?i)uplink.*down|uplink.*up|uplink.*fail|uplink.*change")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Uplink Health and Failover Events (Meraki MS)** — Monitors primary/secondary uplink status to detect failover events and connection issues.
+**Primary search -- Uplink health and failover:**
+```spl
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:switch:portstatus") earliest=-7d
+| where match(_raw, "(?i)uplink") OR (isnotnull(isUplink) AND isUplink="true")
+| eval device=coalesce(serial, host)
+| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
+| eval port=coalesce(portId, port_id)
+| eval status=case(
+    match(_raw, "(?i)down|fail|disconnect|offline"), "DOWN",
+    match(_raw, "(?i)up|active|connected|online"), "UP",
+    match(status, "(?i)connected"), "UP",
+    1==1, "CHANGE")
+| sort device, port, _time
+| stats count as events count(eval(status="DOWN")) as downs count(eval(status="UP")) as ups latest(status) as current by device, network_name, port
+| eval severity=case(
+    current="DOWN", "CRITICAL -- uplink DOWN (".network_name.")",
+    downs > 3, "WARNING -- uplink flapping",
+    1==1, "OK")
+| where severity != "OK"
+| sort severity
+```
 
-Documented **Data sources**: `sourcetype=meraki type=security_event signature="*Uplink*" OR signature="*failover*"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Switch > Overview -- check uplink status.
+(b) Dashboard: Switch > Switch ports -- check uplink port details.
+(c) Verify upstream device port status.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MS -- Uplink Health"):
+* Row 1 -- Single-value: "Uplinks DOWN", "Uplink failover events".
+* Row 2 -- Uplink status timeline.
 
-**Pipeline walkthrough**
+Alert: Critical (uplink DOWN): all downstream devices lose connectivity.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by uplink_name, event_type** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where failover_count > 0` — typically the threshold or rule expression for this monitoring goal.
+### Step 5 — - Troubleshooting
 
+* **Uplink DOWN** -- Check: (1) upstream switch port status, (2) cable/SFP, (3) VLAN trunk configuration, (4) spanning tree blocking.
 
-### Step 3 — Validate
-In the Meraki dashboard, select the same organization, site, and UTC window as the Splunk search. Open Network-wide event log or the device event log and confirm a sample event count and field (for example `event_type` or `carrier_name`) matches what you see in Splunk.
+* **Uplink flapping** -- Check cable quality, SFP module, and upstream port. Run cable test.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Uplink status dashboard; failover event timeline; connection health gauge.
+* **No redundant uplink** -- Single point of failure. Consider: stacking with dual uplinks, or dual-homing to two upstream switches.
 
 ## SPL
 

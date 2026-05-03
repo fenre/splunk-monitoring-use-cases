@@ -21,7 +21,7 @@ Detects denial of service attacks by analyzing abnormal connection establishment
 
 ## Value
 
-Detects denial of service attacks by analyzing abnormal connection establishment rates.
+SOC teams detect denial-of-service attacks against Meraki MX firewalls by analyzing connection rate anomalies and IDS/IPS threat events, enabling rapid incident response.
 
 ## Implementation
 
@@ -30,66 +30,78 @@ Monitor TCP SYN rate by source IP. Alert on anomalous connection rates.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=flow protocol="tcp" tcp_flags="SYN"`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MX connection and flow data. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki:flows`. Key fields: `src`, `dst`, `protocol`, `dport`, `action`.
+* DoS detection: analyze connection rates per source IP, SYN flood patterns, and abnormal traffic volumes. Meraki MX IDS/IPS (Snort-based) provides additional detection. Dashboard > Security & SD-WAN > Threat protection.
 
-### Step 1 — Configure data collection
-Monitor TCP SYN rate by source IP. Alert on anomalous connection rates.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Meraki Dashboard > Security & SD-WAN > Threat protection
+# Mode: Prevention (recommended) or Detection
+# Ruleset: Connectivity, Balanced, or Security
+# Syslog: enable IDS Alerts and Flows
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=flow protocol="tcp" tcp_flags="SYN"
-| timechart count as new_connections by src
-| where new_connections > 1000
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:flows") earliest=-1h
+| stats count by sourcetype, host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Connection Rate Analysis and DOS Detection (Meraki MX)** — Detects denial of service attacks by analyzing abnormal connection establishment rates.
-
-Documented **Data sources**: `sourcetype=meraki type=flow protocol="tcp" tcp_flags="SYN"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `timechart` plots the metric over time with a separate series **by src** — ideal for trending and alerting on this use case.
-- Filters the current rows with `where new_connections > 1000` — typically the threshold or rule expression for this monitoring goal.
-
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Connection rate anomaly and DoS detection:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action All_Traffic.dvc span=1h
-| where count>0
-| sort -count
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:flows") earliest=-1h
+| eval src=coalesce(src, src_ip)
+| eval dst=coalesce(dest, dest_ip, dst)
+| eval dport=coalesce(dest_port, dport)
+| eval proto=coalesce(protocol, transport)
+| bin _time span=1m
+| stats count as connections dc(dst) as unique_targets dc(dport) as unique_ports by _time, src
+| eventstats avg(connections) as avg_conn stdev(connections) as stdev_conn by src
+| eval z_score=if(stdev_conn > 0, round((connections - avg_conn)/stdev_conn, 2), 0)
+| eval severity=case(
+    connections > 1000 AND unique_targets > 50, "CRITICAL -- potential DDoS or scan (high rate + fan-out)",
+    z_score > 4 AND connections > 500, "CRITICAL -- anomalous connection spike (z > 4)",
+    connections > 500 AND unique_ports > 20, "WARNING -- potential port scan",
+    z_score > 3, "WARNING -- elevated connection rate",
+    1==1, "OK")
+| where severity != "OK"
+| iplocation src prefix=src_
+| table _time, src, src_Country, connections, unique_targets, unique_ports, z_score, severity
+| sort severity, -connections
 ```
 
-Understanding this CIM / accelerated SPL
+**Secondary search -- IDS/IPS threat events:**
+```spl
+index=meraki sourcetype="meraki:events" earliest=-4h
+| where match(_raw, "(?i)ids|ips|intrusion|threat|signature|attack")
+| eval src=coalesce(src, src_ip)
+| eval dst=coalesce(dest, dest_ip, dst)
+| eval sig=coalesce(signature, message, priority)
+| stats count as hits dc(src) as unique_sources values(src) as source_ips by sig, dst
+| sort -hits | head 20
+```
 
-This block uses `tstats` on the Network_Traffic data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 3 — - Validate
+(a) Dashboard: Security & SD-WAN > Threat protection -- compare event counts.
+(b) Verify IDS mode (Detection vs Prevention) and ruleset level.
+(c) Test with controlled port scan and verify detection.
 
-**Pipeline walkthrough**
+### Step 4 — - Operationalize
+Dashboard ("Meraki MX -- DoS and Threat Detection"):
+* Row 1 -- Single-value: "Connection anomalies", "IDS events (4h)", "Unique threat sources".
+* Row 2 -- Connection rate timechart with anomaly overlay.
+* Row 3 -- IDS signature match table.
 
-- Uses `tstats` against accelerated summaries for the Network_Traffic model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+Alert: Critical (connection rate z-score > 4 with fan-out): immediate SOC investigation.
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+### Step 5 — - Troubleshooting
 
+* **False positive on high connection rate** -- Legitimate services (CDN, backup, bulk data transfer) can generate high connection rates. Whitelist known services by IP/subnet.
 
+* **IDS not detecting threats** -- Verify IDS is in Prevention mode with Security ruleset. Check that Meraki IDS signature database is current (auto-updated by Meraki cloud).
 
-### Step 3 — Validate
-In the Meraki cloud dashboard, use the same organization, network, and time range as the search. Confirm the same events, site or appliance names, and policy context you see in the dashboard line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Connection rate timeline; source IP detail table; DOS alert dashboard.
+* **Distributed attack from many sources** -- Per-source analysis may not trigger. Add aggregate connection rate monitoring across all sources to a single destination.
 
 ## SPL
 

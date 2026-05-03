@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.12.13",
+  "title": "Voicemail System Health Monitoring (Unity, Exchange UM)",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "wave": "walk",
+  "monitoringType": [
+    "Availability",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`index=voicemail` or `index=msexchange` with `sourcetype=\"cisco:unity:diag\"`, `sourcetype=\"unity:tomcat\"`, SMTP/MWI SIP traces (`stream:sip`), Exchange UM operational logs (`MSExchangeUM_*`), Active Directory replication latency feeds correlated by `mailbox_id`; optional `sourcetype=\"perfmon\"` for UM worker CPU/memory.",
+  "app": "Cisco Unity Connection syslog/diagnostic export TA, Microsoft Exchange Add-on / Windows TA for UM roles",
+  "spl": "(index=voicemail OR index=msexchange OR index=windows)\n(sourcetype=\"cisco:unity:diag\" OR sourcetype=\"MSExchangeUM*\" OR sourcetype=\"WinEventLog:Application\")\n(error OR fail OR timeout OR MWI OR \"storage\")\n| rex field=_raw max_match=1 \"(?i)(?<vm_component>Unity|UMWorkerProcess|MSExchangeUM)\"\n| stats count by vm_component, host\n| where count > 20\n| sort -count",
+  "description": "Surfaces voicemail platform faults—Unity Connection stack errors, Exchange UM worker crashes, MWI signaling delays, and mailbox database latency—so greeting playback and message waiting lamps stay dependable.",
+  "value": "Unified communications teams restore voicemail services quickly when UM processes wedge or storage thresholds trip, preventing silent subscriber failures where calls roll to generic recordings without generating tickets.",
+  "implementation": "Normalize Unity and Exchange timestamps to UTC; tag UM role hosts; alert on error burst deltas vs. seven-day baseline; pair with synthetic deposit tests weekly.",
+  "detailedImplementation": "Prerequisites\n• Diagnostic logging enabled on Cisco Unity Connection (Connection Administration → Logs) forwarded via syslog/HEC.\n• Exchange UM servers forwarding Application/System logs or SCOM-exported CSV.\n• Inventory CSV linking `host`, `UM_role`, `voicemail_domain`, `storage_group`.\n\nStep 1 — Onboard logs\nRoute Unity Connection diagnostics into dedicated index with UTF-8 preservation for multilingual prompts metadata.\n\nStep 2 — Field extraction\nExtract error codes, LDAP correlation IDs, and mailbox identifiers using vendor regex packs; mask subscriber PIN data—never index secrets.\n\nStep 3 — Baseline noise\nCompute hourly error counts per component; alert when five-minute counts exceed three times rolling median excluding patch Tuesdays.\n\nStep 4 — Dashboard\nTiles for Unity vs Exchange UM error rates; timeline of MWI SIP NOTIFY failures; storage quota nearing-full indicators.\n\nStep 5 — Operational response\nRestart UM worker under change window after validating DAG replication healthy; for Unity disk alarms purge orphaned prompts only per vendor KB.\n\nExtended troubleshooting\nMWI storms after bulk mailbox migrations mimic outages—correlate with migration batches. Hybrid UM retirements may shift traffic unexpectedly; validate hunt pilot overflow remains configured.",
+  "visualization": "Split comparison chart Unity vs Exchange UM errors; table of top mailbox_ids impacted; single-value MWI failure percentage.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Cisco Unity Connection Administration Guide — Diagnostics",
+      "url": "https://www.cisco.com/c/en/us/td/docs/voice_ip_comm/connection/15/administration/guide/b_15cucag.pdf"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Scheduled antivirus scans spike disk latency alarms; benign LDAP constraint violations during AD tidy scripts resemble auth failures; UM language-pack updates emit benign INFO parsed as error when regex too broad; transient replication backlog after reboot clears without user impact.",
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_cucm"
+  ],
+  "grandmaExplanation": "We watch the machines that store voice messages and blink your message light so if they get sick or full, someone fixes them before people wonder why nobody got their voicemail.",
+  "telcoUseCase": "Unified messaging availability",
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

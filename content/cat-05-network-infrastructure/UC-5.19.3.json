@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.19.3",
+  "title": "RESTCONF API Error Rate to Network Devices",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": ["Availability", "Performance", "Operations"],
+  "splunkPillar": "Observability",
+  "wave": "crawl",
+  "dataSources": "Detailed: `index=network` or `index=web` (reverse-proxy fronting devices); `sourcetype` examples — `nginx:access`, `apache:access`, `cisco:ios_xe` HTTPS audit, `flash:AIRE`, vendor RESTCONF gateway logs; normalize HTTP `status`, `method`, `uri` (`/restconf/`), `client_ip`, `device_host`, `latency_ms`, `error_body` snippet (non-PII). Automation runners may tag `job_id` via forwarded headers.",
+  "app": "Splunk Add-on for NGINX (`TA-nginx`), Splunk Add-on for Apache, Cisco IOS-XE HTTPS/REST audit forwarding, or generic HEC JSON from API gateways; optional Splunk Observability Cloud OTLP bridge if proxies emit spans.",
+  "spl": "index IN (\"network\",\"web\",\"proxy\") earliest=-4h@m latest=now\n| eval uri_l=lower(coalesce(uri,request_uri,url_path,\"\"))\n| where match(uri_l,\"restconf\") OR match(lower(_raw),\"restconf\")\n| eval sc=tonumber(coalesce(status,http_status,response_code))\n| eval err=if(isnull(sc),1,if(sc>=400,1,0))\n| eval ms=tonumber(coalesce(latency_ms,request_time,duration_ms))\n| eval dev=coalesce(device_host,upstream_host,host)\n| bin _time span=10m\n| stats count as reqs sum(err) as err_ct perc95(ms) as p95_ms values(client_ip) as clients by _time dev\n| eval err_rate=round(100*err_ct/nullif(reqs,0),2)\n| where reqs>=20 AND err_rate>=5\n| sort -err_rate,-p95_ms",
+  "description": "Splunk aggregates RESTCONF-facing HTTP access trails so elevated 4xx/5xx ratios, payload validation faults, and latency tails across automation tenants become visible before controllers silently stall bulk intent pushes.",
+  "value": "Operators regain confidence in model-driven workflows because misauthentication, schema mismatches, or oversubscribed TLS frontends are quantified per device cluster rather than inferred from vague \"commit failed\" chatter in chat rooms.",
+  "implementation": "Land RESTCONF paths with HTTP status and timing fields; strip secrets from bodies; schedule ten-minute buckets; maintain allowlist for probe clients; correlate spikes with change calendars.",
+  "detailedImplementation": "Prerequisites\n• Inventory which devices expose RESTCONF directly versus via centralized API gateway; document TLS offload paths.\n• Standardize log format (JSON preferred) including upstream device identity.\n\nStep 1 — Access logging\nEnable structured access logs on the terminating proxy or enable IOS-XE RESTCONF diagnostics appropriate for operations (avoid full payload capture).\n\nStep 2 — Field extraction\nParse `status`, `uri`, `latency`; map `device_host` from upstream DNS or X-Forwarded headers; reject events missing RESTCONF path markers to reduce noise.\n\nStep 3 — Saved search\nSave as `restconf_error_rate_10m`; alert when `err_rate`≥5% with ≥20 requests per bucket or `p95_ms` doubles rolling median.\n\nStep 4 — Validate\nInject controlled 401/404 responses in lab; verify Splunk classification matches curl transcripts.\n\nStep 5 — Operationalize\nDashboard: timeline of error rate by device group; top URIs table; optional lookup enrichments for owning team; suppress maintenance windows via CSV.",
+  "visualization": "Dashboard Studio: single-value error-rate KPI; `splunk.timechart` by device group; drilldown table (`dev`,`reqs`,`err_ct`,`err_rate`,`p95_ms`,`clients`).",
+  "references": [
+    {
+      "title": "IETF RFC 8040 — RESTCONF Protocol",
+      "url": "https://www.rfc-editor.org/rfc/rfc8040"
+    },
+    {
+      "title": "Cisco Programmability Configuration Guide — RESTCONF",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/guide/b-programmability-cg.html"
+    },
+    {
+      "title": "NGINX access log module reference",
+      "url": "https://nginx.org/en/docs/http/ngx_http_log_module.html"
+    }
+  ],
+  "knownFalsePositives": "**Auth rotation:** mass 401s during certificate rollover resemble outages.**Scanner noise:** external scanners hitting `/restconf` drive 404s unless IP-restricted.**Health probes:** synthetic checks bump counts—tag `User-Agent`.**Double logging:** client plus proxy duplicates requests unless deduped.**Large payloads:** latency spikes during config dumps are benign unless sustained.",
+  "mitreAttack": ["T1190"],
+  "securityDomain": "network",
+  "detectionType": "Baseline",
+  "equipment": ["cisco", "nginx"],
+  "equipmentModels": ["cisco_ios", "nginx_open RESTCONF reverse proxy access logs"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We measure how often bad replies happen when tools talk to gear over the newer web-style management channel. Spikes tell us something broke in permissions, formatting, or load before hundreds of settings fail at once."
+}

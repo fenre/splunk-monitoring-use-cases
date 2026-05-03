@@ -1,0 +1,53 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.10.13",
+  "title": "PSTN Gateway Health (Analog/PRI/SIP Gateway Status)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "wave": "walk",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`index=voice` or `index=network` syslog `sourcetype=cisco:ios` / `cisco:ios:voice` containing Cisco ISR/CUBE voice gateway messages (`VTSP`, `DSPRM`, `MGCP`, `PRI`, `CAS`, `DS0 BUSY`, `%CALL_VOICE`), plus `sourcetype=stream:sip` on SIP trunk legs toward gateways; SNMP traps `dspHostActiveCalls`, `cmgMgcpGatewayStat` if polled via TA.",
+  "app": "`TA-cisco_ios`, optional `Splunk App for Stream` when SIP legs terminate on CUBE.",
+  "spl": "index=voice OR index=network ((sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:ios:voice\")\n    (\"VTSP\" OR \"DSPRM\" OR \"DSP\" OR \"MGCP\" OR \"PRI\" OR \"D-channel\" OR \"%CALL_VOICE\" OR \"DS0\" OR \"CAS\" OR \"ISDN\" OR \"glare\"))\n| eval gw_host=host\n| rex field=_raw \"(?i)(?<voice_evt>DSP.*FAIL|DSP.*DOWN|PRI.*DOWN|D-channel.*down|MGCP.*timeout|VTSP.*ERROR|glare|slip)\"\n| eval critical_evt=if(isnotnull(voice_evt) OR match(_raw,\"(?i)(?:DSP.*(?:fail|down)|PRI.*(?:DOWN)|Lost.*carrier|Controller.*down)\"),1,0)\n| bin _time span=15m\n| stats count sum(critical_evt) as critical_hits values(voice_evt) as hints by _time gw_host\n| where critical_hits>0 OR count>500\n| lookup pstn_gateways.csv gw_host OUTPUT site pstn_carrier trunk_role\n| table _time gw_host site pstn_carrier trunk_role critical_hits count hints\n| sort -critical_hits",
+  "description": "Surfaces gateway-layer DSP exhaustion, PRI/CAS controller faults, MGCP registration losses, and glare/slip anomalies aggregated per fifteen minutes—covering legacy TDM interconnects that bypass pure SIP trunk dashboards.",
+  "value": "Contact centers and rural aggregation networks retain revenue-bearing PSTN hops through ISR gateways; early DSP/PRI alerts prevent silent hairpin failures where SIP dashboards remain green while analog/E1 segments collapse.",
+  "implementation": "Forward gateway logs with local clock discipline; classify gateways via CSV (`pstn_gateways.csv`); tune DSP thresholds against baseline busy-hour call counts; dual-feed SIP Stream where applicable for blended diagnostics.",
+  "detailedImplementation": "Prerequisites\n• Cisco IOS voice logging severity tuned (avoid masking DSP traps behind buffered logging).\n• Hardware inventory clarifying PVDM profiles and simultaneous call capacities per chassis.\n• Physical PRI numbering plans mapped to syslog controller notation.\n• Optional SNMP DIM extensions polling DSP utilization when syslog insufficient.\n\nStep 1 — Route gateway syslog into Splunk with minimal transforms stripping ANSI noise yet preserving facility codes.\n\nStep 2 — Maintain regex library per IOS train—15.x differs from 17.x strings—store macros `voice_gateway_errors`.\n\nStep 3 — Overlay lookup describing trunk_role (`sip_primary`, `pri_backup`) for smarter paging routes.\n\nStep 4 — Dashboard merges PRI status tiles with SIP Stream concurrent call counters toward same gateway cluster.\n\nStep 5 — Troubleshooting: fax/modem modem-pass-through spikes mimic DSP faults—cross-check `fax relay` counters; clock slips on E1 need telecom-team verification before blaming Splunk parsing.",
+  "visualization": "Gateway health matrix (site × trunk_role); sparklines of critical_hits; drilldown to raw syslog lines with highlighting.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Cisco IOS Voice Troubleshooting Guide — Gateway DSP and PRI",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/voice/cube/configuration/cube-book/vcube.pdf"
+    },
+    {
+      "title": "Splunkbase — Splunk App for Stream",
+      "url": "https://splunkbase.splunk.com/app/1809"
+    }
+  ],
+  "knownFalsePositives": "Planned PRI cable swaps generate transient `Controller down` messages; fax storms elevate DSP usage legitimately; SNMP polling gaps mimic silence—verify trap heartbeat.",
+  "equipment": [
+    "cisco",
+    "stream",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_isr_4000",
+    "cisco_ios",
+    "stream_forwarder"
+  ],
+  "grandmaExplanation": "We watch the old-style phone boxes that still turn digital calls into analog lines so when a card overheats or a cable bundle fails the right folks wake up before banks of phones go dead.",
+  "telcoUseCase": "PSTN access resilience",
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

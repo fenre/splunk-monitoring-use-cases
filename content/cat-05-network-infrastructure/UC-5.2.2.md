@@ -22,7 +22,7 @@ Firewall rule changes can expose the network. Compliance must-have (PCI, SOX, HI
 
 ## Value
 
-Firewall rule changes can expose the network. Compliance must-have (PCI, SOX, HIPAA).
+Security teams maintain a complete audit trail of firewall policy changes with admin attribution, detecting unauthorized off-hours modifications and bulk change activity.
 
 ## Implementation
 
@@ -31,63 +31,80 @@ Forward configuration change logs. Alert on any rule modification. Require chang
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX).
-- Ensure the following data sources are available: `sourcetype=pan:config`, firewall system/config logs.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Firewall system/config logs in `index=firewall`. Sourcetypes: Palo Alto `pan:system` and `pan:config`, Fortinet `fgt_event`, Cisco FTD `cisco:firepower:syslog`, Juniper SRX `juniper:junos:firewall`. Key events: rule add/modify/delete, policy commit, admin login, configuration push.
+* Firewall management platforms: Panorama (PA), FortiManager (Fortinet), FMC (Cisco), Junos Space / J-Web (Juniper).
 
-### Step 1 — Configure data collection
-Forward configuration change logs. Alert on any rule modification. Require change ticket correlation. Keep 1-year retention.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+**Palo Alto (config log):**
+```
+# Device > Log Settings > Config
+# Ensure config change logging is enabled
+# Forward config logs via syslog profile
+```
+**Fortinet:**
+```
+config log syslogd filter
+    set severity information
+    set forward-traffic enable
+    set event enable
+end
+```
+Verify:
 ```spl
-index=firewall sourcetype="pan:config" cmd="set" OR cmd="edit" OR cmd="delete"
-| table _time host admin cmd path | sort -_time
+index=firewall (sourcetype="pan:config" OR sourcetype="pan:system" OR sourcetype="fgt_event") earliest=-24h
+| where match(_raw, "(?i)policy|rule|config|commit|push|change|modify|create|delete|admin")
+| stats count by sourcetype, host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Policy Change Audit** — Firewall rule changes can expose the network. Compliance must-have (PCI, SOX, HIPAA).
-
-Documented **Data sources**: `sourcetype=pan:config`, firewall system/config logs. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: firewall; **sourcetype**: pan:config. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=firewall, sourcetype="pan:config". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Pipeline stage (see **Policy Change Audit**): table _time host admin cmd path
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Policy change audit trail:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object All_Changes.action span=1h
-| sort -count
+index=firewall earliest=-24h
+| where match(_raw, "(?i)commit|policy.*(add|delete|modify|change|install)|rule.*(add|delete|modify)|configuration.*change|admin.*config")
+| eval change_type=case(match(_raw, "(?i)delete|remove"), "DELETE", match(_raw, "(?i)add|create|new"), "CREATE", match(_raw, "(?i)modify|change|edit|update"), "MODIFY", match(_raw, "(?i)commit|install|push"), "COMMIT", 1==1, "OTHER")
+| eval admin_user=coalesce(user, admin, src_user, dvc_user)
+| eval change_target=coalesce(object_name, rule_name, policy_name, config_path)
+| stats count as changes values(change_type) as change_types values(change_target) as targets latest(_time) as last_change by admin_user, host
+| sort -last_change
 ```
 
-Understanding this CIM / accelerated SPL
+**Unauthorized change window detection:**
+```spl
+index=firewall earliest=-7d
+| where match(_raw, "(?i)commit|policy.*(add|delete|modify)|config.*change")
+| eval hour=strftime(_time, "%H")
+| eval is_offhours=if(hour < 7 OR hour > 19, 1, 0)
+| eval is_weekend=if(strftime(_time, "%w")=0 OR strftime(_time, "%w")=6, 1, 0)
+| where is_offhours=1 OR is_weekend=1
+| eval admin_user=coalesce(user, admin, src_user)
+| stats count as offhour_changes by admin_user, host
+| where offhour_changes > 0
+```
 
-This block uses `tstats` on the Change data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 3 — - Validate
+(a) Make a test policy change and verify it appears in Splunk within 1-2 minutes.
+(b) Compare with firewall audit log: Panorama `Monitor > Logs > Config`, FortiManager `Log & Report > Event Log`.
+(c) Verify admin user attribution is correct -- some firewalls log the management IP, not the username.
 
-**Pipeline walkthrough**
+### Step 4 — - Operationalize
+Dashboard ("Firewall -- Policy Change Audit"):
+* Row 1 -- Single-value: "Changes (24h)", "Admins making changes", "Off-hours changes".
+* Row 2 -- Change timeline with admin attribution.
+* Row 3 -- Off-hours and weekend changes (potential unauthorized).
 
-- Uses `tstats` against accelerated summaries for the Change model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+Alerting:
+* High (policy delete during off-hours): potential unauthorized change.
+* Warning (> 20 changes in 1 hour): bulk change activity -- verify planned.
+* Info (any commit/push): audit trail for compliance.
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+### Step 5 — - Troubleshooting
 
+* **Admin user showing as IP address** -- Firewall may not log the authenticated username for API/CLI changes. Check: (1) authentication is enabled for management access, (2) RADIUS/TACACS+ accounting sends username, (3) configure admin username logging in device settings.
 
+* **Missing change events** -- Verify: (1) config/system log severity is set to informational, (2) log forwarding profile includes config events, (3) syslog destination is correctly configured.
 
-### Step 3 — Validate
-Sample the same time range in your firewall management console, Panorama, FortiManager, or Check Point SmartConsole and confirm that counts, usernames, and object names line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (who, what, when), Timeline, Single value (changes last 24h).
+* **Changes show in Panorama but not Splunk** -- Panorama-level changes may log differently than device-level changes. Ensure both Panorama and managed firewalls forward config logs.
 
 ## SPL
 

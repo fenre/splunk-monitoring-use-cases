@@ -1,0 +1,57 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.84",
+  "title": "IPv6 Control Plane Policing (CoPP) Effectiveness Monitoring",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Control Plane Policing (CoPP/CPPr) drop and conform counters for IPv6-specific protocols. CoPP protects the router's CPU from being overwhelmed by protocol traffic directed at the control plane. IPv6 introduces protocol traffic that does not exist in IPv4 and must be explicitly handled in CoPP policies:\n\n1. **NDP (ICMPv6 types 133-137)** — Router Solicitation, Router Advertisement, Neighbor Solicitation, Neighbor Advertisement, Redirect. These are CPU-intensive because routers must process them to maintain neighbor tables. An attacker flooding NDP messages can exhaust the router CPU.\n2. **MLD (ICMPv6 types 130-132)** — Multicast Listener Discovery queries and reports. Routers running MLD snooping or PIM process these on the CPU.\n3. **OSPFv3** — Uses FF02::5 and FF02::6 multicast. Separate from OSPFv2 processing.\n4. **BGP via IPv6** — TCP sessions using IPv6 transport require CoPP classification distinct from IPv4 BGP.\n5. **DHCPv6** — UDP 546/547 relay and server traffic.\n6. **ICMPv6 errors (types 1-4)** — Must be rate-limited but not blocked (RFC 4890).\n\nIf CoPP does not classify IPv6 protocols, they may fall into the default class and be either dropped (causing IPv6 failures) or unlimited (creating a DoS vulnerability).",
+  "app": "Cisco Add-on for Splunk",
+  "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-24h\n  (\"%CPP\" OR \"%COPP\" OR \"%CPUHOG\" OR \"control-plane\" AND (\"drop\" OR \"conform\" OR \"exceed\" OR \"violate\"))\n| rex field=_raw \"class.?map\\s+(?<copp_class>\\S+)\"\n| rex field=_raw \"(?:conform|dropped|exceeded)\\s+(?<counter>\\d+)\"\n| eval counter=tonumber(counter)\n| eval ipv6_related=if(match(copp_class, \"(?i)ipv6|ndp|icmpv6|ospfv3|mld|dhcpv6|bgp.?v6\"), \"IPv6-specific\", \"general\")\n| stats sum(counter) as total_events by host, copp_class, ipv6_related\n| eval status=case(\n    ipv6_related=\"IPv6-specific\" AND total_events > 10000, \"HIGH DROPS — IPv6 protocol traffic being rate-limited aggressively\",\n    ipv6_related=\"general\" AND total_events > 50000, \"IPv6 traffic may be hitting default class\",\n    1=1, \"OK\")\n| sort -total_events",
+  "description": "Monitors Control Plane Policing (CoPP/CPPr) effectiveness for IPv6-specific protocols including NDP, MLD, OSPFv3, DHCPv6, and ICMPv6 error messages. CoPP protects the router CPU from protocol-level DoS attacks, but IPv6 introduces protocol traffic (especially NDP) that does not exist in IPv4. If CoPP policies do not include explicit IPv6 protocol classifications, IPv6 traffic may fall into the default class and either be dropped (breaking IPv6) or pass unlimited (creating a DoS vulnerability).",
+  "value": "CoPP is the primary defense against control plane exhaustion attacks. IPv6 networks generate significantly more control plane traffic than IPv4 due to NDP (which replaces ARP, DHCP, and ICMP Redirect functions combined). Without proper IPv6 CoPP classification, a single attacker can overwhelm a router's CPU with NDP floods, MLD storms, or OSPFv3 Hello manipulation. This monitoring ensures IPv6 protocols are properly classified, rate-limited, and not silently dropped.",
+  "implementation": "Parse CoPP class-map names and counters from syslog and SNMP. Identify IPv6-specific classes. Alert on excessive drops in IPv6 protocol classes. Alert when IPv6 protocols are not classified (falling to default).",
+  "visualization": "(1) Table: CoPP classes with conform/drop counters, highlighting IPv6 classes. (2) Timechart: CoPP drops over time by class. (3) Single-value: IPv6 protocol drop rate. (4) Alert panel: devices where IPv6 protocols hit the default CoPP class.",
+  "references": [
+    {
+      "title": "Cisco Control Plane Policing (CoPP) Implementation Best Practices",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/sec_data_copp/configuration/xe-17/sec-data-copp-xe-17-book.html"
+    },
+    {
+      "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.4 — control plane protection)",
+      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+    },
+    {
+      "title": "RFC 6192 — Protecting the Router Control Plane (BCP 164)",
+      "url": "https://www.rfc-editor.org/rfc/rfc6192"
+    }
+  ],
+  "knownFalsePositives": "**High NDP rates on access switches.** Access layer switches in large VLANs legitimately process high NDP traffic. Tune CoPP thresholds per platform role (core vs access).\n\n**CoPP class naming variations.** Different IOS versions use different default class-map names. The IPv6 class may be named `system-cpp-police-ndp`, `copp-system-p-class-ndp`, or custom names. Build a class name mapping table per platform.\n\n**OSPFv3 adjacency formation bursts.** During router reloads or adjacency re-formation, OSPFv3 traffic spikes are legitimate. Correlate CoPP drops with OSPFv3 adjacency events (UC-5.20.43).",
+  "equipment": [
+    "cisco",
+    "juniper"
+  ],
+  "equipmentModels": [
+    "cisco_ios",
+    "cisco_iosxe",
+    "cisco_nxos",
+    "cisco_iosxr"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• CoPP/CPPr configured on all routers and L3 switches.\n• SNMP polling of CoPP counters or syslog-based counter reporting.\n• Understanding of IPv6 protocol classification requirements.\n\nStep 1 — Configure data collection\n\n**Poll CoPP counters via SNMP or CLI:**\n```\nshow policy-map control-plane\n```\nOutput includes per-class conform/exceed/violate counters. Schedule polling every 5 minutes.\n\n**Alternative: syslog-based detection for excessive drops:**\n```\nlogging rate-limit 1\npolicy-map control-plane-policy\n class class-ipv6-ndp\n  police rate 500 pps\n   conform-action transmit\n   exceed-action drop log\n```\nThe `log` keyword on exceed-action generates syslog messages for dropped packets.\n\n**Example Cisco IOS-XE CoPP policy with IPv6 classification:**\n```\nclass-map match-any class-ipv6-ndp\n match access-group name ACL-COPP-NDP\n!\nclass-map match-any class-ipv6-ospfv3\n match access-group name ACL-COPP-OSPFV3\n!\nclass-map match-any class-ipv6-bgp\n match access-group name ACL-COPP-BGP6\n!\nip access-list extended ACL-COPP-NDP\n permit icmp any any nd-na\n permit icmp any any nd-ns\n permit icmp any any router-advertisement\n permit icmp any any router-solicitation\n```\n\n**Verification:**\n```spl\nindex=network sourcetype=\"cisco:ios\" \"%CPP\" OR \"%COPP\" | stats count by host | sort -count\n```\n\nStep 2 — Create monitoring searches\n\n**CoPP IPv6 class coverage audit:**\n```spl\nindex=network (sourcetype=\"cisco:ios:config\" OR sourcetype=\"cisco:iosxe:config\") earliest=-7d\n| dedup host\n| eval has_ndp_class=if(match(_raw, \"(?i)class.*(ndp|neighbor|icmpv6)\"), 1, 0)\n| eval has_ospfv3_class=if(match(_raw, \"(?i)class.*(ospfv3|ospf.*v6)\"), 1, 0)\n| eval has_bgpv6_class=if(match(_raw, \"(?i)class.*(bgp.*v6|bgp.*ipv6)\"), 1, 0)\n| eval has_dhcpv6_class=if(match(_raw, \"(?i)class.*(dhcpv6|dhcp.*v6)\"), 1, 0)\n| eval ipv6_classes=has_ndp_class + has_ospfv3_class + has_bgpv6_class + has_dhcpv6_class\n| eval status=case(\n    ipv6_classes >= 3, \"GOOD — IPv6 protocols classified in CoPP\",\n    ipv6_classes >= 1, \"PARTIAL — some IPv6 protocols may fall to default class\",\n    ipv6_classes=0, \"CRITICAL — NO IPv6 protocol classification in CoPP — IPv6 DoS vulnerability\")\n| table host, has_ndp_class, has_ospfv3_class, has_bgpv6_class, has_dhcpv6_class, status\n| sort ipv6_classes\n```\n\nStep 3 — Validate\n(a) **CoPP counter verification.** SSH to a sample router. Run `show policy-map control-plane` and compare counters with SPL results.\n\n(b) **Default class check.** Verify IPv6 traffic is NOT hitting the default CoPP class. If NDP packets appear in the default class counters, CoPP is misconfigured for IPv6.\n\n(c) **Load test.** On a lab router, generate NDP floods using THC-IPv6 `flood_router6` and verify CoPP drops the excess traffic while permitting legitimate NDP.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — Control Plane Protection\"):\n• Row 1 — Single-value: devices with no IPv6 CoPP classification (target: 0).\n• Row 2 — Table: CoPP class counters for IPv6 protocols across all devices.\n• Row 3 — Timechart: NDP drops over time (correlate with NDP exhaustion alerts).\n• Row 4 — Configuration audit: devices missing IPv6 CoPP classes.\n\n**Alert:** Device has no IPv6 CoPP classification — critical vulnerability. NDP flood can exhaust CPU.\n\n**Runbook:**\n1. No IPv6 CoPP: Deploy IPv6-aware CoPP template. Include classes for NDP, OSPFv3, BGP IPv6, DHCPv6, MLD, and ICMPv6 errors.\n2. Excessive NDP drops: Tune NDP rate limit. Default 500 pps is appropriate for most access switches. Core routers may need higher limits.\n3. OSPFv3 drops: Increase OSPFv3 CoPP rate during planned convergence events. Create a maintenance window macro.\n\nStep 5 — Troubleshooting\n\n• **Platform-specific CoPP defaults.** Cisco IOS-XE Cat9K has built-in system-defined CoPP classes for IPv6 (system-cpp-police-ndp). Verify these are not disabled. Cisco IOS-XR requires explicit CoPP configuration.\n\n• **CoPP counter resets.** CoPP counters may reset on configuration changes or policy reattachment. Use rate-based calculations rather than absolute counters.\n\n• **Juniper equivalent.** JunOS uses `firewall filter` applied to `lo0` for control plane protection. IPv6 terms require `family inet6` match conditions.",
+  "grandmaExplanation": "The post office (router) has a limited number of workers (CPU). We set up a queue management system (CoPP) that limits how many letters of each type the workers have to process. But the new postal system (IPv6) has letter types that didn't exist before. If we didn't add those new types to the queue system, either those letters get thrown away (breaking IPv6) or they flood the workers (denial of service).",
+  "prerequisiteUseCases": [
+    "5.20.43",
+    "5.20.19"
+  ],
+  "wave": "run"
+}

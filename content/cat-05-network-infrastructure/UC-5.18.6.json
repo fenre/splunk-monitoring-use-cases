@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.18.6",
+  "title": "VRF Route Leaking Detection",
+  "criticality": "critical",
+  "difficulty": "expert",
+  "monitoringType": ["Security", "Compliance", "Operations"],
+  "splunkPillar": "Observability",
+  "wave": "run",
+  "dataSources": "Detailed: configuration-change syslog (`CONFIG_I`, `%SYS-*`, Junos `UI_COMMIT_*`, Nokia `tmnxConfigChange*`), AAA logs for CLI/API sessions, orchestrator audit trails (Ansible/Terraform), NETCONF RPC transcripts if mirrored to Splunk; correlate with BGP/RIB syslog anomalies (`rt-filter`, `import policy`, `vpn-export`).",
+  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper, Nokia syslog; optional Splunk Enterprise Security for correlation rules.",
+  "spl": "index=network OR index=audit earliest=-24h@h latest=now\n| eval msg=lower(_raw)\n| eval cfg_hit=match(msg,\"(?:commit|configuration|config.?chang)\") OR match(sourcetype,\"audit|config|netconf|yang\")\n| eval leak_hint=match(msg,\"(?:route.?target|rt.?import|rt.?export|vrf.?import|vrf.?export|route.?leak|vpn.?instance.*(?:import|export)|(?:unnecessary|unexpected).*vpn.*route|(?:policy).*(?:vpn|vrf).*(?:(?:accept|match).*route))\")\n| eval risky_cmd=match(msg,\"(?:import.?route.?target|export.?route.?target|vrf.?route.?import|route.?target.?import|next-hop.?unchanged|(?:router|routing.?instance).*(?:import|export)|(?:policy.?option|prefix.?limit).*(?:leak|aggregate))\")\n| where (cfg_hit=1 AND leak_hint=1) OR risky_cmd=1\n| rex field=_raw max_match=0 \"(?i)vrf[^A-Za-z0-9_/:-]*(?<vrf>[A-Za-z0-9_.:-]+)\"\n| rex field=_raw max_match=0 \"(?i)(?:user|acct)\\s*[:=]?\\s*(?<actor>[A-Za-z0-9_.@-]+)\"\n| stats earliest(_time) as first_seen latest(_time) as last_seen values(actor) as actors values(vrf) as vrfs count by host sourcetype\n| sort - count",
+  "description": "Splunk correlates risky VRF import/export edits, RT mutations, and overlapping commit narratives so unintended VPN route leaking—whether mis-click or hostile insider action—triggers review workflows before prefixes traverse wrong RD boundaries.",
+  "value": "Risk and engineering leadership preserve tenant isolation guarantees because Splunk proves who changed which leaking construct and surfaces subtle RT imports that traditional BGP flap alarms never articulate.",
+  "implementation": "Mirror configuration changes and orchestrator plans into Splunk, baseline peer-approved patterns via lookup `approved_vrf_policies.csv`, alert on first-seen RT tuples or policy names tied to export maps touching multiple VPNs.",
+  "detailedImplementation": "Prerequisites\n• Change-management taxonomy tagging golden configs vs emergency edits.\n• Role-based actor normalization (`tacacs_username`).\n\nStep 1 — Source onboarding\nEnable archived configs: Cisco IOS-XR commit logs to syslog; Junos `configuration archival`; Nokia SR OS admin audit stream to SIEM.\n\nStep 2 — Regex tuning workshop\nInventory legitimate hub-spoke leak patterns (central services VRF) and encode allow-list keys `(host,policy_name)`.\n\nStep 3 — Detection logic\nFire alert when commit includes `route-target import` referencing foreign ASN not on allow-list OR NETCONF `<import-route-target>` delta crosses VPN boundary.\n\nStep 4 — Validation tabletop\nReplay sanitized configs through Splunk `_new_eval` testing index ensuring positives match SOC expectations without noisy duplicate commits.\n\nStep 5 — Response hook\nAuto-create ticket with diff snippet and link to last-known-good RIB snapshot search ID for rollback verification.",
+  "visualization": "Dashboard Studio: KPI for risky commits per day; Sankey-style diagram from actor→host→vrfs (manual SVG asset optional); table (`host`, `vrfs`, `actors`, `count`).",
+  "references": [
+    {
+      "title": "Cisco MPLS VPN Route Target Attributes",
+      "url": "https://www.cisco.com/c/en/us/support/docs/multiprotocol-label-switching-mpls/mpls/581220008-vpn-route-target-import-export-vrf.htm"
+    },
+    {
+      "title": "Juniper Routing Instances Overview — VPN Import Policies",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/routing-policy/topics/concept/routing-policy-overview.html"
+    },
+    {
+      "title": "Nokia SR OS Routing Protocols Guide — BGP/MPLS IP VPNs",
+      "url": "https://documentation.nokia.com/"
+    }
+  ],
+  "knownFalsePositives": "**Approved shared services RT:** explicit imports flagged until allow-listed.**Automated audits:** nightly scripts rewriting harmless ordering churn.**Encrypted NETCONF:** payloads unavailable—need collector-side decryption.**Template rollout:** mass commits spike counts—tag pipeline IDs.**False actor:** shared jump-box account obscures real user—pair with session correlation.",
+  "mitreAttack": ["T1190"],
+  "securityDomain": "network",
+  "detectionType": "Correlation",
+  "equipment": ["cisco", "juniper"],
+  "equipmentModels": ["cisco_asr_9000", "cisco_asr_1000", "juniper_mx"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We watch for edits that accidentally stitch two private customer closets together through the plumbing. Catching that fast keeps each renter’s mail from wandering into the wrong mailbox."
+}

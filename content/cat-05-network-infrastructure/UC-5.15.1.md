@@ -31,33 +31,132 @@ Enable RPZ logging on Grid members and forward syslog to Splunk with TA field ex
 ## Detailed Implementation
 
 ### Prerequisites
-- Install `Splunk_TA_infoblox` and forward `infoblox:rpz` (and optional threat-intel) into `index=dns` as you have modeled.
-- Ensure response policy and logging are enabled for the view you need on the Grid, and that blocked actions produce clear `action` or `_raw` markers.
-- `docs/implementation-guide.md` for receiver placement and PII on client IPs.
+- Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2934) v2.2+ installed on the Search Head (knowledge objects, field extractions) and on the Heavy Forwarder or Splunk Connect for Syslog (SC4S) instance receiving syslog from NIOS Grid Members.
+- Infoblox NIOS 8.4+ with at least one Response Policy Zone (RPZ) configured and actively enforcing (NXDOMAIN, NODATA, PASSTHRU, or substitute actions). RPZ is a licensed feature — confirm the Threat Defense or RPZ subscription is active under Grid Manager > Administration > Licenses.
+- RPZ logging enabled: Grid Manager > Grid DNS Properties > Logging > enable the **RPZ Logging** category on every member that serves recursive DNS. Without this, RPZ hit events are not emitted to syslog even if the zone is enforcing. NIOS logs RPZ hits in CEF-like format containing `qname` (queried domain), `src` (client IP), the RPZ action, and the triggering zone name.
+- Syslog transport from each NIOS Grid Member to Splunk: configure under Grid > Members > [member] > Monitoring > Syslog > add a destination pointing at your SC4S or Heavy Forwarder IP on UDP/TCP 514. SC4S maps `infoblox_nios_dns` to `sourcetype=infoblox:dns` and RPZ-specific events to `infoblox:rpz` (if you use the vendor-product filter) into `index=netdns` by default. If forwarding directly to a Heavy Forwarder, configure `inputs.conf` with `[udp://514]` and `sourcetype=infoblox:dns`, and rely on `transforms.conf` in the TA to split RPZ events into `sourcetype=infoblox:rpz`.
+- Splunk role: users running this search need `srchIndexesAllowed` including `dns` (or `netdns` depending on your index naming). Create a custom role like `dns_analyst`.
+- License headroom: RPZ logging generates approximately 200–500 bytes per blocked query. A campus with 50,000 RPZ blocks/day ≈ 10–25 MB/day. High-block environments (guest Wi-Fi, BYOD) can see 500K+ blocks/day ≈ 100–250 MB/day.
+- Baseline knowledge: understand your RPZ feed sources — are you using Infoblox Threat Intelligence Data Exchange (TIDE), SURBL, Spamhaus, or custom feeds? Different feeds produce different block volumes. Know your top 5 policies by name so you can validate in Step 3.
+- Optional: `infoblox:threatprotect` sourcetype for Infoblox ATP (Advanced Threat Protection) events that complement RPZ with additional threat context.
 
 ### Step 1 — Configure data collection
-Enable RPZ hit logging to syslog or file as Infoblox documents; use the add-on to parse `qname`, `src_ip`, and `policy_name`. Keep a lookup of internal scanners if you have noisy security tools.
+On the NIOS Grid Master, navigate to Grid > Grid DNS Properties > Logging and enable:
+- **RPZ Logging**: produces a log line for every query that matches an RPZ rule, including the action taken (NXDOMAIN, NODATA, PASSTHRU, CNAME redirect) and the policy zone name.
+- **Query Logging** (optional, for correlation): logs all DNS queries, not just RPZ hits. This is high-volume but useful for seeing what percentage of total queries are blocked.
+
+For each Grid Member, configure syslog destination under Members > [member] > Monitoring > Syslog. Point to your SC4S or Heavy Forwarder. Use TCP for reliability if log volume is significant.
+
+In Splunk, verify data is arriving:
+```spl
+index=dns sourcetype="infoblox:rpz" earliest=-1h
+| stats count by host
+```
+Each `host` should correspond to a NIOS Grid Member FQDN or IP. If you see events under `sourcetype=infoblox:dns` but not `infoblox:rpz`, the TA's `transforms.conf` may need the RPZ regex — check that `REGEX = rpz|RPZ|PASSTHRU|NXDOMAIN.*rpz` (or similar) routes RPZ events correctly.
+
+Verify key fields are extracted:
+```spl
+index=dns sourcetype="infoblox:rpz" earliest=-1h
+| fieldsummary
+| where count > 0
+| table field count distinct_count
+```
+Expected fields: `qname` (or `query`), `src_ip` (or `src`), `action`, `policy_name` (or `rpz_zone`). Field names depend on NIOS version and TA version — the TA extracts via `props.conf` EXTRACT rules. If `qname` is missing, the raw event still contains it and you can extract with `rex`.
+
+Expected volume: one event per RPZ-matched query. If your RPZ blocks 100K queries/day, you should see ~100K events/day in this sourcetype.
 
 ### Step 2 — Create the search and alert
+
+**Primary search — Top blocked domains and clients (daily audit):**
 ```spl
 index=dns sourcetype="infoblox:rpz" earliest=-24h
-| where match(lower(action),"(?i)block|nxdomain|drop|rpz") OR match(_raw,"(?i)rpz")
+| where match(lower(action), "(?i)block|nxdomain|drop|rpz") OR match(_raw, "(?i)rpz")
 | stats count by qname, src_ip, policy_name, host
 | sort -count
 | head 100
 ```
 
-#### Understanding this SPL
-We only keep events that look like a block, then rank by how often each domain and client mix appears so you can tune RPZ and spot patient-zero clients.
+#### Understanding this SPL: We filter for block-type RPZ actions (excluding PASSTHRU which means the query was allowed through the RPZ). `qname` is the queried domain that triggered the RPZ match. `src_ip` identifies the client that made the query — this is your patient-zero identifier. `policy_name` tells you which RPZ feed or custom zone triggered the block. `host` is the Grid Member that processed the query. Sorting by count surfaces the most prolific blocked domains and the most active clients hitting those domains.
+
+**Client risk ranking — which internal hosts hit the most blocked domains:**
+```spl
+index=dns sourcetype="infoblox:rpz" earliest=-24h
+| where NOT match(lower(action), "passthru")
+| stats dc(qname) as unique_blocked_domains count as total_blocks values(policy_name) as policies by src_ip
+| sort -unique_blocked_domains
+| head 50
+```
+
+#### Understanding this SPL: Instead of ranking by domain, we rank by client IP. A client hitting many *different* blocked domains is more concerning than one hitting the same blocked domain repeatedly (which could be a misconfigured app). `dc(qname)` counts distinct blocked domains per client. The `policies` multivalue field shows which RPZ feeds triggered — a client hitting both malware and phishing feeds is higher priority.
+
+**Spike detection — RPZ block rate anomaly:**
+```spl
+index=dns sourcetype="infoblox:rpz" earliest=-7d
+| where NOT match(lower(action), "passthru")
+| timechart span=1h count as blocks
+| eventstats avg(blocks) as avg_blocks stdev(blocks) as stdev_blocks
+| eval upper_bound=avg_blocks + (3 * stdev_blocks)
+| where blocks > upper_bound AND blocks > 100
+| eval spike_ratio=round(blocks/avg_blocks, 1)
+```
+
+#### Understanding this SPL: We build a 7-day hourly block rate, then flag hours where the count exceeds 3 standard deviations above the mean. The `blocks > 100` floor prevents alerting on low-volume noise. `spike_ratio` shows how many times above normal the spike is — a ratio of 5x means 5 times the normal block rate, which could indicate a new malware campaign, a misconfigured RPZ feed, or a compromised host.
+
+**RPZ policy effectiveness — blocks by feed/zone:**
+```spl
+index=dns sourcetype="infoblox:rpz" earliest=-30d
+| where NOT match(lower(action), "passthru")
+| stats count dc(qname) as unique_domains dc(src_ip) as unique_clients by policy_name
+| eval blocks_per_domain=round(count/unique_domains, 1)
+| sort -count
+```
+
+#### Understanding this SPL: Monthly summary showing which RPZ feeds are doing the most work. `blocks_per_domain` reveals whether a feed blocks many domains once each (broad coverage) or a few domains many times (repeat offenders). Feeds with zero or very low counts over 30 days may be redundant or misconfigured.
+
+Schedule as Alert: the spike detection search runs hourly on a 7-day window. Trigger when results > 0. Throttle by `_time` for 4 hours (one spike event per incident). The daily top-blocked search runs once at 06:00 as a scheduled report for the morning SOC briefing.
 
 ### Step 3 — Validate
-In Grid Manager, open Reporting or a member with RPZ logging and pick the same time range as your Splunk search. Confirm one blocked FQDN and client IP in both places; for spikes, line up total block volume with a threat feed or policy change window.
+(a) In Grid Manager, navigate to Reporting > RPZ Hits (available in NIOS 8.5+) or check the member syslog directly. Pick a 1-hour window and compare the RPZ hit count to `index=dns sourcetype="infoblox:rpz" earliest=-1h@h latest=@h | stats count`. Counts should match within 5% — small differences are expected due to syslog transport latency and timestamp rounding.
+
+(b) Pick a specific blocked domain from the Splunk results and verify it exists in your RPZ feed. In Grid Manager, go to Data Management > DNS > Response Policy Zones > [zone name] and search for the domain. If the domain is in the feed but Splunk shows no blocks, the member may not have the RPZ zone assigned to its DNS view.
+
+(c) Verify client IP attribution: pick a `src_ip` from the results and confirm it resolves to an expected internal subnet. If you see external IPs as `src_ip`, your DNS architecture may have a forwarding hop that masks the true client — check whether NIOS is receiving queries directly from clients or via a forwarding resolver.
+
+(d) Confirm policy_name field accuracy: compare the `policy_name` values in Splunk to the RPZ zone names configured in Grid Manager > Data Management > DNS > Response Policy Zones. If the field is null, the TA may not extract it from your NIOS version's log format — add a `rex` extraction in `props.conf` or use `| rex field=_raw "rpz (?<policy_name>[^\s]+)"` as a runtime extraction.
+
+(e) Test alert routing: temporarily lower the spike detection threshold to trigger on current normal traffic, verify the alert fires and routes to the correct SOC channel, then restore the threshold.
 
 ### Step 4 — Operationalize
-Put the top domains and a timechart of block rate on a security dashboard. Send spikes to the SOC channel with the policy name.
+Dashboard (recommended layout, named "Infoblox RPZ — DNS Threat Blocking"):
+- Row 1 — Single-value tiles: "Total blocks (24h)" (with sparkline), "Unique blocked domains (24h)", "Unique clients hitting RPZ (24h)", "Active RPZ policies" (count of distinct policy_name).
+- Row 2 — Timechart: `| timechart span=1h count by policy_name` showing block rate over 7 days with each RPZ feed as a separate series. Overlay the anomaly threshold line from the spike detection search.
+- Row 3 — Two panels side-by-side: (left) Top 20 blocked domains table with count, unique clients, policy_name, drilldown to VirusTotal or similar OSINT lookup; (right) Top 20 clients table with unique blocked domains, total blocks, policies, drilldown to client asset lookup.
+- Row 4 — RPZ policy effectiveness table from the monthly search. Include a "Feed health" column showing whether each feed has received updates in the last 7 days.
+
+Alerting:
+- Spike detection (hourly): route to SOC Slack/Teams channel with severity based on spike_ratio (>3x = warning, >10x = critical). Include top 5 blocked domains and top 5 client IPs in the alert body.
+- New high-volume client (daily): alert when a client IP not seen in the previous 7 days appears with >100 blocks in 24h. This catches newly compromised hosts.
+- RPZ feed gone silent: `index=dns sourcetype="infoblox:rpz" earliest=-24h | stats count by policy_name | where count < 10` — if a feed that normally blocks thousands of queries suddenly drops to near-zero, the feed may have failed to update or the zone was inadvertently disabled.
+
+Runbook (owner: SOC / DNS Security):
+1. **Spike in RPZ blocks**: Open the dashboard. Identify whether the spike is one domain from many clients (campaign) or many domains from one client (compromised host). For campaigns: check if the domain was recently added to the feed (correlate with feed update timestamps). For compromised hosts: isolate the client via NAC or firewall, investigate with endpoint tooling.
+2. **New patient-zero client**: A client hitting many unique blocked domains is likely compromised (C2 beaconing cycles through DGA domains). Escalate to IR. Provide the client IP, MAC (from DHCP logs), hostname (from DNS reverse), and the list of blocked domains.
+3. **RPZ feed stopped blocking**: Check Grid Manager > Data Management > DNS > Response Policy Zones > [zone] > last updated. If the feed hasn't updated, check the Threat Intelligence Data Exchange (TIDE) subscription or the custom feed source. Manually trigger an RPZ zone transfer if possible.
+4. **False positive — legitimate domain blocked**: Add the domain to a PASSTHRU policy (whitelist RPZ zone) that has higher priority than the blocking zone. Document the override in a lookup `rpz_overrides.csv` with columns: domain, reason, approved_by, date.
 
 ### Step 5 — Troubleshooting
-If counts are zero, confirm members still send to Splunk, RPZ is bound to the right views, and you are in the right index. If noise is high, filter known-good client subnets.
+
+- **No events in `infoblox:rpz` sourcetype** — Most common cause: RPZ logging is not enabled in Grid DNS Properties. Navigate to Grid > Grid DNS Properties > Logging and confirm "RPZ Logging" is checked. Second cause: the TA's `transforms.conf` regex does not match your NIOS version's RPZ log format. Check raw events in `sourcetype=infoblox:dns` for RPZ-related strings — if you find them there, the sourcetype routing regex needs adjustment.
+
+- **Events arrive but `qname` / `src_ip` fields are null** — The TA's field extractions in `props.conf` may not match the CEF format from your NIOS version. Run `index=dns sourcetype="infoblox:rpz" earliest=-1h | head 5 | table _raw` and examine the raw log format. Add custom `EXTRACT` rules or `rex` commands to capture the fields. Common NIOS 8.6 format: `rpz QNAME NXDOMAIN rewrite <qname> via <policy_name>` — adjust your regex accordingly.
+
+- **Block counts in Splunk are much lower than Grid Manager Reporting** — Check whether all Grid Members are configured to send syslog to Splunk. If only the Grid Master is forwarding, you'll miss blocks processed by other members. Also check for UDP syslog packet loss at high volume — switch to TCP syslog for reliability.
+
+- **Too many PASSTHRU events cluttering the view** — PASSTHRU means the RPZ evaluated the query but allowed it through (whitelist match). Filter with `| where NOT match(lower(action), "passthru")` in all searches. If PASSTHRU volume is very high, consider disabling PASSTHRU logging at the NIOS level (Grid DNS Properties > Logging > RPZ > uncheck "Log PASSTHRU" if available in your version).
+
+- **Spike alert fires during RPZ feed update windows** — When a new threat feed loads, NIOS may briefly log a burst of retroactive blocks as cached queries are re-evaluated. Identify your feed update schedule (typically every 2–4 hours for TIDE) and add a suppression window, or increase the `blocks > 100` floor in the spike detection search.
+
+- **Client IPs are all the same (forwarding resolver)** — If all `src_ip` values point to a single IP (your forwarding resolver), NIOS is not seeing the original client IP. Reconfigure your DNS architecture to use EDNS Client Subnet (ECS) if supported, or have clients query NIOS members directly rather than through a forwarding layer.
 
 ## SPL
 

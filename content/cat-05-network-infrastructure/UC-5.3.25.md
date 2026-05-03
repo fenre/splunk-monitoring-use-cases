@@ -21,7 +21,7 @@ Citrix ADC Bot Management classifies clients (good automation, bad bots, unknown
 
 ## Value
 
-Citrix ADC Bot Management classifies clients (good automation, bad bots, unknown) and can enforce CAPTCHA, allow, or deny. Tracking category mix and enforcement rates surfaces credential stuffing, scraping, and misclassified good bots. A rising bad or unknown share, or high CAPTCHA rates, can indicate attack campaigns or policy tuning needs before user experience or origin load suffers.
+Security teams monitor Citrix ADC bot detection classifying traffic as good/bad/unknown bots, identifying unblocked malicious bots and misconfigured policies blocking legitimate crawlers.
 
 ## Implementation
 
@@ -30,45 +30,52 @@ Enable bot signatures and logging to appflow and/or syslog. Ensure HTTP headers 
 ## Detailed Implementation
 
 ### Prerequisites
-- Bot Management licensed and configured; logging enabled.
-- Data in `index=netscaler` with `citrix:netscaler:appflow` and/or syslog lines containing decisions.
-- Optional: geo and ASN enrichment via separate lookup.
+* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). Citrix ADC Bot Management logs. Key fields: `bot_type` (good/bad/unknown), `bot_category`, `action` (allow/block/captcha/rate-limit), `source_ip`, `user_agent`, `url`, `tps`.
+* Citrix ADC Bot Management detects: (1) known good bots (Google, Bing crawlers), (2) known bad bots (scrapers, vulnerability scanners), (3) unknown bots (behavioral analysis), (4) CAPTCHA challengers, (5) device fingerprinting.
 
-### Step 1 — Configure data collection
-Send AppFlow and security-related syslog to Splunk. Map vendor fields to `bot_class` and `action` where the add-on provides CIM-style fields; otherwise refine the `eval` in SPL after sampling `_raw`.
-
-### Step 2 — Create the search and alert
-Run the search; alert on thresholds tuned per site (for example, bad bot count > N per 15 minutes, or unknown share doubling week over week). Add allowlists for monitoring services.
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+### Step 1 — - Configure data collection
+Verify bot management data:
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Intrusion_Detection.IDS_Attacks
-  by IDS_Attacks.signature IDS_Attacks.severity IDS_Attacks.src IDS_Attacks.dest span=1h
-| where count>0
-| sort -count
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:appfw") ("bot" OR "BOT" OR "captcha" OR "fingerprint" OR "rate.limit") earliest=-4h
+| stats count by host
 ```
 
-Understanding this CIM / accelerated SPL
+### Step 2 — - Create the search and alert
 
-This block uses `tstats` on the Intrusion_Detection data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+**Primary search -- Bot detection analysis:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:appfw") ("bot" OR "BOT" OR "captcha" OR "fingerprint") earliest=-4h
+| eval bot_class=coalesce(bot_type, bot_category, if(match(_raw, "(?i)good.bot"), "GOOD", if(match(_raw, "(?i)bad.bot|malicious"), "BAD", "UNKNOWN")))
+| eval act=coalesce(action, enforcement_action)
+| eval src=coalesce(source_ip, client_ip)
+| eval ua=coalesce(user_agent, http_user_agent)
+| stats count as detections dc(src) as unique_sources values(url) as target_urls by bot_class, act
+| eval concern=case(bot_class="BAD" AND act!="block", "RISK -- bad bot not blocked", bot_class="UNKNOWN" AND detections > 100, "INVESTIGATE -- high unknown bot activity", bot_class="GOOD" AND act="block", "CONFIG -- good bot being blocked", 1==1, "OK")
+| where concern != "OK"
+| sort concern
+```
 
-**Pipeline walkthrough**
+### Step 3 — - Validate
+(a) Use curl with a known bot user-agent: `curl -H "User-Agent: Googlebot" https://app/` -- verify it's classified as "GOOD".
+(b) Use a vulnerability scanner user-agent and verify it's classified as "BAD".
+(c) On ADC CLI: `show bot profile <profile> -stat` -- compare detection counts.
 
-- Uses `tstats` against accelerated summaries for the Intrusion_Detection model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+### Step 4 — - Operationalize
+Dashboard ("Citrix ADC -- Bot Management"):
+* Row 1 -- Single-value: "Good bots", "Bad bots", "Unknown bots", "Blocked".
+* Row 2 -- Bot classification with action and concerns.
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+Alerting:
+* Warning (bad bots not being blocked): bot profile may be in detect-only mode.
+* Info (high unknown bot activity): review and classify.
 
+### Step 5 — - Troubleshooting
 
+* **Good bot blocked** -- Check bot allow-list: `show bot profile <profile> -goodbot`. Add the bot's user-agent or IP range to the allow-list.
 
-### Step 3 — Validate
-Compare vservers, services, and load-balancing state in the Citrix ADC management view or command line for the same time window and objects.
-### Step 4 — Operationalize
-Pair alerts with your web fraud or identity team. Document how to add exceptions for partner automation without turning off protection.
+* **Bad bot not blocked** -- Profile may be in "detect" mode. Change to "mitigate": `set bot profile <profile> -trap ON -trapurl /bot_trap`.
+
+* **High "unknown" bot count** -- These need classification. Check behavioral analysis settings and device fingerprinting configuration.
 
 ## SPL
 

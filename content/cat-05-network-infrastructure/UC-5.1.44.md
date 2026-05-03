@@ -21,7 +21,7 @@ Identifies and alerts on broadcast storms that can freeze network performance ac
 
 ## Value
 
-Identifies and alerts on broadcast storms that can freeze network performance across all switches.
+NOC teams detect broadcast storms on Meraki MS switches and track storm control actions including port disablement, enabling rapid identification and resolution of network loops.
 
 ## Implementation
 
@@ -30,42 +30,64 @@ Monitor broadcast traffic thresholds. Alert on sustained high broadcast rates.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=security_event signature="*broadcast*"`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MS broadcast storm events from syslog. Data in `index=meraki` with `sourcetype=meraki:events`. Key events: storm control triggered, broadcast storm detected, port disabled by storm control.
+* Broadcast storms: excessive broadcast traffic that saturates the network. Causes: network loops, misbehaving devices, or broadcast-heavy protocols. Meraki MS has built-in storm control that rate-limits or disables ports exceeding broadcast thresholds.
 
-### Step 1 — Configure data collection
-Monitor broadcast traffic thresholds. Alert on sustained high broadcast rates.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Meraki Dashboard > Switch > Storm control
+# Configure storm control thresholds
+# Syslog: enable Event log
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*broadcast*"
-| stats sum(packet_count) as broadcast_packets by switch_name, port_id
-| where broadcast_packets > 10000
+index=meraki sourcetype="meraki:events" earliest=-7d
+| where match(_raw, "(?i)storm|broadcast.*storm|storm.*control|broadcast.*rate")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Broadcast Storm Detection and Mitigation (Meraki MS)** — Identifies and alerts on broadcast storms that can freeze network performance across all switches.
+**Primary search -- Broadcast storm detection:**
+```spl
+index=meraki sourcetype="meraki:events" earliest=-4h
+| where match(_raw, "(?i)storm|broadcast.*storm|storm.*control|broadcast.*rate|multicast.*storm")
+| eval device=coalesce(serial, host)
+| lookup meraki_networks.csv serial AS device OUTPUT network_name
+| rex field=_raw "(?i)(?:port|Port)\s+(?<port_id>\d+)"
+| eval storm_action=case(
+    match(_raw, "(?i)disabl|shut|block"), "PORT_DISABLED",
+    match(_raw, "(?i)rate.*limit|throttl"), "RATE_LIMITED",
+    match(_raw, "(?i)detect|alert"), "DETECTED",
+    1==1, "STORM_EVENT")
+| stats count as events values(storm_action) as actions values(port_id) as ports by network_name, device
+| eval severity=case(
+    match(mvjoin(actions, ","), "PORT_DISABLED"), "CRITICAL -- port disabled by storm control",
+    events > 5, "WARNING -- repeated storm control events",
+    1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -events
+```
 
-Documented **Data sources**: `sourcetype=meraki type=security_event signature="*broadcast*"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Switch > Switch ports -- check for ports disabled by storm control.
+(b) Check for physical loops (ports connected to same switch or hub).
+(c) Dashboard: Network-wide > Event log -- review storm events.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MS -- Storm Control"):
+* Row 1 -- Single-value: "Storm events (4h)", "Ports disabled".
+* Row 2 -- Storm control event timeline.
 
-**Pipeline walkthrough**
+Alert: Critical (port disabled by storm control): investigate loop or misbehaving device.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by switch_name, port_id** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where broadcast_packets > 10000` — typically the threshold or rule expression for this monitoring goal.
+### Step 5 — - Troubleshooting
 
+* **Broadcast storm from loop** -- Trace the physical cabling. Check for unmanaged switches or hubs creating loops. Remove the loop and re-enable port.
 
-### Step 3 — Validate
-In the Meraki dashboard, select the same organization, site, and UTC window as the Splunk search. Open Network-wide event log or the device event log and confirm a sample event count and field (for example `event_type` or `carrier_name`) matches what you see in Splunk.
+* **Storm from misbehaving device** -- Identify the device on the storm-causing port. May be broadcasting excessively (ARP storm, DHCP storm). Isolate and fix the device.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Real-time alert dashboard; time-series of broadcast packets; affected port list.
+* **Storm control threshold too sensitive** -- Adjust thresholds in Dashboard if false positives. Consider the normal broadcast level for the VLAN.
 
 ## SPL
 

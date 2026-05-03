@@ -1,0 +1,58 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.90",
+  "title": "IPv6 IDS/IPS Signature Coverage Audit",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "ES",
+  "dataSources": "`index=network sourcetype=suricata:alert` or `sourcetype=snort:alert` or `sourcetype=zeek:notice` — audit of IDS/IPS signature coverage for IPv6-specific attack patterns. Many IDS/IPS deployments have significantly lower coverage for IPv6 attacks compared to IPv4 because:\n\n1. **Signature gaps.** Default rulesets (Emerging Threats, Talos) have fewer IPv6-specific rules. NDP poisoning, RA spoofing, and extension header attacks may not have corresponding signatures.\n2. **Extension header processing.** Some IDS/IPS engines cannot inspect payloads inside packets with extension headers, especially chained headers. Attackers use extension headers to evade inspection.\n3. **IPv6 fragmentation differences.** IPv6 fragmentation uses a dedicated Fragment Header (next header 44). IDS engines that only handle IPv4 fragmentation (IP ID field) may miss IPv6 fragment reassembly.\n4. **Protocol 41 (6in4) tunnels.** If the IDS doesn't decapsulate protocol 41, all IPv6 traffic inside 6in4 tunnels is uninspected.\n5. **Hop-by-Hop processing.** The Hop-by-Hop Options Header (next header 0) forces line-rate processing. IDS engines may skip packets with this header.\n\n**Critical signatures to verify:**\n- RA spoofing (ICMPv6 Type 134 from non-link-local source)\n- NDP poisoning (unsolicited NA with Override)\n- DAD DoS (NA response to all DAD probes)\n- Extension header evasion (excessive/chained headers)\n- Fragment evasion (overlapping fragments, tiny first fragment)\n- Tunnel encapsulation (protocol 41, UDP 3544)",
+  "app": "Suricata / Snort / Zeek / Corelight",
+  "spl": "index=network (sourcetype=\"suricata:alert\" OR sourcetype=\"snort:alert\" OR sourcetype=\"zeek:notice\") earliest=-30d\n| eval is_ipv6_sig=if(match(alert_signature, \"(?i)ipv6|ndp|icmpv6|slaac|ra.?guard|router.?advert|neighbor|extension.?header|fragment.?header|6to4|teredo\"), 1, 0)\n| stats count as total_alerts count(eval(is_ipv6_sig=1)) as ipv6_alerts dc(alert_signature) as total_sigs dc(eval(if(is_ipv6_sig=1, alert_signature, null()))) as ipv6_sigs\n| eval ipv6_sig_pct=round(ipv6_sigs / total_sigs * 100, 1)\n| eval ipv6_alert_pct=round(ipv6_alerts / total_alerts * 100, 1)\n| eval assessment=case(\n    ipv6_sigs >= 20, \"GOOD — \" . ipv6_sigs . \" IPv6-specific signatures active\",\n    ipv6_sigs >= 10, \"PARTIAL — \" . ipv6_sigs . \" IPv6 signatures. Check for RA spoofing, NDP poisoning, extension header evasion.\",\n    ipv6_sigs >= 1, \"POOR — only \" . ipv6_sigs . \" IPv6 signatures. Major coverage gap.\",\n    1=1, \"CRITICAL — ZERO IPv6-specific IDS signatures. IPv6 attacks are completely undetected.\")",
+  "description": "Audits IDS/IPS signature coverage for IPv6-specific attacks including NDP cache poisoning, Router Advertisement spoofing, extension header evasion, IPv6 fragmentation attacks, and tunnel encapsulation bypass. Many IDS/IPS deployments have near-zero IPv6 signature coverage, meaning IPv6-specific attacks go completely undetected while IPv4 attacks trigger alerts normally.",
+  "value": "If IDS/IPS cannot detect IPv6 attacks, the entire security monitoring capability has a blind spot. Attackers know this and will use IPv6 attack vectors specifically because they are unlikely to be detected. This audit quantifies the IPv6 signature gap and provides a prioritised list of signatures to deploy. The goal is equivalent IPv6 and IPv4 detection coverage.",
+  "implementation": "Analyse IDS/IPS alert data for IPv6-specific signature hits. Audit ruleset configuration for critical IPv6 signatures. Test detection capability with known IPv6 attack tools. Report coverage gaps.",
+  "visualization": "(1) Single-value: IPv6-specific signature count and percentage of total. (2) Table: IPv6 signatures with hit counts (active vs dormant). (3) Gap analysis: required signatures vs deployed signatures. (4) Trend: IPv6 detection events over time.",
+  "references": [
+    {
+      "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6 — IDS/IPS considerations)",
+      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+    },
+    {
+      "title": "Suricata IPv6 Rules Documentation",
+      "url": "https://docs.suricata.io/en/latest/rules/ipv6-keywords.html"
+    },
+    {
+      "title": "THC-IPv6 — Attack toolkit for testing IPv6 IDS/IPS detection",
+      "url": "https://github.com/vanhauser-thc/thc-ipv6"
+    }
+  ],
+  "knownFalsePositives": "**Lab/test tool traffic.** Security testing tools (THC-IPv6, Scapy, nmap --script ipv6) may trigger IPv6 IDS signatures during authorised penetration testing. Correlate with change management and pen test schedules.\n\n**Signature category inflation.** Some IDS/IPS signatures are labelled 'IPv6' but actually detect generic protocol issues that happen to mention IPv6. Focus on signatures that detect IPv6-SPECIFIC attacks (RA spoofing, NDP poisoning, etc.).\n\n**Protocol 41 in legitimate tunnels.** Signature for protocol 41 (6in4 tunnel) detection may fire on legitimate transition tunnels. Whitelist authorised tunnel endpoints.",
+  "equipment": [
+    "zeek",
+    "corelight",
+    "cisco",
+    "paloaltonetworks"
+  ],
+  "equipmentModels": [
+    "zeek_sensor",
+    "suricata_sensor",
+    "paloalto_panos"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• IDS/IPS deployment with alert data forwarded to Splunk.\n• Access to the IDS/IPS ruleset configuration.\n• THC-IPv6 or Scapy for detection validation testing.\n\nStep 1 — Configure data collection\n\n**Critical IPv6 IDS signatures to verify (Suricata examples):**\n```yaml\n# RA Spoofing — non-link-local source sending Router Advertisements\nalert icmpv6 !fe80::/10 any -> ff02::1 any (msg:\"IPv6 RA from non-link-local source — rogue RA\"; icmpv6_type:134; sid:9020001; rev:1;)\n\n# NDP Cache Poisoning — unsolicited NA with Override flag\nalert icmpv6 any any -> any any (msg:\"IPv6 unsolicited NA with Override — potential NDP poisoning\"; icmpv6_type:136; content:\"|e0|\"; offset:4; depth:1; sid:9020002; rev:1;)\n\n# Extension Header Evasion — excessive extension headers\nalert ipv6 any any -> any any (msg:\"IPv6 packet with >3 extension headers — potential evasion\"; ipv6.hdr_count:>3; sid:9020003; rev:1;)\n\n# Fragment Evasion — tiny first fragment\nalert ipv6 any any -> any any (msg:\"IPv6 tiny first fragment — potential evasion\"; fragbits:M; dsize:<100; sid:9020004; rev:1;)\n\n# 6in4 Tunnel Detection\nalert ip any any -> any any (msg:\"Protocol 41 — 6in4 tunnel detected\"; ip_proto:41; sid:9020005; rev:1;)\n\n# Teredo Tunnel Detection\nalert udp any any -> any 3544 (msg:\"Teredo tunnel traffic — UDP 3544\"; sid:9020006; rev:1;)\n```\n\n**Create signature coverage checklist lookup:**\n```csv\nattack_category,required_signature,suricata_sid,status,notes\nRA Spoofing,\"RA from non-link-local source\",9020001,deployed,Custom rule\nNDP Poisoning,\"Unsolicited NA with Override\",9020002,deployed,Custom rule\nDAD DoS,\"NA responses to DAD probes\",TBD,missing,Needs custom rule development\nExtension Header Evasion,\"Excessive extension headers\",9020003,deployed,Custom rule\nFragment Evasion,\"Tiny first fragment\",9020004,deployed,Custom rule\n6in4 Tunnel,\"Protocol 41 detection\",9020005,deployed,Custom rule\nTeredo Tunnel,\"UDP 3544 detection\",9020006,deployed,Custom rule\nHop-by-Hop DoS,\"Hop-by-Hop Options flooding\",TBD,missing,Needs custom rule\nRH0 Abuse,\"Routing Header Type 0\",TBD,missing,Covered by ACL but no IDS rule\n```\nUpload as `ids_ipv6_coverage.csv`.\n\n**Verification:**\n```spl\nindex=network (sourcetype=\"suricata:alert\" OR sourcetype=\"snort:alert\") earliest=-7d\n| search alert_signature=\"*IPv6*\" OR alert_signature=\"*NDP*\" OR alert_signature=\"*ICMPv6*\"\n| stats count by alert_signature\n```\n\nStep 2 — Create coverage assessment\n\n**Signature coverage matrix:**\n```spl\n| inputlookup ids_ipv6_coverage.csv\n| stats count(eval(status=\"deployed\")) as deployed count(eval(status=\"missing\")) as missing count as total\n| eval coverage_pct=round(deployed / total * 100, 0) . \"%\"\n| eval assessment=case(\n    deployed=total, \"FULL COVERAGE — all critical IPv6 attack signatures deployed\",\n    missing <= 2, \"NEAR FULL — \" . missing . \" signatures still needed\",\n    1=1, \"SIGNIFICANT GAPS — \" . missing . \" attack categories undetected\")\n```\n\n**Detection validation results:**\n```spl\n| inputlookup ids_ipv6_validation.csv\n| eval passed=if(detected=\"yes\", 1, 0)\n| stats sum(passed) as detected count as tested\n| eval detection_rate=round(detected / tested * 100, 0) . \"%\"\n```\n\nStep 3 — Validate\n(a) **RA spoofing test.** Use THC-IPv6 `fake_router6` on a test segment. Verify the IDS alerts on the RA from a non-link-local source.\n\n(b) **Extension header test.** Use Scapy to craft a packet with 5 chained extension headers. Send through the IDS sensor. Verify alert fires.\n\n(c) **Payload inspection test.** Send a known malicious payload inside a packet with a Destination Options extension header. Verify the IDS inspects THROUGH the extension header and detects the payload.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — IDS/IPS Coverage Audit\"):\n• Row 1 — Single-value: IPv6 signature coverage percentage.\n• Row 2 — Table: signature coverage matrix (deployed vs missing by attack category).\n• Row 3 — Timechart: IPv6-specific IDS alerts over 30 days.\n• Row 4 — Validation results: last detection test outcomes.\n\n**Scheduling:** Signature coverage assessment quarterly. Detection validation testing semi-annually or after major ruleset updates.\n\n**Runbook:**\n1. Missing critical signatures: Deploy custom Suricata/Snort rules from the checklist above. Test before production deployment.\n2. Extension header bypass confirmed: Upgrade IDS engine to version with full extension header inspection. As interim mitigation, deploy ACLs to limit extension header chains.\n3. Zero IPv6 alerts in 30 days: Verify IDS sensor is processing IPv6 traffic. Check that IPv6 rules are enabled (not just installed). Run test traffic.\n\nStep 5 — Troubleshooting\n\n• **IDS engine IPv6 support.** Verify the IDS engine version supports IPv6. Older Suricata versions (< 4.0) had limited IPv6 extension header handling. Upgrade to the latest stable version.\n\n• **SPAN/TAP placement.** Ensure the IDS sensor receives IPv6 traffic. If the SPAN session or network TAP is placed on an IPv4-only segment, IPv6 traffic won't reach the sensor.\n\n• **Performance impact.** IPv6 packets with extension headers may require more processing than IPv4 packets. Monitor IDS engine CPU and drop statistics when deploying new IPv6 rules.",
+  "grandmaExplanation": "Our security cameras (IDS/IPS) are great at recognising burglars using the old entrance (IPv4). But the new entrance (IPv6) has different types of break-in methods that the cameras might not recognise. We check how many new break-in methods the cameras can spot, and add recognition training for any they're missing.",
+  "prerequisiteUseCases": [
+    "5.20.72",
+    "5.20.73"
+  ],
+  "wave": "run"
+}

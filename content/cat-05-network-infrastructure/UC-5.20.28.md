@@ -1,0 +1,186 @@
+<!-- AUTO-GENERATED from UC-5.20.28.json — DO NOT EDIT -->
+
+---
+id: "5.20.28"
+title: "ICMPv6 Multicast Amplification Detection"
+status: "verified"
+criticality: "high"
+splunkPillar: "Security"
+---
+
+# UC-5.20.28 · ICMPv6 Multicast Amplification Detection
+
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security, Threat Detection &middot; **Wave:** Run &middot; **Status:** Verified
+
+*Imagine someone writes a letter asking 'Are you there?' to every house in the neighbourhood, but puts your return address on the envelope. Every house sends their reply to you, flooding your mailbox with hundreds of letters you never asked for. We watch for this trick on the network — someone sending a message to 'everyone' with a fake return address to overwhelm the real recipient.*
+
+---
+
+## Description
+
+Detects IPv6 'Smurf' amplification attacks where an attacker sends ICMPv6 Echo Requests (ping6) to the All Nodes multicast address (ff02::1) with a spoofed source address. Every host on the VLAN responds to the spoofed source, creating a traffic amplification that can overwhelm the victim with Echo Replies. The amplification factor equals the number of responsive hosts on the VLAN — on a busy campus VLAN with 200 hosts, a single spoofed ping6 to ff02::1 generates 200 Echo Replies to the victim.
+
+RFC 9099 §2.3.5 identifies this as a known IPv6 attack vector. Unlike IPv4 Smurf attacks (which were mitigated by disabling directed broadcast), IPv6 link-local multicast cannot be disabled because it is required for NDP. The mitigation must happen at the host level (ignore Echo Requests to multicast destinations, per RFC 4443 §4.2) or at the network level (rate-limit ICMPv6 Echo to multicast).
+
+## Value
+
+Multicast amplification is one of the simplest IPv6 attacks to execute — it requires only a single spoofed packet — but can generate significant traffic volumes on large VLANs. A VLAN with 500 hosts produces a 500:1 amplification ratio. While the attack is limited to the local VLAN's bandwidth (the amplified replies are unicast), it can saturate the victim's network interface and cause denial-of-service. More importantly, the attack can be used to exhaust the victim's host ICMPv6 processing budget, interfering with legitimate ICMPv6 functions like NDP and Path MTU Discovery. Detecting multicast Echo Requests is straightforward — they should almost never occur in production — providing a high-confidence security signal.
+
+## Implementation
+
+Monitor ICMPv6 Echo Requests (Type 128) to multicast destinations (ff02::, ff05::, ff0e::) via Zeek or firewall ACL logging. Any Echo Request to a multicast address is suspicious. Alert on any occurrence (low baseline = high confidence) and track the claimed source address for victim identification.
+
+## Detailed Implementation
+
+### Prerequisites
+- Zeek or Suricata deployed on network TAP/SPAN covering VLAN trunks for ICMPv6 analysis.
+- Understanding that ping6 to ff02::1 is a legitimate but unusual operation — any automated or high-frequency occurrence should be investigated.
+- ACL logging on perimeter firewalls for ICMPv6 to multicast destinations.
+
+### Step 1 — Configure data collection
+
+**Zeek (primary detection):**
+Zeek logs all ICMPv6 Echo Requests and Echo Replies in `conn.log` and `icmp.log`. Deploy Zeek on SPAN/TAP covering VLAN trunk ports. Forward to Splunk with `sourcetype=corelight_zeek`.
+
+**Cisco ACL-based detection (complementary):**
+Add an explicit ACL entry to log ICMPv6 Echo Requests to multicast addresses:
+```
+ipv6 access-list MONITOR_MCAST_PING
+ sequence 10 permit icmp any FF00::/8 echo-request log
+ sequence 20 permit ipv6 any any
+!
+interface Vlan100
+ ipv6 traffic-filter MONITOR_MCAST_PING in
+```
+This permits and logs the traffic (for detection) without blocking it. The ACL log events are forwarded to Splunk via the Cisco IOS TA.
+
+**Host-level mitigation (complementary — reduces amplification):**
+Linux:
+```bash
+sysctl -w net.ipv6.icmp.echo_ignore_multicast=1
+```
+Windows:
+```powershell
+Set-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv6-In)" -Enabled False
+```
+These prevent hosts from responding to multicast Echo Requests, breaking the amplification chain.
+
+**Verification:**
+```spl
+index=network (sourcetype="corelight_zeek" icmpv6_type=128) earliest=-7d
+| where match(dest_ip, "^ff")
+| stats count
+```
+Expected: zero or very low on production networks.
+
+### Step 2 — Create the search and alert
+
+**Primary alert — Echo Request to multicast destination:**
+```spl
+index=network sourcetype="corelight_zeek" icmpv6_type=128 earliest=-15m
+| where match(dest_ip, "^ff0[0-9a-fA-F]:")
+| lookup ipv6_mcast_ping_whitelist.csv src_ip OUTPUT authorised
+| where isnull(authorised) OR authorised!="true"
+| stats count as ping_count values(src_ip) as sources values(dest_ip) as mcast_targets by vlan
+| where ping_count > 0
+```
+Trigger: any result (baseline is zero). Priority: HIGH for >5 events, CRITICAL for >50 events.
+
+**Amplification detection — Echo Reply burst to single victim:**
+```spl
+index=network sourcetype="corelight_zeek" icmpv6_type=129 earliest=-5m
+| stats count as reply_count dc(src_ip) as responders by dest_ip
+| where reply_count > 10 AND responders > 5
+| eval assessment="AMPLIFICATION IN PROGRESS: " . responders . " hosts replying to " . dest_ip
+```
+This detects the amplification effect: many hosts sending Echo Replies to the same destination within a short window. The `dest_ip` is the victim being amplified against.
+
+**Combined attack detection:**
+```spl
+(index=network sourcetype="corelight_zeek" icmpv6_type=128 earliest=-5m
+  | where match(dest_ip, "^ff")
+  | eval role="TRIGGER", target=src_ip)
+OR
+(index=network sourcetype="corelight_zeek" icmpv6_type=129 earliest=-5m
+  | stats count as replies dc(src_ip) as responders by dest_ip
+  | where replies > 10 AND responders > 5
+  | eval role="AMPLIFICATION", target=dest_ip)
+| stats values(role) as attack_phases values(replies) as reply_count by target
+| where mvcount(attack_phases) >= 2 OR match(mvjoin(attack_phases, ","), "AMPLIFICATION")
+```
+
+### Step 3 — Validate
+(a) **Controlled test (lab only).** From a lab host, send a ping6 to ff02::1:
+```bash
+ping6 -c 1 ff02::1%eth0
+```
+Multiple hosts should respond. Verify: (1) The Echo Request to ff02::1 triggers the alert. (2) The Echo Replies from multiple sources to the pinging host are visible in the amplification search.
+
+(b) **Spoofed source test (advanced, lab only).** Use `ping6` with a spoofed source (requires raw socket):
+```bash
+sudo nping -6 --icmp --icmp-type echo --source-ip 2001:db8::victim ff02::1%eth0
+```
+Verify: the alert identifies the spoofed source as the victim.
+
+(c) **Baseline verification.** Over 7 days of production data, confirm that ICMPv6 Type 128 to multicast destinations is effectively zero. Any non-zero baseline should be investigated and whitelisted or blocked.
+
+### Step 4 — Operationalize
+
+**Dashboard** ("IPv6 — Multicast Amplification Detection"):
+- Row 1 — Single-value: multicast Echo Requests (24h) — should be zero.
+- Row 2 — Table: detected events with source (potential victim), multicast target, VLAN.
+- Row 3 — Amplification panel: Echo Reply bursts to single destinations.
+- Row 4 — Timechart: ICMPv6 Type 128 to multicast over 7 days.
+
+**Scheduling:** Real-time alert for any multicast Echo Request. Every 5 minutes for amplification pattern detection.
+
+**Runbook:**
+1. Multicast ping detected:
+   a. If `src_ip` is a legitimate network engineer troubleshooting: document and close.
+   b. If `src_ip` appears spoofed (the address is actually the victim): this is an active amplification attack.
+      - Identify the VLAN where the attack originated.
+      - Apply rate-limiting on ICMPv6 Echo to multicast: `ipv6 access-list BLOCK_MCAST_PING` → `deny icmp any FF00::/8 echo-request`.
+      - Investigate the physical source using MAC analysis.
+2. Amplification in progress (Echo Reply burst):
+   a. The `dest_ip` is the victim. Check if they are experiencing service degradation.
+   b. Trace the original multicast Echo Request to the VLAN of origin.
+
+### Step 5 — Troubleshooting
+
+- **Legitimate use of ff02::1 ping** — Network engineers sometimes use `ping6 ff02::1%<interface>` for host discovery. This is valid but should be rare. Create a suppression lookup for authorised monitoring sources.
+
+- **Echo Replies from router interfaces** — Routers also respond to ff02::1 pings. Their replies may dominate the response set. Filter known router MACs if needed.
+
+- **ICMPv6 rate limiting on hosts obscures amplification** — Modern operating systems rate-limit ICMPv6 responses (Linux: `net.ipv6.icmp.ratelimit=1000` ms). This reduces the amplification factor but doesn't eliminate it. The detection still works — just with lower reply counts than expected.
+
+## SPL
+
+```spl
+index=network sourcetype="corelight_zeek" icmpv6_type=128 earliest=-1h
+| where match(dest_ip, "^ff0[0-9a-fA-F]:")
+| stats count as ping_count dc(src_ip) as unique_sources values(src_ip) as spoofed_sources values(dest_ip) as mcast_targets by vlan
+| where ping_count > 5
+| eval assessment=case(
+    ping_count > 100, "CRITICAL — active multicast amplification attack",
+    ping_count > 20, "WARNING — elevated multicast pings",
+    1=1, "INFO — low-level multicast pings")
+| table vlan, ping_count, unique_sources, spoofed_sources, mcast_targets, assessment
+```
+
+## Visualization
+
+(1) Single-value: multicast Echo Requests in 24 hours — should be zero on production networks. (2) Table: detected multicast ping events with source (spoofed victim), multicast target, and VLAN. (3) Timechart: multicast Echo Request rate — any spike is actionable. (4) Correlation panel: show Echo Reply burst from multiple sources to the same destination immediately after the multicast ping.
+
+## Known False Positives
+
+**Network discovery tools using ff02::1 ping.** Some legitimate network discovery tools (e.g., `nmap -6 --script targets-ipv6-multicast-echo`) use ping6 to ff02::1 to discover hosts. These should be scheduled and whitelisted. On production networks, this technique should be confined to authorised scanning windows.
+
+**Router keep-alive pings to ff02::1.** Some network monitoring systems send periodic pings to ff02::1 to verify VLAN connectivity. This is unusual but not unheard of. Verify with the network team and whitelist the monitoring system's source IP.
+
+**IPv6 troubleshooting by network engineers.** Engineers may manually ping6 ff02::1 from a router to discover active IPv6 hosts. This is a legitimate troubleshooting technique but should be rare on production networks.
+
+## References
+
+- [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.5 — Multicast amplification, ICMPv6 ff02::1 abuse)](https://www.rfc-editor.org/rfc/rfc9099)
+- [RFC 4443 — Internet Control Message Protocol (ICMPv6) for IPv6 (§4.2 — Echo Reply to multicast — implementations SHOULD NOT respond)](https://www.rfc-editor.org/rfc/rfc4443)
+- [RFC 4890 — Recommendations for Filtering ICMPv6 Messages in Firewalls (Echo Request/Reply handling at boundaries)](https://www.rfc-editor.org/rfc/rfc4890)

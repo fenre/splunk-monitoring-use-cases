@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.10.12",
+  "title": "Carrier Maintenance Window Correlation",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "wave": "walk",
+  "monitoringType": [
+    "Operations",
+    "Change"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`index=network` syslog (`sourcetype=cisco:ios`, `sourcetype=juniper:junos`) for `%BGP-5-ADJCHANGE`, `LINK-3-UPDOWN`, `LINEPROTO-5-UPDOWN`, `SNMP_TRAP_LINK`; optional `index=telecom_sip` `stream:sip` 503/504 bursts toward carrier trunks. Lookup tables `carrier_maintenance_windows.csv` (fields: `carrier_id`, `utc_start`, `utc_end`, `circuit_hint`, `ticket_ref`, `suppress_alert`) and `carrier_circuits.csv` mapping `host`, `interface`, `carrier_id`.",
+  "app": "`Splunk Connect for Syslog` or Cisco Juniper TAs feeding unified network index.",
+  "spl": "index=network earliest=-24h (sourcetype=\"cisco:ios\" OR sourcetype=\"juniper:junos\")\n    (\"%BGP-5-ADJCHANGE\" OR \"BGP_NOTIFICATION\" OR \"LINK-3-UPDOWN\" OR \"LINEPROTO-5-UPDOWN\" OR \"SNMP_TRAP_LINK\")\n| rex field=_raw \"(?i)interface (?<if_name>[^,:]+)\"\n| rex field=_raw \"neighbor (?<bgp_nbr>[0-9a-fA-F:\\.:\\]]+)\"\n| eval circuit_key=host.\"|\".coalesce(if_name,\"na\")\n| lookup carrier_circuits.csv circuit_key OUTPUT carrier_id carrier_name\n| lookup carrier_maintenance_windows.csv carrier_id OUTPUT utc_start utc_end ticket_ref suppress_alert\n| eval in_maint=if(suppress_alert==\"true\" AND _time>=utc_start AND _time<=utc_end,1,0)\n| where in_maint==0 OR isnull(utc_start)\n| eval severity=case(match(_raw,\"(?i)down|idle\"),\"high\", match(_raw,\"(?i)UPDOWN.*down\"),\"high\", true(),\"medium\")\n| stats count values(ticket_ref) as tickets values(_raw) as samples by carrier_name host bgp_nbr if_name severity\n| sort -count",
+  "description": "Tags carrier-impacting interface and BGP churn events with synchronized carrier-published maintenance windows so only unexpected outages bubble into paging queues—while still retaining forensic copies of in-window noise.",
+  "value": "Operations stops burning bridge calls on planned fibre swaps or PE reloads, yet preserves timestamps proving whether incidents aligned with notifications—critical when negotiating SLA penalties versus coordinated maintenance carve-outs.",
+  "implementation": "Ingest carrier CSV/RSS feeds into KV store or scheduled CSV refresh; normalize all timestamps to UTC; map interfaces via authoritative CMDB export; auto-close tickets when `in_maint=1` while logging correlation ratio KPIs monthly.",
+  "detailedImplementation": "Prerequisites\n• Structured maintenance calendar per upstream including rollback buffers (often ±2h).\n• CMDB rows tying router interfaces and BGP neighbor IPs to `carrier_id`.\n• Governance defining whether partial overlaps suppress alerts entirely vs downgrade severity.\n• Splunk lookup replication schedule faster than maintenance updates.\n\nStep 1 — Build `carrier_maintenance_windows.csv` loader (REST or SharePoint) landing under `lookups/` with version metadata.\n\nStep 2 — Parse syslog extractions for interface/neighbor tokens even when formats differ between IOS-XR and Junos—maintain vendor-specific `rex` macros.\n\nStep 3 — Evaluate `_time` boundaries inclusively; guard against overlapping windows using `max` aggregation per carrier.\n\nStep 4 — Dashboard contrasts suppressed vs escalated counts; drilldown opens carrier portal hyperlinks stored in lookup.\n\nStep 5 — Troubleshooting: DST drift breaks correlations—force UTC; ambiguous neighbor strings behind dynamic peers require dedup via SNMP-index substitution; stale CSV causes false escalations—monitor lookup freshness via `inputlookup` diff alerts.",
+  "visualization": "Stacked bar of events suppressed versus escalated per carrier; timeline annotated with maintenance shading; table listing outliers with samples column truncated.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "MEF — Maintenance Coordination Primer (carrier operational practices)",
+      "url": "https://www.mef.net/"
+    },
+    {
+      "title": "Splunk Lantern — correlation searches",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Emergency carrier patches absent from calendars page loudly—maintain phone-verified override rows; rolling brownouts spanning multi-day windows need segmented rows or alerts fatigue returns.",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_ios",
+    "juniper_mx"
+  ],
+  "grandmaExplanation": "We line up scary network alarms with the supplier’s published work windows so after-hours pages only happen for surprises, not for appointments we already knew about.",
+  "telcoUseCase": "Carrier change coordination",
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

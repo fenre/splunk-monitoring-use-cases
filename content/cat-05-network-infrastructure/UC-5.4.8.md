@@ -21,7 +21,7 @@ Mass RADIUS failures prevent wireless users from connecting. Distinguishing betw
 
 ## Value
 
-Mass RADIUS failures prevent wireless users from connecting. Distinguishing between user errors and server issues drives faster resolution.
+Network operations teams analyze RADIUS authentication failures by category (certificate, credential, server, policy) to rapidly distinguish between infrastructure issues affecting all users and individual user problems.
 
 ## Implementation
 
@@ -30,46 +30,73 @@ Forward ISE/RADIUS logs to Splunk. Alert when failure rate exceeds 20% of attemp
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: Cisco WLC syslog, `Splunk_TA_cisco-ise`.
-- Ensure the following data sources are available: `sourcetype=cisco:wlc`, `sourcetype=cisco:ise:syslog`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- RADIUS server logs (Cisco ISE, Aruba ClearPass, Microsoft NPS, FreeRADIUS) forwarded to Splunk. Data in `index=radius` (or `index=network`) with vendor-specific sourcetypes: `sourcetype=cisco:ise:auth` (ISE), `sourcetype=clearpass:auth` (ClearPass), `sourcetype=nps` (Microsoft NPS).
+- Key fields: `username`, `client_mac` (calling station ID), `nas_ip` (authenticator/WLC IP), `auth_result` (PASS/FAIL), `failure_reason`, `eap_type` (PEAP, EAP-TLS, EAP-FAST), `auth_policy`, `network_device_name`.
+- Build `radius_servers.csv` lookup: `server_ip,server_name,role,location` for health tracking.
 
 ### Step 1 — Configure data collection
-Forward ISE/RADIUS logs to Splunk. Alert when failure rate exceeds 20% of attempts. Distinguish between bad credentials, expired certificates, and server timeouts.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify RADIUS authentication data:
 ```spl
-index=network sourcetype="cisco:ise:syslog" "Authentication failed"
-| rex "UserName=(?<username>\S+).*?FailureReason=(?<reason>[^;]+)"
-| stats count by reason, username | sort -count
-| head 20
+index=radius earliest=-4h
+| stats count by sourcetype, auth_result
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**RADIUS Authentication Failures** — Mass RADIUS failures prevent wireless users from connecting. Distinguishing between user errors and server issues drives faster resolution.
+**Primary search — RADIUS failure analysis:**
+```spl
+index=radius auth_result="FAIL" earliest=-4h
+| stats count as failures dc(username) as affected_users dc(client_mac) as affected_devices values(failure_reason) as reasons by nas_ip, eap_type, auth_policy
+| eval severity=case(failures > 100 AND affected_users > 20, "CRITICAL", failures > 50, "HIGH", failures > 10, "MEDIUM", 1==1, "LOW")
+| eval failure_category=case(match(mvjoin(reasons, ","), "(?i)certificate"), "CERT_ISSUE", match(mvjoin(reasons, ","), "(?i)timeout|unreachable"), "SERVER_UNREACHABLE", match(mvjoin(reasons, ","), "(?i)password|credential"), "BAD_CREDENTIALS", match(mvjoin(reasons, ","), "(?i)policy|authorization"), "POLICY_DENIED", 1==1, "OTHER")
+| sort severity, -failures
+```
 
-Documented **Data sources**: `sourcetype=cisco:wlc`, `sourcetype=cisco:ise:syslog`. **App/TA** (typical add-on context): Cisco WLC syslog, `Splunk_TA_cisco-ise`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: RADIUS failure categories determine the fix. CERT_ISSUE: the RADIUS server certificate or the client's supplicant certificate has expired or is untrusted. SERVER_UNREACHABLE: the RADIUS server is down or the WLC can't reach it (network issue, firewall). BAD_CREDENTIALS: user has wrong password or account is locked. POLICY_DENIED: user is authenticated but not authorized for the requested network.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ise:syslog. That sourcetype matches what this use case lists under Data sources.
+**RADIUS server response time:**
+```spl
+index=radius earliest=-4h
+| where isnotnull(response_time)
+| stats avg(response_time) as avg_ms p95(response_time) as p95_ms max(response_time) as max_ms by server_ip
+| lookup radius_servers.csv server_ip OUTPUT server_name
+| eval status=case(p95_ms > 2000, "CRITICAL", p95_ms > 500, "WARNING", 1==1, "OK")
+| sort -p95_ms
+```
 
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="cisco:ise:syslog". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- `stats` rolls up events into metrics; results are split **by reason, username** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-- Limits the number of rows with `head`.
-
-
+**Per-user failure tracking (account lockout detection):**
+```spl
+index=radius auth_result="FAIL" earliest=-1h
+| stats count as failures dc(nas_ip) as auth_sources dc(client_mac) as devices by username
+| where failures > 5
+| eval risk=case(failures > 50, "BRUTE_FORCE_SUSPECTED", failures > 20, "HIGH", 1==1, "INVESTIGATE")
+| sort -failures
+```
 
 ### Step 3 — Validate
-In Cisco ISE (Operations > RADIUS Live Log or authentication reports), compare pass/fail counts and usernames to the Splunk search for the same time range. Spot-check a few failure reasons against ISE.
+(a) Intentionally enter wrong credentials on a wireless 802.1X network and verify the failure appears in Splunk.
+(b) Compare RADIUS authentication statistics with the RADIUS server's own reports (ISE Live Logs, ClearPass Access Tracker).
+(c) Test RADIUS server failover: stop the primary RADIUS server and verify clients authenticate via the secondary.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (failure reasons), Table (username, reason, count), Timechart (failure rate).
+Dashboard ("RADIUS Authentication"):
+- Row 1 — Single-value tiles: "Auth success rate", "Total failures (4h)", "Affected users", "RADIUS server status".
+- Row 2 — Failure analysis table: authenticator, EAP type, failures, affected users, category, severity.
+- Row 3 — RADIUS server response times.
+- Row 4 — Per-user failure tracking (potential brute force).
+
+Alerting:
+- Critical (RADIUS failure rate > 20% and > 20 affected users): widespread authentication outage.
+- Critical (RADIUS server unreachable): all 802.1X authentication will fail — users can't connect.
+- High (per-user failures > 50 in 1 hour): possible brute force attack.
+
+### Step 5 — Troubleshooting
+
+- **Mass RADIUS failures with "certificate" reason** — The RADIUS server's EAP certificate has expired. Check: ISE > Administration > Certificates > System Certificates, or ClearPass > Administration > Certificates. Renew the certificate immediately.
+
+- **Failures from specific NAS IP only** — The WLC at that NAS IP may have the wrong RADIUS shared secret. Verify the shared secret on both the WLC and RADIUS server match exactly.
+
+- **High response time from RADIUS** — The RADIUS server may be overloaded, or there's an LDAP/AD backend latency issue. Check server CPU, memory, and backend directory response times.
 
 ## SPL
 

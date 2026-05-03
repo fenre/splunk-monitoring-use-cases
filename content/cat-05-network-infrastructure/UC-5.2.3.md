@@ -21,7 +21,7 @@ IPS/IDS events indicate active attacks. Correlation with traffic context enables
 
 ## Value
 
-IPS/IDS events indicate active attacks. Correlation with traffic context enables rapid response.
+Security teams analyze multi-vendor firewall threat/IPS events by severity and enforcement action, prioritizing unblocked critical threats targeting internal assets.
 
 ## Implementation
 
@@ -30,64 +30,75 @@ Forward threat logs. Alert immediately on critical severity. Correlate source IP
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX).
-- Ensure the following data sources are available: `sourcetype=pan:threat`, `sourcetype=cisco:firepower:alert`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Firewall threat/IPS logs in `index=firewall`. Sourcetypes: Palo Alto `pan:threat`, Fortinet `fgt_utm`, Cisco FTD `cisco:firepower:syslog`, Juniper SRX `juniper:junos:idp`. Key fields: `threat_name`/`attack`/`signature`, `severity`, `action` (alert/block/drop/reset), `src_ip`, `dest_ip`, `category`.
+* Threat detection engines: Palo Alto Threat Prevention (vulnerability protection, anti-spyware, antivirus), Fortinet IPS/AV/Application Control, Cisco Snort/IPS, Juniper IDP.
 
-### Step 1 — Configure data collection
-Forward threat logs. Alert immediately on critical severity. Correlate source IPs with auth logs.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+**Palo Alto:**
+```
+# Objects > Security Profiles > Anti-Spyware, Vulnerability Protection
+# Attach profiles to security policies
+# Device > Log Settings > Threat: forward via syslog
+```
+Verify:
 ```spl
-index=firewall sourcetype="pan:threat" severity="critical" OR severity="high"
-| stats count by src, dest, threat_name, severity, action | sort -count
+index=firewall (sourcetype="pan:threat" OR sourcetype="fgt_utm" OR sourcetype="cisco:firepower:syslog" type="IPS") earliest=-4h
+| stats count by sourcetype, severity
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Threat Detection Events** — IPS/IDS events indicate active attacks. Correlation with traffic context enables rapid response.
-
-Documented **Data sources**: `sourcetype=pan:threat`, `sourcetype=cisco:firepower:alert`. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: firewall; **sourcetype**: pan:threat. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=firewall, sourcetype="pan:threat". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by src, dest, threat_name, severity, action** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Threat detection event analysis:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Intrusion_Detection.IDS_Attacks
-  by IDS_Attacks.signature IDS_Attacks.severity IDS_Attacks.src IDS_Attacks.dest span=1h
-| where count>0
-| sort -count
+index=firewall (sourcetype="pan:threat" OR sourcetype="fgt_utm" OR sourcetype="cisco:firepower:syslog" OR sourcetype="juniper:junos:idp") earliest=-4h
+| eval threat=coalesce(threat_name, attack, signature, attack_name)
+| eval sev=lower(coalesce(severity, threat_severity))
+| eval act=lower(coalesce(action, policy_action))
+| eval src=coalesce(src_ip, src, srcaddr)
+| eval dst=coalesce(dest_ip, dest, dstaddr)
+| eval cat=coalesce(category, threat_category, attack_category)
+| stats count as hits dc(src) as unique_sources dc(dst) as unique_targets values(act) as actions by threat, sev, cat
+| eval blocked=if(match(mvjoin(actions, ","), "(?i)block|drop|reset|deny"), "YES", "ALERT ONLY")
+| eval severity_rank=case(sev="critical", 1, sev="high", 2, sev="medium", 3, 1==1, 4)
+| sort severity_rank, -hits
 ```
 
-Understanding this CIM / accelerated SPL
+**High-severity threats targeting internal assets:**
+```spl
+index=firewall (sourcetype="pan:threat" OR sourcetype="fgt_utm" OR sourcetype="cisco:firepower:syslog") earliest=-4h
+| eval sev=lower(coalesce(severity, threat_severity))
+| where sev="critical" OR sev="high"
+| eval dst=coalesce(dest_ip, dest)
+| eval threat=coalesce(threat_name, attack, signature)
+| eval act=lower(coalesce(action, policy_action))
+| stats count as hits values(threat) as threats values(act) as actions by dst
+| where match(dst, "^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)")
+| sort -hits
+```
 
-This block uses `tstats` on the Intrusion_Detection data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 3 — - Validate
+(a) Compare threat events with firewall threat log viewer (Panorama Monitor > Logs > Threat, FMC Analysis > Intrusion Events).
+(b) Trigger a test signature (e.g., EICAR antivirus test) and verify it appears.
+(c) Verify action mapping: `alert-only` means the threat was detected but not blocked -- these require investigation.
 
-**Pipeline walkthrough**
+### Step 4 — - Operationalize
+Dashboard ("Firewall -- Threat Detection"):
+* Row 1 -- Single-value: "Critical threats", "High threats", "Blocked %", "Alert-only threats".
+* Row 2 -- Threat events by severity and category.
+* Row 3 -- Internal assets targeted by high-severity threats.
 
-- Uses `tstats` against accelerated summaries for the Intrusion_Detection model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+Alerting:
+* Critical (critical-severity threat targeting internal asset): immediate investigation.
+* High (high-severity with action=alert-only): threat detected but NOT blocked.
+* Warning (new threat signature with > 10 hits): emerging threat.
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+### Step 5 — - Troubleshooting
 
+* **Threat detected but not blocked (alert-only)** -- Security profile is in detect mode, not prevent. Change to blocking: Palo Alto: set action to "reset-both" in Vulnerability/Anti-Spyware profile. Fortinet: set IPS action to "block" instead of "monitor".
 
+* **No threat events at all** -- Check: (1) threat prevention license is active, (2) security profiles are attached to firewall policies, (3) signature databases are up to date. Run: `show system info` (PA) or `get system performance status` (Fortinet).
 
-### Step 3 — Validate
-Sample the same time range in your firewall management console, Panorama, FortiManager, or Check Point SmartConsole and confirm that counts, usernames, and object names line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (source, dest, threat, action), Bar chart by threat type, Map.
+* **High false positive rate on specific signature** -- Create an exception for the specific signature + source/dest pair. Document the exception with justification.
 
 ## SPL
 

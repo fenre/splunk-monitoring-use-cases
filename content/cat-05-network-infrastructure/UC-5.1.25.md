@@ -21,7 +21,7 @@ Running config differs from baseline/golden config.
 
 ## Value
 
-Running config differs from baseline/golden config.
+Compliance teams detect network configuration drift by comparing running configurations against golden baselines, identifying unauthorized or undocumented changes that create security and operational risk.
 
 ## Implementation
 
@@ -30,49 +30,74 @@ Run diff (e.g., `diff running golden`) via Oxidized hooks or custom script. Inge
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: Custom scripted input (diff output from RANCID/Oxidized vs golden), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: Config diff output, Git commit logs from network config repo.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Configuration drift detection data. Requires comparison of current running-config against a known-good baseline (golden config). Data from backup tools (RANCID, Oxidized) diffs, or Cisco DNA Center compliance engine. Data in `index=network` with `sourcetype=network:config:diff` or similar.
+* Configuration drift: unauthorized or undocumented changes from the approved baseline. Causes security vulnerabilities, compliance failures, and unexpected behavior. Automated comparison of running vs golden config detects drift.
 
-### Step 1 — Configure data collection
-Run diff (e.g., `diff running golden`) via Oxidized hooks or custom script. Ingest diff output or Git commit metadata. Store golden configs in Git; compare after each backup. Alert on any non-whitelisted drift. Use `git diff` or `rancid -d` output as sourcetype.
+### Step 1 — - Configure data collection
+```
+# Scripted input to compare configs
+[script:///opt/splunk/etc/apps/network_mon/bin/config_drift.sh]
+interval = 86400
+sourcetype = network:config:drift
+index = network
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# config_drift.sh
+#!/bin/bash
+GOLDEN_DIR="/var/configs/golden"
+CURRENT_DIR="/var/backups/network"
+for f in "$CURRENT_DIR"/*.cfg; do
+    device=$(basename "$f" .cfg)
+    golden="$GOLDEN_DIR/$device.cfg"
+    if [ -f "$golden" ]; then
+        diff_count=$(diff "$golden" "$f" | grep -c "^[<>]" 2>/dev/null)
+        echo "device=$device drift_lines=$diff_count golden=$golden current=$f"
+    fi
+done
+```
+Verify:
 ```spl
-index=network sourcetype=config_drift OR sourcetype=git:commit
-| search "diff" OR "drift" OR "changed" OR "modified"
-| rex "device[=:]\s*(?<device>\S+)" | rex "lines?\s*(?<lines_changed>\d+)"
-| stats count as drift_events, values(diff_summary) as changes by device, host
-| where drift_events > 0
-| table device host drift_events changes
+index=network sourcetype="network:config:drift" earliest=-2d
+| stats latest(drift_lines) by device
+| sort -latest(drift_lines)
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Network Configuration Drift Detection** — Running config differs from baseline/golden config.
+**Primary search -- Configuration drift detection:**
+```spl
+index=network sourcetype="network:config:drift" earliest=-2d
+| eval device=coalesce(device, hostname, host)
+| eval drift=tonumber(drift_lines)
+| lookup network_devices.csv hostname AS device OUTPUT device_type, site, criticality
+| eval severity=case(
+    drift > 50, "CRITICAL -- major configuration drift (".drift." lines differ)",
+    drift > 20, "WARNING -- significant drift detected",
+    drift > 0, "INFO -- minor drift",
+    1==1, "OK")
+| where severity != "OK"
+| table device, device_type, site, criticality, drift, severity
+| sort severity, -drift
+```
 
-Documented **Data sources**: Config diff output, Git commit logs from network config repo. **App/TA** (typical add-on context): Custom scripted input (diff output from RANCID/Oxidized vs golden), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Review diff output for specific changes: access the backup tool's diff viewer.
+(b) Cross-reference with change management system for approved changes.
+(c) Identify if drift is security-relevant (ACL changes, authentication changes).
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: config_drift, git:commit. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+### Step 4 — - Operationalize
+Dashboard ("Network -- Configuration Drift"):
+* Row 1 -- Single-value: "Devices with drift", "Major drift (>50 lines)", "Compliant devices".
+* Row 2 -- Drift severity table.
 
-**Pipeline walkthrough**
+Alert: Critical (major drift on critical device): investigate unauthorized changes.
 
-- Scopes the data: index=network, sourcetype=config_drift. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Applies an explicit `search` filter to narrow the current result set.
-- Extracts fields with `rex` (regular expression).
-- Extracts fields with `rex` (regular expression).
-- `stats` rolls up events into metrics; results are split **by device, host** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where drift_events > 0` — typically the threshold or rule expression for this monitoring goal.
-- Pipeline stage (see **Network Configuration Drift Detection**): table device host drift_events changes
+### Step 5 — - Troubleshooting
 
+* **Expected drift after approved change** -- Update the golden config baseline after verified changes. Document the change ticket reference.
 
-### Step 3 — Validate
-Pull the latest Oxidized, RANCID, or Git-backed export for one device in the result and run a manual `diff` against your golden. Confirm the diff hash or line count in Splunk’s event matches the file you opened.
+* **Security-relevant drift** -- ACL, authentication, or encryption configuration changes require immediate security review. Compare with change management tickets.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (device, drift count, summary), Timeline (drift events), Single value (devices with drift).
+* **Drift on many devices simultaneously** -- May indicate bulk configuration push (approved or not). Check change management and automation tool logs.
 
 ## SPL
 

@@ -17,11 +17,11 @@ splunkPillar: "Observability"
 
 ## Description
 
-BGP session drops cause routing convergence, potentially making networks unreachable.
+BGP session drops cause routing convergence, potentially making networks unreachable. IPv6 BGP AFI/SAFI sessions are tracked separately from IPv4 — monitor instability in both address families.
 
 ## Value
 
-BGP session drops cause routing convergence, potentially making networks unreachable.
+NOC teams track BGP peer state transitions across routers, detecting session failures and flapping that cause routing instability and potential traffic black-holes.
 
 ## Implementation
 
@@ -30,48 +30,79 @@ Forward syslog from all BGP speakers. Critical alert on adjacency down. Include 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=cisco:ios`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* BGP peer state change syslog messages. Data in `index=network` with `sourcetype=cisco:ios`, `sourcetype=juniper:srx:structured`, or vendor-specific sourcetypes. Key syslog mnemonics: Cisco `%BGP-5-ADJCHANGE`, `%BGP-3-NOTIFICATION`; Juniper `RPD_BGP_NEIGHBOR_STATE_CHANGED`; Arista `BGP-5-ADJCHANGE`.
+* BGP peering: establishes routing adjacency between autonomous systems. State transitions (Idle → Connect → OpenSent → OpenConfirm → Established → back to Idle) indicate session instability. Common causes: route flaps, authentication failure, hold timer expiry, prefix limit exceeded.
 
-### Step 1 — Configure data collection
-Forward syslog from all BGP speakers. Critical alert on adjacency down. Include neighbor IP and AS number.
+### Step 1 — - Configure data collection
+```
+# Cisco IOS -- ensure BGP logging
+router bgp 65000
+ bgp log-neighbor-changes
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Syslog forwarding
+logging host <splunk-syslog-ip>
+logging trap informational
+```
+Verify:
 ```spl
-index=network sourcetype="cisco:ios" "%BGP-5-ADJCHANGE" OR "%BGP-3-NOTIFICATION"
-| rex "neighbor (?<neighbor_ip>\S+)" | table _time host neighbor_ip _raw | sort -_time
+index=network earliest=-24h
+| where match(_raw, "(?i)BGP.*ADJ|BGP.*NEIGHBOR|BGP.*state|bgp.*established|bgp.*idle")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**BGP Peer State Changes** — BGP session drops cause routing convergence, potentially making networks unreachable.
+**Primary search -- BGP peer state change tracking:**
+```spl
+index=network earliest=-24h
+| where match(_raw, "(?i)BGP.*ADJ|BGP.*NEIGHBOR.*STATE|bgp.*state|BGP.*NOTIFICATION")
+| rex field=_raw "(?i)neighbor\s+(?<peer_ip>\d+\.\d+\.\d+\.\d+)"
+| rex field=_raw "(?i)(?:state|went)\s+(?:to\s+)?(?<bgp_state>\w+)"
+| rex field=_raw "(?i)AS\s+(?<peer_asn>\d+)"
+| eval peer=coalesce(peer_ip, neighbor, bgp_neighbor)
+| eval state=lower(coalesce(bgp_state, new_state))
+| eval device=coalesce(host, device_name)
+| sort device, peer, _time
+| stats count as events count(eval(state="idle" OR state="active")) as down_events count(eval(state="established")) as up_events latest(state) as current_state latest(_time) as last_event by device, peer, peer_asn
+| eval flapping=if(events > 4, "YES", "NO")
+| eval severity=case(
+    current_state!="established" AND flapping="YES", "CRITICAL -- BGP peer DOWN and flapping",
+    current_state!="established", "WARNING -- BGP peer not Established (state: ".current_state.")",
+    flapping="YES", "WARNING -- BGP peer flapping (currently established)",
+    1==1, "OK")
+| where severity != "OK"
+| eval last_time=strftime(last_event, "%Y-%m-%d %H:%M:%S")
+| sort severity, -events
+```
 
-Documented **Data sources**: `sourcetype=cisco:ios`. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show bgp summary` -- verify peer states and uptime.
+(b) CLI: `show bgp neighbors <peer_ip>` -- check last reset reason.
+(c) Verify route count: `show bgp ipv4 unicast summary` -- prefix limits.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- BGP Peering"):
+* Row 1 -- Single-value: "Peers DOWN", "Flapping peers", "Total state changes (24h)".
+* Row 2 -- BGP state change timeline.
+* Row 3 -- Current BGP peer status table.
 
-**Pipeline walkthrough**
+Alert: Critical (eBGP peer DOWN): routing impact, page NOC.
 
-- Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- Pipeline stage (see **BGP Peer State Changes**): table _time host neighbor_ip _raw
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **Hold timer expired** -- Peer not sending keepalives. Check: remote device health, CPU utilization on both ends (high CPU can delay BGP processing), and network path between peers.
 
-### Step 3 — Validate
-On the device, run `show ip bgp summary` (Cisco-style) or the Junos or Arista equivalent and check neighbor state, uptime, and last reset for the peer IP in your log line.
+* **Prefix limit exceeded** -- Peer sending more routes than configured maximum. CLI: `show bgp neighbors <ip> | include Prefix`. Increase limit or filter with route-map.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Events timeline (critical), Status panel per BGP session, Table.
+* **Authentication failure** -- MD5 password mismatch. Check: `neighbor <ip> password` on both sides. Verify clocks are synchronized (affects TCP MD5).
+
+**IPv6 Coverage:** BGP IPv6 AFI/SAFI sessions use separate TCP connections from IPv4 BGP. Add `show bgp ipv6 unicast summary` to validation. Configure under `address-family ipv6 unicast`. IPv4 and IPv6 BGP instability may be independent — monitor both.
 
 ## SPL
 
 ```spl
 index=network sourcetype="cisco:ios" "%BGP-5-ADJCHANGE" OR "%BGP-3-NOTIFICATION"
-| rex "neighbor (?<neighbor_ip>\S+)" | table _time host neighbor_ip _raw | sort -_time
+| rex "neighbor (?<neighbor_ip>\d+\.\d+\.\d+\.\d+|[0-9a-fA-F:]+)" | table _time host neighbor_ip _raw | sort -_time
 ```
 
 ## Visualization

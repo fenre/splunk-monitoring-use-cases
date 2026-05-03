@@ -120,6 +120,8 @@ SLA reporting:
 
 - **Device returns from Unreachable but health score stays low** — expected behaviour. After a device comes back online, Assurance needs 2–4 poll cycles to rebuild the health score. The device will show `Reachable` with `overallHealth < 50` during this recovery period.
 
+**IPv6 Note:** ICMPv6 is architecturally critical for IPv6 — it carries NDP (Neighbor Discovery), Path MTU Discovery, and Multicast Listener Discovery. Unlike ICMP for IPv4, blocking ICMPv6 breaks IPv6 connectivity entirely. Ensure firewall policies permit at minimum ICMPv6 types 1-4 (Destination Unreachable, Packet Too Big, Time Exceeded, Parameter Problem) and types 133-137 (RS, RA, NS, NA, Redirect). See RFC 4890 for filtering recommendations.
+
 ## SPL
 
 ```spl

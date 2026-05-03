@@ -21,7 +21,7 @@ Platforms with dual routing engines rely on GRES and related state transfer; an 
 
 ## Value
 
-Platforms with dual routing engines rely on GRES and related state transfer; an unplanned mastership change usually means primary RE failure, kernel panic, or loss of control-plane stability. Repeated failovers on the same chassis point to degrading hardware or software defects before a hard outage. Tracking these events in Splunk gives operations a single place to justify RMA, software upgrade, or emergency maintenance.
+NOC teams monitor Juniper Routing Engine failover events, detecting crash-triggered switchovers and sync failures that indicate hardware issues requiring JTAC investigation.
 
 ## Implementation
 
@@ -30,50 +30,69 @@ Classify planned vs unplanned using maintenance windows or SNMP/CLI context if i
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_juniper`, syslog.
-- Ensure the following data sources are available: `sourcetype=juniper:junos:structured`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Junos Routing Engine (RE) failover events. Data in `index=juniper` with `sourcetype=juniper:structured`. Key syslog: `RPD_REDUNDANCY_RE_SWITCHOVER`, `KSYNCD_PEER_TIMEOUT`, `CHASSISD_RE_INIT_INVALID`.
+* Juniper devices with dual Routing Engines (RE0/RE1) use Graceful Routing Engine Switchover (GRES) and Nonstop Active Routing (NSR) for hitless failover. RE failover is triggered by: RE crash, kernel panic, watchdog timeout, manual switchover, or RPD failure.
 
-### Step 1 — Configure data collection
-Classify planned vs unplanned using maintenance windows or SNMP/CLI context if ingested. Critical alert on any mastership change outside a change window; warning if more than one event per chassis per 7 days. Attach device role (PE, core, aggregation) for prioritization.
+### Step 1 — - Configure data collection
+```
+# Junos -- redundancy is configured under routing-options
+set chassis redundancy graceful-switchover
+set routing-options nonstop-routing
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+set system syslog host <splunk-ip> any info
+set system syslog host <splunk-ip> match "RPD_REDUNDANCY|KSYNCD|SWITCHOVER|RE_INIT|master|backup"
+```
+Verify:
 ```spl
-index=network sourcetype="juniper:junos:structured"
-| search SERD_MASTERSHIP OR RE_SWITCHOVER OR "mastership" OR "Routing Engine.*switch" OR "Become master"
-| rex field=_raw "(?i)from\s+(?<old_role>\w+)\s+to\s+(?<new_role>\w+)"
-| bin span=24h _time
-| stats count as failover_events, values(_raw) as samples by host, _time
-| where failover_events > 0
-| sort -failover_events
+index=juniper earliest=-30d
+| where match(_raw, "(?i)SWITCHOVER|RE_SWITCHOVER|routing.*engine.*failover|master.*change|backup.*active")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Junos Routing Engine Failover Monitoring (Juniper)** — Platforms with dual routing engines rely on GRES and related state transfer; an unplanned mastership change usually means primary RE failure, kernel panic, or loss of control-plane stability. Repeated failovers on the same chassis point to degrading hardware or software defects before a hard outage. Tracking these events in Splunk gives operations a single place to justify RMA, software upgrade, or emergency maintenance.
+**Primary search -- Routing Engine failover monitoring:**
+```spl
+index=juniper earliest=-30d
+| where match(_raw, "(?i)SWITCHOVER|RE_SWITCHOVER|routing.*engine.*failover|master.*backup|backup.*master|KSYNCD.*TIMEOUT|RE_INIT")
+| eval device=coalesce(host, device_name)
+| eval failover_type=case(
+    match(_raw, "(?i)manual|admin"), "MANUAL",
+    match(_raw, "(?i)crash|panic|core|exception|watchdog"), "CRASH",
+    match(_raw, "(?i)KSYNCD.*TIMEOUT"), "SYNC_TIMEOUT",
+    match(_raw, "(?i)RPD"), "RPD_FAILURE",
+    1==1, "FAILOVER")
+| eval re_from=case(match(_raw, "(?i)RE0.*master|master.*RE0"), "RE0", match(_raw, "(?i)RE1.*master|master.*RE1"), "RE1", 1==1, "unknown")
+| stats count as events count(eval(failover_type="CRASH")) as crashes latest(failover_type) as last_type latest(_time) as last_failover by device
+| eval severity=case(
+    crashes > 0, "CRITICAL -- Routing Engine crash-triggered failover",
+    events > 3, "WARNING -- frequent RE failovers",
+    events > 0, "INFO -- RE failover occurred",
+    1==1, "OK")
+| where severity != "OK"
+| eval last_failover_time=strftime(last_failover, "%Y-%m-%d %H:%M:%S")
+| sort severity
+```
 
-Documented **Data sources**: `sourcetype=juniper:junos:structured`. **App/TA** (typical add-on context): `Splunk_TA_juniper`, syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show chassis routing-engine` -- check current RE master/backup status.
+(b) CLI: `show system core-dumps` -- check for crash core files.
+(c) CLI: `show krt state` -- verify kernel routing table sync status.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: juniper:junos:structured. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Juniper -- RE Failover"):
+* Row 1 -- Single-value: "RE failovers (30d)", "RE crashes", "Current master".
+* Row 2 -- RE failover event timeline.
 
-**Pipeline walkthrough**
+Alert: Critical (RE crash): collect core dump, open JTAC case.
 
-- Scopes the data: index=network, sourcetype="juniper:junos:structured". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Applies an explicit `search` filter to narrow the current result set.
-- Extracts fields with `rex` (regular expression).
-- Discretizes time or numeric ranges with `bin`/`bucket`.
-- `stats` rolls up events into metrics; results are split **by host, _time** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where failover_events > 0` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **RE crash** -- Collect: `file list /var/crash/` for core dumps. Run `show system core-dumps`. Open JTAC case with core file for analysis. Consider firmware upgrade if known bug.
 
-### Step 3 — Validate
-SSH to the device and run `show chassis alarms`, `show chassis routing-engine`, or `show virtual-chassis` as appropriate, and check that the same FRU, member, or RE state appears in syslog timestamps around your Splunk hit.
+* **KSYNCD timeout** -- Kernel sync between REs failed. Check: `show chassis routing-engine` for RE health. Possible RE hardware issue or backplane connectivity problem.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Failover timeline per chassis; count of failovers per device last 30 days; list of recent raw messages for triage.
+* **NSR not maintaining state** -- Verify NSR is configured: `show routing-options nonstop-routing`. Check: `show task replication` for replication status.
 
 ## SPL
 

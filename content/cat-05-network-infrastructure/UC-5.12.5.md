@@ -21,7 +21,7 @@ Mean Opinion Score (or derived R-factor) from RTCP XR or vendor QoE reports — 
 
 ## Value
 
-Mean Opinion Score (or derived R-factor) from RTCP XR or vendor QoE reports — user-perceived VoLTE/VoIP quality.
+Voice quality teams detect MOS degradation before user complaints, correlate quality issues to specific network impairments (loss, jitter, latency), and segment by codec for targeted remediation.
 
 ## Implementation
 
@@ -30,44 +30,93 @@ ITU-T G.107 E-model targets; correlate with jitter/loss from same leg_id; segmen
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SBC QoE records, Poly/Vendor QoS feeds.
-- Ensure the following data sources are available: `sourcetype="qos:rtcp"`, `sourcetype="cdr:voip"` with `mos` field.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- VoIP quality data in Splunk from one of these sources: (a) RTCP Extended Reports (RTCP-XR, RFC 3611) captured via Splunk Stream or SBC export into `sourcetype=qos:rtcp`; (b) CDR records that include MOS/R-factor values computed by the SBC at call completion into `sourcetype=cdr:voip`; (c) Endpoint quality reports from Cisco IP phones (QoS data via CUCM Serviceability), Polycom, or other vendors.
+- The `mos` field represents the Mean Opinion Score on a scale of 1.0 (unintelligible) to 4.5 (excellent). Some vendors report the R-factor (0-93.2 scale per ITU-T G.107 E-model) instead — convert with: MOS = 1 + 0.035*R + R*(R-60)*(100-R)*7e-6 (simplified, valid for R > 6.5).
+- Understand MOS quality tiers: 4.0-4.5 = Toll quality (excellent), 3.5-4.0 = Acceptable, 3.0-3.5 = Noticeable degradation, 2.5-3.0 = Annoying, <2.5 = Unusable. Industry target for business voice: p95 MOS >= 3.8.
+- Correlating metrics: MOS degrades due to packet loss (>1% = noticeable), jitter (>30ms = noticeable), and latency (>150ms one-way = echo/delay). The `mos` field is a composite score — for root cause, you need: `packet_loss_pct`, `jitter_ms`, `latency_ms`.
+- Codec matters: G.711 can reach 4.4, G.729 maxes at 3.9, Opus can reach 4.2. Always segment by codec.
 
 ### Step 1 — Configure data collection
-ITU-T G.107 E-model targets; correlate with jitter/loss from same leg_id; segment by radio access (VoLTE) vs. Wi-Fi.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify MOS data is available:
 ```spl
-index=voip (sourcetype="qos:rtcp" OR sourcetype="cdr:voip")
+index=voip (sourcetype="qos:rtcp" OR sourcetype="cdr:voip") earliest=-1h
 | where isnotnull(mos)
-| timechart span=5m avg(mos) as avg_mos perc5(mos) as worst_mos by codec
-| where avg_mos < 3.8 OR worst_mos < 3.0
+| stats count avg(mos) as avg_mos min(mos) as min_mos by sourcetype, codec
+```
+If `mos` is null, check if your SBC reports it under `mos_score`, `r_factor`, or `quality_score`. If only R-factor is available, create a calculated field in `props.conf`: `EVAL-mos = 1 + 0.035*r_factor + r_factor*(r_factor-60)*(100-r_factor)*7e-6`.
+
+Verify underlying quality metrics:
+```spl
+index=voip (sourcetype="qos:rtcp" OR sourcetype="cdr:voip") earliest=-1h
+| where isnotnull(mos)
+| stats avg(packet_loss_pct) as avg_loss avg(jitter_ms) as avg_jitter avg(latency_ms) as avg_latency
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**VoIP MOS Score Monitoring** — Mean Opinion Score (or derived R-factor) from RTCP XR or vendor QoE reports — user-perceived VoLTE/VoIP quality.
+**Primary search — MOS overview by codec with quality tiers (5-min alert):**
+```spl
+index=voip (sourcetype="qos:rtcp" OR sourcetype="cdr:voip") earliest=-15m
+| where isnotnull(mos)
+| stats avg(mos) as avg_mos perc5(mos) as p5_mos perc50(mos) as p50_mos count as samples avg(packet_loss_pct) as avg_loss avg(jitter_ms) as avg_jitter by codec
+| eval quality=case(p5_mos >= 4.0, "Excellent", p5_mos >= 3.5, "Acceptable", p5_mos >= 3.0, "Degraded", 1==1, "Poor")
+| where p5_mos < 3.8 OR avg_loss > 1
+| sort p5_mos
+```
 
-Documented **Data sources**: `sourcetype="qos:rtcp"`, `sourcetype="cdr:voip"` with `mos` field. **App/TA** (typical add-on context): SBC QoE records, Poly/Vendor QoS feeds. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: We use p5 (5th percentile) MOS as the quality indicator because it represents the worst 5% of calls — this is what users experience as "bad quality". Average MOS can hide severe outliers. We also surface the underlying metrics (loss, jitter) because MOS alone doesn't tell you the root cause.
 
-The first pipeline stage scopes events using **index**: voip; **sourcetype**: qos:rtcp, cdr:voip. Those sourcetypes align with what this use case lists under Data sources.
+**Root cause correlation — loss vs. jitter vs. MOS:**
+```spl
+index=voip (sourcetype="qos:rtcp" OR sourcetype="cdr:voip") earliest=-4h
+| where isnotnull(mos) AND mos < 3.5
+| stats count avg(mos) as avg_mos avg(packet_loss_pct) as avg_loss avg(jitter_ms) as avg_jitter avg(latency_ms) as avg_latency by dest, codec
+| eval primary_cause=case(avg_loss > 2, "Packet Loss", avg_jitter > 40, "Jitter", avg_latency > 200, "Latency", 1==1, "Unknown")
+| sort avg_mos
+```
 
-**Pipeline walkthrough**
+#### Understanding this SPL: For calls with MOS below 3.5, we identify the primary impairment per trunk/destination. This directly tells the operator whether to investigate network congestion (loss), jitter buffers (jitter), or routing path length (latency).
 
-- Scopes the data: index=voip, sourcetype="qos:rtcp". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Filters the current rows with `where isnotnull(mos)` — typically the threshold or rule expression for this monitoring goal.
-- `timechart` plots the metric over time using **span=5m** buckets with a separate series **by codec** — ideal for trending and alerting on this use case.
-- Filters the current rows with `where avg_mos < 3.8 OR worst_mos < 3.0` — typically the threshold or rule expression for this monitoring goal.
+**MOS trending — quality over 24h by codec:**
+```spl
+index=voip (sourcetype="qos:rtcp" OR sourcetype="cdr:voip") earliest=-24h
+| where isnotnull(mos)
+| timechart span=5m avg(mos) as avg_mos perc5(mos) as worst_mos by codec
+```
 
+Schedule as Alert: primary search runs every 5 minutes. Trigger when `p5_mos < 3.0`. Warning at `p5_mos < 3.5`.
 
 ### Step 3 — Validate
-Sample a few low-MOS calls and compare the same leg in the UC manager or SBC’s CDR/RTT view; confirm encoder names and that passive recorder placement matches the path you measure.
+(a) Make a test call between two known endpoints on a controlled network path. Check the call's MOS in Splunk against the endpoint's own quality report.
+(b) Induce controlled packet loss (1%, 3%, 5%) on a test call and verify MOS degrades proportionally in Splunk.
+(c) Compare Splunk MOS distribution to the CUCM Service Quality report for the same time window.
+(d) Verify codec identification: check that `codec` values match the codecs negotiated on the SBC.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (MOS trend), Scatter (loss vs. MOS), Table (worst calls).
+Dashboard ("Voice - Call Quality (MOS)"):
+- Row 1 — Gauge tiles: p5 MOS by codec (green >= 4.0, yellow 3.5-4.0, red < 3.5).
+- Row 2 — Timechart: MOS trend over 24h by codec with 3.5 and 3.0 threshold lines.
+- Row 3 — Scatter plot: packet loss (x-axis) vs. MOS (y-axis), colored by codec.
+- Row 4 — Table: worst-quality calls with calling party, called party, trunk, codec, MOS, loss, jitter.
+
+Alerting:
+- Critical (p5 MOS < 3.0): page voice operations — widespread quality degradation.
+- Warning (p5 MOS < 3.5): ticket with 4-hour SLA.
+
+Runbook (owner: Voice / Network Operations):
+1. **High packet loss causing low MOS**: Check network path for congestion. Enable QoS (DSCP EF marking). Check for duplex mismatches.
+2. **High jitter causing low MOS**: Increase jitter buffer on endpoints/SBC. Check for traffic bursts competing with voice.
+3. **High latency causing low MOS**: Check routing path. Optimize media path to be as direct as possible.
+
+### Step 5 — Troubleshooting
+
+- **MOS is always null** — Your SBC/CDR may not compute MOS. RTCP-XR must be enabled on both call endpoints. On Cisco CUCM, enable "Voice Quality Metrics" in Service Parameters. On the SBC, enable QoS reporting.
+
+- **MOS values seem artificially high (always 4.3-4.4)** — If MOS comes from only the SBC's near-end measurement, it doesn't reflect far-end quality. True end-to-end MOS requires RTCP-XR from both endpoints.
+
+- **Codec field is missing** — Some CDR formats don't include codec information. Check if it's under `codec_type`, `audio_codec`, or `coder`. Without codec segmentation, MOS analysis is less meaningful because codec caps vary.
+
+- **MOS degrades only for specific codecs** — G.729 (compressed) is more sensitive to packet loss than G.711 (uncompressed). If only G.729 calls show low MOS, the issue may be codec-specific sensitivity rather than a network problem.
 
 ## SPL
 

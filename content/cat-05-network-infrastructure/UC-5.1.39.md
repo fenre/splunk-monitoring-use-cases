@@ -21,7 +21,7 @@ Detects unauthorized MAC addresses and port security breaches that indicate pote
 
 ## Value
 
-Detects unauthorized MAC addresses and port security breaches that indicate potential network intrusion.
+Security teams detect Meraki MS port security violations and rogue device connections, identifying unauthorized devices and 802.1X authentication failures on secure switch ports.
 
 ## Implementation
 
@@ -30,44 +30,66 @@ Monitor port security violation events from syslog. Create alert for each unique
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=security_event signature="*Port Security*" OR signature="*Unauthorized MAC*"`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MS port security events from syslog. Data in `index=meraki` with `sourcetype=meraki:events`. Key events: port security violations, sticky MAC, unknown MAC blocked.
+* Meraki MS port security: configured per-port via Dashboard. Options: sticky MAC learning, MAC allow-list, and MAC limit per port. Violations generate syslog events and can auto-disable the port.
 
-### Step 1 — Configure data collection
-Monitor port security violation events from syslog. Create alert for each unique violation.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Meraki Dashboard > Switch > Access policies
+# Configure access policies with MAC allow-lists
+# Per-port: Configure access policy assignment
+# Syslog: enable Event log
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*Port Security*" OR signature="*Unauthorized*")
-| stats count as violation_count by switch_name, port_id, mac_address
-| where violation_count > 0
-| sort - violation_count
+index=meraki sourcetype="meraki:events" earliest=-7d
+| where match(_raw, "(?i)port.*security|MAC.*violation|rogue|unauthorized|802\.1X|radius.*reject")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Port Security Violations and Rogue Device Detection (Meraki MS)** — Detects unauthorized MAC addresses and port security breaches that indicate potential network intrusion.
+**Primary search -- Port security violations and rogue device detection:**
+```spl
+index=meraki sourcetype="meraki:events" earliest=-24h
+| where match(_raw, "(?i)port.*security|MAC.*violation|rogue|unauthorized|blocked.*mac|802\.1X.*fail|radius.*reject|access.*denied")
+| eval device=coalesce(serial, host)
+| lookup meraki_networks.csv serial AS device OUTPUT network_name
+| rex field=_raw "(?i)(?:MAC|mac).*?(?<violating_mac>[0-9a-fA-F:]{12,17})"
+| rex field=_raw "(?i)(?:port|Port)\s+(?<port_id>\d+)"
+| eval violation_type=case(
+    match(_raw, "(?i)rogue|unknown"), "ROGUE_DEVICE",
+    match(_raw, "(?i)802\.1X.*fail|radius.*reject"), "AUTH_FAILURE",
+    match(_raw, "(?i)MAC.*violation|security.*violat"), "MAC_VIOLATION",
+    1==1, "PORT_SECURITY")
+| stats count as violations dc(violating_mac) as unique_macs values(violating_mac) as macs values(port_id) as ports by network_name, device, violation_type
+| eval severity=case(
+    violation_type="ROGUE_DEVICE", "CRITICAL -- rogue device detected",
+    violations > 20, "WARNING -- frequent ".violation_type." events",
+    1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -violations
+```
 
-Documented **Data sources**: `sourcetype=meraki type=security_event signature="*Port Security*" OR signature="*Unauthorized MAC*"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Switch > Switch ports -- check port status and connected clients.
+(b) Dashboard: Network-wide > Clients -- identify the device by MAC address.
+(c) Verify access policy configuration on the port.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MS -- Port Security"):
+* Row 1 -- Single-value: "Security violations (24h)", "Rogue devices", "Auth failures".
+* Row 2 -- Port security violation table.
 
-**Pipeline walkthrough**
+Alert: Critical (rogue device on secure port): investigate immediately.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by switch_name, port_id, mac_address** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where violation_count > 0` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **Rogue device detected** -- Identify MAC, check against inventory. If unauthorized, disable port. Investigate physical location.
 
-### Step 3 — Validate
-In the Meraki dashboard, select the same organization, site, and UTC window as the Splunk search. Open Network-wide event log or the device event log and confirm a sample event count and field (for example `event_type` or `carrier_name`) matches what you see in Splunk.
+* **Frequent auth failures** -- Check RADIUS server connectivity and credentials. Verify supplicant configuration on the client device.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of violations; timeline of events; network detail with affected ports.
+* **Legitimate device blocked** -- Add MAC to allow-list or update access policy. Ensure RADIUS server has the correct user/device entry.
 
 ## SPL
 

@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.10.7",
+  "title": "SIP Trunk Health and Call Setup Success Rate",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "wave": "walk",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`index=telecom_sip` (or your Stream SIP index) with `sourcetype=stream:sip`; optionally augment with `dest`, `src`, `reply_code`, `call_id`, `method`, `dest_zone`, carrier/trunk tagging via CSV lookup keyed by trunk endpoint IPs.",
+  "app": "`Splunk App for Stream` (Splunkbase #1809) plus optional `sip_trunks.csv` lookup for carrier/trunk labels.",
+  "spl": "index=telecom_sip sourcetype=\"stream:sip\" method=\"INVITE\"\n| bin _time span=15m\n| stats count as invites,\n        sum(eval(if(reply_code IN (180,183,200),1,0))) as progressing_ok,\n        sum(eval(if((reply_code>=400 AND reply_code<700) OR reply_code IN (403,404,408,486,487,503,603),1,0))) as invite_failures,\n        sum(eval(if(reply_code==487,1,0))) as canceled_before_answer,\n        dc(call_id) as unique_sessions\n        by _time, dest\n| eval cs_sr_pct=round(100*(invites-invite_failures)/invites,2)\n| eval progressing_pct=round(100*progressing_ok/invites,2)\n| where invites>=50 AND (cs_sr_pct < 97 OR progressing_pct < 92)\n| lookup sip_trunks.csv dest_ip as dest OUTPUT carrier_name trunk_group\n| eval trunk_label=coalesce(carrier_name,dest)\n| table _time trunk_label invites progressing_pct cs_sr_pct invite_failures canceled_before_answer\n| sort -invite_failures",
+  "description": "Measures SIP INVITE outcomes across trunk endpoints every fifteen minutes to surface degraded carrier interconnect—few progress responses (180/183), elevated failure replies (4xx/5xx/6xx), and collapsing computed setup-success percentages versus baseline steady-state trunk behaviour.",
+  "value": "Voice ops quantify trunk-by-trunk regression versus negotiated interconnect KPIs so carrier escalation happens from measurable SIP metrics rather than anecdotal complaints—often shortening dispute cycles because Splunk retains correlated timelines alongside ticketing IDs.",
+  "implementation": "Point Stream at bilateral SIP signaling toward PSTN/SBC trunk IPs; normalize INVITE events into `telecom_sip`; attach trunk/carrier labels via lookup; schedule the fifteen-minute aggregation; tune minimum invites-per-window so sparse routes do not page falsely.",
+  "detailedImplementation": "Prerequisites\n• Splunk App for Stream (Splunkbase 1809) 8.x forwarders tapping trunk-facing VLAN or ERSPAN with symmetric bidirectional captures so responses arrive with requests.\n• Inventory CSV `sip_trunks.csv` mapping signaling endpoints (`dest_ip`), carrier-facing trunk_group identifiers, commercial carrier_name, and routing class (national/international/satellite) when thresholds differ.\n• Written interconnect KPI targets from acceptance testing—many carriers quote combined setup-success objectives excluding intentionally busy subscribers; align SPL exclusions accordingly.\n• Enough license capacity for sustained INVITE telemetry—historically multiple TB/day on busy PSTN breakout farms.\n\nStep 1 — Configure Stream SIP extraction focusing on `method=INVITE`. Validate `reply_code`, `call_id`, `dest`, `_time`, and `setup_delay` fields via fifteen-minute verification searches comparing counts against session border controller logs.\n\nStep 2 — Land events in `index=telecom_sip` with sourcetype `stream:sip`; automate lookup synchronization whenever trunk IPs change after migrations or wholesale resale rearrangements.\n\nStep 3 — Implement scheduled searches computing progressing_pct (share receiving 180/183/200 first-leg responses) and cs_sr_pct (share avoiding hard 4xx/5xx/6xx failures including canceled attempts). Require `invites>=50` per bucket to suppress noise on dormant routes; optionally stratify thresholds using lookup `call_type`.\n\nStep 4 — Operational dashboard couples KPI tiles, fifteen-minute trend charts per trunk_group, and Rapid Investigation drilldown launching raw events constrained by `call_id`. Tie Splunk alerts to ticketing via webhook carrying trunk_label and rolling averages.\n\nStep 5 — Troubleshooting: asymmetric taps yield artificial failures—validate ERSPAN ACL directionality; lab trunks should be filtered with explicit dest exclusions; when audio suffers despite healthy counters, pivot to UC-5.10.6 post-dial delay analytics and RTP loss panels.",
+  "visualization": "Row 1: single-value tiles per carrier for fifteen-minute CS-SR with traffic-light thresholds; Row 2: timechart of progressing_pct and cs_sr_pct stacked per trunk; Row 3: table of failures by SIP response code with drill to Stream packet capture IDs if stored.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunkbase — Splunk App for Stream",
+      "url": "https://splunkbase.splunk.com/app/1809"
+    },
+    {
+      "title": "RFC 3261 — SIP: Session Initiation Protocol",
+      "url": "https://www.rfc-editor.org/rfc/rfc3261"
+    }
+  ],
+  "knownFalsePositives": "Flash crowds dialing unreachable premium-rate ranges spike 404/486 counts legitimately; SIP OPTIONS heartbeats mis-tagged as INVITE if filters slip; carrier lawful-intercept reroutes may briefly emit 503 during provisioning—cross-check carrier notifications.",
+  "equipment": [
+    "cisco",
+    "stream"
+  ],
+  "equipmentModels": [
+    "cisco_ios",
+    "stream_forwarder"
+  ],
+  "grandmaExplanation": "We count how many calls actually get through each outside line we buy so when one supplier quietly starts dropping setups we see it on a chart instead of hearing angry stories days later.",
+  "telcoUseCase": "IMS interconnect acceptance & KPI enforcement",
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

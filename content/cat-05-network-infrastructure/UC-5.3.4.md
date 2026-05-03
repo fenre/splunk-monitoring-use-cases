@@ -21,7 +21,7 @@ Expired certificates on load balancers cause browser warnings or connection fail
 
 ## Value
 
-Expired certificates on load balancers cause browser warnings or connection failures. Most preventable outage.
+Infrastructure teams track F5 BIG-IP SSL certificate expiration dates with tiered urgency (expired, <7d, <30d, <90d), ensuring timely renewal before certificate-related outages impact HTTPS services.
 
 ## Implementation
 
@@ -30,64 +30,67 @@ Scripted input querying iControl REST for certs. Run daily. Alert at 90/60/30/7 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_f5-bigip`, custom scripted input.
-- Ensure the following data sources are available: iControl REST API (`/mgmt/tm/sys/crypto/cert`).
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Splunk Add-on for F5 BIG-IP (`Splunk_TA_f5-bigip`, Splunkbase 2680). F5 iControl REST API polled for certificate data or syslog messages about certificate expiry. Data in `index=network` with `sourcetype=f5:bigip:syslog` or `sourcetype=f5:bigip:api`. Key fields: `cert_name`, `expiration_date`, `days_to_expiry`, `issuer`, `subject`, `serial`.
+* Alternatively, use a scripted input to poll `/mgmt/tm/sys/file/ssl-cert` and extract certificate metadata. F5 also generates syslog messages (`01420006:4:`) when certificates approach expiry.
 
-### Step 1 — Configure data collection
-Scripted input querying iControl REST for certs. Run daily. Alert at 90/60/30/7 day thresholds.
+### Step 1 — - Configure data collection
+Option A -- Poll iControl REST (recommended):
+Create a scripted input that calls `/mgmt/tm/sys/file/ssl-cert` and extracts `name`, `expirationString`, `issuer`, `subject`. Push to HEC as `sourcetype=f5:bigip:certs`.
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Option B -- Syslog-based:
+F5 generates "Certificate ... will expire in X days" messages. Verify:
 ```spl
-index=network sourcetype="f5:certificate_inventory"
-| eval days_left=round((expiry_epoch-now())/86400,0) | where days_left<90
-| sort days_left | table host cert_name days_left expiry_date
+index=network sourcetype="f5:bigip:syslog" ("certificate" AND ("expir" OR "expire" OR "expired")) earliest=-7d
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**SSL Certificate Expiry (F5 BIG-IP)** — Expired certificates on load balancers cause browser warnings or connection failures. Most preventable outage.
-
-Documented **Data sources**: iControl REST API (`/mgmt/tm/sys/crypto/cert`). **App/TA** (typical add-on context): `Splunk_TA_f5-bigip`, custom scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: network; **sourcetype**: f5:certificate_inventory. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="f5:certificate_inventory". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `eval` defines or adjusts **days_left** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where days_left<90` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-- Pipeline stage (see **SSL Certificate Expiry (F5 BIG-IP)**): table host cert_name days_left expiry_date
-
-
-### Step 3 — Validate
-In the F5 UI or in your certificate store process, compare certificate names, expiry, and hostnames to the same rows Splunk returns.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table sorted by days to expiry, Single value (expiring <30d), Status indicator.
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
+**Primary search -- Certificate expiry timeline:**
+```spl
+index=network (sourcetype="f5:bigip:certs" OR sourcetype="f5:bigip:syslog") earliest=-7d
+| rex "(?i)certificate\s+(?<cert_name>\S+).*expir.*?(?<days_remaining>\d+)\s*day"
+| eval days_remaining=coalesce(days_to_expiry, days_remaining)
+| eval expiry_date=coalesce(expiration_date, strftime(relative_time(now(), "+".days_remaining."d"), "%Y-%m-%d"))
+| where isnotnull(days_remaining)
+| lookup f5_vip_inventory.csv cert_name OUTPUT application, owner, virtual_server
+| eval urgency=case(days_remaining < 0, "EXPIRED", days_remaining < 7, "CRITICAL", days_remaining < 30, "WARNING", days_remaining < 90, "PLAN", 1==1, "OK")
+| where urgency != "OK"
+| table host, cert_name, application, virtual_server, owner, expiry_date, days_remaining, urgency
+| sort days_remaining
 ```
 
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
-
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
+**Certificate inventory:**
+```spl
+index=network sourcetype="f5:bigip:certs" earliest=-1d
+| stats latest(expiration_date) as expiry latest(issuer) as issuer latest(subject) as subject by host, cert_name
+| eval days_left=round((strptime(expiry, "%Y-%m-%d") - now()) / 86400, 0)
+| sort days_left
 ```
 
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
+### Step 3 — - Validate
+(a) In tmsh: `show sys file ssl-cert` -- compare expiration dates with Splunk.
+(b) Identify a certificate expiring within 30 days and verify it appears with "WARNING" urgency.
+(c) For expired certificates, verify they show "EXPIRED" status.
+
+### Step 4 — - Operationalize
+Dashboard ("F5 -- SSL Certificate Lifecycle"):
+* Row 1 -- Single-value: "Expired certs", "Expiring < 7d", "Expiring < 30d", "Total certs".
+* Row 2 -- Certificate expiry timeline table with owner and application context.
+* Row 3 -- Certificate inventory sorted by days remaining.
+
+Alerting:
+* Critical (certificate expired or expiring < 7 days): immediate renewal required.
+* Warning (certificate expiring < 30 days): schedule renewal.
+* Info (weekly): certificate status report for all F5 devices.
+
+### Step 5 — - Troubleshooting
+
+* **Certificate shows expired but application works** -- Check if the F5 SSL profile references a different certificate, or if SSL termination happens upstream (CDN, WAF).
+
+* **Can't parse expiration from syslog** -- F5 syslog format varies by version. Check raw events and adjust the rex pattern. For reliability, use the iControl REST API approach.
+
+* **Certificate renewed but Splunk still shows old expiry** -- The F5 may need a configuration sync (if HA pair) or the SSL profile needs to be updated to reference the new certificate.
 
 ## SPL
 

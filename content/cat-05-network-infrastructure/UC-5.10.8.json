@@ -1,0 +1,53 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.10.8",
+  "title": "Circuit and Last-Mile Link Utilization Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "wave": "crawl",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`index=network sourcetype=snmp:interface` polling IF-MIB/high-capacity counters (`ifHCInOctets`, `ifHCOutOctets`, `ifSpeed`, `ifDescr`, `ifAdminStatus`, `ifOperStatus`) from PE/CPE routers facing carrier tail circuits; optionally merge `carrier_circuits.csv` supplying committed information rate (CIR), location, and carrier circuit ID.",
+  "app": "SNMP Modular Input or Telegraf SNMP plugin feeding Splunk; optional `TA-cisco_ios`/`Splunk_TA_juniper` for enrichment macros.",
+  "spl": "index=network sourcetype=\"snmp:interface\" ifSpeed>0 ifDescr=*\n| sort 0 host, ifDescr, _time\n| streamstats current=f global=f last(ifHCInOctets) as prev_in last(ifHCOutOctets) as prev_out last(_time) as prev_ts by host, ifDescr\n| eval dt=_time-prev_ts\n| eval in_bps=if(dt>0 AND dt<900,(ifHCInOctets-prev_in)*8/dt,null())\n| eval out_bps=if(dt>0 AND dt<900,(ifHCOutOctets-prev_out)*8/dt,null())\n| eval speed_bps=case(ifSpeed>=4294967295 AND isnotnull(ifHighSpeed), ifHighSpeed*1000000, ifSpeed>=4294967295, null(), true(), ifSpeed)\n| eval util_peak=if(isnotnull(speed_bps) AND speed_bps>0, round(100*max(in_bps,out_bps)/speed_bps,2), null())\n| eval host_interface=host.\"|\".ifDescr\n| lookup carrier_circuits.csv host_interface OUTPUT cir_bps carrier circuit_id site_code\n| eval cir_util=if(isnotnull(cir_bps) AND cir_bps>0, round(100*max(in_bps,out_bps)/cir_bps,2), null())\n| where util_peak>75 OR cir_util>85\n| stats latest(util_peak) as snmp_util_pct latest(cir_util) as cir_util_pct latest(ifOperStatus) as oper latest(ifDescr) as interface by host, carrier, circuit_id\n| sort -cir_util_pct",
+  "description": "Turns IF-MIB counter deltas into sustained bits-per-second utilization on carrier-facing interfaces and overlays contractual CIR utilization so operations sees both physical port saturation and committed-rate overrun risk on tail circuits.",
+  "value": "Capacity planners receive empirical trending ahead of billable overage or congestion-driven SLA breaches—especially valuable where uplinks remain physically uncapped but billing meters enforce CIR envelopes enforced only on carrier side.",
+  "implementation": "Poll five-minute intervals minimum; align clocks via NTP; maintain lookup tying Splunk `host`/SNMP index to commercial circuit metadata; alert dual thresholds—SNMP physical utilization above seventy-five percent and CIR utilization above eighty-five percent.",
+  "detailedImplementation": "Prerequisites\n• Reliable IF-MIB polling every five minutes (or faster for bursty tails) using `ifHCInOctets`/`ifHCOutOctets` on carrier-facing interfaces; legacy 32-bit counters require exclusion.\n• Verified `ifSpeed` plus optional `ifHighSpeed` when ports exceed four-gigabit semantic limits—maintain override CSV when optics negotiate unexpected speeds.\n• Carrier contract artifacts defining CIR in bits per second per VLAN or physical interface; finance-approved conversions when framing overhead differs.\n• Network Time Protocol discipline across SNMP agents and Splunk indexers to prevent negative deltas.\n\nStep 1 — Land telemetry as `sourcetype=snmp:interface` inside `index=network`, ensuring hosts resolve to the same identifiers used in inventory tools.\n\nStep 2 — Chronologically sort per `host`/`ifDescr`, then apply `streamstats` deltas transforming octet growth into sustained throughput (multiply by eight, divide by elapsed seconds).\n\nStep 3 — Compose `host_interface` keys (`host|ifDescr`) feeding `carrier_circuits.csv` so Splunk enriches circuits with carrier names, POP/site codes, billing IDs, and CIR.\n\nStep 4 — Dashboard row displays SNMP-derived physical utilization beside CIR-relative utilization; schedule alerts crossing seventy-five percent physical or eighty-five percent CIR with staggered severities.\n\nStep 5 — Troubleshooting: SNMP timeouts yield bogus spikes—drop intervals lacking sequential samples; EtherChannel members may need aggregated counters via vendor-specific MIB supplements; DSL tails remain asymmetric—consider direction-specific thresholds instead of `max()`.",
+  "visualization": "Gauge tiles per circuit for instantaneous utilization; dual-axis timechart comparing SNMP utilization vs CIR utilization; map panel keyed by site_code with color thresholds.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Lantern — SNMP polling guidance",
+      "url": "https://lantern.splunk.com/"
+    },
+    {
+      "title": "IF-MIB (RFC 2863)",
+      "url": "https://www.rfc-editor.org/rfc/rfc2863"
+    }
+  ],
+  "knownFalsePositives": "Brief backup replication bursts crossing a fifteen-minute spike filter may page despite healthy sustained utilization; SNMP gaps emit null deltas—ignore windows without two sequential samples; LLDP renames can duplicate `ifDescr` rows until caches refresh.",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "snmp"
+  ],
+  "equipmentModels": [
+    "cisco_ios",
+    "juniper_mx",
+    "snmp_generic"
+  ],
+  "grandmaExplanation": "We watch how full the pipe is between us and the phone company so we upgrade or reshuffle traffic before everything slows to a crawl at rush hour.",
+  "telcoUseCase": "Carrier tail capacity governance",
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

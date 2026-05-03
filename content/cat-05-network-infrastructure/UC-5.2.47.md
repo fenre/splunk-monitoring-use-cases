@@ -21,7 +21,7 @@ ClusterXL provides gateway high availability via active-standby or active-active
 
 ## Value
 
-ClusterXL provides gateway high availability via active-standby or active-active clusters. Failover events — whether planned (manual switchover) or unplanned (process crash, NIC failure, sync timeout) — cause brief traffic interruption and may indicate underlying hardware or software instability. Monitoring failover frequency, duration, and trigger reason supports SLA reporting and proactive hardware replacement before repeated failovers degrade user experience.
+NOC teams track Check Point ClusterXL failover events and recovery times, detecting member failures and cluster flapping to maintain firewall high availability.
 
 ## Implementation
 
@@ -30,45 +30,75 @@ Forward Check Point system/cluster logs via Log Exporter or Smart-1 Cloud. Extra
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259).
-- Ensure the following data sources are available: `sourcetype=cp_log` (cluster/system logs), SNMP traps.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Check Point ClusterXL failover event logs. Data in `index=checkpoint` or `index=firewall` with `sourcetype=cp_log`. The Check Point TA for Splunk provides field extraction. Key fields: `product` (System Monitor, ClusterXL), `action`, `origin`, `cluster_member`, `failover_reason`, `description`.
+* ClusterXL: Check Point's clustering technology. Modes include High Availability (active/standby), Load Sharing Multicast, and Load Sharing Unicast. Failover triggers: member down, interface failure, CCP (Cluster Control Protocol) heartbeat loss, manual failover, fwha_delta sync failure. CLI: `cphaprob state`, `cphaprob stat`.
 
-### Step 1 — Configure data collection
-Forward Check Point system/cluster logs via Log Exporter or Smart-1 Cloud. Extract ClusterXL state change messages (member down, sync lost, failover). Alert on any unplanned failover immediately. Track failover frequency per cluster — more than 2 in 7 days warrants investigation. Correlate with gateway CPU/memory UC-10.11.35 to find resource-triggered failovers. Page on-call for active-active cluster degradation to single member.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Check Point SmartConsole -- configure log forwarding to Splunk
+# Manage & Settings > Logs & Masters > Log Servers
+# Add Splunk as OPSEC LEA or use Log Exporter
+# Log Exporter:
+cp_log_export add name splunk_export target-server <splunk-ip> target-port 514 protocol udp format syslog
+cp_log_export set name splunk_export read-mode semi-unified
+cp_log_export restart name splunk_export
+```
+Verify:
 ```spl
-index=firewall sourcetype="cp_log" earliest=-30d
-| where match(lower(product),"(?i)cluster|clusterxl|ha") OR match(lower(logdesc),"(?i)failover|switchover|member.*down|sync.*fail")
-| eval gw=coalesce(orig, src, hostname)
-| stats count earliest(_time) as first latest(_time) as last values(logdesc) as events by gw
+index=checkpoint sourcetype="cp_log" earliest=-30d
+| where match(product, "(?i)ClusterXL|System Monitor") AND match(_raw, "(?i)failover|cluster|member.*down|member.*up|switchover")
+| stats count by origin, description
 | sort -count
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Check Point ClusterXL Failover Events (Check Point)** — ClusterXL provides gateway high availability via active-standby or active-active clusters. Failover events — whether planned (manual switchover) or unplanned (process crash, NIC failure, sync timeout) — cause brief traffic interruption and may indicate underlying hardware or software instability. Monitoring failover frequency, duration, and trigger reason supports SLA reporting and proactive hardware replacement before repeated failovers degrade user experience.
+**Primary search -- ClusterXL failover event tracking:**
+```spl
+index=checkpoint sourcetype="cp_log" earliest=-30d
+| where match(product, "(?i)ClusterXL|System Monitor") OR match(_raw, "(?i)failover|cluster.*state|member.*state")
+| eval member=coalesce(cluster_member, origin, src)
+| eval failover_action=case(
+    match(description, "(?i)member.*down|state.*down|dead"), "MEMBER_DOWN",
+    match(description, "(?i)member.*up|state.*active|alive"), "MEMBER_UP",
+    match(description, "(?i)failover|switchover|takeover"), "FAILOVER",
+    match(description, "(?i)sync|delta|full.sync"), "SYNC_EVENT",
+    1==1, "STATUS_CHANGE")
+| eval reason=coalesce(failover_reason, if(match(description, "(?i)interface"), "interface_failure", if(match(description, "(?i)heartbeat|ccp"), "heartbeat_loss", if(match(description, "(?i)manual"), "manual", "unknown"))))
+| sort member, _time
+| streamstats current=f last(_time) as prev_time last(failover_action) as prev_action by member
+| eval recovery_min=if(failover_action="MEMBER_UP" AND prev_action="MEMBER_DOWN", round((_time - prev_time)/60, 1), null())
+| stats count(eval(failover_action="FAILOVER")) as failovers count(eval(failover_action="MEMBER_DOWN")) as member_downs avg(recovery_min) as avg_recovery_min latest(failover_action) as current_state by member, reason
+| eval avg_recovery_min=round(avg_recovery_min, 1)
+| eval severity=case(
+    current_state="MEMBER_DOWN", "CRITICAL -- cluster member currently down",
+    failovers > 3, "WARNING -- frequent failovers (possible flapping)",
+    member_downs > 0, "WARNING -- member down events detected",
+    1==1, "OK")
+| where severity != "OK"
+| sort severity
+```
 
-Documented **Data sources**: `sourcetype=cp_log` (cluster/system logs), SNMP traps. **App/TA** (typical add-on context): `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI (expert mode): `cphaprob state` -- show current cluster state per member.
+(b) CLI: `cphaprob -a if` -- show cluster interface status.
+(c) CLI: `fw ctl pstat` -- check sync status and delta counters.
 
-The first pipeline stage scopes events using **index**: firewall; **sourcetype**: cp_log. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Check Point -- ClusterXL Health"):
+* Row 1 -- Single-value: "Failover events (30d)", "Members DOWN", "Avg recovery (min)".
+* Row 2 -- Cluster failover timeline.
+* Row 3 -- Failover reason distribution.
 
-**Pipeline walkthrough**
+Alert: Critical (cluster member DOWN): immediate investigation.
 
-- Scopes the data: index=firewall, sourcetype="cp_log", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Filters the current rows with `where match(lower(product),"(?i)cluster|clusterxl|ha") OR match(lower(logdesc),"(?i)failover|switchover|member.*down|sync.*…` — typically the threshold or rule expression for this monitoring goal.
-- `eval` defines or adjusts **gw** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `stats` rolls up events into metrics; results are split **by gw** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **CCP heartbeat failure** -- Check cluster network connectivity (usually dedicated sync interface). Verify CCP protocol mode matches on both members: `cphaprob mcast` or `cphaconf set_ccp broadcast`.
 
-### Step 3 — Validate
-Compare key fields and timestamps in SmartConsole, SmartView, or the gateway’s local view so Splunk and Check Point match for the same events.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (failover events), Table (clusters with recent failovers), Single value (failovers this week), Bar chart (failovers by reason).
+* **Sync failure after failover** -- Run `fw ctl pstat` to check full sync status. If delta sync fails, a full sync may be needed: `cphaprob syncstat`. Large connection tables can delay sync.
+
+* **Split-brain** -- Both members active simultaneously. Usually caused by all sync interfaces failing. Emergency: manually stop one member with `cphaprob -d -s problem -t 0` or `cphastop`.
 
 ## SPL
 

@@ -21,7 +21,7 @@ MLAG pairs depend on matching configuration and a healthy peer link; inconsisten
 
 ## Value
 
-MLAG pairs depend on matching configuration and a healthy peer link; inconsistency or peer loss can lead to blackholed VLANs or asymmetric forwarding while both switches appear “up.” Catching `config-sanity` failures and peer state changes early prevents subtle application outages that load balancers and servers cannot retry away from. Splunk correlation across both peers speeds root cause when only one side logs the fault.
+NOC teams monitor Arista MLAG peer status, peer-link health, and configuration consistency to ensure dual-homed device redundancy and detect MLAG pair failures.
 
 ## Implementation
 
@@ -30,46 +30,70 @@ Ingest syslog from both MLAG peers with synchronized clocks. Alert on peer-link 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `arista:eos` via SC4S, syslog.
-- Ensure the following data sources are available: `sourcetype=arista:eos`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Arista MLAG (Multi-Chassis Link Aggregation) health data from syslog or eAPI. Data in `index=arista` or `index=network` with `sourcetype=arista:eos` or `sourcetype=syslog`. Key syslog: `MLAG-4-INACTIVE`, `MLAG-6-PEER_STATUS`, `MLAG-3-CONFIG_CONSISTENCY`. eAPI: `show mlag`.
+* Arista MLAG: two Arista switches form a virtual pair, providing active-active link aggregation to downstream devices. MLAG requires: peer-link (trunk between switches), MLAG domain, and consistent configuration. MLAG health depends on: peer reachability, peer-link status, and configuration consistency.
 
-### Step 1 — Configure data collection
-Ingest syslog from both MLAG peers with synchronized clocks. Alert on peer-link down, partial connectivity, or config-sanity failure strings present in your EOS version. Use a lookup pairing `mlag_domain` or neighbor hostname to open one incident for the pair. Validate against `show mlag` snapshots if you periodically scrape CLI into Splunk.
+### Step 1 — - Configure data collection
+```
+# Arista EOS -- syslog forwarding
+logging host <splunk-ip>
+logging trap informational
+logging facility local7
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# eAPI scripted input (alternative to syslog)
+# Polls: show mlag, show mlag detail
+```
+Verify:
 ```spl
-index=network sourcetype="arista:eos"
-| search Mlag OR MLAG OR mlag OR "Mlag:" OR "Dual attached" OR "peer-link" OR "inactive"
-| rex field=_raw "(?i)Mlag:\s*(?<mlag_msg>[^\n]+)"
-| stats count as mlag_events, latest(mlag_msg) as last_summary, values(_raw) as samples by host
-| sort -mlag_events
+index=arista earliest=-24h
+| where match(_raw, "(?i)MLAG|mlag|peer.link|peer.status|mlag.*config")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Arista MLAG Health and Consistency (Arista)** — MLAG pairs depend on matching configuration and a healthy peer link; inconsistency or peer loss can lead to blackholed VLANs or asymmetric forwarding while both switches appear “up.” Catching `config-sanity` failures and peer state changes early prevents subtle application outages that load balancers and servers cannot retry away from. Splunk correlation across both peers speeds root cause when only one side logs the fault.
+**Primary search -- MLAG health and consistency monitoring:**
+```spl
+index=arista earliest=-24h
+| where match(_raw, "(?i)MLAG|mlag|peer.link|peer.status|config.*consistency")
+| eval device=coalesce(host, device_name)
+| eval mlag_event=case(
+    match(_raw, "(?i)peer.*down|peer.*unreachable|peer.*fail"), "PEER_DOWN",
+    match(_raw, "(?i)peer.*up|peer.*active|peer.*established"), "PEER_UP",
+    match(_raw, "(?i)peer.link.*down|peer-link.*fail"), "PEER_LINK_DOWN",
+    match(_raw, "(?i)config.*inconsist|consistency.*error"), "CONFIG_INCONSISTENCY",
+    match(_raw, "(?i)INACTIVE|port.*inactive"), "PORT_INACTIVE",
+    match(_raw, "(?i)reload.*delay|MLAG.*reload"), "RELOAD_DELAY",
+    1==1, "MLAG_EVENT")
+| stats count as events count(eval(mlag_event="PEER_DOWN")) as peer_downs count(eval(mlag_event="CONFIG_INCONSISTENCY")) as config_errors latest(mlag_event) as latest_event by device
+| eval severity=case(
+    peer_downs > 0, "CRITICAL -- MLAG peer down (no redundancy)",
+    match(latest_event, "PEER_LINK_DOWN"), "CRITICAL -- MLAG peer-link down",
+    config_errors > 0, "WARNING -- MLAG configuration inconsistency",
+    1==1, "OK")
+| where severity != "OK"
+| sort severity
+```
 
-Documented **Data sources**: `sourcetype=arista:eos`. **App/TA** (typical add-on context): `arista:eos` via SC4S, syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show mlag` -- overall MLAG status and peer.
+(b) CLI: `show mlag detail` -- detailed peer-link and port-channel status.
+(c) CLI: `show mlag config-sanity` -- configuration consistency check.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: arista:eos. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Arista -- MLAG Health"):
+* Row 1 -- Single-value: "MLAG peer status", "Config errors", "Inactive ports".
+* Row 2 -- MLAG event timeline.
 
-**Pipeline walkthrough**
+Alert: Critical (MLAG peer down or peer-link down): dual-homing lost.
 
-- Scopes the data: index=network, sourcetype="arista:eos". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Applies an explicit `search` filter to narrow the current result set.
-- Extracts fields with `rex` (regular expression).
-- `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **MLAG peer down** -- Check: (1) peer switch reachable, (2) MLAG domain ID matches, (3) peer-link physical connectivity. CLI: `show mlag detail` for failure reason.
 
-### Step 3 — Validate
-On the switch, run `show mlag` or `show version` and CloudVision (if used) to compare health with the same sample window. Check that the syslog or API feed Splunk uses still lists the device after any CV upgrade.
+* **Configuration inconsistency** -- MLAG requires matching configuration on both peers (VLANs, STP, interface config). Run `show mlag config-sanity` for specific mismatches. Fix mismatches on both switches.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: MLAG peer pair dashboard; red/amber status per domain; timeline of state transitions.
+* **MLAG port inactive** -- Member port not participating in MLAG. Check: port-channel configuration, LACP status, and that the MLAG ID matches on both peers.
 
 ## SPL
 

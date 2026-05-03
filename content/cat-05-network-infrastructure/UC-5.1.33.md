@@ -21,7 +21,7 @@ Half/full duplex mismatches causing performance degradation.
 
 ## Value
 
-Half/full duplex mismatches causing performance degradation.
+Network engineers detect half-duplex negotiation anomalies on active interfaces, a condition that should not exist in modern networks and causes collisions and poor performance.
 
 ## Implementation
 
@@ -30,46 +30,61 @@ Poll EtherLike-MIB dot3StatsDuplexStatus; ingest syslog for duplex mismatch mess
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: IF-MIB (ifSpeed), EtherLike-MIB (dot3StatsDuplexStatus), syslog.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Half-duplex negotiation data from SNMP or syslog. Extends UC-5.1.17 with automated detection of half-duplex as an anomaly. Key: dot3StatsDuplexStatus OID or `show interface status`.
+* Half-duplex should not exist in modern networks. Any interface negotiating half-duplex is a misconfiguration or hardware issue causing collisions and poor performance.
 
-### Step 1 — Configure data collection
-Poll EtherLike-MIB dot3StatsDuplexStatus; ingest syslog for duplex mismatch messages. Alert on half-duplex on gigabit uplinks or explicit mismatch events.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Same as UC-5.1.17 -- SNMP polling for duplex status
+# dot3StatsDuplexStatus (.1.3.6.1.2.1.10.7.2.1.19)
+# Regularly poll all interface statuses
+```
+Verify:
 ```spl
-index=network (sourcetype=snmp:interface OR sourcetype="cisco:ios") ("duplex" OR "Duplex" OR "dot3StatsDuplexStatus" OR "halfDuplex" OR "fullDuplex")
-| rex "duplex mismatch|(?<duplex_status>halfDuplex|fullDuplex|unknown)"
-| where match(_raw,"mismatch|halfDuplex") OR duplex_status="halfDuplex"
-| stats count by host, ifDescr, duplex_status
-| table host ifDescr duplex_status count
+index=network earliest=-4h
+| eval duplex=coalesce(dot3StatsDuplexStatus, duplex_mode, duplex)
+| where duplex="2" OR match(duplex, "(?i)half")
+| stats count by host, ifName
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Half-Duplex Negotiation Anomaly** — Half/full duplex mismatches causing performance degradation.
+**Primary search -- Half-duplex anomaly detection:**
+```spl
+index=network earliest=-4h
+| eval duplex=coalesce(dot3StatsDuplexStatus, duplex_mode, duplex)
+| eval speed=coalesce(ifSpeed, speed, link_speed)
+| eval interface=coalesce(ifName, interface, port)
+| eval device=coalesce(host, device_name)
+| where duplex="2" OR match(duplex, "(?i)half")
+| eval oper_status=coalesce(ifOperStatus, admin_status)
+| where oper_status="1" OR match(oper_status, "(?i)up")
+| stats count latest(_time) as last_seen by device, interface, speed
+| eval severity="WARNING -- half-duplex detected on active interface"
+| eval last_seen_time=strftime(last_seen, "%Y-%m-%d %H:%M:%S")
+| table device, interface, speed, last_seen_time, severity
+| sort device, interface
+```
 
-Documented **Data sources**: IF-MIB (ifSpeed), EtherLike-MIB (dot3StatsDuplexStatus), syslog. **App/TA** (typical add-on context): SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show interface status` -- check for any "a-half" or "half" interfaces.
+(b) Check remote end: `show cdp neighbor <intf> detail` -- verify remote side duplex.
+(c) CLI: `show interface <intf> | include collisions` -- check collision counters.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:interface, cisco:ios. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+### Step 4 — - Operationalize
+Dashboard ("Network -- Duplex Anomalies"):
+* Row 1 -- Single-value: "Half-duplex interfaces", "Devices affected".
+* Row 2 -- Half-duplex interface list.
 
-**Pipeline walkthrough**
+Alert: Warning (any active half-duplex interface): fix immediately.
 
-- Scopes the data: index=network, sourcetype=snmp:interface. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- Filters the current rows with `where match(_raw,"mismatch|halfDuplex") OR duplex_status="halfDuplex"` — typically the threshold or rule expression for this monitoring goal.
-- `stats` rolls up events into metrics; results are split **by host, ifDescr, duplex_status** so each row reflects one combination of those dimensions.
-- Pipeline stage (see **Half-Duplex Negotiation Anomaly**): table host ifDescr duplex_status count
+### Step 5 — - Troubleshooting
 
+* **Fix half-duplex** -- Set both ends to auto-negotiate: `speed auto` / `duplex auto`. Or hardcode both to same speed and full-duplex. Never mix hardcoded and auto.
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Connected device forces half-duplex** -- Old or misconfigured device (printer, legacy equipment). Hardcode both sides to 100/full or 10/full as appropriate for the device capability.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, interface, duplex), Status grid, Single value.
+* **Collisions on half-duplex** -- Expected behavior. Half-duplex uses CSMA/CD. Fix by converting to full-duplex.
 
 ## SPL
 

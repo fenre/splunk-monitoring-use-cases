@@ -21,7 +21,7 @@ CAM table utilization on switches approaching hardware limits.
 
 ## Value
 
-CAM table utilization on switches approaching hardware limits.
+Operations teams monitor MAC address table capacity across switches, detecting CAM table exhaustion that causes unicast flooding, performance degradation, and security exposure.
 
 ## Implementation
 
@@ -30,50 +30,62 @@ Poll dot1qTpFdbTable (count) or parse `show mac address-table count`. Create loo
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: dot1qTpFdbTable count, show mac address-table count.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* MAC address table capacity data from SNMP or CLI. SNMP OID: dot1dTpFdbEntry count. CLI: `show mac address-table count`. Data in `index=network`.
+* MAC table exhaustion: when the CAM table fills, the switch begins flooding unicast frames to all ports (like a hub), causing performance degradation and security risks (traffic visible to unintended recipients).
 
-### Step 1 — Configure data collection
-Poll dot1qTpFdbTable (count) or parse `show mac address-table count`. Create lookup with switch model→max_mac. Alert when CAM utilization exceeds 75%.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+[script:///opt/splunk/etc/apps/network_mon/bin/mac_table_stats.sh]
+interval = 300
+sourcetype = network:mac:stats
+index = network
+```
+Verify:
 ```spl
-index=network sourcetype=snmp:bridge OR sourcetype=cisco:ios:mac
-| eval mac_count=coalesce(fdb_entries, mac_count, 0)
-| stats latest(mac_count) as current_mac by host
-| lookup mac_limit host OUTPUT max_mac
-| eval util_pct=round(current_mac/max_mac*100,1)
-| where util_pct > 75
-| table host current_mac max_mac util_pct
+index=network sourcetype="network:mac:stats" earliest=-4h | stats latest(mac_count) latest(mac_limit) by device
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**MAC Address Table Capacity** — CAM table utilization on switches approaching hardware limits.
+**Primary search -- MAC table capacity monitoring:**
+```spl
+index=network earliest=-4h
+| eval mac_count=tonumber(coalesce(mac_count, mac_entries, dot1dTpFdbTableSize))
+| eval mac_limit=tonumber(coalesce(mac_limit, mac_table_size, cam_table_size))
+| eval device=coalesce(device, host, device_name)
+| where isnotnull(mac_count)
+| eval mac_pct=if(isnotnull(mac_limit) AND mac_limit > 0, round(100*mac_count/mac_limit, 1), null())
+| bin _time span=5m
+| stats latest(mac_count) as count latest(mac_limit) as limit latest(mac_pct) as util_pct by _time, device
+| eval severity=case(
+    util_pct > 90, "CRITICAL -- MAC table near capacity (".util_pct."%)",
+    util_pct > 75, "WARNING -- MAC table at ".util_pct."%",
+    count > 8000, "INFO -- large MAC table",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, device, count, limit, util_pct, severity
+| sort severity, -util_pct
+```
 
-Documented **Data sources**: dot1qTpFdbTable count, show mac address-table count. **App/TA** (typical add-on context): SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show mac address-table count` -- current count and limit per VLAN.
+(b) CLI: `show platform resource utilization` (Cisco) -- check TCAM usage.
+(c) Identify top VLANs: `show mac address-table count vlan <id>`.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:bridge, cisco:ios:mac. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+### Step 4 — - Operationalize
+Dashboard ("Network -- MAC Table Capacity"):
+* Row 1 -- Single-value: "Switches > 75% MAC", "Maximum utilization (%)".
+* Row 2 -- MAC table utilization timechart.
 
-**Pipeline walkthrough**
+Alert: Critical (>90% MAC table utilization): flooding risk.
 
-- Scopes the data: index=network, sourcetype=snmp:bridge. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `eval` defines or adjusts **mac_count** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
-- Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
-- `eval` defines or adjusts **util_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where util_pct > 75` — typically the threshold or rule expression for this monitoring goal.
-- Pipeline stage (see **MAC Address Table Capacity**): table host current_mac max_mac util_pct
+### Step 5 — - Troubleshooting
 
+* **MAC table filling up** -- Check for MAC flooding attack. Enable port security: `switchport port-security maximum <n>`. Investigate unknown MAC addresses.
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Large VLAN spanning many switches** -- Reduce broadcast domain size. Consider VLAN segmentation or routed access design.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (MAC count over time), Gauge, Table.
+* **MAC flapping consuming table** -- Same MAC on multiple ports uses multiple entries. Fix the root cause (UC-5.1.12).
 
 ## SPL
 

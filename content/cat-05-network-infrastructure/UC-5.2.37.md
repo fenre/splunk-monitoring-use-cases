@@ -21,7 +21,7 @@ Tracks automatic VPN path optimization to understand tunnel usage and convergenc
 
 ## Value
 
-Tracks automatic VPN path optimization to understand tunnel usage and convergence behavior.
+Network engineers track Meraki Auto VPN path changes and tunnel switching to identify SD-WAN path instability and optimize uplink selection thresholds.
 
 ## Implementation
 
@@ -30,41 +30,65 @@ Monitor Auto VPN path optimization events. Alert on excessive changes.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=vpn signature="*Auto VPN*" OR signature="*path change*"`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki Auto VPN path change events. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki:api:vpn`. Key fields: `vpn_peers`, `path`, `tunnel_status`.
+* Meraki Auto VPN: automatically creates IPsec VPN tunnels between MX devices in the same Meraki organization. SD-WAN path selection chooses the best uplink per peer based on latency, loss, and jitter. Path changes occur when one uplink degrades and traffic shifts to another.
 
-### Step 1 — Configure data collection
-Monitor Auto VPN path optimization events. Alert on excessive changes.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Meraki Dashboard > Security & SD-WAN > Site-to-site VPN
+# Type: Hub or Spoke
+# SD-WAN & traffic shaping > Uplink selection: Performance-based
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=vpn (signature="*Auto VPN*" OR signature="*path change*")
-| stats count as path_change_count by tunnel_id, new_path, old_path
-| where path_change_count > 3
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:vpn") earliest=-7d
+| where match(_raw, "(?i)vpn.*path|tunnel.*switch|uplink.*change|vpn.*route")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Auto VPN Path Changes and Tunnel Switching (Meraki MX)** — Tracks automatic VPN path optimization to understand tunnel usage and convergence behavior.
+**Primary search -- Auto VPN path change tracking:**
+```spl
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:vpn") earliest=-7d
+| where match(_raw, "(?i)vpn.*path|tunnel.*change|vpn.*route|uplink.*select")
+| eval device=coalesce(serial, host, deviceSerial)
+| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
+| eval peer=coalesce(peerSerial, peer, vpn_peer)
+| lookup meraki_networks.csv serial AS peer OUTPUT network_name AS peer_name
+| eval path_info=coalesce(path, uplink, interface)
+| bin _time span=1h
+| stats count as path_changes dc(peer) as affected_peers values(peer_name) as peer_names by _time, network_name, device
+| eventstats avg(path_changes) as avg_changes stdev(path_changes) as stdev_changes by network_name
+| eval z_score=if(stdev_changes > 0, round((path_changes - avg_changes)/stdev_changes, 2), 0)
+| eval severity=case(
+    z_score > 3, "CRITICAL -- abnormal path instability (z-score > 3)",
+    path_changes > 20, "WARNING -- excessive VPN path changes",
+    path_changes > 5, "INFO -- moderate path switching",
+    1==1, "OK")
+| where severity != "OK"
+| sort severity, -path_changes
+```
 
-Documented **Data sources**: `sourcetype=meraki type=vpn signature="*Auto VPN*" OR signature="*path change*"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Security & SD-WAN > VPN status -- check tunnel states.
+(b) Correlate path changes with WAN quality (UC-5.2.33) degradation.
+(c) Verify SD-WAN uplink selection mode (load-balance vs performance-based).
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MX -- Auto VPN Paths"):
+* Row 1 -- Single-value: "Path changes (24h)", "Affected peers", "Unstable sites".
+* Row 2 -- Path change frequency timechart.
 
-**Pipeline walkthrough**
+Alert: Critical (>50 path changes per hour): SD-WAN path flapping, investigate uplink quality.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by tunnel_id, new_path, old_path** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where path_change_count > 3` — typically the threshold or rule expression for this monitoring goal.
+### Step 5 — - Troubleshooting
 
+* **Excessive path switching** -- Uplink quality is oscillating near the failover threshold. Consider adjusting SD-WAN performance class thresholds or switching to load-balance mode.
 
-### Step 3 — Validate
-In the Meraki cloud dashboard, use the same organization, network, and time range as the search. Confirm VPN paths, tunnel states, uplinks, and device names you expect there match the Splunk view.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Path change timeline; tunnel path change distribution; convergence analysis.
+* **Path changes only affecting specific peers** -- Remote site may have unstable WAN. Check the peer's uplink quality metrics.
+
+* **No path changes despite WAN issues** -- Verify SD-WAN uplink selection is set to "Performance-based" not "Default uplink".
 
 ## SPL
 

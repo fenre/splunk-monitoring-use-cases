@@ -21,7 +21,7 @@ Sudden connection spikes indicate DDoS, scanning, or worm propagation.
 
 ## Value
 
-Sudden connection spikes indicate DDoS, scanning, or worm propagation.
+Security teams detect connection rate anomalies using statistical z-score analysis, distinguishing network scanning, port sweeps, and brute force attacks from legitimate traffic bursts.
 
 ## Implementation
 
@@ -30,71 +30,59 @@ Baseline connection rates over 7 days. Alert when rate exceeds 3 standard deviat
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX).
-- Ensure the following data sources are available: Firewall traffic logs.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Firewall traffic/session logs in `index=firewall`. Key fields: `src_ip`, `sessions`, `connections`, `action`. Connection rate anomalies indicate: (1) DDoS attacks, (2) brute force, (3) worm propagation, (4) compromised host scanning.
 
-### Step 1 — Configure data collection
-Baseline connection rates over 7 days. Alert when rate exceeds 3 standard deviations.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+Verify session/connection data:
 ```spl
-index=firewall
+index=firewall earliest=-4h
+| eval src=coalesce(src_ip, src, srcaddr)
 | bin _time span=5m
-| stats count as connections by src, _time
-| eventstats avg(connections) as avg_c, stdev(connections) as std_c by src
-| where connections > (avg_c + 3*std_c)
-| sort -connections
+| stats count as connections dc(coalesce(dest_ip, dest)) as unique_targets by _time, src
+| sort -connections | head 20
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Connection Rate Anomalies** — Sudden connection spikes indicate DDoS, scanning, or worm propagation.
-
-Documented **Data sources**: Firewall traffic logs. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: firewall.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=firewall. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Discretizes time or numeric ranges with `bin`/`bucket`.
-- `stats` rolls up events into metrics; results are split **by src, _time** so each row reflects one combination of those dimensions.
-- `eventstats` rolls up events into metrics; results are split **by src** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where connections > (avg_c + 3*std_c)` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Connection rate anomaly detection:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action All_Traffic.dvc span=1h
-| where count>0
-| sort -count
+index=firewall earliest=-4h
+| eval src=coalesce(src_ip, src, srcaddr)
+| eval dst=coalesce(dest_ip, dest, dstaddr)
+| eval dport=coalesce(dest_port, dstport)
+| bin _time span=5m
+| stats count as connections dc(dst) as unique_targets dc(dport) as unique_ports by _time, src, host
+| eventstats avg(connections) as avg_conn stdev(connections) as stdev_conn by src
+| eval zscore=if(stdev_conn > 0, round((connections - avg_conn) / stdev_conn, 2), 0)
+| eval anomaly_type=case(zscore > 5 AND unique_targets > 100, "SCAN -- high target diversity", zscore > 5 AND unique_ports > 50, "PORT_SWEEP -- many ports on few targets", zscore > 5 AND unique_ports = 1 AND connections > 1000, "BRUTE_FORCE -- single port, high rate", zscore > 3, "RATE_ANOMALY", 1==1, null())
+| where isnotnull(anomaly_type)
+| eval severity=case(match(anomaly_type, "SCAN"), "CRITICAL", match(anomaly_type, "BRUTE_FORCE"), "HIGH", match(anomaly_type, "PORT_SWEEP"), "HIGH", 1==1, "WARNING")
+| sort severity, -zscore
 ```
 
-Understanding this CIM / accelerated SPL
+### Step 3 — - Validate
+(a) Baseline connection rates for known hosts during normal operation.
+(b) Generate a test scan (nmap from a test host) and verify anomaly detection triggers.
+(c) Verify z-score calculation produces sensible results by checking avg_conn and stdev_conn.
 
-This block uses `tstats` on the Network_Traffic data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 4 — - Operationalize
+Dashboard ("Firewall -- Connection Rate Anomalies"):
+* Row 1 -- Single-value: "Active anomalies", "Scanning hosts", "Brute force sources".
+* Row 2 -- Anomaly events table with z-score.
+* Row 3 -- Connection rate timechart for anomalous sources.
 
-**Pipeline walkthrough**
+Alerting:
+* Critical (scan pattern: > 100 unique targets): active network reconnaissance.
+* High (brute force: single port > 1K connections): credential attack.
+* Warning (rate anomaly z-score > 3): unusual activity.
 
-- Uses `tstats` against accelerated summaries for the Network_Traffic model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+### Step 5 — - Troubleshooting
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+* **High z-score but legitimate traffic** -- Backup servers, vulnerability scanners, and monitoring tools naturally create high connection rates. Add to a suppression list after verification.
 
+* **Scanning detection but action=deny** -- The firewall is already blocking the scan, but the volume indicates an active attacker. Consider: (1) block the source at perimeter, (2) report to abuse contact, (3) check for successful connections from the same source.
 
-
-### Step 3 — Validate
-Sample the same time range in your firewall management console, Panorama, FortiManager, or Check Point SmartConsole and confirm that counts, usernames, and object names line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart with threshold overlay, Table, Timechart.
+* **Brute force detection** -- Correlate with authentication logs (UC-5.2.10). Check: did any login succeed from this source? If yes, account may be compromised.
 
 ## SPL
 

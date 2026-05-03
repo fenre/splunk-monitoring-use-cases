@@ -21,7 +21,7 @@ Tracks cellular data consumption to manage carrier costs and prevent overages.
 
 ## Value
 
-Tracks cellular data consumption to manage carrier costs and prevent overages.
+Operations teams monitor Meraki MG cellular data usage against plan limits, preventing overage charges by alerting before data caps are reached and identifying high-consumption patterns.
 
 ## Implementation
 
@@ -30,42 +30,70 @@ Query MG API for data usage metrics. Track monthly consumption.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki:api device_type=MG data_usage=*`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MG cellular data usage from Dashboard API. Data in `index=meraki` with `sourcetype=meraki:api:cellular:usage` or `sourcetype=meraki:api:clients`. Key fields: `sent`, `recv`, `sim`, `apn`.
+* Meraki MG data plans: cellular has per-GB data costs. Monitoring usage prevents bill shock and enables proactive data plan adjustments. API: `GET /devices/{serial}/cellular/sims` returns data usage per SIM.
 
-### Step 1 — Configure data collection
-Query MG API for data usage metrics. Track monthly consumption.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+[meraki_mg_usage]
+interval = 3600
+sourcetype = meraki:api:cellular:usage
+index = meraki
+# Poll hourly: GET /devices/{serial}/cellular/sims
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki:api" device_type=MG data_usage=*
-| stats sum(data_usage) as total_data_usage_mb by cellular_gateway_id
-| eval overage_alert=if(total_data_usage_mb > 100000, "Yes", "No")
+index=meraki sourcetype="meraki:api:cellular:usage" earliest=-7d
+| stats sum(sent) sum(recv) by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Cellular Data Usage and Overage Monitoring (Meraki MG)** — Tracks cellular data consumption to manage carrier costs and prevent overages.
+**Primary search -- Cellular data usage and overage monitoring:**
+```spl
+index=meraki sourcetype="meraki:api:cellular:usage" earliest=-30d
+| eval device=coalesce(serial, host)
+| eval sent_gb=tonumber(sent)/1073741824
+| eval recv_gb=tonumber(recv)/1073741824
+| eval total_gb=sent_gb + recv_gb
+| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
+| lookup cellular_plans.csv serial AS device OUTPUT data_limit_gb, plan_cost_monthly
+| bin _time span=1d
+| stats sum(total_gb) as daily_gb by _time, network_name, device, data_limit_gb
+| eventstats sum(daily_gb) as month_total by device
+| eval month_total=round(month_total, 2)
+| eval daily_gb=round(daily_gb, 2)
+| eval pct_used=if(isnotnull(data_limit_gb) AND data_limit_gb > 0, round(100*month_total/data_limit_gb, 1), null())
+| eval severity=case(
+    pct_used > 90, "CRITICAL -- cellular data plan at ".pct_used."% (overage imminent)",
+    pct_used > 75, "WARNING -- cellular data plan at ".pct_used."%",
+    daily_gb > 5, "INFO -- high daily cellular usage (".daily_gb." GB)",
+    1==1, "OK")
+| where severity != "OK"
+| dedup device sortby -_time
+| table network_name, device, month_total, data_limit_gb, pct_used, severity
+| sort severity, -pct_used
+```
 
-Documented **Data sources**: `sourcetype=meraki:api device_type=MG data_usage=*`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Cellular gateway > Data usage -- check current usage.
+(b) Compare with carrier billing portal usage data.
+(c) Verify data plan limits in lookup.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki:api. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MG -- Data Usage"):
+* Row 1 -- Single-value: "Monthly usage (GB)", "Plan limit (GB)", "% used".
+* Row 2 -- Daily data usage timechart.
 
-**Pipeline walkthrough**
+Alert: Critical (>90% of data plan): contact carrier or reduce cellular traffic.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by cellular_gateway_id** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **overage_alert** — often to normalize units, derive a ratio, or prepare for thresholds.
+### Step 5 — - Troubleshooting
 
+* **Unexpected high usage** -- Check what devices/applications are consuming data. Apply traffic shaping rules to limit non-essential traffic over cellular.
 
-### Step 3 — Validate
-In the Meraki dashboard, select the same organization, site, and UTC window as the Splunk search. Open Network-wide event log or the device event log and confirm a sample event count and field (for example `event_type` or `carrier_name`) matches what you see in Splunk.
+* **Data plan limit reached** -- Options: (1) increase plan, (2) restrict traffic to business-critical only, (3) add supplemental plan, (4) failback to primary WAN.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Data usage gauge per gateway; consumption timeline; overage alert table.
+* **Usage tracking mismatch** -- API and carrier may report differently (carrier counts overhead). Use carrier portal as billing source of truth.
 
 ## SPL
 

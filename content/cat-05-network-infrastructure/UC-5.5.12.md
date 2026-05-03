@@ -21,7 +21,7 @@ BFD (Bidirectional Forwarding Detection) provides sub-second failure detection b
 
 ## Value
 
-BFD (Bidirectional Forwarding Detection) provides sub-second failure detection between SD-WAN endpoints. A BFD session going down means the tunnel is unusable, and traffic must reroute. Tracking BFD flaps reveals transport instability before it cascades.
+Network operations teams monitor BFD session states across all SD-WAN tunnels to detect transport failures, identify flapping circuits, and track session recovery time for rapid incident correlation.
 
 ## Implementation
 
@@ -30,48 +30,82 @@ Collect BFD session data from vManage. Alert immediately when a BFD session tran
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API.
-- Ensure the following data sources are available: vManage BFD sessions, `sourcetype=cisco:sdwan:bfd`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Cisco Catalyst Add-on for Splunk polling vManage API for BFD session status. Data in `index=sdwan` with `sourcetype=cisco:sdwan:bfd`. Key fields: `site_id`, `system_ip`, `local_color`, `remote_color`, `remote_system_ip`, `state` (up/down/init), `detect_multiplier`, `tx_interval`, `uptime`.
+- BFD (Bidirectional Forwarding Detection) is the heartbeat protocol for SD-WAN tunnels. Each tunnel has a BFD session that detects link failure within milliseconds (default: 1000ms × 3 detect-multiplier = 3 seconds). When BFD detects a tunnel failure, SD-WAN immediately reroutes traffic to surviving tunnels.
+- BFD session monitoring is distinct from tunnel health (UC-5.5.1): tunnel health measures quality (loss/latency/jitter), while BFD session monitoring tracks the session state (up/down/flapping). A tunnel can have poor quality but BFD is still up; conversely, BFD can flap while average metrics look acceptable.
 
 ### Step 1 — Configure data collection
-Collect BFD session data from vManage. Alert immediately when a BFD session transitions from up to down. Track flap frequency per tunnel; more than 3 flaps in an hour signals an unstable transport that needs carrier engagement. Cross-reference with ISP maintenance schedules.
+Verify BFD session data:
+```spl
+index=sdwan sourcetype="cisco:sdwan:bfd" earliest=-15m
+| stats count by state, local_color
+```
+Healthy output: vast majority in "up" state.
 
 ### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
+**Primary search — BFD session failures:**
 ```spl
-index=sdwan sourcetype="cisco:sdwan:bfd"
-| where state!="up"
-| stats count as flap_count, latest(_time) as last_flap, values(state) as states by local_system_ip, remote_system_ip, local_color, remote_color
-| where flap_count > 3
-| sort -flap_count
-| eval last_flap=strftime(last_flap,"%Y-%m-%d %H:%M:%S")
+index=sdwan sourcetype="cisco:sdwan:bfd" earliest=-15m
+| stats count(eval(state="up")) as up_sessions count(eval(state!="up")) as down_sessions values(state) as states by site_id, system_ip, local_color
+| where down_sessions > 0
+| eval total=up_sessions + down_sessions
+| eval down_pct=round(100*down_sessions/total, 1)
+| lookup sdwan_sites.csv site_id OUTPUT site_name tier
+| lookup sdwan_devices.csv system_ip OUTPUT hostname
+| eval severity=case(down_pct > 80, "CRITICAL", down_pct > 50, "HIGH", down_sessions > 0, "WARNING", 1==1, "OK")
+| table site_name, tier, hostname, system_ip, local_color, up_sessions, down_sessions, down_pct, severity
+| sort severity, tier
 ```
 
-#### Understanding this SPL
+#### Understanding this SPL: A BFD session going down means a specific tunnel is unusable. If all BFD sessions on a transport color are down, that transport is completely failed. If all sessions on all colors are down, the device/site is isolated. The `down_pct` helps distinguish between partial (one peer unreachable) and total (transport failure) outages.
 
-**BFD Session Monitoring** — BFD (Bidirectional Forwarding Detection) provides sub-second failure detection between SD-WAN endpoints. A BFD session going down means the tunnel is unusable, and traffic must reroute. Tracking BFD flaps reveals transport instability before it cascades.
+**BFD flapping detection:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:bfd" earliest=-2h
+| where state="down" OR state="init"
+| bin _time span=5m
+| stats count as flap_events dc(remote_system_ip) as affected_peers by _time, site_id, system_ip, local_color
+| where flap_events > 3
+| lookup sdwan_sites.csv site_id OUTPUT site_name
+| eval severity=case(flap_events > 20, "CRITICAL", flap_events > 10, "HIGH", 1==1, "WARNING")
+```
 
-Documented **Data sources**: vManage BFD sessions, `sourcetype=cisco:sdwan:bfd`. **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: cisco:sdwan:bfd. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=sdwan, sourcetype="cisco:sdwan:bfd". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Filters the current rows with `where state!="up"` — typically the threshold or rule expression for this monitoring goal.
-- `stats` rolls up events into metrics; results are split **by local_system_ip, remote_system_ip, local_color, remote_color** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where flap_count > 3` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-- `eval` defines or adjusts **last_flap** — often to normalize units, derive a ratio, or prepare for thresholds.
-
+**BFD session uptime tracking:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:bfd" state="up" earliest=-15m
+| eval uptime_hours=round(uptime/3600, 1)
+| where uptime_hours < 1
+| lookup sdwan_sites.csv site_id OUTPUT site_name
+| lookup sdwan_devices.csv system_ip OUTPUT hostname
+| table site_name, hostname, local_color, remote_color, uptime_hours
+| sort uptime_hours
+```
 
 ### Step 3 — Validate
-In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
+(a) On an edge device: `show bfd sessions` — compare session states with Splunk results.
+(b) In vManage: Monitor > Network > BFD. Verify session counts match.
+(c) During a maintenance window: shut down a WAN interface and verify the BFD session goes down in Splunk within the expected detection time.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (BFD sessions by color/site), Timeline (session state changes), Table (flapping tunnels).
+Dashboard ("SD-WAN — BFD Sessions"):
+- Row 1 — Single-value tiles: "BFD sessions UP", "BFD sessions DOWN", "Flapping sessions (2h)", "Recently bounced (< 1h uptime)".
+- Row 2 — BFD failure table: site, device, transport, up sessions, down sessions, severity.
+- Row 3 — Flapping detection: devices with frequent BFD state changes.
+- Row 4 — Recently bounced sessions: sessions with < 1 hour uptime (indicates recent recovery from failure).
+
+Alerting:
+- Critical (> 80% BFD sessions down on a device): device is nearly isolated.
+- High (BFD flapping > 10 events in 5 minutes): unstable transport causing constant rerouting.
+- Warning (any BFD session down): track and investigate.
+
+### Step 5 — Troubleshooting
+
+- **BFD down on one color but up on others** — The specific WAN transport is down. Check ISP circuit status for that color. If Internet is down but MPLS is up, traffic should already be rerouting.
+
+- **BFD flapping on LTE** — LTE is inherently less stable than wired transports. Consider increasing the BFD detect-multiplier for LTE tunnels to reduce false flaps.
+
+- **BFD sessions show "init" state** — The tunnel is trying to establish but can't complete the BFD handshake. Common causes: NAT issues (BFD uses UDP 3784), firewall blocking BFD packets, or MTU issues.
 
 ## SPL
 

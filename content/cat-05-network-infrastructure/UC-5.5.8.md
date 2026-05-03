@@ -21,7 +21,7 @@ Real-time jitter and latency metrics reveal WAN quality degradation before users
 
 ## Value
 
-Real-time jitter and latency metrics reveal WAN quality degradation before users complain. Critical for voice/video SLAs.
+Network operations teams monitor per-tunnel jitter and latency against voice/video SLA thresholds and historical baselines, enabling proactive detection of transport degradation before real-time application quality suffers.
 
 ## Implementation
 
@@ -30,44 +30,80 @@ Ingest BFD and app-route statistics from vManage API. Monitor per-tunnel quality
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), Cisco vManage API.
-- Ensure the following data sources are available: `sourcetype=cisco:sdwan:bfd`, `sourcetype=cisco:sdwan:approute`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Cisco Catalyst Add-on for Splunk polling vManage API for BFD session statistics and application-aware routing metrics. Data in `index=sdwan` with `sourcetype=cisco:sdwan:bfd` or `sourcetype=cisco:sdwan:approute`. Key fields: `site_id`, `system_ip`, `tunnel_name`, `local_color`, `remote_color`, `latency` (ms), `jitter` (ms), `loss_percentage`.
+- Jitter and latency are the primary indicators of real-time application quality. Voice calls degrade noticeably at > 150ms latency and > 30ms jitter. Video conferencing is impacted at > 200ms latency. SD-WAN BFD probes measure these metrics per tunnel, per transport color.
+- Build `sdwan_tunnel_baselines.csv` lookup: `site_id,local_color,baseline_latency_ms,baseline_jitter_ms` from a week of normal operation. This enables anomaly detection beyond static thresholds.
 
 ### Step 1 — Configure data collection
-Ingest BFD and app-route statistics from vManage API. Monitor per-tunnel quality metrics. Alert when latency >100ms, jitter >30ms, or loss >1% for business-critical SLAs.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify per-tunnel metrics:
 ```spl
-index=network sourcetype="cisco:sdwan:approute"
-| stats avg(latency) as avg_latency, avg(jitter) as avg_jitter, avg(loss_percentage) as avg_loss by local_system_ip, remote_system_ip, local_color
-| where avg_latency > 100 OR avg_jitter > 30 OR avg_loss > 1
+index=sdwan sourcetype="cisco:sdwan:bfd" earliest=-15m
+| stats avg(latency) as avg_latency avg(jitter) as avg_jitter by site_id, tunnel_name, local_color
 | sort -avg_latency
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Jitter and Latency per Tunnel** — Real-time jitter and latency metrics reveal WAN quality degradation before users complain. Critical for voice/video SLAs.
+**Primary search — Per-tunnel jitter and latency with SLA evaluation:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:bfd" earliest=-15m
+| stats avg(latency) as avg_latency avg(jitter) as avg_jitter max(latency) as peak_latency max(jitter) as peak_jitter p95(latency) as p95_latency p95(jitter) as p95_jitter by site_id, system_ip, tunnel_name, local_color, remote_color
+| lookup sdwan_tunnel_baselines.csv site_id, local_color OUTPUT baseline_latency_ms baseline_jitter_ms
+| eval latency_deviation=if(isnotnull(baseline_latency_ms), round(avg_latency - baseline_latency_ms, 1), null())
+| eval jitter_deviation=if(isnotnull(baseline_jitter_ms), round(avg_jitter - baseline_jitter_ms, 1), null())
+| eval voice_impact=if(avg_latency > 150 OR avg_jitter > 30, "YES", "NO")
+| eval video_impact=if(avg_latency > 200 OR avg_jitter > 50, "YES", "NO")
+| lookup sdwan_sites.csv site_id OUTPUT site_name tier
+| eval status=case(avg_latency > 300 OR avg_jitter > 100, "CRITICAL", voice_impact="YES", "HIGH", latency_deviation > 50, "ELEVATED", 1==1, "OK")
+| where status!="OK"
+| sort status, -avg_latency
+```
 
-Documented **Data sources**: `sourcetype=cisco:sdwan:bfd`, `sourcetype=cisco:sdwan:approute`. **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), Cisco vManage API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: Combines static SLA thresholds (voice at 150ms/30ms) with baseline deviation analysis. A tunnel normally at 20ms latency suddenly jumping to 80ms is concerning even though it's below the 150ms voice threshold — it indicates a transport issue that could worsen. P95 metrics show tail latency, which impacts user experience during bursts.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:sdwan:approute. That sourcetype matches what this use case lists under Data sources.
+**Latency heatmap over time:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:bfd" earliest=-24h
+| bin _time span=5m
+| stats avg(latency) as latency by _time, site_id, local_color
+| lookup sdwan_sites.csv site_id OUTPUT site_name
+| eval label=site_name." (".local_color.")"
+| xyseries _time label latency
+```
 
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="cisco:sdwan:approute". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by local_system_ip, remote_system_ip, local_color** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where avg_latency > 100 OR avg_jitter > 30 OR avg_loss > 1` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+**Jitter correlation with packet loss:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:bfd" earliest=-4h
+| stats avg(jitter) as jitter avg(loss_percentage) as loss avg(latency) as latency by site_id, local_color
+| lookup sdwan_sites.csv site_id OUTPUT site_name
+| eval quality_score=round(100 - (loss*10 + latency*0.2 + jitter*0.5), 1)
+| sort quality_score
+```
 
 ### Step 3 — Validate
-In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
+(a) Run a voice call (Webex/Teams) between two SD-WAN sites and compare MOS scores with tunnel metrics during the call.
+(b) In vManage: Monitor > Application-Aware Routing > select device > chart latency/jitter per tunnel. Values should match Splunk within the polling interval.
+(c) Validate baseline lookup: ensure values reflect actual normal-operation metrics.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (latency/jitter over time), Table (tunnel, metrics), Gauge (SLA compliance).
+Dashboard ("SD-WAN — Tunnel Quality"):
+- Row 1 — Single-value tiles: "Tunnels impacting voice", "Tunnels impacting video", "Worst latency (ms)", "Worst jitter (ms)".
+- Row 2 — Tunnel quality table: site, tunnel, transport, latency (avg/p95/peak), jitter (avg/p95/peak), voice impact, video impact.
+- Row 3 — Latency heatmap: sites × time (color intensity = latency).
+- Row 4 — Quality score ranking: sites sorted by composite quality score.
+
+Alerting:
+- Critical (tunnel latency > 300ms or jitter > 100ms): unusable for real-time applications.
+- High (voice impact on Tier1 site): call quality degraded.
+- Warning (baseline deviation > 50ms): transport quality changing — investigate.
+
+### Step 5 — Troubleshooting
+
+- **High latency on Internet tunnels but not MPLS** — Expected during ISP congestion. If persistent, consider upgrading the Internet circuit or adjusting AAR policy to prefer MPLS for sensitive traffic.
+
+- **High jitter on all tunnels at one site** — Check the edge device CPU utilization (UC-5.5.13). High data-plane CPU causes packet processing delays, which manifest as jitter on all tunnels.
+
+- **Latency spikes at specific times daily** — Often caused by backup jobs or large file transfers saturating the WAN link. Correlate with bandwidth utilization (UC-5.5.7) and DPI data (UC-5.5.15) to identify the application.
 
 ## SPL
 

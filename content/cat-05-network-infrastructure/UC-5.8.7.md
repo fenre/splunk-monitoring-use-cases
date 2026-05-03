@@ -21,7 +21,7 @@ Detects configuration drift by analysing diffs between device running-configs an
 
 ## Value
 
-Undetected configuration drift introduces security vulnerabilities, compliance violations, and operational inconsistencies. Proactively surfacing drift ensures changes are authorised and aligned with organisational standards.
+Network operations teams detect unauthorized configuration changes by correlating actual device config modifications against the approved change calendar, identifying drift, unauthorized changes, and out-of-window modifications.
 
 ## Implementation
 
@@ -30,47 +30,75 @@ Deploy RANCID or Oxidized to periodically pull running-configs from network devi
 ## Detailed Implementation
 
 ### Prerequisites
-- RANCID or Oxidized installed and configured to pull running-configs from your network devices on a schedule (typically every 30–60 minutes).
-- A diff mechanism that compares each pulled config against a golden template and produces structured output with at least `device` and `lines_changed` fields.
-- Splunk forwarder or HEC endpoint configured to ingest the diff results as `sourcetype=config:diff` into `index=network`.
+- Configuration management tool (RANCID, Oxidized, Catalyst Center, or custom) stores device running configurations and forwards change events to Splunk. Data in `index=network_config` with `sourcetype=device:config` (full configs) and/or `sourcetype=config:change` (change events).
+- Key fields: `hostname`, `config_hash`, `change_type` (add/delete/modify), `changed_section` (interface, routing, acl, snmp), `changed_by` (user who made the change, if available from AAA logs), `config_diff` (unified diff output).
+- Build `approved_changes.csv` lookup: `change_id,hostname,change_window_start,change_window_end,approver,description` from your change management system (ServiceNow, Jira). This enables detection of unauthorized changes (changes outside approved windows).
+- AAA logs (TACACS+/RADIUS) from `index=network sourcetype=cisco:ios` provide the `changed_by` context — who logged into the device and when.
 
 ### Step 1 — Configure data collection
-- **Oxidized setup:** Configure device groups and credentials in `router.db`; set the `output` plugin to write diffs to a watched directory or push via HEC.
-- **RANCID setup:** Configure `router.db` entries and `rancid-run` cron jobs; monitor the RCS/Git diff output directory with a Splunk file monitor input.
-- **Diff format:** Each diff event should include at minimum `device=<hostname>` and `lines_changed=<count>`. Additional fields like `section`, `timestamp`, and `change_type` enrich the analysis.
-- **Volume:** Typically one event per device per config pull. Expect ~100 events/day for 100 devices polled every 30 minutes (most pulls show zero changes).
-
-### Step 2 — Create the search and alert
+Verify configuration change events:
 ```spl
-index=network sourcetype="config:diff"
-| rex "device=(?<device>\S+).*?lines_changed=(?<changes>\d+)"
-| where changes > 0
-| stats sum(changes) as total_changes, count as change_events by device
-| sort -total_changes
+index=network_config (sourcetype="config:change" OR sourcetype="device:config") earliest=-7d
+| stats count by sourcetype, hostname
 ```
 
-#### Understanding this SPL:
-- **`rex`**: Extracts the device hostname and line change count from the diff output format. Adjust the regex if your diff tool uses a different output structure.
-- **`where changes > 0`**: Filters out config pulls where nothing changed, keeping only actual drift events.
-- **`stats sum(changes)`**: Aggregates total line changes per device. Devices with high `total_changes` may have undergone significant unauthorised modification.
-- **Tuning:** Correlate with a change management lookup (`| lookup change_windows device OUTPUT approved`) to filter out authorised changes.
+### Step 2 — Create the search and alert
+
+**Primary search — Configuration drift detection (unauthorized changes):**
+```spl
+index=network_config sourcetype="config:change" earliest=-24h
+| lookup approved_changes.csv hostname OUTPUT change_window_start change_window_end approver change_id
+| eval change_epoch=_time
+| eval window_start_epoch=if(isnotnull(change_window_start), strptime(change_window_start, "%Y-%m-%dT%H:%M:%S"), null())
+| eval window_end_epoch=if(isnotnull(change_window_end), strptime(change_window_end, "%Y-%m-%dT%H:%M:%S"), null())
+| eval in_window=if(isnotnull(window_start_epoch) AND change_epoch >= window_start_epoch AND change_epoch <= window_end_epoch, "YES", "NO")
+| eval change_status=case(in_window="YES", "APPROVED", isnotnull(change_id) AND in_window="NO", "OUTSIDE_WINDOW", 1==1, "UNAUTHORIZED")
+| where change_status!="APPROVED"
+| table _time, hostname, changed_section, change_type, change_status, change_id
+| sort change_status, -_time
+```
+
+#### Understanding this SPL: Configuration drift is one of the top causes of network outages. An engineer makes a "quick fix" at 2 AM without a change ticket, and the next morning, routing is broken. This search correlates actual configuration changes against the approved change calendar. "UNAUTHORIZED" means no change ticket exists at all; "OUTSIDE_WINDOW" means a ticket exists but the change happened outside the approved time.
+
+**Configuration diff summary:**
+```spl
+index=network_config sourcetype="config:change" earliest=-24h
+| stats count as changes dc(changed_section) as sections_changed values(changed_section) as sections by hostname
+| sort -changes
+```
+
+**Change activity correlated with AAA logins:**
+```spl
+index=network_config sourcetype="config:change" earliest=-24h
+| join hostname, _time type=left [search index=network sourcetype="cisco:ios" "config" OR "configure" earliest=-24h | eval changed_by=user | table hostname, _time, changed_by]
+| table _time, hostname, changed_section, change_type, changed_by
+| sort -_time
+```
 
 ### Step 3 — Validate
-- **Cross-reference:** pick two devices that show config changes in Splunk and manually verify the diff against the golden template stored in your Oxidized/RANCID repository.
-- Run `| timechart count by device` over 7 days to verify the diff ingestion cadence matches the expected pull schedule.
-- Confirm zero-change pulls are being ingested (run without `where changes > 0`) to distinguish between "no drift" and "no data."
+(a) Make a test configuration change on a lab device (e.g., add a description to an interface) and verify the change appears in Splunk.
+(b) Cross-check against the change management system: verify that approved changes show as "APPROVED" and test changes without tickets show as "UNAUTHORIZED".
+(c) Verify the diff output captures the actual change accurately.
 
 ### Step 4 — Operationalize
-- **Dashboard:** Table of top drifted devices, timeline of change events with change-window overlay, single-value tile of total devices with active drift.
-- **Alert:** Trigger on any changes outside approved change windows or on devices in critical infrastructure groups.
-- **Runbook:** Link to the Oxidized/RANCID diff viewer to inspect the specific configuration lines that changed.
+Dashboard ("Configuration Drift Detection"):
+- Row 1 — Single-value tiles: "Changes (24h)", "Unauthorized changes", "Outside-window changes", "Devices changed".
+- Row 2 — Unauthorized change alert table: time, device, section, type, status.
+- Row 3 — Change activity by device and section.
+- Row 4 — Change timeline correlated with AAA login events.
+
+Alerting:
+- Critical (unauthorized change on Tier1 device): immediate review required.
+- High (change outside approved window): validate with change owner.
+- Warning (high change volume on single device > 10 changes/hour): possible configuration loop or automation issue.
 
 ### Step 5 — Troubleshooting
-- **No `config:diff` events:** if data is not arriving, check that the Splunk file monitor input is pointed at the correct diff output directory, verify Oxidized/RANCID is running (`systemctl status oxidized`), and confirm new diff files appear in the output directory.
-- **All events show zero changes:** golden template may be identical to running-configs (expected in a well-managed environment), or the diff mechanism is not correctly comparing against the template.
-- **`device` field not extracted:** the `rex` pattern assumes a specific diff output format. Run `| head 5` on raw events to see the actual format and adjust the regex accordingly.
-- **Connection refused or timeout from network devices:** verify device reachability from the RANCID/Oxidized host, check SSH/SNMP credentials, and confirm devices have not been access-listed to block the polling host.
 
+- **Config changes detected but no AAA login correlation** — The device may not be sending AAA logs to Splunk, or the user logged in via console (no TACACS/RADIUS). Enable AAA logging on all devices: `aaa accounting commands 15 default start-stop group tacacs+`.
+
+- **Change detection misses some changes** — The polling interval of the config backup tool determines detection latency. If RANCID polls every 4 hours, a change made and reverted between polls is invisible. Increase polling frequency for critical devices.
+
+- **False config drift from NTP/timestamp changes** — Normalize configurations before comparison: strip lines containing timestamps, clocks, and uptime counters.
 
 ## SPL
 

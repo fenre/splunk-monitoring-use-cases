@@ -21,7 +21,7 @@ SSL decryption failures mean traffic passes uninspected — could be legitimate 
 
 ## Value
 
-SSL decryption failures mean traffic passes uninspected — could be legitimate cert pinning or SSL evasion.
+Security teams classify SSL/TLS decryption failures by root cause (cert pinning, expired certs, cipher mismatches), identifying uninspected HTTPS traffic that bypasses security inspection.
 
 ## Implementation
 
@@ -30,39 +30,68 @@ Enable decryption logging. Track failure rates by destination. Tune exclusion li
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX).
-- Ensure the following data sources are available: Firewall decryption logs.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Firewall SSL/TLS decryption logs. Palo Alto: `sourcetype=pan:decryption` or `sourcetype=pan:threat` with subtype=decrypt. Fortinet: `sourcetype=fgt_utm` with type=ssl. Cisco FTD: SSL policy events in `cisco:firepower:syslog`. Key fields: `action` (ssl-error/decrypt-error/bypass), `dest`, `dest_port`, `reason`, `ssl_version`, `cert_subject`.
+* Certificate inspection failures mean HTTPS traffic passes uninspected, creating a security blind spot. Causes: (1) certificate pinning (legitimate), (2) unsupported cipher, (3) client/server using TLS 1.3 without decryption support, (4) self-signed/expired certificates, (5) SSL evasion techniques.
 
-### Step 1 — Configure data collection
-Enable decryption logging. Track failure rates by destination. Tune exclusion lists.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+**Palo Alto:**
+```
+# Policies > Decryption > ensure policy covers required traffic
+# Objects > Decryption Profile > set failure actions (block or log-and-allow)
+# Device > Log Settings > ensure decryption log forwarding
+```
+Verify:
 ```spl
-index=firewall sourcetype="pan:decryption" action="ssl-error"
-| stats count by dest, dest_port, reason | sort -count
+index=firewall (sourcetype="pan:decryption" OR (sourcetype="fgt_utm" type="ssl") OR (sourcetype="cisco:firepower:syslog" ssl_error)) earliest=-4h
+| where match(action, "(?i)ssl-error|decrypt-error|bypass|fail")
+| stats count by sourcetype, host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Certificate Inspection Failures** — SSL decryption failures mean traffic passes uninspected — could be legitimate cert pinning or SSL evasion.
+**Primary search -- Certificate inspection failure analysis:**
+```spl
+index=firewall earliest=-4h
+| where match(_raw, "(?i)ssl.error|decrypt.error|decrypt.fail|cert.*(invalid|expired|untrusted|pinned)|ssl.*bypass")
+| eval failure_reason=case(match(_raw, "(?i)pinning|pinned|HPKP"), "CERT_PINNING", match(_raw, "(?i)expired"), "CERT_EXPIRED", match(_raw, "(?i)untrusted|self.signed|unknown.CA"), "UNTRUSTED_CA", match(_raw, "(?i)cipher|algorithm|unsupported"), "UNSUPPORTED_CIPHER", match(_raw, "(?i)version|protocol|tls.1\.3"), "PROTOCOL_MISMATCH", match(_raw, "(?i)timeout|handshake.fail"), "HANDSHAKE_FAIL", 1==1, "OTHER")
+| eval dst=coalesce(dest, dest_ip, dstaddr)
+| eval dport=coalesce(dest_port, dstport)
+| stats count as failures dc(dst) as unique_destinations values(dst) as sample_dests by failure_reason
+| eval severity=case(failure_reason="UNSUPPORTED_CIPHER", "HIGH -- traffic bypassing decryption", failure_reason="CERT_PINNING" AND failures > 500, "WARNING -- high pinning bypass volume", failure_reason="CERT_EXPIRED", "WARNING -- expired upstream certificates", 1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -failures
+```
 
-Documented **Data sources**: Firewall decryption logs. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+**Top uninspected destinations:**
+```spl
+index=firewall (action="ssl-error" OR action="decrypt-error" OR action="bypass") earliest=-4h
+| eval dst=coalesce(dest, dest_ip)
+| stats count as bypasses by dst
+| sort -bypasses | head 20
+```
 
-The first pipeline stage scopes events using **index**: firewall; **sourcetype**: pan:decryption. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+### Step 3 — - Validate
+(a) Palo Alto: Monitor > Logs > Decryption -- check for ssl-error actions.
+(b) Test with a cert-pinned site (e.g., many banking sites) -- should show as bypass/pinning.
+(c) Verify decryption profile is attached to relevant security policies.
 
-**Pipeline walkthrough**
+### Step 4 — - Operationalize
+Dashboard ("Firewall -- SSL Decryption Health"):
+* Row 1 -- Single-value: "Decryption failures (4h)", "Bypassed destinations", "Expired certs", "Pinned sites".
+* Row 2 -- Failure reason breakdown.
+* Row 3 -- Top uninspected destinations.
 
-- Scopes the data: index=firewall, sourcetype="pan:decryption". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by dest, dest_port, reason** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+Alerting:
+* High (unsupported cipher causing decryption bypass): security gap.
+* Warning (high cert pinning volume): review pinning exclusion list.
 
-### Step 3 — Validate
-Sample the same time range in your firewall management console, Panorama, FortiManager, or Check Point SmartConsole and confirm that counts, usernames, and object names line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Pie chart (reasons), Trend line.
+### Step 5 — - Troubleshooting
+
+* **Certificate pinning bypass** -- Legitimate for banking/financial apps. Add to decryption exclusion list with documentation. Review periodically.
+
+* **Unsupported cipher** -- Firewall may not support the cipher. Update firmware for TLS 1.3/QUIC support. Check: firewall software version and cipher support matrix.
+
+* **Decryption causing application breakage** -- Some apps break when decrypted (certificate validation in app). Add to bypass list. Common: Windows Update, Apple services, healthcare apps with embedded certs.
 
 ## SPL
 

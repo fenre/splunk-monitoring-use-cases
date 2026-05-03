@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.53",
+  "title": "DNS64/NAT64 Translation Health and Dependency Monitoring",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "ITSI",
+  "dataSources": "`index=network sourcetype=infoblox:dns` or `sourcetype=named:querylog` containing DNS64 synthesis events, and `index=network sourcetype=cisco:ios` or `sourcetype=paloalto:traffic` containing NAT64 translation logs. DNS64 (RFC 6147) and NAT64 (RFC 6146) work together to enable IPv6-only hosts to reach IPv4-only destinations:\n\n1. **DNS64** — When an IPv6-only host queries AAAA for a domain that has only an A record, the DNS64 resolver synthesises a AAAA response by embedding the IPv4 address inside the well-known prefix `64:ff9b::/96`. Example: IPv4 `93.184.216.34` becomes IPv6 `64:ff9b::5db8:d822`.\n\n2. **NAT64** — The NAT64 gateway receives traffic destined for `64:ff9b::/96`, extracts the embedded IPv4 address, and translates the IPv6 packet to IPv4 for the final hop.\n\nDNS64/NAT64 is critical in:\n- **Mobile networks** — many carriers deploy IPv6-only with 464XLAT for legacy IPv4 apps\n- **Enterprise IPv6-only segments** — reducing IPv4 address consumption\n- **Cloud deployments** — AWS, Azure, and GCP offer NAT64 for IPv6-only workloads\n\nFailure modes:\n- DNS64 resolver down → IPv6-only hosts cannot resolve IPv4-only destinations\n- NAT64 gateway overloaded → translation failures, connection timeouts\n- MTU issues through NAT64 (IPv6 minimum MTU 1280 vs IPv4 fragments)\n- Connection state table exhaustion on NAT64 gateway",
+  "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2946). Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812). Splunk Add-on for Palo Alto (`Splunk_TA_paloalto`, Splunkbase 2757).",
+  "spl": "index=network (sourcetype=\"infoblox:dns\" OR sourcetype=\"named:querylog\") \"64:ff9b\" earliest=-24h\n| stats count as dns64_syntheses\n| append [\n    search index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"paloalto:traffic\") (\"NAT64\" OR \"nat64\" OR \"64:ff9b\") earliest=-24h\n    | eval nat64_event=case(\n        match(_raw, \"(?i)created|create|new\"), \"translation_created\",\n        match(_raw, \"(?i)deleted|expire|timeout\"), \"translation_removed\",\n        match(_raw, \"(?i)fail|error|drop\"), \"translation_failed\",\n        1=1, \"other\")\n    | stats count as nat64_total count(eval(nat64_event=\"translation_created\")) as translations_created count(eval(nat64_event=\"translation_failed\")) as translations_failed\n  ]\n| eval health=case(\n    translations_failed > translations_created * 0.05, \"WARNING — NAT64 failure rate above 5%\",\n    dns64_syntheses > 0 AND isnull(translations_created), \"WARNING — DNS64 active but no NAT64 translations seen\",\n    1=1, \"OK\")",
+  "description": "Monitors DNS64 synthesis rates and NAT64 translation gateway health to ensure IPv6-only hosts can reliably reach IPv4-only destinations. DNS64/NAT64 is a critical transition mechanism in IPv6-only deployments — if either component fails, IPv6-only hosts lose connectivity to any IPv4-only service. This use case tracks DNS64 synthesis volume (demand), NAT64 translation success/failure rates (supply), and state table utilization (capacity) to ensure the translation infrastructure keeps pace with demand.",
+  "value": "DNS64/NAT64 is an invisible dependency — when it works, users don't know it exists. When it fails, a significant portion of the internet becomes unreachable from IPv6-only hosts. In mobile carrier networks, where millions of devices rely on NAT64, a failure is catastrophic. In enterprise environments, the failure is more subtle but equally impactful for users on IPv6-only VLANs. Monitoring both the DNS64 (synthesis) and NAT64 (translation) components end-to-end ensures the complete chain is healthy.",
+  "implementation": "Collect DNS64 synthesis events from DNS resolvers and NAT64 translation logs from gateways. Track synthesis volume, translation success rate, and state table utilization. Alert on DNS64 resolver failures and NAT64 translation drops.",
+  "visualization": "(1) Single-value: DNS64 syntheses per hour, NAT64 translations active, failure rate. (2) Timechart: DNS64 synthesis volume and NAT64 translations over 24 hours — should correlate. (3) Gauge: NAT64 state table utilization. (4) Alert panel: translation failures.",
+  "references": [
+    {
+      "title": "RFC 6147 — DNS64: DNS Extensions for Network Address Translation from IPv6 Clients to IPv4 Servers",
+      "url": "https://www.rfc-editor.org/rfc/rfc6147"
+    },
+    {
+      "title": "RFC 6146 — Stateful NAT64: Network Address and Protocol Translation from IPv6 Clients to IPv4 Servers",
+      "url": "https://www.rfc-editor.org/rfc/rfc6146"
+    },
+    {
+      "title": "RFC 8585 — Requirements for IPv6 Customer Edge Routers to Support IPv4-as-a-Service (464XLAT)",
+      "url": "https://www.rfc-editor.org/rfc/rfc8585"
+    }
+  ],
+  "knownFalsePositives": "**Dual-stack destinations.** Destinations that have both A and AAAA records do not trigger DNS64 synthesis — the real AAAA record is returned. The DNS64 synthesis rate only reflects traffic to IPv4-only destinations.\n\n**Client DNS cache.** After a DNS64-synthesised AAAA is cached by the client, subsequent connections to the same destination use the cached record and don't generate new DNS64 synthesis events. The synthesis rate under-counts actual NAT64 usage.\n\n**464XLAT CLAT.** In 464XLAT deployments, the customer-side CLAT performs local NAT46 for legacy IPv4 applications, then traffic traverses NAT64 at the provider. The NAT64 translation logs may not distinguish between direct NAT64 and 464XLAT-originated traffic.",
+  "equipment": [
+    "cisco",
+    "paloaltonetworks",
+    "juniper",
+    "infoblox",
+    "bind"
+  ],
+  "equipmentModels": [
+    "cisco_ios",
+    "cisco_iosxe",
+    "cisco_asa",
+    "paloalto_panos",
+    "juniper_junos",
+    "infoblox_nios",
+    "isc_bind"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• DNS64 configured on recursive resolvers with the well-known prefix 64:ff9b::/96 (or a network-specific prefix).\n• NAT64 gateway deployed with translation logging enabled.\n• Understanding of which client segments are IPv6-only and depend on DNS64/NAT64.\n\nStep 1 — Configure data collection\n\n**Cisco IOS-XE — NAT64 logging:**\n```\nnat64 v6v4 static 2001:db8::1 198.51.100.1\nnat64 prefix stateful 64:ff9b::/96\nnat64 logging translations flow-create\nnat64 logging translations flow-delete\n```\n\n**BIND — DNS64 configuration with logging:**\n```\ndns64 64:ff9b::/96 {\n  clients { ipv6-only-clients; };\n  exclude { 64:ff9b::/96; ::ffff:0.0.0.0/96; };\n};\n```\nBIND logs DNS64 synthesis at the `info` severity level.\n\n**Verification:**\n```spl\nindex=network (\"64:ff9b\" OR \"dns64\" OR \"nat64\") earliest=-24h\n| stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n\n**DNS64 synthesis volume trending:**\n```spl\nindex=network (sourcetype=\"infoblox:dns\" OR sourcetype=\"named:querylog\") \"64:ff9b\" earliest=-7d\n| timechart span=1h count as dns64_syntheses\n```\n\n**NAT64 translation health:**\n```spl\nindex=network (sourcetype=\"cisco:ios\" OR sourcetype=\"paloalto:traffic\") (\"NAT64\" OR \"nat64\") earliest=-1h\n| eval outcome=case(\n    match(_raw, \"(?i)create|new|start\"), \"success\",\n    match(_raw, \"(?i)fail|drop|error|denied\"), \"failure\",\n    match(_raw, \"(?i)delete|expire|end\"), \"expired\",\n    1=1, \"other\")\n| stats count(eval(outcome=\"success\")) as created count(eval(outcome=\"failure\")) as failed count(eval(outcome=\"expired\")) as expired\n| eval failure_rate=round(failed / (created + failed) * 100, 2)\n| eval status=case(\n    failure_rate > 5, \"WARNING — high NAT64 failure rate\",\n    failure_rate > 1, \"MONITOR — elevated NAT64 failures\",\n    1=1, \"OK\")\n```\n\n**NAT64 state table utilization:**\n```spl\nindex=network sourcetype=\"sc4snmp:metric\" metric_name=\"nat64.active_translations\" earliest=-24h\n| stats latest(metric_value) as active by host\n| lookup nat64_capacity.csv host OUTPUT max_translations\n| eval utilization_pct=round(active / max_translations * 100, 1)\n| where utilization_pct > 70\n| eval alert=case(\n    utilization_pct > 90, \"CRITICAL — NAT64 state table nearly full\",\n    utilization_pct > 80, \"HIGH — approaching NAT64 capacity\",\n    1=1, \"WARNING — monitor NAT64 growth\")\n```\n\nStep 3 — Validate\n(a) **DNS64 synthesis test.** From an IPv6-only host, resolve a domain with only an A record (e.g., `dig AAAA ipv4only.arpa`). This is the standard DNS64 test domain (RFC 7050). If DNS64 is working, it returns `64:ff9b::c000:aa` (192.0.0.170 embedded).\n\n(b) **End-to-end NAT64 test.** From the same host, `curl -6 http://ipv4only.arpa`. If DNS64 and NAT64 are both working, the connection succeeds.\n\n(c) **Failure simulation.** Block NAT64 prefix (64:ff9b::/96) at the gateway. Verify translation failures appear in the logs.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — DNS64/NAT64 Translation Health\"):\n• Row 1 — Single-value: DNS64 syntheses/hour, active NAT64 translations, failure rate.\n• Row 2 — Dual timechart: DNS64 synthesis volume alongside NAT64 translations — should correlate.\n• Row 3 — Gauge: NAT64 state table utilization.\n• Row 4 — Alert panel: translation failures, state table warnings.\n\n**Scheduling:** NAT64 health every 15 minutes. State table alert every 5 minutes. DNS64 trending hourly.\n\n**Runbook:**\n1. DNS64 synthesis failing: check DNS64 resolver configuration. Test with `dig AAAA ipv4only.arpa @<resolver>`.\n2. NAT64 failures: check gateway health, interface status, routing for 64:ff9b::/96.\n3. State table full: increase capacity, reduce translation timeouts, or add another NAT64 gateway.\n\nStep 5 — Troubleshooting\n\n• **DNS64 prefix mismatch** — If the DNS64 resolver uses a different prefix than the NAT64 gateway's configured prefix, translations will fail. Both must use the same prefix (typically 64:ff9b::/96).\n\n• **MTU issues through NAT64** — IPv6 packets (minimum 1280 bytes) are translated to IPv4 packets. If the IPv4 path has MTU constraints, fragmentation may be needed. Since the NAT64 gateway is performing stateful translation, it must handle fragment reassembly — verify this capability.\n\n• **DNSSEC and DNS64 incompatibility** — DNS64-synthesised AAAA records break DNSSEC validation because the synthesised record does not match the authoritative zone's signature. DNS64 should be deployed on validating resolvers that strip DNSSEC from synthesised responses, or use the DNSSEC-aware DNS64 approach described in RFC 6147 §5.5.",
+  "grandmaExplanation": "Some new-phone-only users need to call old-phone-only numbers. There's a special translator in the middle that converts the call between the two systems. We watch this translator to make sure it's handling all the calls properly — if it gets overloaded or breaks, people on the new phone system suddenly can't reach anyone on the old system.",
+  "prerequisiteUseCases": [
+    "5.20.51"
+  ],
+  "wave": "run"
+}

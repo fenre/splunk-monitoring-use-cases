@@ -21,7 +21,7 @@ The SD-WAN Orchestrator (or center) applies policies and feature templates acros
 
 ## Value
 
-The SD-WAN Orchestrator (or center) applies policies and feature templates across the fleet. When pushes fail, sites can drift or stay on stale rules. Primary reachability problems and job-level errors show risk at scale, not one box at a time. A single bad change set that fails in many sites needs rollback attention fast.
+Network operations teams track Citrix SD-WAN Orchestrator configuration push success rates and version consistency across sites, detecting deployment failures and config drift.
 
 ## Implementation
 
@@ -29,7 +29,66 @@ Ingest job completion and management heartbeat logs. Tag each job with a change 
 
 ## Detailed Implementation
 
-Prerequisites: Orchestrator lines include change_set and result; change ticket data in lookup change_ticket_map.csv. Step 1: Configure data collection — Forward orchestrator and mgmt reachability; keep INFO that marks job end; props [citrix:sdwan:orchestrator] for target_appliance, error_code, change_set, result. Step 2: Create the search and alert — Sev-1 when fail count maps to more than half of appliances for one change_set; sev-2 for production template failure; include reach_fails>0. Step 3: Validate — Re-run a harmless template after hours and confirm `index=sdwan (sourcetype="citrix:sdwan:orchestrator" OR sourcetype="citrix:sdwan:mgmt") earliest=-1h | stats count by result, change_set` shows success. Step 4: Operationalize — Attach Splunk link to change reviews; repeated push failures with broad blast radius go to the Citrix SD-WAN Orchestrator support team and change owner; if failures persist per appliance, check clock and certificate expiry.
+### Prerequisites
+* Citrix SD-WAN Orchestrator syslog or API data. Key fields: `config_push_status` (SUCCESS/FAILURE), `site_name`, `target_appliance`, `error_reason`, `config_version`, `staged_version`.
+* Citrix SD-WAN Orchestrator: central management platform that pushes configurations to all SD-WAN appliances. Config push failures leave sites on old configurations, creating inconsistencies. This can cause: routing mismatches, application steering errors, QoS policy discrepancies.
+
+### Step 1 — - Configure data collection
+Verify Orchestrator events:
+```spl
+index=netscaler (sourcetype="citrix:sdwan:syslog" OR sourcetype="citrix:sdwan:orch") ("config" OR "push" OR "deploy" OR "stage" OR "activate") earliest=-7d
+| where match(_raw, "(?i)(fail|error|success|push|deploy|stage)")
+| stats count by host
+```
+
+### Step 2 — - Create the search and alert
+
+**Primary search -- Config push failure analysis:**
+```spl
+index=netscaler (sourcetype="citrix:sdwan:syslog" OR sourcetype="citrix:sdwan:orch") ("config" OR "push" OR "deploy") earliest=-24h
+| eval site=coalesce(site_name, target_site)
+| eval appliance=coalesce(target_appliance, device_name)
+| eval status=coalesce(config_push_status, if(match(_raw, "(?i)success"), "SUCCESS", if(match(_raw, "(?i)fail|error"), "FAILURE", null())))
+| eval reason=coalesce(error_reason, if(match(_raw, "(?i)timeout"), "Timeout", if(match(_raw, "(?i)connect|unreachable"), "Appliance unreachable", if(match(_raw, "(?i)conflict|mismatch"), "Config conflict", "Unknown"))))
+| where status="FAILURE"
+| stats count as failures latest(reason) as last_reason latest(_time) as last_attempt by site, appliance
+| eval severity=case(failures > 3, "HIGH -- repeated failures", 1==1, "WARNING")
+| sort severity, -failures
+```
+
+**Config version consistency:**
+```spl
+index=netscaler (sourcetype="citrix:sdwan:syslog" OR sourcetype="citrix:sdwan:orch") ("config" OR "version") earliest=-4h
+| eval site=coalesce(site_name, site)
+| eval version=coalesce(config_version, running_version)
+| stats latest(version) as current_version by site
+| eventstats dc(current_version) as version_count
+| where version_count > 1
+| eval concern="CONFIG DRIFT -- sites running different versions"
+```
+
+### Step 3 — - Validate
+(a) Check Orchestrator: Administration > Config Push History -- compare with Splunk.
+(b) Verify all sites are running the same config version.
+(c) If a push failed, check the specific error in Orchestrator UI.
+
+### Step 4 — - Operationalize
+Dashboard ("Citrix SD-WAN -- Config Management"):
+* Row 1 -- Single-value: "Config pushes (24h)", "Failures", "Sites with old config", "Config versions active".
+* Row 2 -- Config push failure detail.
+* Row 3 -- Config version consistency check.
+
+Alerting:
+* High (repeated config push failures to same site): site running outdated config.
+* Warning (multiple config versions active across sites): config drift.
+
+### Step 5 — - Troubleshooting
+
+* **Timeout on push** -- Appliance may be unreachable. Check: (1) management network connectivity to the appliance, (2) appliance CPU (high CPU can delay config processing), (3) Orchestrator-to-appliance VPN tunnel.
+
+* **Config conflict** -- The running config has manual changes that conflict with the Orchestrator version. Resolve: (1) export running config, (2) compare with Orchestrator version, (3) merge changes in Orchestrator and re-push.
+
+* **Config drift across sites** -- Ensure all changes go through Orchestrator, not local CLI. Disable local config changes on appliances.
 
 ## SPL
 

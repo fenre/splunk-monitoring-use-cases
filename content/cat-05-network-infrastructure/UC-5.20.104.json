@@ -1,0 +1,59 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.104",
+  "title": "IPv6 Remotely Triggered Black Hole (RTBH) Activation and Effectiveness Monitoring",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Availability"
+  ],
+  "splunkPillar": "ES",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` or `sourcetype=juniper:junos` — Monitors IPv6 RTBH (Remotely Triggered Black Hole) routing activations, effectiveness, and collateral damage. RTBH is a DDoS mitigation technique where the victim's prefix is announced with a next-hop pointing to null0/discard, causing all upstream routers to drop traffic to that prefix.\n\n**IPv6 RTBH operational context:**\n\n1. **Source-based vs destination-based RTBH.** Destination-based RTBH drops all traffic TO the victim (simple but sacrifices the victim). Source-based RTBH (RFC 5635) drops traffic FROM the attacker while preserving victim reachability. Source-based is preferred for IPv6 because IPv6 address space is large enough that attacker prefixes can be precisely targeted.\n2. **BGP community triggers.** RTBH is triggered by announcing a /128 (single host) or /48+ prefix with a well-known BGP community (e.g., 65535:666) that signals upstream routers to null-route.\n3. **Flowspec alternative.** BGP Flowspec (RFC 8955) provides more granular filtering (by source, destination, protocol, port) than RTBH, but not all providers support Flowspec for IPv6.\n4. **Automation.** RTBH should be automated to respond within seconds of DDoS detection. Monitor both automatic and manual activations.\n5. **Collateral damage.** When a /48 prefix is blackholed, all hosts in that prefix lose connectivity. Monitor for over-broad blackhole announcements.",
+  "app": "Splunk Enterprise Security",
+  "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\" OR sourcetype=\"juniper:junos\") earliest=-24h\n  (\"%BGP-5\" OR \"blackhole\" OR \"null0\" OR \"discard\" OR \"rtbh\" OR \"community.*666\")\n| eval is_ipv6_rtbh=if(match(_raw, \"[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){2,}.*(?i)(null|discard|blackhole|666)\"), 1, 0)\n| where is_ipv6_rtbh=1\n| rex field=_raw \"(?<blackholed_prefix>[0-9a-fA-F:]+/\\d+)\"\n| rex field=_raw \"community\\s+(?<bgp_community>[\\d:]+)\"\n| eval action=case(\n    match(_raw, \"(?i)withdraw|removed|deactivat\"), \"RTBH_DEACTIVATED\",\n    match(_raw, \"(?i)announce|added|activat|install\"), \"RTBH_ACTIVATED\",\n    1=1, \"RTBH_EVENT\")\n| eval prefix_scope=case(\n    match(blackholed_prefix, \"/128$\"), \"Single host — precise targeting\",\n    match(blackholed_prefix, \"/6[0-4]$\"), \"Subnet — moderate scope\",\n    match(blackholed_prefix, \"/4[89]$|/5[0-9]$\"), \"Large prefix — check for collateral damage\",\n    match(blackholed_prefix, \"/4[0-8]$\"), \"VERY LARGE — significant collateral risk\",\n    1=1, \"Unknown scope\")\n| stats count as events latest(_time) as latest by host, blackholed_prefix, action, prefix_scope, bgp_community\n| sort -latest",
+  "description": "Monitors IPv6 Remotely Triggered Black Hole (RTBH) routing activations for DDoS mitigation. Tracks when RTBH routes are installed (blackhole activation) and withdrawn (deactivation), the scope of blackholed prefixes, BGP community signals, and potential collateral damage from over-broad blackhole announcements. Critical for DDoS response operations where IPv6 attack traffic must be dropped at the network edge.",
+  "value": "DDoS attacks increasingly target IPv6 infrastructure. RTBH is the fastest response mechanism (seconds vs minutes for ACLs), but it must be carefully monitored. An over-broad blackhole announcement can take an entire /48 offline, causing more damage than the DDoS itself. Monitoring RTBH activations, duration, scope, and effectiveness ensures the cure isn't worse than the disease.",
+  "implementation": "Monitor BGP announcements for RTBH communities. Track null-route installations. Alert on blackhole activations with scope analysis. Measure effectiveness by comparing traffic volumes before and after activation.",
+  "visualization": "(1) Timeline: RTBH activations/deactivations with prefix scope. (2) Table: currently active blackhole routes. (3) Single-value: active RTBH count. (4) Traffic chart: inbound traffic volume before/after blackhole.",
+  "references": [
+    {
+      "title": "RFC 5635 — Remote Triggered Black Hole Filtering with Unicast Reverse Path Forwarding (uRPF)",
+      "url": "https://www.rfc-editor.org/rfc/rfc5635"
+    },
+    {
+      "title": "RFC 7999 — BLACKHOLE Community",
+      "url": "https://www.rfc-editor.org/rfc/rfc7999"
+    },
+    {
+      "title": "RFC 8955 — Dissemination of Flow Specification Rules (Flowspec)",
+      "url": "https://www.rfc-editor.org/rfc/rfc8955"
+    }
+  ],
+  "knownFalsePositives": "**Planned maintenance.** During planned maintenance windows, RTBH may be used to redirect traffic. Correlate with change management records.\n\n**Automated testing.** Some organisations periodically test RTBH activation. These brief test activations should be documented and excluded from alert logic.\n\n**Provider-side RTBH.** When an upstream ISP activates RTBH based on a customer request, the announcement may appear in BGP logs before the customer's own routers process it. This is expected behaviour.",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "arista"
+  ],
+  "equipmentModels": [
+    "cisco_asr_9000",
+    "cisco_catalyst_8000",
+    "juniper_mx",
+    "arista_7280"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• BGP peering with RTBH trigger capability.\n• BGP logging enabled on border routers.\n• Defined RTBH BGP community (e.g., 65535:666 per RFC 7999, or ISP-specific).\n\nStep 1 — Configure RTBH infrastructure\n\n**Cisco IOS-XE RTBH trigger router configuration:**\n```\n! Define null route for RTBH\nip route 192.0.2.1 255.255.255.255 Null0\nipv6 route 100::1/128 Null0\n\n! Create RTBH trigger prefix\nroute-map RTBH permit 10\n set community 65535:666\n set ipv6 next-hop 100::1\n\n! Trigger example: blackhole 2001:db8:victim::1/128\nrouter bgp 65000\n address-family ipv6 unicast\n  network 2001:db8:victim::1/128 route-map RTBH\n```\n\n**Receiving router configuration:**\n```\nroute-map RTBH-RECEIVE permit 10\n match community RTBH-COMMUNITY\n set ipv6 next-hop 100::1\n\nipv6 route 100::1/128 Null0\n\nrouter bgp 65001\n address-family ipv6 unicast\n  neighbor 2001:db8::1 route-map RTBH-RECEIVE in\n```\n\nStep 2 — Create monitoring searches\n\n**RTBH activation tracking:**\n```spl\nindex=network (sourcetype=\"cisco:ios\" OR sourcetype=\"juniper:junos\") earliest=-7d\n  (\"blackhole\" OR \"null0\" OR \"discard\" OR \"community.*666\")\n| eval is_ipv6=if(match(_raw, \"[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){2,}\"), 1, 0)\n| where is_ipv6=1\n| rex field=_raw \"(?<prefix>[0-9a-fA-F:]+/\\d+)\"\n| eval action=if(match(_raw, \"(?i)withdraw|removed\"), \"DEACTIVATED\", \"ACTIVATED\")\n| table _time, host, prefix, action\n| sort _time\n```\n\n**RTBH effectiveness — traffic drop verification:**\n```spl\nindex=network sourcetype=\"netflow\" earliest=-4h\n| eval is_ipv6=if(match(dest, \":\"), 1, 0)\n| where is_ipv6=1\n| lookup active_rtbh.csv dest_prefix OUTPUT rtbh_active, rtbh_start_time\n| eval period=if(_time > strptime(rtbh_start_time, \"%Y-%m-%dT%H:%M:%S\"), \"after_rtbh\", \"before_rtbh\")\n| stats sum(bytes) as total_bytes by dest, period\n| eval effectiveness=if(period=\"after_rtbh\", \"Should be near zero if RTBH is working\", \"Pre-RTBH baseline\")\n```\n\nStep 3 — Validate\n(a) **RTBH test.** In a lab environment, activate RTBH for a test prefix. Verify:\n- The null route appears on all receiving routers.\n- Traffic to the test prefix is dropped.\n- The Splunk alert fires within 60 seconds.\n- Deactivation restores connectivity.\n\n(b) **Scope verification.** Announce a /128 RTBH route. Verify that only the specific host is blackholed, not the entire /64 or /48.\n\n(c) **Duration tracking.** Activate and deactivate RTBH. Verify the dashboard correctly shows the activation duration.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — RTBH Operations\"):\n• Row 1 — Single-values: currently active RTBH routes, total activations (24h).\n• Row 2 — Timeline: RTBH activation/deactivation events.\n• Row 3 — Table: currently active blackhole prefixes with scope and duration.\n• Row 4 — Traffic chart: before/after traffic volume for blackholed prefixes.\n\n**Alert 1:** RTBH activation — informational. All activations should be logged and reviewed.\n**Alert 2:** RTBH active for >4 hours — warning. Long-duration blackholes may indicate forgotten activations.\n**Alert 3:** RTBH prefix broader than /64 — critical. Investigate for collateral damage.\n\n**Runbook:**\n1. DDoS detected → Activate RTBH for the victim /128.\n2. If attack targets a range → Escalate to /64 RTBH maximum.\n3. After attack subsides → Deactivate RTBH. Verify service restoration.\n4. Post-incident → Review attack patterns. Consider Flowspec for more granular filtering next time.\n\nStep 5 — Troubleshooting\n\n• **RTBH not propagating.** Verify the RTBH BGP community is accepted by upstream peers. Some ISPs use proprietary RTBH communities rather than RFC 7999's 65535:666.\n\n• **Collateral damage.** If legitimate traffic is being dropped, narrow the RTBH prefix scope. Prefer /128 (single host) over broader prefixes. If the attack targets multiple hosts, use multiple /128 RTBH routes rather than one broad prefix.\n\n• **Forgotten RTBH routes.** RTBH routes should have a defined TTL. Implement automated deactivation after a configurable period (e.g., 4 hours). Monitor for stale RTBH routes.",
+  "grandmaExplanation": "When someone is flooding our mailbox with millions of junk letters (a DDoS attack), we tell all the post offices in the area to throw away any letters addressed to our mailbox. This stops the flood, but it also means we can't receive any real letters until we tell the post offices to start delivering again. We watch carefully to make sure we only block letters to the exact mailbox being attacked (not the whole building), and that we remember to turn the block off when the attack is over.",
+  "prerequisiteUseCases": [
+    "5.20.44",
+    "5.20.82"
+  ],
+  "wave": "run"
+}

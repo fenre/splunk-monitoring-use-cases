@@ -1,0 +1,57 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.56",
+  "title": "DNSSEC Validation Failure Rate for IPv6 (AAAA) Records",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Availability"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=network sourcetype=infoblox:dns` or `sourcetype=named:querylog` containing DNSSEC validation events and SERVFAIL responses with AD (Authenticated Data) flag information. DNSSEC (Domain Name System Security Extensions) provides cryptographic authentication of DNS responses, preventing DNS spoofing and cache poisoning. DNSSEC validation interacts with IPv6 in several important ways:\n\n1. **AAAA record signing** — AAAA records are signed the same as A records, but DNSSEC-signed AAAA responses are significantly larger (IPv6 addresses are 128 bits vs 32 bits) and DNSSEC signatures add 100-500+ bytes per RRset\n\n2. **Response size implications** — DNSSEC-signed AAAA + RRSIG responses frequently exceed 1280 bytes (IPv6 minimum MTU), requiring EDNS0 with larger buffer sizes or TCP fallback\n\n3. **Trust chain validation** — AAAA records are validated through the same DNSSEC trust chain (DS → DNSKEY → RRSIG) as A records. If the trust chain is broken for a zone, both A and AAAA lookups fail with SERVFAIL\n\n4. **DNS64 + DNSSEC conflict** — DNS64-synthesised AAAA records break DNSSEC validation because the synthesised record doesn't match the authoritative zone's signature (see UC-5.20.53)\n\nDNSSEC validation failures cause SERVFAIL responses — the resolver refuses to return the answer because it cannot verify its authenticity. This is a security-positive result (preventing potential spoofing) but causes connectivity failure.",
+  "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2946). Splunk Add-on for BIND DNS.",
+  "spl": "index=network (sourcetype=\"infoblox:dns\" OR sourcetype=\"named:querylog\") earliest=-24h\n  (\"DNSSEC\" OR \"validation\" OR \"dnssec-failed\" OR \"BOGUS\" OR \"insecure\" OR \"AD bit\")\n| eval validation_status=case(\n    match(_raw, \"(?i)BOGUS|validation.*fail|dnssec-fail\"), \"FAILED — DNSSEC validation error\",\n    match(_raw, \"(?i)INSECURE|no DNSSEC\"), \"INSECURE — zone not signed\",\n    match(_raw, \"(?i)SECURE|validated|AD\"), \"SECURE — DNSSEC validated\",\n    1=1, \"unknown\")\n| eval query_is_aaaa=if(match(_raw, \"\\bAAAA\\b\"), 1, 0)\n| stats count as total count(eval(validation_status=\"FAILED — DNSSEC validation error\")) as failed count(eval(validation_status=\"SECURE — DNSSEC validated\")) as secure count(eval(query_is_aaaa=1 AND validation_status=\"FAILED — DNSSEC validation error\")) as aaaa_failed by host\n| eval dnssec_failure_rate=round(failed / total * 100, 2)",
+  "description": "Monitors DNSSEC validation failure rates with specific focus on AAAA record lookups to detect trust chain issues that break IPv6 name resolution. DNSSEC validation failures cause SERVFAIL responses, which from the user's perspective is indistinguishable from the domain not existing. A DNSSEC validation failure for a domain's AAAA record means IPv6 access to that domain is completely blocked, even though IPv4 (A record) access may continue to work if the A record's DNSSEC chain is intact.",
+  "value": "DNSSEC validation failures are a silent killer for IPv6 connectivity. When a DNSSEC-signed AAAA record fails validation, the resolver returns SERVFAIL, the client cannot resolve the IPv6 address, and Happy Eyeballs falls back to IPv4. The user may not notice (thanks to fallback), but IPv6 connectivity to that domain is effectively broken. Monitoring DNSSEC validation failure rates for AAAA records specifically catches this IPv6-specific DNS failure mode and enables investigation before the issue spreads.",
+  "implementation": "Collect DNSSEC validation events from DNS resolvers. Track validation failure rates overall and specifically for AAAA query types. Alert on elevated failure rates and on specific domains with persistent DNSSEC failures.",
+  "visualization": "(1) Gauge: DNSSEC validation success rate. (2) Timechart: DNSSEC validation failures (total and AAAA-specific) over 7 days. (3) Table: domains with persistent DNSSEC validation failures. (4) Pie chart: validation status distribution (SECURE/INSECURE/BOGUS).",
+  "references": [
+    {
+      "title": "RFC 4033 — DNS Security Introduction and Requirements (DNSSEC overview)",
+      "url": "https://www.rfc-editor.org/rfc/rfc4033"
+    },
+    {
+      "title": "RFC 6781 — DNSSEC Operational Practices, Version 2 (operational guidance)",
+      "url": "https://www.rfc-editor.org/rfc/rfc6781"
+    },
+    {
+      "title": "RFC 8027 — DNSSEC Roadblock Avoidance (troubleshooting DNSSEC failures)",
+      "url": "https://www.rfc-editor.org/rfc/rfc8027"
+    }
+  ],
+  "knownFalsePositives": "**Expired DNSSEC signatures.** Zone operators who fail to re-sign their zones before RRSIG expiry cause legitimate DNSSEC validation failures. These are real failures but not caused by attacks — they are operational errors by the zone operator. The resolver is correct to fail validation.\n\n**Clock skew.** DNSSEC signatures have inception and expiration times. If the resolver's system clock is significantly skewed, valid signatures may appear expired or not-yet-valid. Ensure NTP synchronisation on resolvers.\n\n**Algorithm rollover.** During DNSSEC algorithm rollovers (e.g., RSA to ECDSA), there is a brief period where validators that have not updated their trust anchors may fail validation. This is a planned event.",
+  "equipment": [
+    "infoblox",
+    "bind",
+    "unbound"
+  ],
+  "equipmentModels": [
+    "infoblox_nios",
+    "isc_bind",
+    "nlnetlabs_unbound"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• DNSSEC validation enabled on recursive resolvers.\n• Resolver logging configured to include DNSSEC validation results.\n• NTP synchronisation on all resolvers (critical for DNSSEC signature validation).\n\nStep 1 — Configure data collection\n\n**BIND — DNSSEC validation logging:**\n```\nlogging {\n  channel dnssec_log {\n    syslog local3;\n    severity info;\n    print-time yes;\n  };\n  category dnssec { dnssec_log; };\n};\n\noptions {\n  dnssec-validation auto;\n  dnssec-log-key-errors yes;\n};\n```\n\n**Unbound — DNSSEC logging:**\n```\nserver:\n  val-log-level: 2\n  log-servfail: yes\n```\n\n**BIND logs DNSSEC failures as:**\n```\ndnssec: info: validating example.com/AAAA: no valid signature found\ndnssec: info: validating example.com/AAAA: verify failed due to bad signature (keyid=12345)\n```\n\n**Verification:**\n```spl\nindex=network (sourcetype=\"named:querylog\" OR sourcetype=\"infoblox:dns\") (\"dnssec\" OR \"validation\" OR \"BOGUS\") earliest=-24h\n| stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n\n**DNSSEC validation failure trending:**\n```spl\nindex=network (sourcetype=\"named:querylog\" OR sourcetype=\"infoblox:dns\") earliest=-7d\n  (\"dnssec\" OR \"validation\" OR \"BOGUS\" OR \"SERVFAIL\")\n| eval is_dnssec_fail=if(match(_raw, \"(?i)BOGUS|validation.*fail|no valid signature|verify failed\"), 1, 0)\n| eval is_aaaa=if(match(_raw, \"\\bAAAA\\b\"), 1, 0)\n| timechart span=1h sum(is_dnssec_fail) as total_failures sum(eval(is_aaaa * is_dnssec_fail)) as aaaa_failures\n```\n\n**Domains with persistent DNSSEC failure:**\n```spl\nindex=network (sourcetype=\"named:querylog\" OR sourcetype=\"infoblox:dns\") earliest=-24h\n  (\"BOGUS\" OR \"validation.*fail\" OR \"no valid signature\" OR \"verify failed\")\n| rex field=_raw \"validating\\s+(?<failed_domain>[a-zA-Z0-9.\\-]+)/\"\n| rex field=_raw \"(?<query_type>AAAA|A|MX|NS)/\"\n| stats count as failure_count values(query_type) as failed_types by failed_domain\n| sort -failure_count\n| head 20\n| eval action=\"Investigate: check the domain's DNSSEC chain at dnsviz.net or verisignlabs.com/dnssec/\"\n```\n\n**DNSSEC failure rate alert:**\n```spl\nindex=network (sourcetype=\"named:querylog\" OR sourcetype=\"infoblox:dns\") earliest=-1h\n| eval is_dnssec_fail=if(match(_raw, \"(?i)BOGUS|validation.*fail\"), 1, 0)\n| stats sum(is_dnssec_fail) as failures count as total\n| eval rate=round(failures / total * 100, 2)\n| where rate > 1\n| eval alert=\"DNSSEC validation failure rate: \" . rate . \"% (\" . failures . \" of \" . total . \" queries) — investigate trust chain issues\"\n```\n\nStep 3 — Validate\n(a) **Known DNSSEC-validated domain.** Query a domain with a known-good DNSSEC chain (e.g., `dig +dnssec example.com AAAA`). Verify the AD (Authenticated Data) flag is set in the response and the resolver logs show SECURE validation.\n\n(b) **Known DNSSEC failure.** Use the DNSSEC test domains (e.g., `dnssec-failed.org`). Verify the resolver returns SERVFAIL and the DNSSEC failure alert fires.\n\n(c) **DNS64 + DNSSEC interaction.** If using DNS64, query a DNSSEC-signed IPv4-only domain. Verify the synthesised AAAA breaks DNSSEC validation (expected behaviour per RFC 6147 §5.5).\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — DNSSEC Validation Health\"):\n• Row 1 — Gauge: DNSSEC validation success rate.\n• Row 2 — Timechart: total and AAAA-specific DNSSEC failures over 7 days.\n• Row 3 — Table: domains with persistent DNSSEC failures.\n• Row 4 — DNSSEC status distribution: SECURE / INSECURE / BOGUS.\n\n**Scheduling:** Failure rate alert every 15 minutes. Domain failure analysis daily. Trending weekly.\n\n**Runbook:**\n1. Elevated failure rate: check if a major zone's DNSSEC signatures have expired. Check dnsviz.net for chain analysis.\n2. Specific domain failing: contact the domain operator if it's a partner/vendor. If it's a public domain, check if the issue is known.\n3. All DNSSEC failing: check resolver clock (NTP). Check trust anchor (managed-keys). Check resolver DNSSEC configuration.\n\nStep 5 — Troubleshooting\n\n• **Managed trust anchors (RFC 5011)** — Modern resolvers automatically update the root trust anchor using RFC 5011 automated trust anchor rollover. If the managed keys database is corrupted, all DNSSEC validation fails. Check the managed-keys.bind file (BIND) or auto-trust-anchor-file (Unbound).\n\n• **Negative trust anchors (NTA)** — When a domain's DNSSEC chain is broken by the domain operator and cannot be quickly fixed, resolvers can configure a Negative Trust Anchor to temporarily disable validation for that domain. This is a last-resort workaround.\n\n• **EDNS0 buffer size and DNSSEC** — DNSSEC-signed responses are larger. If the EDNS0 buffer size is too small (default 512 bytes in legacy implementations), DNSSEC responses may be truncated. Modern resolvers use 1232 bytes (per DNS Flag Day 2020). Ensure resolvers support at least 1232-byte EDNS0 buffers.",
+  "grandmaExplanation": "DNSSEC is like a wax seal on a letter — it proves the letter hasn't been tampered with. When looking up new-style (IPv6) addresses, the sealed letters are bigger and sometimes get damaged in transit. If the seal is broken, the phone book service refuses to give you the address for safety — it can't be sure the address is genuine. We count how many seals are coming in broken, because each broken seal means someone can't reach their destination.",
+  "prerequisiteUseCases": [
+    "5.20.51"
+  ],
+  "wave": "run"
+}

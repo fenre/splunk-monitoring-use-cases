@@ -21,7 +21,7 @@ OMP (Overlay Management Protocol) distributes routes across the SD-WAN fabric. R
 
 ## Value
 
-OMP (Overlay Management Protocol) distributes routes across the SD-WAN fabric. Route churn, missing prefixes, or unexpected withdrawals indicate overlay instability that degrades site-to-site reachability.
+Network operations teams monitor SD-WAN OMP route table health to detect routing anomalies, route churn, and missing network reachability that could isolate sites or disrupt application connectivity.
 
 ## Implementation
 
@@ -30,46 +30,80 @@ Poll vManage OMP peers and routes API endpoints. Baseline route count per device
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API.
-- Ensure the following data sources are available: vManage OMP route table, `sourcetype=cisco:sdwan:omp`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Cisco Catalyst Add-on for Splunk polling vManage API for OMP (Overlay Management Protocol) route table. Data in `index=sdwan` with `sourcetype=cisco:sdwan:omp`. Key fields: `site_id`, `system_ip`, `prefix`, `protocol`, `from_peer` (vSmart IP), `originator` (advertising device), `color`, `status` (C=chosen, I=installed, R=received), `metric`, `preference`.
+- OMP is the SD-WAN control plane routing protocol (similar to BGP for the SD-WAN overlay). vSmart controllers distribute OMP routes to edge devices. Route changes can indicate: network topology changes, policy updates, site failures, or control plane issues.
+- Critical OMP metrics: total routes received, routes installed, route churn rate (frequent additions/removals), and missing expected routes.
+- Build `sdwan_expected_routes.csv` lookup: `site_id,expected_prefixes,expected_count` for each site's expected OMP route count during normal operation.
 
 ### Step 1 — Configure data collection
-Poll vManage OMP peers and routes API endpoints. Baseline route count per device. Alert when a site loses more than 20% of its expected routes or when OMP peer adjacencies drop. Track route churn rate over time to identify flapping prefixes.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify OMP route data:
 ```spl
-index=sdwan sourcetype="cisco:sdwan:omp"
-| stats dc(prefix) as route_count, dc(peer) as peer_count by system_ip, site_id
-| appendpipe [| stats avg(route_count) as baseline_routes]
-| where route_count < baseline_routes * 0.8
-| table system_ip site_id route_count peer_count
+index=sdwan sourcetype="cisco:sdwan:omp" earliest=-15m
+| stats count dc(prefix) as unique_prefixes by site_id, status
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**OMP Route Table Monitoring** — OMP (Overlay Management Protocol) distributes routes across the SD-WAN fabric. Route churn, missing prefixes, or unexpected withdrawals indicate overlay instability that degrades site-to-site reachability.
+**Primary search — OMP route table anomalies:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:omp" status="C" earliest=-15m
+| stats dc(prefix) as installed_routes values(from_peer) as vsmart_sources by site_id, system_ip
+| lookup sdwan_expected_routes.csv site_id OUTPUT expected_count
+| eval route_delta=if(isnotnull(expected_count), installed_routes - expected_count, null())
+| eval pct_of_expected=if(isnotnull(expected_count), round(100*installed_routes/expected_count, 1), null())
+| lookup sdwan_sites.csv site_id OUTPUT site_name tier
+| eval status=case(pct_of_expected < 50, "CRITICAL", pct_of_expected < 80, "WARNING", route_delta < -10, "DEGRADED", installed_routes < 5, "MINIMAL", 1==1, "OK")
+| where status!="OK"
+| sort status, tier
+```
 
-Documented **Data sources**: vManage OMP route table, `sourcetype=cisco:sdwan:omp`. **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: A sudden drop in OMP route count means the edge device has lost visibility to parts of the network. If a site normally has 200 OMP routes and suddenly drops to 50, it means 150 network prefixes are unreachable from that site. This could be caused by: vSmart failure (routes not distributed), remote site failure (routes withdrawn), or policy change (routes filtered).
 
-The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: cisco:sdwan:omp. That sourcetype matches what this use case lists under Data sources.
+**OMP route churn detection:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:omp" earliest=-2h
+| bin _time span=10m
+| stats dc(prefix) as routes by _time, site_id
+| streamstats window=2 current=t range(routes) as route_churn by site_id
+| where route_churn > 20
+| lookup sdwan_sites.csv site_id OUTPUT site_name
+| eval severity=case(route_churn > 100, "CRITICAL", route_churn > 50, "HIGH", 1==1, "WARNING")
+```
 
-**Pipeline walkthrough**
-
-- Scopes the data: index=sdwan, sourcetype="cisco:sdwan:omp". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by system_ip, site_id** so each row reflects one combination of those dimensions.
-- Appends rows from a subsearch with `append`.
-- Filters the current rows with `where route_count < baseline_routes * 0.8` — typically the threshold or rule expression for this monitoring goal.
-- Pipeline stage (see **OMP Route Table Monitoring**): table system_ip site_id route_count peer_count
-
+**Route distribution by originator:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:omp" status="C" earliest=-15m
+| stats dc(prefix) as routes by originator
+| lookup sdwan_devices.csv system_ip as originator OUTPUT hostname site_id
+| lookup sdwan_sites.csv site_id OUTPUT site_name
+| eval label=if(isnotnull(hostname), hostname." (".site_name.")", originator)
+| sort -routes
+```
 
 ### Step 3 — Validate
-In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
+(a) On an edge device CLI: `show omp routes` — count the installed routes and compare with Splunk.
+(b) On vSmart: `show omp routes` — verify the controller has the full route table.
+(c) After a planned site addition, verify the new site's prefixes appear in OMP routes across the fabric.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (route count over time per site), Table (devices below baseline), Single value (total OMP peers).
+Dashboard ("SD-WAN — OMP Route Health"):
+- Row 1 — Single-value tiles: "Sites with route deficit", "Total OMP routes", "Route churn (2h)", "Sites below 80% expected routes".
+- Row 2 — Route anomaly table: site, installed routes, expected routes, delta, % of expected, status.
+- Row 3 — Route churn chart: 2-hour timeline showing route count changes per site.
+- Row 4 — Route distribution by originator: which devices are advertising how many routes.
+
+Alerting:
+- Critical (site has < 50% of expected routes): major routing loss — significant reachability impact.
+- High (route churn > 100 in 10 minutes): routing instability — possible control plane flap.
+- Warning (site below 80% expected routes): partial route loss — investigate.
+
+### Step 5 — Troubleshooting
+
+- **OMP route count drops to near zero** — Check control connections (UC-5.5.5). If the edge lost its vSmart connection, it won't receive new routes. Existing routes may age out depending on configuration.
+
+- **Route churn coincides with policy push** — vManage policy changes can cause temporary route redistribution as vSmart recalculates and pushes updated routes. Allow 5-10 minutes for convergence after a policy push.
+
+- **Missing routes from specific originator** — The originating device may have lost its vSmart connection, or its OMP advertisements are being filtered by a centralized data policy on vSmart.
 
 ## SPL
 

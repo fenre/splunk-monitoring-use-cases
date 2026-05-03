@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.12.12",
+  "title": "Trunk Group Utilization and All-Trunks-Busy Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "wave": "crawl",
+  "monitoringType": [
+    "Capacity",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications",
+  "dataSources": "`index=voip sourcetype=\"cdr:voip\"` with `trunk_group`, `circuit_id`, concurrent inference via `call_start`/`call_end` markers or vendor `active_calls`; SNMP peg counters from SBC (`snmp:sbc` / custom) with `curr_active_calls`, `max_channels`; syslog `%VOIP_DP-3-OUT_OF_RESOURCES` style traps from Cisco CUBE; ISUP/Q.850 congestion causes (`release_cause` 34/42) correlated to `dest`.",
+  "app": "SNMP Modular Input or TA for SBC, CDR file/syslog ingestion (Cisco CUBE/UCM exports)",
+  "spl": "index=voip sourcetype=\"cdr:voip\" earliest=-15m\n| where isnotnull(trunk_group)\n| stats count as attempts sum(eval(if(match(release_cause,\"^(34|42|503)$\"),1,0))) as congestion_events dc(call_id) as unique_sessions by trunk_group\n| eval congestion_pct=if(attempts>0, round(100*congestion_events/attempts, 2), 0)\n| where congestion_events>10 OR congestion_pct>3\n| sort -congestion_events",
+  "description": "Combines active-call counts, peg-limit ratios, and congestion-oriented release causes per trunk group to reveal exhaustion before subscribers hear reorder tones or automated reroutes fail silently.",
+  "value": "Capacity planners catch creeping utilization on PRI/SIP trunks, justify augment orders with trending evidence, and trigger preemptive overflow routing when groups approach all-trunks-busy—protecting revenue-critical contact centers and PSTN egress SLAs.",
+  "implementation": "Primary signal should be SNMP curr/max channels from SBC; supplement with CDR cause spikes and five-minute occupancy rollups; alert at 85–90% sustained peg with hysteresis.",
+  "detailedImplementation": "Prerequisites\n• Authoritative trunk inventory: CSV `trunk_groups.csv` mapping `trunk_group`, `carrier`, `licensed_channels`, `site`, `overflow_peer`.\n• Either SNMP walks exposing concurrent usage or CDR with reliable start/stop timestamps per call_id.\n• Baseline busy-hour curves per group (seasonal retail, Monday openings).\n\nStep 1 — Instrument peg counts\nEnable SNMP on SBC/CUBE for concurrent voice sessions; normalize into `index=network` or unified `index=voip` sourcetype.\n\nStep 2 — Correlate failures\nJoin fifteen-minute windows where utilization >85% with spikes in Q.850 causes 34/42 from CDR.\n\nStep 3 — Alerts\nFire warning at fifteen-minute average >80% licensed channels; critical when equals licensed max for two consecutive polls or when congestion causes exceed SLA.\n\nStep 4 — Dashboards\nStacked area of utilization per trunk_group; single-value ATB events (zero idle circuits); table of top overflow destinations.\n\nStep 5 — Runbook actions\nEngage carrier for additional SIP sessions; enable geographic redundancy; validate licensing on SBC after firmware upgrades because silent cap reductions mimic ATB.\n\nExtended troubleshooting\nBatch CDR delays under-report concurrency—prefer SNMP for real-time pegging. Maintenance windows that seize circuits should be tagged to suppress alerts.",
+  "visualization": "Gauge row per trunk_group (curr/max); timeline of utilization vs. congestion causes; map/table of sites nearing exhaustion.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Cisco IOS Voice Troubleshooting — Resource Exhaustion Signatures",
+      "url": "https://www.cisco.com/c/en/us/support/docs/voice/voice-quality/79361-voice-quality-troubleshooting-guide.html"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "SNMP counter resets during failover briefly show zero utilization; fax/modem long holds inflate concurrency without voice faults; mis-labeled trunk_group strings split aggregates; scheduled carrier tests that seize every channel appear as artificial ATB unless calendar suppressed.",
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_cucm"
+  ],
+  "grandmaExplanation": "We count how many phone lines are in use at once so nobody hits a busy signal across the whole pool before your team adds more lines or opens a backup route.",
+  "telcoUseCase": "PSTN/SIP trunk capacity management",
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases"
+}

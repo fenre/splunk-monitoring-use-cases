@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.19.2",
+  "title": "NETCONF Session Count and Session Leak Detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": ["Capacity", "Availability", "Operations"],
+  "splunkPillar": "Observability",
+  "wave": "walk",
+  "dataSources": "Detailed: `index=network` (org-standard); `sourcetype` examples — `cisco:ios_xe`, `cisco:ios_xr`, `cisco:nexus`, `juniper:junos` (if onboarded), `syslog` with NETCONF/YANG-related mnemonics; extract `session_id`, `username`, `client_ip`, `subsystem` (netconf), `action` (created/closed/timed-out). Optional gNMI/OpenConfig telemetry side-channel for concurrent RPC counts when syslog lacks granularity.",
+  "app": "Splunk Add-on for Cisco IOS (`TA-cisco_ios`), Splunk Connect for Syslog (SC4S) with vendor-defined filters; Splunk Add-on for Juniper (`Splunk_TA_juniper`) where Junos NETCONF audit is exported; custom `props.conf` FIELDALIAS for NETCONF session lifecycle phrases.",
+  "spl": "index=network earliest=-24h@h latest=now\n| eval st=lower(coalesce(sourcetype,_sourcetype,\"\"))\n| eval msg=lower(_raw)\n| where match(msg,\"netconf|nc_ssh|yang|ietf-netconf\")\n| eval evt=case(match(msg,\"session.*(?:start|creat|open|establish|login)\"),\"open\",match(msg,\"session.*(?:clos|termin|logout|disconnect|end)\"),\"close\",match(msg,\"(?:timeout|idle.*expir|kill.*session)\"),\"timeout\",1=1,\"other\")\n| rex field=_raw max_match=0 \"(?i)(?:session\\s*id|sess-id|sid)[:=\\s]+(?<session_id>[^\\s,]+)\"\n| rex field=_raw max_match=0 \"(?i)(?:user|username)[:=\\s]+(?<nc_user>[^\\s,]+)\"\n| rex field=_raw max_match=0 \"(?:(?:from|client)\\s+(?<client_ip>[0-9a-fA-F:.]+))\"\n| bin _time span=15m\n| stats count(eval(evt=\"open\")) as opens count(eval(evt=\"close\")) as closes count(eval(evt=\"timeout\")) as timeouts dc(session_id) as approx_sessions by _time host st\n| eval net_opening=opens-closes\n| eventstats avg(approx_sessions) as baseline by host\n| where approx_sessions > baseline*2 OR net_opening>=5 OR timeouts>=3\n| sort -approx_sessions",
+  "description": "Splunk correlates NETCONF-related syslog streams to expose abnormal concurrent sessions, asymmetric open versus close counts, and idle-timeout bursts that often precede automation client bugs, leaked ncclient pools, or brute-force reconnaissance against the management plane.",
+  "value": "Engineering preserves stable NETCONF capacity on routers and switches because session leaks no longer exhaust vendor session limits mid-change-window, and suspicious login churn triggers investigation before credential stuffing degrades management APIs.",
+  "implementation": "Ensure NETCONF audit/debug logging is enabled at a governed severity; normalize timestamps to UTC; sample every fifteen minutes; whitelist bastion IPs via lookup; pair with asset ownership tags on `host`.",
+  "detailedImplementation": "Prerequisites\n• Document per-platform NETCONF session caps (IOS-XE, IOS-XR, NX-OS, Junos) and known syslog phrases for session lifecycle.\n• Confirm NTP so `_time` aligns with EMS session tables.\n\nStep 1 — Device logging\nEnable NETCONF logging appropriate to vendor guidance (avoid verbose RPC payload logs in production); capture session establish/teardown and SSH subsystem negotiation failures.\n\nStep 2 — Ingest\nForward management VRF syslog through SC4S or TCP inputs; assign sourcetype via IP/subnet rules; mask secrets in `_raw` transforms.\n\nStep 3 — Saved search\nPersist SPL as `netconf_session_leak_watch`; alert when fifteen-minute `approx_sessions` doubles rolling baseline or when `timeouts`≥3 per host.\n\nStep 4 — Validate\nOpen controlled parallel NETCONF sessions from a lab runner without closing; compare Splunk-derived counts to `show netconf-yang sessions` / Junos `show system connections` within acceptable variance.\n\nStep 5 — Operationalize\nDashboard: heatmap of hosts by concurrent proxy; timeline of opens minus closes; drilldown listing recent `client_ip` values for SOC handoff when non-automation subnets appear.",
+  "visualization": "Dashboard Studio: KPI for hosts breaching session heuristic; `splunk.timechart` of approx_sessions by host; matrix panel for timeouts; detail table with host, opens, closes, client_ip samples.",
+  "references": [
+    {
+      "title": "Cisco IOS XE NETCONF Configuration Guide — Session management",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/guide/b-programmability-cg.html"
+    },
+    {
+      "title": "IETF RFC 6241 — Network Configuration Protocol (NETCONF)",
+      "url": "https://www.rfc-editor.org/rfc/rfc6241"
+    },
+    {
+      "title": "Juniper Junos — NETCONF XML Management Protocol Developer Guide",
+      "url": "https://www.juniper.net/documentation/"
+    }
+  ],
+  "knownFalsePositives": "**Telemetry ambiguity:** generic SSH logs lacking subsystem markers inflate NETCONF hits.**Backup polling:** legitimate periodic collectors holding long-lived sessions mimic leaks.**Log truncation:** missing close events when devices reload skew open-close math.**Regex breadth:** \"yang\" matches unrelated vendor strings—tighten `host` inventory filter.**IPv6 formatting:** dual-stack duplicates session counts unless normalized.",
+  "mitreAttack": ["T1190"],
+  "securityDomain": "network",
+  "detectionType": "Anomaly",
+  "equipment": ["cisco", "syslog"],
+  "equipmentModels": ["cisco_ios", "cisco_nexus", "NETCONF session syslog (vendor phrases)"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We count how many remote control connections each switch accepts and whether opened connections get closed cleanly. If connections pile up or drop oddly, we investigate before the gear locks out new work."
+}

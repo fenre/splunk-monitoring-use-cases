@@ -21,7 +21,7 @@ STP topology changes cause brief disruption and MAC flushing. Root bridge change
 
 ## Value
 
-STP topology changes cause brief disruption and MAC flushing. Root bridge changes are critical.
+Network engineers monitor STP topology changes and root bridge stability, detecting excessive reconvergence events that cause MAC table flushes and broadcast flooding.
 
 ## Implementation
 
@@ -30,42 +30,72 @@ Forward syslog. Alert on root bridge changes (critical). Track topology change f
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=cisco:ios`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* STP topology change syslog messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%SPANTREE-5-TOPOTRAP`, `%SPANTREE-2-ROOTGUARD_BLOCK`; standard STP TCN BPDUs.
+* Spanning Tree topology changes: when a switch detects a link failure or new device, it generates a Topology Change Notification (TCN) that causes all switches to flush MAC address tables and re-learn. Excessive TCNs cause broadcast flooding and network instability.
 
-### Step 1 — Configure data collection
-Forward syslog. Alert on root bridge changes (critical). Track topology change frequency per VLAN.
+### Step 1 — - Configure data collection
+```
+# Cisco IOS -- STP is logged by default via syslog
+# Ensure spanning-tree logging is at informational level
+logging host <splunk-syslog-ip>
+logging trap informational
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Optional: enable STP event detail
+spanning-tree logging
+```
+Verify:
 ```spl
-index=network sourcetype="cisco:ios" "%SPANTREE-5-TOPOTCHANGE" OR "%SPANTREE-2-ROOTCHANGE"
-| stats count by host | where count > 5 | sort -count
+index=network earliest=-24h
+| where match(_raw, "(?i)SPANTREE|STP|topology.change|TCN|root.guard|BPDU")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Spanning Tree Topology Change** — STP topology changes cause brief disruption and MAC flushing. Root bridge changes are critical.
+**Primary search -- STP topology change monitoring:**
+```spl
+index=network earliest=-4h
+| where match(_raw, "(?i)SPANTREE|STP|topology.change|TCN|TOPOTRAP|root.bridge|root.guard|BPDU")
+| rex field=_raw "(?i)(?:VLAN|vlan)\s*(?<vlan_id>\d+)"
+| rex field=_raw "(?i)(?:port|interface|Port)\s+(?<stp_port>\S+)"
+| eval device=coalesce(host, device_name)
+| eval event_type=case(
+    match(_raw, "(?i)topology.change|TOPOTRAP|TCN"), "TOPOLOGY_CHANGE",
+    match(_raw, "(?i)root.guard|ROOTGUARD"), "ROOT_GUARD",
+    match(_raw, "(?i)BPDU.*guard|bpduguard"), "BPDU_GUARD",
+    match(_raw, "(?i)root.*change|new.root"), "ROOT_CHANGE",
+    1==1, "STP_EVENT")
+| bin _time span=5m
+| stats count as events dc(vlan_id) as vlans_affected dc(stp_port) as ports_involved values(event_type) as event_types by _time, device
+| eval severity=case(
+    match(mvjoin(event_types, ","), "ROOT_CHANGE"), "CRITICAL -- STP root bridge change detected",
+    match(mvjoin(event_types, ","), "ROOT_GUARD"), "WARNING -- root guard violation",
+    events > 20, "WARNING -- excessive topology changes (".events." in 5 min)",
+    events > 5, "INFO -- moderate topology changes",
+    1==1, "OK")
+| where severity != "OK"
+| sort severity, -events
+```
 
-Documented **Data sources**: `sourcetype=cisco:ios`. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show spanning-tree detail | include topology` -- check TC count.
+(b) CLI: `show spanning-tree root` -- verify root bridge is expected device.
+(c) CLI: `show spanning-tree summary` -- overview of STP status per VLAN.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- Spanning Tree"):
+* Row 1 -- Single-value: "Topology changes (4h)", "VLANs affected", "Root guard violations".
+* Row 2 -- STP topology change rate timechart.
 
-**Pipeline walkthrough**
+Alert: Critical (root bridge change): potential network loop or attack.
 
-- Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **Excessive topology changes** -- Usually caused by a flapping interface. Identify the port generating TCNs: `show spanning-tree detail`. Enable `spanning-tree portfast` on access ports to suppress TCNs.
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Unexpected root bridge change** -- Verify root guard is enabled on all downstream ports: `spanning-tree guard root`. Check priority: `show spanning-tree root`. Ensure designated root has lowest priority.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Timeline, Bar chart by VLAN.
+* **BPDU guard violation** -- Port received BPDUs when it shouldn't (access port with portfast). Investigate: unauthorized switch connected. Port goes to err-disabled; recover with `shutdown / no shutdown`.
 
 ## SPL
 

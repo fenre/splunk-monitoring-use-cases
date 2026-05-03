@@ -21,7 +21,7 @@ Monitors wireless mesh backhaul links to ensure reliability of remote AP connect
 
 ## Value
 
-Monitors wireless mesh backhaul links to ensure reliability of remote AP connections.
+Wireless security teams detect and classify active wireless attacks (deauthentication floods, MAC spoofing, EAPOL capture attempts) from Meraki security events, enabling rapid incident response.
 
 ## Implementation
 
@@ -30,44 +30,63 @@ Query MR device API for mesh_link_quality metric. Alert on degraded quality (<70
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki:api` (MR), `sourcetype=meraki` (events, e.g. `type=security_event`).
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Meraki providing wireless security event data. Data in `index=meraki` with `sourcetype=meraki:events`. Key fields: `type` (security-related events: deauthentication, spoofing, flood, unauthorized), `src_mac`, `dst_mac`, `ap_name`, `ssid`, `reason`.
+- Wireless security events include: (1) deauthentication floods (potential deauth attack to disconnect clients), (2) MAC spoofing (client pretending to be another device), (3) EAPOL flood (potential WPA/WPA2 handshake capture attempt), (4) disassociation flood (DoS attack against the AP).
 
 ### Step 1 — Configure data collection
-Query MR device API for mesh_link_quality metric. Alert on degraded quality (<70%).
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify security events:
 ```spl
-index=cisco_network sourcetype="meraki:api" device_type=MR mesh_link_quality=*
-| stats avg(mesh_link_quality) as avg_link_quality by ap_name, upstream_ap
-| where avg_link_quality < 70
-| sort avg_link_quality
+index=meraki sourcetype="meraki:events" earliest=-24h
+| where match(type, "(?i)(deauth|spoof|flood|attack|intrusion|security|unauthorized)")
+| stats count by type
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Mesh Network Link Quality and Backhaul Health (Meraki MR)** — Monitors wireless mesh backhaul links to ensure reliability of remote AP connections.
+**Primary search — Wireless attack detection:**
+```spl
+index=meraki sourcetype="meraki:events" earliest=-4h
+| where match(type, "(?i)(deauth|spoof|flood|attack|intrusion|security|unauthorized)")
+| eval attack_type=case(match(type, "(?i)deauth.*flood"), "DEAUTH_FLOOD", match(type, "(?i)deauth"), "DEAUTH_ATTACK", match(type, "(?i)spoof"), "MAC_SPOOFING", match(type, "(?i)eapol"), "EAPOL_FLOOD", match(type, "(?i)disassoc.*flood"), "DISASSOC_FLOOD", match(type, "(?i)flood"), "GENERIC_FLOOD", 1==1, "OTHER_SECURITY")
+| eval severity=case(attack_type="DEAUTH_FLOOD", "CRITICAL", attack_type="MAC_SPOOFING", "HIGH", attack_type="EAPOL_FLOOD", "HIGH", match(attack_type, "FLOOD"), "HIGH", 1==1, "MEDIUM")
+| eval impact=case(attack_type="DEAUTH_FLOOD", "Clients being forcibly disconnected — possible pre-attack for evil twin", attack_type="MAC_SPOOFING", "Device impersonating another — bypass MAC filtering or session hijacking", attack_type="EAPOL_FLOOD", "Possible WPA handshake capture attempt — credential theft", 1==1, "Investigate")
+| stats count as events dc(src_mac) as source_devices values(ap_name) as targeted_aps by attack_type, severity, impact
+| sort severity
+```
 
-Documented **Data sources**: `sourcetype=meraki:api` (MR), `sourcetype=meraki` (events, e.g. `type=security_event`). **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki:api. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by ap_name, upstream_ap** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where avg_link_quality < 70` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+**Targeted AP analysis:**
+```spl
+index=meraki sourcetype="meraki:events" earliest=-4h
+| where match(type, "(?i)(deauth|spoof|flood|attack)")
+| eval ap_id=coalesce(ap_name, deviceName)
+| stats count as attacks dc(type) as attack_types by ap_id
+| where attacks > 5
+| sort -attacks
+```
 
 ### Step 3 — Validate
-Open the Cisco Meraki Dashboard (organization or network scope, under Monitor as appropriate) and compare AP, client, security, or flow totals to the search for the same window. Spot-check a few device names, SSIDs, or MAC addresses against what you see live.
+(a) Security events are generated by real attacks or Meraki-simulated threats. Review with security team.
+(b) Compare with Meraki Dashboard: Wireless > Monitor > Air Marshal > Security events.
+(c) Test by checking if known security test tools (with proper authorization) generate corresponding events.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Network topology showing link quality; color-coded links; detail table with metrics.
+Dashboard ("Meraki — Wireless Security Events"):
+- Row 1 — Single-value: "Security events (4h)", "Deauth attacks", "MAC spoofing", "Targeted APs".
+- Row 2 — Attack classification table with severity, impact, and targeted APs.
+- Row 3 — Most targeted APs.
+
+Alerting:
+- Critical (deauthentication flood > 50 events in 5 min): active wireless DoS attack — investigate immediately.
+- High (MAC spoofing or EAPOL flood detected): potential credential theft attempt.
+- Warning (security events > 20 in 1 hour): elevated threat activity.
+
+### Step 5 — Troubleshooting
+
+- **Deauth flood alerts but no actual impact** — Some legacy clients generate deauth frames as part of normal roaming. Check if the source MAC belongs to your own infrastructure.
+
+- **False MAC spoofing alerts** — Virtual machines, containers, or devices with randomized MAC addresses can trigger spoofing alerts. Check the source and correlate with known VM/container environments.
+
+- **How to respond to active attack** — (1) Identify the physical location using detecting AP and RSSI, (2) Enable Meraki WIPS containment for the attacking MAC, (3) Conduct physical sweep of the area, (4) Consider enabling 802.11w (Protected Management Frames) which prevents deauth attacks.
 
 ## SPL
 

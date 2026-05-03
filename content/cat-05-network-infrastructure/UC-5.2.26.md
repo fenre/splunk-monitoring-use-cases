@@ -21,7 +21,7 @@ Tracks client VPN usage patterns for remote workers and identifies problematic c
 
 ## Value
 
-Tracks client VPN usage patterns for remote workers and identifies problematic connections.
+Security teams monitor Meraki MX Client VPN connections and authentication failures, detecting brute force attempts and tracking remote access patterns.
 
 ## Implementation
 
@@ -30,65 +30,58 @@ Filter VPN logs for client connections. Track by user and source IP.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=vpn client_vpn=true`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MX Client VPN (AnyConnect or native L2TP) logs. Data in `index=meraki` with `sourcetype=meraki:events`. Key fields: `user`, `client_ip`, `assigned_ip`, `event_type` (connect/disconnect), `duration`.
+* Client VPN: remote access for individual users. Meraki supports AnyConnect (requires licensing) and native L2TP/IPSec. Authentication via Meraki cloud, RADIUS, or Active Directory.
 
-### Step 1 — Configure data collection
-Filter VPN logs for client connections. Track by user and source IP.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Dashboard > Security & SD-WAN > Client VPN
+# Enable Client VPN, configure authentication (RADIUS/AD/Meraki cloud)
+# Syslog > Roles: VPN
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=vpn client_vpn=true
-| stats count as connection_count, avg(duration) as avg_session_length by user_id, src
-| where connection_count > 10
+index=meraki sourcetype="meraki:events" earliest=-24h
+| where match(_raw, "(?i)client.*vpn|anyconnect|l2tp|remote.*access.*vpn|vpn.*connect|vpn.*disconnect")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Client VPN Connections and Remote Access Patterns (Meraki MX)** — Tracks client VPN usage patterns for remote workers and identifies problematic connections.
-
-Documented **Data sources**: `sourcetype=meraki type=vpn client_vpn=true`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by user_id, src** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where connection_count > 10` — typically the threshold or rule expression for this monitoring goal.
-
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Client VPN connection analysis:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Sessions.All_Sessions
-  by All_Sessions.user All_Sessions.src All_Sessions.dest All_Sessions.action span=1h
-| sort -count
+index=meraki sourcetype="meraki:events" earliest=-24h
+| where match(_raw, "(?i)client.*vpn|anyconnect|l2tp|vpn.*(connect|disconnect|auth)")
+| eval vpn_event=case(match(_raw, "(?i)connect(?!.*dis)|established|logged.in|auth.*success"), "CONNECT", match(_raw, "(?i)disconnect|terminated|logged.out|session.*end"), "DISCONNECT", match(_raw, "(?i)auth.*fail|denied|reject"), "AUTH_FAILURE", 1==1, "OTHER")
+| eval usr=coalesce(user, username, src_user)
+| eval client_ip=coalesce(src, src_ip, client_ip)
+| stats count as events count(eval(vpn_event="CONNECT")) as connects count(eval(vpn_event="DISCONNECT")) as disconnects count(eval(vpn_event="AUTH_FAILURE")) as auth_failures by usr, client_ip
+| eval severity=case(auth_failures > 10, "HIGH -- multiple VPN auth failures for ".usr, auth_failures > 3 AND connects > 0, "WARNING -- auth failures followed by success", 1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -auth_failures
 ```
 
-Understanding this CIM / accelerated SPL
+### Step 3 — - Validate
+(a) Dashboard: Security & SD-WAN > Client VPN -- active connections and users.
+(b) Attempt a failed VPN login and verify auth_failure appears.
+(c) Compare active VPN sessions with Dashboard.
 
-This block uses `tstats` on the Network_Sessions data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MX -- Client VPN"):
+* Row 1 -- Single-value: "Active VPN users", "Connections (24h)", "Auth failures".
+* Row 2 -- Client VPN session table.
 
-**Pipeline walkthrough**
+Alerting:
+* High (> 10 auth failures for single user): brute force attempt.
+* Warning (auth failures then success): possible credential compromise.
 
-- Uses `tstats` against accelerated summaries for the Network_Sessions model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+### Step 5 — - Troubleshooting
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+* **Auth failures** -- Check: (1) RADIUS/AD server reachability from MX, (2) user credentials, (3) RADIUS shared secret matches, (4) user is in the correct AD group for VPN access.
 
+* **VPN connects but no traffic** -- Check: (1) split-tunnel vs full-tunnel configuration, (2) VPN subnet routing, (3) firewall rules allowing VPN subnet.
 
-
-### Step 3 — Validate
-In the Meraki cloud dashboard, use the same organization, network, and time range as the search. Confirm VPN paths, tunnel states, uplinks, and device names you expect there match the Splunk view.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Connected users timeline; session duration histogram; geography map of remote users.
+* **Connection drops after short time** -- Check: (1) idle timeout settings, (2) RADIUS session timeout, (3) WAN uplink instability.
 
 ## SPL
 

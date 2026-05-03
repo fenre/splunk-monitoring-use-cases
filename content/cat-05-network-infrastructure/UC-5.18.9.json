@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.18.9",
+  "title": "Pseudowire (L2VPN) Status Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": ["Availability", "Fault", "Operations"],
+  "splunkPillar": "Observability",
+  "wave": "walk",
+  "dataSources": "Detailed: `index=network`; syslog for pseudowire VC state (`%Pseudowire`, `%L2VPN`, `%AC-*`, Junos `rpd_l2circuit_*`, `rpd_l2vpn_*`, Nokia `svcVpls*`/`sdp-bind*` narratives); SNMP PW-STANDARD-MIB `pwOperStatus`; telemetry VC counters.",
+  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper; SNMP Modular Input for `pwOperStatus`; Nokia SR OS operational logs.",
+  "spl": "index=network earliest=-24h@h latest=now\n| eval msg=lower(_raw)\n| eval pw=match(msg,\"(?:pseudowire|pw.?id|l2circuit|l2vpn|(?:ethernet|virtual.?circuit)|(?:vpws|vpls).*?(?:vc|pseudo|routed.?pseudo)|(?:mpls.?)?(?:xc|cross.?connect).*pw)\")\n| eval bad=match(msg,\"(?:down|standby|(?:not.?)?(?:operational|active)|(?:detach|withdraw)|(?:signal.?)?(?:fail|mismatch)|(?:mtu).*(?:mismatch)|(?:remote.?)?(?:label).*(?:(?:mis)?match)|(?:oam)?(?:alarm)|(?:bd.?status).*?(?:down))\")\n| where pw=1 AND bad=1\n| rex field=_raw max_match=0 \"(?i)(?:vc.?id|vcid|pseudo.?wire.?id)\\s*[:=]?\\s*(?<vc_id>[0-9]+)\"\n| rex field=_raw max_match=0 \"(?i)(?:neighbor|peer)\\s*[:=]?\\s*(?<neighbor>[0-9.]+|[0-9a-f:]+)\"\n| rex field=_raw max_match=0 \"(?i)(?:interface|ac)\\s*[:=]?\\s*(?<ac_if>[^\\s,]+)\"\n| stats count earliest(_time) as first_seen latest(_time) as last_seen values(neighbor) as peers values(ac_if) as ac_ports values(vc_id) as vc_ids by host sourcetype\n| sort - count",
+  "description": "Splunk watches pseudowire attachment circuits and VC signaling so Ethernet wholesale handoffs, mobile backhaul emulations, and VPWS extensions raise alarms when VC IDs drift, MTUs mismatch, or remote labels disappear.",
+  "value": "Business wholesale revenue stays defendable because operations correlates customer-visible Carrier Ethernet outages with precise pseudowire identifiers instead of guessing among dozens of VPN attachment interfaces.",
+  "implementation": "Land PW syslog plus fifteen-minute SNMP polls for `pwOperStatus.down`, join on `vc_id`, enrich with customer circuit IDs via lookup, alert when VC stays non-forwarding > three polling intervals.",
+  "detailedImplementation": "Prerequisites\n• Circuit inventory CSV tying `vc_id`, endpoints, customer VLAN, and handoff port.\n• Known-good MTU template list.\n\nStep 1 — Logging coverage\nCisco ME/ASR families: ensure pseudowire status transitions emit syslog not solely SNMP traps if traps filtered upstream.\n\nStep 2 — SNMP augmentation\nPoll `pwOperStatus`, `pwRemotePwID`, `pwAttachedPwIndex` via SC4SNMP profiles.\n\nStep 3 — SPL correlation\nJoin syslog events within ±300s of SNMP down transitions using `vc_id` key.\n\nStep 4 — CLI validation\n`show l2vpn xconnect`, Junos `show l2circuit connections`, Nokia `show service sdp-using` commands confirm Splunk narrative.\n\nStep 5 — Lifecycle\nQuarterly audit stale VC IDs still alerting—retire suppress entries after migrations.",
+  "visualization": "Dashboard Studio: KPI for down pseudowires; Sankey optional via stats prep; table (`host`, `vc_ids`, `peers`, `ac_ports`, `count`).",
+  "references": [
+    {
+      "title": "Cisco Layer 2 VPNs Configuration Guide — Pseudowire",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/mp_l2_vpns/configuration/xe-16/mp-layer2-xe-16-book/mp-config-layer2-vpns.pdf"
+    },
+    {
+      "title": "Juniper Layer 2 Circuits and VPNs User Guide",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/layer2-vpns/topics/concept/layer-2-circuit-overview.html"
+    },
+    {
+      "title": "IETF RFC 4762 — VPLS Using LDP Signaling",
+      "url": "https://www.rfc-editor.org/rfc/rfc4762"
+    }
+  ],
+  "knownFalsePositives": "**Protective standby:** VC purposely standby during ISSU—suppress via change tag.**SNMP stale indices:** renumber after reboot mis-joins until baseline refresh.**Keyword bleed:** generic \"circuit\" matches unrelated SONET logs—tighten regex.**MTU tuning windows:** planned edits spike alarms—calendar linkage.**Dual-homed PW:** single attachment messages appear alarming though service intact.",
+  "mitreAttack": ["N/A (availability monitoring)"],
+  "securityDomain": "network",
+  "detectionType": "Baseline",
+  "equipment": ["cisco", "juniper"],
+  "equipmentModels": ["cisco_asr_9000", "cisco_asr_1000", "juniper_mx"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We babysit the pretend Ethernet cords stretched across the country inside our pipes. When those cords fray or lose their pairing tags, we ring the bell before wholesale buyers lose phone or cloud links."
+}

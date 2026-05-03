@@ -1,0 +1,58 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.16.6",
+  "title": "Application-Level Optimization Effectiveness (CIFS, HTTP, MAPI)",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "wave": "walk",
+  "dataSources": "Detailed: `index=wanop OR index=network`; application-aware telemetry—SteelHead service stats (`riverbed:steelhead`), EdgeConnect overlay maps (`silverpeak:*`), Citrix SD-WAN WANOP application families (`citrix:sdwan*`), stitched HTTP/ZDX probes (`zscaler:zdx`) when validating SaaS legs alongside optimizers. Fields include `application_protocol`, `latency_before_ms`, `latency_after_ms`, `transaction_reduction_pct`.",
+  "app": "Vendor analytics exports plus Splunk Add-on for Zscaler for complementary SaaS RTT; optional Splunk Stream samples for ground-truth HTTP timings.",
+  "spl": "index=wanop OR index=network earliest=-7d@h latest=now\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"riverbed|steelhead\"),\"Riverbed SteelHead\",match(v,\"silverpeak|edgeconnect\"),\"Silver Peak EdgeConnect\",match(v,\"citrix\"),\"Citrix SD-WAN WANOP\",match(v,\"zdx|zscaler\"),\"Zscaler Digital Experience\",\"other\")\n| where vendor!=\"other\"\n| eval proto=upper(coalesce(application_protocol,app_family,app_name,\"UNKNOWN\"))\n| eval proto_bucket=case(match(proto,\"CIFS|SMB\"),\"SMB/CIFS\",match(proto,\"HTTP|HTTPS\"),\"HTTP/S\",match(proto,\"MAPI|EXCHANGE|OUTLOOK\"),\"MAPI/Exchange\",true(),proto)\n| where proto_bucket IN (\"SMB/CIFS\",\"HTTP/S\",\"MAPI/Exchange\")\n| eval before_ms=tonumber(coalesce(latency_before_ms,rtt_before_ms,app_latency_pre))\n| eval after_ms=tonumber(coalesce(latency_after_ms,rtt_after_ms,app_latency_post))\n| eval delta_ms=if(isnotnull(before_ms) AND isnotnull(after_ms), before_ms-after_ms, null())\n| eval reduction_pct=tonumber(coalesce(data_reduction_pct,byte_reduction_pct,opt_gain_pct))\n| bin _time span=1d\n| stats avg(delta_ms) as avg_latency_gain_ms avg(reduction_pct) as avg_payload_reduction_pct count by _time vendor proto_bucket host\n| sort _time vendor proto_bucket\n| head 500",
+  "description": "Daily Splunk cohorts isolate SMB/CIFS, HTTP/S, and MAPI workloads summarizing measured latency deltas plus payload-reduction percentages per WAN optimizer so application owners judge QoE uplift beyond aggregate WAN graphs.",
+  "value": "Collaboration squads tie noisy SharePoint or Exchange complaints to quantified optimization gains guiding QoS reordering while guiding selective bypass exceptions without dismantling entire policies.",
+  "implementation": "Require uniform millisecond units upstream, maintain lookup translating fuzzy application strings into buckets, publish weekly PDF summarizing top regressors.",
+  "detailedImplementation": "Prerequisites\n• Signed agreement on latency methodology—same sampling intervals across vendors.\n• Governance forbidding PII in application labels forwarded to Splunk.\n• Baseline week captured post-change freeze.\n\nStep 1 — Configure data collection\nEnable granular application breakdown exports hourly max; throttle oversized CSV attachments via scripted parsers.\n\nStep 2 — Create the search and alert\nPromote SPL to summary index `wanopt_app_daily`; alert when seven-day moving average of avg_latency_gain_ms drops below zero for SMB cohort.\n\nStep 3 — Validate\nCross-check random branch using PCAP-derived timings versus Splunk metrics.\n\nStep 4 — Operationalize\nEmbed cohort charts inside Teams subscriptions referencing CIO KPI decks.\n\nStep 5 — Troubleshooting\n**Sparse MAPI samples:** enlarge bin span.**HTTP multiplexing:** CDNs distort latency—tag SaaS vs DC-hosted workloads.**Vendor renaming:** update lookup quarterly.",
+  "visualization": "Small multiples line charts per proto_bucket with dual axis latency gain vs reduction_pct.",
+  "references": [
+    {
+      "title": "Splunk Documentation — Bin command for time spans",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Bin"
+    },
+    {
+      "title": "Aruba EdgeConnect Application Identification Overview",
+      "url": "https://www.arubanetworks.com/techdocs/EdgeConnect-Premier-orchestrator/introduction/about-this-guide/"
+    }
+  ],
+  "knownFalsePositives": "**Local breakout:** HTTP workloads never traverse WANOP yield neutral deltas.**MAPI over HTTPS:** classification overlaps inflate counts.**Citrix HDX inside tunnels:** nested encapsulation mislabels outer latency.**Seasonal tax workloads:** predictable spikes resemble regressions.",
+  "mitreAttack": [
+    "N/A (application performance monitoring)"
+  ],
+  "securityDomain": "network",
+  "equipment": [
+    "riverbed",
+    "silverpeak",
+    "citrix",
+    "zscaler"
+  ],
+  "equipmentModels": [
+    "riverbed_steelhead",
+    "silverpeak_edgeconnect",
+    "citrix_sdwan_wanop",
+    "zscaler_zdx"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We slice traffic into everyday chores like file sharing, web browsing, and mail to see whether the speed helpers really shorten waits for those chores. That way bosses hear facts instead of guessing why one app feels slow.",
+  "detectionType": "Baseline"
+}

@@ -21,7 +21,7 @@ Citrix ADC Web Application Firewall inspects HTTP traffic for common attacks (SQ
 
 ## Value
 
-Citrix ADC Web Application Firewall inspects HTTP traffic for common attacks (SQL injection, cross-site scripting, JSON/XML threats) and policy violations. Spikes in violations, or critical signatures firing in enforcement mode, indicate active attacks or misconfigured applications. Distinguishing learning mode noise from enforcement blocks, and monitoring geographic blocks, keeps incident response focused and reduces false positives.
+Security teams analyze Citrix ADC Application Firewall violations by attack category (SQLi, XSS, buffer overflow, data leak), identifying unblocked critical violations and targeted attacks.
 
 ## Implementation
 
@@ -30,45 +30,58 @@ Send WAF log profile output to syslog and index as `citrix:netscaler:syslog`. Pa
 ## Detailed Implementation
 
 ### Prerequisites
-- Splunk_TA_citrix-netscaler with WAF-relevant syslog in `index=netscaler`.
-- WAF log profile bound to vservers; consistent timestamp and severity.
-- Field extractions for violation and policy names (or rely on `rex` in the search for first rollout).
+* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). Citrix ADC Application Firewall (AppFW/WAF) logs in `index=netscaler` with `sourcetype=citrix:netscaler:syslog` or `sourcetype=citrix:netscaler:appfw`. Key fields: `appfw_violation`, `severity`, `source_ip`, `url`, `action` (block/log/transform), `signature_id`, `violation_category`.
+* Citrix ADC AppFW protections: SQL injection, XSS, buffer overflow, cookie tampering, form field consistency, credit card/SSN protection, XML DoS, JSON DoS, signature-based detection.
 
-### Step 1 — Configure data collection
-On the ADC, enable logging for the WAF profile: violations, learn vs block decisions, and geo policy hits if used. Forward to Splunk. Avoid logging full request bodies in production if policy forbids; hash or truncate as required.
-
-### Step 2 — Create the search and alert
-Run the SPL. Alert on sustained elevation above baseline, or on any critical OWASP category in enforcement from sensitive apps. Add suppressions for learning-only noise where appropriate. Integrate with your incident queue for critical spikes.
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+### Step 1 — - Configure data collection
+Enable AppFW logging:
+```
+set appfw settings -logEveryPolicyHit ON
+add audit syslogAction appfw_log <splunk_ip> -logLevel ALL
+set appfw profile <profile> -logEveryPolicyHit ON
+```
+Verify:
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Intrusion_Detection.IDS_Attacks
-  by IDS_Attacks.signature IDS_Attacks.severity IDS_Attacks.src IDS_Attacks.dest span=1h
-| where count>0
-| sort -count
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:appfw") ("APPFW" OR "AppFirewall" OR "violation") earliest=-4h
+| stats count by appfw_violation, action
 ```
 
-Understanding this CIM / accelerated SPL
+### Step 2 — - Create the search and alert
 
-This block uses `tstats` on the Intrusion_Detection data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+**Primary search -- WAF violation analysis:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:appfw") ("APPFW" OR "AppFirewall" OR "violation" OR "appfw_") earliest=-4h
+| eval violation=coalesce(appfw_violation, violation_type, violation_category)
+| eval act=coalesce(action, enforcement_action)
+| eval src=coalesce(source_ip, client_ip)
+| eval attack_class=case(match(violation, "(?i)sql"), "SQL_INJECTION", match(violation, "(?i)xss|cross.site"), "XSS", match(violation, "(?i)buffer|overflow"), "BUFFER_OVERFLOW", match(violation, "(?i)cookie"), "COOKIE_TAMPERING", match(violation, "(?i)field|form"), "FORM_MANIPULATION", match(violation, "(?i)credit.card|ssn"), "DATA_LEAK", match(violation, "(?i)signature"), "SIGNATURE_MATCH", 1==1, "OTHER")
+| stats count as violations dc(src) as unique_sources values(url) as target_urls by attack_class, act, severity
+| eval risk=case(act!="block" AND severity="CRITICAL", "HIGH RISK -- critical violation NOT blocked", act="block" AND violations > 100, "ACTIVE DEFENSE -- blocking attack", violations > 50, "ELEVATED -- high violation volume", 1==1, "INFO")
+| sort risk, -violations
+```
 
-**Pipeline walkthrough**
+### Step 3 — - Validate
+(a) Send a test SQLi payload and verify the violation appears (e.g., `curl "https://app/?id=1 OR 1=1"`).
+(b) On ADC CLI: `stat appfw profile <profile>` -- compare violation counts.
+(c) Verify blocking vs logging mode: `show appfw profile <profile>` for each protection.
 
-- Uses `tstats` against accelerated summaries for the Intrusion_Detection model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+### Step 4 — - Operationalize
+Dashboard ("Citrix ADC -- WAF"):
+* Row 1 -- Single-value: "Total violations", "Blocked", "Logged only", "Critical unblocked".
+* Row 2 -- Attack classification with action and risk.
+* Row 3 -- Top attacking IPs.
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+Alerting:
+* Critical (critical violation NOT blocked): WAF in learn/log mode -- review.
+* High (> 100 violations from single IP in 15 min): targeted attack.
 
+### Step 5 — - Troubleshooting
 
+* **False positives** -- AppFW may flag legitimate requests. Check the learning engine: `show appfw learningdata <profile>`. Accept legitimate patterns to reduce false positives.
 
-### Step 3 — Validate
-Compare vservers, services, and load-balancing state in the Citrix ADC management view or command line for the same time window and objects.
-### Step 4 — Operationalize
-Dashboard for SecOps, weekly digest for App owners, and runbook steps for false positive tuning ( relax rule, add exception, or fix application).
+* **Violations logged but not blocked** -- Profile is in "log" mode. To block: `set appfw profile <profile> -SQLInjectionAction block log stats`.
+
+* **Signature-based violations** -- Update signatures: `update appfw signatures`. Signatures are separate from the AppFW profile.
 
 ## SPL
 

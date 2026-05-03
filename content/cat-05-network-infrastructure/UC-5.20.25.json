@@ -1,0 +1,59 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.25",
+  "title": "NDP Redirect Message Monitoring",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=corelight_zeek` containing ICMPv6 Type 137 (Redirect) messages. NDP Redirects tell hosts that a better next-hop exists for a specific destination — the host should send future packets to the indicated neighbour instead of the current router. RFC 4861 §8 defines Redirect message processing.\n\nRedirects are legitimate in multi-router VLANs where one router is the default gateway but another is closer to the destination. However, attackers can forge Redirect messages to redirect traffic through a malicious host (man-in-the-middle). The THC-IPv6 `redir6` tool automates this attack.\n\nOn well-designed networks with VRRP/HSRP and proper routing, Redirects should be extremely rare. A high Redirect rate or Redirects from non-router sources are strong anomaly indicators.\n\nCisco IOS generates `%IPV6_ND-6-REDIRECT` or logs ICMPv6 Type 137 via ACL logging. Zeek logs Redirect messages in its ICMPv6 analysis.",
+  "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812). Zeek (`corelight_zeek`) for ICMPv6 Type 137 decode.",
+  "spl": "index=network (sourcetype=\"cisco:ios\" \"%IPV6_ND\" \"REDIRECT\")\n  OR (sourcetype=\"corelight_zeek\" icmpv6_type=137)\n| stats count as redirect_count values(src_ip) as sources values(dest_ip) as targets by host, vlan\n| where redirect_count > 0\n| eval assessment=case(\n    redirect_count > 50, \"WARNING — excessive redirects, possible attack\",\n    redirect_count > 10, \"INFO — elevated redirect rate\",\n    1=1, \"LOW — occasional redirects\")\n| sort -redirect_count",
+  "description": "Monitors ICMPv6 Type 137 Redirect messages on the network. Redirects are intended to optimise routing by telling a host to use a different next-hop for a specific destination, but they can be exploited for man-in-the-middle attacks. An attacker sends a forged Redirect message claiming that traffic to a target destination should be sent through the attacker's link-local address instead of the legitimate router. Unlike IPv4 ICMP Redirects (which are commonly disabled), IPv6 Redirects are processed by default on most operating systems and are harder to disable without breaking legitimate NDP. This use case monitors the rate and source of Redirect messages to detect both misconfiguration (excessive redirects indicating suboptimal routing) and attacks (redirects from non-router sources).",
+  "value": "IPv6 Redirect attacks are often overlooked because many network engineers assume that Redirect behaviour is the same as in IPv4. In IPv6, Redirect processing is enabled by default on all major operating systems (Windows, Linux, macOS) and cannot be disabled as easily as IPv4 ICMP Redirect rejection. An attacker on the same VLAN can redirect specific traffic flows (e.g., DNS queries, authentication traffic) through their own host without being the default gateway — making the attack stealthier than rogue RA attacks. Monitoring Redirect messages provides detection for this class of attack and also identifies routing misconfigurations where Redirects indicate suboptimal default gateway placement.",
+  "implementation": "Monitor ICMPv6 Type 137 messages via Zeek (network TAP) or router syslog. Maintain a whitelist of legitimate Redirect sources (routers only). Alert on Redirects from non-router sources, excessive Redirect rates, or Redirects targeting critical destinations (DNS, authentication servers).",
+  "visualization": "(1) Timechart: Redirect messages over time — should be near-zero on well-designed networks. (2) Table: Redirect details — source, target destination, better next-hop. (3) Single-value: total Redirects in 24 hours. (4) Alert panel: Redirects from non-router sources.",
+  "references": [
+    {
+      "title": "RFC 4861 — Neighbor Discovery for IP version 6 (§8 — Redirect Function)",
+      "url": "https://www.rfc-editor.org/rfc/rfc4861"
+    },
+    {
+      "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.3 — Redirect security implications)",
+      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+    },
+    {
+      "title": "THC-IPv6 Attack Toolkit — redir6 redirect attack tool",
+      "url": "https://github.com/vanhauser-thc/thc-ipv6"
+    }
+  ],
+  "knownFalsePositives": "**Multi-router VLAN with asymmetric routing.** When a VLAN has two routers and the default gateway is not the optimal next-hop for certain destinations, the default gateway sends Redirects to hosts for those specific destinations. This is legitimate NDP behaviour. Verify by checking if the Redirect sources are known router IPs and the 'better next-hop' is also a known router.\n\n**Router reboot or VRRP transition.** During a transition, the new active router may send Redirects for destinations that the old active was directly handling. This is transient.\n\n**Static routes on hosts.** Hosts with static IPv6 routes to non-default-gateway routers will trigger Redirects from the default gateway pointing to the correct next-hop. This is by design.",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "arista"
+  ],
+  "equipmentModels": [
+    "cisco_ios",
+    "cisco_iosxe",
+    "cisco_nxos",
+    "juniper_junos",
+    "arista_eos"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Zeek or Suricata deployed on network TAP/SPAN for ICMPv6 Type 137 monitoring.\n• A whitelist of legitimate router link-local addresses per VLAN.\n• Understanding of intended routing topology: single-router VLANs should have zero Redirects; multi-router VLANs may have occasional legitimate Redirects.\n\nStep 1 — Configure data collection\n\n**Zeek (primary):**\nZeek decodes ICMPv6 Type 137 and logs: source IP, destination IP (host being redirected), target address (better next-hop), and destination address (the destination being redirected). Forward to Splunk with `sourcetype=corelight_zeek`.\n\n**Cisco IOS syslog (complementary):**\nEnable IPv6 ND redirect logging:\n```\ninterface Vlan100\n ipv6 redirects\n```\nRedirects generate `%IPV6_ND-6-REDIRECT` syslog events.\n\nTo disable Redirects on interfaces where they should not occur (single-router VLANs):\n```\ninterface Vlan100\n no ipv6 redirects\n```\n\n**On hosts (Linux — disable Redirect acceptance for security):**\n```bash\nsysctl -w net.ipv6.conf.all.accept_redirects=0\nsysctl -w net.ipv6.conf.default.accept_redirects=0\n```\n\n**Verification:**\n```spl\nindex=network (sourcetype=\"corelight_zeek\" icmpv6_type=137) OR (sourcetype=\"cisco:ios\" \"REDIRECT\" \"IPV6_ND\") earliest=-7d\n| stats count\n```\n\nStep 2 — Create the search and alert\n\n**Primary search — Redirect monitoring:**\n```spl\nindex=network (sourcetype=\"corelight_zeek\" icmpv6_type=137)\n  OR (sourcetype=\"cisco:ios\" \"%IPV6_ND\" \"REDIRECT\")\n  earliest=-24h\n| rex field=_raw \"src[= ]+(?<redirect_source>[0-9a-fA-F:]+)\"\n| rex field=_raw \"target[= ]+(?<better_nexthop>[0-9a-fA-F:]+)\"\n| rex field=_raw \"dest[= ]+(?<redirected_dest>[0-9a-fA-F:]+)\"\n| lookup ipv6_authorised_routers.csv link_local_ip as redirect_source OUTPUT authorised\n| eval from_router=if(authorised=\"true\", \"YES\", \"NO\")\n| eval severity=case(\n    from_router=\"NO\", \"CRITICAL — Redirect from non-router source\",\n    1=1, \"INFO — Redirect from known router\")\n| stats count as redirect_count by redirect_source, from_router, severity, better_nexthop\n| sort -severity, -redirect_count\n```\n\n**Alert — Redirect from non-router source (probable attack):**\n```spl\nindex=network (sourcetype=\"corelight_zeek\" icmpv6_type=137) earliest=-15m\n| rex field=_raw \"src[= ]+(?<redirect_source>[0-9a-fA-F:]+)\"\n| lookup ipv6_authorised_routers.csv link_local_ip as redirect_source OUTPUT authorised\n| where isnull(authorised) OR authorised!=\"true\"\n```\nTrigger: any result. Priority: CRITICAL. A Redirect from a non-router source is a strong indicator of a man-in-the-middle attack.\n\nStep 3 — Validate\n(a) **Zero-Redirect baseline.** On single-router VLANs, verify zero Redirect events over 7 days. Any Redirect on a single-router VLAN is either a misconfiguration or an attack.\n\n(b) **Legitimate Redirect test.** On a multi-router VLAN, send traffic to a destination reachable via a non-default-gateway router. The default gateway should send a Redirect pointing to the better next-hop. Verify the event appears in Splunk with `from_router=YES`.\n\n(c) **Whitelist validation.** Confirm all legitimate routers are in the `ipv6_authorised_routers.csv` lookup.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — NDP Redirect Monitoring\"):\n• Row 1 — Single-value: total Redirects (24h), Redirects from non-router sources.\n• Row 2 — Table: Redirect details with source, better-nexthop, severity, router verification.\n• Row 3 — Timechart: Redirect rate over time — spikes indicate either attack or routing change.\n\n**Scheduling:** Real-time alert for non-router Redirects. Hourly rate check.\n\n**Runbook:**\n1. CRITICAL — Redirect from non-router: locate the source MAC on the switch (`show mac address-table address <mac>`), shut the port, investigate.\n2. INFO — excessive Redirects from router: review routing topology — is the default gateway placement optimal? If not, add a second VRRP group or adjust routing.\n\nStep 5 — Troubleshooting\n\n• **No Redirect events visible** — Redirects are relatively rare on well-designed networks. If your network has single-router VLANs with VRRP/HSRP, Redirects should be genuinely absent. Verify Zeek is capturing ICMPv6 on the correct SPAN port.\n\n• **Redirects disabled on router** — `no ipv6 redirects` on the interface prevents the router from sending Redirects. This is a common hardening recommendation but means you lose the optimisation benefit on multi-router VLANs.\n\n• **Hosts ignoring Redirects** — Some hosts (hardened Linux, security-focused OS configurations) have `accept_redirects=0`, meaning they ignore Redirects. The Redirect is still sent by the router/attacker and logged by Zeek, but it has no effect on the host.",
+  "grandmaExplanation": "Sometimes a router says, 'Actually, your neighbour across the street can deliver that package faster than I can — go through them instead.' This is usually helpful, but a bad actor could trick your computer into sending everything through them. We watch for these redirections, especially when they come from someone who is not actually a router.",
+  "prerequisiteUseCases": [
+    "5.20.21"
+  ],
+  "wave": "walk"
+}

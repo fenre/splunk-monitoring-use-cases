@@ -1,0 +1,59 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.112",
+  "title": "IPv6 Address Scan and Reconnaissance Detection (RFC 7707)",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "ES",
+  "dataSources": "`index=network sourcetype=zeek:conn` or `sourcetype=paloalto:traffic` or `sourcetype=cisco:ftd` — Detects IPv6 address scanning and reconnaissance techniques described in RFC 7707. The 2^64 host portion of IPv6 addresses makes brute-force scanning impractical, so attackers use smart scanning techniques that target predictable address patterns.\n\n**IPv6 reconnaissance techniques (RFC 7707):**\n\n1. **Low-byte scanning.** Scanning ::1 through ::ff in each /64. Many administrators assign low-byte addresses (::1, ::2, ::3) to servers and routers. This yields results quickly.\n2. **Wordlist scanning.** Targeting common words embedded in hex: ::dead, ::beef, ::cafe, ::bad, ::face. Administrators often use memorable hex words in IPv6 addresses.\n3. **EUI-64 pattern scanning.** If a known vendor OUI (e.g., Cisco = 00:1A:A1) is identified, the attacker can predict the SLAAC address by inserting fffe in the middle.\n4. **DNS reverse scanning.** Querying PTR records for addresses in a /64 to find hosts with DNS entries.\n5. **NDP-based scanning.** Sending Neighbor Solicitations for sequential addresses to discover which hosts exist on a local segment.\n6. **Service-based discovery.** Querying well-known multicast addresses (ff02::1 all-nodes, ff02::2 all-routers) to discover active hosts.\n7. **IPv4-derived scanning.** If the IPv6 address embeds the IPv4 address (e.g., ::ffff:10.1.1.1 or 2001:db8::10.1.1.1), the attacker can derive IPv6 targets from known IPv4 addresses.",
+  "app": "Splunk Enterprise Security / Zeek TA",
+  "spl": "index=network (sourcetype=\"zeek:conn\" OR sourcetype=\"paloalto:traffic\" OR sourcetype=\"cisco:ftd\") earliest=-24h\n| eval is_ipv6=if(match(dest, \":\"), 1, 0)\n| where is_ipv6=1\n| eval scan_pattern=case(\n    match(dest, \"::[0-9a-fA-F]{1,2}$\"), \"LOW_BYTE — targeting ::1 through ::ff\",\n    match(dest, \"::(dead|beef|cafe|bad|face|babe|feed|c0de|d00d|f00d)\"), \"WORDLIST — targeting memorable hex words\",\n    match(dest, \":[Ff][Ff][Ff][Ee]:\"), \"EUI64_PATTERN — targeting SLAAC addresses with known OUI\",\n    match(dest, \"::ffff:\"), \"IPV4_MAPPED — targeting IPv4-mapped addresses\",\n    1=1, null())\n| where isnotnull(scan_pattern)\n| stats dc(dest) as unique_targets count as probes first(_time) as first last(_time) as last by src, scan_pattern\n| where unique_targets > 10\n| eval scan_rate=round(probes / ((last - first) / 60 + 1), 1)\n| eval severity=case(\n    unique_targets > 100, \"CRITICAL — large-scale IPv6 scan (\" . unique_targets . \" targets) using \" . scan_pattern,\n    unique_targets > 50, \"HIGH — significant scanning activity\",\n    unique_targets > 10, \"MEDIUM — possible reconnaissance\",\n    1=1, \"LOW\")\n| sort -unique_targets",
+  "description": "Detects IPv6 address scanning and reconnaissance using techniques described in RFC 7707: low-byte scanning (::1 through ::ff), wordlist scanning (::dead, ::beef, ::cafe), EUI-64 pattern scanning, and IPv4-derived address scanning. Because the IPv6 address space is too large for brute-force scanning, attackers must use these predictable-pattern techniques, which are highly detectable.",
+  "value": "IPv6 scanning is the first step in most IPv6 attacks. Detecting scanning early provides an opportunity to block the attacker before they find exploitable targets. The predictable patterns used in IPv6 scanning (low-byte, wordlist, EUI-64) create reliable detection signatures. This UC turns the IPv6 address space's inherent unpredictability into a defensive advantage — any scanning pattern is visible because there is so little legitimate sequential access.",
+  "implementation": "Monitor destination address patterns in IPv6 traffic. Flag connections to predictable address patterns (low-byte, wordlist, EUI-64). Alert when a single source targets many addresses matching scan patterns.",
+  "visualization": "(1) Table: scanning sources with technique classification. (2) Timechart: scan events over time. (3) Pie chart: scan technique distribution. (4) Map: geographic source of scans.",
+  "references": [
+    {
+      "title": "RFC 7707 — Network Reconnaissance in IPv6 Networks",
+      "url": "https://www.rfc-editor.org/rfc/rfc7707"
+    },
+    {
+      "title": "RFC 7721 — Security and Privacy Considerations for IPv6 Address Generation Mechanisms",
+      "url": "https://www.rfc-editor.org/rfc/rfc7721"
+    },
+    {
+      "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§3 — reconnaissance)",
+      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+    }
+  ],
+  "knownFalsePositives": "**Legitimate low-byte addresses.** Many networks use low-byte addresses (::1, ::2, ::3) for infrastructure devices. A monitoring system probing these addresses (SNMP, ping sweeps) will match the low-byte pattern. Exclude known monitoring sources.\n\n**DNS PTR crawlers.** Some legitimate services (search engines, CDNs) query PTR records for reverse DNS. This matches the DNS reverse scanning pattern but is typically benign.\n\n**Link-local multicast.** NDP uses solicited-node multicast (ff02::1:ffXX:XXXX) which appears as sequential address access. This is normal NDP operation, not scanning.",
+  "equipment": [
+    "zeek",
+    "paloalto",
+    "cisco",
+    "suricata"
+  ],
+  "equipmentModels": [
+    "zeek_sensor",
+    "paloalto_pa",
+    "cisco_ftd",
+    "suricata_ids"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Zeek or Suricata sensor on perimeter or key segments.\n• Firewall deny logs captured in Splunk.\n\nStep 1 — Configure data collection\n\nZeek's `conn.log` captures all IPv6 connection attempts, including failed ones. Firewall deny logs from Palo Alto, Cisco FTD, or ASA capture connection attempts to non-existent hosts.\n\nNo special configuration is needed — the analysis is performed entirely in SPL on existing connection/firewall log data.\n\n**For enhanced detection, enable Zeek's scan detection:**\n```zeek\n@load policy/misc/scan\nredef Scan::addr_scan_interval = 5min;\nredef Scan::addr_scan_threshold = 25;\n```\n\nStep 2 — Create detection searches\n\n**Comprehensive IPv6 scan detection:**\n```spl\nindex=network (sourcetype=\"zeek:conn\" OR sourcetype=\"paloalto:traffic\") earliest=-24h\n| eval is_ipv6_dest=if(match(dest, \":\"), 1, 0)\n| where is_ipv6_dest=1\n| eval host_part=replace(dest, \"^[0-9a-fA-F:]+::?\", \"\")\n| eval technique=case(\n    match(host_part, \"^[0-9a-fA-F]{1,2}$\"), \"low-byte\",\n    match(host_part, \"(?i)(dead|beef|cafe|bad|face|babe|feed|c0de|d00d|f00d)\"), \"wordlist\",\n    match(dest, \"[Ff][Ff][Ff][Ee]\"), \"eui64-pattern\",\n    match(dest, \"::ffff:\"), \"ipv4-mapped\",\n    match(host_part, \"^[0-9]+$\") AND tonumber(host_part) < 1000, \"sequential-decimal\",\n    1=1, \"other\")\n| where technique != \"other\"\n| stats dc(dest) as targets count as probes values(technique) as techniques by src\n| where targets > 15\n| eval risk=case(\n    targets > 100, \"CRITICAL\",\n    targets > 50, \"HIGH\",\n    targets > 15, \"MEDIUM\")\n| sort -targets\n```\n\n**DNS-based reconnaissance detection:**\n```spl\nindex=dns sourcetype=\"zeek:dns\" earliest=-24h\n  qtype=12\n| eval is_ipv6_ptr=if(match(query, \"ip6.arpa\"), 1, 0)\n| where is_ipv6_ptr=1\n| stats dc(query) as ptr_queries count as total by id_orig_h\n| where ptr_queries > 50\n| eval alert=\"DNS reverse scanning — \" . id_orig_h . \" queried \" . ptr_queries . \" unique IPv6 PTR records\"\n```\n\nStep 3 — Validate\n(a) **Controlled scan test.** From a test host, use `nmap -6 --script targets-ipv6-wordlist <target-network>` to trigger wordlist-based scanning. Verify the detection fires.\n\n(b) **Low-byte scan test.** Scan ::1 through ::20 in a test /64: `for i in $(seq 1 32); do ping6 -c 1 2001:db8:test::$(printf '%x' $i); done`. Verify detection.\n\n(c) **False positive check.** Verify that legitimate monitoring tools (SNMP poller, Nagios) targeting low-byte infrastructure addresses are excluded or documented.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — Reconnaissance Detection\"):\n• Row 1 — Single-values: active scanners, scan events (24h).\n• Row 2 — Table: scanning sources with techniques and target counts.\n• Row 3 — Timechart: scan events over time.\n• Row 4 — Pie chart: scanning technique distribution.\n\n**Alert:** Any source targeting >50 unique IPv6 addresses matching scan patterns — high. Investigate and block.\n\n**ES correlation rule:**\n```spl\n| tstats count dc(All_Traffic.dest) as targets from datamodel=Network_Traffic where All_Traffic.dest=\"*:*\" by All_Traffic.src\n| where targets > 50\n| rename All_Traffic.src as src\n```\n\nStep 5 — Troubleshooting\n\n• **High false positive rate.** If legitimate monitoring generates many matches, create an exclusion lookup for known monitoring sources and subnets.\n\n• **Scan from internal hosts.** Internal scanning may indicate a compromised host performing lateral movement. Treat internal IPv6 scanning with the same urgency as external scanning.\n\n• **Slow scanning.** Sophisticated attackers scan slowly (one probe per minute) to avoid detection. Lower the threshold for long-duration analysis (e.g., 24-hour window with threshold of 25 unique targets instead of 15 per hour).",
+  "grandmaExplanation": "The new address system (IPv6) gives every network neighbourhood trillions of possible house numbers, so a burglar can't just try every door. Instead, they try clever patterns — like houses numbered 1, 2, 3 (low-byte), or houses with funny numbers like DEAD and BEEF (wordlist). We watch for someone methodically trying these patterns, which tells us a burglar is casing the neighbourhood before attempting a break-in.",
+  "prerequisiteUseCases": [
+    "5.20.1",
+    "5.20.62"
+  ],
+  "wave": "walk"
+}

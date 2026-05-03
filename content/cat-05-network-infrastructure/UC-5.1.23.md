@@ -17,11 +17,11 @@ splunkPillar: "Observability"
 
 ## Description
 
-Gateway redundancy state changes impact all hosts on a subnet. Detecting unexpected failovers prevents prolonged outages.
+Gateway redundancy state changes impact all hosts on a subnet. Detecting unexpected failovers prevents prolonged outages. VRRPv3 (RFC 5798) supports IPv4 and IPv6 in one protocol; HSRPv2 also adds IPv6 — validate both families where deployed.
 
 ## Value
 
-Gateway redundancy state changes impact all hosts on a subnet. Detecting unexpected failovers prevents prolonged outages.
+NOC teams track HSRP/VRRP state changes to detect default gateway failover events and flapping, ensuring first-hop redundancy remains stable for client connectivity.
 
 ## Implementation
 
@@ -30,45 +30,71 @@ Enable HSRP/VRRP syslog notifications. Alert on Active/Master transitions. Corre
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=cisco:ios`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* HSRP (Hot Standby Router Protocol) and VRRP (Virtual Router Redundancy Protocol) state change syslog messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco HSRP `%HSRP-5-STATECHANGE`; VRRP `%VRRP-6-STATECHANGE`.
+* HSRP/VRRP: provides default gateway redundancy. Two routers share a virtual IP. One is Active/Master, other is Standby/Backup. State changes indicate failover events -- planned (priority change, preemption) or unplanned (active router failure).
 
-### Step 1 — Configure data collection
-Enable HSRP/VRRP syslog notifications. Alert on Active/Master transitions. Correlate with interface or device failures to validate failover cause.
+### Step 1 — - Configure data collection
+```
+# Cisco IOS -- HSRP/VRRP state changes are logged automatically
+# HSRP:
+interface Vlan100
+ standby 1 ip 10.0.100.1
+ standby 1 priority 110
+ standby 1 preempt
+ standby 1 track GigabitEthernet0/1
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Syslog is automatic for state changes
+```
+Verify:
 ```spl
-index=network sourcetype="cisco:ios" "%HSRP-5-STATECHANGE" OR "%VRRP-6-STATECHANGE"
-| rex "Grp (?<group>\d+) state (?<old_state>\w+) -> (?<new_state>\w+)"
-| where new_state="Active" OR new_state="Master"
-| stats count by host, group, old_state, new_state | sort -_time
+index=network earliest=-30d
+| where match(_raw, "(?i)HSRP.*STATE|VRRP.*STATE|standby.*state|vrrp.*master|vrrp.*backup")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**HSRP/VRRP State Changes** — Gateway redundancy state changes impact all hosts on a subnet. Detecting unexpected failovers prevents prolonged outages.
+**Primary search -- HSRP/VRRP state change tracking:**
+```spl
+index=network earliest=-30d
+| where match(_raw, "(?i)HSRP.*STATE|VRRP.*STATE|standby.*state|vrrp.*transition")
+| rex field=_raw "(?i)(?:group|Group)\s+(?<group_id>\d+)"
+| rex field=_raw "(?i)(?:interface|Interface|Vlan)\s*(?<vlan_intf>\S+)"
+| rex field=_raw "(?i)state\s+(?<old_state>\w+)\s+->\s+(?<new_state>\w+)"
+| eval device=coalesce(host, device_name)
+| eval new_state=lower(coalesce(new_state, if(match(_raw, "(?i)active|master"), "active", "standby")))
+| eval protocol=if(match(_raw, "(?i)HSRP"), "HSRP", "VRRP")
+| sort device, group_id, _time
+| stats count as events count(eval(new_state="active" OR new_state="master")) as became_active count(eval(new_state="standby" OR new_state="backup")) as became_standby latest(new_state) as current_state by device, protocol, group_id, vlan_intf
+| eval severity=case(
+    events > 4, "WARNING -- ".protocol." group ".group_id." flapping",
+    became_active > 0 AND became_standby > 0, "INFO -- ".protocol." failover and recovery occurred",
+    1==1, "INFO")
+| where severity != "INFO" OR events > 1
+| sort severity, -events
+```
 
-Documented **Data sources**: `sourcetype=cisco:ios`. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show standby brief` (HSRP) or `show vrrp brief` (VRRP) -- current states.
+(b) CLI: `show standby` -- detailed group info including priority and preempt.
+(c) Verify tracking objects: `show track brief`.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- Gateway Redundancy"):
+* Row 1 -- Single-value: "State changes (30d)", "Groups flapping".
+* Row 2 -- HSRP/VRRP state change timeline.
 
-**Pipeline walkthrough**
+Alert: Warning (HSRP/VRRP group flapping): gateway instability affecting clients.
 
-- Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- Filters the current rows with `where new_state="Active" OR new_state="Master"` — typically the threshold or rule expression for this monitoring goal.
-- `stats` rolls up events into metrics; results are split **by host, group, old_state, new_state** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **Unexpected failover** -- Check tracking objects: interface tracking may have triggered priority decrease. Verify: `show track` and correlate with interface down events (UC-5.1.1).
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Flapping between active/standby** -- Both routers have same or similar priority. Ensure clear priority difference and preempt configuration. Check: timer mismatch between peers.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (state changes), Table (group, host, transition), Alert panel.
+* **Both routers in standby** -- Neither assumes active role. Check: group IP configuration matches on both. Verify: HSRP/VRRP multicast (224.0.0.2 / 224.0.0.18) is not blocked by ACL.
+
+**IPv6 Coverage:** VRRPv3 (RFC 5798) supports both IPv4 and IPv6. HSRP version 2 also supports IPv6. VRRPv3 uses FF02::12 multicast and link-local VIP addressing. Validate with `show vrrp ipv6 brief`. Verify FF02::12 is not blocked by ACLs.
 
 ## SPL
 

@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.18.7",
+  "title": "MPLS OAM / LSP Ping and Traceroute Failures",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": ["Fault", "Availability", "Operations"],
+  "splunkPillar": "Observability",
+  "wave": "walk",
+  "dataSources": "Detailed: syslog from proactive OAM scripts (`ping mpls`, `traceroute mpls`, `ping vpws/vpls`), Cisco `%OAM-*`, IOS-XR BFD/SBFD over MPLS logs, Junos `rpm`/`mpls-ping` telemetry hooks, Nokia SR OS eth-cfm / MPLS-TP Y.1731 messages if enabled; synthetic probe JSON via HEC.",
+  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper; custom Universal Forwarder scripted inputs wrapping vendor CLIs (guard credentials via credential store).",
+  "spl": "index=network earliest=-24h@h latest=now\n| eval msg=lower(_raw)\n| eval oam=match(msg,\"(?:lsp.?ping|mpls.?ping|mpls.?trace|traceroute.?mpls|oam|bfd.*(?:mpls|lsp)|sbfd.*(?:discriminator|mpls)|mpls.?tp|y\\.1731|eth.?cfm|cv.?cc)\")\n| eval fail=match(msg,\"(?:fail|timeout|no.?reply|rtt.*(?:exceed|miss)|loss.*(?:100|[89][0-9])|malformed|misconnected|(?:down|alarm).*mpls)\")\n| where oam=1 AND fail=1\n| rex field=_raw max_match=0 \"(?i)(?:fec|prefix)\\s*[:=]?\\s*(?<fec>[0-9./:]+)\"\n| rex field=_raw max_match=0 \"(?i)(?:tunnel|lsp)\\s*[:=]?\\s*(?<lsp_name>[^\\s,]+)\"\n| rex field=_raw max_match=0 \"(?i)(?:router.?id|ingress)\\s*[:=]?\\s*(?<ingress>[0-9.]+|[0-9a-f:]+)\"\n| stats count earliest(_time) as first_seen latest(_time) as last_seen values(fec) as fecs values(lsp_name) as lsps by host sourcetype\n| sort - count",
+  "description": "Splunk aggregates MPLS Operations-and-Management probe failures—from CLI-driven LSP pings to SBFD session drops—so passive syslog silence breaks when proactive validation proves unreachable or mis-forwarded FECs despite seemingly stable RSVP adjacencies.",
+  "value": "Advanced assurance teams shorten stubborn ticket investigations because Splunk timestamps synthetic proof of broken dataplane labels alongside correlated RSVP/LDP neighbor logs instead of relying on subjective CLI screenshots.",
+  "implementation": "Schedule scripted probes every five minutes per critical wholesale pseudowire/FEC list, wrap stderr/stdout as JSON to Splunk, dedupe by FEC hash, alert after three consecutive probe failures.",
+  "detailedImplementation": "Prerequisites\n• Secure credential vault accessible to universal forwarder service account.\n• FEC inventory prioritized by revenue tier.\n\nStep 1 — Probe command baseline\nCisco IOS-XR: `ping mpls ipv4 <fec> repeat 5`; Junos: `ping mpls rsvp <lsp-name> count 5`; Nokia: equivalent `oam` test commands per TIMOS release docs.\n\nStep 2 — Wrapper script\nPython wrapper captures return codes, latency stats, and timestamps; ships via HEC with sourcetype `mpls:oam_probe`.\n\nStep 3 — Splunk transforms\nSet `TIMESTAMP_FIELDS` for JSON `probe_ts`; map `fec`, `lsp_name`, `forwarding equivalence class` identifiers consistently.\n\nStep 4 — Validation\nInduce failure by shutting passive interface in lab—ensure three consecutive failures trigger alert while single jitter drop does not.\n\nStep 5 — Documentation\nPublish operator playbook linking Splunk alert to recommended `traceroute mpls` depth parameters and PE isolation tests.",
+  "visualization": "Dashboard Studio: KPI for failing FECs; timeline colored by severity; map panel keyed by site lookup showing impacted POP pairs.",
+  "references": [
+    {
+      "title": "Cisco IOS XR MPLS OAM Configuration Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/iosxr/cisco8000/mpls/b-mpls-configuration-guide-c8000/mpls-oam.html"
+    },
+    {
+      "title": "Juniper MPLS Applications User Guide — MPLS Ping and Traceroute",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/mpls/topics/example/ip/MPLS-ping-and-traceroute-configuring.html"
+    },
+    {
+      "title": "IETF RFC 6428 — MPLS On-Demand Connectivity Verification",
+      "url": "https://www.rfc-editor.org/rfc/rfc6428"
+    }
+  ],
+  "knownFalsePositives": "**ICMP suppression:** some hops drop TTL-expired replies yet dataplane fine—pair with LFIB checks.**CPU-driven delay:** slow RE spikes RTT—threshold adaptive.**Multi-segment pseudowires:** misconfigured FEC strings cause repetitive noise until inventory corrected.**Scheduler overlap:** cron collisions duplicate failures—dedupe `fec+minute`.**IPv6 vs IPv4 FEC:** mismatched family yields false failure.",
+  "mitreAttack": ["N/A (fault monitoring)"],
+  "securityDomain": "network",
+  "detectionType": "Baseline",
+  "equipment": ["cisco", "juniper"],
+  "equipmentModels": ["cisco_asr_9000", "cisco_asr_1000", "juniper_mx"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We send tiny test postcards along the same hidden tracks big traffic uses. When postcards bounce or vanish, we know the track is cracked even if the loudspeaker still says everything is fine."
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.126",
+  "title": "IPv6 OSPFv3 Authentication and LSA Integrity Monitoring",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": ["Security", "Availability"],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` or `sourcetype=juniper:junos` — Monitors OSPFv3 (RFC 5340) for authentication failures, LSA (Link State Advertisement) anomalies, and IPsec AH protection status. Unlike OSPFv2, OSPFv3 uses IPsec AH or ESP for authentication rather than protocol-level authentication.\n\n**OSPFv3 IPv6 security specifics:**\n1. **IPsec-based auth.** OSPFv3 relies on IPsec AH (RFC 4552) for authentication. If IPsec is not configured, OSPFv3 runs unauthenticated.\n2. **AT (Authentication Trailer).** RFC 7166 adds an authentication trailer to OSPFv3 as an alternative to IPsec. More operationally friendly.\n3. **LSA injection.** Without authentication, an attacker can inject fake LSAs, redirecting traffic or causing routing loops.\n4. **Area boundary security.** ABRs summarise between areas. A compromised ABR can inject incorrect summaries affecting the entire routing domain.",
+  "app": "Splunk Enterprise",
+  "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\" OR sourcetype=\"juniper:junos\") earliest=-24h\n  (\"%OSPFV3\" OR \"%OSPFv3\" OR \"ospf3\")\n| eval ospfv3_event=case(\n    match(_raw, \"(?i)auth.*fail|authentication.*fail|IPsec.*fail\"), \"AUTH_FAILURE\",\n    match(_raw, \"(?i)ADJCHANGE.*DOWN|neighbor.*down\"), \"NEIGHBOR_DOWN\",\n    match(_raw, \"(?i)ADJCHANGE.*FULL|neighbor.*full\"), \"NEIGHBOR_UP\",\n    match(_raw, \"(?i)LSA.*inject|LSA.*flood|max.?age.*LSA\"), \"LSA_ANOMALY\",\n    match(_raw, \"(?i)SPF.*run|recalculat\"), \"SPF_RUN\",\n    1=1, \"OTHER\")\n| eval is_ipv6=if(match(_raw, \"(?i)ipv6|OSPFv3\"), 1, 0)\n| where is_ipv6=1\n| stats count as events by host, ospfv3_event\n| eval severity=case(\n    ospfv3_event=\"AUTH_FAILURE\", \"CRITICAL — OSPFv3 authentication failure — possible route injection attack\",\n    ospfv3_event=\"NEIGHBOR_DOWN\", \"HIGH — OSPFv3 neighbor down — IPv6 routing impacted\",\n    ospfv3_event=\"LSA_ANOMALY\", \"HIGH — unusual LSA activity — verify routing integrity\",\n    ospfv3_event=\"SPF_RUN\" AND events > 10, \"MEDIUM — excessive SPF recalculations (\" . events . \") — routing instability\",\n    1=1, null())\n| where isnotnull(severity)\n| sort -events",
+  "description": "Monitors OSPFv3 (the IPv6 routing protocol) for authentication failures, neighbour state changes, LSA anomalies, and routing instability. OSPFv3 uses IPsec AH or Authentication Trailer (RFC 7166) for security — without these, routing is vulnerable to injection attacks.",
+  "value": "OSPFv3 is the primary IGP for IPv6 in many enterprise networks. Without authentication (IPsec AH or AT), an attacker on any segment with an OSPFv3-enabled interface can inject fake routes, causing traffic diversion or black holes. Monitoring authentication status and LSA integrity is essential for routing security.",
+  "implementation": "Monitor OSPFv3 events for authentication failures, neighbour state changes, and LSA anomalies. Verify IPsec AH or Authentication Trailer is configured.",
+  "visualization": "(1) Table: OSPFv3 events by type and device. (2) Single-value: auth failures. (3) Timeline: neighbour state changes. (4) SPF run count chart.",
+  "references": [
+    {"title": "RFC 5340 — OSPF for IPv6 (OSPFv3)", "url": "https://www.rfc-editor.org/rfc/rfc5340"},
+    {"title": "RFC 4552 — Authentication/Confidentiality for OSPFv3 (IPsec)", "url": "https://www.rfc-editor.org/rfc/rfc4552"},
+    {"title": "RFC 7166 — Supporting Authentication Trailer for OSPFv3", "url": "https://www.rfc-editor.org/rfc/rfc7166"}
+  ],
+  "knownFalsePositives": "**Planned maintenance.** OSPFv3 neighbour flaps during maintenance are expected. Correlate with change windows.\n\n**SPF during convergence.** After a topology change, multiple SPF runs are normal until the network converges.",
+  "equipment": ["cisco", "juniper", "arista"],
+  "equipmentModels": ["cisco_catalyst_9000", "juniper_mx", "arista_7050"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• OSPFv3 deployed for IPv6 routing.\n• OSPFv3 logging enabled.\n\nStep 1 — Configure OSPFv3 authentication\n**Cisco IOS-XE (IPsec AH):**\n```\ninterface GigabitEthernet0/0/0\n ospfv3 authentication ipsec spi 256 sha1 <key>\n```\n\n**Cisco IOS-XE (Authentication Trailer — RFC 7166):**\n```\nrouter ospfv3 1\n address-family ipv6 unicast\n  area 0 authentication key-chain OSPFV3-AUTH\n```\n\nStep 2 — Create monitoring searches\n```spl\nindex=network \"OSPFv3\" earliest=-24h | stats count by host, ospfv3_event\n```\n\nStep 3 — Validate\nDisable OSPFv3 auth on a test interface. Verify the neighbour drops and auth failure is logged.\n\nStep 4 — Operationalize\n**Dashboard:** OSPFv3 health. **Alert:** Auth failure — critical. Neighbour down — high.\n\nStep 5 — Troubleshooting\n• Auth mismatch: Verify SPI and key match on both sides. Check key-chain for correct algorithm.",
+  "grandmaExplanation": "Routers tell each other about the best roads to use for delivering letters (routing). If a rogue router lies about the roads, letters go to the wrong place. We watch for forged road announcements and make sure all routers prove their identity with a password (IPsec authentication) before sharing road information.",
+  "prerequisiteUseCases": ["5.20.44"],
+  "wave": "walk"
+}

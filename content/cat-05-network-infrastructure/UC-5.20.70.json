@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.70",
+  "title": "IPv6 Traffic Class / DSCP Marking Parity Monitoring",
+  "criticality": "low",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "ITSI",
+  "dataSources": "`index=network sourcetype=netflow` containing IPFIX flow records with IPv6 traffic class (TC) and IPv4 ToS/DSCP fields. The IPv6 Traffic Class field (8 bits) serves the same purpose as the IPv4 Type of Service (ToS) field — it carries the Differentiated Services Code Point (DSCP, 6 bits) and Explicit Congestion Notification (ECN, 2 bits). QoS parity between IPv4 and IPv6 is essential for dual-stack services:\n\n1. **Dual-stack QoS parity.** Applications running on dual-stack networks must receive the same QoS treatment over both IPv4 and IPv6. If DSCP marking policies are only applied to IPv4 traffic, IPv6 traffic from the same application gets best-effort treatment.\n2. **Extension header impact.** Some QoS classification engines cannot inspect beyond IPv6 extension headers to reach the transport layer. This causes misclassification when extension headers are present.\n3. **Tunnel DSCP handling.** When IPv6 traffic is tunnelled (6in4, GRE, VXLAN), the outer header's DSCP may not match the inner header's DSCP. This requires explicit DSCP copy/mark policies at tunnel endpoints.\n4. **Flow label for QoS.** RFC 6438 suggests using the flow label for ECMP hashing, but some implementations also use it as a QoS signal. Monitor for misuse.",
+  "app": "Splunk Add-on for NetFlow (`splunk-add-on-for-netflow`, Splunkbase 1658).",
+  "spl": "index=network sourcetype=\"netflow\" earliest=-24h\n| eval ip_ver=if(isnotnull(sourceIPv6Address) OR match(src, \":\"), \"IPv6\", \"IPv4\")\n| eval dscp=coalesce(ipDiffServCodePoint, round(tonumber(ipClassOfService) / 4, 0))\n| stats count as flows by ip_ver, dscp\n| eventstats sum(flows) as total by ip_ver\n| eval pct=round(flows / total * 100, 1)\n| xyseries dscp ip_ver pct\n| eval parity_diff=abs(coalesce(IPv4, 0) - coalesce(IPv6, 0))\n| where parity_diff > 10\n| eval issue=case(\n    isnotnull(IPv4) AND isnull(IPv6), \"DSCP \" . dscp . \" applied to IPv4 only — IPv6 traffic is unmarked\",\n    isnotnull(IPv6) AND isnull(IPv4), \"DSCP \" . dscp . \" applied to IPv6 only — unexpected\",\n    parity_diff > 10, \"DSCP \" . dscp . \" parity gap: IPv4=\" . IPv4 . \"% vs IPv6=\" . IPv6 . \"%\",\n    1=1, null())\n| sort -parity_diff",
+  "description": "Compares DSCP marking distributions between IPv4 and IPv6 traffic from IPFIX/NetFlow flow records to detect QoS parity violations. In dual-stack networks, applications should receive equivalent QoS treatment regardless of whether they communicate over IPv4 or IPv6. A DSCP distribution skew between protocol versions indicates that QoS classification policies have not been updated for IPv6.",
+  "value": "QoS policies that mark VoIP (DSCP EF/46), video (DSCP AF41/34), or business-critical applications (DSCP AF31/26) are frequently applied only to IPv4 traffic. As applications transition to dual-stack, their IPv6 traffic receives best-effort treatment while their IPv4 traffic continues to receive priority. This causes intermittent quality issues that are difficult to diagnose — the same application works perfectly over IPv4 but experiences congestion-related degradation over IPv6. Detecting DSCP parity violations enables proactive QoS policy updates.",
+  "implementation": "Export DSCP values from IPFIX/NetFlow for both IPv4 and IPv6 flows. Compare DSCP distributions between protocol versions. Alert on significant parity gaps for specific DSCP values (especially EF, AF41, AF31).",
+  "visualization": "(1) Stacked bar chart: DSCP distribution for IPv4 vs IPv6 side by side. (2) Table: DSCP values with parity gaps. (3) Timechart: DSCP EF (voice) percentage for IPv4 vs IPv6 over 7 days. (4) Single-value: number of DSCP classes with >10% parity gap.",
+  "references": [
+    {
+      "title": "RFC 2474 — Definition of the Differentiated Services Field (DSCP)",
+      "url": "https://www.rfc-editor.org/rfc/rfc2474"
+    },
+    {
+      "title": "RFC 8200 — Internet Protocol, Version 6 (IPv6) Specification (§7 — Traffic Class)",
+      "url": "https://www.rfc-editor.org/rfc/rfc8200"
+    }
+  ],
+  "knownFalsePositives": "**Different application mix.** If different applications use IPv4 vs IPv6 (e.g., legacy apps are IPv4-only, new apps are IPv6-first), the DSCP distributions will differ legitimately because they carry different traffic types.\n\n**Tunnel endpoints.** Traffic entering or exiting tunnels may have DSCP remarked. This is legitimate if the tunnel endpoint has explicit DSCP copy/remark policies.\n\n**Early IPv6 deployment.** In early dual-stack deployments, IPv6 traffic is predominantly web browsing and DNS (best-effort), while IPv4 carries the full application mix. This naturally creates a DSCP distribution difference that is not a policy gap.",
+  "equipment": [
+    "cisco",
+    "juniper"
+  ],
+  "equipmentModels": [
+    "cisco_ios",
+    "cisco_iosxe",
+    "juniper_junos"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• IPFIX/NetFlow exporters configured to include DSCP/ToS fields for both IPv4 and IPv6.\n• QoS policy documentation identifying expected DSCP markings per application class.\n• Dual-stack deployment with meaningful IPv6 traffic.\n\nStep 1 — Configure data collection\n\n**Cisco IOS-XE — Include DSCP in Flexible NetFlow:**\nThe `ipClassOfService` field captures the full Traffic Class byte (IPv6) or ToS byte (IPv4):\n```\nflow record IPV6-QOS\n match ipv6 source address\n match ipv6 destination address\n match ipv6 traffic-class\n match transport source-port\n match transport destination-port\n collect counter bytes long\n collect counter packets long\n```\n\n**DSCP reference lookup:**\n```csv\ndscp,dscp_name,traffic_class,priority\n0,BE,Best Effort,low\n8,CS1,Scavenger,low\n10,AF11,Assured Forwarding 11,medium\n18,AF21,Assured Forwarding 21,medium\n26,AF31,Assured Forwarding 31,high\n34,AF41,Assured Forwarding 41,high\n46,EF,Expedited Forwarding (Voice),critical\n48,CS6,Routing/Control,critical\n```\nUpload as `dscp_reference.csv`.\n\n**Verification:**\n```spl\nindex=network sourcetype=\"netflow\" earliest=-1h\n| eval dscp=round(tonumber(coalesce(ipDiffServCodePoint, ipClassOfService)) / 4, 0)\n| stats count by dscp\n| lookup dscp_reference.csv dscp\n| table dscp, dscp_name, traffic_class, count\n```\n\nStep 2 — Create the search and alert\n\n**Voice (EF) DSCP parity check:**\n```spl\nindex=network sourcetype=\"netflow\" earliest=-4h\n| eval ip_ver=if(isnotnull(sourceIPv6Address) OR match(src, \":\"), \"IPv6\", \"IPv4\")\n| eval dscp=round(tonumber(coalesce(ipDiffServCodePoint, ipClassOfService)) / 4, 0)\n| eval is_ef=if(dscp=46, 1, 0)\n| stats sum(is_ef) as ef_flows count as total by ip_ver\n| eval ef_pct=round(ef_flows / total * 100, 2)\n| eval issue=if(ip_ver=\"IPv6\" AND ef_pct < 0.1 AND total > 1000, \"WARNING — no voice-class (EF) DSCP marking on IPv6 traffic\", \"OK\")\n| table ip_ver, ef_flows, total, ef_pct, issue\n```\nIf IPv4 shows 5-10% EF traffic but IPv6 shows near-zero, VoIP QoS policies are missing for IPv6.\n\n**Comprehensive parity analysis:**\n```spl\nindex=network sourcetype=\"netflow\" earliest=-24h\n| eval ip_ver=if(isnotnull(sourceIPv6Address) OR match(src, \":\"), \"IPv6\", \"IPv4\")\n| eval dscp=round(tonumber(coalesce(ipDiffServCodePoint, ipClassOfService)) / 4, 0)\n| lookup dscp_reference.csv dscp OUTPUT dscp_name, priority\n| where priority=\"critical\" OR priority=\"high\"\n| stats count as flows by ip_ver, dscp, dscp_name\n| eventstats sum(flows) as total by ip_ver\n| eval pct=round(flows / total * 100, 2)\n| chart values(pct) as percentage by dscp_name ip_ver\n```\n\nStep 3 — Validate\n(a) **Known QoS policy.** On a router with both IPv4 and IPv6 QoS policies, verify the DSCP distributions match.\n\n(b) **Missing IPv6 policy.** On a router with IPv4-only QoS, verify the parity check identifies the gap.\n\n(c) **Voice traffic.** If VoIP is deployed, verify EF marking appears for both IPv4 and IPv6 voice traffic.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — QoS Parity\"):\n• Row 1 — Side-by-side bar: DSCP distribution IPv4 vs IPv6.\n• Row 2 — Table: DSCP classes with parity gaps.\n• Row 3 — Timechart: EF/AF41/AF31 percentages for IPv4 vs IPv6 over 7 days.\n• Row 4 — Single-value: number of high-priority DSCP classes with parity gap.\n\n**Scheduling:** Parity analysis daily. Voice DSCP check hourly during business hours.\n\n**Runbook:**\n1. EF parity gap: add IPv6 class-map and policy-map entries matching the IPv4 QoS policy. Apply to all dual-stack interfaces.\n2. AF parity gap: update application-based classification to match IPv6 traffic. Verify NBAR or application identification works for IPv6.\n3. Tunnel DSCP issue: add `qos pre-classify` on tunnel interfaces to classify inner packets rather than the outer tunnel header.\n\nStep 5 — Troubleshooting\n\n• **NBAR IPv6 support** — Cisco NBAR (Network-Based Application Recognition) may not classify IPv6 traffic for some applications. Verify NBAR IPv6 support on the platform and IOS version.\n\n• **class-map IPv6 matching** — QoS class-maps must explicitly match IPv6 ACLs (not IPv4 ACLs). A class-map referencing an `access-list 100` will never match IPv6 traffic.\n\n• **MQC IPv6 syntax** — On Cisco platforms, `match protocol ipv6` or `match access-group name IPv6_ACL` is required in the class-map for IPv6 traffic classification.",
+  "grandmaExplanation": "In our building, important visitors (like doctors and emergency workers) get priority elevator access — they get to skip the queue. But when we added the new IPv6 entrance, we forgot to put up the 'priority visitors' signs. So important visitors entering through the new door have to wait in the regular queue while the same visitors entering through the old door (IPv4) still get priority. We check both doors to make sure the priority system works equally.",
+  "prerequisiteUseCases": [
+    "5.20.66"
+  ],
+  "wave": "walk"
+}

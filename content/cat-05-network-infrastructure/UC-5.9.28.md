@@ -3,87 +3,120 @@
 ---
 id: "5.9.28"
 title: "Geographic Workforce Performance Comparison"
+status: "verified"
 criticality: "medium"
 splunkPillar: "Observability"
 ---
 
 # UC-5.9.28 · Geographic Workforce Performance Comparison
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Observability &middot; **Type:** Performance, Capacity &middot; **Wave:** Run &middot; **Status:** Verified
 
-*We compare regions and offices fairly, so we know where the experience is worst without guessing from anecdotes.*
+*We compare how well the internet works for employees in different parts of the world, so we know which offices or countries need better network infrastructure.*
 
 ---
 
 ## Description
 
-Comparing digital experience metrics across office locations and regions identifies sites with persistent network quality issues, enabling targeted infrastructure improvements.
+Compares network performance experienced by the workforce across geographic regions — country-level and optionally region/city-level — to identify locations with consistently poor connectivity. Provides evidence for infrastructure investment decisions (adding VPN concentrators, SD-WAN edges, or ISP contracts in underperforming regions).
 
 ## Value
 
-Comparing digital experience metrics across office locations and regions identifies sites with persistent network quality issues, enabling targeted infrastructure improvements.
+Global organizations often have anecdotal complaints from specific offices or regions — "India is always slow," "the Brazil team drops calls." This UC replaces anecdotes with data. If the India workforce consistently shows 30% lower network scores than the US workforce, that's a quantifiable gap that justifies adding a VPN concentrator in Mumbai, upgrading the ISP contract, or deploying a local SD-WAN edge. Conversely, if the data shows India's network scores are actually comparable to the US, the problem is elsewhere (application architecture, server location) and the team can investigate accordingly. The geographic view also detects regional ISP outages or degradation that only affects a subset of the workforce — a narrower signal than the global Internet Insights events (UC-5.9.18).
 
 ## Implementation
 
-Endpoint agent metrics include geographic attributes: `thousandeyes.source.agent.geo.country.iso_code` and `thousandeyes.source.agent.geo.region.iso_code`. Aggregate network quality metrics by region to identify poorly performing locations. Combine with `thousandeyes.source.agent.location` for more specific site-level analysis.
+Uses the same Endpoint Agent data stream as UC-5.9.24. Aggregates by geographic attributes to compare regions. For finer granularity, use `thousandeyes.source.agent.geo.region.iso_code` or `thousandeyes.source.agent.location`.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco ThousandEyes App for Splunk` (Splunkbase 7719).
-- Ensure the following data sources are available: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Endpoint tests).
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- All prerequisites from UC-5.9.24 apply.
+- **Geographically distributed workforce.** This UC provides value when Endpoint Agents are deployed across multiple countries/regions.
 
 ### Step 1 — Configure data collection
-Endpoint agent metrics include geographic attributes: `thousandeyes.source.agent.geo.country.iso_code` and `thousandeyes.source.agent.geo.region.iso_code`. Aggregate network quality metrics by region to identify poorly performing locations. Combine with `thousandeyes.source.agent.location` for more specific site-level analysis.
+Same as UC-5.9.24.
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify geographic distribution:
 ```spl
-`stream_index` thousandeyes.test.domain="endpoint"
-| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.score) as avg_score count as agent_count by thousandeyes.source.agent.geo.country.iso_code, thousandeyes.source.agent.geo.region.iso_code
-| eval avg_latency_ms=round(avg_latency_s*1000,1)
+index=thousandeyes_metrics thousandeyes.test.domain="endpoint" target.type="gateway" earliest=-7d
+| stats dc(thousandeyes.source.agent.name) as endpoints by thousandeyes.source.agent.geo.country.iso_code
+| sort -endpoints
+```
+
+### Step 2 — Create the search
+```spl
+`stream_index` thousandeyes.test.domain="endpoint" target.type="gateway" earliest=-7d
+| stats avg(network.score) as avg_score avg(network.latency) as avg_latency avg(network.loss) as avg_loss dc(thousandeyes.source.agent.name) as endpoints by thousandeyes.source.agent.geo.country.iso_code
+| eval avg_latency_ms=round(avg_latency*1000,1)
 | sort avg_score
 ```
 
-#### Understanding this SPL
+**Region-level detail** (within a country):
+```spl
+`stream_index` thousandeyes.test.domain="endpoint" target.type="gateway" thousandeyes.source.agent.geo.country.iso_code="US" earliest=-7d
+| stats avg(network.score) as avg_score dc(thousandeyes.source.agent.name) as endpoints by thousandeyes.source.agent.geo.region.iso_code
+| where endpoints >= 3
+| sort avg_score
+```
 
-**Geographic Workforce Performance Comparison** — Comparing digital experience metrics across office locations and regions identifies sites with persistent network quality issues, enabling targeted infrastructure improvements.
+**Region comparison with ISP detail:**
+```spl
+`stream_index` thousandeyes.test.domain="endpoint" target.type="gateway" earliest=-7d
+| stats avg(network.score) as avg_score dc(thousandeyes.source.agent.name) as endpoints by thousandeyes.source.agent.geo.country.iso_code, thousandeyes.source.agent.network.org
+| where endpoints >= 3
+| sort thousandeyes.source.agent.geo.country.iso_code, avg_score
+```
+This reveals whether a country's poor performance is ISP-specific or universal.
 
-Documented **Data sources**: `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Endpoint tests). **App/TA** (typical add-on context): `Cisco ThousandEyes App for Splunk` (Splunkbase 7719). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-**Pipeline walkthrough**
-
-- Invokes macro `stream_index` — in Search, use the UI or expand to inspect the underlying SPL.
-- `stats` rolls up events into metrics; results are split **by thousandeyes.source.agent.geo.country.iso_code, thousandeyes.source.agent.geo.region.iso_code** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **avg_latency_ms** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+**Scheduling:** Weekly report: cron `0 8 * * 1` (Monday 8 AM), time range `-7d to now`.
 
 ### Step 3 — Validate
-Compare the same tests and time window in the Cisco ThousandEyes App for Splunk dashboard or the test view at app.thousandeyes.com so Splunk’s metrics and states match the vendor. If they disagree, check streaming or HEC inputs, macros, and API or token health before retuning.
+(a) Verify geographic attributes are populated. If `geo.country.iso_code` is empty for many agents, the GeoIP lookup may not be working — check the Endpoint Agent's internet connectivity for geo-resolution.
+(b) Cross-reference country endpoint counts with your HR/people data to ensure representative coverage.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Map (score by region), Table (region, score, latency, loss, agent count), Column chart comparing regions.
+**Monthly executive report** ("Global Digital Experience Report"):
+- Map visualization: global network health by country.
+- Trend: which regions improved or degraded month-over-month.
+- Action items: investment recommendations for worst-performing regions.
+
+**Runbook** (owner: global IT / network architecture):
+1. Consistently underperforming region → evaluate infrastructure investments:
+   a. Add VPN concentrator or SD-WAN edge in the region.
+   b. Negotiate ISP contracts with better-performing local providers.
+   c. Deploy CDN edge nodes for frequently accessed applications.
+2. Sudden regional degradation → check for ISP outages (correlate with UC-5.9.18 Internet Insights events).
+3. Specific ISP in a region underperforming → recommend affected users switch ISPs or provide cellular backup.
+
+### Step 5 — Troubleshooting
+- **All endpoints show the same country** — If all Endpoint Agents resolve to one country, GeoIP data may be reflecting the VPN egress point rather than the user's actual location. Check whether always-on VPN is masking the user's true location.
+- See UC-5.9.24 Step 5 for general endpoint troubleshooting.
 
 ## SPL
 
 ```spl
-`stream_index` thousandeyes.test.domain="endpoint"
-| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.score) as avg_score count as agent_count by thousandeyes.source.agent.geo.country.iso_code, thousandeyes.source.agent.geo.region.iso_code
-| eval avg_latency_ms=round(avg_latency_s*1000,1)
+`stream_index` thousandeyes.test.domain="endpoint" target.type="gateway" earliest=-7d
+| stats avg(network.score) as avg_score avg(network.latency) as avg_latency avg(network.loss) as avg_loss dc(thousandeyes.source.agent.name) as endpoints by thousandeyes.source.agent.geo.country.iso_code
+| eval avg_latency_ms=round(avg_latency*1000,1)
 | sort avg_score
 ```
 
 ## Visualization
 
-Map (score by region), Table (region, score, latency, loss, agent count), Column chart comparing regions.
+(1) Choropleth map: countries colour-coded by average network score. (2) Bar chart: average score by country, sorted worst-first. (3) Table: country, region, endpoints, avg score, avg latency, avg loss. (4) Timechart: average score by country over 7 days — shows daily patterns and regional outages.
 
 ## Known False Positives
 
-Geo comparisons are skewed if agent density, office hours, and regional holidays differ between sites.
+**Low endpoint count in a region.** If only 2 endpoints report from a country, a single bad connection skews the entire country average. Require a minimum endpoint count (e.g., ≥ 5) before treating the data as representative.
+
+**Time zone differences.** Comparing scores across time zones during the same clock time is misleading — 2 PM in San Francisco is midnight in Singapore. Compare during each region's business hours, or use a 24-hour average.
+
+**Infrastructure differences.** Office workers (enterprise-grade networks) vs remote workers (residential ISPs) may dominate a region's average. Segment by connection type and network.org (ISP) within each region for accurate comparison.
+
+**Endpoint Agent version differences.** Different agent versions across regions may produce slightly different metric quality. Ensure consistent agent versions.
 
 ## References
 
-- [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+- [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
+- [ThousandEyes OTel v2 — Geographic attributes](https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics)

@@ -21,7 +21,7 @@ Detects when business-critical applications aren't meeting performance requireme
 
 ## Value
 
-Detects when business-critical applications aren't meeting performance requirements over the WAN.
+Network operations teams detect when SD-WAN tunnels violate application-specific SLA thresholds for voice, video, and business-critical traffic, enabling targeted troubleshooting and validating automatic path failover.
 
 ## Implementation
 
@@ -30,43 +30,85 @@ Collect app-aware routing statistics from vManage. Alert when critical applicati
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538).
-- Ensure the following data sources are available: vManage app-aware routing metrics.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Cisco Catalyst Add-on for Splunk polling vManage API for application-aware routing (AAR) statistics. Data in `index=sdwan` with `sourcetype=cisco:sdwan:approute`. Key fields: `site_id`, `system_ip`, `app_route_name` (SLA policy name), `loss`, `latency`, `jitter`, `mean_loss`, `mean_latency`, `mean_jitter`, `sla_class`.
+- SD-WAN application SLAs define the maximum tolerable loss, latency, and jitter for application classes. These are configured in vManage under Configuration > Policies > Application-Aware Routing. Common SLA classes: Voice (loss < 1%, latency < 150ms, jitter < 30ms), Real-Time Video (loss < 0.5%, latency < 200ms, jitter < 50ms), Business Critical (loss < 3%, latency < 300ms), Default (loss < 10%, latency < 500ms).
+- Build an `sdwan_sla_policies.csv` lookup: `sla_class,max_loss,max_latency,max_jitter,app_examples` (e.g., `VoiceAndVideo,1,150,30,UC/Webex/Teams`).
+- When an SLA is violated, SD-WAN should automatically switch to a better path. This UC monitors both the SLA violations (indicating transport problems) and whether the failover worked (traffic moved to a path that meets SLA).
 
 ### Step 1 — Configure data collection
-Collect app-aware routing statistics from vManage. Alert when critical applications violate their SLA class.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify application-aware routing data:
 ```spl
-index=sdwan sourcetype="cisco:sdwan:approute"
-| where sla_violation="true"
-| stats count by site, app_name, sla_class | sort -count
+index=sdwan sourcetype="cisco:sdwan:approute" earliest=-15m
+| stats count by sla_class, site_id
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Application SLA Violations** — Detects when business-critical applications aren't meeting performance requirements over the WAN.
+**Primary search — Application SLA violations by site:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:approute" earliest=-15m
+| lookup sdwan_sla_policies.csv sla_class OUTPUT max_loss max_latency max_jitter app_examples
+| eval loss_violation=if(isnotnull(max_loss) AND mean_loss > max_loss, 1, 0)
+| eval latency_violation=if(isnotnull(max_latency) AND mean_latency > max_latency, 1, 0)
+| eval jitter_violation=if(isnotnull(max_jitter) AND mean_jitter > max_jitter, 1, 0)
+| eval any_violation=if(loss_violation + latency_violation + jitter_violation > 0, 1, 0)
+| where any_violation=1
+| lookup sdwan_sites.csv site_id OUTPUT site_name tier
+| eval violation_detail=case(loss_violation=1 AND latency_violation=1, "Loss + Latency", loss_violation=1, "Loss only", latency_violation=1, "Latency only", jitter_violation=1, "Jitter only", 1==1, "Multiple")
+| table _time, site_name, tier, sla_class, app_examples, mean_loss, max_loss, mean_latency, max_latency, mean_jitter, max_jitter, violation_detail
+| sort tier, site_name
+```
 
-Documented **Data sources**: vManage app-aware routing metrics. **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: Compares real-time tunnel metrics against configured SLA thresholds per application class. This tells you not just that a tunnel is bad, but which applications are impacted. A tunnel with 2% loss violates Voice SLA but passes Default SLA — the impact is voice quality, not general connectivity.
 
-The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: cisco:sdwan:approute. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+**SLA violation trending by application class:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:approute" earliest=-24h
+| lookup sdwan_sla_policies.csv sla_class OUTPUT max_loss max_latency max_jitter
+| eval violated=if((isnotnull(max_loss) AND mean_loss > max_loss) OR (isnotnull(max_latency) AND mean_latency > max_latency) OR (isnotnull(max_jitter) AND mean_jitter > max_jitter), 1, 0)
+| bin _time span=15m
+| stats sum(violated) as violations count as total by _time, sla_class
+| eval violation_rate=round(100*violations/total, 1)
+```
 
-**Pipeline walkthrough**
-
-- Scopes the data: index=sdwan, sourcetype="cisco:sdwan:approute". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Filters the current rows with `where sla_violation="true"` — typically the threshold or rule expression for this monitoring goal.
-- `stats` rolls up events into metrics; results are split **by site, app_name, sla_class** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+**Worst-performing sites for voice SLA:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:approute" sla_class="VoiceAndVideo" earliest=-4h
+| stats avg(mean_loss) as avg_loss avg(mean_latency) as avg_latency avg(mean_jitter) as avg_jitter by site_id
+| lookup sdwan_sites.csv site_id OUTPUT site_name tier
+| eval voice_score=round(100 - (avg_loss*10 + avg_latency*0.1 + avg_jitter*0.5), 1)
+| sort voice_score
+| head 10
+```
 
 ### Step 3 — Validate
-In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
+(a) In vManage: Monitor > Application-Aware Routing. Compare SLA violation count with Splunk results.
+(b) During a controlled test: degrade a WAN link (traffic shaping to add loss) and verify SLA violations appear.
+(c) Verify that SD-WAN path failover worked: after an SLA violation, check if traffic moved to an alternate path.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (site, app, violations), Bar chart by app, Timechart.
+Dashboard ("SD-WAN — Application SLA"):
+- Row 1 — Single-value tiles: "Voice SLA violations (1h)", "Video SLA violations", "Business SLA violations", "Sites with violations".
+- Row 2 — SLA violation table: site, SLA class, applications, violation detail, metrics vs. thresholds.
+- Row 3 — Voice quality heatmap: sites ranked by voice score (0-100).
+- Row 4 — Violation trending by SLA class over 24h.
+
+Alerting:
+- Critical (Voice SLA violation on Tier1 site > 5 min): call quality impacted — alert UC team and NOC.
+- High (Business Critical SLA violation sustained): alert application owners.
+- Warning (Default SLA violation): monitor — may indicate degrading transport.
+
+Runbook:
+1. **Voice SLA violation**: Check tunnel metrics (UC-5.5.1). If one transport is degraded, verify AAR policy is failing over to backup transport. If all transports are bad, escalate to ISP.
+2. **SLA violations across many sites simultaneously**: Check the controller (vSmart) and vManage health. A controller issue can disrupt all sites' policy enforcement.
+
+### Step 5 — Troubleshooting
+
+- **SLA class field is empty or "None"** — Application-Aware Routing policy may not be applied to the device template. Check vManage: Configuration > Templates > device template > Application-Aware Routing.
+
+- **SLA violations detected but no path failover** — AAR policy may be configured for monitoring only (not enforcement). Check if the policy action is "SLA class list" with backup preferred colors configured.
+
+- **mean_loss and mean_latency show different values than vManage** — The TA polls API at intervals; vManage shows aggregated/smoothed data. Small differences are expected. Large differences indicate a polling or parsing issue.
 
 ## SPL
 

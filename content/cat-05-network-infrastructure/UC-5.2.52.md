@@ -21,7 +21,7 @@ Anti-spoofing validates that packets arriving on an interface have source IPs co
 
 ## Value
 
-Anti-spoofing validates that packets arriving on an interface have source IPs consistent with the interface's defined topology. Violations indicate either network misconfiguration (asymmetric routing, missing routes) or actual IP spoofing attacks. High violation rates from specific sources warrant immediate investigation as they may mask data exfiltration or DDoS reflection.
+Security teams monitor Check Point anti-spoofing violations by interface and source to detect IP address spoofing attacks and identify topology misconfigurations causing false positive drops.
 
 ## Implementation
 
@@ -30,67 +30,71 @@ Forward firewall drop logs including anti-spoofing events. Map `inzone` and `out
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259).
-- Ensure the following data sources are available: `sourcetype=cp_log` (firewall logs with anti-spoofing drops).
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Check Point anti-spoofing violation logs. Data in `index=checkpoint` with `sourcetype=cp_log`. Key fields: `action` (Drop/Reject), `src`, `dst`, `ifname`, `rule_name`, `product`, `description`.
+* Anti-spoofing: validates that packets arriving on an interface have source IPs consistent with the interface's defined topology (network behind the interface). Configured per-interface in Gateway Properties > Topology. When a packet's source IP doesn't match the expected network for the ingress interface, it's dropped as a spoofing attempt. Also prevents internal IP addresses from appearing on external interfaces.
 
-### Step 1 — Configure data collection
-Forward firewall drop logs including anti-spoofing events. Map `inzone` and `outzone` to topology to distinguish misconfiguration from attacks. Alert on new source IPs triggering anti-spoofing. Correlate with routing changes. Tune anti-spoofing topology definitions after legitimate asymmetric routing is identified.
+### Step 1 — - Configure data collection
+```
+# SmartConsole -- enable anti-spoofing
+# Gateway Properties > Network Management > Topology
+# For each interface:
+#   Define topology (Internal/External)
+#   Set anti-spoofing to "Prevent" or "Detect"
+#   Define the network behind the interface
+# Enable logging for anti-spoofing drops
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Ensure "Spoofed packets" logging is enabled:
+# Global Properties > Log and Alert > Anti Spoofing
+```
+Verify:
 ```spl
-index=firewall sourcetype="cp_log" earliest=-24h
-| where match(lower(action),"(?i)drop") AND match(lower(logdesc),"(?i)anti.?spoof|spoofing")
-| stats count by src, inzone, outzone, rule_name, orig
-| sort -count
+index=checkpoint sourcetype="cp_log" earliest=-7d
+| where match(_raw, "(?i)spoof|anti.?spoof") OR match(action, "(?i)drop") AND match(description, "(?i)spoof")
+| stats count by ifname, src
+| sort -count | head 20
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Check Point Anti-Spoofing Violations (Check Point)** — Anti-spoofing validates that packets arriving on an interface have source IPs consistent with the interface's defined topology. Violations indicate either network misconfiguration (asymmetric routing, missing routes) or actual IP spoofing attacks. High violation rates from specific sources warrant immediate investigation as they may mask data exfiltration or DDoS reflection.
-
-Documented **Data sources**: `sourcetype=cp_log` (firewall logs with anti-spoofing drops). **App/TA** (typical add-on context): `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: firewall; **sourcetype**: cp_log. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=firewall, sourcetype="cp_log", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Filters the current rows with `where match(lower(action),"(?i)drop") AND match(lower(logdesc),"(?i)anti.?spoof|spoofing")` — typically the threshold or rule expression for this monitoring goal.
-- `stats` rolls up events into metrics; results are split **by src, inzone, outzone, rule_name, orig** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Anti-spoofing violation monitoring:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action All_Traffic.dvc span=1h
-| where count>0
-| sort -count
+index=checkpoint sourcetype="cp_log" earliest=-24h
+| where match(_raw, "(?i)spoof|anti.?spoof") OR (match(action, "(?i)drop") AND match(description, "(?i)spoof"))
+| eval src=coalesce(src, source_address, src_ip)
+| eval dst=coalesce(dst, destination_address, dest_ip)
+| eval iface=coalesce(ifname, interface, inzone)
+| eval device=coalesce(origin, host)
+| iplocation src prefix=src_
+| stats count as violations dc(src) as unique_sources dc(dst) as unique_targets values(src) as source_ips by device, iface
+| eval severity=case(
+    violations > 1000, "CRITICAL -- massive spoofing attempt (".violations." violations)",
+    unique_sources > 20, "WARNING -- distributed spoofing from ".unique_sources." sources",
+    violations > 100, "WARNING -- sustained spoofing activity",
+    1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -violations
 ```
 
-Understanding this CIM / accelerated SPL
+### Step 3 — - Validate
+(a) SmartConsole: Gateway > Topology -- verify anti-spoofing is "Prevent" on all interfaces.
+(b) SmartConsole: Logs & Monitor -- filter for anti-spoofing events.
+(c) CLI: `fw ctl zdebug + drop` -- check for anti-spoofing drops in real time.
 
-This block uses `tstats` on the Network_Traffic data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 4 — - Operationalize
+Dashboard ("Check Point -- Anti-Spoofing"):
+* Row 1 -- Single-value: "Spoofing violations (24h)", "Unique sources", "Interfaces affected".
+* Row 2 -- Anti-spoofing violation timeline.
+* Row 3 -- Top spoofed source IPs with geolocation.
 
-**Pipeline walkthrough**
+Alert: Critical (>1000 violations in 1 hour): active spoofing attack or misconfiguration.
 
-- Uses `tstats` against accelerated summaries for the Network_Traffic model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+### Step 5 — - Troubleshooting
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+* **False positives from asymmetric routing** -- Anti-spoofing drops legitimate traffic when return path uses a different interface. Solution: adjust topology definition to include the additional network, or use `do not check packets from` exception.
 
+* **False positives after network changes** -- Adding new subnets behind an interface requires updating the topology definition. Failing to update causes anti-spoofing drops for the new subnet. Run: `fetch topology` in SmartConsole.
 
-
-### Step 3 — Validate
-Compare key fields and timestamps in SmartConsole, SmartView, or the gateway’s local view so Splunk and Check Point match for the same events.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (spoofing violations by source), Bar chart (violations by interface/zone), Line chart (violation trend), Map (source geo if available).
+* **Anti-spoofing not preventing** -- Verify mode is "Prevent" not "Detect" for production interfaces. Check: Gateway Properties > Topology > anti-spoofing setting per interface.
 
 ## SPL
 

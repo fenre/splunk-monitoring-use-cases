@@ -1,0 +1,58 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.16.8",
+  "title": "High-Latency Path Detection (Pre/Post Optimization Delta)",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Anomaly",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "wave": "walk",
+  "dataSources": "Detailed: `index=wanop OR index=network`; synthetic probes or embedded latency telemetry capturing RTT before and after optimization layers (`latency_before_ms`, `latency_after_ms`), SteelHead path-selection logs (`riverbed:steelhead`), EdgeConnect tunnel metrics (`silverpeak:*`), Citrix WANOP performance traps (`citrix:sdwan*`), blended ZDX last-mile versus cloud measurements (`zscaler:zdx`) when diagnosing SaaS legs interacting with regional WAN optimizers.",
+  "app": "Splunk Add-on for Zscaler for ZDX feeds; appliance syslog/TAs; optional ThousandEyes or SPL ping scripted inputs feeding identical field names for apples-to-apples comparisons.",
+  "spl": "index=wanop OR index=network earliest=-24h latest=now\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"riverbed|steelhead\"),\"Riverbed SteelHead\",match(v,\"silverpeak|edgeconnect\"),\"Silver Peak EdgeConnect\",match(v,\"citrix\"),\"Citrix SD-WAN WANOP\",match(v,\"zdx|zscaler\"),\"Zscaler Digital Experience\",\"other\")\n| where vendor!=\"other\"\n| eval pre_ms=tonumber(coalesce(latency_before_ms,rtt_inner_ms,wano_inner_rtt))\n| eval post_ms=tonumber(coalesce(latency_after_ms,rtt_outer_ms,wano_outer_rtt))\n| eval delta_ms=if(isnotnull(pre_ms) AND isnotnull(post_ms), pre_ms-post_ms, null())\n| eval app=coalesce(application,app_name,target_saas,\"unspecified\")\n| where isnotnull(pre_ms) AND pre_ms>=120\n| eval stalled_opt=if(isnull(delta_ms),1,if(delta_ms<10 AND pre_ms>=120,1,0))\n| where stalled_opt=1\n| stats avg(pre_ms) as avg_pre_ms avg(post_ms) as avg_post_ms avg(delta_ms) as avg_delta_ms count as samples dc(host) as appliance_hops by vendor app site_code\n| eval severity=case(avg_pre_ms>=250,\"critical\",avg_pre_ms>=180,\"high\",\"medium\")\n| sort - avg_pre_ms vendor app\n| head 200",
+  "description": "Splunk flags flows whose inner latency remains chronically high while optimization subtracts almost nothing—highlighting brownfield circuits, miswired asymmetric routing, or misapplied policies masquerading as optimized paths.",
+  "value": "Engineers differentiate WAN backbone congestion from optimizer misconfiguration faster while executives gain trustworthy SaaS experience narratives anchored to measured delta stagnation.",
+  "implementation": "Normalize probes every five minutes per site, maintain adaptive baseline via `predict`, suppress alerts during carrier-declared maintenance windows stored in lookup.",
+  "detailedImplementation": "Prerequisites\n• Consistent probe endpoints across branches referencing identical SaaS or DC targets.\n• Documentation labeling measurement insertion points (LAN vs WAN side taps).\n• Cooperation from carriers when escalating backbone latency proofs.\n\nStep 1 — Configure data collection\nDeploy lightweight synthetic agents writing JSON latency tuples via HEC; mirror appliance-native latency feeds into same sourcetype namespace.\n\nStep 2 — Create the search and alert\nMaterialize SPL as `wanopt_latency_delta_gap`; alert when samples>=12/hour and avg_delta_ms<=5 while avg_pre_ms>=180.\n\nStep 3 — Validate\nCompare to traceroute archives and carrier PM tickets—ensure Splunk aligns with carrier MTTR narratives.\n\nStep 4 — Operationalize\nDashboard overlays map site_code coloring severity with drilldown traceroute runbook buttons.\n\nStep 5 — Troubleshooting\n**UDP vs TCP probes:** reconcile methodology.**Satellite backhaul:** elevate thresholds ethically.**DNS geo-steering:** rotating destinations confuse aggregates—anchor FQDN.**ZDX-only legs:** confirm optimizers actually sit in path via CMDB.",
+  "visualization": "Scatter plot avg_pre_ms vs avg_delta_ms with quadrant thresholds; companion table listing worst apps per vendor.",
+  "references": [
+    {
+      "title": "Splunk Lantern — Synthetic monitoring patterns",
+      "url": "https://lantern.splunk.com/Observability_Applications"
+    },
+    {
+      "title": "Zscaler Help — ZDX Administration Guide",
+      "url": "https://help.zscaler.com/zdx"
+    }
+  ],
+  "knownFalsePositives": "**Long-haul physics:** extreme distances limit optimization gains.**Encrypted UDP workloads:** latency unchanged legitimately.**Telemetry skew:** sporadic sampling triggers false stalls—enforce minimum counts.**Multi-cloud anycast:** rotating POPs inflate variance.",
+  "mitreAttack": [
+    "N/A (latency observability)"
+  ],
+  "securityDomain": "network",
+  "equipment": [
+    "riverbed",
+    "silverpeak",
+    "citrix",
+    "zscaler"
+  ],
+  "equipmentModels": [
+    "riverbed_steelhead",
+    "silverpeak_edgeconnect",
+    "citrix_sdwan_wanop",
+    "zscaler_zdx"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We measure travel time before and after the shortcut is applied. When the trip still feels endless even after the shortcut, something on the road—or the shortcut itself—is wrong, and we flag it before folks blame the computers at their desks.",
+  "detectionType": "Anomaly"
+}

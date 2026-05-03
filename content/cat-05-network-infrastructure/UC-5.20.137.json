@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.137",
+  "title": "IPv6 Address Randomization and Privacy Extensions Compliance (RFC 8981)",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": ["Compliance"],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=network sourcetype=netflow` or `sourcetype=zeek:conn` — Verifies that endpoints are using IPv6 privacy extensions (temporary addresses per RFC 8981) where required by policy. Detects devices still using SLAAC addresses with embedded EUI-64 identifiers (MAC-derived IID), which enable device tracking across networks and are discouraged by RFC 8064.",
+  "app": "Splunk Enterprise",
+  "spl": "index=network (sourcetype=\"netflow\" OR sourcetype=\"zeek:conn\") earliest=-24h\n| eval is_ipv6=if(match(src, \":\"), 1, 0)\n| where is_ipv6=1\n| rex field=src \"(?<prefix>[0-9a-fA-F:]+):(?<iid>[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4})$\"\n| eval has_eui64=if(match(iid, \"[0-9a-fA-F]{1,4}:..ff:fe..\"), 1, 0)\n| eval address_type=case(\n    has_eui64=1, \"EUI-64 (MAC-derived — trackable)\",\n    match(iid, \"^[0-9a-fA-F]{4}:[0-9a-fA-F]{4}:[0-9a-fA-F]{4}:[0-9a-fA-F]{4}$\"), \"Randomized (privacy extensions active)\",\n    1=1, \"Unknown\")\n| stats count as flows dc(src) as unique_addresses by host, address_type\n| where address_type=\"EUI-64 (MAC-derived — trackable)\"\n| sort -unique_addresses",
+  "description": "Verifies that endpoints use IPv6 privacy extensions (temporary addresses, RFC 8981) where required. Detects devices using SLAAC addresses with embedded EUI-64 identifiers (MAC-derived interface IDs), which enable cross-network device tracking. RFC 8064 recommends stable opaque identifiers instead of EUI-64.",
+  "value": "EUI-64 addresses embed the device's MAC address, creating a globally unique, persistent identifier that allows tracking across networks. Privacy extensions generate temporary randomized addresses that change over time, preventing device tracking. Enterprise compliance policies and GDPR (Breyer ruling — IPv6 as personal data) may require privacy extensions on user devices.",
+  "implementation": "Detect EUI-64 pattern (ff:fe in interface ID) in source addresses. Report devices not using privacy extensions.",
+  "visualization": "(1) Pie chart: EUI-64 vs randomized. (2) Table: devices with EUI-64 addresses. (3) Trend: privacy adoption over time.",
+  "references": [
+    {"title": "RFC 8981 — Temporary Address Extensions for Stateless Address Autoconfiguration in IPv6", "url": "https://www.rfc-editor.org/rfc/rfc8981"},
+    {"title": "RFC 8064 — Recommendation on Stable IPv6 Interface Identifiers", "url": "https://www.rfc-editor.org/rfc/rfc8064"}
+  ],
+  "knownFalsePositives": "**Infrastructure devices.** Routers, switches, and servers typically use stable addresses (not privacy extensions) by design. Only user endpoints should be checked.\n\n**Manually configured addresses.** Static addresses won't match EUI-64 or privacy patterns. These are acceptable for servers.",
+  "equipment": ["cisco", "juniper"],
+  "equipmentModels": ["cisco_catalyst_9000", "juniper_ex"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• NetFlow or Zeek with source IPv6 addresses.\n\nStep 1 — Detect EUI-64 pattern: Look for `ff:fe` in the interface ID portion of IPv6 addresses.\n\nStep 2 — Classify addresses as EUI-64, randomized, or static.\n\nStep 3 — Validate: Check a known Windows/macOS host — privacy extensions should be enabled by default since Windows Vista and macOS 10.12.\n\nStep 4 — Operationalize\n**Dashboard:** Privacy extensions adoption. **Report:** Devices with EUI-64 addresses.\n\nStep 5 — Troubleshooting\n• Enable privacy extensions:\nLinux: `sysctl -w net.ipv6.conf.all.use_tempaddr=2`\nWindows: `netsh interface ipv6 set privacy state=enabled`",
+  "grandmaExplanation": "Your IPv6 address can contain your device's hardware serial number, which is like walking around with your name tag always visible. Privacy extensions give you a random name tag that changes regularly. We check that all devices are using random name tags so nobody can track them across different networks.",
+  "prerequisiteUseCases": ["5.20.5", "5.20.73"],
+  "wave": "walk"
+}

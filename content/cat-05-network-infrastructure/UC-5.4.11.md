@@ -21,7 +21,7 @@ Band steering moves capable clients to 5 GHz, reducing congestion on 2.4 GHz. Me
 
 ## Value
 
-Band steering moves capable clients to 5 GHz, reducing congestion on 2.4 GHz. Measuring effectiveness validates RF policy.
+Network operations teams measure band steering effectiveness across SSIDs by tracking the 5GHz/6GHz vs. 2.4GHz client distribution, optimizing wireless performance by ensuring dual-band clients use higher-capacity bands.
 
 ## Implementation
 
@@ -30,48 +30,79 @@ Collect client association events with channel info. Calculate the ratio of 5 GH
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: Cisco WLC syslog, Meraki API.
-- Ensure the following data sources are available: `sourcetype=cisco:wlc`, `sourcetype=meraki:api`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Wireless controller or cloud platform reporting band steering metrics. Sources: (1) Cisco WLC — Band Select statistics, (2) Meraki — band steering events in API/syslog, (3) Aruba — ARM band steering data.
+- Key fields: `client_mac`, `attempted_band` (2.4GHz), `steered_to` (5GHz), `result` (success/failure), `ap_name`, `ssid`.
+- Band steering encourages dual-band capable clients to connect on 5GHz instead of 2.4GHz. Benefits: 5GHz has more channels (less co-channel interference), wider channel widths (more throughput), and less interference from non-WiFi devices. The 2.4GHz band is reserved for legacy/IoT devices.
 
 ### Step 1 — Configure data collection
-Collect client association events with channel info. Calculate the ratio of 5 GHz vs 2.4 GHz clients per SSID. Target >70% on 5 GHz for dual-band capable clients.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify band steering events:
 ```spl
-index=network sourcetype="cisco:wlc" "associated"
-| eval band=if(match(channel,"^(1|6|11)$"),"2.4GHz","5GHz")
-| stats count by band, ssid
-| eventstats sum(count) as total by ssid
-| eval pct=round(count/total*100,1)
+index=wireless earliest=-24h
+| where match(_raw, "(?i)(band.steer|band.select|probe.suppress|5ghz.prefer)")
+| stats count by sourcetype, ssid
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Band Steering Effectiveness** — Band steering moves capable clients to 5 GHz, reducing congestion on 2.4 GHz. Measuring effectiveness validates RF policy.
+**Primary search — Band steering effectiveness:**
+```spl
+index=wireless earliest=-4h
+| where isnotnull(radio_band) OR isnotnull(band)
+| eval client_band=coalesce(radio_band, band)
+| eval client_id=coalesce(client_mac, src_mac)
+| stats count as connections by ssid, client_band, ap_name
+| chart sum(connections) as clients by ssid client_band
+| eval total=coalesce('2.4GHz', 0) + coalesce('5GHz', 0) + coalesce('6GHz', 0)
+| eval pct_5ghz=round(100*coalesce('5GHz', 0)/total, 1)
+| eval pct_6ghz=round(100*coalesce('6GHz', 0)/total, 1)
+| eval pct_24ghz=round(100*coalesce('2.4GHz', 0)/total, 1)
+| eval band_score=case(pct_5ghz + pct_6ghz > 80, "EXCELLENT", pct_5ghz + pct_6ghz > 60, "GOOD", pct_5ghz + pct_6ghz > 40, "FAIR", 1==1, "POOR")
+| sort band_score
+```
 
-Documented **Data sources**: `sourcetype=cisco:wlc`, `sourcetype=meraki:api`. **App/TA** (typical add-on context): Cisco WLC syslog, Meraki API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: A healthy wireless environment should have > 70% of clients on 5GHz/6GHz. If the majority are on 2.4GHz, band steering is either not enabled, not aggressive enough, or the client population is primarily 2.4GHz-only devices. The SSID-level breakdown helps identify which networks need attention — corporate SSIDs should target > 80% on 5GHz.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:wlc. That sourcetype matches what this use case lists under Data sources.
+**Band steering attempt success rate:**
+```spl
+index=wireless earliest=-24h
+| where match(_raw, "(?i)(band.steer|band.select)")
+| eval steer_result=case(match(_raw, "(?i)(success|steered|moved)"), "SUCCESS", match(_raw, "(?i)(fail|refuse|reject|ignore)"), "FAILURE", 1==1, "UNKNOWN")
+| stats count as attempts count(eval(steer_result="SUCCESS")) as successes by ssid
+| eval success_rate=round(100*successes/attempts, 1)
+```
 
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="cisco:wlc". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `eval` defines or adjusts **band** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `stats` rolls up events into metrics; results are split **by band, ssid** so each row reflects one combination of those dimensions.
-- `eventstats` rolls up events into metrics; results are split **by ssid** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
+**Band distribution trending:**
+```spl
+index=wireless earliest=-7d
+| where isnotnull(radio_band) OR isnotnull(band)
+| eval client_band=coalesce(radio_band, band)
+| bin _time span=1h
+| stats count by _time, client_band
+| timechart span=1h sum(count) by client_band
+```
 
 ### Step 3 — Validate
-In the Cisco WLC or Catalyst 9800 wireless GUI (Monitor > Clients or Access Points), compare counts and statuses with the Splunk rows for the same period. Confirm a few client MACs or AP names.
+(a) Check the wireless controller's band steering configuration: is it enabled on the corporate SSID?
+(b) Connect a dual-band client (laptop) and verify it connects on 5GHz. Connect a 2.4GHz-only IoT device and verify it connects on 2.4GHz.
+(c) Compare band distribution percentages with the controller's client analytics.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart (band distribution), Bar chart (by SSID), Timechart (trending).
+Dashboard ("Wireless — Band Steering"):
+- Row 1 — Single-value tiles: "5GHz clients %", "2.4GHz clients %", "Band score", "Steering success rate".
+- Row 2 — Band distribution by SSID: SSID, 2.4GHz count, 5GHz count, 6GHz count, score.
+- Row 3 — Band distribution trending (7 days).
+
+Alerting:
+- Warning (5GHz percentage drops below 60% on corporate SSID): investigate band steering configuration.
+- Info (monthly): band distribution report for RF planning.
+
+### Step 5 — Troubleshooting
+
+- **Most clients on 2.4GHz despite band steering enabled** — Band steering may not be aggressive enough. Increase the probe response suppression threshold. Some controllers have "prefer 5GHz" vs. "force 5GHz" modes.
+
+- **IoT devices can't connect after enabling aggressive band steering** — 2.4GHz-only IoT devices may be blocked. Create a separate SSID for IoT devices without band steering, or use MAC-based exceptions.
+
+- **5GHz percentage varies significantly by building** — 5GHz range is shorter than 2.4GHz. Buildings with sparse AP deployment may have 5GHz coverage gaps, forcing clients to 2.4GHz. Check coverage with a site survey.
 
 ## SPL
 

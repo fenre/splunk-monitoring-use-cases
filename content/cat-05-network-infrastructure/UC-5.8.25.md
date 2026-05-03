@@ -21,7 +21,7 @@ Excessive SNMP traps from a device indicating failure cascade.
 
 ## Value
 
-Excessive SNMP traps from a device indicating failure cascade.
+Network operations teams detect and classify SNMP trap storms caused by cascading failures, device flapping, or monitoring system malfunctions, enabling rapid root-cause identification and preventing alert fatigue.
 
 ## Implementation
 
@@ -30,50 +30,84 @@ Configure Splunk SNMP trap input or forward traps from snmptrapd. Parse trap OID
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP modular input (trap receiver).
-- Ensure the following data sources are available: snmptrapd, Splunk SNMP trap input.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- SNMP trap receiver forwarding to Splunk (SC4SNMP, snmptrapd → UF, or Splunk Stream). Data in `index=snmp` with `sourcetype=snmptrapd` or `sourcetype=sc4snmp:traps`. See UC-5.8.3 for general SNMP trap setup.
+- An SNMP trap storm occurs when a network event triggers a cascade of traps from many devices in a short period. Common causes: (1) a core switch failure triggers linkDown traps from every connected device, (2) a spanning tree topology change causes flapping on many ports, (3) a routing protocol reconvergence generates route change traps from all routers, (4) a monitoring system misconfiguration causes every device to send authentication failure traps simultaneously.
+- Trap storms are dangerous because they: overwhelm the trap receiver, flood the network with UDP traffic, generate thousands of alerts that mask the real root cause, and consume significant Splunk indexing resources.
 
 ### Step 1 — Configure data collection
-Configure Splunk SNMP trap input or forward traps from snmptrapd. Parse trap OID and host. Alert when trap rate from a single device exceeds 100/min or 3 standard deviations above baseline. Trap storms often indicate device failure, link flapping, or misconfiguration.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify trap data with volume awareness:
 ```spl
-index=network sourcetype=snmptrap
+index=snmp (sourcetype="snmptrapd" OR sourcetype="sc4snmp:traps") earliest=-1h
 | bin _time span=1m
-| stats count as trap_count by host, _time
-| eventstats avg(trap_count) as avg_traps, stdev(trap_count) as std_traps by host
-| where trap_count > (avg_traps + 3*std_traps) OR trap_count > 100
-| sort -trap_count
+| stats count as traps_per_minute by _time
+| eventstats avg(traps_per_minute) as avg_rate
+| where traps_per_minute > avg_rate * 5
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**SNMP Trap Storm Detection** — Excessive SNMP traps from a device indicating failure cascade.
+**Primary search — Trap storm detection:**
+```spl
+index=snmp (sourcetype="snmptrapd" OR sourcetype="sc4snmp:traps") earliest=-1h
+| bin _time span=1m
+| stats count as traps dc(src) as source_devices dc(trap_oid) as unique_oids values(trap_oid) as oid_list by _time
+| eventstats avg(traps) as avg_rate stdev(traps) as std_rate
+| eval threshold=avg_rate + (4 * std_rate)
+| eval is_storm=if(traps > threshold AND traps > 50, "YES", "NO")
+| where is_storm="YES"
+| eval storm_type=case(source_devices > 20 AND unique_oids < 3, "CASCADE", source_devices < 5 AND traps > 500, "SINGLE_DEVICE_FLOOD", unique_oids > 10, "MIXED_STORM", 1==1, "BURST")
+| eval root_cause_hint=case(storm_type="CASCADE", "Core device failure — many devices reporting linkDown/topology change", storm_type="SINGLE_DEVICE_FLOOD", "Single device generating excessive traps — hardware flapping or software bug", storm_type="MIXED_STORM", "Multiple simultaneous issues or monitoring system malfunction", 1==1, "Transient burst — verify if resolved")
+| table _time, traps, source_devices, unique_oids, storm_type, root_cause_hint
+```
 
-Documented **Data sources**: snmptrapd, Splunk SNMP trap input. **App/TA** (typical add-on context): SNMP modular input (trap receiver). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: The storm classification is key. A "CASCADE" (many devices, few OID types) suggests a single root cause triggering downstream effects — find the first device that sent a trap (likely the root cause device). A "SINGLE_DEVICE_FLOOD" suggests a device with a hardware problem (flapping port, failing fan sensor) sending the same trap hundreds of times. The 4σ threshold with a minimum of 50 traps prevents false positives from normal volume variations.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmptrap. That sourcetype matches what this use case lists under Data sources.
+**Root cause identification during storm:**
+```spl
+index=snmp (sourcetype="snmptrapd" OR sourcetype="sc4snmp:traps") earliest=-15m
+| bin _time span=1m
+| stats count as trap_count by _time, src
+| where trap_count > 10
+| stats earliest(_time) as first_trap sum(trap_count) as total_traps by src
+| lookup snmp_device_inventory.csv src OUTPUT hostname device_type tier
+| eval device_label=coalesce(hostname, src)
+| sort first_trap
+| head 5
+```
 
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype=snmptrap. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Discretizes time or numeric ranges with `bin`/`bucket`.
-- `stats` rolls up events into metrics; results are split **by host, _time** so each row reflects one combination of those dimensions.
-- `eventstats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where trap_count > (avg_traps + 3*std_traps) OR trap_count > 100` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-SNMP traps are usually not in the CIM Alerts model without tagging; treat this as raw sourcetype validation.
-
+**Post-storm impact assessment:**
+```spl
+index=snmp (sourcetype="snmptrapd" OR sourcetype="sc4snmp:traps") earliest=-2h
+| bin _time span=5m
+| stats count as traps by _time
+| streamstats window=3 current=t avg(traps) as rolling_avg
+| eval status=case(traps > rolling_avg * 5, "STORM", traps > rolling_avg * 2, "ELEVATED", 1==1, "NORMAL")
+```
 
 ### Step 3 — Validate
-Generate a test trap or poll from a lab device, confirm it lands with the expected `sourcetype` (`snmp:trap`, `snmp:*`, or your normalized name) and that host and trap fields parse; compare a burst window to the NMS on the same device.
+(a) Generate a synthetic trap storm: use `snmptrap` to send 100 traps in 10 seconds from multiple source IPs. Verify storm detection triggers.
+(b) Review historical data: identify a known network event (link flap, switch reboot) and verify the corresponding trap volume spike.
+(c) Validate the storm classification: compare the detected storm type with the actual root cause.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (traps per host over time), Table (host, count, threshold), Single value (devices in storm).
+Dashboard ("SNMP Trap Storm Detection"):
+- Row 1 — Single-value tiles: "Current trap rate (per min)", "Storm active?", "Storm type", "Devices in storm".
+- Row 2 — Trap volume timeline with storm threshold line.
+- Row 3 — Storm event table: time, trap count, sources, type, root cause hint.
+- Row 4 — Root cause candidates: first devices to generate traps (sorted by earliest time).
+
+Alerting:
+- Critical (trap storm detected — CASCADE type): core network event — correlate with device status.
+- High (trap storm — SINGLE_DEVICE_FLOOD): isolate the device generating excessive traps.
+- Warning (trap volume > 2× normal for 5 minutes): elevated activity — monitor.
+
+### Step 5 — Troubleshooting
+
+- **Trap storms overwhelm Splunk indexing** — Configure rate limiting on the trap receiver (snmptrapd `-A` option, SC4SNMP rate limiting). Alternatively, drop duplicate traps within a 1-second window at the receiver before forwarding to Splunk.
+
+- **Storm detected but no clear root cause** — The root cause device may not send traps itself. A power failure at a site won't generate a trap from the failed device, but all neighboring devices will send linkDown traps. Look for the absence of traps from a device that should be generating them.
+
+- **False positive storms during maintenance windows** — Planned device reboots generate trap bursts. Implement a maintenance mode that suppresses storm alerts during scheduled windows.
 
 ## SPL
 

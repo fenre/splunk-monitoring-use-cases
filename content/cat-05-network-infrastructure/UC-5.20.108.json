@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.108",
+  "title": "Segment Routing over IPv6 (SRv6) Security and Anomaly Detection",
+  "criticality": "high",
+  "difficulty": "expert",
+  "monitoringType": [
+    "Security",
+    "Performance"
+  ],
+  "splunkPillar": "ES",
+  "dataSources": "`index=network sourcetype=cisco:iosxe` or `sourcetype=cisco:nxos` or `sourcetype=juniper:junos` — Monitors SRv6 (Segment Routing over IPv6) operations for security anomalies, unauthorized SID (Segment Identifier) usage, SRH (Segment Routing Header, Type 3) manipulation, and SRv6 policy violations. SRv6 embeds forwarding instructions directly in IPv6 addresses using 128-bit SIDs.\n\n**SRv6 security context:**\n\n1. **SRv6 SID as an IPv6 address.** Each SRv6 SID is a valid IPv6 address. The SID is structured as Locator + Function + Arguments. If the locator prefix leaks outside the SR domain, external parties can inject SRv6 instructions.\n2. **SRH injection.** An attacker who can inject Routing Header Type 3 (SRH) into packets can redirect traffic through arbitrary nodes, enabling man-in-the-middle attacks or traffic inspection.\n3. **SRv6 domain boundary.** SRv6 packets with SRH must not be accepted from outside the SR domain. External SRH should be stripped or dropped at domain boundaries.\n4. **SID table integrity.** Each SRv6 node maintains a local SID table (My SID Table). If this table is corrupted or populated with unauthorized SIDs, traffic can be misrouted.\n5. **SRv6 micro-SID (uSID).** The compressed SRv6 format uses micro-segments to reduce header overhead. uSID has its own security considerations around SID list manipulation.\n6. **SRv6 VPN.** SRv6 can provide VPN services (replacing MPLS L3VPN/L2VPN). Security of tenant traffic depends on correct SID-to-VPN binding. Misconfigured bindings leak traffic between tenants.",
+  "app": "Splunk Enterprise Security",
+  "spl": "index=network (sourcetype=\"cisco:iosxe\" OR sourcetype=\"cisco:nxos\" OR sourcetype=\"juniper:junos\") earliest=-24h\n  (\"%SRV6\" OR \"%ISIS\" OR \"segment-routing\" OR \"srv6\" OR \"SRH\")\n| eval event_type=case(\n    match(_raw, \"(?i)SRH.*drop|SRH.*reject|SRH.*invalid\"), \"SRH_REJECTED\",\n    match(_raw, \"(?i)SID.*install|SID.*add\"), \"SID_INSTALLED\",\n    match(_raw, \"(?i)SID.*delete|SID.*remove\"), \"SID_REMOVED\",\n    match(_raw, \"(?i)policy.*fail|policy.*violation\"), \"POLICY_VIOLATION\",\n    match(_raw, \"(?i)locator.*change|locator.*update\"), \"LOCATOR_CHANGE\",\n    match(_raw, \"(?i)SRv6.*error|SRv6.*fail\"), \"SRV6_ERROR\",\n    1=1, \"OTHER\")\n| eval severity=case(\n    event_type=\"SRH_REJECTED\", \"HIGH — SRH packet rejected at domain boundary (possible injection attempt)\",\n    event_type=\"POLICY_VIOLATION\", \"HIGH — SRv6 policy violation detected\",\n    event_type=\"SRV6_ERROR\", \"MEDIUM — SRv6 processing error\",\n    event_type=\"LOCATOR_CHANGE\", \"INFO — SRv6 locator update (verify intentional)\",\n    1=1, \"INFO\")\n| stats count as events by host, event_type, severity\n| sort -events",
+  "description": "Monitors Segment Routing over IPv6 (SRv6) for security anomalies: unauthorized Segment Routing Header (SRH) injection at domain boundaries, SID table changes, policy violations, and locator prefix leakage. SRv6 is the successor to MPLS in modern networks and embeds forwarding instructions in IPv6 addresses, creating unique security challenges around SRH manipulation and SID exposure.",
+  "value": "SRv6 is being deployed at scale by service providers and large enterprises as the successor to MPLS. Because SRv6 SIDs are valid IPv6 addresses, a misconfigured domain boundary that accepts external SRH packets allows traffic hijacking. Monitoring SRH processing at domain boundaries, SID table integrity, and policy compliance is essential for any SRv6 deployment. This UC detects the most common SRv6 security issues before they lead to traffic manipulation.",
+  "implementation": "Monitor SRv6 events on all SRv6-capable routers. Alert on SRH rejections at domain boundaries (indicates external injection attempts). Track SID table changes. Verify SRv6 locator prefixes are not advertised externally.",
+  "visualization": "(1) Table: SRv6 events by type and device. (2) Single-value: SRH rejection count. (3) Timeline: SID table changes. (4) Map: SRv6 topology with anomaly indicators.",
+  "references": [
+    {
+      "title": "RFC 8754 — IPv6 Segment Routing Header (SRH)",
+      "url": "https://www.rfc-editor.org/rfc/rfc8754"
+    },
+    {
+      "title": "RFC 8986 — Segment Routing over IPv6 (SRv6) Network Programming",
+      "url": "https://www.rfc-editor.org/rfc/rfc8986"
+    },
+    {
+      "title": "RFC 9256 — Segment Routing Policy Architecture",
+      "url": "https://www.rfc-editor.org/rfc/rfc9256"
+    },
+    {
+      "title": "draft-ietf-spring-srv6-security — SRv6 Security Considerations",
+      "url": "https://datatracker.ietf.org/doc/draft-ietf-spring-srv6-security/"
+    }
+  ],
+  "knownFalsePositives": "**SRv6 topology changes.** During planned maintenance or network convergence, SID installations and removals are expected. Correlate with change management windows.\n\n**IGP convergence.** When IS-IS or OSPF reconverges, SRv6 locators may be withdrawn and re-advertised. Brief SID changes during convergence are normal.\n\n**SRH at domain boundary.** If inter-domain SRv6 peering is intentionally configured (e.g., between two trusted domains), SRH acceptance at the boundary is expected. Document these peering relationships.",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "nokia"
+  ],
+  "equipmentModels": [
+    "cisco_asr_9000",
+    "cisco_ncs_5500",
+    "juniper_mx",
+    "nokia_7750_sr"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• SRv6 deployment with IS-IS or OSPFv3 advertising SRv6 locators.\n• SRv6-capable routers with logging enabled.\n• Understanding of the SRv6 domain boundary topology.\n\nStep 1 — Configure data collection\n\n**Cisco IOS-XE SRv6 logging:**\n```\nlogging buffered 8192 informational\nlogging host <splunk_ip> transport udp port 514\n!\nsegment-routing srv6\n logging\n locators\n  locator MAIN\n   prefix fc00:0:1::/48\n  !\n!\n```\n\n**SRv6 domain boundary protection (IOS-XE):**\n```\nipv6 access-list SRV6-DOMAIN-BOUNDARY\n remark Drop SRH from external sources\n deny ipv6 any any routing-type 3 log\n permit ipv6 any any\n!\ninterface GigabitEthernet0/0/0\n description External peering - NO SRH accepted\n ipv6 traffic-filter SRV6-DOMAIN-BOUNDARY in\n```\n\n**Verification — SID table monitoring:**\n```spl\nindex=network sourcetype=\"cisco:iosxe\" \"SRv6\" earliest=-24h | stats count by host\n```\n\nStep 2 — Create security searches\n\n**SRH injection detection (domain boundary):**\n```spl\nindex=network (sourcetype=\"cisco:iosxe\" OR sourcetype=\"cisco:nxos\") earliest=-24h\n  \"%IPV6_ACL\" AND \"routing-type 3\" AND \"denied\"\n| rex field=_raw \"(?:src|source)\\s*=?\\s*(?<external_src>[0-9a-fA-F:.]+)\"\n| stats count as injection_attempts by host, external_src\n| eval alert=\"SRH injection attempt from \" . external_src . \" blocked at \" . host . \" (\" . injection_attempts . \" attempts)\"\n| sort -injection_attempts\n```\n\n**SRv6 locator leak detection:**\n```spl\nindex=network (sourcetype=\"cisco:iosxe\" OR sourcetype=\"juniper:junos\") earliest=-24h\n  \"BGP\" AND (\"fc00:\" OR \"fd00:\") AND (\"advertise\" OR \"announce\")\n| eval is_srv6_locator=if(match(_raw, \"fc00:0:[0-9a-fA-F]+::/48\"), 1, 0)\n| eval is_external_peer=if(match(_raw, \"(?i)eBGP|external\"), 1, 0)\n| where is_srv6_locator=1 AND is_external_peer=1\n| eval alert=\"SRv6 locator prefix leaked to external BGP peer — immediate remediation required\"\n| table _time, host, alert\n```\n\nStep 3 — Validate\n(a) **Domain boundary test.** From outside the SR domain, send a packet with an SRH (Routing Header Type 3). Verify it is dropped and logged at the domain boundary router.\n\n(b) **SID table audit.** Compare the running SID table (`show segment-routing srv6 sid`) against the expected SID table from configuration management. Flag any discrepancies.\n\n(c) **Locator containment.** Verify SRv6 locator prefixes are not leaked to external BGP peers by checking `show bgp ipv6 unicast neighbors <peer> advertised-routes`.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — SRv6 Security\"):\n• Row 1 — Single-values: SRH rejections (should be zero in a clean environment), SID table size.\n• Row 2 — Table: SRH injection attempts with source and target.\n• Row 3 — SID table changes (new installs/removals).\n• Row 4 — Locator prefix containment status.\n\n**Alert 1:** SRH rejected at domain boundary — high. Possible SRH injection attempt.\n**Alert 2:** SRv6 locator prefix advertised to external BGP peer — critical. Traffic hijacking risk.\n**Alert 3:** Unexpected SID installed in SID table — medium. Verify intentional.\n\nStep 5 — Troubleshooting\n\n• **SRH packets dropped internally.** If SRH packets are being dropped within the SR domain (not at the boundary), check that all routers in the path have the SRv6 locator and SID installed. Missing SIDs cause the router to drop the packet.\n\n• **SID table synchronisation.** In multi-area IS-IS, SRv6 locators must be redistributed between areas. Missing redistribution causes SID table gaps and traffic black holes.\n\n• **Micro-SID security.** When using SRv6 micro-SID (uSID), the compressed SID format means multiple SIDs are packed into a single 128-bit field. Monitoring tools must understand uSID encoding to correctly parse the SID list.",
+  "grandmaExplanation": "In our network, we've built smart roads (SRv6) where the address on a letter also contains driving directions — telling each post office exactly where to forward it next. We watch to make sure nobody from outside our postal system is sending letters with fake driving directions that would reroute mail through the wrong post offices, where it could be read or tampered with.",
+  "prerequisiteUseCases": [
+    "5.20.44",
+    "5.20.105"
+  ],
+  "wave": "run"
+}

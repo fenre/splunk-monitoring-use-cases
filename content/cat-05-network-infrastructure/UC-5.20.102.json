@@ -1,0 +1,61 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.102",
+  "title": "CISA TIC 3.0 IPv6 Trust Zone and Telemetry Compliance",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "ES",
+  "dataSources": "`index=network` — Validates compliance with CISA Trusted Internet Connections (TIC) 3.0 security capabilities for IPv6 traffic. TIC 3.0 defines trust zones (agency campus, branch office, remote user, cloud) and requires specific security capabilities at each policy enforcement point (PEP).\n\n**TIC 3.0 IPv6 requirements:**\n\n1. **Universal telemetry.** All traffic — including IPv6 — must be captured for CISA analysis. IPv6 telemetry must include source/destination addresses, ports, protocols, timestamps, and byte counts.\n2. **DNS integrity.** DNS resolution for IPv6 (AAAA records, DNS64) must be monitored and protected. CISA requires encrypted DNS (DoH/DoT) and DNSSEC validation.\n3. **Intrusion detection.** NGFW and IDS at TIC access points must inspect IPv6 traffic with the same depth as IPv4. Extension header processing must not bypass inspection.\n4. **Web filtering.** Proxy and SWG solutions must filter IPv6 URLs and connections. Direct IPv6 connections that bypass the proxy must be blocked.\n5. **Email security.** Mail servers accepting IPv6 connections must apply SPF/DKIM/DMARC validation and content inspection.\n6. **Resilience.** IPv6 connectivity must meet the same availability and failover standards as IPv4 at each trust zone boundary.",
+  "app": "Splunk Enterprise Security",
+  "spl": "| makeresults\n| eval tic_capability=mvappend(\n    \"Telemetry — IPv6 flow/packet data to CISA EINSTEIN/CDM\",\n    \"DNS — IPv6 DNS resolution integrity (DNSSEC, DoH/DoT)\",\n    \"Intrusion Detection — IPv6 NGFW/IDS inspection depth\",\n    \"Web Filtering — IPv6 proxy/SWG enforcement\",\n    \"Email Security — IPv6 SMTP inspection (SPF/DKIM/DMARC)\",\n    \"Resilience — IPv6 failover and availability at PEPs\")\n| mvexpand tic_capability\n| lookup tic3_ipv6_status.csv tic_capability OUTPUT status last_verified trust_zone evidence_notes\n| eval status=coalesce(status, \"NOT ASSESSED\")\n| eval compliance=case(\n    status=\"pass\", \"COMPLIANT\",\n    status=\"partial\", \"PARTIALLY COMPLIANT — gaps identified\",\n    status=\"fail\", \"NON-COMPLIANT — remediation required\",\n    1=1, \"NOT ASSESSED — requires evaluation\")\n| table tic_capability, trust_zone, compliance, last_verified, evidence_notes",
+  "description": "Validates IPv6 compliance with CISA Trusted Internet Connections (TIC) 3.0 framework. TIC 3.0 requires security capabilities (telemetry, DNS integrity, intrusion detection, web filtering, email security, resilience) at every policy enforcement point, regardless of whether traffic uses IPv4 or IPv6. This UC audits IPv6 coverage across all TIC trust zones.",
+  "value": "Federal agencies subject to TIC 3.0 must demonstrate that IPv6 traffic is inspected and protected with the same capabilities as IPv4 at all trust zone boundaries. TIC 3.0 is architecture-agnostic — it applies equally to on-premises, cloud, and hybrid environments. Many agencies have TIC-compliant IPv4 infrastructure but have not extended the same capabilities to IPv6, creating a compliance gap that this UC addresses.",
+  "implementation": "Map TIC 3.0 security capabilities to IPv6-specific controls. Assess each capability at each trust zone. Track compliance status with evidence collection.",
+  "visualization": "(1) Table: TIC 3.0 capabilities with IPv6 compliance status per trust zone. (2) Heatmap: trust zones vs capabilities. (3) Single-value: overall compliance percentage. (4) Trend: compliance progress over quarters.",
+  "references": [
+    {
+      "title": "CISA — Trusted Internet Connections (TIC) 3.0 Core Guidance",
+      "url": "https://www.cisa.gov/sites/default/files/publications/CISA_TIC%203.0%20Core%20Guidance.pdf"
+    },
+    {
+      "title": "CISA — TIC 3.0 Security Capabilities Catalog",
+      "url": "https://www.cisa.gov/trusted-internet-connections"
+    },
+    {
+      "title": "OMB M-21-07 — Completing the Transition to IPv6",
+      "url": "https://www.whitehouse.gov/wp-content/uploads/2020/11/M-21-07.pdf"
+    }
+  ],
+  "knownFalsePositives": "**Cloud-delivered TIC.** When TIC access points are cloud-delivered (Zscaler, Palo Alto Prisma), IPv6 inspection capabilities may be handled by the cloud provider. Verify with the provider rather than inspecting on-premises infrastructure.\n\n**MTIPS connections.** Managed Trusted Internet Protocol Service (MTIPS) providers may handle IPv6 TIC compliance as part of their managed service. Confirm with the MTIPS provider.\n\n**Trust zone classification.** Asset misclassification (e.g., a branch office device classified as campus) affects compliance reporting. Maintain accurate trust zone assignments.",
+  "equipment": [
+    "cisco",
+    "paloalto",
+    "zscaler",
+    "forcepoint"
+  ],
+  "equipmentModels": [
+    "cisco_ftd",
+    "paloalto_pa",
+    "zscaler_zia",
+    "forcepoint_ngfw"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• TIC 3.0 trust zone architecture documented.\n• PEP (policy enforcement point) inventory with IPv6 capability status.\n• CISA CDM/EINSTEIN telemetry integration.\n\nStep 1 — Configure compliance tracking\n\n**Create TIC 3.0 status lookup:**\n```csv\ntic_capability,status,last_verified,trust_zone,evidence_notes\n\"Telemetry — IPv6 flow/packet data to CISA EINSTEIN/CDM\",pass,2026-04-20,\"Agency Campus\",\"NetFlow v9 with IPv6 templates configured on all border routers\"\n\"DNS — IPv6 DNS resolution integrity (DNSSEC, DoH/DoT)\",partial,2026-04-20,\"Agency Campus\",\"DNSSEC validation enabled; DoH/DoT not yet enforced for all clients\"\n\"Intrusion Detection — IPv6 NGFW/IDS inspection depth\",pass,2026-04-20,\"Agency Campus\",\"Palo Alto PA-5260 with IPv6 threat prevention profiles active\"\n\"Web Filtering — IPv6 proxy/SWG enforcement\",fail,2026-04-20,\"Branch Office\",\"Branch SWG does not inspect IPv6 — clients bypass proxy via IPv6 DIA\"\n\"Email Security — IPv6 SMTP inspection (SPF/DKIM/DMARC)\",pass,2026-04-20,\"Agency Campus\",\"Exchange Online with IPv6 MX records and DMARC enforcement\"\n\"Resilience — IPv6 failover and availability at PEPs\",partial,2026-04-20,\"Agency Campus\",\"Primary path IPv6-enabled; failover path IPv4-only\"\n```\n\n**Evidence collection search — Telemetry completeness:**\n```spl\nindex=network earliest=-24h\n| eval has_ipv6_src=if(match(src, \":\"), 1, 0)\n| eval has_ipv6_dst=if(match(dest, \":\"), 1, 0)\n| eval ipv6_flow=if(has_ipv6_src=1 OR has_ipv6_dst=1, 1, 0)\n| stats count as total count(eval(ipv6_flow=1)) as ipv6_flows by sourcetype\n| eval ipv6_pct=round(ipv6_flows / total * 100, 1)\n| eval telemetry_status=if(ipv6_flows > 0, \"COLLECTING IPv6 telemetry\", \"NO IPv6 telemetry — capability gap\")\n| table sourcetype, total, ipv6_flows, ipv6_pct, telemetry_status\n```\n\nStep 2 — Assess per trust zone\n\n**Trust zone matrix:**\n```spl\n| inputlookup tic3_ipv6_status.csv\n| chart values(status) as status by tic_capability, trust_zone\n```\n\nThis creates a matrix showing compliance status for each capability at each trust zone, which is the format CISA expects.\n\nStep 3 — Validate\n(a) **Telemetry test.** Generate IPv6 traffic from each trust zone. Verify it appears in Splunk with full field fidelity (src, dest, port, protocol, bytes, timestamp).\n\n(b) **IDS bypass test.** Send a known IPv6 attack signature through the PEP. Verify the IDS detects and alerts. Test with extension headers to ensure they don't bypass inspection.\n\n(c) **Web filter bypass test.** Attempt to access a blocked URL via IPv6 direct connection (bypassing the proxy). Verify the connection is blocked.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — TIC 3.0 Compliance\"):\n• Row 1 — Heatmap: trust zones (rows) vs capabilities (columns) with pass/partial/fail.\n• Row 2 — Single-value: overall compliance percentage.\n• Row 3 — Table: non-compliant capabilities with remediation notes.\n• Row 4 — Trend: quarterly compliance improvements.\n\n**CISA reporting:** Export the trust zone matrix quarterly for CISA compliance reporting.\n\nStep 5 — Troubleshooting\n\n• **Web filtering gap at branch offices.** The most common TIC 3.0 IPv6 gap is at branch offices where SWG/proxy does not handle IPv6. Solutions: (a) enable IPv6 on the SWG, (b) tunnel all branch IPv6 traffic to a central TIC access point, (c) deploy a cloud-based SWG that supports IPv6.\n\n• **Telemetry gaps.** If IPv6 telemetry is missing from certain segments, verify that NetFlow/IPFIX templates include IPv6 fields. Some older exporters only include IPv4 templates by default. See UC-5.20.58 for NetFlow IPv6 template verification.\n\n• **DNS security for IPv6.** Ensure recursive resolvers validate DNSSEC for AAAA records and that DNS64 (if used) does not bypass DNSSEC validation. See UC-5.20.53 for DNS64 DNSSEC monitoring.",
+  "grandmaExplanation": "The government's cybersecurity agency (CISA) has rules about how all government networks must be secured. They've set up checkpoints (like security gates) at the boundaries of different network areas. We need to make sure these security gates work just as well for new-format addresses (IPv6) as they do for old-format addresses (IPv4). This tool checks each security gate to make sure nothing is slipping through unchecked.",
+  "prerequisiteUseCases": [
+    "5.20.100",
+    "5.20.90",
+    "5.20.58"
+  ],
+  "wave": "run"
+}

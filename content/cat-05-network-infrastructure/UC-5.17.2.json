@@ -1,0 +1,64 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.17.2",
+  "title": "Packet Drop Rate on Filter/Map Rules",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Fault",
+    "Data Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "wave": "walk",
+  "dataSources": "Detailed: `index=visibility` / `index=network`; `sourcetype` patterns — `gigamon:map`, `gigamon:stats`, `keysight:filter`, `ixia:rule`, `apcon:policy`; syslog traps carrying `drop_pkts`, `drop_pct`, `rule_id`, `map_name`, `cause_buffer_full|acl_miss|parser_error`. Prefer counters normalized to drops-per-second or drops-per-million packets for comparability across chassis generations.",
+  "app": "Vendor REST/syslog integrations for Gigamon Flow Mapping/GigaVUE OS, Keysight Vision filters, APCON policy engine; optional Splunk Supporting Add-on for SNMP when drops exported only as MIB counters.",
+  "spl": "index=visibility OR index=network earliest=-8h\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"gigamon\"),\"Gigamon\",match(v,\"keysight|ixia|vision\"),\"Keysight\",match(v,\"apcon\"),\"APCON\",\"other\")\n| where vendor!=\"other\"\n| eval rule_key=coalesce(rule_id,map_name,filter_name,policy_rule,\"unknown\")\n| eval drops_pps=tonumber(coalesce(drop_pps,drops_per_sec,packet_drop_rate))\n| eval drops_total=tonumber(coalesce(drop_pkts,dropped_packets,map_drop_count))\n| eval pmpp=tonumber(coalesce(drops_per_million,dpm))\n| bin _time span=5m\n| stats sum(drops_total) as sum_drops max(drops_pps) as peak_pps avg(pmpp) as avg_pmpp dc(host) as chassis_hits by _time vendor rule_key\n| eval severity=case(peak_pps>1000 OR avg_pmpp>500,\"critical\",peak_pps>200 OR avg_pmpp>100,\"high\",peak_pps>0 OR sum_drops>0,\"medium\",\"info\")\n| where severity IN (\"critical\",\"high\")\n| sort - peak_pps vendor rule_key _time",
+  "description": "Five-minute Splunk rollups attribute rising packet discard counters to specific broker filter or map identifiers so engineering teams know whether buffering, ACL tightening, or malformed rules—not vague chassis alarms—drive visibility loss.",
+  "value": "Incident responders shorten MTTR by jumping straight to offending rule keys instead of spanning multiple vendor consoles while compliance teams preserve evidence that monitored spans stayed complete during audits.",
+  "implementation": "Ensure every drop-bearing event carries stable `rule_key`; baseline benign drops with a weekly median lookup; alert only when peak_pps or drops-per-million exceeds curated thresholds per vendor tier.",
+  "detailedImplementation": "Prerequisites\n• Exported rule catalog (`rule_key`, owner, business justification, expected drop budget).\n• Understanding whether counters reset on rule edits—document rollover semantics per vendor OS.\n• Capacity for five-minute retention searches without dominating search quota.\n\nStep 1 — Configure data collection\nTurn on structured syslog or REST polling that emits both instantaneous and cumulative drop counters; prefer timestamps from the appliance, not the collector edge.\n\nStep 2 — Normalize counters\nConvert burst counters to `drops_pps` using adjacent samples where vendors only publish totals; guard divide-by-zero when intervals stall.\n\nStep 3 — Build saved search\nMaterialize `pktbrk_map_drop_hotrules` with acceleration-friendly summary when cardinality explodes beyond fifty thousand rule keys—pre-aggregate per chassis hourly.\n\nStep 4 — Validate\nInject lab traffic through a sacrificial map known to drop synthetic flows; confirm Splunk surfaces the expected `rule_key` within two poll intervals.\n\nStep 5 — Operationalize\nWire alerts to SecOps with direct links to vendor edit screens; attach recommended actions (widen buffer, split map, add tool port) based on historical runbooks stored in a Splunk lookup.",
+  "visualization": "Heatmap of sum_drops by rule_key vs `_time`; companion single-value for critical severity count; table drilldown showing vendor, chassis, and linked change ticket.",
+  "references": [
+    {
+      "title": "Splunk Documentation — stats command reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats"
+    },
+    {
+      "title": "Gigamon Documentation — Visibility and analytics nodes",
+      "url": "https://docs.gigamon.com/"
+    },
+    {
+      "title": "APCON — Network visibility and security fabric",
+      "url": "https://www.apcon.com/"
+    }
+  ],
+  "knownFalsePositives": "**Expected sampling maps:** lawful truncation for capped analytics ports mimics faults—whitelist by rule catalog.**Counter resets after failover:** transient spikes resemble floods.**Duplicate syslog streams:** summed drops double until dedupe keys applied.**Low-volume lab rules:** tiny denominators inflate drops-per-million—require minimum packet threshold.",
+  "mitreAttack": [
+    "N/A (fault monitoring)"
+  ],
+  "securityDomain": "network",
+  "detectionType": "Anomaly",
+  "equipment": [
+    "gigamon",
+    "keysight",
+    "cpacket",
+    "apcon",
+    "garland"
+  ],
+  "equipmentModels": [
+    "gigamon_gigavue",
+    "keysight_vision",
+    "cpacket_cstor",
+    "apcon_visibility_platform",
+    "garland_network_tap"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "Sometimes the copying machinery quietly throws away little pieces of traffic when rules are too tight or boxes run out of room. We track which rule caused the waste so the right person can fix it before our watchers miss something real."
+}

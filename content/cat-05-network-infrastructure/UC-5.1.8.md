@@ -21,7 +21,7 @@ CPU exhaustion causes packet drops, routing failures, management unresponsivenes
 
 ## Value
 
-CPU exhaustion causes packet drops, routing failures, management unresponsiveness.
+Operations teams monitor router and switch CPU and memory utilization, detecting resource exhaustion that degrades control-plane stability, CLI access, and packet forwarding.
 
 ## Implementation
 
@@ -30,41 +30,76 @@ Poll CISCO-PROCESS-MIB and CISCO-MEMORY-POOL-MIB every 300s. Alert CPU >80% or m
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP, CISCO-PROCESS-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=snmp:cpu`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Device CPU and memory utilization data from SNMP or syslog. Data in `index=network` with `sourcetype=snmp:device:perf` or syslog CPU threshold alerts. Key SNMP OIDs: cpmCPUTotal5min (.1.3.6.1.4.1.9.9.109.1.1.1.1.5), ciscoMemoryPoolFree (.1.3.6.1.4.1.9.9.48.1.1.1.6), ciscoMemoryPoolUsed (.1.3.6.1.4.1.9.9.48.1.1.1.5).
+* High CPU can cause control-plane instability (BGP/OSPF keepalive drops, STP delays), slow CLI response, and packet drops. High memory can cause process crashes and inability to learn routes.
 
-### Step 1 — Configure data collection
-Poll CISCO-PROCESS-MIB and CISCO-MEMORY-POOL-MIB every 300s. Alert CPU >80% or memory >85%.
+### Step 1 — - Configure data collection
+```
+# SNMP polling for CPU/Memory
+# inputs.conf
+[snmp_device_perf]
+interval = 300
+sourcetype = snmp:device:perf
+index = network
+# OIDs: cpmCPUTotal5min, ciscoMemoryPoolUsed, ciscoMemoryPoolFree
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Alternative: Cisco syslog threshold alerts
+process cpu threshold type total rising 80 interval 60
+```
+Verify:
 ```spl
-index=network sourcetype="snmp:cpu"
-| timechart span=5m avg(cpmCPUTotal5minRev) as cpu_pct by host | where cpu_pct > 80
+index=network sourcetype="snmp:device:perf" earliest=-1h
+| stats latest(cpmCPUTotal5min) latest(ciscoMemoryPoolUsed) by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Device CPU/Memory Utilization** — CPU exhaustion causes packet drops, routing failures, management unresponsiveness.
+**Primary search -- CPU and memory utilization monitoring:**
+```spl
+index=network earliest=-4h
+| eval cpu_pct=tonumber(coalesce(cpmCPUTotal5min, cpu_usage, cpu_percent))
+| eval mem_used=tonumber(coalesce(ciscoMemoryPoolUsed, memory_used))
+| eval mem_free=tonumber(coalesce(ciscoMemoryPoolFree, memory_free))
+| eval mem_total=mem_used + mem_free
+| eval mem_pct=if(mem_total > 0, round(100*mem_used/mem_total, 1), null())
+| eval device=coalesce(host, device_name)
+| where isnotnull(cpu_pct) OR isnotnull(mem_pct)
+| bin _time span=5m
+| stats avg(cpu_pct) as avg_cpu max(cpu_pct) as max_cpu avg(mem_pct) as avg_mem max(mem_pct) as max_mem by _time, device
+| eval avg_cpu=round(avg_cpu, 1)
+| eval avg_mem=round(avg_mem, 1)
+| eval severity=case(
+    max_cpu > 90 OR max_mem > 95, "CRITICAL -- device resource exhaustion",
+    max_cpu > 80 OR max_mem > 85, "WARNING -- high resource utilization",
+    max_cpu > 70, "INFO -- elevated CPU",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, device, avg_cpu, max_cpu, avg_mem, max_mem, severity
+| sort severity, -max_cpu
+```
 
-Documented **Data sources**: `sourcetype=snmp:cpu`. **App/TA** (typical add-on context): SNMP, CISCO-PROCESS-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show processes cpu sorted` -- identify top CPU consumers.
+(b) CLI: `show memory statistics` -- check memory pool utilization.
+(c) CLI: `show processes memory sorted` -- identify top memory consumers.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:cpu. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- Device Resources"):
+* Row 1 -- Single-value: "Devices > 80% CPU", "Devices > 85% memory".
+* Row 2 -- CPU utilization timechart.
+* Row 3 -- Memory utilization timechart.
 
-**Pipeline walkthrough**
+Alert: Critical (CPU >90% or Memory >95% sustained 15 min): control-plane risk.
 
-- Scopes the data: index=network, sourcetype="snmp:cpu". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `timechart` plots the metric over time using **span=5m** buckets with a separate series **by host** — ideal for trending and alerting on this use case.
-- Filters the current rows with `where cpu_pct > 80` — typically the threshold or rule expression for this monitoring goal.
+### Step 5 — - Troubleshooting
 
+* **High CPU** -- Identify top process: `show processes cpu sorted`. Common causes: (1) routing reconvergence, (2) ACL logging, (3) crypto operations (VPN), (4) SNMP polling overload, (5) control-plane attacks.
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **High memory** -- Check: `show processes memory sorted`. Common causes: (1) large BGP table (full internet table ~1M routes), (2) memory leak (known bug), (3) large ACL/QoS policy. Consider upgrading RAM.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart, Gauge, Table of high-utilization devices.
+* **Correlation with incidents** -- Overlay CPU/memory with interface down and routing adjacency events. High CPU often precedes protocol timeouts.
+
+**IPv6 Coverage:** NDP storms, ICMPv6 floods, and RA flooding are IPv6-specific CPU stressors. SISF/device-tracking (Cisco Catalyst) can consume significant CPU when processing NDP at scale on access switches with many IPv6 hosts.
 
 ## SPL
 

@@ -21,7 +21,7 @@ Content switching vServers route HTTP/HTTPS requests to different load-balancing
 
 ## Value
 
-Content switching vServers route HTTP/HTTPS requests to different load-balancing vServers based on URL patterns, headers, cookies, or other request attributes. Misconfigured content switching policies result in traffic hitting the default (catch-all) policy or being routed to the wrong back-end. Monitoring policy hit rates validates that routing rules are working as intended and identifies policies that are never triggered (candidate for cleanup or misconfiguration).
+Application delivery teams validate Citrix ADC content switching policy hit rates against expected baselines, detecting misconfigured or zero-hit policies that indicate incorrect traffic routing.
 
 ## Implementation
 
@@ -30,70 +30,53 @@ Poll the NITRO API `csvserver_cspolicy_binding` to get bound policies with hit c
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: Custom scripted input polling Citrix ADC NITRO API.
-- Ensure the following data sources are available: `index=network` `sourcetype="citrix:netscaler:cs"` fields `cs_vserver`, `policy_name`, `hits`, `target_lbvserver`, `priority`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). Citrix ADC content switching (CS) logs in `index=netscaler`. Key fields: `cs_vserver`, `cs_policy`, `target_lb_vserver`, `url`, `host_header`, `hit_count`.
+* Content switching routes traffic to different lb vservers based on HTTP headers, URL, or expressions. Policy hits confirm traffic is being routed as intended. Low or zero hits on expected policies indicate misconfiguration or traffic pattern changes.
 
-### Step 1 — Configure data collection
-Poll the NITRO API `csvserver_cspolicy_binding` to get bound policies with hit counts. Alternatively, enable AppFlow on content switching vServers to capture per-request routing decisions. Run the scripted input every 15 minutes. Flag: policies with zero hits over 7 days (never triggered — misconfigured or obsolete), the default policy receiving more than 20% of traffic (indicates missing specific rules), and sudden shifts in policy hit distribution (routing change after configuration update). C…
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+Verify CS data:
 ```spl
-index=network sourcetype="citrix:netscaler:cs"
-| stats latest(hits) as total_hits, latest(target_lbvserver) as target, latest(priority) as priority by cs_vserver, policy_name, host
-| eventstats sum(total_hits) as vserver_total_hits by cs_vserver
-| eval hit_pct=if(vserver_total_hits>0, round(total_hits/vserver_total_hits*100,1), 0)
-| sort cs_vserver, priority
-| table cs_vserver, policy_name, priority, target, total_hits, hit_pct
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:perf") ("content switching" OR "cs_" OR "cspolicy" OR "CS_VSERVER") earliest=-4h
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Citrix ADC Content Switching Policy Hit Rate (NetScaler)** — Content switching vServers route HTTP/HTTPS requests to different load-balancing vServers based on URL patterns, headers, cookies, or other request attributes. Misconfigured content switching policies result in traffic hitting the default (catch-all) policy or being routed to the wrong back-end. Monitoring policy hit rates validates that routing rules are working as intended and identifies policies that are never triggered (candidate for cleanup or misconfiguration).
-
-Documented **Data sources**: `index=network` `sourcetype="citrix:netscaler:cs"` fields `cs_vserver`, `policy_name`, `hits`, `target_lbvserver`, `priority`. **App/TA** (typical add-on context): Custom scripted input polling Citrix ADC NITRO API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: network; **sourcetype**: citrix:netscaler:cs. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="citrix:netscaler:cs". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by cs_vserver, policy_name, host** so each row reflects one combination of those dimensions.
-- `eventstats` rolls up events into metrics; results are split **by cs_vserver** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **hit_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-- Pipeline stage (see **Citrix ADC Content Switching Policy Hit Rate (NetScaler)**): table cs_vserver, policy_name, priority, target, total_hits, hit_pct
-
-Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
-
-
-### Step 3 — Validate
-Compare vservers, services, and load-balancing state in the Citrix ADC management view or command line for the same time window and objects.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (hit rate by policy), Table (policies with hit counts), Timechart (default policy hit rate trending).
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
+**Primary search -- Content switching policy hit analysis:**
+```spl
+index=netscaler (sourcetype="citrix:netscaler:syslog" OR sourcetype="citrix:netscaler:perf") ("content switching" OR "cs_" OR "cspolicy") earliest=-4h
+| eval cs_vs=coalesce(cs_vserver, csvserver)
+| eval policy=coalesce(cs_policy, cspolicy, policyname)
+| eval target=coalesce(target_lb_vserver, targetlbvserver, target)
+| eval hits=coalesce(hit_count, hits, totalhits)
+| stats sum(hits) as total_hits latest(hits) as current_hits by host, cs_vs, policy, target
+| lookup citrix_cs_policies.csv cs_vs, policy OUTPUT expected_hits_per_hour, application
+| eval hit_rate=if(isnotnull(expected_hits_per_hour), round(100*total_hits/expected_hits_per_hour, 1), null())
+| eval status=case(total_hits=0, "NO_HITS -- policy not matching", isnotnull(hit_rate) AND hit_rate < 20, "LOW -- significantly below expected", 1==1, "OK")
+| where status != "OK"
+| sort status, -total_hits
 ```
 
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
+### Step 3 — - Validate
+(a) On ADC CLI: `show cs vserver <vs>` -- check bound policies and hit counts.
+(b) Send a request matching a specific CS policy and verify the hit counter increments.
+(c) Verify that traffic is reaching the expected target lb vserver.
 
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
+### Step 4 — - Operationalize
+Dashboard ("Citrix ADC -- Content Switching"):
+* Row 1 -- Single-value: "CS vservers", "Policies with zero hits", "Total policy hits".
+* Row 2 -- Policy hit analysis table with expected vs actual.
 
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
+Alerting:
+* Warning (expected policy with zero hits for > 1 hour): traffic not being routed as intended.
+
+### Step 5 — - Troubleshooting
+
+* **Policy has zero hits** -- Check: (1) policy expression syntax: `show cs policy <policy>`, (2) policy priority (lower number = higher priority -- a higher-priority policy may be matching first), (3) traffic actually reaching the CS vserver.
+
+* **Traffic going to wrong target** -- CS policies are evaluated in priority order. The first matching policy wins. Check priority: `show cs vserver <vs> -bindings`.
+
+* **Policy hits decreased after config change** -- New or modified policies may have changed the matching order. Review the change log.
 
 ## SPL
 

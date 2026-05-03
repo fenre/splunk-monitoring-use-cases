@@ -21,7 +21,7 @@ Duplex mismatches degrade link performance silently. They cause late collisions,
 
 ## Value
 
-Duplex mismatches degrade link performance silently. They cause late collisions, CRC errors, and reduced throughput that are hard to diagnose.
+Network engineers detect duplex mismatches across switch and router interfaces, a common cause of intermittent packet loss, CRC errors, and degraded link performance.
 
 ## Implementation
 
@@ -30,44 +30,73 @@ Enable CDP/LLDP on all interfaces. Monitor syslog for duplex mismatch messages. 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP Modular Input, IF-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=cisco:ios`, `sourcetype=snmp:interface`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Interface speed/duplex syslog and SNMP data. Data in `index=network` with `sourcetype=cisco:ios` or SNMP data. Key fields: `ifSpeed`, `ifDuplex`, syslog messages about auto-negotiation results.
+* Duplex mismatch: one side of a link is full-duplex, the other half-duplex. Causes late collisions, CRC errors, and degraded throughput. Typically occurs when one side has auto-negotiation disabled (hardcoded) and the other auto-negotiates. Very common cause of intermittent packet loss.
 
-### Step 1 — Configure data collection
-Enable CDP/LLDP on all interfaces. Monitor syslog for duplex mismatch messages. Cross-reference with SNMP interface counters showing late collisions.
+### Step 1 — - Configure data collection
+```
+# SNMP polling for interface speed/duplex
+# OID: dot3StatsDuplexStatus (.1.3.6.1.2.1.10.7.2.1.19)
+# Values: 1=unknown, 2=halfDuplex, 3=fullDuplex
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Cisco syslog: %LINK-3-UPDOWN includes speed/duplex info
+# %CDP-4-DUPLEX_MISMATCH is key indicator
+```
+Verify:
 ```spl
-index=network sourcetype="cisco:ios" "%CDP-4-DUPLEX_MISMATCH"
-| rex "duplex mismatch discovered on (?<local_intf>\S+).*with (?<remote_device>\S+) (?<remote_intf>\S+)"
-| stats count latest(_time) as last_seen by host, local_intf, remote_device, remote_intf
-| sort -last_seen
+index=network earliest=-24h
+| where match(_raw, "(?i)duplex.*mismatch|DUPLEX_MISMATCH|half.?duplex|auto.*negot")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Duplex Mismatch Detection** — Duplex mismatches degrade link performance silently. They cause late collisions, CRC errors, and reduced throughput that are hard to diagnose.
+**Primary search -- Duplex mismatch detection:**
+```spl
+index=network earliest=-24h
+| where match(_raw, "(?i)DUPLEX_MISMATCH|duplex.*mismatch|half.?duplex|a-half|auto.*negot.*half")
+| rex field=_raw "(?i)(?:port|interface|Port)\s+(?<interface>\S+)"
+| rex field=_raw "(?i)(?:neighbor|peer|remote).*?(?<neighbor_port>\S+)"
+| eval device=coalesce(host, device_name)
+| eval iface=coalesce(interface, port)
+| stats count as events latest(_time) as last_seen by device, iface, neighbor_port
+| eval severity="WARNING -- duplex mismatch detected on ".iface
+| eval last_seen_time=strftime(last_seen, "%Y-%m-%d %H:%M:%S")
+| table device, iface, neighbor_port, events, last_seen_time, severity
+| sort -events
+```
 
-Documented **Data sources**: `sourcetype=cisco:ios`, `sourcetype=snmp:interface`. **App/TA** (typical add-on context): SNMP Modular Input, IF-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+**Secondary search -- Half-duplex interface inventory:**
+```spl
+index=network earliest=-4h
+| eval duplex=coalesce(dot3StatsDuplexStatus, duplex, if(match(_raw, "(?i)half"), "half", if(match(_raw, "(?i)full"), "full", null())))
+| where duplex="half" OR duplex="2"
+| eval device=coalesce(host, device_name)
+| eval interface=coalesce(ifName, interface, port)
+| stats count latest(_time) as last_seen by device, interface
+| eval severity="INFO -- interface running half-duplex"
+| table device, interface, last_seen, severity
+```
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.
+### Step 3 — - Validate
+(a) CLI: `show interface status` -- check speed/duplex for all ports.
+(b) CLI: `show cdp neighbors detail` -- check CDP duplex mismatch warnings.
+(c) Correlate with CRC/input error trending (UC-5.1.2, UC-5.1.21).
 
-**Pipeline walkthrough**
+### Step 4 — - Operationalize
+Dashboard ("Network -- Duplex Status"):
+* Row 1 -- Single-value: "Duplex mismatches", "Half-duplex interfaces".
+* Row 2 -- Duplex mismatch table with interface details.
 
-- Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- `stats` rolls up events into metrics; results are split **by host, local_intf, remote_device, remote_intf** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+Alert: Warning (duplex mismatch detected): fix immediately to prevent packet loss.
 
+### Step 5 — - Troubleshooting
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Fix duplex mismatch** -- Best practice: set both ends to auto-negotiate OR both ends to hardcoded same speed/duplex. Never mix auto and hardcoded. CLI: `interface <intf>` then `speed auto` and `duplex auto`.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (local device/interface → remote device/interface), Alert list.
+* **Correlate with errors** -- Duplex mismatch causes: late collisions (on full-duplex side), FCS/CRC errors, runts. Check `show interface <intf>` error counters.
+
+* **Why auto-negotiation fails** -- Some older devices or specific cabling (crossover vs straight-through) may not auto-negotiate correctly. Hardcode both ends to match.
 
 ## SPL
 

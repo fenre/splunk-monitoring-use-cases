@@ -21,7 +21,7 @@ Devices running unapproved or EOL firmware versions.
 
 ## Value
 
-Devices running unapproved or EOL firmware versions.
+Compliance teams track network device firmware versions against approved baselines, identifying devices running vulnerable or non-compliant software requiring security upgrades.
 
 ## Implementation
 
@@ -30,68 +30,71 @@ Poll SNMP sysDescr or ingest `show version` via scripted input. Create lookup ta
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, SNMP TA (sysDescr).
-- Ensure the following data sources are available: SNMP sysDescr, show version output.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Device firmware/software version data from SNMP or inventory systems. Data in `index=network` with SNMP (`sysDescr` OID .1.3.6.1.2.1.1.1.0) or Cisco DNA Center/network management platform exports. Key fields: `host`, `software_version`, `hardware_model`, `serial_number`.
+* Firmware compliance: ensures all devices run approved software versions. Non-compliant firmware may contain security vulnerabilities, lack required features, or be unsupported by TAC. Required for regulatory compliance (PCI-DSS, HIPAA).
 
-### Step 1 — Configure data collection
-Poll SNMP sysDescr or ingest `show version` via scripted input. Create lookup table (ios_version, approved, eol_date) from vendor EOL/EOS bulletins. Alert on non-approved or past-EOL versions. Update lookup quarterly.
+### Step 1 — - Configure data collection
+```
+# SNMP polling for version info
+[snmp_inventory]
+interval = 86400
+sourcetype = snmp:inventory
+index = network
+# OID: sysDescr (.1.3.6.1.2.1.1.1.0) contains version info
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Approved firmware lookup
+# firmware_compliance.csv
+# model, approved_version, minimum_version, eol_date, notes
+```
+Verify:
 ```spl
-index=network sourcetype=snmp:sysinfo OR sourcetype=cisco:ios:version
-| rex field=_raw "Version (?<ios_version>\S+)" | rex field=sysDescr "Version (?<ios_version>\S+)"
-| lookup firmware_compliance ios_version OUTPUT approved eol_date
-| where approved!="yes" OR (eol_date!="" AND strptime(eol_date,"%Y-%m-%d")<now())
-| table host ios_version approved eol_date
+index=network sourcetype="snmp:inventory" earliest=-2d
+| rex field=sysDescr "Version\s+(?<sw_version>[\d\.\(\)A-Za-z]+)"
+| stats latest(sw_version) by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Network Device Firmware Version Compliance** — Devices running unapproved or EOL firmware versions.
-
-Documented **Data sources**: SNMP sysDescr, show version output. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, SNMP TA (sysDescr). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:sysinfo, cisco:ios:version. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype=snmp:sysinfo. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- Extracts fields with `rex` (regular expression).
-- Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
-- Filters the current rows with `where approved!="yes" OR (eol_date!="" AND strptime(eol_date,"%Y-%m-%d")<now())` — typically the threshold or rule expression for this monitoring goal.
-- Pipeline stage (see **Network Device Firmware Version Compliance**): table host ios_version approved eol_date
-
-
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
-
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (device, version, status), Bar chart (version distribution), Single value (non-compliant count).
-
-Scripted input (generic example)
-This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:
-
-```ini
-[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]
-interval = 300
-sourcetype = your_sourcetype
-index = main
-disabled = 0
+**Primary search -- Firmware version compliance:**
+```spl
+index=network sourcetype="snmp:inventory" earliest=-2d
+| rex field=sysDescr "(?i)Version\s+(?<sw_version>[\d\.\(\)A-Za-z]+)"
+| rex field=sysDescr "(?i)(?<hw_model>[A-Z]+-?\d{4}\S*)"
+| eval device=coalesce(host, device_name)
+| eval version=coalesce(sw_version, software_version)
+| eval model=coalesce(hw_model, hardware_model)
+| lookup firmware_compliance.csv model OUTPUT approved_version, minimum_version, eol_date
+| eval compliant=if(version=approved_version, "YES", "NO")
+| eval below_minimum=if(isnotnull(minimum_version) AND version < minimum_version, "YES", "NO")
+| eval severity=case(
+    below_minimum="YES", "CRITICAL -- firmware below minimum security baseline",
+    compliant="NO" AND isnotnull(approved_version), "WARNING -- firmware not at approved version",
+    isnull(approved_version), "INFO -- no compliance baseline defined for model",
+    1==1, "OK")
+| where severity != "OK"
+| table device, model, version, approved_version, minimum_version, severity
+| sort severity
 ```
 
-The script should print one event per line (e.g. key=value). Example minimal script (bash):
+### Step 3 — - Validate
+(a) CLI: `show version` -- verify current firmware on device.
+(b) Check vendor security advisories for known vulnerabilities in current version.
+(c) Verify approved_version list is current with latest stable releases.
 
-```bash
-#!/usr/bin/env bash
-# Output metrics or events, one per line
-echo "metric=value timestamp=$(date +%s)"
-```
+### Step 4 — - Operationalize
+Dashboard ("Network -- Firmware Compliance"):
+* Row 1 -- Single-value: "Compliant devices", "Non-compliant", "Below minimum".
+* Row 2 -- Firmware compliance table.
 
-For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md
+Alert: Critical (device below minimum security baseline): schedule upgrade.
+
+### Step 5 — - Troubleshooting
+
+* **Upgrade planning** -- Schedule firmware upgrades during maintenance windows. Verify compatibility with current configuration. Test in lab first if possible.
+
+* **Version not in compliance lookup** -- New model or version not yet classified. Add to `firmware_compliance.csv` after evaluating vendor release notes and security advisories.
+
+* **EOL firmware** -- Device running end-of-life software with no security patches available. Plan hardware refresh or upgrade to supported release.
 
 ## SPL
 

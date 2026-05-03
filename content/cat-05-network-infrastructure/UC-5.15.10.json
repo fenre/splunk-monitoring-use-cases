@@ -1,0 +1,55 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.15.10",
+  "title": "Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Analytics"
+  ],
+  "splunkPillar": "Observability",
+  "wave": "walk",
+  "dataSources": "`index=dns` `sourcetype=infoblox:dns` query/response logs containing response codes (`rcode`, `response_code`, or embedded `NXDOMAIN` tokens depending on TA version); sampling policies documented because verbose logging affects Grid CPU.",
+  "app": "Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)",
+  "spl": "index=dns sourcetype=\"infoblox:dns\" earliest=-7d@h latest=now\n| eval rcode_norm=upper(trim(coalesce(rcode,rcode_str,\"\")))\n| eval is_nx=if(rcode_norm=\"NXDOMAIN\" OR match(_raw,\"(?i)\\\\bNXDOMAIN\\\\b\") OR rcode=\"3\" OR rcode=3, 1, 0)\n| bin _time span=1h\n| stats count as queries sum(is_nx) as nx_count by _time src_ip host\n| eval nx_rate=round(100*nx_count/queries,2)\n| eventstats median(nx_rate) as med by src_ip\n| where nx_rate >= 35 AND queries>=200\n| sort - nx_rate\n| head 200",
+  "description": "Hourly aggregation compares NXDOMAIN responses to total DNS queries per internal client IP so sudden hikes—often tied to malware DGAs or misconfigured applications—stand out against historical medians.",
+  "value": "Risk teams gain a lightweight complementary indicator to full PCAP inspection, guiding containment decisions while application owners receive evidence for fixing fat-fingered suffix searches or broken automation.",
+  "implementation": "Normalize rcode fields via eval, exclude authoritative-only members if splits exist using `host` tags, baseline per building, alert when nx_rate exceeds adaptive percentile with minimum query floor.",
+  "detailedImplementation": "Prerequisites\n• Recursive members identified in `infoblox_members_role.csv` lookup for filtering.\n• Understanding of split-horizon DNS—internal NXDOMAIN expected for some namespaces.\n• Storage sizing for query logging volumes.\n\nStep 1 — Configure data collection\nEnable DNS query logging categories balanced with Infoblox sizing guidelines; prefer sampled logging plus RPZ feeds for layered coverage.\n\nStep 2 — Create the search and alert\nPrimary SPL measures nx_rate hourly; complement with `predict` on aggregate NXDOMAIN/min for fleet-wide malware surge alerts.\n\nStep 3 — Validate\nCross-check randomly sampled hour against Splunk raw events counting NXDOMAIN substrings vs TA numeric rcode.\n\nStep 4 — Operationalize\nHeatmap of src_ip by site, integration with proxy logs for HTTP correlation when nx_rate spikes.\n\nStep 5 — Troubleshooting\n**Missing rcode:** rely on substring match path cautiously—performance heavy.**Legitimate scanners:** exclude vulnerability scanner subnets.**Wildcard internal zones:** misconfigured search lists inflate NXDOMAIN.",
+  "visualization": "Timechart nx_rate for top talkers, geographic site facet, reference line at organizational threshold.",
+  "references": [
+    {
+      "title": "Splunk Documentation — Sourcetypes for the Splunk Add-on for Infoblox",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Sourcetypes"
+    },
+    {
+      "title": "Splunkbase — Splunk Add-on for Infoblox",
+      "url": "https://splunkbase.splunk.com/app/2934"
+    }
+  ],
+  "knownFalsePositives": "**Broken SaaS clients:** Misconfigured connectors hammer invalid hostnames.**Guest Wi‑Fi:** Captive portals generate noisy NXDOMAIN.**New AV deployments:** Large NX spikes during initial lookups sometimes normalize within days.",
+  "mitreAttack": [
+    "T1071.004"
+  ],
+  "securityDomain": "threat",
+  "equipment": [
+    "infoblox"
+  ],
+  "equipmentModels": [
+    "infoblox_nios"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We track how often computers ask for names that do not exist; when that jumps for one machine it can mean malware guessing names or a broken app mis-typing addresses.",
+  "cimModels": [
+    "Network_Resolution"
+  ],
+  "cimSpl": "| tstats `summariesonly` count from datamodel=Network_Resolution where nodename=Network_Resolution.DNS by DNS.src DNS.reply_code span=1h",
+  "dataModelAcceleration": "Accelerate Network_Resolution DNS when Infoblox logs map reply codes into CIM DNS.reply_code."
+}

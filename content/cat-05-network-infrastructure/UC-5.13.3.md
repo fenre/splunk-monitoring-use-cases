@@ -141,6 +141,8 @@ Tuning cadence (weekly for first month, then monthly):
 
 - **Device shows health=0 but is actually fine** — the device model may not be supported by Assurance scoring (some Meraki devices, legacy Catalyst 3k). Filter with `| where isnum(overallHealth) AND overallHealth > 0` and add the device to a `catalyst_unsupported_devices` lookup.
 
+**IPv6 Note:** ICMPv6 is architecturally critical for IPv6 — it carries NDP (Neighbor Discovery), Path MTU Discovery, and Multicast Listener Discovery. Unlike ICMP for IPv4, blocking ICMPv6 breaks IPv6 connectivity entirely. Ensure firewall policies permit at minimum ICMPv6 types 1-4 (Destination Unreachable, Packet Too Big, Time Exceeded, Parameter Problem) and types 133-137 (RS, RA, NS, NA, Redirect). See RFC 4890 for filtering recommendations.
+
 ## SPL
 
 ```spl

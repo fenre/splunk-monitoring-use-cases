@@ -21,7 +21,7 @@ CRC errors, drops indicate cabling, transceiver, or duplex issues.
 
 ## Value
 
-CRC errors, drops indicate cabling, transceiver, or duplex issues.
+Operations teams track interface error rates (CRC, input/output errors, discards) as delta counters to detect physical layer degradation and congestion before they cause outages.
 
 ## Implementation
 
@@ -30,43 +30,81 @@ Poll IF-MIB (ifInErrors, ifOutErrors, ifInDiscards) at 300s. Use `streamstats` f
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP Modular Input, IF-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=snmp:interface`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* SNMP polling or syslog data with interface error counters. Data in `index=network` with `sourcetype=cisco:ios`, SNMP MIB data, or `sourcetype=perfmon:network`. Key fields: `ifInErrors`, `ifOutErrors`, `ifInDiscards`, `ifOutDiscards`, `ifCRCErrors`, `interface`, `host`.
+* Interface errors: CRC errors (bad cable/optics), input errors (frame errors, runts, giants), output errors (collisions, late collisions), discards (buffer overflow, QoS policy drops). Non-zero and increasing error counters indicate physical layer problems or congestion.
 
-### Step 1 — Configure data collection
-Poll IF-MIB (ifInErrors, ifOutErrors, ifInDiscards) at 300s. Use `streamstats` for delta. Alert on increasing counts.
+### Step 1 — - Configure data collection
+```
+# SNMP polling via Splunk Add-on for SNMP or SC4SNMP
+# Poll IF-MIB counters every 5 minutes:
+# ifInErrors (.1.3.6.1.2.1.2.2.1.14)
+# ifOutErrors (.1.3.6.1.2.1.2.2.1.20)
+# ifInDiscards (.1.3.6.1.2.1.2.2.1.13)
+# ifOutDiscards (.1.3.6.1.2.1.2.2.1.19)
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# inputs.conf (SNMP poller)
+[snmp_interface_errors]
+interval = 300
+sourcetype = snmp:interface:errors
+index = network
+```
+Verify:
 ```spl
-index=network sourcetype="snmp:interface"
-| streamstats current=f last(ifInErrors) as prev by host, ifDescr
-| eval delta = ifInErrors - prev | where delta > 0
-| table _time host ifDescr delta
+index=network sourcetype="snmp:interface:errors" earliest=-1h
+| stats latest(ifInErrors) latest(ifOutErrors) by host, ifName
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Interface Error Rates** — CRC errors, drops indicate cabling, transceiver, or duplex issues.
+**Primary search -- Interface error rate trending:**
+```spl
+index=network earliest=-4h
+| eval in_errors=tonumber(coalesce(ifInErrors, input_errors, in_errors))
+| eval out_errors=tonumber(coalesce(ifOutErrors, output_errors, out_errors))
+| eval in_discards=tonumber(coalesce(ifInDiscards, input_discards))
+| eval out_discards=tonumber(coalesce(ifOutDiscards, output_discards))
+| eval interface=coalesce(ifName, interface, port)
+| eval device=coalesce(host, device_name)
+| bin _time span=5m
+| stats latest(in_errors) as in_err latest(out_errors) as out_err latest(in_discards) as in_disc latest(out_discards) as out_disc by _time, device, interface
+| sort device, interface, _time
+| streamstats current=f last(in_err) as prev_in_err last(out_err) as prev_out_err last(in_disc) as prev_in_disc last(out_disc) as prev_out_disc by device, interface
+| eval delta_in_err=in_err - prev_in_err
+| eval delta_out_err=out_err - prev_out_err
+| eval delta_in_disc=in_disc - prev_in_disc
+| eval delta_out_disc=out_disc - prev_out_disc
+| eval total_delta=delta_in_err + delta_out_err + delta_in_disc + delta_out_disc
+| where total_delta > 0
+| eval severity=case(
+    delta_in_err > 100 OR delta_out_err > 100, "CRITICAL -- high error rate",
+    total_delta > 50, "WARNING -- elevated errors/discards",
+    total_delta > 10, "INFO -- low-level errors detected",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, device, interface, delta_in_err, delta_out_err, delta_in_disc, delta_out_disc, severity
+| sort severity, -total_delta
+```
 
-Documented **Data sources**: `sourcetype=snmp:interface`. **App/TA** (typical add-on context): SNMP Modular Input, IF-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show interface <intf>` -- check error counter details (CRC, frame, overrun, underrun).
+(b) Compare SNMP counter deltas with syslog error messages.
+(c) Check optics: `show interface transceiver` for light level issues.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:interface. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- Interface Errors"):
+* Row 1 -- Single-value: "Interfaces with errors", "Total error delta (4h)".
+* Row 2 -- Error rate timechart by interface.
+* Row 3 -- Top error interfaces table.
 
-**Pipeline walkthrough**
+Alert: Critical (>100 errors/5min on critical interface): physical layer investigation.
 
-- Scopes the data: index=network, sourcetype="snmp:interface". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `streamstats` rolls up events into metrics; results are split **by host, ifDescr** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **delta** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where delta > 0` — typically the threshold or rule expression for this monitoring goal.
-- Pipeline stage (see **Interface Error Rates**): table _time host ifDescr delta
-### Step 3 — Validate
-On the switch, run `show interface` for a row’s interface and check error counters in the same five-minute window as your poll. If you use an NMS, open the same ifDescr and counter there and make sure the SNMP object IDs line up with what Splunk indexes.
+### Step 5 — - Troubleshooting
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (error rate), Table, Heatmap across devices.
+* **CRC errors increasing** -- Bad cable, damaged SFP, or dirty fiber connector. Replace cable/optics. Check `show interface transceiver` for Rx/Tx power levels.
+
+* **Input discards** -- Interface receive buffer overflow. Possible cause: traffic burst exceeding interface speed, or QoS not configured to prioritize critical traffic.
+
+* **Output discards** -- Egress congestion. Interface is oversubscribed. Consider: traffic shaping, QoS, or upgrading link capacity.
 
 ## SPL
 

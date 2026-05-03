@@ -21,7 +21,7 @@ Proactively identifies weak WiFi coverage areas and client placement issues befo
 
 ## Value
 
-Proactively identifies weak WiFi coverage areas and client placement issues before users experience connectivity problems.
+Network operations teams monitor Meraki MR client RSSI values per AP and location to detect wireless coverage gaps, identify areas with weak signal causing poor client performance, and prioritize RF optimization.
 
 ## Implementation
 
@@ -30,44 +30,65 @@ Ingest Meraki API client data periodically; analyze RSSI distribution by AP and 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki:api`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Meraki API or syslog providing client RSSI (Received Signal Strength Indicator) data. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki:api:wireless`. Key fields: `client_mac`, `rssi` (dBm), `ap_name`, `ssid`, `network`.
+- RSSI ranges: Excellent (> -55 dBm), Good (-55 to -67 dBm), Fair (-67 to -70 dBm), Weak (-70 to -80 dBm), Unusable (< -80 dBm). Below -70 dBm, clients experience packet retransmissions, low data rates, and connectivity issues.
 
 ### Step 1 — Configure data collection
-Ingest Meraki API client data periodically; analyze RSSI distribution by AP and SSID. Set thresholds for "poor" signal (< -70 dBm).
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify RSSI data:
 ```spl
-index=cisco_network sourcetype="meraki:api"
-| eval rssi_level=case(rssi>=-50, "Excellent", rssi>=-60, "Good", rssi>=-70, "Fair", rssi<-70, "Poor")
-| stats avg(rssi) as avg_rssi, min(rssi) as min_rssi, count by ap_name, ssid, rssi_level
-| where min_rssi < -70 or avg_rssi < -65
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:wireless") earliest=-4h
+| where isnotnull(rssi)
+| stats avg(rssi) as avg_rssi by ap_name
+| sort avg_rssi
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**RSSI/Signal Strength Degradation Detection (Meraki MR)** — Proactively identifies weak WiFi coverage areas and client placement issues before users experience connectivity problems.
+**Primary search — Signal strength degradation by AP:**
+```spl
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:wireless") earliest=-4h
+| where isnotnull(rssi)
+| stats avg(rssi) as avg_rssi min(rssi) as min_rssi count(eval(rssi < -75)) as weak_connections count as total_connections by ap_name, ssid
+| eval weak_pct=round(100*weak_connections/total_connections, 1)
+| eval signal_quality=case(avg_rssi > -55, "Excellent", avg_rssi > -67, "Good", avg_rssi > -70, "Fair", avg_rssi > -80, "Weak", 1==1, "Unusable")
+| lookup wireless_ap_inventory.csv ap_name OUTPUT building floor zone
+| where signal_quality IN ("Weak", "Unusable") OR weak_pct > 30
+| table ap_name, building, floor, zone, ssid, avg_rssi, min_rssi, weak_pct, signal_quality
+| sort avg_rssi
+```
 
-Documented **Data sources**: `sourcetype=meraki:api`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki:api. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `eval` defines or adjusts **rssi_level** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `stats` rolls up events into metrics; results are split **by ap_name, ssid, rssi_level** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where min_rssi < -70 or avg_rssi < -65` — typically the threshold or rule expression for this monitoring goal.
-
+**RSSI distribution heatmap:**
+```spl
+index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:wireless") earliest=-4h
+| where isnotnull(rssi)
+| eval rssi_bucket=case(rssi > -55, "Excellent", rssi > -67, "Good", rssi > -70, "Fair", rssi > -80, "Weak", 1==1, "Unusable")
+| lookup wireless_ap_inventory.csv ap_name OUTPUT building floor
+| stats count by building, floor, rssi_bucket
+| chart sum(count) by building rssi_bucket
+```
 
 ### Step 3 — Validate
-Open the Cisco Meraki Dashboard (organization or network scope, under Monitor as appropriate) and compare AP, client, security, or flow totals to the search for the same window. Spot-check a few device names, SSIDs, or MAC addresses against what you see live.
+(a) Walk away from an AP and verify RSSI decreases in Splunk.
+(b) Compare RSSI values with Meraki Dashboard: Wireless > Monitor > Clients > Signal Strength.
+(c) Verify location data: check that APs with weak signals are in expected edge-of-coverage areas.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap of RSSI by AP location; histogram of signal strength distribution; gauge charts for coverage quality by SSID.
+Dashboard ("Meraki — Signal Strength"):
+- Row 1 — Single-value tiles: "APs with weak signal", "Clients with RSSI < -75", "Average RSSI", "Worst AP".
+- Row 2 — AP signal quality table with building/floor context.
+- Row 3 — RSSI distribution by building.
+
+Alerting:
+- Warning (AP avg RSSI < -75 with > 20 clients): coverage issue — clients experiencing poor performance.
+- Info (monthly): signal quality report for RF planning.
+
+### Step 5 — Troubleshooting
+
+- **All clients show weak signal on one AP** — AP power output may have been reduced (auto-power), or there's a physical obstruction. Check Meraki Dashboard for the AP's transmit power setting.
+
+- **RSSI data not available** — RSSI is typically included in association and roaming events, not in all event types. Ensure syslog includes wireless event logs.
+
+- **RSSI seems higher than expected** — Meraki may report RSSI in different formats depending on the event type. Verify the dBm interpretation.
 
 ## SPL
 

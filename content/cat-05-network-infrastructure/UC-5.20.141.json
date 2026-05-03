@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.141",
+  "title": "IPv6 DHCPv6 Prefix Delegation (PD) Monitoring",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": ["Availability", "Security"],
+  "splunkPillar": "Platform",
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Monitors DHCPv6 Prefix Delegation (PD) operations where a delegating router assigns IPv6 prefixes to requesting routers (RFC 8415 §6.3). Tracks prefix assignments, renewals, expirations, and unauthorized delegation requests. Essential for ISPs, campus networks, and branch deployments where customer/site routers request prefixes.",
+  "app": "Splunk Enterprise",
+  "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-24h\n  (\"prefix.*delegation\" OR \"DHCPv6\" OR \"PD.*assign\" OR \"PD.*expire\" OR \"PD.*renew\")\n| eval pd_event=case(\n    match(_raw, \"(?i)PD.*assign|prefix.*delegat.*assign\"), \"PREFIX_ASSIGNED\",\n    match(_raw, \"(?i)PD.*renew|prefix.*delegat.*renew\"), \"PREFIX_RENEWED\",\n    match(_raw, \"(?i)PD.*expire|prefix.*delegat.*expire\"), \"PREFIX_EXPIRED\",\n    match(_raw, \"(?i)PD.*fail|prefix.*delegat.*fail|no.*prefix.*available\"), \"PREFIX_FAILED\",\n    match(_raw, \"(?i)unauthorized.*PD|rogue.*delegat\"), \"UNAUTHORIZED_PD\",\n    1=1, null())\n| where isnotnull(pd_event)\n| rex field=_raw \"prefix\\s*(?<delegated_prefix>[0-9a-fA-F:]+/\\d+)\"\n| stats count as events values(delegated_prefix) as prefixes by host, pd_event\n| eval severity=case(\n    pd_event=\"UNAUTHORIZED_PD\", \"CRITICAL — unauthorized prefix delegation request\",\n    pd_event=\"PREFIX_FAILED\" AND events > 5, \"HIGH — prefix delegation failures — pool exhaustion?\",\n    pd_event=\"PREFIX_EXPIRED\" AND events > 10, \"MEDIUM — multiple prefix expirations\",\n    1=1, null())\n| where isnotnull(severity)\n| sort -events",
+  "description": "Monitors DHCPv6 Prefix Delegation (PD) operations where prefixes are assigned to requesting routers. Tracks the lifecycle of delegated prefixes (assignment, renewal, expiration, failure) and detects unauthorized delegation requests. Prefix delegation failures can leave entire downstream networks without IPv6 connectivity.",
+  "value": "DHCPv6 PD is how branch offices, customer sites, and home networks obtain their IPv6 prefix. If PD fails, every host behind the requesting router loses IPv6. Monitoring PD operations ensures timely detection of pool exhaustion, unauthorized delegation requests, and prefix lifecycle issues before they cause outages.",
+  "implementation": "Monitor DHCPv6 PD events in router syslog. Track prefix assignments and expirations. Alert on failures and unauthorized requests.",
+  "visualization": "(1) Table: delegated prefixes with lifecycle state. (2) Timechart: PD events over time. (3) Single-value: active delegated prefixes. (4) Alert: PD failures.",
+  "references": [
+    {"title": "RFC 8415 — Dynamic Host Configuration Protocol for IPv6 (DHCPv6) — §6.3 Prefix Delegation", "url": "https://www.rfc-editor.org/rfc/rfc8415#section-6.3"},
+    {"title": "RFC 3633 — IPv6 Prefix Options for DHCPv6 (historical)", "url": "https://www.rfc-editor.org/rfc/rfc3633"}
+  ],
+  "knownFalsePositives": "**Scheduled renewals.** Regular prefix renewals are normal operational events, not alerts.\n\n**Lab environments.** Frequent PD requests in test environments with short lease times are expected.",
+  "equipment": ["cisco", "juniper"],
+  "equipmentModels": ["cisco_isr_4000", "juniper_srx"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• DHCPv6 server with prefix delegation configured.\n• Router syslog to Splunk.\n\nStep 1 — Verify DHCPv6 PD configuration:\n```\nshow ipv6 dhcp pool\nshow ipv6 dhcp binding\n```\n\nStep 2 — Monitor PD events in syslog.\n\nStep 3 — Validate: Request a prefix from a test router. Verify the event appears in Splunk.\n\nStep 4 — Operationalize\n**Dashboard:** Prefix delegation lifecycle. **Alert:** PD failure or pool exhaustion — high.\n\nStep 5 — Troubleshooting\n• Pool exhaustion: Expand prefix pool or reduce lease times.\n• PD failure: Check DUID matching and pool configuration.",
+  "grandmaExplanation": "When a branch office needs its own block of IPv6 addresses, it asks the central office to delegate a range. It's like a franchise getting permission to use part of the company's phone number block. We track which branches have their numbers, when they need to renew, and catch anyone unauthorized trying to grab a block.",
+  "prerequisiteUseCases": ["5.20.21"],
+  "wave": "walk"
+}

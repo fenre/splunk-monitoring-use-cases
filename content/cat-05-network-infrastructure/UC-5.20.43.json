@@ -1,0 +1,56 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.43",
+  "title": "OSPFv3 Adjacency Monitoring and IPv6 Routing Stability",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "ITSI",
+  "dataSources": "`index=network sourcetype=cisco:ios` containing OSPFv3 adjacency change syslog messages. OSPFv3 (RFC 5340) is the IPv6 version of OSPF, replacing OSPFv2 for IPv6 routing. While OSPFv2 carries IPv4 routes inside LSAs using IPv4 addressing, OSPFv3 uses link-local addresses for neighbor communication and carries IPv6 prefixes in separate LSA types (Type 8 Intra-Area-Prefix-LSA, Type 9 Inter-Area-Prefix-LSA). Key differences:\n\n1. **Link-local next-hops** — OSPFv3 peers using link-local addresses (FE80::/10), not global addresses\n2. **Per-link operation** — OSPFv3 runs per-link, not per-subnet (multiple instances per interface possible)\n3. **Authentication** — OSPFv3 uses IPsec (AH/ESP) for authentication, not MD5 in the OSPF header\n4. **Address families** — OSPFv3 can carry both IPv4 and IPv6 routes via Address Family (AF) support (RFC 5838)\n\nAdjacency events:\n- `%OSPFv3-5-ADJCHG: Process <pid> Nbr <router-id> on <intf> from FULL to DOWN` — adjacency lost\n- `%OSPFv3-5-ADJCHG: Process <pid> Nbr <router-id> on <intf> from LOADING to FULL` — adjacency established\n\nOSPFv3-specific failure modes (not present in OSPFv2):\n- IPsec authentication mismatch (replaces MD5)\n- Link-local address conflict or misconfiguration\n- Instance ID mismatch (new in OSPFv3)\n- IPv6 disabled on the interface but OSPFv3 configured",
+  "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812).",
+  "spl": "index=network sourcetype=\"cisco:ios\" \"%OSPFv3\" \"ADJCHG\" earliest=-24h\n| rex field=_raw \"Process\\s+(?<ospf_pid>\\d+).*Nbr\\s+(?<neighbor_id>[\\d.]+)\\s+on\\s+(?<interface>\\S+)\\s+from\\s+(?<from_state>\\S+)\\s+to\\s+(?<to_state>\\S+)\"\n| eval severity=case(\n    to_state=\"DOWN\", \"CRITICAL — adjacency lost\",\n    to_state=\"FULL\", \"INFO — adjacency established\",\n    match(to_state, \"INIT|2WAY|EXSTART|EXCHANGE|LOADING\"), \"WARNING — adjacency transitioning\",\n    1=1, \"INFO\")\n| eval is_down=if(to_state=\"DOWN\", 1, 0)\n| eval is_full=if(to_state=\"FULL\", 1, 0)\n| stats count as events count(eval(is_down=1)) as adjacency_losses count(eval(is_full=1)) as adjacency_ups by host, neighbor_id, interface, ospf_pid\n| eval flapping=if(adjacency_losses > 3 AND adjacency_ups > 3, \"FLAPPING\", \"stable\")\n| sort -adjacency_losses",
+  "description": "Monitors OSPFv3 adjacency state changes to detect IPv6 routing instability, neighbor loss, and adjacency flapping. OSPFv3 is the IPv6-native OSPF variant that uses link-local addresses for peering and IPsec for authentication. Adjacency failures in OSPFv3 cause IPv6 route withdrawals and traffic blackholing. OSPFv3-specific failure modes include IPsec authentication mismatches, Instance ID conflicts, and link-local address issues that do not have equivalents in OSPFv2.",
+  "value": "OSPFv3 adjacency loss is the immediate precursor to IPv6 route withdrawal. Detecting the adjacency change gives the operations team a head start on troubleshooting before users report connectivity loss. OSPFv3 has unique failure modes — IPsec misconfiguration is much harder to diagnose than OSPFv2 MD5 authentication failures because the symptoms are similar (adjacency won't form) but the troubleshooting is different (IPsec SA vs OSPF auth key). Monitoring adjacency state transitions provides the first diagnostic indicator and guides the troubleshooting toward the correct root cause.",
+  "implementation": "Collect OSPFv3 ADJCHG syslog events from all routers. Track adjacency state transitions. Alert on adjacency losses and flapping. Correlate with interface events and IPsec errors.",
+  "visualization": "(1) Table: current OSPFv3 adjacency events with state transition and severity. (2) Timechart: adjacency ups and downs over 24 hours. (3) Single-value: total active adjacency losses. (4) Network topology: OSPFv3 adjacency map (nodes=routers, edges=adjacencies, red=down).",
+  "references": [
+    {
+      "title": "RFC 5340 — OSPF for IPv6",
+      "url": "https://www.rfc-editor.org/rfc/rfc5340"
+    },
+    {
+      "title": "RFC 5838 — Support of Address Families in OSPFv3 (dual-stack AF support)",
+      "url": "https://www.rfc-editor.org/rfc/rfc5838"
+    },
+    {
+      "title": "RFC 4552 — Authentication/Confidentiality for OSPFv3 (IPsec for OSPFv3)",
+      "url": "https://www.rfc-editor.org/rfc/rfc4552"
+    }
+  ],
+  "knownFalsePositives": "**Planned maintenance.** Router upgrades and interface maintenance cause expected adjacency losses. Correlate with change management windows.\n\n**OSPFv3 process restart.** A process restart (`clear ipv6 ospf process`) causes all adjacencies to drop and re-form. This is expected during troubleshooting or configuration changes.\n\n**Dual-stack migration.** When deploying OSPFv3 on interfaces that previously ran OSPFv2 only, the initial adjacency formation generates ADJCHG events. These are expected during migration.",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "arista"
+  ],
+  "equipmentModels": [
+    "cisco_ios",
+    "cisco_iosxe",
+    "cisco_nxos",
+    "juniper_junos",
+    "arista_eos"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• OSPFv3 deployed on IPv6-enabled interfaces.\n• Syslog forwarding at severity 5 (notification) for ADJCHG events.\n• Optionally, SNMP polling of ospfv3NbrState for continuous adjacency monitoring.\n\nStep 1 — Configure data collection\n\n**Cisco IOS-XE — ensure OSPFv3 adjacency logging:**\n```\nrouter ospfv3 1\n address-family ipv6 unicast\n  log-adjacency-changes detail\n```\n`detail` logs all state transitions, not just to/from FULL. This is essential for detecting stuck states.\n\n**Juniper Junos:**\n```\nset protocols ospf3 traceoptions flag state\n```\n\n**Verification:**\n```spl\nindex=network sourcetype=\"cisco:ios\" \"%OSPFv3\" earliest=-7d\n| stats count by host\n```\n\nStep 2 — Create the search and alert\n\n**Adjacency loss alert:**\n```spl\nindex=network sourcetype=\"cisco:ios\" \"%OSPFv3\" \"ADJCHG\" \"to DOWN\" earliest=-1h\n| rex field=_raw \"Nbr\\s+(?<neighbor_id>[\\d.]+)\\s+on\\s+(?<interface>\\S+)\"\n| eval alert_text=\"OSPFv3 adjacency lost: \" . host . \" → \" . neighbor_id . \" on \" . interface\n| table _time, host, neighbor_id, interface, alert_text\n```\nTrigger: any adjacency to DOWN.\n\n**Adjacency flapping detection:**\n```spl\nindex=network sourcetype=\"cisco:ios\" \"%OSPFv3\" \"ADJCHG\" earliest=-4h\n| rex field=_raw \"Nbr\\s+(?<neighbor_id>[\\d.]+)\\s+on\\s+(?<interface>\\S+)\\s+from\\s+(?<from_state>\\S+)\\s+to\\s+(?<to_state>\\S+)\"\n| stats count as transitions dc(to_state) as distinct_states by host, neighbor_id, interface\n| where transitions > 6\n| eval alert=\"OSPFv3 flapping: \" . transitions . \" state changes in 4 hours for \" . host . \" ↔ \" . neighbor_id\n```\n\n**IPsec authentication failure correlation:**\n```spl\nindex=network sourcetype=\"cisco:ios\" (\"%OSPFv3\" \"ADJCHG\") OR (\"%CRYPTO-4\" AND \"ipsec\" AND \"fail\")\n  earliest=-4h\n| eval event_type=case(\n    match(_raw, \"OSPFv3.*ADJCHG\"), \"OSPFv3_ADJCHG\",\n    match(_raw, \"CRYPTO.*ipsec.*fail\"), \"IPsec_FAILURE\",\n    1=1, \"OTHER\")\n| transaction host maxspan=5m maxpause=2m\n| search event_type=\"OSPFv3_ADJCHG\" AND event_type=\"IPsec_FAILURE\"\n| eval diagnosis=\"OSPFv3 adjacency failure correlated with IPsec authentication error — check IPsec SPI and keys\"\n```\n\nStep 3 — Validate\n(a) **Simulate adjacency loss.** Shut down an OSPFv3 interface (`shutdown` on an OSPFv3-enabled interface). Verify the ADJCHG to DOWN appears in Splunk.\n\n(b) **Simulate flapping.** Rapidly toggle an interface. Verify the flapping detection fires.\n\n(c) **IPsec mismatch.** Change the IPsec key on one side of an OSPFv3 adjacency. Verify the adjacency fails and the IPsec correlation search identifies the root cause.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — OSPFv3 Routing Health\"):\n• Row 1 — Single-value: total OSPFv3 adjacencies, current DOWN count, flapping pairs.\n• Row 2 — Timechart: adjacency state changes over 24 hours.\n• Row 3 — Table: current adjacency losses with host, neighbor, interface, and duration.\n• Row 4 — Correlation: OSPFv3 events alongside IPsec errors and interface events.\n\n**Scheduling:** Adjacency loss alert real-time. Flapping detection every 30 minutes.\n\n**Runbook:**\n1. Adjacency DOWN: check physical link (`show interface`), check OSPFv3 neighbor (`show ospfv3 neighbor`), check IPsec SA (`show crypto ipsec sa`).\n2. Stuck in EXSTART/EXCHANGE: MTU mismatch between peers. Check interface MTU on both sides.\n3. IPsec authentication failure: verify matching SPI, algorithm, and key on both sides. OSPFv3 uses Transport Mode ESP or AH.\n4. Instance ID mismatch: verify `instance-id` matches on both sides of the link.\n\nStep 5 — Troubleshooting\n\n• **OSPFv3 vs OSPFv2 events** — Ensure the search specifically matches `%OSPFv3` and not `%OSPF-5-ADJCHG` (which is OSPFv2). Both may exist on dual-stack routers.\n\n• **Link-local peering complicates identification** — OSPFv3 peers using link-local addresses. The syslog shows the Router ID (IPv4 format) but the actual peering address is link-local. To identify which physical interface is affected, use the `on <interface>` field from the syslog.\n\n• **Address Family (AF) mode** — In AF mode (RFC 5838), OSPFv3 can carry both IPv4 and IPv6 routes. An adjacency failure in AF mode affects both address families simultaneously. The syslog format may differ: `%OSPFv3-5-ADJCHG: Process 1 (address-family ipv6) Nbr ...`.",
+  "grandmaExplanation": "The routers that carry IPv6 traffic need to be good neighbours — they constantly check on each other to share road maps. If a neighbour stops responding, the others have to quickly reroute traffic around the gap. We watch for these 'neighbour down' events because they mean some roads are suddenly closed and traffic might be taking a longer detour — or worse, getting lost.",
+  "prerequisiteUseCases": [],
+  "wave": "walk"
+}

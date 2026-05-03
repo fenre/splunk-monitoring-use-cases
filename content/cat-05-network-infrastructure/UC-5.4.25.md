@@ -21,7 +21,7 @@ Tracks client density by AP and SSID for capacity planning and performance optim
 
 ## Value
 
-Tracks client density by AP and SSID for capacity planning and performance optimization.
+Facilities and security teams leverage Meraki MR built-in BLE scanning to track tagged assets, detect BLE device movement between zones, and support indoor location-based services.
 
 ## Implementation
 
@@ -30,46 +30,65 @@ Query clients API to count connected devices. Track over time.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki:api`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Meraki providing Bluetooth Low Energy (BLE) beacon data. Data in `index=meraki` with `sourcetype=meraki:api:bluetooth` or `sourcetype=meraki:scanning`. Key fields: `mac` (BLE device MAC), `rssi`, `ap_name` (detecting AP), `uuid`/`major`/`minor` (iBeacon identifiers), `type` (BLE).
+- Meraki MR APs have built-in BLE radios that can: (1) broadcast as BLE beacons (for indoor wayfinding apps), (2) scan for nearby BLE devices (for asset tracking), (3) provide BLE-based location analytics. This UC focuses on BLE scanning for asset tracking and rogue device detection.
 
 ### Step 1 — Configure data collection
-Query clients API to count connected devices. Track over time.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify BLE data:
 ```spl
-index=cisco_network sourcetype="meraki:api"
-| stats count as client_count by ap_name, ssid
-| eval capacity_pct=round(client_count*100/30, 2)
-| where capacity_pct > 70
-| sort - client_count
+index=meraki (sourcetype="meraki:api:bluetooth" OR sourcetype="meraki:scanning") earliest=-4h
+| where match(type, "(?i)ble") OR isnotnull(uuid)
+| stats count dc(mac) as unique_devices by ap_name
+| sort -unique_devices
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Connected Client Count Trending and Capacity Planning (Meraki MR)** — Tracks client density by AP and SSID for capacity planning and performance optimization.
+**Primary search — BLE device inventory and tracking:**
+```spl
+index=meraki (sourcetype="meraki:api:bluetooth" OR sourcetype="meraki:scanning") earliest=-4h
+| where match(type, "(?i)ble") OR isnotnull(uuid)
+| stats latest(rssi) as latest_rssi latest(ap_name) as nearest_ap count as observations dc(ap_name) as seen_by_aps by mac
+| lookup ble_asset_inventory.csv mac OUTPUT asset_name asset_type owner
+| eval device_class=case(isnotnull(asset_name), "TRACKED_ASSET", latest_rssi > -50, "NEARBY_DEVICE", 1==1, "BACKGROUND")
+| eval nearest_location=nearest_ap
+| where device_class IN ("TRACKED_ASSET", "NEARBY_DEVICE")
+| sort device_class, -observations
+```
 
-Documented **Data sources**: `sourcetype=meraki:api`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki:api. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=cisco_network, sourcetype="meraki:api". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by ap_name, ssid** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **capacity_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where capacity_pct > 70` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+**Asset movement tracking:**
+```spl
+index=meraki (sourcetype="meraki:api:bluetooth" OR sourcetype="meraki:scanning") earliest=-24h
+| where match(type, "(?i)ble") OR isnotnull(uuid)
+| lookup ble_asset_inventory.csv mac OUTPUT asset_name asset_type
+| where isnotnull(asset_name)
+| stats earliest(ap_name) as first_location latest(ap_name) as last_location dc(ap_name) as locations_visited by mac, asset_name
+| where first_location != last_location
+| table asset_name, mac, first_location, last_location, locations_visited
+```
 
 ### Step 3 — Validate
-Open the Cisco Meraki Dashboard (organization or network scope, under Monitor as appropriate) and compare AP, client, security, or flow totals to the search for the same window. Spot-check a few device names, SSIDs, or MAC addresses against what you see live.
+(a) Place a known BLE beacon near an AP and verify it appears in the Splunk inventory.
+(b) Move the beacon to a different AP's coverage area and verify the movement is tracked.
+(c) Compare with Meraki Dashboard: Wireless > Bluetooth.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bubble chart of capacity by AP; stacked bar of clients by SSID; capacity gauge.
+Dashboard ("Meraki — BLE & Asset Tracking"):
+- Row 1 — Single-value: "Tracked assets", "Assets in motion", "BLE devices detected", "Coverage APs".
+- Row 2 — Tracked asset location table.
+- Row 3 — Asset movement history.
+
+Alerting:
+- Warning (tracked asset leaves designated area): asset geofence violation.
+- Info (daily): asset location summary report.
+
+### Step 5 — Troubleshooting
+
+- **BLE data not appearing** — BLE scanning must be enabled: Meraki Dashboard > Wireless > Bluetooth. Ensure "Scanning" is enabled (not just "Advertising").
+
+- **Low accuracy for asset location** — BLE RSSI is affected by obstacles, reflections, and body absorption. Accuracy is typically 3-8 meters. For better accuracy, increase AP density or use dedicated BLE gateways.
+
+- **Too many background BLE devices** — Filter by RSSI threshold (e.g., only devices with RSSI > -70) and use the asset lookup to focus on tracked devices.
 
 ## SPL
 

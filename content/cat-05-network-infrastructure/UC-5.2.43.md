@@ -21,7 +21,7 @@ Chassis-clustered SRX devices use redundancy groups (RGs) so services fail over 
 
 ## Value
 
-Chassis-clustered SRX devices use redundancy groups (RGs) so services fail over when a node, link, or priority changes. JSRPD and cluster-related messages record RG ownership changes, interface monitoring triggers, and manual switchovers. Frequent or flapping failovers point to unstable fabric links, NIC or RE problems, or split-brain risk. Tracking RG state, reason strings, and duration helps you distinguish planned maintenance from emerging hardware or path faults.
+NOC teams track Juniper SRX chassis cluster failover events, identifying node failures, interface-triggered failovers, and cluster flapping to maintain firewall high availability.
 
 ## Implementation
 
@@ -30,48 +30,79 @@ Forward cluster member syslogs with millisecond timestamps and synchronized NTP.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_juniper` (Splunkbase 2847), syslog.
-- Ensure the following data sources are available: `sourcetype=juniper:junos:structured`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Juniper SRX chassis cluster failover event logs. Data in `index=juniper` or `index=firewall` with `sourcetype=juniper:srx:structured`. Key fields: `redundancy_group`, `cluster_id`, `failover_reason`, `node` (node0/node1), `priority`.
+* SRX chassis cluster: two SRX devices in active/passive or active/active configuration using redundancy groups (RGs). RG0 controls the routing engine; RG1+ controls data plane. Failover occurs when a node's priority drops below the peer (due to interface failure, manual preempt, or node failure). Monitored via `show chassis cluster status`.
 
-### Step 1 — Configure data collection
-Forward cluster member syslogs with millisecond timestamps and synchronized NTP. Alert on any RG primary change, interface monitoring-driven failover, or unexpected preempt. Dashboard current RG primary per cluster ID and correlate with interface `up`/`down` events on fabric/control links. For active/active designs, track both RGs independently. Keep runbooks for manual `request chassis cluster failover` versus automatic events.
+### Step 1 — - Configure data collection
+```
+# SRX configuration -- chassis cluster (already configured)
+# Verify cluster status
+show chassis cluster status
+show chassis cluster interfaces
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Enable logging for cluster events
+set security log stream splunk-stream category all
+set system syslog host <splunk-ip> any info
+set system syslog host <splunk-ip> match "CHASSISD|jsrpd|JSRP|RG_CHANGE|failover"
+```
+Verify:
 ```spl
-index=network sourcetype="juniper:junos:structured"
-  (lower(process)="jsrpd" OR match(_raw, "(?i)chassis cluster|redundancy group|RG-\d+|failover|switchover"))
-| rex "(?i)redundancy group (?<rg_id>\d+)"
-| rex "(?i)Reason:\s*(?<failover_reason>[^\|]+)"
-| rex "(?i)interface (?<ifname>\S+) (?<if_state>up|down)"
-| table _time host rg_id failover_reason ifname if_state process _raw
-| sort -_time
+index=juniper sourcetype="juniper:srx:*" earliest=-30d
+| where match(_raw, "(?i)JSRP|jsrpd|RG_CHANGE|failover|chassis.cluster|redundancy.group|node.*priority")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Juniper SRX Cluster Failover Events (Juniper SRX)** — Chassis-clustered SRX devices use redundancy groups (RGs) so services fail over when a node, link, or priority changes. JSRPD and cluster-related messages record RG ownership changes, interface monitoring triggers, and manual switchovers. Frequent or flapping failovers point to unstable fabric links, NIC or RE problems, or split-brain risk. Tracking RG state, reason strings, and duration helps you distinguish planned maintenance from emerging hardware or path faults.
+**Primary search -- Cluster failover event tracking:**
+```spl
+index=juniper sourcetype="juniper:srx:*" earliest=-30d
+| where match(_raw, "(?i)JSRP|jsrpd|RG_CHANGE|failover|redundancy.group|priority.*change")
+| eval cluster_node=coalesce(node, if(match(host, "node0"), "node0", if(match(host, "node1"), "node1", "unknown")))
+| eval rg=coalesce(redundancy_group, mvindex(split(_raw, "redundancy-group "), 1))
+| eval failover_type=case(
+    match(_raw, "(?i)manual"), "MANUAL",
+    match(_raw, "(?i)interface.*down|link.*down|control.*link"), "INTERFACE_FAILURE",
+    match(_raw, "(?i)node.*reboot|node.*down|heartbeat.*lost"), "NODE_FAILURE",
+    match(_raw, "(?i)preempt"), "PREEMPT",
+    match(_raw, "(?i)priority.*change|weight.*decrease"), "PRIORITY_CHANGE",
+    1==1, "UNKNOWN")
+| sort _time
+| streamstats current=f last(_time) as prev_time by host
+| eval time_since_last_min=round((_time - prev_time)/60, 1)
+| stats count as failover_events count(eval(failover_type="NODE_FAILURE")) as node_failures count(eval(failover_type="INTERFACE_FAILURE")) as if_failures latest(failover_type) as last_type latest(_time) as last_failover by host, cluster_node
+| eval severity=case(
+    node_failures > 0, "CRITICAL -- node failure detected",
+    failover_events > 3, "WARNING -- frequent failovers (possible flapping)",
+    if_failures > 0, "WARNING -- interface-triggered failover",
+    1==1, "INFO")
+| where severity != "INFO"
+| eval last_failover_time=strftime(last_failover, "%Y-%m-%d %H:%M:%S")
+| table host, cluster_node, failover_events, node_failures, if_failures, last_type, last_failover_time, severity
+| sort severity
+```
 
-Documented **Data sources**: `sourcetype=juniper:junos:structured`. **App/TA** (typical add-on context): `Splunk_TA_juniper` (Splunkbase 2847), syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show chassis cluster status` -- verify current primary/secondary roles per RG.
+(b) CLI: `show chassis cluster statistics` -- check heartbeat and probe stats.
+(c) CLI: `show chassis cluster control-plane statistics` -- verify fabric link health.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: juniper:junos:structured. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Juniper SRX -- Cluster Health"):
+* Row 1 -- Single-value: "Failover events (30d)", "Node failures", "Current primary node".
+* Row 2 -- Cluster failover event timeline.
+* Row 3 -- Failover type distribution.
 
-**Pipeline walkthrough**
+Alert: Critical (node failure): immediate hardware investigation.
+Warning (>3 failovers in 24h): investigate for flapping.
 
-- Scopes the data: index=network, sourcetype="juniper:junos:structured". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- Extracts fields with `rex` (regular expression).
-- Extracts fields with `rex` (regular expression).
-- Pipeline stage (see **Juniper SRX Cluster Failover Events (Juniper SRX)**): table _time host rg_id failover_reason ifname if_state process _raw
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **Cluster flapping** -- Check fabric links (fab0/fab1) and control link health: `show chassis cluster control-plane statistics`. Split-brain can occur if fabric links fail.
 
-### Step 3 — Validate
-Compare a sample of events in J-Web or the SRX command line for the same time and rule context so on-box messages and Splunk stay aligned.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (failover markers), Table (RG, reason, node), Status panel (current primary per cluster).
+* **Unexpected failover** -- Check interface monitoring: `show chassis cluster interfaces`. If a monitored interface goes down, the RG priority decreases triggering failover. Verify `redundancy-group weight` configuration.
+
+* **Split-brain / dual-primary** -- Both nodes think they are primary. Usually caused by fabric link failure. Immediate action: manually disable one node with `request chassis cluster failover node <x> redundancy-group <rg>`.
 
 ## SPL
 

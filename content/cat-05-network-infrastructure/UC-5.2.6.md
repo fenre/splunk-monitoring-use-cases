@@ -21,7 +21,7 @@ Traffic to/from sanctioned or unexpected countries flags exfiltration, C2, or co
 
 ## Value
 
-Traffic to/from sanctioned or unexpected countries flags exfiltration, C2, or compromised hosts.
+Security teams detect firewall-allowed traffic to/from geographically blocked or high-risk countries, identifying policy violations and potential data exfiltration paths.
 
 ## Implementation
 
@@ -30,68 +30,62 @@ Install GeoIP lookup (MaxMind). Enrich traffic logs. Alert on sanctioned country
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), GeoIP lookup.
-- Ensure the following data sources are available: Firewall traffic logs.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Firewall traffic logs with geographic IP information. Key fields: `src_ip`, `dest_ip`, `src_country`/`dest_country` (from GeoIP lookup), `action`, `bytes`. Most TAs include built-in GeoIP lookups, or use Splunk's `iplocation` command.
+* Create `geo_policy.csv` lookup: `country_code`, `country_name`, `policy` (allowed/blocked/monitored), `risk_level`.
 
-### Step 1 — Configure data collection
-Install GeoIP lookup (MaxMind). Enrich traffic logs. Alert on sanctioned country traffic and volume anomalies.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+Verify GeoIP enrichment:
 ```spl
-index=firewall action="allowed" direction="outbound"
-| lookup geoip ip as dest OUTPUT Country
-| search Country IN ("Russia","China","North Korea","Iran")
-| stats count, sum(bytes_out) as data_sent by src, Country | sort -data_sent
+index=firewall (action=allowed OR action=allow) earliest=-4h
+| eval src=coalesce(src_ip, src)
+| eval dst=coalesce(dest_ip, dest)
+| iplocation src prefix=src_
+| iplocation dst prefix=dest_
+| stats count by src_Country, dest_Country
+| sort -count | head 20
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Geo-IP Anomaly Detection** — Traffic to/from sanctioned or unexpected countries flags exfiltration, C2, or compromised hosts.
-
-Documented **Data sources**: Firewall traffic logs. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), GeoIP lookup. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: firewall.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=firewall. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
-- Applies an explicit `search` filter to narrow the current result set.
-- `stats` rolls up events into metrics; results are split **by src, Country** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
-
-
-Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
-
+**Primary search -- Geographic anomaly detection:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action All_Traffic.dvc span=1h
-| where count>0
-| sort -count
+index=firewall (action=allowed OR action=allow OR action=pass) earliest=-4h
+| eval src=coalesce(src_ip, src, srcaddr)
+| eval dst=coalesce(dest_ip, dest, dstaddr)
+| iplocation src prefix=src_
+| iplocation dst prefix=dest_
+| where isnotnull(src_Country) OR isnotnull(dest_Country)
+| lookup geo_policy.csv country_code AS src_Country OUTPUT policy AS src_policy, risk_level AS src_risk
+| lookup geo_policy.csv country_code AS dest_Country OUTPUT policy AS dest_policy, risk_level AS dest_risk
+| eval anomaly=case(src_policy="blocked", "BLOCKED_COUNTRY_SOURCE -- traffic from ".src_Country, dest_policy="blocked", "BLOCKED_COUNTRY_DEST -- traffic to ".dest_Country, src_risk="high" OR dest_risk="high", "HIGH_RISK_GEO -- ".coalesce(src_Country, "?")." -> ".coalesce(dest_Country, "?"), 1==1, null())
+| where isnotnull(anomaly)
+| stats count as connections dc(src) as unique_sources dc(dst) as unique_targets sum(bytes_out) as total_bytes by anomaly, src_Country, dest_Country
+| eval severity=case(match(anomaly, "BLOCKED_COUNTRY"), "CRITICAL -- traffic to/from blocked country", match(anomaly, "HIGH_RISK"), "WARNING -- high-risk geography", 1==1, "INFO")
+| sort severity, -connections
 ```
 
-Understanding this CIM / accelerated SPL
+### Step 3 — - Validate
+(a) Verify GeoIP database is current: `| iplocation "8.8.8.8" | table Country, City` should return "United States".
+(b) Cross-reference with threat intelligence feeds for high-risk country lists.
+(c) Confirm firewall geo-blocking rules match the `geo_policy.csv` lookup.
 
-This block uses `tstats` on the Network_Traffic data model. Enable data model acceleration for the same dataset in Settings → Data models before you rely on summaries.
+### Step 4 — - Operationalize
+Dashboard ("Firewall -- Geo-IP Analysis"):
+* Row 1 -- Single-value: "Blocked country connections", "High-risk geo connections", "Unique source countries".
+* Row 2 -- Geographic anomaly table.
+* Row 3 -- Geo map visualization of traffic flows.
 
-**Pipeline walkthrough**
+Alerting:
+* Critical (traffic from/to blocked country): policy violation.
+* Warning (high-risk geography with high volume): investigate data exfiltration risk.
 
-- Uses `tstats` against accelerated summaries for the Network_Traffic model — enable acceleration and confirm CIM tags on your source data.
-- Order and filter as needed for your environment (index-time filters, allowlists, and buckets).
+### Step 5 — - Troubleshooting
 
-Enable Data Model Acceleration for the model referenced above; otherwise `tstats` may return no results from summaries.
+* **Legitimate traffic from blocked country** -- CDN or cloud provider may have IPs registered in unexpected countries. Check: (1) reverse DNS for the IP, (2) ASN ownership, (3) consider whitelisting specific IP ranges for known cloud providers.
 
+* **GeoIP lookup returning null** -- IP may be private (RFC1918), reserved, or not in the GeoIP database. Filter private IPs before the `iplocation` command.
 
-
-### Step 3 — Validate
-Sample the same time range in your firewall management console, Panorama, FortiManager, or Check Point SmartConsole and confirm that counts, usernames, and object names line up with Splunk.
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Choropleth map, Table, Bar chart by country.
+* **False positives from VPN exit nodes** -- Users on commercial VPNs may exit in unexpected countries. Correlate with VPN session logs to identify legitimate users.
 
 ## SPL
 

@@ -1,0 +1,53 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.68",
+  "title": "IPv6 Flow Label Anomaly Detection and ECMP Manipulation",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "`index=network sourcetype=netflow` containing IPFIX flow records with IPv6 flow label (information element 31). The IPv6 Flow Label is a 20-bit field in the IPv6 header (RFC 6437) designed to allow routers to identify flows for equal-cost multi-path (ECMP) hashing without deep packet inspection:\n\n1. **ECMP influence.** Many routers use the flow label as input to the ECMP hash function. An attacker who controls the flow label can force traffic down a specific path (path selection attack) or distribute traffic across all paths (load distribution).\n2. **Per-flow state identifier.** The flow label should be pseudo-random and persistent per flow. Thousands of unique flow labels per second from a single source indicate either a DoS attack or an application misusing the field.\n3. **Zero flow label.** RFC 6437 allows a zero flow label (the source chooses not to label flows). Legitimate traffic commonly has flow_label=0. However, a sudden change from non-zero to zero labels from a source may indicate a downgrade attack.\n4. **Flow label hijacking.** An on-path attacker can modify the flow label to redirect traffic. Monitoring for flow label changes within an established flow can detect this.\n5. **Covert channel.** The 20-bit flow label can carry approximately 2.5 bytes of data per packet, creating a potential covert channel. Extremely high entropy or structured patterns in flow labels from a single source indicate abuse.",
+  "app": "Splunk Add-on for NetFlow (`splunk-add-on-for-netflow`, Splunkbase 1658).",
+  "spl": "index=network sourcetype=\"netflow\" flowLabelIPv6=* earliest=-1h\n| eval flow_label=tonumber(flowLabelIPv6)\n| stats dc(flow_label) as unique_labels count as packets avg(flow_label) as avg_label stdev(flow_label) as stdev_label by sourceIPv6Address\n| where unique_labels > 1000\n| eval anomaly=case(\n    unique_labels > 10000, \"CRITICAL — \" . unique_labels . \" unique flow labels from single source — DoS or ECMP manipulation\",\n    stdev_label < 50000, \"WARNING — low entropy in flow labels — potential structured covert channel\",\n    unique_labels > 1000, \"MEDIUM — elevated unique flow label count — investigate source application\",\n    1=1, null())\n| sort -unique_labels",
+  "description": "Detects anomalous IPv6 flow label usage from IPFIX/NetFlow flow records. The IPv6 flow label is a 20-bit field that routers use for ECMP path hashing. Manipulation of this field allows attackers to influence traffic routing paths, conduct denial-of-service attacks, or establish covert data channels. Extremely high unique flow label counts from a single source indicate either an ECMP manipulation attempt or a DoS flooding technique.",
+  "value": "Flow label manipulation is an IPv6-specific attack vector with no IPv4 equivalent. An attacker who controls the flow label can force all their traffic down a single ECMP path (overloading one link while others are idle), distribute attack traffic evenly across all paths (maximising total throughput), or create a steganographic covert channel in the 20-bit field. Flow label anomaly detection catches these attack patterns before they impact network availability or enable data exfiltration.",
+  "implementation": "Export IPv6 flow label in IPFIX/NetFlow v9 templates. Analyse flow label distributions per source. Baseline normal flow label entropy. Alert on statistical anomalies.",
+  "visualization": "(1) Timechart: unique flow labels per minute per top source. (2) Table: sources with anomalous flow label counts. (3) Histogram: flow label value distribution (should be approximately uniform for legitimate sources). (4) Scatter plot: flow label entropy vs volume per source.",
+  "references": [
+    {
+      "title": "RFC 6437 — IPv6 Flow Label Specification",
+      "url": "https://www.rfc-editor.org/rfc/rfc6437"
+    },
+    {
+      "title": "RFC 6438 — Using the IPv6 Flow Label for ECMP and LAG",
+      "url": "https://www.rfc-editor.org/rfc/rfc6438"
+    }
+  ],
+  "knownFalsePositives": "**Load balancers and CDN edge servers.** Servers that originate many independent flows (CDN edges, load balancers, DNS resolvers) legitimately generate many unique flow labels. Identify these by role and adjust thresholds.\n\n**Applications with per-packet labels.** Some applications or OS network stacks incorrectly generate a new flow label per packet instead of per flow. This is a compliance issue (RFC 6437) but not a security threat.\n\n**OS default behaviour variation.** Different operating systems handle flow labels differently — Linux uses random labels, Windows may use zero, and some embedded devices use fixed values. Baseline per OS type.",
+  "equipment": [
+    "cisco",
+    "juniper"
+  ],
+  "equipmentModels": [
+    "cisco_ios",
+    "cisco_iosxe",
+    "cisco_xr",
+    "juniper_junos"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• IPFIX or NetFlow v9 exporters configured to include flowLabelIPv6 (IE#31) in the template.\n• Splunk NetFlow collector parsing the flow label field.\n• Baseline of normal flow label distributions per source type.\n\nStep 1 — Configure data collection\n\n**Cisco IOS-XE — Include flow label in Flexible NetFlow record:**\n```\nflow record IPV6-WITH-LABEL\n match ipv6 source address\n match ipv6 destination address\n match ipv6 flow-label\n match transport source-port\n match transport destination-port\n collect counter bytes long\n collect counter packets long\n```\nThe `match ipv6 flow-label` directive adds the 20-bit flow label to each flow record.\n\n**IPFIX template verification:**\nVerify IE#31 (flowLabelIPv6) appears in IPFIX template exports:\n```spl\nindex=network sourcetype=\"netflow\" earliest=-1h\n| where isnotnull(flowLabelIPv6)\n| stats count by exporter_ip\n```\nIf no results, the flow label is not being exported.\n\n**Verification:**\n```spl\nindex=network sourcetype=\"netflow\" flowLabelIPv6=* earliest=-1h\n| stats count min(flowLabelIPv6) max(flowLabelIPv6) dc(flowLabelIPv6) as unique_labels by exporter_ip\n```\n\nStep 2 — Create the search and alert\n\n**High unique label count (ECMP manipulation / DoS):**\n```spl\nindex=network sourcetype=\"netflow\" flowLabelIPv6=* earliest=-15m\n| stats dc(flowLabelIPv6) as unique_labels count as flow_count by sourceIPv6Address\n| where unique_labels > 5000\n| eval alert=\"ECMP manipulation or DoS: \" . unique_labels . \" unique flow labels from \" . sourceIPv6Address . \" in 15 minutes\"\n| sort -unique_labels\n```\n\n**Structured pattern detection (covert channel):**\n```spl\nindex=network sourcetype=\"netflow\" flowLabelIPv6=* earliest=-1h\n| eval label=tonumber(flowLabelIPv6)\n| streamstats current=t window=10 values(label) as recent_labels by sourceIPv6Address\n| eval label_range=max(recent_labels) - min(recent_labels)\n| where label_range < 100 AND label > 0\n| stats count as structured_windows by sourceIPv6Address\n| where structured_windows > 50\n| eval alert=\"Structured flow labels from \" . sourceIPv6Address . \" — potential covert channel (\" . structured_windows . \" windows with low-range sequential labels)\"\n```\nLegitimate flow labels should be pseudo-random. Sequential or structured patterns indicate intentional encoding.\n\n**Zero-label transition detection:**\n```spl\nindex=network sourcetype=\"netflow\" earliest=-24h\n| eval has_label=if(tonumber(flowLabelIPv6) > 0, 1, 0)\n| bin _time span=1h\n| stats avg(has_label) as label_rate by sourceIPv6Address, _time\n| streamstats current=t window=2 values(label_rate) as rates by sourceIPv6Address\n| where mvcount(rates)=2 AND mvindex(rates, 0) > 0.8 AND mvindex(rates, 1) < 0.2\n| eval alert=\"Sudden flow label dropout from \" . sourceIPv6Address . \" — investigate for downgrade or stack change\"\n```\n\nStep 3 — Validate\n(a) **Label export verification.** Generate known IPv6 traffic with specific flow labels. Verify the labels appear in IPFIX records.\n\n(b) **High-label test.** Use a tool that generates many unique flow labels per second. Verify the ECMP manipulation alert fires.\n\n(c) **Baseline establishment.** Measure normal unique-label-per-source rates for different device types (servers, workstations, network devices).\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — Flow Label Analysis\"):\n• Row 1 — Alert panel: sources with anomalous flow label counts.\n• Row 2 — Timechart: unique flow labels per minute (global and per top source).\n• Row 3 — Histogram: flow label value distribution.\n• Row 4 — Table: sources with structured flow label patterns.\n\n**Scheduling:** High unique labels every 15 minutes. Structured pattern hourly. Zero-label transition daily.\n\n**Runbook:**\n1. >10,000 unique labels: investigate source immediately. If internal, check for compromised host running attack tools. If external, apply rate limiting.\n2. Structured labels: investigate for covert channel. Packet capture the flow and analyse label values for encoded data.\n3. Zero-label transition: verify the host's network stack. OS updates can change flow label behaviour.\n\nStep 5 — Troubleshooting\n\n• **Missing flow labels** — Not all IPFIX exporters include the flow label by default. If the field is missing from records, update the flow record definition to include `match ipv6 flow-label`.\n\n• **Endianness** — The flow label is a 20-bit field. Ensure the IPFIX parser handles the 20-bit extraction correctly. Some parsers may zero-pad or truncate incorrectly.\n\n• **ECMP hash sensitivity** — Not all routers use the flow label in their ECMP hash. Check the router's hash algorithm configuration (`show ipv6 cef exact-route` on Cisco) to understand the impact of flow label manipulation.",
+  "grandmaExplanation": "Each IPv6 letter has a small stamp number (the flow label) that helps the post office decide which truck to put it on. If someone is putting wildly different stamp numbers on thousands of letters per minute, they might be trying to overwhelm certain truck routes or hide secret messages in the stamp numbers. We watch the stamp number patterns to spot this manipulation.",
+  "prerequisiteUseCases": [
+    "5.20.66"
+  ],
+  "wave": "run"
+}

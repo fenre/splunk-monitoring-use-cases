@@ -21,7 +21,7 @@ ISPs commit to contractual SLAs for latency, jitter, loss, and uptime per circui
 
 ## Value
 
-ISPs commit to contractual SLAs for latency, jitter, loss, and uptime per circuit. SD-WAN BFD metrics provide continuous proof of whether carriers meet their commitments. SLA violation evidence supports service credits and carrier negotiations.
+Network operations teams validate ISP/carrier circuit performance against contractual SLA commitments using SD-WAN telemetry, generating evidence-based SLA compliance reports for vendor management and credit claims.
 
 ## Implementation
 
@@ -30,48 +30,86 @@ Define contractual SLA thresholds per transport type (MPLS: latency <50ms, loss 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API.
-- Ensure the following data sources are available: `sourcetype=cisco:sdwan:bfd`, `sourcetype=cisco:sdwan:interface`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Cisco Catalyst Add-on for Splunk polling vManage API for transport circuit statistics and SLA data. Data in `index=sdwan` with `sourcetype=cisco:sdwan:bfd` (per-tunnel metrics), `sourcetype=cisco:sdwan:interface` (circuit throughput), and `sourcetype=cisco:sdwan:approute` (application SLA tracking).
+- Transport circuit SLA tracking measures ISP/carrier performance against contractual SLA commitments. ISP contracts typically specify: availability (99.9%), latency (< 50ms), packet loss (< 0.1%), and CIR (Committed Information Rate). SD-WAN BFD metrics provide the data to validate these SLAs.
+- Build `sdwan_circuit_sla.csv` lookup: `site_id,color,provider,circuit_id,contract_availability_pct,contract_latency_ms,contract_loss_pct,contract_cir_mbps,monthly_cost` (e.g., `200,mpls,AT&T,ATT-CHI-12345,99.95,30,0.05,50,3000`).
 
 ### Step 1 — Configure data collection
-Define contractual SLA thresholds per transport type (MPLS: latency <50ms, loss <0.1%; Internet: latency <80ms, loss <0.5%). Aggregate BFD metrics daily. Generate monthly SLA compliance reports per carrier per circuit. Include uptime percentage from interface state changes. Use as evidence for carrier escalations and service credit claims.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+Verify circuit-level data:
 ```spl
-index=sdwan sourcetype="cisco:sdwan:bfd"
-| stats avg(latency) as avg_latency, perc95(latency) as p95_latency, avg(jitter) as avg_jitter, avg(loss_percentage) as avg_loss, count as samples by local_color, site_id, remote_system_ip
-| eval sla_latency=50, sla_loss=0.1
-| eval latency_breach=if(avg_latency>sla_latency,"YES","NO"), loss_breach=if(avg_loss>sla_loss,"YES","NO")
-| where latency_breach="YES" OR loss_breach="YES"
-| table site_id local_color avg_latency p95_latency avg_jitter avg_loss latency_breach loss_breach
+index=sdwan sourcetype="cisco:sdwan:bfd" earliest=-1h
+| stats avg(latency) as latency avg(loss_percentage) as loss by site_id, local_color
+| lookup sdwan_circuit_sla.csv site_id, color as local_color OUTPUT provider circuit_id
+| where isnotnull(provider)
 ```
 
-#### Understanding this SPL
+### Step 2 — Create the search and alert
 
-**Transport Circuit SLA Tracking** — ISPs commit to contractual SLAs for latency, jitter, loss, and uptime per circuit. SD-WAN BFD metrics provide continuous proof of whether carriers meet their commitments. SLA violation evidence supports service credits and carrier negotiations.
+**Primary search — Transport SLA compliance report (monthly):**
+```spl
+index=sdwan sourcetype="cisco:sdwan:bfd" earliest=-30d@d latest=@d
+| stats avg(latency) as avg_latency avg(loss_percentage) as avg_loss p95(latency) as p95_latency p99(latency) as p99_latency max(latency) as max_latency count as total_samples count(eval(loss_percentage > 1)) as high_loss_samples by site_id, local_color
+| eval loss_sample_pct=round(100*high_loss_samples/total_samples, 2)
+| lookup sdwan_circuit_sla.csv site_id, color as local_color OUTPUT provider circuit_id contract_availability_pct contract_latency_ms contract_loss_pct contract_cir_mbps monthly_cost
+| where isnotnull(provider)
+| eval latency_compliant=if(p95_latency <= contract_latency_ms, "PASS", "FAIL")
+| eval loss_compliant=if(avg_loss <= contract_loss_pct, "PASS", "FAIL")
+| eval overall_sla=if(latency_compliant="PASS" AND loss_compliant="PASS", "MET", "BREACHED")
+| lookup sdwan_sites.csv site_id OUTPUT site_name
+| table site_name, provider, circuit_id, contract_latency_ms, p95_latency, latency_compliant, contract_loss_pct, avg_loss, loss_compliant, overall_sla, monthly_cost
+| sort overall_sla, provider
+```
 
-Documented **Data sources**: `sourcetype=cisco:sdwan:bfd`, `sourcetype=cisco:sdwan:interface`. **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+#### Understanding this SPL: This is the SLA validation report you send to your ISP when claiming SLA credits. It uses P95 latency (not average) because ISP contracts typically specify percentile-based latency commitments. The monthly cost field enables ROI calculation: if a $3000/month MPLS circuit consistently breaches SLA, you have data to negotiate credits or switch providers.
 
-The first pipeline stage scopes events using **index**: sdwan; **sourcetype**: cisco:sdwan:bfd. That sourcetype matches what this use case lists under Data sources.
+**Real-time circuit health:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:bfd" earliest=-1h
+| stats avg(latency) as latency avg(loss_percentage) as loss avg(jitter) as jitter by site_id, local_color
+| lookup sdwan_circuit_sla.csv site_id, color as local_color OUTPUT provider circuit_id contract_latency_ms contract_loss_pct monthly_cost
+| where isnotnull(provider)
+| eval latency_ratio=round(latency/contract_latency_ms, 2)
+| eval loss_ratio=round(loss/contract_loss_pct, 2)
+| eval risk=case(latency_ratio > 1.5 OR loss_ratio > 2, "HIGH", latency_ratio > 1 OR loss_ratio > 1, "BREACHING", latency_ratio > 0.8 OR loss_ratio > 0.8, "APPROACHING", 1==1, "OK")
+| where risk!="OK"
+| lookup sdwan_sites.csv site_id OUTPUT site_name
+| sort risk
+```
 
-**Pipeline walkthrough**
-
-- Scopes the data: index=sdwan, sourcetype="cisco:sdwan:bfd". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by local_color, site_id, remote_system_ip** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **sla_latency** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `eval` defines or adjusts **latency_breach** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where latency_breach="YES" OR loss_breach="YES"` — typically the threshold or rule expression for this monitoring goal.
-- Pipeline stage (see **Transport Circuit SLA Tracking**): table site_id local_color avg_latency p95_latency avg_jitter avg_loss latency_breach loss_breach
-
+**Provider performance comparison:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:bfd" earliest=-30d@d latest=@d
+| stats avg(latency) as avg_latency avg(loss_percentage) as avg_loss p95(latency) as p95_latency by local_color
+| lookup sdwan_circuit_sla.csv color as local_color OUTPUT provider contract_latency_ms contract_loss_pct
+| where isnotnull(provider)
+| stats avg(avg_latency) as fleet_avg_latency avg(p95_latency) as fleet_p95_latency avg(avg_loss) as fleet_avg_loss count as circuit_count by provider
+| sort fleet_p95_latency
+```
 
 ### Step 3 — Validate
-In Cisco vManage, open the monitor or reporting screen that matches this signal (device, tunnel, interface, certificate, flow, or application route) and compare site names, device IPs, and KPIs to the Splunk results for the same range.
+(a) Cross-check SLA report with ISP's own SLA reports for the same circuits and time period.
+(b) Verify circuit ID mapping: ensure `sdwan_circuit_sla.csv` has correct circuit IDs matching ISP billing.
+(c) Validate SLA thresholds: confirm contract values match actual ISP agreements.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (circuit SLA compliance), Line chart (latency trending per carrier), Single value (overall SLA compliance %).
+Dashboard ("SD-WAN — Transport SLA Tracking"):
+- Row 1 — Single-value tiles: "Circuits meeting SLA", "Circuits breaching SLA", "SLA credit eligible", "Total monthly WAN spend".
+- Row 2 — Monthly SLA compliance table: site, provider, circuit, contract metrics, actual metrics, pass/fail.
+- Row 3 — Real-time circuit risk table: circuits approaching or breaching SLA.
+- Row 4 — Provider performance comparison chart.
+
+Alerting:
+- High (circuit SLA breached for > 4 hours): document for SLA credit claim.
+- Warning (circuit approaching SLA threshold): proactive monitoring.
+- Monthly (scheduled report): SLA compliance summary for ISP vendor management.
+
+### Step 5 — Troubleshooting
+
+- **SLA always shows PASS but users complain** — The SLA contract may be too lenient (e.g., latency < 200ms), while applications need < 50ms. Review SLA thresholds against actual application requirements, not just contract terms.
+
+- **P95 latency much higher than average** — Indicates periodic spikes (e.g., congestion during business hours). The average may look fine, but users experience the P95 as sluggish performance at specific times.
+
+- **No data for some circuits** — The BFD session may not be associated with the correct transport color. Verify the WAN interface is configured with the right color in the device template.
 
 ## SPL
 

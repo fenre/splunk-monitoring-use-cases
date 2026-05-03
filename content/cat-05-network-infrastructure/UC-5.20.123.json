@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.20.123",
+  "title": "IPv6 Flow Label Usage and Abuse Detection (RFC 6437)",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": ["Security", "Performance"],
+  "splunkPillar": "ES",
+  "dataSources": "`index=network sourcetype=netflow` or `sourcetype=zeek:conn` — Monitors the IPv6 Flow Label field (20-bit field in the IPv6 header, RFC 6437) for both operational use and potential abuse. The flow label enables efficient flow classification without deep packet inspection, but can be abused for covert channels or to manipulate ECMP load balancing.\n\n**Flow label context:**\n1. **ECMP load balancing.** Many routers use the flow label for ECMP hashing. By manipulating the flow label, an attacker can control which ECMP path their traffic takes.\n2. **Covert channel.** The 20-bit flow label can encode ~1 million values per packet, creating a covert data channel.\n3. **Zero flow labels.** RFC 6437 recommends non-zero flow labels for all packets. Persistent zero flow labels indicate legacy implementations.\n4. **Flow label spoofing.** If firewalls use the flow label for flow tracking, spoofed labels can confuse stateful inspection.",
+  "app": "Splunk Enterprise Security",
+  "spl": "index=network sourcetype=\"netflow\" earliest=-24h\n| eval has_flow_label=if(isnotnull(ipv6_flow_label) AND ipv6_flow_label != \"0\" AND ipv6_flow_label != 0, 1, 0)\n| eval is_ipv6=if(match(src, \":\") OR match(dest, \":\"), 1, 0)\n| where is_ipv6=1\n| stats count as total sum(has_flow_label) as with_label sum(eval(if(has_flow_label=0, 1, 0))) as zero_label by src\n| eval label_pct=round(with_label / total * 100, 1)\n| eval status=case(\n    label_pct=0, \"ALL ZERO — legacy implementation or flow label stripping\",\n    label_pct < 50, \"LOW USAGE — \" . label_pct . \"% of flows have labels\",\n    1=1, \"OK — \" . label_pct . \"% flows labeled\")\n| where label_pct < 50 AND total > 100\n| sort label_pct",
+  "description": "Monitors IPv6 Flow Label field usage and anomalies. The flow label is a 20-bit field used for ECMP load balancing and flow classification. Detects zero flow labels (legacy implementations), abnormal flow label distributions (possible covert channel), and flow label manipulation (ECMP steering attacks).",
+  "value": "The IPv6 flow label is an underutilized but important field. It enables efficient ECMP without deep packet inspection, but can be abused for covert communication or load balancer manipulation. Monitoring flow label usage reveals legacy implementations that need updating and detects potential abuse patterns.",
+  "implementation": "Collect flow label data from NetFlow/IPFIX exports. Analyse distribution patterns. Alert on anomalous usage.",
+  "visualization": "(1) Pie chart: flow label usage (labeled vs zero). (2) Histogram: flow label value distribution. (3) Table: sources with zero labels. (4) Trend: label adoption over time.",
+  "references": [
+    {"title": "RFC 6437 — IPv6 Flow Label Specification", "url": "https://www.rfc-editor.org/rfc/rfc6437"},
+    {"title": "RFC 6438 — Using the IPv6 Flow Label for Equal Cost Multipath Routing and Link Aggregation", "url": "https://www.rfc-editor.org/rfc/rfc6438"}
+  ],
+  "knownFalsePositives": "**Legacy OS.** Older operating systems and network stacks set the flow label to zero. This is not malicious, just outdated.\n\n**VPN tunnels.** Some VPN implementations zero the flow label on encapsulated traffic. This is an implementation limitation.",
+  "equipment": ["cisco", "juniper", "zeek"],
+  "equipmentModels": ["cisco_catalyst_9000", "juniper_mx", "zeek_sensor"],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• NetFlow/IPFIX exporter configured to include IPv6 flow label (Information Element 31).\n\nStep 1 — Configure flow label export\nEnsure NetFlow/IPFIX templates include the flow label field. Cisco: `flow record` with `match ipv6 flow-label`.\n\nStep 2 — Create monitoring searches\n```spl\nindex=network sourcetype=\"netflow\" earliest=-24h\n| where isnotnull(ipv6_flow_label)\n| stats count by ipv6_flow_label\n| sort -count\n| head 20\n```\n\nStep 3 — Validate\nGenerate IPv6 traffic from a modern OS (Linux 4.4+, Windows 10+). Verify non-zero flow labels appear in NetFlow.\n\nStep 4 — Operationalize\n**Dashboard:** Flow label distribution. **Alert:** Sudden flow label pattern change — investigate.\n\nStep 5 — Troubleshooting\n• Zero labels: Update the source OS or network stack. Linux: flow labels are random by default since kernel 4.4.",
+  "grandmaExplanation": "Every IPv6 letter has a small coloured sticker (flow label) that helps the post office sort it quickly without opening it. We check that all letters have proper stickers and that nobody is using the stickers to secretly communicate or to trick the sorting machine into sending their letters through a preferred route.",
+  "prerequisiteUseCases": ["5.20.58"],
+  "wave": "run"
+}

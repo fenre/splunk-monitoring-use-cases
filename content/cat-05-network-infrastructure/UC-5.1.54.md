@@ -21,7 +21,7 @@ Monitors carrier connectivity and network performance metrics for backup interne
 
 ## Value
 
-Monitors carrier connectivity and network performance metrics for backup internet links.
+Operations teams monitor Meraki MG carrier connection health including connection type, latency, and loss to detect carrier network degradation and connection downgrades affecting WAN performance.
 
 ## Implementation
 
@@ -30,42 +30,65 @@ Monitor carrier connection and network events. Alert on issues.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
-- Ensure the following data sources are available: `sourcetype=meraki type=security_event signature="*cellular*" OR signature="*carrier*"`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* Meraki MG carrier connection health data from Dashboard API. Data in `index=meraki` with `sourcetype=meraki:api:cellular:signal` or `sourcetype=meraki:api:uplinks`. Key fields: `connectionType` (LTE/5G/3G), `provider`, `apn`, `latencyMs`, `lossPct`.
+* Meraki MG connects to cellular carriers via configured APNs. Carrier network performance (latency, loss) directly impacts WAN quality. Connection type downgrades (LTE→3G) indicate signal issues.
 
-### Step 1 — Configure data collection
-Monitor carrier connection and network events. Alert on issues.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# Same API as UC-5.1.52 plus uplink performance
+# GET /devices/{serial}/cellular/sims
+# GET /organizations/{orgId}/devices/uplinksLossAndLatency
+```
+Verify:
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*cellular*" OR signature="*carrier*")
-| stats count as event_count by event_type, carrier_name
-| where event_type="connection_error" OR event_type="network_error"
+index=meraki sourcetype="meraki:api:cellular:signal" earliest=-4h
+| stats latest(connectionType) latest(provider) by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**Carrier Connection Health and Network Performance (Meraki MG)** — Monitors carrier connectivity and network performance metrics for backup internet links.
+**Primary search -- Carrier connection health:**
+```spl
+index=meraki (sourcetype="meraki:api:cellular:signal" OR sourcetype="meraki:api:uplinkstats") earliest=-4h
+| eval device=coalesce(serial, host)
+| eval conn_type=coalesce(connectionType, connection_type)
+| eval carrier=coalesce(provider, carrier, network_provider)
+| eval latency=tonumber(coalesce(latencyMs, latency))
+| eval loss=tonumber(coalesce(lossPct, loss))
+| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
+| bin _time span=15m
+| stats latest(conn_type) as connection avg(latency) as avg_latency avg(loss) as avg_loss by _time, network_name, device, carrier
+| eval avg_latency=round(avg_latency, 1)
+| eval avg_loss=round(avg_loss, 2)
+| eval severity=case(
+    match(connection, "(?i)3G|2G|EDGE|GPRS"), "WARNING -- degraded cellular connection type: ".connection,
+    avg_loss > 5 OR avg_latency > 200, "WARNING -- poor carrier network performance",
+    avg_loss > 2 OR avg_latency > 100, "INFO -- moderate carrier latency/loss",
+    1==1, "OK")
+| where severity != "OK"
+| table _time, network_name, device, carrier, connection, avg_latency, avg_loss, severity
+| sort severity
+```
 
-Documented **Data sources**: `sourcetype=meraki type=security_event signature="*cellular*" OR signature="*carrier*"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) Dashboard: Cellular gateway > Overview -- check connection type and carrier.
+(b) Compare with carrier SLA for the plan level.
+(c) Monitor connection type changes over time.
 
-The first pipeline stage scopes events using **index**: cisco_network; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Meraki MG -- Carrier Health"):
+* Row 1 -- Single-value: "Connection type", "Carrier", "Avg latency (ms)".
+* Row 2 -- Carrier performance timechart (latency, loss).
 
-**Pipeline walkthrough**
+Alert: Warning (connection downgrade to 3G or high latency): carrier issue.
 
-- Scopes the data: index=cisco_network, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by event_type, carrier_name** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where event_type="connection_error" OR event_type="network_error"` — typically the threshold or rule expression for this monitoring goal.
+### Step 5 — - Troubleshooting
 
+* **Connection type downgrade** -- Signal quality insufficient for LTE/5G. Check antenna and placement (UC-5.1.52). May need carrier investigation.
 
-### Step 3 — Validate
-In the Meraki dashboard, select the same organization, site, and UTC window as the Splunk search. Open Network-wide event log or the device event log and confirm a sample event count and field (for example `event_type` or `carrier_name`) matches what you see in Splunk.
+* **High carrier latency** -- Carrier network congestion. Compare with signal quality -- if signal is strong but latency is high, the issue is in the carrier core network. Contact carrier.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Carrier health timeline; connection error table; network performance gauge.
+* **Frequent carrier disconnections** -- Check SIM status (UC-5.1.55). May indicate SIM or account issue with carrier.
 
 ## SPL
 

@@ -21,7 +21,7 @@ Traffic dropped per QoS class/queue on routers/switches.
 
 ## Value
 
-Traffic dropped per QoS class/queue on routers/switches.
+Network engineers monitor QoS policy drops per traffic class, detecting drops in priority queues (voice/video) that indicate misconfiguration or severe congestion affecting critical applications.
 
 ## Implementation
 
@@ -30,50 +30,70 @@ Poll CISCO-CLASS-BASED-QOS-MIB (cbQosCMDropPkt, cbQosCMPrePolicyPkt) per policy/
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: SNMP modular input (CISCO-CLASS-BASED-QOS-MIB), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: cbQosCMDropPkt, cbQosCMPrePolicyPkt.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* QoS policy drop data from SNMP or syslog. Data in `index=network` with SNMP `cbQosCMDropPkt` (.1.3.6.1.4.1.9.9.166.1.15.1.1.14) or interface queue statistics. CLI: `show policy-map interface`.
+* QoS drops: packets dropped per traffic class when egress queues are congested. Business-critical traffic (voice, video, signaling) should never be dropped; best-effort traffic may be dropped to protect priority classes. Drops in priority queues indicate misconfiguration or severe congestion.
 
-### Step 1 — Configure data collection
-Poll CISCO-CLASS-BASED-QOS-MIB (cbQosCMDropPkt, cbQosCMPrePolicyPkt) per policy/class. Map OID to policy name via lookup. Alert when drop rate exceeds 5% for critical classes.
-
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+### Step 1 — - Configure data collection
+```
+# SNMP polling for QoS drop counters
+[snmp_qos_drops]
+interval = 300
+sourcetype = snmp:qos:drops
+index = network
+# OID: cbQosCMDropPkt (.1.3.6.1.4.1.9.9.166.1.15.1.1.14)
+```
+Verify:
 ```spl
-index=network sourcetype=snmp:qos
-| streamstats current=f last(cbQosCMDropPkt) as prev_drop, last(cbQosCMPrePolicyPkt) as prev_pre by host, cbQosConfigIndex, cbQosObjectsIndex
-| eval drop_delta=cbQosCMDropPkt-coalesce(prev_drop,0), pre_delta=cbQosCMPrePolicyPkt-coalesce(prev_pre,0)
-| eval drop_rate=round(drop_delta/(pre_delta+0.001)*100,2)
-| where drop_delta > 0
-| stats sum(drop_delta) as total_drops, sum(pre_delta) as total_pre by host, policy_class
-| eval drop_pct=round(total_drops/(total_pre+0.001)*100,2)
-| sort -total_drops
+index=network sourcetype="snmp:qos:drops" earliest=-4h
+| stats latest(cbQosCMDropPkt) by host, class_name, interface
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**QoS Policy Drops per Class** — Traffic dropped per QoS class/queue on routers/switches.
+**Primary search -- QoS policy drops per class:**
+```spl
+index=network earliest=-4h
+| eval drops=tonumber(coalesce(cbQosCMDropPkt, qos_drops, tail_drops))
+| eval class_name=coalesce(class_name, qos_class, traffic_class)
+| eval interface=coalesce(ifName, interface, port)
+| eval device=coalesce(host, device_name)
+| where isnotnull(drops)
+| bin _time span=5m
+| stats latest(drops) as drop_count by _time, device, interface, class_name
+| sort device, interface, class_name, _time
+| streamstats current=f last(drop_count) as prev_drops by device, interface, class_name
+| eval delta_drops=drop_count - prev_drops
+| where delta_drops > 0
+| eval is_priority=if(match(class_name, "(?i)voice|video|critical|ef|realtime|priority"), "YES", "NO")
+| eval severity=case(
+    is_priority="YES" AND delta_drops > 0, "CRITICAL -- drops in priority class ".class_name,
+    delta_drops > 1000, "WARNING -- high drops in ".class_name,
+    delta_drops > 100, "INFO -- drops in ".class_name,
+    1==1, "INFO")
+| where severity != "INFO"
+| table _time, device, interface, class_name, delta_drops, is_priority, severity
+| sort severity, -delta_drops
+```
 
-Documented **Data sources**: cbQosCMDropPkt, cbQosCMPrePolicyPkt. **App/TA** (typical add-on context): SNMP modular input (CISCO-CLASS-BASED-QOS-MIB), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show policy-map interface <intf>` -- check per-class drop counts and queue depth.
+(b) CLI: `show interface <intf> | include queue` -- check output queue drops.
+(c) Verify QoS policy: `show policy-map` -- check bandwidth allocations per class.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:qos. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+### Step 4 — - Operationalize
+Dashboard ("Network -- QoS Drops"):
+* Row 1 -- Single-value: "Priority class drops", "Total drops (4h)".
+* Row 2 -- QoS drops timechart by class.
 
-**Pipeline walkthrough**
+Alert: Critical (any drops in voice/video/priority class): QoS misconfiguration or extreme congestion.
 
-- Scopes the data: index=network, sourcetype=snmp:qos. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `streamstats` rolls up events into metrics; results are split **by host, cbQosConfigIndex, cbQosObjectsIndex** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **drop_delta** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `eval` defines or adjusts **drop_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where drop_delta > 0` — typically the threshold or rule expression for this monitoring goal.
-- `stats` rolls up events into metrics; results are split **by host, policy_class** so each row reflects one combination of those dimensions.
-- `eval` defines or adjusts **drop_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+### Step 5 — - Troubleshooting
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, class, drops, rate), Bar chart, Line chart (drops over time).
+* **Drops in priority class** -- Priority queue should never drop. Check: (1) bandwidth allocation is sufficient, (2) traffic is correctly classified (DSCP marking), (3) upstream/downstream devices honor QoS markings.
+
+* **High drops in best-effort** -- Normal during congestion. If excessive, consider: increasing link capacity, adjusting bandwidth allocation, or implementing WRED for smoother congestion management.
+
+* **QoS not applied** -- Verify policy-map is applied to correct interface direction: `service-policy output <name>` on egress interfaces.
 
 ## SPL
 

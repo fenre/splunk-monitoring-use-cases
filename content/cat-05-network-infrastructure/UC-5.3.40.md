@@ -21,7 +21,7 @@ SD-WAN sites often bond multiple WAN links with a defined active and standby pla
 
 ## Value
 
-SD-WAN sites often bond multiple WAN links with a defined active and standby plan. Health checks, utilization, and failover events show when the primary is saturated, when a standby unexpectedly carries traffic, and when a metered link risks billing overages. Early visibility shortens repair time and controls cost.
+Network operations teams monitor Citrix SD-WAN WAN link availability and failover events, detecting link failures, standby activations, and bandwidth saturation per site.
 
 ## Implementation
 
@@ -29,7 +29,56 @@ Tag each link with `metered` in a lookup for finance alerts. Alert on failover, 
 
 ## Detailed Implementation
 
-Prerequisites: citrix:sdwan:wan_link with link_id, role, state, utilization; optional lookup metered_wan_links.csv for caps. Step 1: Configure data collection — Join metered/billing data via lookup if not in the feed; props for failover_event, util_in_pct, util_out_pct, metered_bytes. Step 2: Create the search and alert — Severe: any failover; warning: 90% utilization for three consecutive 5m on active; finance alert at 80% of monthly cap with two weeks left; if alerts fire on standby links, treat as path imbalance. Step 3: Validate — After controlled lab failover, run `index=sdwan sourcetype="citrix:sdwan:wan_link" | stats latest(state) max(failover) by site_id, link_id` and match appliance UI. Step 4: Operationalize — Map to carrier SLAs, archive monthly meters; if unexpected standby load or failovers continue, escalate to SD-WAN operations and providers; on-call: loop carrier first for last-mile, platform second.
+### Prerequisites
+* Citrix SD-WAN syslog or Orchestrator API. Key fields: `wan_link`, `link_state` (UP/DOWN/STANDBY), `bandwidth_total`, `bandwidth_used`, `failover_events`, `site_name`.
+* Citrix SD-WAN WAN link states: Active (carrying traffic), Standby (available but not preferred), Down (failed), Metered (LTE/cellular -- usage-limited). Failover from primary to standby should be automatic and fast.
+
+### Step 1 — - Configure data collection
+Verify WAN link data:
+```spl
+index=netscaler (sourcetype="citrix:sdwan:syslog" OR sourcetype="citrix:sdwan:perf") earliest=-4h
+| where isnotnull(wan_link) OR isnotnull(link_state)
+| stats count by wan_link, link_state
+```
+
+### Step 2 — - Create the search and alert
+
+**Primary search -- WAN link health and failover:**
+```spl
+index=netscaler (sourcetype="citrix:sdwan:syslog" OR sourcetype="citrix:sdwan:perf") earliest=-4h
+| eval link=coalesce(wan_link, link_name)
+| eval state=coalesce(link_state, link_status)
+| eval site=coalesce(site_name, site)
+| eval bw_total=coalesce(bandwidth_total, link_bandwidth)
+| eval bw_used=coalesce(bandwidth_used, throughput)
+| stats latest(state) as current_state latest(bw_used) as current_bw latest(bw_total) as max_bw count(eval(match(_raw, "(?i)(failover|standby.*active|backup.*active)"))) as failover_events by site, link
+| eval utilization_pct=if(max_bw > 0, round(100*current_bw/max_bw, 1), null())
+| eval status=case(match(lower(current_state), "down"), "CRITICAL -- link DOWN", failover_events > 0, "WARNING -- failover occurred", utilization_pct > 90, "WARNING -- link near capacity", match(lower(current_state), "standby") AND failover_events=0, "INFO -- standby", 1==1, "OK")
+| where status != "OK"
+| sort status
+```
+
+### Step 3 — - Validate
+(a) Compare link states with Citrix SD-WAN Orchestrator: Monitor > WAN Links.
+(b) Simulate a link failure (if test environment) and verify failover event appears.
+(c) Check bandwidth utilization against ISP circuit capacity.
+
+### Step 4 — - Operationalize
+Dashboard ("Citrix SD-WAN -- WAN Links"):
+* Row 1 -- Single-value: "WAN links", "Links DOWN", "Failovers (4h)", "Highest utilization link".
+* Row 2 -- WAN link status table.
+
+Alerting:
+* Critical (WAN link DOWN at any site): check ISP circuit.
+* Warning (failover to standby occurred): investigate primary link.
+
+### Step 5 — - Troubleshooting
+
+* **Link DOWN** -- Check: (1) ISP circuit status, (2) router interface, (3) SD-WAN appliance interface.
+
+* **Frequent failovers** -- Unstable primary link. Contact ISP for circuit testing. Consider adding a second primary link.
+
+* **Link near capacity** -- Consider bandwidth upgrade or traffic shaping to prioritize critical applications.
 
 ## SPL
 

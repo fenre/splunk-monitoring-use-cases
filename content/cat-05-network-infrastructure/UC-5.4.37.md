@@ -21,7 +21,7 @@ Aruba Central provides per-client connectivity scores based on association time,
 
 ## Value
 
-Aruba Central provides per-client connectivity scores based on association time, authentication time, DHCP time, DNS resolution time, and throughput. Low scores identify problematic clients, congested APs, or misconfigured SSIDs before users report issues. Trending scores over time validates infrastructure changes.
+Network operations teams track Aruba Central client connectivity scores with component breakdown (association, authentication, DHCP, DNS timing), identifying specific bottlenecks degrading wireless experience per site.
 
 ## Implementation
 
@@ -30,48 +30,73 @@ Use Aruba Central API credentials with least privilege; poll client health/exper
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: Custom HEC or scripted input (Aruba Central REST API — client health / experience metrics).
-- Ensure the following data sources are available: Aruba Central API (client health / experience), recommended `sourcetype=aruba:central` (JSON from HEC).
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+- Custom HEC or scripted input polling Aruba Central REST API client health endpoints. Data in `index=network` with `sourcetype=aruba:central` or `sourcetype=aruba:central:client`. Key fields: `connectivity_score` (0-100 composite score), `client_mac`, `ap_name`, `ssid`, `site_name`, and timing breakdowns: `assoc_time_ms` (association time), `auth_time_ms` (authentication time), `dhcp_time_ms` (DHCP time), `dns_time_ms` (DNS resolution time).
+- Aruba Central calculates the connectivity score from five components: (1) Association time — how long the 802.11 association takes, (2) Authentication time — 802.1X/RADIUS exchange duration, (3) DHCP time — time to obtain IP address, (4) DNS time — DNS resolution latency, (5) Throughput — actual data transfer rate. Each component contributes to the 0-100 composite score.
+- Set up a scripted input or use a tool like Aruba Central Python SDK to poll `/monitoring/v2/clients` every 5 minutes and push to HEC. Include `client_mac`, `ap_name`, `ssid`, `site_name`, `connectivity_score`, and all timing fields.
 
 ### Step 1 — Configure data collection
-Use Aruba Central API credentials with least privilege; poll client health/experience endpoints on a schedule or stream via a forwarder, normalizing to JSON on HEC with indexed fields `client_mac`, `ap_name`, `ssid`, `connectivity_score`, and timing breakdowns when available. Baseline per site and SSID; alert on drops after code upgrades or RF changes.
+Create a scripted input polling Aruba Central API:
+1. Generate API credentials: Aruba Central > Account Home > API Gateway > Create Token.
+2. Build a Python script using `pycentral` SDK or direct REST calls to `/monitoring/v2/clients`.
+3. Configure HEC token in Splunk for `sourcetype=aruba:central`.
+
+Verify data:
+```spl
+index=network (sourcetype="aruba:central" OR sourcetype="aruba:central:client") earliest=-4h
+| where isnotnull(connectivity_score) OR isnotnull(client_health_score)
+| stats count avg(connectivity_score) as avg_score by site_name
+```
 
 ### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
+**Primary search — Client experience scoring with component breakdown:**
 ```spl
-index=network sourcetype="aruba:central" OR sourcetype="aruba:central:client"
+index=network (sourcetype="aruba:central" OR sourcetype="aruba:central:client") earliest=-4h
 | eval score=coalesce(connectivity_score, client_health_score, experience_score, health_score)
 | eval ap=coalesce(ap_name, ap_serial, device_name)
-| stats avg(score) as avg_score, min(score) as worst_score, perc95(score) as p95_score, dc(client_mac) as clients by ap, ssid, site_name
-| where avg_score < 75 OR worst_score < 50 OR p95_score < 70
+| stats avg(score) as avg_score min(score) as worst_score perc95(score) as p95_score dc(client_mac) as clients avg(assoc_time_ms) as avg_assoc avg(auth_time_ms) as avg_auth avg(dhcp_time_ms) as avg_dhcp avg(dns_time_ms) as avg_dns by ap, ssid, site_name
+| eval grade=case(avg_score > 85, "A — Excellent", avg_score > 70, "B — Good", avg_score > 55, "C — Fair", avg_score > 40, "D — Poor", 1==1, "F — Critical")
+| eval bottleneck=case(avg_auth > 500, "Authentication slow (".round(avg_auth, 0)."ms) — check RADIUS", avg_dhcp > 2000, "DHCP slow (".round(avg_dhcp, 0)."ms) — check DHCP server", avg_dns > 200, "DNS slow (".round(avg_dns, 0)."ms) — check DNS resolver", avg_assoc > 100, "Association slow (".round(avg_assoc, 0)."ms) — RF issue", 1==1, "No single bottleneck")
+| where avg_score < 75 OR worst_score < 50
 | sort avg_score
 ```
 
-#### Understanding this SPL
+**Experience score trending (validates infrastructure changes):**
+```spl
+index=network (sourcetype="aruba:central" OR sourcetype="aruba:central:client") earliest=-7d
+| eval score=coalesce(connectivity_score, client_health_score, experience_score)
+| bin _time span=1h
+| stats avg(score) as avg_score dc(client_mac) as clients by _time, site_name
+| timechart span=1h avg(avg_score) by site_name
+```
 
-**Aruba Client Experience and Connectivity Score (HPE Aruba)** — Aruba Central provides per-client connectivity scores based on association time, authentication time, DHCP time, DNS resolution time, and throughput. Low scores identify problematic clients, congested APs, or misconfigured SSIDs before users report issues. Trending scores over time validates infrastructure changes.
-
-Documented **Data sources**: Aruba Central API (client health / experience), recommended `sourcetype=aruba:central` (JSON from HEC). **App/TA** (typical add-on context): Custom HEC or scripted input (Aruba Central REST API — client health / experience metrics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
-
-The first pipeline stage scopes events using **index**: network; **sourcetype**: aruba:central, aruba:central:client. That sourcetype matches what this use case lists under Data sources.
-
-**Pipeline walkthrough**
-
-- Scopes the data: index=network, sourcetype="aruba:central". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `eval` defines or adjusts **score** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `eval` defines or adjusts **ap** — often to normalize units, derive a ratio, or prepare for thresholds.
-- `stats` rolls up events into metrics; results are split **by ap, ssid, site_name** so each row reflects one combination of those dimensions.
-- Filters the current rows with `where avg_score < 75 OR worst_score < 50 OR p95_score < 70` — typically the threshold or rule expression for this monitoring goal.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
-
+This search is essential for change validation: overlay the score trend with a maintenance window annotation. If you upgraded AOS firmware on Tuesday at 2 AM, the score trend should improve (or at least not degrade) after the change.
 
 ### Step 3 — Validate
-In Aruba Central, the mobility controller UI, or ClearPass Policy Manager (Access Tracker / policy views), compare authentication and health events with the search for the same timeframe.
+(a) Compare Splunk connectivity scores with Aruba Central dashboard: Monitor > Clients > Experience.
+(b) Identify a site with known WiFi complaints and verify it shows lower scores.
+(c) Test individual components: slow down DNS (e.g., test with a remote DNS server) and verify the score drops and "DNS slow" appears in the bottleneck field.
 
 ### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart (mean connectivity score by SSID), Table (worst APs and SSIDs), Histogram (score distribution), Scatter (clients vs score) for drill-down.
+Dashboard ("Aruba — Client Experience"):
+- Row 1 — Single-value tiles: "Average score (all sites)", "Worst site", "Sites rated D/F", "Total clients".
+- Row 2 — Per-site/AP experience table with grade, bottleneck identification, and client count.
+- Row 3 — 7-day experience score trending by site (with change window annotations).
+
+Alerting:
+- Warning (site avg score drops > 15 points from 7-day baseline): degradation detected.
+- Warning (site avg score < 55 for > 30 min): poor wireless experience.
+- Info (weekly): client experience report card for all sites.
+
+### Step 5 — Troubleshooting
+
+- **Low score, bottleneck is "Authentication slow"** — RADIUS/ClearPass latency is degrading the connect experience. Check ClearPass server load, network path to ClearPass, and authentication policy complexity.
+
+- **Low score, bottleneck is "DHCP slow"** — DHCP response time high. Check: (1) DHCP server load and scope availability, (2) DHCP relay agent (IP helper) configuration on the VLAN, (3) Network path between client VLAN and DHCP server.
+
+- **Score dropped after firmware upgrade** — Some AOS firmware versions have known issues with specific AP models. Check Aruba support advisories for the AOS version. Roll back if necessary and report to Aruba TAC.
+
+- **API data not updating** — Check the scripted input: (1) API token expiry (Aruba Central tokens expire — refresh them), (2) Rate limiting (Central API has rate limits), (3) Script execution errors in splunkd.log.
 
 ## SPL
 

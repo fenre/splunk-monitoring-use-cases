@@ -22,7 +22,7 @@ Failed SNMP auth indicates unauthorized polling or reconnaissance.
 
 ## Value
 
-Failed SNMP auth indicates unauthorized polling or reconnaissance.
+Security teams detect SNMP authentication failures across network devices, identifying brute-force attempts, unauthorized scanning, and misconfigured monitoring tools with stale credentials.
 
 ## Implementation
 
@@ -31,42 +31,66 @@ Forward syslog. Alert on repeated failures from unknown sources.
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.
-- Ensure the following data sources are available: `sourcetype=cisco:ios`.
-- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
+* SNMP authentication failure messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%SNMP-3-AUTHFAIL`; SNMP trap `authenticationFailure`.
+* SNMP authentication failures: indicate incorrect community strings (SNMPv2c) or USM credentials (SNMPv3) being used against network devices. Could be: misconfigured monitoring tools, old community strings, or unauthorized SNMP scanning/brute-force attempts.
 
-### Step 1 — Configure data collection
-Forward syslog. Alert on repeated failures from unknown sources.
+### Step 1 — - Configure data collection
+```
+# Cisco IOS -- enable SNMP auth failure logging
+snmp-server enable traps snmp authentication
+logging host <splunk-syslog-ip>
 
-### Step 2 — Create the search and alert
-Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
-
+# Best practice: use SNMPv3 with authentication and encryption
+snmp-server group MONITOR v3 priv
+snmp-server user splunkmon MONITOR v3 auth sha <auth-pass> priv aes 128 <priv-pass>
+```
+Verify:
 ```spl
-index=network sourcetype="cisco:ios" "%SNMP-3-AUTHFAIL"
-| rex "from (?<src>\S+)" | stats count by host, src | sort -count
+index=network earliest=-24h
+| where match(_raw, "(?i)SNMP.*AUTH|snmp.*authentication.*fail|AUTHFAIL")
+| stats count by host
 ```
 
-#### Understanding this SPL
+### Step 2 — - Create the search and alert
 
-**SNMP Authentication Failures** — Failed SNMP auth indicates unauthorized polling or reconnaissance.
+**Primary search -- SNMP authentication failure analysis:**
+```spl
+index=network earliest=-24h
+| where match(_raw, "(?i)SNMP.*AUTH|snmp.*authentication.*fail|AUTHFAIL")
+| rex field=_raw "(?i)(?:from|host|IP)\s+(?<source_ip>\d+\.\d+\.\d+\.\d+)"
+| eval src=coalesce(source_ip, src_ip, src)
+| eval device=coalesce(host, device_name)
+| iplocation src prefix=src_
+| bin _time span=1h
+| stats count as failures dc(device) as devices_targeted values(device) as targets by src, src_Country
+| eval severity=case(
+    failures > 100, "CRITICAL -- SNMP brute-force attempt",
+    devices_targeted > 10, "WARNING -- SNMP scanning across multiple devices",
+    failures > 20, "WARNING -- repeated SNMP auth failures",
+    1==1, "INFO")
+| where severity != "INFO"
+| sort severity, -failures
+```
 
-Documented **Data sources**: `sourcetype=cisco:ios`. **App/TA** (typical add-on context): `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+### Step 3 — - Validate
+(a) CLI: `show snmp` -- check SNMP configuration and community strings.
+(b) Verify source IPs against known monitoring systems (Splunk, SolarWinds, PRTG, LibreNMS).
+(c) Check if old community strings are still configured on monitoring tools.
 
-The first pipeline stage scopes events using **index**: network; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.
+### Step 4 — - Operationalize
+Dashboard ("Network -- SNMP Auth Failures"):
+* Row 1 -- Single-value: "Auth failures (24h)", "Unique sources", "Devices targeted".
+* Row 2 -- SNMP auth failure timeline by source.
 
-**Pipeline walkthrough**
+Alert: Critical (>100 failures from single source): brute-force or scan.
 
-- Scopes the data: index=network, sourcetype="cisco:ios". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts fields with `rex` (regular expression).
-- `stats` rolls up events into metrics; results are split **by host, src** so each row reflects one combination of those dimensions.
-- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+### Step 5 — - Troubleshooting
 
+* **Known monitoring tool causing failures** -- Update community string or SNMPv3 credentials on the monitoring tool. Verify SNMP version matches (v2c vs v3).
 
-### Step 3 — Validate
-SSH to a sample device that appears in the result and run the `show` command that matches the signal in this use case. Confirm the timestamp, interface, or user string matches a row in Splunk, and that your index and sourcetype are the ones the team expects after the last change window.
+* **Unknown source IP** -- Investigate: may be unauthorized scanning. Block at ACL: `access-list 99 deny host <ip>` applied to SNMP access: `snmp-server community <string> RO 99`.
 
-### Step 4 — Operationalize
-Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Map, Timeline.
+* **Migrate to SNMPv3** -- SNMPv2c community strings are sent in plaintext. Migrate to SNMPv3 with auth+priv for secure monitoring.
 
 ## SPL
 

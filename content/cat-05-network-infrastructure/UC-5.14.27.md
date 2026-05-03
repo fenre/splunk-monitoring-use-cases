@@ -22,11 +22,69 @@ Adaptation failures look like random web errors to users.
 
 ## Value
 
-Protects both security coverage and productivity.
+Operations teams detect Squid ICAP/eCAP content adaptation failures and bypass events where traffic flows unscanned, creating security gaps in antivirus and DLP enforcement.
 
 ## Implementation
 
 Tune service timeouts; scale scanners horizontally when counts rise.
+
+## Detailed Implementation
+
+### Prerequisites
+* Squid cache/syslog logs with ICAP and eCAP adaptation events. Data in `index=proxy` with `sourcetype=squid:cache` or `sourcetype=squid:access`. Key events: ICAP service errors, eCAP adapter failures, adaptation timeouts.
+* ICAP (Internet Content Adaptation Protocol, RFC 3507): Squid sends HTTP requests/responses to an external ICAP server for modification (antivirus scanning, DLP, content filtering). eCAP: in-process content adaptation using loadable modules. Adaptation failures mean content isn't being scanned, creating a security gap.
+
+### Step 1 — - Configure data collection
+```
+# squid.conf -- ICAP example
+icap_enable on
+icap_service av_req reqmod_precache icap://av-server:1344/avscan
+adaptation_access av_req allow all
+icap_service_failure_limit 10
+icap_service_revival_delay 30
+```
+Verify:
+```spl
+index=proxy (sourcetype="squid:cache" OR sourcetype="squid:access") earliest=-4h
+| where match(_raw, "(?i)icap|ecap|adaptation|ICAP_ERR|ICAP.*fail|eCAP.*fail")
+| stats count by _raw | head 20
+```
+
+### Step 2 — - Create the search and alert
+
+**Primary search -- ICAP/eCAP adaptation failure analysis:**
+```spl
+index=proxy (sourcetype="squid:cache" OR sourcetype="squid:access") earliest=-4h
+| where match(_raw, "(?i)icap|ecap|adaptation")
+| eval event_type=case(match(_raw, "(?i)ICAP.*timeout|icap.*timed.out"), "ICAP_TIMEOUT", match(_raw, "(?i)ICAP.*err|ICAP.*fail|icap.*service.*down"), "ICAP_ERROR", match(_raw, "(?i)ICAP.*bypass|adaptation.*bypass"), "ICAP_BYPASS", match(_raw, "(?i)eCAP.*err|ecap.*fail"), "ECAP_ERROR", match(_raw, "(?i)ICAP.*200|adaptation.*ok"), "ICAP_OK", 1==1, "OTHER")
+| where event_type != "ICAP_OK"
+| rex "icap://(?<icap_server>[^/:]+)"
+| stats count as events dc(icap_server) as affected_servers values(icap_server) as servers by event_type
+| eval severity=case(event_type="ICAP_BYPASS", "CRITICAL -- content bypassing scanning", event_type="ICAP_TIMEOUT", "HIGH -- ICAP server timing out", event_type="ICAP_ERROR", "HIGH -- ICAP service errors", event_type="ECAP_ERROR", "HIGH -- eCAP module errors", 1==1, "WARNING")
+| sort severity, -events
+```
+
+### Step 3 — - Validate
+(a) Stop the ICAP server and verify error/bypass events appear.
+(b) Send an EICAR test file through the proxy: `curl -x http://<squid>:3128 http://example.com/eicar.com` -- should be blocked by ICAP AV.
+(c) `squidclient mgr:icap` -- shows ICAP service statistics.
+
+### Step 4 — - Operationalize
+Dashboard ("Squid -- Content Adaptation"):
+* Row 1 -- Single-value: "ICAP errors (4h)", "Bypass events", "ICAP timeouts".
+* Row 2 -- Adaptation event breakdown.
+
+Alerting:
+* Critical (ICAP bypass): content not being scanned -- security gap.
+* High (ICAP timeout > 50/hr): ICAP server performance issue.
+
+### Step 5 — - Troubleshooting
+
+* **ICAP bypass** -- When ICAP service hits `icap_service_failure_limit`, Squid bypasses adaptation. This means traffic flows without scanning. Review: (1) increase limit if transient, (2) fix ICAP server, (3) consider `adaptation_access` deny rules to block traffic when ICAP is down instead of bypassing.
+
+* **ICAP timeout** -- ICAP server is too slow. Check: (1) ICAP server load, (2) `icap_connect_timeout` (default 30s), (3) large file scans taking too long.
+
+* **eCAP module crash** -- eCAP modules run in-process. A crash can take down Squid. Check core dumps and module logs. Consider switching to ICAP for isolation.
 
 ## SPL
 

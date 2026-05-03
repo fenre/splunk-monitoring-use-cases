@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.16.1",
+  "title": "WAN Optimizer Throughput and Compression Ratio Trending",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "wave": "crawl",
+  "dataSources": "Detailed: `index=wanop` (recommended summary index) or `index=network` / `index=infra`; `sourcetype` examples — `riverbed:steelhead` (SteelHead syslog/metrics with bytes before/after WAN and compression factor fields per TA mapping), `silverpeak:*` / `edgeconnect:*` (Orchestrator / appliance optimization counters), `citrix:sdwan*` or WANOP-specific forwarded logs (compressed vs raw octets), `zscaler:zdx` probes or stitch ZDX HTTP/FEC telemetry when WAN optimizers front SaaS paths. Normalize vendor keys (`compression_ratio`, `data_reduction_ratio`, `bytes_pre_opt`, `bytes_post_opt`, `wan_tx_bytes`, `lan_rx_bytes`) via `props.conf` FIELDALIAS—search uses `coalesce()` across aliases.",
+  "app": "Riverbed SteelHead integration (syslog/SNMP TA or custom props), Aruba EdgeConnect / Silver Peak syslog, Citrix SD-WAN App for Splunk or syslog scripts, Splunk Add-on for Zscaler (ZDX branch); optional Splunk Connect for Syslog for UDP/TCP fan-in.",
+  "spl": "index=wanop OR index=network OR index=infra earliest=-7d@h latest=now\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"riverbed|steelhead\"),\"Riverbed SteelHead\",match(v,\"silverpeak|edgeconnect\"),\"Silver Peak EdgeConnect\",match(v,\"citrix\"),\"Citrix SD-WAN WANOP\",match(v,\"zdx|zscaler\"),\"Zscaler Digital Experience\",\"other\")\n| where vendor!=\"other\"\n| eval pre=tonumber(coalesce(bytes_pre_opt,preopt_bytes,lan_rx_bytes,bytes_before_opt))\n| eval post=tonumber(coalesce(bytes_post_opt,postopt_bytes,wan_tx_bytes,bytes_after_opt))\n| eval ratio=tonumber(coalesce(compression_ratio,data_reduction_ratio,optimization_ratio))\n| eval derived_ratio=if(isnull(ratio) AND pre>0 AND post>0, round(pre/post,3), ratio)\n| bin _time span=1h\n| stats avg(derived_ratio) as avg_compression_factor sum(pre) as sum_pre sum(post) as sum_post dc(host) as appliance_count by _time vendor\n| eval savings_pct=if(sum_pre>0 AND sum_post>=0, round(100*(1-(sum_post/sum_pre)),2), null())\n| sort _time vendor",
+  "description": "Hourly Splunk aggregates blend LAN-side versus WAN-side byte counters and vendor-reported compression factors across SteelHead, EdgeConnect, Citrix WANOP, and ZDX-correlated paths so collapsing optimization efficiency appears before circuits saturate.",
+  "value": "Capacity planners receive quantifiable trending that connects shrinking payloads to purchasing fewer Mbps renewals while operators gain early warning before brownouts when ratios drift downward without traffic mix excuses.",
+  "implementation": "Land syslog/metrics on shared indexes, FIELDALIAS common byte and ratio fields, schedule this search as accelerating baseline dataset powering hourly CSV summary plus anomaly alerts on savings_pct drop.",
+  "detailedImplementation": "Prerequisites\n• Dedicated `wanop` summary index or ACL-controlled `network` index receiving SteelHead, EdgeConnect, Citrix WANOP, and optional ZDX feeds.\n• Documented field glossary aligning vendor MIB/syslog keys to `pre/post` bytes and ratio metrics.\n• Time synchronization (NTP) verified on every appliance pair feeding Splunk.\n\nStep 1 — Configure data collection\nForward appliance optimization statistics via syslog or modular SNMP polling into Splunk; apply `props.conf` transforms so numeric fields are typed double.\n\nStep 2 — Create the search and alert\nSave the primary SPL as `wanopt_throughput_compression_hourly`; clone an anomaly variant using `streamstats`/`predict` on `savings_pct` per vendor once four weeks of history exist.\n\nStep 3 — Validate\nPick one branch hour, compare Splunk sums against appliance CLI `show stats` screens or orchestrator UI exports—differences should remain inside rounding tolerance.\n\nStep 4 — Operationalize\nDashboard row shows dual-axis chart of avg_compression_factor and savings_pct; drilldown passes vendor/host tokens into raw search.\n\nStep 5 — Troubleshooting\n**Null ratios:** confirm FIELDALIAS coverage.**Sudden spikes:** backups or replication swings bypass optimization—annotate maintenance windows.**Multi-site aggregation:** split by `host` when WAN mixes MPLS and DIA paths.",
+  "visualization": "Dashboard Studio: top row single-value tiles for 24h savings_pct per vendor; middle `splunk.timechart` of avg_compression_factor; bottom table of appliance_count with sparklines.",
+  "references": [
+    {
+      "title": "Splunk Documentation — Get Started with Monitoring Working Examples",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/MonitorWANtraffic"
+    },
+    {
+      "title": "Riverbed SteelHead Deployment Documentation Portal",
+      "url": "https://support.riverbed.com/content/support/software/steelhead.html"
+    },
+    {
+      "title": "HPE Aruba Networking EdgeConnect (Silver Peak) Documentation",
+      "url": "https://www.arubanetworks.com/techdocs/EdgeConnect-Premier-orchestrator/introduction/about-this-guide/"
+    }
+  ],
+  "knownFalsePositives": "**Encrypted GRE overlays:** ratios flatline though WAN healthy.**Bulk encrypted video:** legitimately incompressible traffic drags averages.**Mis-tagged sourcetypes:** devices classified `other` disappear from panels yet still consume WAN—watch cardinality.**Scheduled firmware uploads:** temporary ratio dips revert automatically.",
+  "mitreAttack": [
+    "N/A (WAN performance monitoring)"
+  ],
+  "securityDomain": "network",
+  "equipment": [
+    "riverbed",
+    "silverpeak",
+    "citrix",
+    "zscaler"
+  ],
+  "equipmentModels": [
+    "riverbed_steelhead",
+    "silverpeak_edgeconnect",
+    "citrix_sdwan_wanop",
+    "zscaler_zdx"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-03",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "grandmaExplanation": "We watch how much data shrinks and how quickly it moves across long-distance pipes. When those healthy patterns slump, we catch trouble before everyone notices sluggish files and video calls.",
+  "detectionType": "Baseline"
+}
