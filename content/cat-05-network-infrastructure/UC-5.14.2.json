@@ -13,12 +13,10 @@
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes",
   "spl": "index=proxy sourcetype=\"haproxy:http\"\n| regex field=_raw \"(?i)retry=(?<retry>\\d+)\"\n| stats sum(retry) as retries by backend, server\n| where retries > 100",
   "description": "Retries absorb brief faults but high volume masks systemic overload or brownouts.",
-  "value": "Surfaces upstream instability that averages hide until SLAs break.",
+  "value": "Operations teams track HAProxy connection retry and redispatch volumes per backend to identify intermittently failing servers and prevent cascading failures from retry storms.",
   "implementation": "Extend `log-format` to include retry/redispatch counters; validate with `show stat`. Baseline per service.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
-  "cimModels": [
-    "N/A"
-  ],
+  "cimModels": [],
   "references": [
     {
       "title": "Vendor documentation",
@@ -38,5 +36,6 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch haproxy connection retry and redispatch volume and catch issues early, before they turn into outages for the people who rely on the network."
+  "grandmaExplanation": "We watch haproxy connection retry and redispatch volume and catch issues early, before they turn into outages for the people who rely on the network.",
+  "detailedImplementation": "Prerequisites\n* HAProxy HTTP logs in `index=proxy` with `sourcetype=haproxy:http`. Key fields: `retries` (number of connection retries), `redispatch` (request re-sent to different server), `backend`, `server`, `Tc` (connect time), `termination_state`.\n* HAProxy retries: when a connection to a backend server fails, HAProxy retries on the same server (`retries` count). Redispatch: after retries exhausted, HAProxy sends the request to a different server in the same backend. High retries/redispatches indicate unstable backends.\n\nStep 1 -- Configure data collection\nEnsure retry/redispatch logging:\n```\n# haproxy.cfg\ndefaults\n    retries 3\n    option redispatch\n    option httplog\n```\nVerify:\n```spl\nindex=proxy sourcetype=\"haproxy:http\" earliest=-4h\n| where retries > 0 OR match(termination_state, \"(?i)R\")\n| stats count sum(retries) as total_retries by backend\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Retry and redispatch analysis:**\n```spl\nindex=proxy sourcetype=\"haproxy:http\" earliest=-4h\n| where retries > 0 OR match(_raw, \"(?i)redispatch\")\n| eval had_redispatch=if(match(termination_state, \"(?i)R\") OR match(_raw, \"(?i)redispatch\"), 1, 0)\n| stats count as events sum(retries) as total_retries sum(had_redispatch) as redispatches by backend, server\n| eval retry_rate=round(total_retries/events, 2)\n| eval severity=case(redispatches > 50, \"HIGH -- frequent redispatches\", total_retries > 100, \"WARNING -- elevated retries\", 1==1, \"INFO\")\n| lookup haproxy_backends.csv backend, server OUTPUT application\n| where severity != \"INFO\"\n| sort severity, -total_retries\n```\n\nStep 3 -- Validate\n(a) Introduce network latency to a backend and verify retries increase.\n(b) Check HAProxy stats for retry/redispatch counters per backend.\n(c) Verify `retries` and `option redispatch` are configured in the backend.\n\nStep 4 -- Operationalize\nDashboard (\"HAProxy -- Retries & Redispatches\"):\n* Row 1 -- Single-value: \"Total retries (4h)\", \"Redispatches\", \"Affected backends\".\n* Row 2 -- Per-backend retry analysis.\n\nAlerting:\n* High (redispatches > 50 in 15 min): multiple servers failing -- investigate.\n* Warning (retries > 100 in 15 min): connection instability.\n\nStep 5 -- Troubleshooting\n\n* **High retries on specific server** -- That server is intermittently refusing connections. Check: (1) server connection backlog (`somaxconn`), (2) process resource limits, (3) firewall connection tracking.\n\n* **Redispatches but all servers show UP** -- Servers are passing health checks but failing under load. Health checks may be too lenient (e.g., checking / but app fails on /api). Use application-specific health endpoints.\n\n* **Retries causing cascading failures** -- Each retry adds load to the backend. If backends are overloaded, retries make it worse. Consider reducing `retries` or enabling `option abortonclose`."
 }

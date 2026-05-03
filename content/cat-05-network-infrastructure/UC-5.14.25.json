@@ -12,12 +12,10 @@
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes",
   "spl": "index=proxy sourcetype=\"squid:cache\"\n| regex _raw=\"(?i)(peer.*(?:DEAD|DOWN|FAILED)|DETECT UP|DETECT DOWN)\"\n| stats count by cache_peer\n| sort - count",
   "description": "Peer flaps shift load unexpectedly across the mesh.",
-  "value": "Stabilizes hierarchical cache designs.",
+  "value": "Operations teams track Squid cache peer (parent/sibling) selection outcomes and ICP query failures, detecting peer hierarchy disruptions that force direct origin fetches.",
   "implementation": "Log `cache_peer` lines at appropriate debug level; aggregate to Splunk via UF.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
-  "cimModels": [
-    "N/A"
-  ],
+  "cimModels": [],
   "references": [
     {
       "title": "Vendor documentation",
@@ -36,5 +34,6 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch squid cache peer selection and failure events and catch issues early, before they turn into outages for the people who rely on the network."
+  "grandmaExplanation": "We watch squid cache peer selection and failure events and catch issues early, before they turn into outages for the people who rely on the network.",
+  "detailedImplementation": "Prerequisites\n* Squid cache logs with peer/parent selection events. Data in `index=proxy` with `sourcetype=squid:access` or `sourcetype=squid:cache`. Key fields: `peer_status` (e.g., DIRECT, PARENT_HIT, SIBLING_HIT, CLOSEST_PARENT_MISS), `peer_host`.\n* Cache peers: Squid can forward cache misses to parent proxies or query sibling caches using ICP (Internet Cache Protocol) or HTCP. Peer selection failures mean Squid can't reach its configured parent/sibling, causing it to go DIRECT (if allowed) or fail. Peer hierarchy: `cache_peer parent|sibling <host> <port> <icp_port>`.\n\nStep 1 -- Configure data collection\n```\n# squid.conf\ncache_peer parent1.example.com parent 3128 3130\ncache_peer sibling1.example.com sibling 3128 3130\n```\nVerify:\n```spl\nindex=proxy sourcetype=\"squid:access\" earliest=-4h\n| stats count by peer_status, peer_host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Peer selection and failure analysis:**\n```spl\nindex=proxy sourcetype=\"squid:access\" earliest=-4h\n| eval peer_result=upper(coalesce(peer_status, \"UNKNOWN\"))\n| eval peer=coalesce(peer_host, \"DIRECT\")\n| eval is_direct=if(match(peer_result, \"DIRECT\") OR peer=\"DIRECT\", 1, 0)\n| eval is_peer_fail=if(match(peer_result, \"(?i)DEAD|TIMEOUT|FAIL|NONE\"), 1, 0)\n| eval is_peer_hit=if(match(peer_result, \"(?i)PARENT_HIT|SIBLING_HIT\"), 1, 0)\n| bin _time span=15m\n| stats count as total sum(is_direct) as direct sum(is_peer_fail) as peer_failures sum(is_peer_hit) as peer_hits by _time\n| eval direct_pct=round(100*direct/total, 1)\n| eval severity=case(peer_failures > 50, \"CRITICAL -- cache peer failures\", direct_pct > 90 AND total > 1000, \"WARNING -- almost all traffic bypassing peers\", 1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, total, direct, direct_pct, peer_hits, peer_failures, severity\n```\n\nStep 3 -- Validate\n(a) `squidclient mgr:cache_peer` -- shows peer status and ICP query statistics.\n(b) Stop a peer proxy and verify peer_failures increase and traffic goes DIRECT.\n(c) Check ICP: `squidclient mgr:icp` -- ICP query/reply counts.\n\nStep 4 -- Operationalize\nDashboard (\"Squid -- Cache Peers\"):\n* Row 1 -- Single-value: \"Peer hit ratio\", \"Peer failures\", \"Direct %\".\n* Row 2 -- Peer selection distribution.\n\nAlerting:\n* Critical (peer failures > 50/hr): parent/sibling proxy unreachable.\n* Warning (direct > 90%): peer hierarchy not being utilized.\n\nStep 5 -- Troubleshooting\n\n* **All traffic going DIRECT** -- Check: (1) `cache_peer` directives in squid.conf, (2) `never_direct deny all` to force peer usage, (3) ICP port (3130) is open between proxies.\n\n* **Peer timeout** -- ICP queries timing out. Check: (1) network connectivity to peer, (2) `icp_query_timeout` (default 2s), (3) peer's `icp_port` is listening.\n\n* **Sibling returning MISS but has the object** -- ICP query might be configured to check only memory, not disk. Check peer's `icp_hit_stale` and cache store configuration."
 }

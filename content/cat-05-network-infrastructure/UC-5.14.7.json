@@ -13,12 +13,10 @@
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes",
   "spl": "index=proxy sourcetype=\"haproxy:http\"\n| stats count by fe_name, be_name\n| sort - count\n| head 40",
   "description": "Routing audits support tenant isolation and forensic reconstruction.",
-  "value": "Demonstrates control effectiveness to risk teams without packet capture.",
+  "value": "Operations teams analyze HAProxy per-backend bandwidth consumption and response size distributions, detecting saturation, compression gaps, and unusually large payloads.",
   "implementation": "Add stable rule identifiers for regulated splits; scrub URIs with PII.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
-  "cimModels": [
-    "N/A"
-  ],
+  "cimModels": [],
   "references": [
     {
       "title": "Vendor documentation",
@@ -37,5 +35,6 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch haproxy acl-based traffic routing audit and catch issues early, before they turn into outages for the people who rely on the network."
+  "grandmaExplanation": "We watch haproxy acl-based traffic routing audit and catch issues early, before they turn into outages for the people who rely on the network.",
+  "detailedImplementation": "Prerequisites\n* HAProxy HTTP logs with response size fields. Key fields: `bytes_read` (response body bytes), `content_type`, `backend`, `request_uri`. Data in `index=proxy` with `sourcetype=haproxy:http`.\n* HAProxy can compress responses when `compression algo gzip` is enabled. Large uncompressed responses indicate missing compression or naturally large payloads (file downloads, API responses).\n\nStep 1 -- Configure data collection\nEnable compression logging:\n```\n# haproxy.cfg\ndefaults\n    compression algo gzip\n    compression type text/html text/plain text/css application/javascript application/json\n```\nVerify:\n```spl\nindex=proxy sourcetype=\"haproxy:http\" earliest=-4h\n| eval response_kb=bytes_read/1024\n| stats avg(response_kb) as avg_size_kb max(response_kb) as max_size_kb by backend\n| sort -avg_size_kb\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Bandwidth and response size analysis:**\n```spl\nindex=proxy sourcetype=\"haproxy:http\" earliest=-4h\n| eval response_kb=tonumber(bytes_read)/1024\n| eval response_mb=response_kb/1024\n| bin _time span=5m\n| stats avg(response_kb) as avg_size_kb sum(response_kb) as total_kb count as requests p95(response_kb) as p95_size_kb by _time, backend\n| eval bandwidth_mbps=round(total_kb/1024/300*8, 2)\n| eval avg_size_kb=round(avg_size_kb, 1)\n| eval severity=case(bandwidth_mbps > 100, \"HIGH -- heavy bandwidth\", p95_size_kb > 10240, \"WARNING -- large responses (P95 > 10MB)\", 1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, backend, requests, avg_size_kb, p95_size_kb, bandwidth_mbps, severity\n```\n\nStep 3 -- Validate\n(a) Request a known large resource and verify size appears correctly.\n(b) Compare with HAProxy stats `bout` (bytes out) counter.\n(c) Verify compression is active: `curl -H \"Accept-Encoding: gzip\" -I https://<haproxy>/path` -- check for `Content-Encoding: gzip`.\n\nStep 4 -- Operationalize\nDashboard (\"HAProxy -- Bandwidth & Response Size\"):\n* Row 1 -- Single-value: \"Bandwidth (Mbps)\", \"Avg response size\", \"P95 response size\".\n* Row 2 -- Bandwidth timechart per backend.\n* Row 3 -- Large response outliers.\n\nAlerting:\n* High (bandwidth > 100 Mbps sustained): potential bandwidth saturation.\n* Warning (P95 response size > 10 MB): unusually large responses.\n\nStep 5 -- Troubleshooting\n\n* **High bandwidth from specific backend** -- Identify the URIs driving large responses. Check if large API responses can be paginated.\n\n* **Compression not working** -- Verify: (1) `compression algo` directive present, (2) `compression type` includes content types being served, (3) client sends `Accept-Encoding: gzip`.\n\n* **Sudden bandwidth spike** -- Possible: (1) cache miss storm, (2) large file download, (3) data exfiltration. Check top URIs by bytes."
 }

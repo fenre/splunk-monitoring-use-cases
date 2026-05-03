@@ -13,12 +13,10 @@
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes",
   "spl": "index=proxy sourcetype=\"squid:cache\"\n| regex _raw=\"(?i)Delay pool|delay_pool\"\n| bin _time span=5m\n| stats count by host, _time",
   "description": "Fair-use rules should be observable, not silent.",
-  "value": "Supports regulatory bandwidth management.",
+  "value": "Operations teams detect Squid delay pool bandwidth throttling activation, identifying clients being rate-limited and evaluating whether throttle thresholds need adjustment.",
   "implementation": "Avoid verbose debug in prod; use short cache log notices or manager counters.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
-  "cimModels": [
-    "N/A"
-  ],
+  "cimModels": [],
   "references": [
     {
       "title": "Vendor documentation",
@@ -37,5 +35,6 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch squid delay pool throttling signals and catch issues early, before they turn into outages for the people who rely on the network."
+  "grandmaExplanation": "We watch squid delay pool throttling signals and catch issues early, before they turn into outages for the people who rely on the network.",
+  "detailedImplementation": "Prerequisites\n* Squid cache logs with delay pool events. Data in `index=proxy` with `sourcetype=squid:cache` or `sourcetype=squid:access`. Key events: delay pool class assignment, throttling applied.\n* Delay pools: Squid's bandwidth throttling mechanism. Three classes: (1) single aggregate pool, (2) per-network pool, (3) per-host pool. When a client exceeds their bandwidth allocation, Squid slows the response. `delay_access` ACLs assign requests to pools. High throttling rates may indicate: (1) bandwidth limits too restrictive, (2) bandwidth hogs, (3) need for capacity upgrade.\n\nStep 1 -- Configure data collection\n```\n# squid.conf -- class 3 (per-host) delay pool\ndelay_pools 1\ndelay_class 1 3\ndelay_parameters 1 -1/-1 1000000/1000000 500000/500000\ndelay_access 1 allow all\n```\nEnable delay pool debugging:\n```\ndebug_options ALL,1 77,5\n```\nVerify:\n```spl\nindex=proxy (sourcetype=\"squid:cache\" OR sourcetype=\"squid:access\") earliest=-4h\n| where match(_raw, \"(?i)delay.*pool|throttl|bandwidth.*limit|delay_id\")\n| stats count\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Delay pool throttling signals:**\n```spl\nindex=proxy (sourcetype=\"squid:cache\" OR sourcetype=\"squid:access\") earliest=-4h\n| where match(_raw, \"(?i)delay.*pool|throttl|bandwidth|delay_id|slow.*down\")\n| eval throttle_event=case(match(_raw, \"(?i)delay.*pool.*assigned|delay_id\"), \"POOL_ASSIGNED\", match(_raw, \"(?i)throttl|slow|delayed\"), \"THROTTLED\", match(_raw, \"(?i)bandwidth.*exceeded|limit.*reached\"), \"LIMIT_HIT\", 1==1, \"OTHER\")\n| rex \"(?:client|from|src)\\s+(?<throttled_client>[0-9.]+)\"\n| stats count as events dc(throttled_client) as affected_clients by throttle_event\n| eval severity=case(throttle_event=\"THROTTLED\" AND events > 100, \"WARNING -- heavy throttling\", affected_clients > 50, \"INFO -- many clients throttled\", 1==1, \"INFO\")\n| where severity != \"INFO\"\n| table throttle_event, events, affected_clients, severity\n```\n\nStep 3 -- Validate\n(a) Download a large file through the proxy with delay pools active -- verify speed is limited.\n(b) `squidclient mgr:delay` -- shows delay pool statistics.\n(c) Monitor access log for requests with high `elapsed` time on cacheable content (indicates throttling).\n\nStep 4 -- Operationalize\nDashboard (\"Squid -- Delay Pools\"):\n* Row 1 -- Single-value: \"Throttled requests\", \"Affected clients\".\n* Row 2 -- Throttling event timeline.\n\nStep 5 -- Troubleshooting\n\n* **Legitimate traffic throttled** -- Delay pool limits too restrictive. Increase `delay_parameters` rates. Or add ACL exceptions for specific destinations: `delay_access 1 deny allowed_fast_sites`.\n\n* **Delay pools not working** -- Check: (1) `delay_pools` count matches number of defined pools, (2) `delay_access` ACL matches traffic, (3) `delay_class` is correct for the desired behavior (1=aggregate, 2=network, 3=individual).\n\n* **Bandwidth usage still high despite throttling** -- Delay pools throttle individual connections, not aggregate. Many connections from the same client can bypass effective limits. Consider class 2 (per-network) or class 3 (per-host) pools."
 }

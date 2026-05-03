@@ -13,12 +13,10 @@
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes",
   "spl": "index=proxy sourcetype=\"varnish:vsl\"\n| regex _raw=\"(?i)(ESI.*error|include.*failed)\"\n| stats count by host\n| where count > 10",
   "description": "ESI failures create partial pages that are hard to spot in averages.",
-  "value": "Speeds collaboration between CDN and app teams.",
+  "value": "Operations teams detect Varnish ESI fragment fetch failures and XML parsing errors that cause broken page assembly for end users.",
   "implementation": "Limit verbose ESI debug to non-prod; aggregate counts in prod.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
-  "cimModels": [
-    "N/A"
-  ],
+  "cimModels": [],
   "references": [
     {
       "title": "Vendor documentation",
@@ -37,5 +35,6 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch varnish esi fragment error rate and catch issues early, before they turn into outages for the people who rely on the network."
+  "grandmaExplanation": "We watch varnish esi fragment error rate and catch issues early, before they turn into outages for the people who rely on the network.",
+  "detailedImplementation": "Prerequisites\n* Varnish logs with ESI (Edge Side Includes) processing events. Key counters: `MAIN.esi_errors`, `MAIN.esi_warnings`. ESI log tags: `ESI_xmlerror`, `Error`. Data in `index=proxy` with `sourcetype=varnish:log` or `sourcetype=varnish:stats`.\n* ESI: Varnish parses `<esi:include src=\"/fragment\"/>` tags in responses and fetches each fragment separately, allowing independent caching of page components. ESI errors occur when: (1) fragment fetch fails, (2) XML parsing error in ESI tags, (3) infinite include loop, (4) fragment returns non-200 status.\n\nStep 1 -- Configure data collection\nEnable ESI in VCL:\n```\nsub vcl_backend_response {\n    if (beresp.http.Content-Type ~ \"text/html\") {\n        set beresp.do_esi = true;\n    }\n}\n```\nVerify:\n```spl\nindex=proxy (sourcetype=\"varnish:log\" OR sourcetype=\"varnish:stats\") earliest=-4h\n| where match(_raw, \"(?i)esi_error|ESI_xmlerror|esi.*fail|esi.*warning\")\n| stats count\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- ESI error analysis:**\n```spl\nindex=proxy (sourcetype=\"varnish:log\" OR sourcetype=\"varnish:stats\") earliest=-4h\n| eval is_stats=if(sourcetype=\"varnish:stats\", 1, 0)\n| eval esi_event=case(match(_raw, \"(?i)ESI_xmlerror\"), \"XML_PARSE_ERROR\", match(_raw, \"(?i)esi.*failed.*fetch|esi.*no backend\"), \"FRAGMENT_FETCH_FAIL\", match(_raw, \"(?i)esi.*include.*loop\"), \"INCLUDE_LOOP\", match(_raw, \"(?i)esi_error\"), \"ESI_ERROR\", match(_raw, \"(?i)esi_warning\"), \"ESI_WARNING\", 1==1, null())\n| where isnotnull(esi_event)\n| rex \"src=\"(?<fragment_url>[^\"]+)\"\"\n| stats count as errors dc(fragment_url) as unique_fragments values(fragment_url) as fragments by esi_event\n| eval severity=case(esi_event=\"INCLUDE_LOOP\", \"CRITICAL -- recursive ESI loop\", errors > 100, \"HIGH -- frequent ESI errors\", 1==1, \"WARNING\")\n| sort severity, -errors\n```\n\nStep 3 -- Validate\n(a) Create a test page with `<esi:include src=\"/test-fragment\"/>` and a failing fragment endpoint.\n(b) `varnishstat -1 | grep esi` -- shows ESI error/warning counters.\n(c) `varnishlog -q \"ESI_xmlerror\"` -- live ESI errors.\n\nStep 4 -- Operationalize\nDashboard (\"Varnish -- ESI Health\"):\n* Row 1 -- Single-value: \"ESI errors (4h)\", \"Failed fragments\", \"XML parse errors\".\n* Row 2 -- ESI error breakdown by type.\n\nAlerting:\n* Critical (include loop detected): can cause resource exhaustion.\n* High (ESI errors > 100/hr): page rendering affected.\n\nStep 5 -- Troubleshooting\n\n* **XML parse error** -- The parent page has malformed ESI tags. Check: properly closed tags, no nested `<esi:include>` in attributes, valid XML characters.\n\n* **Fragment fetch failure** -- The fragment URL is unreachable. Check: (1) fragment backend is healthy, (2) URL path is correct relative to Varnish, (3) fragment backend has capacity.\n\n* **Performance impact** -- Each ESI include is a separate internal request. Many fragments per page multiply latency. Consider reducing fragments or increasing TTLs on frequently used fragments."
 }
