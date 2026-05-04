@@ -11,7 +11,7 @@
   "splunkPillar": "Security",
   "owner": "Procurement",
   "controlFamily": "third-party-activity",
-  "exclusions": "Does not determine legal applicability, complete regulator submissions, approve policy decisions, or replace counsel/competent-authority review.",
+  "exclusions": "Does not evaluate the quality of supplier security controls, interpret contractual clauses, approve vendor risk acceptance, determine Art.22 critical supply chain status, or replace procurement or board governance. Only correlates vulnerability findings, SBOM exposure, and vendor access patterns for critical suppliers.",
   "evidence": "Composite dashboard `UC-22.2.50`, Qualys export hash, `critical_suppliers.csv` revision ID, and weekly PDF archive row in `index=audit_evidence` referenced in the management body minutes.",
   "compliance": [
     {
@@ -70,9 +70,9 @@
   "implementation": "(1) Ingest Qualys host detections into `index=vuln` with TA 2964 modular inputs hitting Qualys API **/api/3.0/fo/asset/host/vm/detection**. (2) Maintain `critical_suppliers.csv` under change control; columns must include managed_asset (FQDN lower-case) and supplier_tier. (3) Schedule this search daily; clone a second search for `index=sbom` CycloneDX joins on `component.version`. (4) Add CyberArk panel: `index=pam` stats on `target_host` where `jump_host` matches lookup. (5) Export composite PDF weekly to `index=audit_evidence`. (6) Optional: open ES (263) notable event when `open_findings>25`.",
   "visualization": "Supplier risk table, SBOM component treemap (optional panel), CyberArk vendor duration heatmap, ES risk index line chart.",
   "cimModels": [
-    "Alerts"
+    "Vulnerabilities"
   ],
-  "cimSpl": "| tstats summariesonly=t count from datamodel=Alerts where nodename=Alerts.Alerts by Alerts.signature | head 20",
+  "cimSpl": "| tstats summariesonly=true dc(Vulnerabilities.signature) as open_findings dc(Vulnerabilities.cve) as distinct_cves dc(Vulnerabilities.dest) as impacted_assets from datamodel=Vulnerabilities where Vulnerabilities.severity IN (\"critical\",\"high\") by Vulnerabilities.vendor_product | rename Vulnerabilities.* as * | lookup critical_suppliers.csv managed_asset AS dest OUTPUT supplier_name supplier_tier | where supplier_tier IN (\"critical\",\"tier1\") | stats sum(open_findings) as open_findings sum(distinct_cves) as distinct_cves sum(impacted_assets) as impacted_assets by supplier_name supplier_tier | sort - open_findings",
   "dataModelAcceleration": "Recommended where ES Alerts datamodel is accelerated for executive rollups; otherwise rely on raw `index=vuln` searches scoped to 30 days.",
   "references": [
     {
