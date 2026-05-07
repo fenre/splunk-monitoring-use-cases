@@ -9,45 +9,6 @@
     "Audit"
   ],
   "splunkPillar": "Security",
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Administrative and Operational Audit* category — codes `52001` (ERS / OpenAPI auth success), `52002` (ERS / OpenAPI auth failure), `52003` (ERS / OpenAPI authz denied), `52004` (ERS / OpenAPI rate-limit). Fields: `api_user`, `client_ip`, `endpoint_path`, `http_method`, `http_status`. CIM mapping: `Authentication.action`.",
-  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
-  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (52002, 52003, 52004)\n| stats count, dc(client_ip) as unique_ips, dc(endpoint_path) as unique_paths by api_user\n| where count > 50 OR (unique_ips > 5 AND count > 20)",
-  "description": "Detects ERS / OpenAPI brute-force attempts, token theft (one user from many IPs), and anomalous high-volume callers — symptoms of compromised API credentials or misuse.",
-  "value": "ISE's ERS/OpenAPI exposes the entire control plane. A compromised API token can be used to read endpoint inventory, modify auth policies, or push ANC actions. Detecting brute-force or anomalous use within 5 minutes is the primary defense.",
-  "implementation": "Confirm *Administrative and Operational Audit* at INFO. Schedule every 5 min, search window `-15m@m to @m`, throttle on `api_user` for 30 min.",
-  "visualization": "(1) Single value: API-failure events last 1h. (2) Top-N: API users by failure count. (3) Map: client_ip distribution.",
-  "cimModels": [
-    "Authentication"
-  ],
-  "dataModelAcceleration": "Optional.",
-  "references": [
-    {
-      "title": "Cisco ISE OpenAPI Documentation",
-      "url": "https://developer.cisco.com/docs/ise/3.4/openapi/"
-    },
-    {
-      "title": "Cisco ISE — ERS API Configuration",
-      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_api.html"
-    }
-  ],
-  "knownFalsePositives": "(a) **Splunk-side polling burst** — Multiple Splunk modular inputs polling ISE simultaneously may briefly trigger; tag those service accounts. (b) **CMDB sync bursts** — Periodic CMDB sync produces high-volume reads. (c) **First-day deployment of integration** — Integration testing produces failure bursts.",
-  "mitreAttack": [
-    "T1110.001",
-    "T1078.004"
-  ],
-  "equipment": [
-    "cisco"
-  ],
-  "equipmentModels": [
-    "cisco_ise"
-  ],
-  "status": "verified",
-  "lastReviewed": "2026-05-06",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "@splunk-monitoring-use-cases",
   "compliance": [
     {
       "regulation": "PCI-DSS",
@@ -103,6 +64,46 @@
     "positiveScenario": "Run a script that attempts 51 wrong-password ERS calls. UC-17.1.57 fires for that user with `count=51`.",
     "negativeScenario": "Successful API calls. UC-17.1.57 does not fire."
   },
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Administrative and Operational Audit* category — codes `52001` (ERS / OpenAPI auth success), `52002` (ERS / OpenAPI auth failure), `52003` (ERS / OpenAPI authz denied), `52004` (ERS / OpenAPI rate-limit). Fields: `api_user`, `client_ip`, `endpoint_path`, `http_method`, `http_status`. CIM mapping: `Authentication.action`.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (52002, 52003, 52004)\n| stats count, dc(client_ip) as unique_ips, dc(endpoint_path) as unique_paths by api_user\n| where count > 50 OR (unique_ips > 5 AND count > 20)",
+  "description": "Detects ERS / OpenAPI brute-force attempts, token theft (one user from many IPs), and anomalous high-volume callers — symptoms of compromised API credentials or misuse.",
+  "value": "ISE's ERS/OpenAPI exposes the entire control plane. A compromised API token can be used to read endpoint inventory, modify auth policies, or push ANC actions. Detecting brute-force or anomalous use within 5 minutes is the primary defense.",
+  "implementation": "Confirm *Administrative and Operational Audit* at INFO. Schedule every 5 min, search window `-15m@m to @m`, throttle on `api_user` for 30 min.",
+  "visualization": "(1) Single value: API-failure events last 1h. (2) Top-N: API users by failure count. (3) Map: client_ip distribution.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco ISE OpenAPI Documentation",
+      "url": "https://developer.cisco.com/docs/ise/3.4/openapi/"
+    },
+    {
+      "title": "Cisco ISE — ERS API Configuration",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_api.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **Splunk-side polling burst** — Multiple Splunk modular inputs polling ISE simultaneously may briefly trigger; tag those service accounts. (b) **CMDB sync bursts** — Periodic CMDB sync produces high-volume reads. (c) **First-day deployment of integration** — Integration testing produces failure bursts.",
+  "mitreAttack": [
+    "T1110.001",
+    "T1078.004"
+  ],
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• ISE ERS / OpenAPI enabled.\n• `api_users.csv` with `api_user`, `expected_caller_ip`, `expected_endpoint_paths`.\n\nStep 1 — Configure data collection\nEnable *Administrative and Operational Audit* at INFO.\n\nStep 2 — Create the search\nSearch in `spl` field.\n\nA secondary anomaly check matches `client_ip` against `api_users.csv` `expected_caller_ip`:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode=52001 earliest=-1h\n| lookup api_users.csv api_user OUTPUT expected_caller_ip\n| where !match(client_ip, expected_caller_ip)\n```\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — API Access Audit\":\n• Single value: failures last 1h.\n• Top-N users.\n• Map of caller IPs.\n\nAlerting: PagerDuty high on brute-force; medium on caller-IP anomaly.\n\nStep 5 — Troubleshooting\n• **Bursts of 52004 (rate-limit)** — Tune ISE rate-limit OR fix the offending integration's polling cadence.\n• **52002 from internal dev IP** — Dev iterating on a script; coordinate.\n• **Persistent 52003 (authz denied)** — User has wrong role; review.",
   "grandmaExplanation": "ISE has an interface for other systems to connect to it. We watch for too many wrong passwords or unusual patterns of use — these can mean someone is trying to break in or has stolen a password.",
   "wave": "crawl"

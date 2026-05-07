@@ -10,14 +10,12 @@
     "Quality"
   ],
   "splunkPillar": "Observability",
-  "wave": "walk",
   "dataSources": "Detailed: `index=visibility`; streaming counters such as `gigamon:flowstats`, `keysight:hitcount`, `apcon:acl_hit` exposing `rule_id`, `hits_per_sec`, `matched_bytes`, `miss_pkts`, `first_seen_epoch`. Pair with configuration-change logs so Splunk correlates sudden zero-hit maps with edits rather than traffic disappearance.",
   "app": "Vendor analytics exporters (GigaVUE FM stats API, Vision Fabric Controller, APCON IntellaView), optional Splunk HTTP Event Collector receivers for JSON metric batches.",
   "spl": "index=visibility earliest=-24h\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"gigamon\"),\"Gigamon\",match(v,\"keysight|ixia|vision\"),\"Keysight\",match(v,\"apcon\"),\"APCON\",\"other\")\n| where vendor!=\"other\"\n| eval rule_key=coalesce(rule_id,map_name,filter_name,\"unset\")\n| eval hps=tonumber(coalesce(hits_per_sec,hit_rate,hps))\n| bin _time span=1h\n| stats sum(hps) as sum_hits avg(hps) as avg_hps latest(matched_bytes) as bytes_marker by _time vendor rule_key host\n| streamstats global=f window=168 avg(avg_hps) as baseline by vendor rule_key host\n| eval efficiency_ratio=if(baseline>0, round(avg_hps/baseline,3), null())\n| eval stale_map=if(avg_hps=0 AND baseline>10,1,0)\n| eval noisy_map=if(avg_hps>(baseline*5) AND baseline>0,1,0)\n| where stale_map=1 OR noisy_map=1 OR efficiency_ratio < 0.2 OR efficiency_ratio > 5\n| sort vendor rule_key _time",
   "description": "Hourly Splunk compares current filter-map hit rates against a rolling peer baseline per chassis so stale ACLs consuming scarce TCAM or accidental wildcard maps flooding tool ports become obvious without manual CLI exports.",
   "value": "Engineering governance trims redundant rules that steal appliance capacity while security architects detect overly broad matches that could overwhelm IDS clusters during benign flash crowds.",
   "implementation": "Bootstrap baseline after fourteen days of stable traffic; freeze comparisons during approved change freezes using eventtypes; output CSV snapshots weekly for architecture review boards.",
-  "detailedImplementation": "Prerequisites\n• Tagged ownership metadata per `rule_key` including cost center and annual review date.\n• Agreement on acceptable variance bands per environment (prod vs lab).\n• Storage tier sized for one-year hourly aggregates (~few GB per chassis).\n\nStep 1 — Instrument exports\nEnable hit counters at safe sampling cadence (≤60s) without overwhelming management planes; throttle via vendor-supported bulk APIs.\n\nStep 2 — Build macros\nCreate reusable macros `pktbrk_hit_normalize` handling vendor-specific counter resets and scientific notation quirks.\n\nStep 3 — Implement searches\nPrimary discovery search identifies stale/noisy maps; secondary verification search joins latest configuration revision IDs to prove drift versus Git-backed templates.\n\nStep 4 — Validate\nDisable a lab map intentionally—ensure `stale_map` triggers within two hours while production siblings remain quiet.\n\nStep 5 — Operationalize\nDashboard pairs heatmaps with annotated bar charts of wasted estimated bandwidth; integrate Splunk drilldown to ServiceNow rule-defect queue.",
   "visualization": "`splunk.parallelcoordinates` comparing baseline vs avg_hps across vendors; supporting table with efficiency_ratio color scales; optional scatter of bytes_marker vs hits.",
   "references": [
     {
@@ -37,21 +35,24 @@
   "mitreAttack": [
     "N/A (operational analytics)"
   ],
-  "securityDomain": "network",
   "detectionType": "Baseline",
+  "securityDomain": "network",
   "equipment": [
+    "apc_dc",
+    "apcon",
+    "cpacket",
+    "garland",
     "gigamon",
     "keysight",
-    "cpacket",
-    "apcon",
-    "garland"
+    "snmp"
   ],
   "equipmentModels": [
+    "apcon_visibility_platform",
+    "cpacket_cstor",
+    "garland_network_tap",
     "gigamon_gigavue",
     "keysight_vision",
-    "cpacket_cstor",
-    "apcon_visibility_platform",
-    "garland_network_tap"
+    "snmp_apc"
   ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
@@ -60,5 +61,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We count how often each traffic-sorting recipe actually sees packets compared to what used to be normal. That tells us which recipes went useless or turned into fire hoses so we tidy them before they waste space or drown our watchers."
+  "detailedImplementation": "Prerequisites\n• Tagged ownership metadata per `rule_key` including cost center and annual review date.\n• Agreement on acceptable variance bands per environment (prod vs lab).\n• Storage tier sized for one-year hourly aggregates (~few GB per chassis).\n\nStep 1 — Instrument exports\nEnable hit counters at safe sampling cadence (≤60s) without overwhelming management planes; throttle via vendor-supported bulk APIs.\n\nStep 2 — Build macros\nCreate reusable macros `pktbrk_hit_normalize` handling vendor-specific counter resets and scientific notation quirks.\n\nStep 3 — Implement searches\nPrimary discovery search identifies stale/noisy maps; secondary verification search joins latest configuration revision IDs to prove drift versus Git-backed templates.\n\nStep 4 — Validate\nDisable a lab map intentionally—ensure `stale_map` triggers within two hours while production siblings remain quiet.\n\nStep 5 — Operationalize\nDashboard pairs heatmaps with annotated bar charts of wasted estimated bandwidth; integrate Splunk drilldown to ServiceNow rule-defect queue.",
+  "grandmaExplanation": "We count how often each traffic-sorting recipe actually sees packets compared to what used to be normal. That tells us which recipes went useless or turned into fire hoses so we tidy them before they waste space or drown our watchers.",
+  "wave": "walk"
 }

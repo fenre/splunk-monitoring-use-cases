@@ -10,14 +10,12 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "wave": "crawl",
   "dataSources": "Detailed: `index=wanop OR index=network`; sourcetypes `riverbed:steelhead` (connection/service logs referencing SYN backlog / neighbor counts), `silverpeak:*` session tables from Orchestrator exports, `citrix:sdwan*` WANOP connection scheduler traps, `zscaler:zdx` glue logs only when paired with on-prem optimizers. Prefer numeric metrics (`active_connections`, `conn_table_used`, `max_flows`, `session_capacity`) ingested via SNMP/mod-input JSON lines—alert math consumes percentages rather than raw syslog grep.",
   "app": "Vendor syslog TA plus optional SNMP Modular Input or Telegraf → HEC for gauges; Citrix SD-WAN Splunk integration patterns; SC4S for UDP syslog normalization.",
   "spl": "index=wanop OR index=network earliest=-4h\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"riverbed|steelhead\"),\"Riverbed SteelHead\",match(v,\"silverpeak|edgeconnect\"),\"Silver Peak EdgeConnect\",match(v,\"citrix\"),\"Citrix SD-WAN WANOP\",match(v,\"zdx|zscaler\"),\"Zscaler Digital Experience\",\"other\")\n| where vendor!=\"other\"\n| eval used=tonumber(coalesce(active_connections,conn_table_used,sessions_in_use,flows_active,n_conn))\n| eval limit=tonumber(coalesce(max_connections,session_capacity,max_flows,conn_table_max))\n| eval pct_full=if(limit>0 AND isnotnull(used), round(100*used/limit,2), null())\n| where isnotnull(pct_full)\n| bin _time span=5m\n| stats max(pct_full) as peak_util latest(used) as sessions latest(limit) as cap by host vendor _time\n| where peak_util>=85\n| stats max(peak_util) as worst_pct latest(sessions) as latest_sessions latest(cap) as capacity by host vendor\n| sort - worst_pct",
   "description": "Five-minute Splunk rollups compare active optimized flows against platform ceilings per appliance so connection-table pressure nearing exhaustion triggers before TCP resets and tunnel tears degrade branch productivity.",
   "value": "Incident teams shorten outages by catching finite hardware flow limits early while architects justify upgrades or split pairs using utilization evidence instead of anecdotal complaints about intermittent disconnects.",
   "implementation": "Emit periodic SNMP/syslog counters with stable field names, schedule alert when peak_util>=85 for two consecutive buckets or worst_pct>=95 instantaneous.",
-  "detailedImplementation": "Prerequisites\n• Known licensed/session limits per model captured in `wanopt_capacity.csv` lookup (`host,capacity_notes`).\n• Clock sync and polling interval ≤5 minutes so peaks are not aliased away.\n• Change window awareness—software upgrades briefly spike session counts.\n\nStep 1 — Configure data collection\nEnable SNMP OID sets or structured syslog streams exposing active vs maximum flows; avoid proprietary blobs without extraction.\n\nStep 2 — Create the search and alert\nSave SPL as `wanopt_conn_table_pressure`; alert triggers after `worst_pct>=90` for 10 minutes or immediate when syslog severity ERROR matches regex `(?i)htable|flow table full`.\n\nStep 3 — Validate\nDuring maintenance, artificially raise synthetic flows in lab appliance if permitted—confirm pct_full calculation tracks CLI counters.\n\nStep 4 — Operationalize\nDashboard pairs utilization thermometers with neighbor HA status; send pager payloads including recommended mitigation (bypass rules, increase timeouts).\n\nStep 5 — Troubleshooting\n**Null limits:** appliances omit gauge until licensed—join lookup.**Short spikes:** microbursts from scans—require sustained predicate.**Asymmetric paths:** ensure both directions polled per serial/cluster.",
   "visualization": "Heatmap host × vendor with peak_util color scale; adjacent drilldown raw events filtered `htable OR \"connection table\"`.",
   "references": [
     {
@@ -33,17 +31,21 @@
   "mitreAttack": [
     "N/A (capacity and availability monitoring)"
   ],
+  "detectionType": "Baseline",
   "securityDomain": "network",
   "equipment": [
+    "citrix",
     "riverbed",
     "silverpeak",
-    "citrix",
+    "snmp",
+    "syslog",
     "zscaler"
   ],
   "equipmentModels": [
+    "citrix_sdwan_wanop",
     "riverbed_steelhead",
     "silverpeak_edgeconnect",
-    "citrix_sdwan_wanop",
+    "snmp_generic",
     "zscaler_zdx"
   ],
   "status": "verified",
@@ -53,6 +55,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Known licensed/session limits per model captured in `wanopt_capacity.csv` lookup (`host,capacity_notes`).\n• Clock sync and polling interval ≤5 minutes so peaks are not aliased away.\n• Change window awareness—software upgrades briefly spike session counts.\n\nStep 1 — Configure data collection\nEnable SNMP OID sets or structured syslog streams exposing active vs maximum flows; avoid proprietary blobs without extraction.\n\nStep 2 — Create the search and alert\nSave SPL as `wanopt_conn_table_pressure`; alert triggers after `worst_pct>=90` for 10 minutes or immediate when syslog severity ERROR matches regex `(?i)htable|flow table full`.\n\nStep 3 — Validate\nDuring maintenance, artificially raise synthetic flows in lab appliance if permitted—confirm pct_full calculation tracks CLI counters.\n\nStep 4 — Operationalize\nDashboard pairs utilization thermometers with neighbor HA status; send pager payloads including recommended mitigation (bypass rules, increase timeouts).\n\nStep 5 — Troubleshooting\n**Null limits:** appliances omit gauge until licensed—join lookup.**Short spikes:** microbursts from scans—require sustained predicate.**Asymmetric paths:** ensure both directions polled per serial/cluster.",
   "grandmaExplanation": "We keep an eye on how many conversations each middle box is juggling versus how many it can handle. When the box runs out of room for those conversations, we raise the alarm before calls and apps start dropping.",
-  "detectionType": "Baseline"
+  "wave": "crawl"
 }

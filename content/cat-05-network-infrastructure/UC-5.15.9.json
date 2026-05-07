@@ -10,15 +10,16 @@
     "Operations"
   ],
   "splunkPillar": "Platform",
-  "wave": "walk",
   "dataSources": "`index=netops` `sourcetype=infoblox:audit` administrative and system audit trails capturing IPAM lease conflicts, DUPLICATE_IP markers, DHCP conflict warnings; optionally DHCP logs `sourcetype=infoblox:dhcp` with DHCPDECLINE/DHCPNAK patterns correlated later.",
   "app": "Splunk Add-on for Infoblox (Splunkbase 2934)",
   "spl": "index=netops sourcetype=\"infoblox:audit\" earliest=-24h\n| search (\"duplicate\" OR \"DUPLICATE\" OR \"conflict\" OR \"IP conflict\" OR \"already in use\" OR \"ADDRESS_CONFLICT\")\n| rex field=_raw \"(?i)(?:ip|address)[\\\\s:=]+(?<conflict_ip>\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3})\"\n| rex field=_raw \"(?i)(?:mac|hardware)[\\\\s:=]+(?<conflict_mac>[0-9a-fA-F:.-]{12,})\"\n| rex field=_raw \"(?i)(?:member|appliance)[\\\\s:=]+(?<member>[^\\\\s,;]+)\"\n| stats count values(conflict_mac) as macs latest(_time) as last by conflict_ip member host\n| sort - count",
   "description": "Search surfaces Infoblox audit events referencing duplicate IP allocations or DHCP/IPAM conflicts so overlapping leases or manual static overlaps are corrected before intermittent connectivity complaints spread.",
   "value": "Enterprise reliability improves because duplicate IPv4 assignments—a frequent root cause of phantom drops for laptops and printers—are traced to authoritative Grid messages instead of guessed from switch counters alone.",
   "implementation": "Forward full audit category, maintain regex extracts per NIOS release notes, schedule hourly alerts with drilldown to Grid IPAM lease grid, pair with DHCP DECLINE correlation optional.",
-  "detailedImplementation": "Prerequisites\n• Audit syslog severity includes warnings—not errors-only filtering.\n• CMDB linkage from IP to owner asset accelerates ticketing.\n• Change window calendar to suppress alerts during mass migrations.\n\nStep 1 — Configure data collection\nCapture Grid Master plus DHCP Grid members emitting conflicts. Validate samples with `table _raw`.\n\nStep 2 — Create the search and alert\nPrimary SPL keyword basket—extend with localized phrases discovered during pilot. Alert when `count` per `conflict_ip` exceeds 3/hour.\n\nStep 3 — Validate\nForce controlled duplicate in lab (static vs DHCP overlap) and verify Splunk row matches Infoblox GUI conflict banner timeline.\n\nStep 4 — Operationalize\nDashboard summarizing conflict_ip heatmap by VLAN lookup; auto-task IPAM team with suggested remediation scripts.\n\nStep 5 — Troubleshooting\n**Sparse wording:** Some builds log terse codes—expand regex dictionary.**Forwarded syslog truncation:** TCP avoids clipped MAC.**False duplicate wording:** unrelated audit entries mentioning duplicate zones—add negative lookahead filters for DNS zone duplicates vs IP duplicates.",
   "visualization": "Table (conflict_ip, member, count, last), choropleth-style subnet grouping via lookup, timeline overlay.",
+  "cimModels": [],
+  "cimSpl": "| tstats count where index=* sourcetype=infoblox:audit by host span=1h",
+  "dataModelAcceleration": "Not applicable for audit-only sourcetype unless normalized into a custom data model.",
   "references": [
     {
       "title": "Splunk Documentation — Sourcetypes for the Splunk Add-on for Infoblox",
@@ -44,8 +45,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Audit syslog severity includes warnings—not errors-only filtering.\n• CMDB linkage from IP to owner asset accelerates ticketing.\n• Change window calendar to suppress alerts during mass migrations.\n\nStep 1 — Configure data collection\nCapture Grid Master plus DHCP Grid members emitting conflicts. Validate samples with `table _raw`.\n\nStep 2 — Create the search and alert\nPrimary SPL keyword basket—extend with localized phrases discovered during pilot. Alert when `count` per `conflict_ip` exceeds 3/hour.\n\nStep 3 — Validate\nForce controlled duplicate in lab (static vs DHCP overlap) and verify Splunk row matches Infoblox GUI conflict banner timeline.\n\nStep 4 — Operationalize\nDashboard summarizing conflict_ip heatmap by VLAN lookup; auto-task IPAM team with suggested remediation scripts.\n\nStep 5 — Troubleshooting\n**Sparse wording:** Some builds log terse codes—expand regex dictionary.**Forwarded syslog truncation:** TCP avoids clipped MAC.**False duplicate wording:** unrelated audit entries mentioning duplicate zones—add negative lookahead filters for DNS zone duplicates vs IP duplicates.",
   "grandmaExplanation": "We flag when the network’s address book accidentally gives the same number to two devices, because that mix-up causes flaky connections that are hard to explain otherwise.",
-  "cimModels": [],
-  "cimSpl": "| tstats count where index=* sourcetype=infoblox:audit by host span=1h",
-  "dataModelAcceleration": "Not applicable for audit-only sourcetype unless normalized into a custom data model."
+  "wave": "walk"
 }

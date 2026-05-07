@@ -4,16 +4,18 @@
   "title": "LDP Neighbor Adjacency Monitoring",
   "criticality": "high",
   "difficulty": "intermediate",
-  "monitoringType": ["Availability", "Fault", "Operations"],
+  "monitoringType": [
+    "Availability",
+    "Fault",
+    "Operations"
+  ],
   "splunkPillar": "Observability",
-  "wave": "crawl",
   "dataSources": "Detailed: `index=network`; `sourcetype` — `cisco:ios`, `cisco:ios_xr`, `cisco:ios_xe`, `juniper:junos`, `nokia:sros`; syslog covering LDP session events (`%LDP-*`, `%ROUTING-LDP-*`, Junos `rpd_ldp_*`, `ldpDown`, `ldpUp`, Nokia `tmnxPlcyLdPi*`/`svplsLdPi*`-style facility strings); optional SNMP TRAP-PDU `mplsLdpSessionDown`. Fields: `neighbor`, `interface`, `tcp_socket`, `reason`, `graceful_restart`.",
   "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper (`Splunk_TA_juniper`), Nokia SR OS syslog integrations with supplemental FIELDALIAS for neighbor router-id.",
   "spl": "index=network earliest=-24h@h latest=now\n| eval st=lower(coalesce(sourcetype,_sourcetype,\"\"))\n| where match(st,\"cisco:ios|cisco:ios_xr|cisco:ios_xe|juniper:junos|nokia\")\n| eval msg=lower(_raw)\n| eval is_ldp=if(match(msg,\"\\\\bldp\\\\b\") OR match(msg,\"label.?distribution\") OR match(_raw,\"LDP-\"),1,0)\n| where is_ldp=1 AND match(msg,\"(?:neighbor|adjacency|session|peer).*(?:down|up|reset|closed|timeout|hold.?time|fd|tcp)|(?:down|lost).*ldp|ldp.*(?:fail|error)|graceful.?restart.*(?:fail|complete)\")\n| rex field=_raw max_match=0 \"(?i)(?:neighbor|peer)[=: \\t]+(?<neighbor>[0-9.]+|[0-9a-f:]+)\"\n| rex field=_raw max_match=0 \"(?i)(?:interface|if)\\s*[:=]?\\s*(?<ifname>[^\\s,]+)\"\n| stats count earliest(_time) as first_seen latest(_time) as last_seen values(neighbor) as peers values(ifname) as ifaces by host st\n| sort - count",
   "description": "Splunk tracks LDP hello and TCP session churn across PE and P nodes so partial mesh loss or GR timeouts appear as structured neighbor-down bursts rather than buried lines inside verbose routing daemon logs.",
   "value": "Label distribution continuity protects VPN and Internet prefixes alike because ops teams detect dying TCP adjacencies before liberal label retention masks blackholes and before PIC edge cases strand stale LFIB entries on upstream hops.",
   "implementation": "Ensure LDP session change syslog reaches the network index, normalize IPv4/IPv6 router IDs into `neighbor`, alert when distinct peer loss exceeds threshold per PE within ten minutes, and enrich with NetBox CMDB roles.",
-  "detailedImplementation": "Prerequisites\n• Accurate CMDB linking management IPs on loopbacks to device names forwarded as syslog `host`.\n• Baseline of expected LDP peers per platform (full mesh vs targeted).\n\nStep 1 — Logging posture\nCisco IOS-XE: confirm `%LDP-5-NBRCHG` or equivalent informational messages export to collectors; IOS-XR validate `mpls ldp neighbor` events via `logging discriminator`. Junos: ensure `system syslog user * any notice` captures `rpd` LDP messages without drowning in BGP noise—optionally filter facility in relay. Nokia SR OS: mirror router-id and peer events at `major` or higher per operations policy.\n\nStep 2 — Parsing\nAugment TA extractions with `rex` for neighbor router-id and optional GR reason codes; map interface names for targeted sessions.\n\nStep 3 — Saved search\n`ldp_neighbor_down_surge`: alert if `dc(peers)`≥2 per host in five minutes or single peer matches critical tier lookup `tier1_ldp_peers.csv`.\n\nStep 4 — CLI validation\nOn alarm: Cisco `show mpls ldp neighbor`; XR `show ldp neighbor`; Junos `show ldp neighbor`; Nokia `show router ldp session`; compare states and uptime to Splunk event timestamps.\n\nStep 5 — Runbook tie-in\nDashboard drilldown shows raw messages and suggested bounce/recovery steps; post-mortems attach Splunk search URLs as incident evidence when GR timers masked flap bursts.",
   "visualization": "Dashboard Studio: KPI for PEs with LDP downs in 24h; stacked bar of sessions by `host`; drilldown table (`host`, `peers`, `ifaces`, `count`) linked to raw events.",
   "references": [
     {
@@ -30,14 +32,32 @@
     }
   ],
   "knownFalsePositives": "**Graceful restart:** neighbors flap informational during NSR switch—suppress via maintenance playbook.**Targeted LDP on pseudowires:** teardown mimics core outage—join with SAP/PW context.**IPv6 vs IPv4 RID mismatch:** duplicate-looking peers differ only by address family.**TCP RST storms:** transient SYN backlog spikes trigger noise until firewall rules clarified.**Log sampling:** if sampled inputs drop hello churn, counts under-report—disable sampling for LDP facilities.",
-  "mitreAttack": ["N/A (availability monitoring)"],
-  "securityDomain": "network",
+  "mitreAttack": [
+    "N/A (availability monitoring)"
+  ],
   "detectionType": "Baseline",
-  "equipment": ["cisco", "juniper"],
-  "equipmentModels": ["cisco_asr_9000", "cisco_asr_1000", "juniper_mx"],
+  "securityDomain": "network",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "snmp",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_asr_1000",
+    "cisco_asr_9000",
+    "cisco_ios",
+    "juniper_mx",
+    "snmp_generic"
+  ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We keep an eye on the handshake lines between our big routers that share sticker labels for packets. When those friendships drop, we shout early so nobody ships mail down a hallway that suddenly lost its name tags."
+  "detailedImplementation": "Prerequisites\n• Accurate CMDB linking management IPs on loopbacks to device names forwarded as syslog `host`.\n• Baseline of expected LDP peers per platform (full mesh vs targeted).\n\nStep 1 — Logging posture\nCisco IOS-XE: confirm `%LDP-5-NBRCHG` or equivalent informational messages export to collectors; IOS-XR validate `mpls ldp neighbor` events via `logging discriminator`. Junos: ensure `system syslog user * any notice` captures `rpd` LDP messages without drowning in BGP noise—optionally filter facility in relay. Nokia SR OS: mirror router-id and peer events at `major` or higher per operations policy.\n\nStep 2 — Parsing\nAugment TA extractions with `rex` for neighbor router-id and optional GR reason codes; map interface names for targeted sessions.\n\nStep 3 — Saved search\n`ldp_neighbor_down_surge`: alert if `dc(peers)`≥2 per host in five minutes or single peer matches critical tier lookup `tier1_ldp_peers.csv`.\n\nStep 4 — CLI validation\nOn alarm: Cisco `show mpls ldp neighbor`; XR `show ldp neighbor`; Junos `show ldp neighbor`; Nokia `show router ldp session`; compare states and uptime to Splunk event timestamps.\n\nStep 5 — Runbook tie-in\nDashboard drilldown shows raw messages and suggested bounce/recovery steps; post-mortems attach Splunk search URLs as incident evidence when GR timers masked flap bursts.",
+  "grandmaExplanation": "We keep an eye on the handshake lines between our big routers that share sticker labels for packets. When those friendships drop, we shout early so nobody ships mail down a hallway that suddenly lost its name tags.",
+  "wave": "crawl"
 }

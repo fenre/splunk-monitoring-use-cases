@@ -9,15 +9,18 @@
     "Audit"
   ],
   "splunkPillar": "Security",
-  "wave": "walk",
   "dataSources": "`index=dns` `sourcetype=infoblox:rpz` RPZ hit syslog forwarded through Splunk Connect for Syslog product routing `infoblox_nios_rpz`; supplemental context `sourcetype=infoblox:threatprotect` for ATP/threat feed correlation when licensed.",
   "app": "Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)",
   "spl": "index=dns sourcetype=\"infoblox:rpz\" earliest=-24h\n| eval action_norm=lower(coalesce(action,\"unknown\"))\n| eval rpz_outcome=case(\n    match(action_norm,\"passthru|pass-through\"), \"PASSTHRU\",\n    match(action_norm,\"substitute|cname|redirect|policy\") OR match(_raw,\"(?i)substitute\"), \"REDIRECT\",\n    match(action_norm,\"nxdomain|nodata|drop|block\"), \"BLOCK\",\n    1=1, \"OTHER\"\n  )\n| where rpz_outcome IN (\"BLOCK\",\"REDIRECT\")\n| stats count by rpz_outcome policy_name host qname src_ip\n| sort - count\n| head 200",
   "description": "Use case monitors Infoblox RPZ enforcement outcomes separating hard blocks from substitute redirects, preserving visibility into sinkhole or walled-garden responses used during investigations.",
   "value": "Investigators distinguish containment strategies—silent NXDOMAIN versus explicit redirection—and auditors receive proof that policy responses align with legal and operational guidance for customer-facing DNS tampering.",
   "implementation": "Keep RPZ logging enabled on all recursive members, route RPZ sourcetype distinctly, normalize actions with eval, build dashboards comparing BLOCK vs REDIRECT volumes per policy, alert on sudden REDIRECT spikes from unexpected feeds.",
-  "detailedImplementation": "Prerequisites\n• Licensed RPZ coverage on Grid members serving recursion.\n• RPZ syslog category enabled under Grid DNS Properties > Logging.\n• Splunk TA parsing producing `action`, `policy_name`, `qname`, `src_ip` fields—verify with `fieldsummary`.\n\nStep 1 — Configure data collection\nSend RPZ logs via TCP syslog to SC4S; confirm `infoblox:rpz` segregates from generic `infoblox:dns`. Capture PASSTHRU separately only if required for volume governance.\n\nStep 2 — Create the search and alert\nPrimary SPL summarizes enforcement paths. Add correlation subsearch against `infoblox:threatprotect` for matched IOC IDs when available. Alert when REDIRECT share rises above baseline fraction.\n\nStep 3 — Validate\nPick NIOS Reporting RPZ counters for an hour and reconcile counts by policy_name with Splunk `stats sum(count)` grouped identically.\n\nStep 4 — Operationalize\nHeatmaps per Grid member, drilldown to VirusTotal links for top qname values, ticket automation tagging redirect-heavy zones as higher visibility changes.\n\nStep 5 — Troubleshooting\n**Field drift:** If `action` missing, extract via `rex` on `_raw`.**Dual logging:** Ensure members behind load-balancers retain distinct `host`.**Privacy:** Mask `src_ip` for guest SSIDs before sharing dashboards externally.",
   "visualization": "Stacked bar BLOCK vs REDIRECT by policy_name, timechart of redirects only, detailed table with qname/src_ip/host.",
+  "cimModels": [
+    "Network_Resolution"
+  ],
+  "cimSpl": "| tstats `summariesonly` count from datamodel=Network_Resolution where nodename=Network_Resolution.DNS by DNS.query DNS.src span=1h\n| where count>0\n| sort -count",
+  "dataModelAcceleration": "Accelerate Network_Resolution DNS node only when RPZ fields map into CIM DNS objects.",
   "references": [
     {
       "title": "Splunk Documentation — Sourcetypes for the Splunk Add-on for Infoblox",
@@ -31,7 +34,8 @@
   "knownFalsePositives": "**Sinkhole testing:** Purple-team exercises spike REDIRECT counts benignly.**Mis-tuned policies:** Over-broad substitute rules mimic malware waves—review feed diffs before escalating.**Guest NAT:** Single NAT IP inflates apparent victims.",
   "securityDomain": "threat",
   "equipment": [
-    "infoblox"
+    "infoblox",
+    "syslog"
   ],
   "equipmentModels": [
     "infoblox_nios"
@@ -43,10 +47,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Licensed RPZ coverage on Grid members serving recursion.\n• RPZ syslog category enabled under Grid DNS Properties > Logging.\n• Splunk TA parsing producing `action`, `policy_name`, `qname`, `src_ip` fields—verify with `fieldsummary`.\n\nStep 1 — Configure data collection\nSend RPZ logs via TCP syslog to SC4S; confirm `infoblox:rpz` segregates from generic `infoblox:dns`. Capture PASSTHRU separately only if required for volume governance.\n\nStep 2 — Create the search and alert\nPrimary SPL summarizes enforcement paths. Add correlation subsearch against `infoblox:threatprotect` for matched IOC IDs when available. Alert when REDIRECT share rises above baseline fraction.\n\nStep 3 — Validate\nPick NIOS Reporting RPZ counters for an hour and reconcile counts by policy_name with Splunk `stats sum(count)` grouped identically.\n\nStep 4 — Operationalize\nHeatmaps per Grid member, drilldown to VirusTotal links for top qname values, ticket automation tagging redirect-heavy zones as higher visibility changes.\n\nStep 5 — Troubleshooting\n**Field drift:** If `action` missing, extract via `rex` on `_raw`.**Dual logging:** Ensure members behind load-balancers retain distinct `host`.**Privacy:** Mask `src_ip` for guest SSIDs before sharing dashboards externally.",
   "grandmaExplanation": "We sort DNS policy stops into hard stops versus gentle detours so teams know whether bad websites were simply blocked or sent somewhere safer on purpose.",
-  "cimModels": [
-    "Network_Resolution"
-  ],
-  "cimSpl": "| tstats `summariesonly` count from datamodel=Network_Resolution where nodename=Network_Resolution.DNS by DNS.query DNS.src span=1h\n| where count>0\n| sort -count",
-  "dataModelAcceleration": "Accelerate Network_Resolution DNS node only when RPZ fields map into CIM DNS objects."
+  "wave": "walk"
 }

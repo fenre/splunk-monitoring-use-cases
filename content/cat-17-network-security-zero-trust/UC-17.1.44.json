@@ -10,48 +10,6 @@
     "Operations"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Identity Store* and *Authentication* categories. Codes per store type — Active Directory: `24014` (AD connection lost), `24015` (AD authentication latency), `24023` (AD machine account password rotation failed), `24033` (AD trust relationship broken), `24050` (AD LDAP referral failed). LDAP: `24400`/`24401`/`24402` (LDAP search failure / timeout / bind failure). External RADIUS proxy: `11051` (proxy timeout), `11052` (proxy server unreachable). SAML/OAuth identity providers: `82400` (SAML/OAuth IdP connection lost), `82401` (SAML/OAuth metadata refresh failed). ISE OpenAPI `/api/v1/identitystore/healthcheck` polled every 5 min for active health stats per store, written to `index=nac sourcetype=cisco:ise:idstore_health`.",
-  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
-  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (24014, 24015, 24023, 24033, 24050, 24400, 24401, 24402, 11051, 11052, 82400, 82401))\n  OR (index=nac sourcetype=\"cisco:ise:idstore_health\")\n| eval store_type = case(\n    MessageCode IN (24014, 24015, 24023, 24033, 24050), \"active_directory\",\n    MessageCode IN (24400, 24401, 24402), \"ldap\",\n    MessageCode IN (11051, 11052), \"external_radius\",\n    MessageCode IN (82400, 82401), \"saml_oauth\",\n    isnotnull(store_name), \"snapshot\")\n| stats count latest(_time) as last_event, latest(health_state) as health by store_name, store_type\n| where count > 0 OR health==\"DOWN\"\n| sort - count",
-  "description": "Detects external identity store outages, search/bind failures, and degraded performance — covers Active Directory, LDAP, external RADIUS proxy, and SAML/OAuth identity providers used by ISE. When the upstream identity store is unhealthy, *every authentication that depends on it* fails or runs slowly.",
-  "value": "ISE is a federation point — it doesn't own the identity, it queries upstream stores. AD outage means no employee can authenticate. LDAP timeout means slow auth, NAD timeouts, dropped sessions. SAML/OAuth IdP outage breaks the cloud-app SSO flow. Catching upstream identity-store issues at first occurrence allows the platform team to engage AD/IDP teams immediately rather than waiting for user-impact reports.",
-  "implementation": "Confirm *Identity Store*, *Authentication*, and *Failed Attempts* logging categories are at INFO. Deploy the OpenAPI health-check poller. Schedule the search every 5 min, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `store_name` for 30 min.",
-  "visualization": "(1) Single value: stores in DOWN state. (2) Per-store latency timechart, last 24h. (3) Per-store error-rate timechart, last 24h. (4) Top-N: stores with most failures last 7d.",
-  "cimModels": [
-    "Authentication"
-  ],
-  "dataModelAcceleration": "Yes — Authentication DM acceleration helps cross-correlation with auth-failure UCs.",
-  "references": [
-    {
-      "title": "Cisco ISE 3.4 Admin Guide — Identity Stores",
-      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_authentication.html"
-    },
-    {
-      "title": "Cisco ISE — Active Directory Configuration",
-      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_authentication.html"
-    },
-    {
-      "title": "Splunk Add-on for Cisco Identity Services (Splunkbase 1915)",
-      "url": "https://splunkbase.splunk.com/app/1915"
-    }
-  ],
-  "knownFalsePositives": "(a) **AD machine-account password rotation** — Periodic rotation may briefly trigger 24023 events; recovery is automatic. Suppress isolated single events. (b) **AD scheduled maintenance** — Cross-reference change calendar; downgrade to notification within window. (c) **LDAP referral following** — Some directories use referrals heavily; the 24050 event isn't a failure if the referral resolves. Tune severity per store. (d) **SAML metadata refresh blip** — Metadata endpoints may transiently 502; alert only when 82401 recurs >3 times in 1h.",
-  "mitreAttack": [
-    "T1499.004"
-  ],
-  "equipment": [
-    "cisco"
-  ],
-  "equipmentModels": [
-    "cisco_ise"
-  ],
-  "status": "verified",
-  "lastReviewed": "2026-05-06",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "@splunk-monitoring-use-cases",
   "compliance": [
     {
       "regulation": "NIS2",
@@ -119,6 +77,49 @@
     "positiveScenario": "On a lab AD, stop the LDAP service. Within 5 min ISE emits 24014. UC-17.1.44 fires showing AD store with non-zero count.",
     "negativeScenario": "Restart LDAP service. ISE re-establishes connection. Alert clears."
   },
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Identity Store* and *Authentication* categories. Codes per store type — Active Directory: `24014` (AD connection lost), `24015` (AD authentication latency), `24023` (AD machine account password rotation failed), `24033` (AD trust relationship broken), `24050` (AD LDAP referral failed). LDAP: `24400`/`24401`/`24402` (LDAP search failure / timeout / bind failure). External RADIUS proxy: `11051` (proxy timeout), `11052` (proxy server unreachable). SAML/OAuth identity providers: `82400` (SAML/OAuth IdP connection lost), `82401` (SAML/OAuth metadata refresh failed). ISE OpenAPI `/api/v1/identitystore/healthcheck` polled every 5 min for active health stats per store, written to `index=nac sourcetype=cisco:ise:idstore_health`.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (24014, 24015, 24023, 24033, 24050, 24400, 24401, 24402, 11051, 11052, 82400, 82401))\n  OR (index=nac sourcetype=\"cisco:ise:idstore_health\")\n| eval store_type = case(\n    MessageCode IN (24014, 24015, 24023, 24033, 24050), \"active_directory\",\n    MessageCode IN (24400, 24401, 24402), \"ldap\",\n    MessageCode IN (11051, 11052), \"external_radius\",\n    MessageCode IN (82400, 82401), \"saml_oauth\",\n    isnotnull(store_name), \"snapshot\")\n| stats count latest(_time) as last_event, latest(health_state) as health by store_name, store_type\n| where count > 0 OR health==\"DOWN\"\n| sort - count",
+  "description": "Detects external identity store outages, search/bind failures, and degraded performance — covers Active Directory, LDAP, external RADIUS proxy, and SAML/OAuth identity providers used by ISE. When the upstream identity store is unhealthy, *every authentication that depends on it* fails or runs slowly.",
+  "value": "ISE is a federation point — it doesn't own the identity, it queries upstream stores. AD outage means no employee can authenticate. LDAP timeout means slow auth, NAD timeouts, dropped sessions. SAML/OAuth IdP outage breaks the cloud-app SSO flow. Catching upstream identity-store issues at first occurrence allows the platform team to engage AD/IDP teams immediately rather than waiting for user-impact reports.",
+  "implementation": "Confirm *Identity Store*, *Authentication*, and *Failed Attempts* logging categories are at INFO. Deploy the OpenAPI health-check poller. Schedule the search every 5 min, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `store_name` for 30 min.",
+  "visualization": "(1) Single value: stores in DOWN state. (2) Per-store latency timechart, last 24h. (3) Per-store error-rate timechart, last 24h. (4) Top-N: stores with most failures last 7d.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "dataModelAcceleration": "Yes — Authentication DM acceleration helps cross-correlation with auth-failure UCs.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 Admin Guide — Identity Stores",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_authentication.html"
+    },
+    {
+      "title": "Cisco ISE — Active Directory Configuration",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_authentication.html"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Identity Services (Splunkbase 1915)",
+      "url": "https://splunkbase.splunk.com/app/1915"
+    }
+  ],
+  "knownFalsePositives": "(a) **AD machine-account password rotation** — Periodic rotation may briefly trigger 24023 events; recovery is automatic. Suppress isolated single events. (b) **AD scheduled maintenance** — Cross-reference change calendar; downgrade to notification within window. (c) **LDAP referral following** — Some directories use referrals heavily; the 24050 event isn't a failure if the referral resolves. Tune severity per store. (d) **SAML metadata refresh blip** — Metadata endpoints may transiently 502; alert only when 82401 recurs >3 times in 1h.",
+  "mitreAttack": [
+    "T1499.004"
+  ],
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• ISE *Identity Store* and *Authentication* categories at INFO.\n• `id_stores.csv` lookup with `store_name`, `store_type`, `is_critical`.\n\nStep 1 — Configure data collection\nValidate:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (24014, 24400, 11051, 82400) earliest=-7d\n| stats count by MessageCode\n```\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 5 min.\n\nStep 3 — Validate\nProvoke as in controlTest.\n\nStep 4 — Operationalize\nDashboard \"ISE — Identity Store Health\":\n• Per-store status tile.\n• Latency timechart.\n• Error-rate timechart.\n• Top-N stores with failures.\n\nAlerting: PagerDuty high on critical-store DOWN. Auto-route to AD team / LDAP team / IDP team based on `store_type`.\n\nStep 5 — Troubleshooting\n• **All AD events show one DC** — Single DC configured; add additional DCs for redundancy.\n• **LDAP events constant** — TLS cert mismatch on LDAP server or insufficient privileges for ISE bind account.\n• **SAML metadata fails repeatedly** — IdP changed metadata URL; update in ISE config.",
   "grandmaExplanation": "ISE asks other systems (like the company directory) whether someone is allowed to log in. We watch those other systems too — and ring the bell when ISE can't reach the directory or when the directory is slow to answer.",
   "wave": "crawl"

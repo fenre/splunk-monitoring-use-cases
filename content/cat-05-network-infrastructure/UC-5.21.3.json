@@ -4,7 +4,10 @@
   "title": "PTP (IEEE 1588) Grandmaster and Boundary Clock Health",
   "criticality": "critical",
   "difficulty": "advanced",
-  "monitoringType": ["Availability", "Performance"],
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
   "splunkPillar": "Observability",
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — PTP syslog events including `%PTP-6-STATE_CHANGE`, `%PTP-3-GM_CHANGE`, `%PTP-4-CLOCK_ACCURACY_EXCEEDED`, `%PTP-6-PORT_STATE_CHANGE`. SNMP polling of IEEE 1588 MIB (`ptpClockCurrentDSMeanPathDelay`, `ptpClockCurrentDSOffsetFromMaster`, `ptpGrandmasterClockQuality`). PTP provides sub-microsecond accuracy required by 5G RAN, financial trading, broadcast, and industrial automation.",
   "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352)",
@@ -12,19 +15,39 @@
   "description": "Monitors IEEE 1588 PTP grandmaster clock health, boundary clock synchronization, and port state changes. PTP provides sub-microsecond timing accuracy required by 5G fronthaul, financial trading platforms, broadcast TV, and industrial automation. Grandmaster failures or holdover conditions degrade timing accuracy from nanoseconds to milliseconds within minutes, causing frame drops in 5G, trade timestamping violations, or production line synchronization failures.",
   "value": "PTP-dependent systems have zero tolerance for timing failures. A 5G fronthaul network losing PTP sync causes dropped calls and degraded service within seconds. Financial exchanges require sub-microsecond timestamps for regulatory compliance (MiFID II). Broadcast networks lose frame sync causing visible artifacts. This UC catches grandmaster changes, holdover conditions, and accuracy degradation before downstream systems are affected — the difference between a planned failover and a service outage.",
   "implementation": "Monitor PTP syslog events from network devices. Track grandmaster changes, holdover/freerun transitions, and port state changes. Alert immediately on freerun or sustained holdover.",
-  "detailedImplementation": "Prerequisites\n• PTP configured on network devices with `ptp mode boundary` (boundary clocks) or `ptp mode e2etransparent` (transparent clocks). Grandmaster typically GPS-synced.\n• Cisco IOS-XE: PTP syslog events enabled by default at severity 3-6.\n• For SNMP-based monitoring: IEEE 1588 MIB objects accessible. Cisco-specific OIDs under `1.3.6.1.4.1.9.9.760`.\n\nStep 1 — Configure PTP event collection\nVerify PTP events are arriving:\n```spl\nindex=network sourcetype=\"cisco:ios\" PTP earliest=-24h | stats count by host\n```\n\nIf no events, verify PTP is configured:\n```\nshow ptp clock\nshow ptp port\nshow ptp parent\n```\n\nStep 2 — Create monitoring search\nThe primary search (above) classifies PTP events by severity.\n\n**SNMP-based offset monitoring (sub-microsecond precision):**\n```spl\nindex=network sourcetype=\"sc4snmp:metric\" metric_name=\"ptpClockCurrentDSOffsetFromMaster\" earliest=-4h\n| eval offset_ns=abs(metric_value)\n| eval offset_us=round(offset_ns/1000, 3)\n| where offset_us > 1\n| stats latest(offset_us) as current_offset_us by host\n| eval status=case(\n    current_offset_us > 1000, \"CRITICAL — \" . current_offset_us . \"us offset (> 1ms)\",\n    current_offset_us > 100, \"HIGH — \" . current_offset_us . \"us offset\",\n    current_offset_us > 10, \"WARNING — \" . current_offset_us . \"us offset\",\n    1=1, null())\n| where isnotnull(status)\n| sort -current_offset_us\n```\n\n**Grandmaster change tracking:**\n```spl\nindex=network sourcetype=\"cisco:ios\" PTP \"GM_CHANGE\" earliest=-7d\n| rex field=_raw \"from.*(?<old_gm>[0-9a-fA-F:]+).*to.*(?<new_gm>[0-9a-fA-F:]+)\"\n| table _time host old_gm new_gm\n| sort _time\n```\n\nStep 3 — Validate\n(a) On a boundary clock, run `show ptp clock` and note the offset from grandmaster. Compare with SNMP data.\n(b) Run `show ptp parent` to identify the current grandmaster. Verify it matches expected GPS-synced source.\n(c) Simulate grandmaster failover (if dual grandmaster). Verify GM_CHANGE event appears.\n\nStep 4 — Operationalize\nDashboard (\"PTP Timing Infrastructure\"):\n• Row 1 — Single-value: devices in freerun/holdover (red if >0), grandmaster changes in 24h.\n• Row 2 — Table: boundary clocks with current offset, grandmaster ID, port state.\n• Row 3 — Timechart: offset trend over 24h per boundary clock.\n• Row 4 — Grandmaster change history (timeline).\n\nAlerting:\n• FREERUN or HOLDOVER >5 minutes: Critical page — timing accuracy degrading rapidly.\n• Grandmaster change: High priority — verify the new grandmaster is a valid GPS-synced source.\n• Offset >100us sustained >10 minutes: High priority — check physical layer (fiber, SFP).\n\nStep 5 — Troubleshooting\n• **Device entered FREERUN.** Lost all PTP sources. Check grandmaster status, network path, and physical connectivity. The device's oscillator will drift at ~1us/sec (OCXO) or ~11us/sec (TCXO).\n• **Frequent grandmaster changes.** BMCA (Best Master Clock Algorithm) is selecting different grandmasters. This indicates either multiple grandmasters with similar priority or flapping connectivity. Set explicit priority values.\n• **Large offset despite PTP running.** Asymmetric network delay (different forward/reverse path latency) causes systematic offset errors. PTP assumes symmetric paths — use TC (transparent clocks) to correct for switch delay.\n• **PTP port FAULTY.** Physical layer issue on the PTP-enabled port. Check SFP, fiber, and CRC errors.",
   "visualization": "(1) Single-value: freerun/holdover count. (2) Table: boundary clock status. (3) Timechart: offset trend. (4) GM change timeline.",
   "references": [
-    {"title": "IEEE 1588-2019 — Precision Time Protocol", "url": "https://standards.ieee.org/standard/1588-2019.html"},
-    {"title": "Cisco — PTP Configuration Guide IOS-XE", "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/bsm/configuration/xe-17/bsm-xe-17-book/bsm-ptp.html"}
+    {
+      "title": "IEEE 1588-2019 — Precision Time Protocol",
+      "url": "https://standards.ieee.org/standard/1588-2019.html"
+    },
+    {
+      "title": "Cisco — PTP Configuration Guide IOS-XE",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/bsm/configuration/xe-17/bsm-xe-17-book/bsm-ptp.html"
+    }
   ],
   "knownFalsePositives": "**Planned grandmaster maintenance.** Scheduled GPS antenna or grandmaster maintenance causes expected GM_CHANGE and brief holdover. Correlate with maintenance windows.\n\n**BMCA convergence after topology change.** After a link failure/recovery, BMCA re-evaluates best grandmaster. Brief (< 30 second) holdover during reconvergence is normal.\n\n**Leap second events.** UTC leap seconds can cause brief PTP offset spikes as grandmasters and boundary clocks absorb the correction. This is a known, predictable event.",
-  "equipment": ["cisco", "juniper"],
-  "equipmentModels": ["cisco_catalyst_9500", "cisco_asr_9000", "juniper_qfx"],
+  "equipment": [
+    "cisco",
+    "juniper",
+    "snmp",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_asr_9000",
+    "cisco_catalyst_9500",
+    "cisco_ios",
+    "juniper_qfx",
+    "snmp_generic"
+  ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• PTP configured on network devices with `ptp mode boundary` (boundary clocks) or `ptp mode e2etransparent` (transparent clocks). Grandmaster typically GPS-synced.\n• Cisco IOS-XE: PTP syslog events enabled by default at severity 3-6.\n• For SNMP-based monitoring: IEEE 1588 MIB objects accessible. Cisco-specific OIDs under `1.3.6.1.4.1.9.9.760`.\n\nStep 1 — Configure PTP event collection\nVerify PTP events are arriving:\n```spl\nindex=network sourcetype=\"cisco:ios\" PTP earliest=-24h | stats count by host\n```\n\nIf no events, verify PTP is configured:\n```\nshow ptp clock\nshow ptp port\nshow ptp parent\n```\n\nStep 2 — Create monitoring search\nThe primary search (above) classifies PTP events by severity.\n\n**SNMP-based offset monitoring (sub-microsecond precision):**\n```spl\nindex=network sourcetype=\"sc4snmp:metric\" metric_name=\"ptpClockCurrentDSOffsetFromMaster\" earliest=-4h\n| eval offset_ns=abs(metric_value)\n| eval offset_us=round(offset_ns/1000, 3)\n| where offset_us > 1\n| stats latest(offset_us) as current_offset_us by host\n| eval status=case(\n    current_offset_us > 1000, \"CRITICAL — \" . current_offset_us . \"us offset (> 1ms)\",\n    current_offset_us > 100, \"HIGH — \" . current_offset_us . \"us offset\",\n    current_offset_us > 10, \"WARNING — \" . current_offset_us . \"us offset\",\n    1=1, null())\n| where isnotnull(status)\n| sort -current_offset_us\n```\n\n**Grandmaster change tracking:**\n```spl\nindex=network sourcetype=\"cisco:ios\" PTP \"GM_CHANGE\" earliest=-7d\n| rex field=_raw \"from.*(?<old_gm>[0-9a-fA-F:]+).*to.*(?<new_gm>[0-9a-fA-F:]+)\"\n| table _time host old_gm new_gm\n| sort _time\n```\n\nStep 3 — Validate\n(a) On a boundary clock, run `show ptp clock` and note the offset from grandmaster. Compare with SNMP data.\n(b) Run `show ptp parent` to identify the current grandmaster. Verify it matches expected GPS-synced source.\n(c) Simulate grandmaster failover (if dual grandmaster). Verify GM_CHANGE event appears.\n\nStep 4 — Operationalize\nDashboard (\"PTP Timing Infrastructure\"):\n• Row 1 — Single-value: devices in freerun/holdover (red if >0), grandmaster changes in 24h.\n• Row 2 — Table: boundary clocks with current offset, grandmaster ID, port state.\n• Row 3 — Timechart: offset trend over 24h per boundary clock.\n• Row 4 — Grandmaster change history (timeline).\n\nAlerting:\n• FREERUN or HOLDOVER >5 minutes: Critical page — timing accuracy degrading rapidly.\n• Grandmaster change: High priority — verify the new grandmaster is a valid GPS-synced source.\n• Offset >100us sustained >10 minutes: High priority — check physical layer (fiber, SFP).\n\nStep 5 — Troubleshooting\n• **Device entered FREERUN.** Lost all PTP sources. Check grandmaster status, network path, and physical connectivity. The device's oscillator will drift at ~1us/sec (OCXO) or ~11us/sec (TCXO).\n• **Frequent grandmaster changes.** BMCA (Best Master Clock Algorithm) is selecting different grandmasters. This indicates either multiple grandmasters with similar priority or flapping connectivity. Set explicit priority values.\n• **Large offset despite PTP running.** Asymmetric network delay (different forward/reverse path latency) causes systematic offset errors. PTP assumes symmetric paths — use TC (transparent clocks) to correct for switch delay.\n• **PTP port FAULTY.** Physical layer issue on the PTP-enabled port. Check SFP, fiber, and CRC errors.",
   "grandmaExplanation": "Some systems need clocks so precise they measure time in millionths of a second — things like cell phone towers, TV broadcasts, and stock exchanges. We watch the master clock and all the clocks that sync to it, alerting if any clock loses its connection to the master and starts drifting.",
   "prerequisiteUseCases": [],
   "wave": "run"

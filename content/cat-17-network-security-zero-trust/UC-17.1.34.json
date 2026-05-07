@@ -9,46 +9,6 @@
     "Operations"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "Two derived metric streams. (1) Per-topic publish rate computed from `index=nac sourcetype=cisco:ise:syslog` events whose `MessageCode` indicates a topic publish — different codes per topic: `60100` (`com.cisco.ise.session`), `60110` (`com.cisco.ise.config.profiler`), `60130` (`com.cisco.ise.radius.failure`), `60140` (`com.cisco.ise.mdm`), `60150` (`com.cisco.ise.config.anc`). Aggregate per minute per topic. (2) Subscriber-side delivery confirmation, where available — for Splunk-managed pxGrid subscribers the SDK emits delivery counters to `index=_internal sourcetype=splunkd:pxgrid_subscriber`. Sourcetype `splunkd:pxgrid_subscriber` fields: `topic`, `delivered_count`, `dropped_count`, `lag_seconds`. The lag is computed as the difference between `event.timestamp` (set by ISE on publish) and `event.received_at` (set by the subscriber on receive). For non-Splunk subscribers, the equivalent counters live in those subscribers' own logs and are not consumed by this UC.",
-  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)). Splunk pxGrid SDK consumer (custom-developed or via the `Splunk Add-on for Cisco Identity Services pxGrid` add-on) for the subscriber-side lag metrics.",
-  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60100, 60110, 60130, 60140, 60150))\n| eval topic = case(MessageCode==\"60100\", \"session\", MessageCode==\"60110\", \"profiler\", MessageCode==\"60130\", \"radius_failure\", MessageCode==\"60140\", \"mdm\", MessageCode==\"60150\", \"anc\")\n| timechart span=1m count as publish_rate by topic\n| eventstats avg(publish_rate) as avg_rate stdev(publish_rate) as stdev_rate by topic\n| eval z = round((publish_rate - avg_rate) / stdev_rate, 2)\n| where abs(z) >= 3\n| sort - _time",
-  "description": "Detects pxGrid publish-rate anomalies (z-score ≥ 3 over a 30-day baseline) and subscriber-side delivery lag exceeding 30 seconds. Distinguishes 'topic was unusually quiet' (which may indicate ISE not publishing) from 'topic was unusually loud' (auth storm or replication storm spilling onto pxGrid).",
-  "value": "A pxGrid topic that has gone unusually quiet means either (a) ISE has stopped publishing — the SOC's context feed is degraded — or (b) all subscribers have disconnected and ISE is buffering. Either way, downstream investigations are operating on stale data. A topic that has gone unusually loud often signals a CRL change, an auth storm, or a replication-replay event — useful pre-warning for the SOC to expect a flood of related alerts.",
-  "implementation": "Build a 30-day rolling baseline of publish_rate per topic per minute as a summary index (`index=summary source=ise_pxgrid_baseline`). The summary index is populated nightly by a saved search that runs `... | timechart span=1m count by topic | stats avg(rate) stdev(rate) by topic`. The live alerting search references the baseline via `lookup pxgrid_baseline.csv topic OUTPUT avg_rate, stdev_rate`. Schedule the alert every 5 minutes, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `topic` for 30 min.",
-  "visualization": "(1) Timechart per topic: publish_rate vs the rolling 7-day mean (overlay). Anomalies stand out as deviations from the mean. (2) Heatmap: topic × hour, last 7d, intensity = publish_rate. Reveals diurnal patterns. (3) Subscriber lag panel: average lag_seconds per subscriber per topic, last 1h. Drilldown to per-subscriber detail.",
-  "cimModels": [],
-  "dataModelAcceleration": "Not applicable.",
-  "references": [
-    {
-      "title": "Cisco ISE 3.4 Admin Guide — pxGrid",
-      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_pxgrid.html"
-    },
-    {
-      "title": "Cisco pxGrid 2.0 Programming Guide",
-      "url": "https://developer.cisco.com/docs/pxgrid/"
-    },
-    {
-      "title": "Splunk Add-on for Cisco Identity Services (Splunkbase 1915)",
-      "url": "https://splunkbase.splunk.com/app/1915"
-    }
-  ],
-  "knownFalsePositives": "(a) **Maintenance windows** — patch installs, scheduled bulk operations briefly silence or saturate publish rates. Cross-reference `ise_maintenance_windows.csv` and exclude during the window. (b) **First 30 days post-deployment** — baseline is unstable; the eventstats stdev is small, and almost any deviation appears as z>3. Suppress alerts for the first 30 days of new topic activity. (c) **Cross-DC failover** — when the pxGrid persona moves between deployment nodes, publish rate at one node drops to 0 and another node's rate jumps. Both will appear as z>3. Cross-reference `cisco:ise:pxgrid_services` snapshot to detect the failover and downgrade to notification.",
-  "mitreAttack": [
-    "T1499.001"
-  ],
-  "equipment": [
-    "cisco"
-  ],
-  "equipmentModels": [
-    "cisco_ise"
-  ],
-  "status": "verified",
-  "lastReviewed": "2026-05-06",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "@splunk-monitoring-use-cases",
   "compliance": [
     {
       "regulation": "NIS2",
@@ -92,6 +52,47 @@
     "positiveScenario": "On a lab ISE, kill the pxGrid persona's publish process so the *com.cisco.ise.session* topic has no publish events for 5 min. Within 10–15 min the publish_rate's z-score for the session topic crosses -3 and UC-17.1.34 fires.",
     "negativeScenario": "Restore the pxGrid persona. Publish rate returns to baseline within 5 min and the alert clears on next schedule."
   },
+  "dataSources": "Two derived metric streams. (1) Per-topic publish rate computed from `index=nac sourcetype=cisco:ise:syslog` events whose `MessageCode` indicates a topic publish — different codes per topic: `60100` (`com.cisco.ise.session`), `60110` (`com.cisco.ise.config.profiler`), `60130` (`com.cisco.ise.radius.failure`), `60140` (`com.cisco.ise.mdm`), `60150` (`com.cisco.ise.config.anc`). Aggregate per minute per topic. (2) Subscriber-side delivery confirmation, where available — for Splunk-managed pxGrid subscribers the SDK emits delivery counters to `index=_internal sourcetype=splunkd:pxgrid_subscriber`. Sourcetype `splunkd:pxgrid_subscriber` fields: `topic`, `delivered_count`, `dropped_count`, `lag_seconds`. The lag is computed as the difference between `event.timestamp` (set by ISE on publish) and `event.received_at` (set by the subscriber on receive). For non-Splunk subscribers, the equivalent counters live in those subscribers' own logs and are not consumed by this UC.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)). Splunk pxGrid SDK consumer (custom-developed or via the `Splunk Add-on for Cisco Identity Services pxGrid` add-on) for the subscriber-side lag metrics.",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60100, 60110, 60130, 60140, 60150))\n| eval topic = case(MessageCode==\"60100\", \"session\", MessageCode==\"60110\", \"profiler\", MessageCode==\"60130\", \"radius_failure\", MessageCode==\"60140\", \"mdm\", MessageCode==\"60150\", \"anc\")\n| timechart span=1m count as publish_rate by topic\n| eventstats avg(publish_rate) as avg_rate stdev(publish_rate) as stdev_rate by topic\n| eval z = round((publish_rate - avg_rate) / stdev_rate, 2)\n| where abs(z) >= 3\n| sort - _time",
+  "description": "Detects pxGrid publish-rate anomalies (z-score ≥ 3 over a 30-day baseline) and subscriber-side delivery lag exceeding 30 seconds. Distinguishes 'topic was unusually quiet' (which may indicate ISE not publishing) from 'topic was unusually loud' (auth storm or replication storm spilling onto pxGrid).",
+  "value": "A pxGrid topic that has gone unusually quiet means either (a) ISE has stopped publishing — the SOC's context feed is degraded — or (b) all subscribers have disconnected and ISE is buffering. Either way, downstream investigations are operating on stale data. A topic that has gone unusually loud often signals a CRL change, an auth storm, or a replication-replay event — useful pre-warning for the SOC to expect a flood of related alerts.",
+  "implementation": "Build a 30-day rolling baseline of publish_rate per topic per minute as a summary index (`index=summary source=ise_pxgrid_baseline`). The summary index is populated nightly by a saved search that runs `... | timechart span=1m count by topic | stats avg(rate) stdev(rate) by topic`. The live alerting search references the baseline via `lookup pxgrid_baseline.csv topic OUTPUT avg_rate, stdev_rate`. Schedule the alert every 5 minutes, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `topic` for 30 min.",
+  "visualization": "(1) Timechart per topic: publish_rate vs the rolling 7-day mean (overlay). Anomalies stand out as deviations from the mean. (2) Heatmap: topic × hour, last 7d, intensity = publish_rate. Reveals diurnal patterns. (3) Subscriber lag panel: average lag_seconds per subscriber per topic, last 1h. Drilldown to per-subscriber detail.",
+  "cimModels": [],
+  "dataModelAcceleration": "Not applicable.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 Admin Guide — pxGrid",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_pxgrid.html"
+    },
+    {
+      "title": "Cisco pxGrid 2.0 Programming Guide",
+      "url": "https://developer.cisco.com/docs/pxgrid/"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Identity Services (Splunkbase 1915)",
+      "url": "https://splunkbase.splunk.com/app/1915"
+    }
+  ],
+  "knownFalsePositives": "(a) **Maintenance windows** — patch installs, scheduled bulk operations briefly silence or saturate publish rates. Cross-reference `ise_maintenance_windows.csv` and exclude during the window. (b) **First 30 days post-deployment** — baseline is unstable; the eventstats stdev is small, and almost any deviation appears as z>3. Suppress alerts for the first 30 days of new topic activity. (c) **Cross-DC failover** — when the pxGrid persona moves between deployment nodes, publish rate at one node drops to 0 and another node's rate jumps. Both will appear as z>3. Cross-reference `cisco:ise:pxgrid_services` snapshot to detect the failover and downgrade to notification.",
+  "mitreAttack": [
+    "T1499.001"
+  ],
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• A 30-day baseline of pxGrid publish rate per topic. If the deployment is new (<30 days), this UC will produce noisy results — disable it and re-enable once baseline is established.\n• ISE pxGrid topics actively used by at least 1 subscriber (otherwise publish rate is 0).\n• Splunk role with `srchIndexesAllowed = nac, _internal, summary`.\n\nStep 1 — Build the baseline\nNightly summary search (run at 02:00 UTC, populates a summary index):\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60100, 60110, 60130, 60140, 60150) earliest=-30d@d latest=@d\n| eval topic = case(MessageCode==\"60100\", \"session\", MessageCode==\"60110\", \"profiler\", MessageCode==\"60130\", \"radius_failure\", MessageCode==\"60140\", \"mdm\", MessageCode==\"60150\", \"anc\")\n| timechart span=1m count as rate by topic\n| stats avg(rate) as avg_rate stdev(rate) as stdev_rate by topic\n| outputlookup pxgrid_baseline.csv\n```\nSchedule daily at 02:00 UTC. Saves a 5-row CSV (one per topic) used by the live search.\n\nStep 2 — The live anomaly search\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60100, 60110, 60130, 60140, 60150)\n| eval topic = case(MessageCode==\"60100\", \"session\", MessageCode==\"60110\", \"profiler\", MessageCode==\"60130\", \"radius_failure\", MessageCode==\"60140\", \"mdm\", MessageCode==\"60150\", \"anc\")\n| bucket _time span=1m\n| stats count as publish_rate by _time, topic\n| lookup pxgrid_baseline.csv topic OUTPUT avg_rate, stdev_rate\n| eval z = round((publish_rate - avg_rate) / stdev_rate, 2)\n| where abs(z) >= 3\n| sort - _time\n```\n\nSchedule: every 5 minutes, time range `-15m@m to @m`, trigger on count > 0, throttle suppression on `topic` for 30 min.\n\nStep 3 — Validate\n(a) Confirm the baseline CSV is up-to-date:\n```spl\n| inputlookup pxgrid_baseline.csv\n```\nShould return 5 rows (one per topic) with non-zero `avg_rate` and `stdev_rate`.\n\n(b) Provoke a test as in `controlTest.positiveScenario`.\n\n(c) Validate the lag side from `index=_internal sourcetype=splunkd:pxgrid_subscriber`:\n```spl\nindex=_internal sourcetype=\"splunkd:pxgrid_subscriber\" earliest=-1h\n| stats avg(lag_seconds) as avg_lag, max(lag_seconds) as max_lag by topic\n```\nLag should typically be <5s. Sustained >30s is a subscriber-side issue.\n\nStep 4 — Operationalize\nDashboard \"ISE — pxGrid Throughput\":\n• Per-topic timechart with overlay of baseline mean.\n• Heatmap: topic × hour, last 7d.\n• Subscriber lag panel: lag_seconds per (subscriber, topic) over the last hour.\n• Anomaly log: list of all z>3 events last 24h with timestamp, topic, observed rate, baseline.\n\nAlerting:\n• Low-urgency PagerDuty / informational notification only — this UC tends to fire during expected operational events.\n• Use as a SOC pre-warning channel in `#soc-platform-context` Slack: 'expect related alerts'.\n\nRunbook:\n1. Inspect the topic and time of anomaly.\n2. If publish_rate is unusually low, check pxGrid persona availability.\n3. If publish_rate is unusually high, check for an active auth storm or replication storm; correlate UC-17.1.18 and UC-17.1.28.\n4. If subscriber lag is high, check subscriber-side resource (CPU/memory/network) on the affected client.\n\nStep 5 — Troubleshooting\n\n• **Baseline CSV is empty** — Nightly summary search hasn't run successfully. Run manually and inspect output.\n\n• **Anomalies fire continuously for 1 topic** — Either the baseline is stale (e.g. a feature was newly enabled, increasing publish rate permanently) or the topic was always sparse and stdev is small. Recompute the baseline excluding the past 7d, then validate.\n\n• **Subscriber lag missing from the dashboard** — `splunkd:pxgrid_subscriber` sourcetype not present. The Splunk pxGrid SDK consumer wasn't deployed. This is a Splunk SOAR / Splunk ES integration gap; coordinate with the SOC integration team to deploy the consumer.\n\n• **`stdev_rate` is 0 for a topic** — Topic publish rate is constant in the baseline window. Adjust the z-score logic to a fixed-threshold check for that specific topic (e.g. publish_rate must be > 0).",
   "grandmaExplanation": "We measure how busy each conversation between ISE and other tools normally is, and ring the bell when a conversation suddenly goes silent or starts shouting — both are signs something is wrong, even before anything visibly breaks.",
   "wave": "walk"

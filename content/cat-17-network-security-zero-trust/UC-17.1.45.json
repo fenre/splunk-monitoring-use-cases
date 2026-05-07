@@ -9,44 +9,6 @@
     "Operations"
   ],
   "splunkPillar": "Security",
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *PassiveID* category — codes `91000` (PassiveID provider connected), `91001` (provider disconnected), `91002` (provider error), `91003` (mapping ingested), `91010` (WMI session ended unexpectedly), `91020` (AD Agent connection lost), `91030` (syslog provider parse error). Field: `provider_type` (WMI/AD-Agent/syslog/SPAN/Endpoint/REST), `provider_name`, `mapping_count`. ISE OpenAPI `/api/v1/passiveid/providerstatus` polled every 5 min, written to `index=nac sourcetype=cisco:ise:passiveid_health`.",
-  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
-  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (91000, 91001, 91002, 91010, 91020, 91030))\n  OR (index=nac sourcetype=\"cisco:ise:passiveid_health\")\n| stats count latest(_time) as last_event count(eval(MessageCode==\"91001\")) as drops count(eval(MessageCode==\"91002\")) as errors latest(provider_status) as status by provider_type, provider_name\n| where drops > 1 OR errors > 0 OR status==\"DOWN\"\n| sort - errors - drops",
-  "description": "Detects PassiveID provider failures (WMI, AD Agent, syslog, SPAN, Endpoint, REST). PassiveID is how ISE acquires user-to-IP mappings without 802.1X — critical for non-supplicant networks where the user identity comes from AD logon events.",
-  "value": "PassiveID is the user-context backbone for many NGFW deployments — Cisco FTD/FMC, Cisco Secure Firewall, third-party firewalls all consume PassiveID-derived user-to-IP mappings via pxGrid or REST. When PassiveID providers fail, downstream firewall policies that gate by user identity revert to anonymous treatment.",
-  "implementation": "Confirm *PassiveID* logging category at INFO. Deploy OpenAPI poller. Schedule every 5 min, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `provider_name` for 30 min.",
-  "visualization": "(1) Single value: providers DOWN. (2) Per-provider mapping rate timechart. (3) Top-N providers with errors.",
-  "cimModels": [
-    "Authentication"
-  ],
-  "dataModelAcceleration": "Optional.",
-  "references": [
-    {
-      "title": "Cisco ISE 3.4 — PassiveID",
-      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_passiveid.html"
-    },
-    {
-      "title": "Cisco ISE — AD Agent Configuration",
-      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_passiveid.html"
-    }
-  ],
-  "knownFalsePositives": "(a) **AD Agent restart during patch** — Brief drop+reconnect, suppress isolated events. (b) **WMI permission glitch on a single DC** — DC patch or GPO change may break WMI for one DC; reconnect after re-grant. (c) **Mapping rate drops at night** — PassiveID volume tracks user logon volume; off-hours legit drops aren't failures.",
-  "mitreAttack": [
-    "T1499.001"
-  ],
-  "equipment": [
-    "cisco"
-  ],
-  "equipmentModels": [
-    "cisco_ise"
-  ],
-  "status": "verified",
-  "lastReviewed": "2026-05-06",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "@splunk-monitoring-use-cases",
   "compliance": [
     {
       "regulation": "NIS2",
@@ -90,6 +52,45 @@
     "positiveScenario": "Stop the AD Agent service on a Domain Controller. Within 5 min ISE emits 91020 (AD Agent connection lost). UC-17.1.45 fires.",
     "negativeScenario": "Restart the AD Agent. ISE reconnects. Alert clears."
   },
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *PassiveID* category — codes `91000` (PassiveID provider connected), `91001` (provider disconnected), `91002` (provider error), `91003` (mapping ingested), `91010` (WMI session ended unexpectedly), `91020` (AD Agent connection lost), `91030` (syslog provider parse error). Field: `provider_type` (WMI/AD-Agent/syslog/SPAN/Endpoint/REST), `provider_name`, `mapping_count`. ISE OpenAPI `/api/v1/passiveid/providerstatus` polled every 5 min, written to `index=nac sourcetype=cisco:ise:passiveid_health`.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (91000, 91001, 91002, 91010, 91020, 91030))\n  OR (index=nac sourcetype=\"cisco:ise:passiveid_health\")\n| stats count latest(_time) as last_event count(eval(MessageCode==\"91001\")) as drops count(eval(MessageCode==\"91002\")) as errors latest(provider_status) as status by provider_type, provider_name\n| where drops > 1 OR errors > 0 OR status==\"DOWN\"\n| sort - errors - drops",
+  "description": "Detects PassiveID provider failures (WMI, AD Agent, syslog, SPAN, Endpoint, REST). PassiveID is how ISE acquires user-to-IP mappings without 802.1X — critical for non-supplicant networks where the user identity comes from AD logon events.",
+  "value": "PassiveID is the user-context backbone for many NGFW deployments — Cisco FTD/FMC, Cisco Secure Firewall, third-party firewalls all consume PassiveID-derived user-to-IP mappings via pxGrid or REST. When PassiveID providers fail, downstream firewall policies that gate by user identity revert to anonymous treatment.",
+  "implementation": "Confirm *PassiveID* logging category at INFO. Deploy OpenAPI poller. Schedule every 5 min, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `provider_name` for 30 min.",
+  "visualization": "(1) Single value: providers DOWN. (2) Per-provider mapping rate timechart. (3) Top-N providers with errors.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 — PassiveID",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_passiveid.html"
+    },
+    {
+      "title": "Cisco ISE — AD Agent Configuration",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_passiveid.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **AD Agent restart during patch** — Brief drop+reconnect, suppress isolated events. (b) **WMI permission glitch on a single DC** — DC patch or GPO change may break WMI for one DC; reconnect after re-grant. (c) **Mapping rate drops at night** — PassiveID volume tracks user logon volume; off-hours legit drops aren't failures.",
+  "mitreAttack": [
+    "T1499.001"
+  ],
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• ISE PassiveID configured with at least one provider.\n• `passiveid_providers.csv` with `provider_name`, `provider_type`, `is_critical`, `domain`.\n\nStep 1 — Configure data collection\nEnable *PassiveID* category at INFO.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 5 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — PassiveID Health\":\n• Per-provider status tile.\n• Mapping rate timechart.\n• Top-N error sources.\n\nAlerting: PagerDuty medium on provider DOWN.\n\nStep 5 — Troubleshooting\n• **WMI fails** — DC's WMI namespace permission for ISE service account. PowerShell `wmic` test.\n• **AD Agent missing** — installer not deployed on DC; deploy or update.\n• **REST provider failures** — endpoint URL/cert/auth issue; validate from PSN CLI.",
   "grandmaExplanation": "When a person logs onto a Windows computer at the office, ISE learns who's using which IP address by listening to the company directory. We watch this listening line — if it goes silent, ISE no longer knows who's who, and other security tools that depend on that info also stop working.",
   "wave": "walk"

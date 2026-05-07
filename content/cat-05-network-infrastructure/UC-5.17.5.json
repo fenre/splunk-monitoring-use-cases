@@ -10,14 +10,12 @@
     "Security"
   ],
   "splunkPillar": "Observability",
-  "wave": "crawl",
   "dataSources": "Detailed: `index=visibility` / `index=security`; syslog and SNMP traps from Gigamon Bypass-VUE modules, Keysight inline bypass appliances, APCON safe-connect paths reporting `bypass_state`, `heartbeat_ok`, `tool_a_health`, `tool_b_health`, `failopen_reason`. Include appliance sequential logs referencing watchdog timeouts or TCP reset storms.",
   "app": "Vendor bypass-specific integrations with Splunk (syslog forwarders on management VLAN), Splunk Connect for SNMP polling `USABLE` OID branches where documented, optional Observability Cloud probes only as tertiary correlation—not primary heartbeat truth.",
   "spl": "index=visibility OR index=security earliest=-4h\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"gigamon\"),\"Gigamon Bypass\",match(v,\"keysight|ixia|vision\"),\"Keysight Inline\",match(v,\"apcon\"),\"APCON SafePath\",\"other\")\n| where vendor!=\"other\"\n| eval bypass_pair=coalesce(bypass_group,pair_id,chassis_slot,\"unknown\")\n| eval hb_ok=case(match(lower(coalesce(heartbeat_ok,tool_watchdog,\"\")),\"true|up|ok|1\"),1,match(lower(coalesce(bypass_state,failopen_mode,\"\")),\"bypass|fail.?open|wire\"),0,isnull(heartbeat_ok) AND match(_raw,\"(?i)(heartbeat|watchdog).*(fail|timeout|miss)\"),0,1)\n| bin _time span=5m\n| stats min(hb_ok) as min_ok values(bypass_state) as states values(failopen_reason) as reasons latest(tool_a_health) as ta latest(tool_b_health) as tb by _time vendor host bypass_pair\n| where min_ok=0 OR mvjoin(states,\" \") LIKE \"%bypass%\"\n| sort - _time vendor bypass_pair",
   "description": "Splunk correlates five-minute bypass heartbeat minima with explicit fail-open reasons so protective forwarding modes triggered by dead inspection tools never escape unnoticed while defenders mistakenly assume traffic still undergoes deep analysis.",
   "value": "Risk committees receive auditable timelines proving when paths reverted to passthrough, satisfying contractual inspection mandates, while operators regain minutes during outages by automating callbacks to inline vendor support bridges.",
   "implementation": "Treat every bypass transition as SEV-2 minimum; require acknowledgement workflow referencing impacted VLAN pairs; rehearse quarterly tabletops feeding synthetic heartbeat loss into Splunk for detector validation.",
-  "detailedImplementation": "Prerequisites\n• Network diagrams labeling inline versus out-of-band segments affected by each bypass pair.\n• Change-policy forbidding silent manual bypass without Splunk-annotated CM ticket.\n• Runbook linking bypass alarms to firewall temporary tighten steps when IPS disappears.\n\nStep 1 — Logging hardening\nIncrease verbosity on watchdog events yet rate-limit duplicates to prevent syslog floods during oscillation storms.\n\nStep 2 — Implement detection\nSave SPL as `pktbrk_inline_bypass_breach`; throttle alerts to once per fifteen minutes per pair unless state worsens (move from single-tool failure to dual bypass).\n\nStep 3 — Validate\nUse vendor CLI `simulate tool failure` in lab—confirm Splunk transitions align within one polling cycle and SNMP corroborates.\n\nStep 4 — Integrate downstream\nPush Splunk notable summary into SOC chat with explicit wording that encryption visibility may be reduced—avoid vague chassis alarms.\n\nStep 5 — Post-incident analytics\nMonthly scheduled report counts bypass minutes per business unit to prioritize hardware refreshes and redundant tool clusters.",
   "visualization": "Lane diagram (custom SVG or matrix panel) showing bypass_pair vs state timeline; critical banner when min_ok=0; table enumerating reasons with ownership contacts.",
   "references": [
     {
@@ -37,21 +35,24 @@
   "mitreAttack": [
     "N/A (inline resilience monitoring)"
   ],
-  "securityDomain": "network",
   "detectionType": "Correlation",
+  "securityDomain": "network",
   "equipment": [
+    "apcon",
+    "cpacket",
+    "garland",
     "gigamon",
     "keysight",
-    "cpacket",
-    "apcon",
-    "garland"
+    "snmp",
+    "syslog"
   ],
   "equipmentModels": [
+    "apcon_visibility_platform",
+    "cpacket_cstor",
+    "garland_network_tap",
     "gigamon_gigavue",
     "keysight_vision",
-    "cpacket_cstor",
-    "apcon_visibility_platform",
-    "garland_network_tap"
+    "snmp_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
@@ -60,5 +61,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "Some safety checkpoints sit right in the road so traffic must pass through them. If the checkpoint breaks, the road often opens wide so cars keep moving. We raise the alarm when that happens so nobody assumes we're still inspecting every car."
+  "detailedImplementation": "Prerequisites\n• Network diagrams labeling inline versus out-of-band segments affected by each bypass pair.\n• Change-policy forbidding silent manual bypass without Splunk-annotated CM ticket.\n• Runbook linking bypass alarms to firewall temporary tighten steps when IPS disappears.\n\nStep 1 — Logging hardening\nIncrease verbosity on watchdog events yet rate-limit duplicates to prevent syslog floods during oscillation storms.\n\nStep 2 — Implement detection\nSave SPL as `pktbrk_inline_bypass_breach`; throttle alerts to once per fifteen minutes per pair unless state worsens (move from single-tool failure to dual bypass).\n\nStep 3 — Validate\nUse vendor CLI `simulate tool failure` in lab—confirm Splunk transitions align within one polling cycle and SNMP corroborates.\n\nStep 4 — Integrate downstream\nPush Splunk notable summary into SOC chat with explicit wording that encryption visibility may be reduced—avoid vague chassis alarms.\n\nStep 5 — Post-incident analytics\nMonthly scheduled report counts bypass minutes per business unit to prioritize hardware refreshes and redundant tool clusters.",
+  "grandmaExplanation": "Some safety checkpoints sit right in the road so traffic must pass through them. If the checkpoint breaks, the road often opens wide so cars keep moving. We raise the alarm when that happens so nobody assumes we're still inspecting every car.",
+  "wave": "crawl"
 }

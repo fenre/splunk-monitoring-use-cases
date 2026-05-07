@@ -4,16 +4,18 @@
   "title": "MPLS Label Table Utilization",
   "criticality": "medium",
   "difficulty": "advanced",
-  "monitoringType": ["Capacity", "Performance", "Operations"],
+  "monitoringType": [
+    "Capacity",
+    "Performance",
+    "Operations"
+  ],
   "splunkPillar": "Observability",
-  "wave": "walk",
   "dataSources": "Detailed: SNMP polls (`mplsLsrIdentifier`, label range MIBs), streaming telemetry (`label-space`, `free-labels`, `in-use`), syslog threshold traps (`LABEL`, `LIB`, `LFIB`, platform-specific exhaustion warnings); indexes `network`, `infra_metrics`.",
   "app": "Splunk Connect for SNMP or Supporting Add-on for SNMP; Cisco IOS-XR telemetry; Juniper OpenConfig `network-instances/network-instance/mpls/` sensors; Nokia SR OS streaming state paths.",
   "spl": "index=network OR index=infra_metrics earliest=-24h@h latest=now\n| eval metric_name=lower(coalesce(metric_name,name,\"\"))\n| eval msg=lower(_raw)\n| eval lab_use=match(metric_name,\"label|lfib|mpls.*table|mpls.*usage\") OR match(msg,\"label.*(?:space|range|table)|(?:mpls|lfib).*(?:full|exhaust|threshold|high.?water)|free.?labels|in.?use.?labels\")\n| where lab_use=1\n| eval used=tonumber(coalesce(labels_in_use,in_use_labels,mpls_labels_used,lfib_entries))\n| eval total=tonumber(coalesce(label_space_total,max_labels,platform_label_capacity))\n| eval pct=if(isnotnull(used) AND isnotnull(total) AND total>0, round(100*used/total,2), null())\n| eval syslog_crit=if(match(msg,\"(?:critical|major).*label\"),1,0)\n| bin _time span=15m\n| stats latest(used) as used latest(total) as total latest(pct) as pct max(pct) as peak_pct max(syslog_crit) as syslog_crit by _time host\n| where pct>=85 OR peak_pct>=85 OR syslog_crit>=1\n| sort host _time",
   "description": "Splunk trends MPLS label-space consumption per forwarding plane so platforms approaching vendor-imposed LFIB or dynamic label limits trigger proactive hardware upgrades before RSVP or LDP admissions fail catastrophically.",
   "value": "Capacity governance avoids midnight Sev1 failures where new VPN sites cannot signal because free labels dropped below safe margins while dashboards still showed green interface utilization unrelated to control-plane resource exhaustion.",
   "implementation": "Schedule fifteen-minute SNMP or telemetry polls into metrics index, compute percent used vs platform caps from CMDB, alert when sustained ≥85% for four buckets or syslog reports critical label exhaustion.",
-  "detailedImplementation": "Prerequisites\n• Hardware SKU matrix documenting global vs per-line-card label pools.\n• Normalized `host` aligning SNMP agent address with syslog identity.\n\nStep 1 — Discover OIDs/sensors\nCisco: identify platform-specific MPLS label counters via CLI `show mpls label table summary` vs SNMP tree availability. Juniper: confirm sensor paths exposing `allocated-label-blocks`. Nokia: validate TIMOS model exposes free dynamic labels via SNMP or streaming.\n\nStep 2 — Build modular input\nUse SC4SNMP profiles polling counters every five minutes; backoff on timeout; tag `site` and `role` via lookup.\n\nStep 3 — SPL thresholds\nImplement staged alerts: warn ≥75%, page ≥90% for two consecutive intervals unless suppress.\n\nStep 4 — Validation\nDuring acceptance, artificially inflate VPN scale in lab (mass RD churn) while observing Splunk pct tracking CLI counters within ±2%.\n\nStep 5 — Lifecycle integration\nFeed Splunk summary index monthly into Capex workflow; attach trending screenshots for steering committee.",
   "visualization": "Dashboard Studio: KPI row for PEs above warn threshold; timechart of `pct` by `host`; overlay syslog exhaustion markers as annotations.",
   "references": [
     {
@@ -30,14 +32,33 @@
     }
   ],
   "knownFalsePositives": "**Per-LC vs global counters:** polling global only misses hot LC—split by slot.**SNMP 32-bit wraps:** rare but possible—use 64-bit HC counters.**Telemetry sparsity:** null `pct` skips alert—fallback to syslog.**Vendor MIB drift:** upgrades rename OIDs—version-pin TA.**Burst churn:** transient spikes during reconvergence—smooth with median window.",
-  "mitreAttack": ["N/A (capacity monitoring)"],
-  "securityDomain": "network",
+  "mitreAttack": [
+    "N/A (capacity monitoring)"
+  ],
   "detectionType": "Baseline",
-  "equipment": ["cisco", "juniper"],
-  "equipmentModels": ["cisco_asr_9000", "cisco_asr_1000", "juniper_mx"],
+  "securityDomain": "network",
+  "equipment": [
+    "asterisk",
+    "cisco",
+    "juniper",
+    "snmp",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_asr_1000",
+    "cisco_asr_9000",
+    "cisco_ios",
+    "juniper_mx",
+    "snmp_generic"
+  ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We meter how many sticky numbered tags our routers still have left to hand out. When the sticker book fills up, we plan upgrades before new offices cannot plug in at all."
+  "detailedImplementation": "Prerequisites\n• Hardware SKU matrix documenting global vs per-line-card label pools.\n• Normalized `host` aligning SNMP agent address with syslog identity.\n\nStep 1 — Discover OIDs/sensors\nCisco: identify platform-specific MPLS label counters via CLI `show mpls label table summary` vs SNMP tree availability. Juniper: confirm sensor paths exposing `allocated-label-blocks`. Nokia: validate TIMOS model exposes free dynamic labels via SNMP or streaming.\n\nStep 2 — Build modular input\nUse SC4SNMP profiles polling counters every five minutes; backoff on timeout; tag `site` and `role` via lookup.\n\nStep 3 — SPL thresholds\nImplement staged alerts: warn ≥75%, page ≥90% for two consecutive intervals unless suppress.\n\nStep 4 — Validation\nDuring acceptance, artificially inflate VPN scale in lab (mass RD churn) while observing Splunk pct tracking CLI counters within ±2%.\n\nStep 5 — Lifecycle integration\nFeed Splunk summary index monthly into Capex workflow; attach trending screenshots for steering committee.",
+  "grandmaExplanation": "We meter how many sticky numbered tags our routers still have left to hand out. When the sticker book fills up, we plan upgrades before new offices cannot plug in at all.",
+  "wave": "walk"
 }

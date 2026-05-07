@@ -9,40 +9,6 @@
     "Audit"
   ],
   "splunkPillar": "Security",
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Administrative and Operational Audit* category — restore codes `51040` (restore initiated), `51041` (restore completed), `51042` (restore failed), `51043` (restore partial), `51044` (post-restore replication mismatch). Fields: `restore_source`, `triggered_by`, `restore_type` (config|operational|standalone). Combined with the ISE config-export feed: an OpenAPI poller dumps the active policy set (`/api/v1/authz-policy`, `/api/v1/identity-store`) every 1h and writes to `index=nac sourcetype=cisco:ise:config_export`.",
-  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
-  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (51040, 51041, 51042, 51043, 51044))\n  OR (index=nac sourcetype=\"cisco:ise:config_export\")\n| stats count latest(_time) as last_event values(triggered_by) as admins by restore_type, MessageCode\n| where count > 0",
-  "description": "Audits all ISE restore operations (rare but high-impact events) and detects config drift in the immediate post-restore window — symptoms of an incomplete restore or a configuration roll-back gone wrong.",
-  "value": "Restoring ISE from backup is a high-risk operation; it overwrites current policies with the policies from the backup snapshot. Any in-flight policy work between the backup time and the restore time is lost. This UC ensures every restore is audited in real time and triggers a config-drift comparison against pre-restore state to surface unexpected loss.",
-  "implementation": "Confirm *Administrative and Operational Audit* category at INFO. The config-export OpenAPI poller is required for the drift comparison. Schedule the search every 30 min, search window `-4h@h to @h`, trigger on count > 0 (any restore event is alert-worthy).",
-  "visualization": "(1) Audit table: restore events last 365d. (2) Diff panel post-restore: count of authz rules changed, identity stores reconfigured, certs replaced.",
-  "cimModels": [
-    "Change"
-  ],
-  "dataModelAcceleration": "Optional.",
-  "references": [
-    {
-      "title": "Cisco ISE 3.4 Admin Guide — Backup and Restore",
-      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_maintain.html"
-    }
-  ],
-  "knownFalsePositives": "(a) **Lab restore drills** — Periodic restore exercises in lab environments will fire. Tag those nodes with `environment=lab` and exclude. (b) **Disaster-recovery exercise** — Annual DR exercise restores prod backup to DR; suppress within scheduled DR-exercise window.",
-  "mitreAttack": [
-    "N/A (platform lifecycle — ISE restore drill validation, no adversary technique)"
-  ],
-  "equipment": [
-    "cisco"
-  ],
-  "equipmentModels": [
-    "cisco_ise"
-  ],
-  "status": "verified",
-  "lastReviewed": "2026-05-06",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "@splunk-monitoring-use-cases",
   "compliance": [
     {
       "regulation": "PCI-DSS",
@@ -110,6 +76,41 @@
     "positiveScenario": "Initiate a restore on a lab ISE. ISE emits 51040 followed by 51041. UC-17.1.48 captures both events.",
     "negativeScenario": "No restore activity. UC-17.1.48 returns no rows."
   },
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Administrative and Operational Audit* category — restore codes `51040` (restore initiated), `51041` (restore completed), `51042` (restore failed), `51043` (restore partial), `51044` (post-restore replication mismatch). Fields: `restore_source`, `triggered_by`, `restore_type` (config|operational|standalone). Combined with the ISE config-export feed: an OpenAPI poller dumps the active policy set (`/api/v1/authz-policy`, `/api/v1/identity-store`) every 1h and writes to `index=nac sourcetype=cisco:ise:config_export`.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (51040, 51041, 51042, 51043, 51044))\n  OR (index=nac sourcetype=\"cisco:ise:config_export\")\n| stats count latest(_time) as last_event values(triggered_by) as admins by restore_type, MessageCode\n| where count > 0",
+  "description": "Audits all ISE restore operations (rare but high-impact events) and detects config drift in the immediate post-restore window — symptoms of an incomplete restore or a configuration roll-back gone wrong.",
+  "value": "Restoring ISE from backup is a high-risk operation; it overwrites current policies with the policies from the backup snapshot. Any in-flight policy work between the backup time and the restore time is lost. This UC ensures every restore is audited in real time and triggers a config-drift comparison against pre-restore state to surface unexpected loss.",
+  "implementation": "Confirm *Administrative and Operational Audit* category at INFO. The config-export OpenAPI poller is required for the drift comparison. Schedule the search every 30 min, search window `-4h@h to @h`, trigger on count > 0 (any restore event is alert-worthy).",
+  "visualization": "(1) Audit table: restore events last 365d. (2) Diff panel post-restore: count of authz rules changed, identity stores reconfigured, certs replaced.",
+  "cimModels": [
+    "Change"
+  ],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 Admin Guide — Backup and Restore",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_maintain.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **Lab restore drills** — Periodic restore exercises in lab environments will fire. Tag those nodes with `environment=lab` and exclude. (b) **Disaster-recovery exercise** — Annual DR exercise restores prod backup to DR; suppress within scheduled DR-exercise window.",
+  "mitreAttack": [
+    "N/A (platform lifecycle — ISE restore drill validation, no adversary technique)"
+  ],
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• Same as UC-17.1.47.\n• Config-export poller deployed.\n\nStep 1 — Configure data collection\nDouble-check *Administrative and Operational Audit* INFO. Deploy config-export poller.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke a lab restore.\n\nStep 4 — Operationalize\nDashboard \"ISE — Restore Audit\":\n• 365-day audit log table.\n• Drift diff panel post-restore.\n\nNotification: Slack to `#ise-platform` on any restore event.\n\nStep 5 — Troubleshooting\n• **Restore initiated but no completion event** — Restore in progress; large operational-data restores can take 30–60 min.\n• **Drift panel shows huge diff** — Backup was significantly older than current state; coordinate with the change team to reapply lost changes.\n• **`triggered_by` empty** — Restore was triggered via CLI; admin user not captured in syslog. Cross-reference with shell login records.",
   "grandmaExplanation": "If someone restores ISE from a safety copy — like rolling back to last week's notebook — we record exactly what happened so we know what was kept and what was lost.",
   "wave": "walk"

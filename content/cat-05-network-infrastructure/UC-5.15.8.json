@@ -9,15 +9,18 @@
     "Anomaly"
   ],
   "splunkPillar": "Security",
-  "wave": "run",
   "dataSources": "`index=dns` `sourcetype=infoblox:dns` recursive query logs with extracted `src_ip`, `qname`, optional `query_type`; TA field aliases align to vendor CEF keys—confirm `rcode` or response status fields exist for filtering noise.",
   "app": "Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)",
   "spl": "index=dns sourcetype=\"infoblox:dns\" earliest=-24h\n| where match(lower(coalesce(query_type,qtype_name,\"\")),\"a|aaaa|any\")\n| eval qlen=len(qname)\n| stats count dc(qname) as uniq_names avg(qlen) as avg_label_len stdev(qlen) as sd_label by src_ip host\n| eval ratio=if(count>0, round(uniq_names/count,3), 0)\n| eventstats median(count) as med_cnt p95(count) as p95_cnt\n| eval volume_score=if(count > p95_cnt, count/med_cnt, 0)\n| where count>=500 AND ratio>=0.85 AND avg_label_len>=18 AND volume_score>=3\n| sort - volume_score\n| head 100",
   "description": "Statistical profiling flags internal DNS clients issuing unusually high query counts with high ratios of unique labels and longer average hostname lengths—patterns commonly associated with DGAs or tunnel-like chatter needing analyst review.",
   "value": "Security operations gain an early hunting signal grounded in resolver telemetry already collected for operations, prioritizing hosts before DNS tunneling saturates resolver CPU or exfiltration succeeds.",
   "implementation": "Require consistent client IP visibility (avoid blind forwarding chains); tune floors (`count`, `ratio`) per campus; feed results into ES notable or SOAR playbook for host isolation decisions.",
-  "detailedImplementation": "Prerequisites\n• Recursive query logging enabled at manageable sampling if necessary.\n• Known resolver IPs excluded via `infoblox_known_resolvers.csv` lookup.\n• Legal/privacy review for monitoring internal client DNS metadata.\n\nStep 1 — Configure data collection\nValidate extracted fields (`src_ip`, `qname`). If only upstream resolver IP appears, enrich via DHCP correlation or postpone use case.\n\nStep 2 — Create the search and alert\nUse primary SPL nightly; clone with `bucket span=5m` for faster detection in SOC tier. Combine with `infoblox:threatprotect` hits when available.\n\nStep 3 — Validate\nReplay PCAP-derived DNS from test malware samples in lab—ensure SPL surfaces seeded victim IP without flooding benign AV updaters (whitelist vendors).\n\nStep 4 — Operationalize\nRisk scoring widget, analyst worksheet linking to sandbox DNS visualization, feedback loop lowering threshold for crown-jewel subnets.\n\nStep 5 — Troubleshooting\n**CDN browsers:** Some patch engines mimic high uniqueness—maintain vendor domain allowlists.**IPv6 privacy:** rotating addresses dilute `src_ip` correlation.**Performance:** narrow earliest window or adopt summary indexing.",
   "visualization": "Scatter plot uniq_names vs count, table with avg_label_len and ratio, drilldown to raw queries filtered by src_ip.",
+  "cimModels": [
+    "Network_Resolution"
+  ],
+  "cimSpl": "| tstats `summariesonly` dc(DNS.query) as uq count from datamodel=Network_Resolution where nodename=Network_Resolution.DNS by DNS.src span=15m\n| where count>100",
+  "dataModelAcceleration": "Use accelerated Network_Resolution DNS summaries only when Infoblox DNS maps cleanly into the DNS node.",
   "references": [
     {
       "title": "Splunk Documentation — Sourcetypes for the Splunk Add-on for Infoblox",
@@ -46,10 +49,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Recursive query logging enabled at manageable sampling if necessary.\n• Known resolver IPs excluded via `infoblox_known_resolvers.csv` lookup.\n• Legal/privacy review for monitoring internal client DNS metadata.\n\nStep 1 — Configure data collection\nValidate extracted fields (`src_ip`, `qname`). If only upstream resolver IP appears, enrich via DHCP correlation or postpone use case.\n\nStep 2 — Create the search and alert\nUse primary SPL nightly; clone with `bucket span=5m` for faster detection in SOC tier. Combine with `infoblox:threatprotect` hits when available.\n\nStep 3 — Validate\nReplay PCAP-derived DNS from test malware samples in lab—ensure SPL surfaces seeded victim IP without flooding benign AV updaters (whitelist vendors).\n\nStep 4 — Operationalize\nRisk scoring widget, analyst worksheet linking to sandbox DNS visualization, feedback loop lowering threshold for crown-jewel subnets.\n\nStep 5 — Troubleshooting\n**CDN browsers:** Some patch engines mimic high uniqueness—maintain vendor domain allowlists.**IPv6 privacy:** rotating addresses dilute `src_ip` correlation.**Performance:** narrow earliest window or adopt summary indexing.",
   "grandmaExplanation": "We notice when one computer asks for an unusually huge mix of weird website names in a short time, because that pattern sometimes means trouble hiding inside normal internet lookups.",
-  "cimModels": [
-    "Network_Resolution"
-  ],
-  "cimSpl": "| tstats `summariesonly` dc(DNS.query) as uq count from datamodel=Network_Resolution where nodename=Network_Resolution.DNS by DNS.src span=15m\n| where count>100",
-  "dataModelAcceleration": "Use accelerated Network_Resolution DNS summaries only when Infoblox DNS maps cleanly into the DNS node."
+  "wave": "run"
 }

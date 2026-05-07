@@ -9,53 +9,6 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authentication* category. EAP-TLS specific failure codes — `5440` (EAP-TLS client certificate validation failed), `5441` (EAP-TLS client certificate not trusted), `5442` (EAP-TLS client certificate revoked per CRL), `5443` (EAP-TLS client certificate revoked per OCSP), `5444` (EAP-TLS client certificate expired), `5445` (EAP-TLS client certificate not yet valid), `5446` (EAP-TLS chain validation failed), `5447` (EAP-TLS server-side cert validation failure), `12511` (EAP-TLS handshake failed — generic), `12512` (TEAP inner method failure). Fields after TA extraction: `User-Name`, `Calling-Station-ID`, `NAS-IP-Address`, `EapTunnel`, `EapAuthentication`, `CertificateSubject`, `CertificateIssuer`, `RevocationStatus`. CIM mapping: `Authentication.action=failure`, `Authentication.signature` set to the failure-code description, `Authentication.app=cisco:ise`.",
-  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
-  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5440, 5441, 5442, 5443, 5444, 5445, 5446, 12511)\n| rex \"User-Name=(?<user>[^,\\s]+)\"\n| rex \"Calling-Station-ID=(?<endpoint>[^,\\s]+)\"\n| rex \"CertificateSubject=(?<cert_subject>[^,]+)\"\n| rex \"CertificateIssuer=(?<cert_issuer>[^,]+)\"\n| eval failure_class = case(\n    MessageCode==\"5440\", \"validation_failed\",\n    MessageCode==\"5441\", \"untrusted_chain\",\n    MessageCode==\"5442\", \"revoked_crl\",\n    MessageCode==\"5443\", \"revoked_ocsp\",\n    MessageCode==\"5444\", \"expired\",\n    MessageCode==\"5445\", \"not_yet_valid\",\n    MessageCode==\"5446\", \"chain_validation_failed\",\n    MessageCode==\"12511\", \"handshake_failed\")\n| stats count latest(_time) as last_seen, values(failure_class) as classes, values(cert_issuer) as issuers, dc(endpoint) as endpoints by user\n| where count >= 3 OR mvfind(classes, \"revoked_crl\")>=0 OR mvfind(classes, \"revoked_ocsp\")>=0\n| sort - count",
-  "description": "Detects EAP-TLS authentication failures where the client certificate is invalid, expired, revoked (CRL or OCSP), untrusted, or fails chain validation. Aggregates by user to detect repeated cert problems on the same identity (signal of cert-rollover gone wrong) AND by endpoint to detect a single device with a corrupt or expired client cert.",
-  "value": "Wired and wireless EAP-TLS is the foundation of certificate-based device authentication in zero-trust. When client certs fail at scale, the cause is usually one of three: a CA root expiry not propagated to ISE, an internal CA outage breaking OCSP, or a botched cert rollover on a managed-device fleet. Catching the first dozen failures within 5 minutes lets the platform team pause the rollover and fix root-cause before thousands of devices are pushed off the network.",
-  "implementation": "Confirm the *Authentication* logging category is enabled at INFO (it is by default — without this, EAP-TLS auth events are not logged at all). Schedule the search every 5 min, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `user` for 30 min OR by `failure_class` for 1h to detect platform-wide regressions.",
-  "visualization": "(1) Single value: failed EAP-TLS auths last 1h (red). (2) Pie/bar: failures by `failure_class` last 24h. (3) Top-N table: users with most failures last 7d. (4) Top-N table: cert issuers with most validation failures (reveals a CA whose intermediate is missing in ISE Trusted Certs).",
-  "cimModels": [
-    "Authentication"
-  ],
-  "dataModelAcceleration": "Yes — ISE auth events accelerate the Authentication DM. EAP-TLS failures are a small fraction of total auths, so DMA acceleration meaningfully speeds investigation drilldowns.",
-  "references": [
-    {
-      "title": "Cisco ISE 3.4 — EAP-TLS Configuration",
-      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_authentication.html"
-    },
-    {
-      "title": "Cisco ISE Syslog Reference — Authentication Category",
-      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/syslog/Cisco_ISE_Syslogs/m_SyslogsList.html"
-    },
-    {
-      "title": "Splunk Add-on for Cisco Identity Services (Splunkbase 1915)",
-      "url": "https://splunkbase.splunk.com/app/1915"
-    },
-    {
-      "title": "RFC 5216 — EAP-TLS Authentication Protocol",
-      "url": "https://datatracker.ietf.org/doc/rfc5216/"
-    }
-  ],
-  "knownFalsePositives": "(a) **Cert renewal storm** — A scheduled cert renewal across a managed device fleet (e.g. SCEP push to 50,000 devices) generates a spike of 5444 (expired) failures while old certs are still in use just before renewal completes. Cross-reference change tickets and suppress within the rollover window. (b) **OCSP responder transient failure** — A brief OCSP outage spikes 5443 events without an actual revocation. Use a 30-min rolling window: only page if >100 events of class `revoked_ocsp` AND OCSP responder unreachable in UC-17.1.31. (c) **New corporate CA root not yet imported** — Fresh devices issued by a new internal sub-CA fail with 5441 until the new chain is imported into ISE Trusted Certs. (d) **Test-lab certs in production-policy windows** — During testing, dev devices may attempt EAP-TLS against the prod ISE and fail. Filter `endpoint` against a known-test-mac pattern.",
-  "mitreAttack": [
-    "T1556",
-    "T1110.001"
-  ],
-  "equipment": [
-    "cisco"
-  ],
-  "equipmentModels": [
-    "cisco_ise"
-  ],
-  "status": "verified",
-  "lastReviewed": "2026-05-06",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "@splunk-monitoring-use-cases",
   "compliance": [
     {
       "regulation": "PCI-DSS",
@@ -147,6 +100,54 @@
     "positiveScenario": "On a lab endpoint, generate a self-signed client cert (not chained to a trusted CA). Attempt EAP-TLS auth. ISE emits 5441 (untrusted chain). UC-17.1.38 records the failure. Repeat 3+ times in 15 min and the alert fires for that user.",
     "negativeScenario": "Use a properly chained client cert. Auth succeeds. UC-17.1.38 does not produce a row for this user."
   },
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authentication* category. EAP-TLS specific failure codes — `5440` (EAP-TLS client certificate validation failed), `5441` (EAP-TLS client certificate not trusted), `5442` (EAP-TLS client certificate revoked per CRL), `5443` (EAP-TLS client certificate revoked per OCSP), `5444` (EAP-TLS client certificate expired), `5445` (EAP-TLS client certificate not yet valid), `5446` (EAP-TLS chain validation failed), `5447` (EAP-TLS server-side cert validation failure), `12511` (EAP-TLS handshake failed — generic), `12512` (TEAP inner method failure). Fields after TA extraction: `User-Name`, `Calling-Station-ID`, `NAS-IP-Address`, `EapTunnel`, `EapAuthentication`, `CertificateSubject`, `CertificateIssuer`, `RevocationStatus`. CIM mapping: `Authentication.action=failure`, `Authentication.signature` set to the failure-code description, `Authentication.app=cisco:ise`.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5440, 5441, 5442, 5443, 5444, 5445, 5446, 12511)\n| rex \"User-Name=(?<user>[^,\\s]+)\"\n| rex \"Calling-Station-ID=(?<endpoint>[^,\\s]+)\"\n| rex \"CertificateSubject=(?<cert_subject>[^,]+)\"\n| rex \"CertificateIssuer=(?<cert_issuer>[^,]+)\"\n| eval failure_class = case(\n    MessageCode==\"5440\", \"validation_failed\",\n    MessageCode==\"5441\", \"untrusted_chain\",\n    MessageCode==\"5442\", \"revoked_crl\",\n    MessageCode==\"5443\", \"revoked_ocsp\",\n    MessageCode==\"5444\", \"expired\",\n    MessageCode==\"5445\", \"not_yet_valid\",\n    MessageCode==\"5446\", \"chain_validation_failed\",\n    MessageCode==\"12511\", \"handshake_failed\")\n| stats count latest(_time) as last_seen, values(failure_class) as classes, values(cert_issuer) as issuers, dc(endpoint) as endpoints by user\n| where count >= 3 OR mvfind(classes, \"revoked_crl\")>=0 OR mvfind(classes, \"revoked_ocsp\")>=0\n| sort - count",
+  "description": "Detects EAP-TLS authentication failures where the client certificate is invalid, expired, revoked (CRL or OCSP), untrusted, or fails chain validation. Aggregates by user to detect repeated cert problems on the same identity (signal of cert-rollover gone wrong) AND by endpoint to detect a single device with a corrupt or expired client cert.",
+  "value": "Wired and wireless EAP-TLS is the foundation of certificate-based device authentication in zero-trust. When client certs fail at scale, the cause is usually one of three: a CA root expiry not propagated to ISE, an internal CA outage breaking OCSP, or a botched cert rollover on a managed-device fleet. Catching the first dozen failures within 5 minutes lets the platform team pause the rollover and fix root-cause before thousands of devices are pushed off the network.",
+  "implementation": "Confirm the *Authentication* logging category is enabled at INFO (it is by default — without this, EAP-TLS auth events are not logged at all). Schedule the search every 5 min, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `user` for 30 min OR by `failure_class` for 1h to detect platform-wide regressions.",
+  "visualization": "(1) Single value: failed EAP-TLS auths last 1h (red). (2) Pie/bar: failures by `failure_class` last 24h. (3) Top-N table: users with most failures last 7d. (4) Top-N table: cert issuers with most validation failures (reveals a CA whose intermediate is missing in ISE Trusted Certs).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "dataModelAcceleration": "Yes — ISE auth events accelerate the Authentication DM. EAP-TLS failures are a small fraction of total auths, so DMA acceleration meaningfully speeds investigation drilldowns.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 — EAP-TLS Configuration",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_authentication.html"
+    },
+    {
+      "title": "Cisco ISE Syslog Reference — Authentication Category",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/syslog/Cisco_ISE_Syslogs/m_SyslogsList.html"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Identity Services (Splunkbase 1915)",
+      "url": "https://splunkbase.splunk.com/app/1915"
+    },
+    {
+      "title": "RFC 5216 — EAP-TLS Authentication Protocol",
+      "url": "https://datatracker.ietf.org/doc/rfc5216/"
+    }
+  ],
+  "knownFalsePositives": "(a) **Cert renewal storm** — A scheduled cert renewal across a managed device fleet (e.g. SCEP push to 50,000 devices) generates a spike of 5444 (expired) failures while old certs are still in use just before renewal completes. Cross-reference change tickets and suppress within the rollover window. (b) **OCSP responder transient failure** — A brief OCSP outage spikes 5443 events without an actual revocation. Use a 30-min rolling window: only page if >100 events of class `revoked_ocsp` AND OCSP responder unreachable in UC-17.1.31. (c) **New corporate CA root not yet imported** — Fresh devices issued by a new internal sub-CA fail with 5441 until the new chain is imported into ISE Trusted Certs. (d) **Test-lab certs in production-policy windows** — During testing, dev devices may attempt EAP-TLS against the prod ISE and fail. Filter `endpoint` against a known-test-mac pattern.",
+  "mitreAttack": [
+    "T1556",
+    "T1110.001"
+  ],
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• ISE *Authentication* logging category at INFO (default).\n• EAP-TLS configured for the relevant networks and authorization policies.\n• `endpoint_inventory.csv` lookup with `endpoint`, `device_type`, `owner` for triage.\n• `cert_issuers_trusted.csv` lookup of expected issuer DNs — used to detect rogue or expired roots.\n\nStep 1 — Configure data collection\nValidate auth event flow:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5400 OR MessageCode=5440 earliest=-1h\n| stats count by MessageCode\n```\n5400 = success, 5440-5447 = various EAP-TLS failures.\n\nStep 2 — Create the search\nPrimary search in `spl` field. Schedule every 5 min, range `-15m@m to @m`, trigger on count > 0, throttle `user` for 30 min.\n\nA secondary platform-wide search detects regression:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5440, 5441, 5442, 5443, 5444, 5445, 5446) earliest=-15m\n| stats count by MessageCode\n| where count > 100\n```\nIf a single failure-class crosses 100 events in 15 min, that's almost certainly a platform regression (CA outage, root expiry, OCSP outage) — page immediately, not per-user.\n\nStep 3 — Validate\nProvoke as in controlTest.\n\nField checks:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5440 earliest=-1d\n| stats count by CertificateIssuer\n```\nReveals the issuer-DN distribution; expected issuers should match `cert_issuers_trusted.csv`.\n\nStep 4 — Operationalize\nDashboard \"ISE — EAP-TLS Failures\":\n• Single value: failures last 1h, last 24h.\n• Time-of-day heatmap: failures by hour x day.\n• Top-N: users.\n• Top-N: cert issuers (revealing rogue issuers or missing chain).\n• Failure-class breakdown pie.\n\nAlerting:\n• PagerDuty medium for individual user with 3+ failures.\n• PagerDuty high for any failure class >100 in 15 min (regression).\n• Slack notification to `#ise-ops` for OCSP-revoked events (potentially indicates a compromised cert revoked legitimately, but also reveals OCSP outages).\n\nRunbook:\n1. Identify failure_class.\n2. If `untrusted_chain`: push the missing root/intermediate to ISE Trusted Certs.\n3. If `expired` / `not_yet_valid`: clock skew between client and ISE. Validate NTP on both ends.\n4. If `revoked_crl` / `revoked_ocsp`: confirm the revocation is intentional. If yes, audit log.\n5. If `chain_validation_failed`: client cert chain is missing intermediate; reissue with full chain.\n6. If platform-wide regression: pause cert rollover, contact PKI team.\n\nStep 5 — Troubleshooting\n• **`User-Name` empty** — TA mis-extraction or anonymous outer identity. Check the *Authentication* policy; ensure the inner identity is logged.\n• **CRL revocation events without OCSP events** — OCSP responder is offline; CRL is the fallback. Verify OCSP from PSN CLI.\n• **No EAP-TLS events at all but auth is working** — *Authentication* category at WARN (not INFO). Lower to INFO.\n• **Large spike of 5444 (expired) on a Friday afternoon** — Cert expiry weekend not triaged in advance. Cross-reference UC-17.1.31 — those certs should have alerted 30 days ago.",
   "grandmaExplanation": "When devices use a digital ID card to log into the network, sometimes the card is wrong — expired, revoked, untrusted, or signed by an unknown authority. We watch for repeated card-rejections per user and large fleet-wide spikes, both of which are signals that PKI work has gone wrong.",
   "wave": "walk"

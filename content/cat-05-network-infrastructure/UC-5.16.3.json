@@ -10,14 +10,12 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "wave": "walk",
   "dataSources": "Detailed: `index=wanop OR index=network`; messages indicating policy bypass—`riverbed:steelhead` pass-through / adaptive classification notices, `silverpeak:*` pass-through reason codes, `citrix:sdwan*` WANOP bypass diagnostics, ZDX-context logs where overlays disable optimization. Capture structured fields `bypass_reason`, `rule`, `dst_subnet`, `application` when available; otherwise `rex` on `_raw` with curated regex sets maintained per TA revision.",
   "app": "Vendor syslog integrations (SteelHead, EdgeConnect Orchestrator exports, Citrix SD-WAN logging); Splunk Add-on for Zscaler when correlating cloud-path bypass tagging.",
   "spl": "index=wanop OR index=network earliest=-24h\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"riverbed|steelhead\"),\"Riverbed SteelHead\",match(v,\"silverpeak|edgeconnect\"),\"Silver Peak EdgeConnect\",match(v,\"citrix\"),\"Citrix SD-WAN WANOP\",match(v,\"zdx|zscaler\"),\"Zscaler Digital Experience\",\"other\")\n| where vendor!=\"other\"\n| eval reason=coalesce(bypass_reason,rule_action,pass_through_reason,opt_action)\n| eval bypass_flag=case(match(lower(coalesce(reason,\"\")),\"bypass|pass[- ]?through|passthrough|non[- ]opt\"),1,match(_raw,\"(?i)(optimization bypass|passthrough|pass-through|ineligible|blacklisted flow)\"),1,0)\n| where bypass_flag=1\n| eval dst=coalesce(dest_ip,destination,dst_subnet,\"unknown\")\n| eval app=coalesce(application,app_name,service,\"unknown\")\n| stats count by vendor host app dst reason\n| sort - count\n| head 200",
   "description": "Splunk aggregates appliance-reported pass-through decisions—whether driven by policy, encryption incompatibilities, or health fails—so unexpected bypass storms surface alongside destinations and applications responsible.",
   "value": "Engineering teams reconcile governance versus performance by proving which subnets ignore optimization while security reviewers confirm sensitive flows intentionally bypass interception without silently widening blind spots.",
   "implementation": "Normalize bypass syslog signatures per vendor revision, maintain exclusion CSV for approved maintenance bypass classes, alert when hourly bypass count exceeds rolling median by configurable sigma.",
-  "detailedImplementation": "Prerequisites\n• Regex regression tests stored alongside TA because vendors rename tokens quarterly.\n• Network CMDB linking `dst` to business owners for automated ticketing.\n• Approval catalog describing compliant versus suspicious bypass reasons.\n\nStep 1 — Configure data collection\nEnsure informational severity bypass logs are not filtered upstream; increase UDP buffers if bursts occur.\n\nStep 2 — Create the search and alert\nDeploy SPL as `wanopt_bypass_top_talkers`; derivative alert uses `eventstats median(count) as med by vendor` then filters `count>3*med`.\n\nStep 3 — Validate\nReplay anonymized PCAP slices matching bypass intervals and verify Splunk counts align with appliance CLI session dumps.\n\nStep 4 — Operationalize\nDashboard Sankey from vendor→application→reason; integrate with CMDB lookups for contact overlays.\n\nStep 5 — Troubleshooting\n**Log floods:** throttle via summary indexing.**Ambiguous regex:** tighten with vendor TAC guidance.**Dual appliance pairs:** dedupe using `serial` fields to avoid double counting mirrored syslog.",
   "visualization": "Stacked bar bypass counts by reason; linked search table with drilldown to `_time` raw slices.",
   "references": [
     {
@@ -33,17 +31,19 @@
   "mitreAttack": [
     "N/A (operational visibility)"
   ],
+  "detectionType": "Anomaly",
   "securityDomain": "network",
   "equipment": [
+    "citrix",
     "riverbed",
     "silverpeak",
-    "citrix",
+    "syslog",
     "zscaler"
   ],
   "equipmentModels": [
+    "citrix_sdwan_wanop",
     "riverbed_steelhead",
     "silverpeak_edgeconnect",
-    "citrix_sdwan_wanop",
     "zscaler_zdx"
   ],
   "status": "verified",
@@ -53,6 +53,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Regex regression tests stored alongside TA because vendors rename tokens quarterly.\n• Network CMDB linking `dst` to business owners for automated ticketing.\n• Approval catalog describing compliant versus suspicious bypass reasons.\n\nStep 1 — Configure data collection\nEnsure informational severity bypass logs are not filtered upstream; increase UDP buffers if bursts occur.\n\nStep 2 — Create the search and alert\nDeploy SPL as `wanopt_bypass_top_talkers`; derivative alert uses `eventstats median(count) as med by vendor` then filters `count>3*med`.\n\nStep 3 — Validate\nReplay anonymized PCAP slices matching bypass intervals and verify Splunk counts align with appliance CLI session dumps.\n\nStep 4 — Operationalize\nDashboard Sankey from vendor→application→reason; integrate with CMDB lookups for contact overlays.\n\nStep 5 — Troubleshooting\n**Log floods:** throttle via summary indexing.**Ambiguous regex:** tighten with vendor TAC guidance.**Dual appliance pairs:** dedupe using `serial` fields to avoid double counting mirrored syslog.",
   "grandmaExplanation": "Sometimes traffic is supposed to skip the shortcut box on purpose, but sudden spikes in skipping can hide mistakes or attacks. We list what skipped the shortcut, where it went, and why so teams can fix rules calmly.",
-  "detectionType": "Anomaly"
+  "wave": "walk"
 }

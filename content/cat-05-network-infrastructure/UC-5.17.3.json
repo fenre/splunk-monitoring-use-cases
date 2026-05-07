@@ -10,14 +10,12 @@
     "Physical"
   ],
   "splunkPillar": "Observability",
-  "wave": "crawl",
   "dataSources": "Detailed: `index=visibility` / `index=network`; `garland:*`, `gigamon:link`, `keysight:tap`, `switch:span` relay events with `link_status`, `signal_loss_db`, `sync_status`, `span_session_id`, `source_interface`. Supplement with passive optical alarms (`los`, `lol`) and SNMP `ifOperStatus` from adjacent switches feeding SPAN sources.",
   "app": "Garland TAP management integrations (syslog/SNMP), Gigamon GigaVUE link monitoring, Keysight Vision TAP telemetry, Cisco IOS/NX-OS SPAN syslog via Splunk Add-on for Cisco IOS or SNMP TA.",
   "spl": "index=visibility OR index=network earliest=-12h\n| eval v=lower(sourcetype)\n| eval path_type=case(match(v,\"garland|tap\"),\"Passive TAP\",match(v,\"gigamon\"),\"GigaVUE Link\",match(v,\"keysight|ixia|vision\"),\"Vision TAP\",match(v,\"cisco|switch\"),\"SPAN Source\",\"other\")\n| where path_type!=\"other\"\n| eval healthy=case(lower(coalesce(link_status,if_oper_status,\"\")) IN (\"up\",\"link_up\",\"online\",\"ok\") AND NOT match(_raw,\"(?i)(los|signal_loss|lol|down|failed)\"),1,match(lower(coalesce(link_status,if_oper_status,\"\")),\"admin.?down|disabled\") AND match(_raw,\"(?i)maintenance\"),1,0)\n| eval span_id=coalesce(span_session_id,monitor_session,tap_pair_id)\n| bin _time span=10m\n| stats latest(healthy) as last_ok values(signal_loss_db) as optics dc(host) as witnesses by span_id path_type source_interface\n| where last_ok=0\n| eval summary=coalesce(source_interface,\"unknown_if\") . \" | \" . path_type\n| sort path_type span_id",
   "description": "Splunk stitches TAP pair identifiers and SPAN monitor sessions with ten-minute health snapshots so dark fibers, mis-seated modules, or administrative shutdowns on visibility ingress stop masquerading as tool outages downstream.",
   "value": "Forensics teams retain trustworthy packet lineage because Splunk proves capture paths stayed lit during investigations while datacenter techs receive faster dispatch tickets pointing to the precise span or optical leg.",
   "implementation": "Tag maintenance windows in a lookup keyed by `span_id`; require dual corroboration (syslog plus SNMP) before paging passive TAP LOS alarms prone to transceiver swaps.",
-  "detailedImplementation": "Prerequisites\n• Cable database mapping TAP/SPAN IDs to switch ports and peer racks.\n• Photo baseline of optical budgets for comparison when alarms cite dB loss.\n• Escalation matrix distinguishing campus networking vs visibility engineering ownership.\n\nStep 1 — Turn on telemetry\nExport Garland link events, Gigamon blade LOS traps, Keysight TAP health JSON, and Cisco SPAN syslog into Splunk with consistent `span_id` naming aligned to CMDB.\n\nStep 2 — Normalize health booleans\nTranslate vendor-specific enumerations into `healthy` using shared macros so dashboards remain vendor-agnostic.\n\nStep 3 — Author saved search\nSchedule `tap_span_health_offenders` every ten minutes with suppression after acknowledgement token written via KVStore.\n\nStep 4 — Validate\nPhysically break a lab TAP leg—confirm Splunk fires within two collection intervals and drilldown shows both witnesses.\n\nStep 5 — Operationalize\nEmbed QR-coded rack diagrams in dashboard drilldowns; monthly review Splunk trend of flapping interfaces to schedule fiber replacements proactively.",
   "visualization": "Status timeline (`splunk.timeline`) per span_id; GIS-style optional rack column; red highlight table listing unhealthy paths with last optics reading.",
   "references": [
     {
@@ -37,21 +35,27 @@
   "mitreAttack": [
     "N/A (physical availability monitoring)"
   ],
-  "securityDomain": "network",
   "detectionType": "Correlation",
+  "securityDomain": "network",
   "equipment": [
+    "apcon",
+    "cisco",
+    "cpacket",
+    "garland",
     "gigamon",
     "keysight",
-    "cpacket",
-    "apcon",
-    "garland"
+    "snmp",
+    "syslog"
   ],
   "equipmentModels": [
+    "apcon_visibility_platform",
+    "cisco_ios",
+    "cisco_nexus",
+    "cpacket_cstor",
+    "garland_network_tap",
     "gigamon_gigavue",
     "keysight_vision",
-    "cpacket_cstor",
-    "apcon_visibility_platform",
-    "garland_network_tap"
+    "snmp_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
@@ -60,5 +64,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "Think of a security camera cable: if the cable goes quiet, the recorder sees nothing even when the room is busy. We watch those cables and mirror ports so we know the feed going to our tools is alive, not silently blank."
+  "detailedImplementation": "Prerequisites\n• Cable database mapping TAP/SPAN IDs to switch ports and peer racks.\n• Photo baseline of optical budgets for comparison when alarms cite dB loss.\n• Escalation matrix distinguishing campus networking vs visibility engineering ownership.\n\nStep 1 — Turn on telemetry\nExport Garland link events, Gigamon blade LOS traps, Keysight TAP health JSON, and Cisco SPAN syslog into Splunk with consistent `span_id` naming aligned to CMDB.\n\nStep 2 — Normalize health booleans\nTranslate vendor-specific enumerations into `healthy` using shared macros so dashboards remain vendor-agnostic.\n\nStep 3 — Author saved search\nSchedule `tap_span_health_offenders` every ten minutes with suppression after acknowledgement token written via KVStore.\n\nStep 4 — Validate\nPhysically break a lab TAP leg—confirm Splunk fires within two collection intervals and drilldown shows both witnesses.\n\nStep 5 — Operationalize\nEmbed QR-coded rack diagrams in dashboard drilldowns; monthly review Splunk trend of flapping interfaces to schedule fiber replacements proactively.",
+  "grandmaExplanation": "Think of a security camera cable: if the cable goes quiet, the recorder sees nothing even when the room is busy. We watch those cables and mirror ports so we know the feed going to our tools is alive, not silently blank.",
+  "wave": "crawl"
 }

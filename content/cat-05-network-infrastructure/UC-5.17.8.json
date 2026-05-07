@@ -10,14 +10,12 @@
     "Operations"
   ],
   "splunkPillar": "Platform",
-  "wave": "crawl",
   "dataSources": "Detailed: `index=visibility` / `index=infra`; REST poll dumps (`gigamon:license`, `keysight:entitlement`), syslog thresholds (`license_util_pct`, `expiry_epoch`, `throughput_cap_gbps`, `active_maps`, `map_quota`), SNMP ENTITY-MIB inventory where licensing ties to hardware entities. Store normalized CSV snapshots nightly for procurement trending.",
   "app": "Scheduled scripted inputs or Splunk HTTP Event Collector posting JSON from Gigamon FM API, Keysight licensing portals, APCON controller entitlement endpoints; generic Splunk DB Connect optional for vendor CMDB exports.",
   "spl": "index=visibility OR index=infra earliest=-7d@d latest=now\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"gigamon\"),\"Gigamon\",match(v,\"keysight|ixia|vision\"),\"Keysight\",match(v,\"cpacket\"),\"cPacket\",match(v,\"apcon\"),\"APCON\",\"other\")\n| where vendor!=\"other\"\n| eval util_pct=tonumber(coalesce(license_util_pct,map_quota_used_pct,throughput_license_pct))\n| eval days_left=floor((tonumber(expiry_epoch)-now())/86400)\n| eval cap_gbps=tonumber(coalesce(licensed_throughput_gbps,subscription_gbps))\n| eval metered_gbps=tonumber(coalesce(metered_throughput_gbps,observed_throughput_gbps,billed_peak_gbps))\n| bin _time span=1d\n| stats latest(util_pct) as lic_util latest(days_left) as expire_in latest(cap_gbps) as entitled_speed latest(metered_gbps) as metered_peak latest(active_maps) as maps_used latest(map_quota) as maps_cap by _time vendor host\n| eval renew_risk=case(isnull(expire_in),0,expire_in<=45,2,expire_in<=120,1,0)\n| eval capacity_risk=case(maps_cap>0 AND maps_used/maps_cap>=0.9,2,lic_util>=90 OR entitled_speed>0 AND metered_peak>entitled_speed,2,lic_util>=75,1,0)\n| where renew_risk>0 OR capacity_risk>0\n| sort - renew_risk - capacity_risk vendor host",
   "description": "Daily Splunk rollups compare entitlement utilization, concurrent map counts, and subscription throughput meters against licensed ceilings plus expiry horizons so finance and engineering negotiate renewals before hard enforcement throttles visibility ports.",
   "value": "Budget cycles gain data-driven renewal forecasts anchored to actual broker consumption instead of vendor anecdotes while audit responses cite Splunk histories proving continuous license compliance.",
   "implementation": "Redact serial keys from `_raw` via `SEDCMD`; route procurement dashboard to restricted role; sync `_time` to vendor midnight UTC for apples-to-apples daily deltas.",
-  "detailedImplementation": "Prerequisites\n• Legal-approved sharing scope for entitlement identifiers (often confidential).\n• Integration service account with least-privilege API tokens rotated quarterly.\n• Procurement SLA defining lead times versus Splunk alert horizons.\n\nStep 1 — Secure collection\nUse encrypted scripted inputs pulling HTTPS APIs; never index raw license keys—hash identifiers if correlation needed.\n\nStep 2 — Normalize metrics\nConvert epoch expirations consistently; harmonize throughput counters where vendors mix Mb/s vs Gb/s naming.\n\nStep 3 — Implement dashboards\nExecutive summary highlights hosts crossing 75% utilization; technical drill exposes map quotas vs active_maps.\n\nStep 4 — Validate\nCompare Splunk `lic_util` against vendor GUI entitlement screen monthly; reconcile discrepancies via support ticket trail documented in Splunk notes.\n\nStep 5 — Governance\nAttach Splunk PDF exports to renewal RFCs; archive yearly snapshots to object storage with immutability flags for compliance archives.",
   "visualization": "Single-value tiles for hosts expiring <45 days; bar chart of lic_util by vendor; detailed table with entitled_speed vs measured throughput if meter fields exist.",
   "references": [
     {
@@ -37,21 +35,29 @@
   "mitreAttack": [
     "N/A (licensing governance)"
   ],
-  "securityDomain": "network",
   "detectionType": "Baseline",
+  "securityDomain": "network",
   "equipment": [
-    "gigamon",
-    "keysight",
-    "cpacket",
+    "apc_dc",
     "apcon",
-    "garland"
+    "cpacket",
+    "db_connect",
+    "garland",
+    "gigamon",
+    "hardware_bmc",
+    "keysight",
+    "snmp",
+    "syslog"
   ],
   "equipmentModels": [
-    "gigamon_gigavue",
-    "keysight_vision",
-    "cpacket_cstor",
     "apcon_visibility_platform",
-    "garland_network_tap"
+    "cpacket_cstor",
+    "garland_network_tap",
+    "gigamon_gigavue",
+    "hardware_bmc_edac",
+    "keysight_vision",
+    "snmp_apc",
+    "snmp_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
@@ -60,5 +66,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "These fancy copying switches come with subscriptions like a phone plan—speed limits and renewal dates. We track how close we are to the limits and how soon bills renew so teams order upgrades calmly instead of hitting a sudden stop."
+  "detailedImplementation": "Prerequisites\n• Legal-approved sharing scope for entitlement identifiers (often confidential).\n• Integration service account with least-privilege API tokens rotated quarterly.\n• Procurement SLA defining lead times versus Splunk alert horizons.\n\nStep 1 — Secure collection\nUse encrypted scripted inputs pulling HTTPS APIs; never index raw license keys—hash identifiers if correlation needed.\n\nStep 2 — Normalize metrics\nConvert epoch expirations consistently; harmonize throughput counters where vendors mix Mb/s vs Gb/s naming.\n\nStep 3 — Implement dashboards\nExecutive summary highlights hosts crossing 75% utilization; technical drill exposes map quotas vs active_maps.\n\nStep 4 — Validate\nCompare Splunk `lic_util` against vendor GUI entitlement screen monthly; reconcile discrepancies via support ticket trail documented in Splunk notes.\n\nStep 5 — Governance\nAttach Splunk PDF exports to renewal RFCs; archive yearly snapshots to object storage with immutability flags for compliance archives.",
+  "grandmaExplanation": "These fancy copying switches come with subscriptions like a phone plan—speed limits and renewal dates. We track how close we are to the limits and how soon bills renew so teams order upgrades calmly instead of hitting a sudden stop.",
+  "wave": "crawl"
 }

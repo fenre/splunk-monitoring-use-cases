@@ -10,15 +10,16 @@
     "Governance"
   ],
   "splunkPillar": "Platform",
-  "wave": "crawl",
   "dataSources": "`index=netops` `sourcetype=infoblox:audit` administrative actions including login, Grid configuration edits, authoritative DNS zone/record CRUD, DHCP template edits; verify retention meets policy because audit volume scales with admin concurrency.",
   "app": "Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)",
   "spl": "index=netops sourcetype=\"infoblox:audit\" earliest=-24h\n| search (admin OR administrator OR user OR login OR modify OR delete OR add OR zone OR record OR grid OR rpz OR permission)\n| rex field=_raw \"(?i)(?:user|admin|login)[\\\\s:=]+(?<admin_actor>[^\\\\s,;]+)\"\n| rex field=_raw \"(?i)(?:object|zone|fqdn|name)[\\\\s:=]+(?<object_name>[^\\\\s,;]+)\"\n| stats count latest(_time) as last_action values(object_name) as objects by admin_actor host\n| sort - count\n| head 200",
   "description": "Curated audit discovery surfaces privileged Infoblox UI/API changes impacting authoritative zones, RPZ policies, or Grid-wide settings with actor attribution derived from syslog tokens.",
   "value": "Change governance teams prove who altered DNS or DHCP objects during audits, accelerate rollback after unauthorized edits, and satisfy regulators needing authoritative evidence beyond Splunk operator logs alone.",
   "implementation": "Forward audit severity informational+, normalize actor regex per locale, schedule saved searches segregating destructive verbs (`delete`, `remove`), ship summaries to SIEM retention index with immutability controls.",
-  "detailedImplementation": "Prerequisites\n• Role-based access mapping Splunk analysts vs DNS admins to enforce least privilege viewing.\n• Time synchronization per UC‑5.15.3 guidance.\n• Runbook linking Splunk events to Infoblox revision history screenshots.\n\nStep 1 — Configure data collection\nEnable auditing categories for admin actions on Grid Master; optionally aggregate passive replicas—avoid duplicates using `dedup _raw` heuristics.\n\nStep 2 — Create the search and alert\nPrimary SPL enumerates actors; add alerting subsearch for destructive combinations (`delete` AND `zone`). Throttle known automation service accounts via lookup `infoblox_svc_accounts.csv`.\n\nStep 3 — Validate\nPerform benign TXT record change under controlled account; confirm Splunk captures actor and object tokens matching GUI audit export CSV.\n\nStep 4 — Operationalize\nWeekly digest email to CAB, Splunk Dashboard Studio with textual timeline, integration with ticketing via webhook alert action.\n\nStep 5 — Troubleshooting\n**Null actor:** falls back to syslog `user` field—extend props.conf extraction.**High noise:** filter routine heartbeat audits.**Multiline messages:** adjust LINE_BREAKER on HF if Infoblox splits entries.",
   "visualization": "Timeline of actions by admin_actor, stacked counts by verb category (add/modify/delete), detail table with object_name.",
+  "cimModels": [],
+  "cimSpl": "| tstats count where index=netops sourcetype=infoblox:audit by host span=1h",
+  "dataModelAcceleration": "Optional summary indexing for high-volume audit environments.",
   "references": [
     {
       "title": "Splunk Documentation — Sourcetypes for the Splunk Add-on for Infoblox",
@@ -32,7 +33,8 @@
   "knownFalsePositives": "**Automation accounts:** Nightly sync jobs resemble suspicious bursts—allowlist with lookup.**Benign mass imports:** Large CSV imports spike counts legitimately during migrations.**Keyword bleed:** Words like \"zone\" in unrelated messages—tighten token proximity rules.",
   "securityDomain": "audit",
   "equipment": [
-    "infoblox"
+    "infoblox",
+    "syslog"
   ],
   "equipmentModels": [
     "infoblox_nios"
@@ -44,8 +46,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Role-based access mapping Splunk analysts vs DNS admins to enforce least privilege viewing.\n• Time synchronization per UC‑5.15.3 guidance.\n• Runbook linking Splunk events to Infoblox revision history screenshots.\n\nStep 1 — Configure data collection\nEnable auditing categories for admin actions on Grid Master; optionally aggregate passive replicas—avoid duplicates using `dedup _raw` heuristics.\n\nStep 2 — Create the search and alert\nPrimary SPL enumerates actors; add alerting subsearch for destructive combinations (`delete` AND `zone`). Throttle known automation service accounts via lookup `infoblox_svc_accounts.csv`.\n\nStep 3 — Validate\nPerform benign TXT record change under controlled account; confirm Splunk captures actor and object tokens matching GUI audit export CSV.\n\nStep 4 — Operationalize\nWeekly digest email to CAB, Splunk Dashboard Studio with textual timeline, integration with ticketing via webhook alert action.\n\nStep 5 — Troubleshooting\n**Null actor:** falls back to syslog `user` field—extend props.conf extraction.**High noise:** filter routine heartbeat audits.**Multiline messages:** adjust LINE_BREAKER on HF if Infoblox splits entries.",
   "grandmaExplanation": "We keep a readable diary of who changed important internet phonebook settings inside Infoblox so nobody can quietly break critical names without leaving fingerprints.",
-  "cimModels": [],
-  "cimSpl": "| tstats count where index=netops sourcetype=infoblox:audit by host span=1h",
-  "dataModelAcceleration": "Optional summary indexing for high-volume audit environments."
+  "wave": "crawl"
 }

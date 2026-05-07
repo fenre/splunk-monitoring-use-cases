@@ -10,14 +10,12 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "wave": "run",
   "dataSources": "Detailed: `index=wanop OR index=network`; summarized WAN versus LAN counters per appliance (`bytes_saved`, `wan_bits_saved`, `reduction_bytes`), optionally enriched with carrier invoices ingested as CSV lookups (`circuit_cost_per_mbps`). SteelHead `riverbed:steelhead`, EdgeConnect `silverpeak:*`, Citrix WANOP `citrix:sdwan*`, ZDX adjunct logs purely contextual—not sole savings source.",
   "app": "Vendor dashboards exported via syslog/API, Splunk lookup tables for tariff modeling, optional Splunk App for Chargeback macros.",
   "spl": "index=wanop OR index=network earliest=-35d@d latest=@d\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"riverbed|steelhead\"),\"Riverbed SteelHead\",match(v,\"silverpeak|edgeconnect\"),\"Silver Peak EdgeConnect\",match(v,\"citrix\"),\"Citrix SD-WAN WANOP\",match(v,\"zdx|zscaler\"),\"Zscaler Digital Experience\",\"other\")\n| where vendor!=\"other\"\n| eval saved_bytes=tonumber(coalesce(bytes_saved,wan_bytes_saved,reduction_bytes,opt_saved_octets))\n| eval saved_bits=if(isnotnull(saved_bytes), saved_bytes*8, tonumber(bits_saved))\n| bin _time span=1d\n| stats sum(eval(if(isnotnull(saved_bits),saved_bits/8,0))) as bytes_saved_sum by _time vendor site_code\n| eval gib_saved=round(bytes_saved_sum/pow(1024,3),3)\n| lookup wan_carrier_tariffs.csv site_code OUTPUT cost_per_gib_usd\n| eval est_cost_avoided_usd=round(gib_saved*coalesce(cost_per_gib_usd,0),2)\n| sort _time vendor site_code\n| head 1000",
   "description": "Splunk blends appliance-reported byte savings with finance-approved tariff lookups so executive dashboards translate compression into gibibytes removed from billed WAN transports month over month.",
   "value": "Finance validates WAN renewal ROI without spreadsheet archaeology while network leadership prioritizes upgrade budgets using Splunk-scheduled PDF evidence consumed by procurement workflows.",
   "implementation": "Maintain tariff CSV with owner attestations, run weekly saved search writing summary index, integrate export into CFO briefing slides automatically.",
-  "detailedImplementation": "Prerequisites\n• Legal approval storing tariff multipliers inside Splunk KVStore or secured CSV.\n• Alignment with carrier metering cadence (calendar vs billing cycle).\n• Historical baseline month labeled before optimizer rollout.\n\nStep 1 — Configure data collection\nEnsure appliances emit cumulative counters compatible with daily deltas—convert via `delta` command if only totals arrive.\n\nStep 2 — Create the search and alert\nWrap SPL inside scheduled report `wanopt_roi_monthly`; chain `collect` into summary index for BI tools.\n\nStep 3 — Validate\nReconcile Splunk `gib_saved` against carrier portal usage graphs ±10% tolerance acknowledging encapsulation overhead.\n\nStep 4 — Operationalize\nPublish narrative captions interpreting swings (seasonality, acquisitions).\n\nStep 5 — Troubleshooting\n**Missing tariff rows:** default zero cost skews story—alert on lookup misses.**Double counting HA pairs:** dedupe using designated reporting master.**Currency mixes:** normalize FX nightly.",
   "visualization": "Combo chart: stacked gib_saved by vendor with overlaid line est_cost_avoided_usd; executive summary table MoM delta.",
   "references": [
     {
@@ -33,17 +31,19 @@
   "mitreAttack": [
     "N/A (financial telemetry)"
   ],
+  "detectionType": "Baseline",
   "securityDomain": "network",
   "equipment": [
+    "citrix",
     "riverbed",
     "silverpeak",
-    "citrix",
+    "syslog",
     "zscaler"
   ],
   "equipmentModels": [
+    "citrix_sdwan_wanop",
     "riverbed_steelhead",
     "silverpeak_edgeconnect",
-    "citrix_sdwan_wanop",
     "zscaler_zdx"
   ],
   "status": "verified",
@@ -53,6 +53,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Prerequisites\n• Legal approval storing tariff multipliers inside Splunk KVStore or secured CSV.\n• Alignment with carrier metering cadence (calendar vs billing cycle).\n• Historical baseline month labeled before optimizer rollout.\n\nStep 1 — Configure data collection\nEnsure appliances emit cumulative counters compatible with daily deltas—convert via `delta` command if only totals arrive.\n\nStep 2 — Create the search and alert\nWrap SPL inside scheduled report `wanopt_roi_monthly`; chain `collect` into summary index for BI tools.\n\nStep 3 — Validate\nReconcile Splunk `gib_saved` against carrier portal usage graphs ±10% tolerance acknowledging encapsulation overhead.\n\nStep 4 — Operationalize\nPublish narrative captions interpreting swings (seasonality, acquisitions).\n\nStep 5 — Troubleshooting\n**Missing tariff rows:** default zero cost skews story—alert on lookup misses.**Double counting HA pairs:** dedupe using designated reporting master.**Currency mixes:** normalize FX nightly.",
   "grandmaExplanation": "We translate squished traffic into everyday money language—how much expensive long-distance pipe we did not have to buy—so leaders see why those invisible boxes still deserve maintenance dollars.",
-  "detectionType": "Baseline"
+  "wave": "run"
 }
