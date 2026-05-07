@@ -1,0 +1,73 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.12.43",
+  "title": "SOX / ITGC \u2014 Cisco ISE Data Connect Direct DB Access Audit",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "SOX ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.AccessMgmt.Provisioning",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PCAOB AS 5 \u2014 IT general controls. UC-17.1.58 evidences direct DB access to ISE \u2014 bypass of normal admin UI carries elevated risk and requires audit attribution.",
+      "controlObjective": "Demonstrate that direct database queries against ISE Data Connect are logged with attribution and slow/anomalous queries are visible.",
+      "evidenceArtifact": "Saved search 'UC-22.12.43' archiving Data Connect events to `audit_evidence`.",
+      "obligationRef": "sox-itgc@PCAOB AS 2201#ITGC.AccessMgmt.Provisioning",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` *DataConnect* + `index=splunkdbx`. Cross-reference UC-17.1.58.",
+  "app": "Splunk Enterprise Security (263) + Splunk DB Connect (2686).",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (40400, 40401)\n| eval sox_clause=\"AS5.B27-B29\", control=\"DB_Direct_Access_Audit\"\n| table _time, dataconnect_user, source_ip, query, sox_clause\n| collect index=audit_evidence",
+  "description": "We continuously evidence SOX ITGC over Data Connect direct database access on ISE.",
+  "value": "Direct DB access bypasses the ISE admin UI's role-based access controls. Continuous logging with attribution is the SOX-required audit trail.",
+  "implementation": "Schedule the saved search daily at 06:00 local time; archive results to the `audit_evidence` summary index for SOX/ITGC PCAOB AS 2201 evidence.",
+  "visualization": "SOX ITGC dashboard: Data Connect query timeline.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "PCAOB AS 5",
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS5"
+    },
+    {
+      "title": "UC-17.1.58 \u2014 Cisco ISE Data Connect \u2014 DB-Direct Query Audit",
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.58.json"
+    }
+  ],
+  "knownFalsePositives": "1. Splunk DB Connect ingestion queries \u2014 exclude via `dataconnect_user` allowlist.",
+  "requiredFields": [
+    "_time",
+    "dataconnect_user",
+    "source_ip"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "lastReviewed": "2026-05-06",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.58 operational; Data Connect enabled on ISE.\n- `audit_evidence` with 7y retention.\n\n## Step 1-5\n\n```ini\n[UC-22.12.43: SOX ITGC \u2014 Data Connect Audit]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.12.43,reg=SOX,clause=AS5.B27-B29\n```",
+  "grandmaExplanation": "We continuously evidence SOX ITGC over Data Connect direct database access on ISE. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOX External Auditor",
+  "controlTest": {
+    "positiveScenario": "Run a Data Connect query. Evidence captured.",
+    "negativeScenario": "No Data Connect activity. Empty result."
+  },
+  "evidence": "Saved search archived to `audit_evidence` with SOX AS5 tagging.",
+  "exclusions": "Splunk DB Connect ingestion service account excluded."
+}

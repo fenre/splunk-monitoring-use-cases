@@ -46,6 +46,7 @@ class RenderContext:
     build_id: str = ""      # e.g., short git sha, set by render_pages
     generated_at: str = "1970-01-01T00:00:00Z"
     repo_url: str = "https://github.com/fenre/splunk-monitoring-use-cases"
+    version: str = "0.0.0"  # Catalogue version from /VERSION
 
     # Reverse index for the implementation-ordering roadmap: maps a
     # prerequisite UC id (full "UC-X.Y.Z" form) to the tuple of UC ids

@@ -1,0 +1,114 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.50",
+  "title": "Cisco ISE — MDM/UEM Connector Health and Compliance Drift",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Operations"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *MDM Server* category — codes `60140` (MDM compliance update), `60141` (MDM connection lost), `60142` (MDM auth failed), `60143` (MDM API rate-limit), `60144` (compliance status updated for endpoint). Vendors supported by ISE 3.x MDM API: Microsoft Intune, VMware Workspace ONE, Jamf, MobileIron, Citrix Endpoint Management, IBM MaaS360, BlackBerry UEM. Field: `mdm_vendor`, `mdm_compliance`, `mdm_registered`, `mdm_jailbroken`. ISE OpenAPI `/api/v1/mdm/server/status` polled every 10 min.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60140, 60141, 60142, 60143, 60144))\n  OR (index=nac sourcetype=\"cisco:ise:mdm_status\")\n| stats count latest(_time) as last_event count(eval(MessageCode==\"60141\")) as drops count(eval(MessageCode==\"60142\")) as auth_failures count(eval(MessageCode==\"60143\")) as rate_limits by mdm_vendor\n| where drops > 1 OR auth_failures > 0 OR rate_limits > 5",
+  "description": "Detects MDM/UEM connector failures, auth issues, and rate-limit hits on ISE-to-MDM API integrations. Without MDM connector health, ISE authorization decisions that depend on `mdm_compliance` or `mdm_jailbroken` revert to non-compliance default (typically more permissive).",
+  "value": "BYOD environments rely on MDM compliance to gate corporate-resource access. A broken Intune connector means non-compliant devices receive the same access as compliant ones. Detecting integration failures within 10 minutes preserves compliance enforcement.",
+  "implementation": "Confirm *MDM Server* category at INFO. Deploy OpenAPI poller. Schedule every 10 min. Throttle suppression on `mdm_vendor` for 30 min.",
+  "visualization": "(1) Per-vendor connector status. (2) Compliance distribution panel. (3) Top-N: rate-limit hits by vendor.",
+  "cimModels": [],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 — MDM Integration",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_compliance_segmentation.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **MDM vendor maintenance** — vendor-side maintenance windows. (b) **Token refresh window** — Some MDM APIs require token refresh; brief auth_failures during the refresh.",
+  "mitreAttack": [
+    "N/A (MDM integration health — measures ISE-to-UEM connection state, no attack mapping)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "12.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI 12.2 — endpoint security policies. MDM compliance check is one such control.",
+      "controlObjective": "Endpoint security compliance check.",
+      "evidenceArtifact": "UC-17.1.50 alert log.",
+      "obligationRef": "pci-dss@v4.0#12.2",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(d)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(d) covers access control. MDM-driven access control is a primary mechanism.",
+      "controlObjective": "MDM-driven access control.",
+      "evidenceArtifact": "UC-17.1.50 alert log.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(d)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AC-19",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "AC-19 (Access Control for Mobile Devices) — direct alignment.",
+      "controlObjective": "Mobile device access control.",
+      "evidenceArtifact": "UC-17.1.50 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#AC-19",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.1 (User endpoint devices) — MDM is the user endpoint device control.",
+      "controlObjective": "User endpoint device control.",
+      "evidenceArtifact": "UC-17.1.50 alert log.",
+      "obligationRef": "iso-27001@2022#A.8.1",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "HIPAA",
+      "version": "2013-final",
+      "clause": "§164.310(d)(1)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "164.310(d)(1) Device and media controls — MDM compliance is one such control.",
+      "controlObjective": "Mobile device controls for ePHI environments.",
+      "evidenceArtifact": "UC-17.1.50 alert log.",
+      "obligationRef": "hipaa-security@45 CFR Parts 160, 162, 164#§164.310(d)(1)",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Revoke ISE's API token in the MDM admin console. ISE emits 60142 on next API call. UC-17.1.50 fires.",
+    "negativeScenario": "Restore the token. Connection re-establishes. Alert clears."
+  },
+  "detailedImplementation": "Prerequisites\n• MDM connector configured.\n• `mdm_vendors.csv` lookup with `vendor`, `is_critical`.\n\nStep 1 — Configure data collection\nEnable *MDM Server* category at INFO. Deploy OpenAPI poller.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 10 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — MDM Connector Health\":\n• Per-vendor status.\n• Compliance distribution.\n• Top-N rate-limit hits.\n\nAlerting: PagerDuty medium on connector failure.\n\nStep 5 — Troubleshooting\n• **Auth failures recur** — Token rotation needed.\n• **Rate limits sustained** — Tune ISE's MDM polling cadence.\n• **`mdm_compliance` always 'unknown'** — MDM provider doesn't expose the field; check provider model.",
+  "grandmaExplanation": "If a phone or laptop is enrolled in the company's mobile-management system and that system says 'this device is not OK', ISE should block it. We watch the conversation between ISE and the management system — and ring the bell when that conversation breaks.",
+  "wave": "walk"
+}

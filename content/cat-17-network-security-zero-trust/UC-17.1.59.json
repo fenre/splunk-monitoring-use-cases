@@ -1,0 +1,86 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.59",
+  "title": "Cisco ISE Logs through Splunk Edge Processor — Pipeline Health and Routing",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Operations",
+    "Operations"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "Splunk Edge Processor / Ingest Processor metrics from `index=_internal sourcetype=ep:metrics` (Splunk Edge Processor's self-telemetry). Pipeline-health fields: `pipeline_id`, `events_in`, `events_out`, `dropped_events`, `parse_errors`, `routing_decisions`. ISE-side context from `index=nac sourcetype=cisco:ise:syslog` to confirm receipt.",
+  "app": "`Splunk Edge Processor` (Splunk Cloud / Splunk Enterprise 9.x+).",
+  "spl": "index=_internal sourcetype=\"ep:metrics\" earliest=-30m\n| stats sum(events_in) as in, sum(events_out) as out, sum(dropped_events) as drops, sum(parse_errors) as parse_errors by pipeline_id\n| eval drop_pct = round((drops/in)*100, 2)\n| where drop_pct > 1 OR parse_errors > 0",
+  "description": "Detects Splunk Edge Processor / Ingest Processor pipeline issues that affect ISE log ingestion — drops, parse errors, routing failures.",
+  "value": "When Edge Processor is in the path between ISE and Splunk indexers, pipeline health is the missing link in observability. A 5% drop rate is invisible from the Splunk indexer side but obvious from EP metrics.",
+  "implementation": "Confirm Edge Processor is sending self-telemetry to Splunk. Schedule every 15 min, search window `-30m@m to @m`.",
+  "visualization": "(1) Per-pipeline drop-rate timechart. (2) Top-N parse errors. (3) Routing-decision distribution.",
+  "cimModels": [],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Splunk Edge Processor Documentation",
+      "url": "https://docs.splunk.com/Documentation/SplunkCloud/9.2.2406/EdgeProcessor"
+    }
+  ],
+  "knownFalsePositives": "(a) **Initial pipeline deployment** — High parse errors during initial pipeline configuration; expected for first hour.",
+  "mitreAttack": [
+    "N/A (ingest pipeline health — measures Splunk Edge Processor for ISE, no adversary technique)"
+  ],
+  "equipment": [],
+  "equipmentModels": [],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(g)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(g) effectiveness measurement — pipeline-health is one input.",
+      "controlObjective": "Effectiveness measurement.",
+      "evidenceArtifact": "UC-17.1.59 alert log.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(g)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AU-4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "AU-4 (Audit Log Storage Capacity) — pipeline drops impact log fidelity.",
+      "controlObjective": "Audit-log fidelity preservation when normalizing data through Edge Processor.",
+      "evidenceArtifact": "UC-17.1.59 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#AU-4",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.15",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.15 — logging fidelity.",
+      "controlObjective": "Logging-pipeline fidelity demonstrated end-to-end through the edge layer.",
+      "evidenceArtifact": "UC-17.1.59 alert log.",
+      "obligationRef": "iso-27001@2022#A.8.15",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Misconfigure an Edge Processor pipeline regex causing 5% parse errors. UC-17.1.59 fires for that pipeline.",
+    "negativeScenario": "Fix the regex. Drops return to 0. Alert clears."
+  },
+  "detailedImplementation": "Prerequisites\n• Edge Processor or Ingest Processor deployed in path.\n• Self-telemetry enabled.\n\nStep 1 — Verify telemetry feed.\nStep 2 — Search.\nStep 3 — Provoke as above.\nStep 4 — Dashboard with drop-rate per pipeline.\nStep 5 — Troubleshooting: tune pipeline regex; verify EP capacity.",
+  "grandmaExplanation": "ISE sends information to Splunk through a middleman. We watch the middleman to make sure it isn't dropping or breaking messages on the way through.",
+  "wave": "run"
+}

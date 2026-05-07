@@ -4,7 +4,9 @@
   "title": "IPv6 Multicast Scoping and Boundary Enforcement",
   "criticality": "medium",
   "difficulty": "intermediate",
-  "monitoringType": ["Security"],
+  "monitoringType": [
+    "Security"
+  ],
   "splunkPillar": "Platform",
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Monitors IPv6 multicast scope enforcement. IPv6 multicast addresses encode their scope in bits 12-15: interface-local (1), link-local (2), admin-local (4), site-local (5), organization-local (8), global (e). Traffic with site-local multicast scope (ff05::) MUST NOT cross site boundaries. Monitors for scope violations where scoped multicast crosses boundaries.",
   "app": "Splunk Enterprise",
@@ -14,18 +16,35 @@
   "implementation": "Monitor multicast routing for scope violations. Verify multicast boundary filters are correctly configured at scope boundaries.",
   "visualization": "(1) Table: scope violations by type and device. (2) Single-value: violation count. (3) Map: site boundaries with scope enforcement status.",
   "references": [
-    {"title": "RFC 4291 — IP Version 6 Addressing Architecture (§2.7 — multicast scoping)", "url": "https://www.rfc-editor.org/rfc/rfc4291#section-2.7"},
-    {"title": "RFC 7346 — IPv6 Multicast Address Scopes", "url": "https://www.rfc-editor.org/rfc/rfc7346"}
+    {
+      "title": "RFC 4291 — IP Version 6 Addressing Architecture (§2.7 — multicast scoping)",
+      "url": "https://www.rfc-editor.org/rfc/rfc4291#section-2.7"
+    },
+    {
+      "title": "RFC 7346 — IPv6 Multicast Address Scopes",
+      "url": "https://www.rfc-editor.org/rfc/rfc7346"
+    }
   ],
   "knownFalsePositives": "**Global multicast (ff0e::).** Global-scope multicast is intentionally forwarded across all boundaries. This is not a violation.\n\n**Organization-scope (ff08::).** ff08:: multicast is forwarded within an organization's domain but not beyond. This is expected.",
-  "equipment": ["cisco", "juniper"],
-  "equipmentModels": ["cisco_catalyst_9000", "juniper_mx"],
+  "equipment": [
+    "cisco",
+    "juniper"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9000",
+    "juniper_mx"
+  ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• Multicast routing (PIMv6) deployed.\n• Multicast scope boundaries configured.\n\nStep 1 — Configure multicast boundaries\n\n**Cisco IOS-XE multicast scope boundary:**\n```\ninterface GigabitEthernet0/0/0\n description Site boundary\n ipv6 multicast boundary block source\n ipv6 multicast boundary scope 5\n```\n\nStep 2 — Create monitoring searches\n\n**Scope boundary enforcement audit:**\n```spl\nindex=network sourcetype=\"cisco:*:config\" earliest=-7d\n| dedup host\n| eval has_mcast_boundary=if(match(_raw, \"(?i)multicast boundary\"), 1, 0)\n| stats count as total sum(has_mcast_boundary) as with_boundary\n| eval coverage=round(with_boundary / total * 100, 1) . \"%\"\n```\n\nStep 3 — Validate\nSend a site-local multicast packet (ff05::1) at a site boundary router. Verify it is NOT forwarded across the boundary.\n\nStep 4 — Operationalize\n**Dashboard:** Multicast scope compliance. **Alert:** Any scope violation — high.\n\nStep 5 — Troubleshooting\n• Missing scope boundary: Add `ipv6 multicast boundary scope 5` to site border interfaces.",
   "grandmaExplanation": "Some messages on our network are meant for everyone in the same room (link-local), everyone in the same building (site-local), or everyone in the whole company (organization). We make sure that room messages don't accidentally get broadcast to the whole building, and building messages don't leak out to other buildings.",
-  "prerequisiteUseCases": ["5.20.109"],
+  "prerequisiteUseCases": [
+    "UC-5.20.109"
+  ],
   "wave": "walk"
 }

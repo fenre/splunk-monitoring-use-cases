@@ -45,6 +45,7 @@ def render_html(
 
     page_url = f"{ctx.site_url}/uc/UC-{uc_id}/"
     json_url = f"{ctx.site_url}/uc/UC-{uc_id}/index.json"
+    md_url = f"{ctx.site_url}/uc/UC-{uc_id}/uc.md"
     cat_url = f"{ctx.site_url}/category/{cat_slug}/"
 
     description = _helpers.truncate(value or _helpers.first_paragraph(uc.get("md", "")), 160)
@@ -141,6 +142,7 @@ def render_html(
         description=_helpers.attr(description),
         canonical=_helpers.attr(page_url),
         json_alt=_helpers.attr(json_url),
+        md_alt=_helpers.attr(md_url),
         og_title=_helpers.attr(f"UC-{uc_id} — {title}"),
         og_url=_helpers.attr(page_url),
         og_image=_helpers.attr(f"{ctx.site_url}/og-image-1200.png"),
@@ -164,6 +166,7 @@ def render_html(
         body=body,
         jsonld=jsonld,
         json_url=_helpers.attr(json_url),
+        md_url=_helpers.attr(md_url),
         repo_url=_helpers.attr(ctx.repo_url),
         site_url_safe=_helpers.attr(ctx.site_url),
     )
@@ -221,6 +224,7 @@ def render_index_json(
         "url": page_url,
         "html": page_url,
         "json": f"{page_url}index.json",
+        "markdown": f"{page_url}uc.md",
         "category": {
             "id": cat.get("i"),
             "slug": cat_slug,
@@ -240,6 +244,229 @@ def render_index_json(
     if ordering:
         payload["implementationOrdering"] = ordering
     return payload
+
+
+# ---------------------------------------------------------------------------
+# Plain-markdown twin — LLM-friendly UC representation
+# ---------------------------------------------------------------------------
+
+
+def render_markdown_twin(
+    uc: dict[str, Any],
+    cat: dict[str, Any],
+    sub: dict[str, Any],
+    cat_slug: str,
+    *,
+    ctx: _helpers.RenderContext,
+) -> str:
+    """Render a clean-markdown twin for ``/uc/UC-X.Y.Z/uc.md``.
+
+    The HTML page at ``index.html`` is wrapped in CSS, JSON-LD, and a
+    progressive-enhancement header. AI agents and ``curl`` users do not
+    benefit from any of that — they want the SPL, the description, and
+    the metadata in plain text.
+
+    This twin is intentionally:
+
+    * Pure markdown, no HTML.
+    * Deterministic — same input produces byte-identical output.
+    * Lightweight — typically 2-6 KB per UC.
+    * Self-contained — links back to the canonical HTML page and JSON
+      twin so a follow-up fetch is one hop away.
+
+    Output shape:
+
+        # UC-X.Y.Z — Title
+
+        > Plain-language explanation (grandmaExplanation, when present).
+
+        | Field | Value |
+        | ... quick-facts table ...
+
+        ## Description, ## Value, ## SPL, ## CIM SPL,
+        ## Implementation, ## Visualization, ## Known false positives,
+        ## CIM models, ## MITRE ATT&CK, ## Regulations,
+        ## References, ## Plain-language explanation.
+
+    Sections with empty source fields are omitted.
+    """
+    uc_id = str(uc.get("i", ""))
+    title = str(uc.get("n", uc_id))
+    page_url = f"{ctx.site_url}/uc/UC-{uc_id}/"
+    json_url = f"{ctx.site_url}/uc/UC-{uc_id}/index.json"
+
+    last_modified = str(uc.get("reviewed") or "").strip() or ctx.generated_at
+
+    lines: list[str] = []
+    lines.append(f"# UC-{uc_id} — {title}")
+    lines.append("")
+    lines.append(
+        f"> Canonical HTML: {page_url}  ·  JSON twin: {json_url}"
+    )
+    lines.append(
+        f"> Last-modified: {last_modified}  ·  Catalogue-version: {ctx.version}"
+    )
+    lines.append("")
+
+    ge = str(uc.get("ge") or "").strip()
+    if ge:
+        lines.append("## In plain language")
+        lines.append("")
+        lines.append(f"> {ge}")
+        lines.append("")
+
+    facts: list[tuple[str, str]] = []
+
+    def _add_fact(label: str, raw: Any) -> None:
+        if raw is None or raw == "" or raw == [] or raw == {}:
+            return
+        if isinstance(raw, (list, tuple)):
+            value = ", ".join(str(v) for v in raw if v not in (None, ""))
+        else:
+            value = str(raw).strip()
+        if not value:
+            return
+        # Pipe characters in markdown table cells need escaping.
+        value = value.replace("|", "\\|").replace("\n", " ")
+        facts.append((label, value))
+
+    cat_name = str(cat.get("n", ""))
+    sub_name = str(sub.get("n", ""))
+    _add_fact("Category", f"{cat.get('i')} — {cat_name}" if cat_name else "")
+    _add_fact("Subcategory", sub_name)
+    _add_fact("Criticality", uc.get("c"))
+    _add_fact("Difficulty", uc.get("f"))
+    _add_fact("Wave", uc.get("wv"))
+    _add_fact("Monitoring type", uc.get("mtype"))
+    _add_fact("Pillar", uc.get("pillar"))
+    _add_fact("App / TA", uc.get("t"))
+    _add_fact("Data sources", uc.get("d"))
+    _add_fact("CIM models", uc.get("a"))
+    _add_fact("Required fields", uc.get("reqf"))
+    _add_fact("Data type", uc.get("dtype"))
+    _add_fact("Security domain", uc.get("sdomain"))
+    _add_fact("Equipment", uc.get("e"))
+    _add_fact("Equipment models", uc.get("em"))
+    _add_fact("Splunk versions", uc.get("sver"))
+    _add_fact("Status", uc.get("status"))
+    _add_fact("Last reviewed", uc.get("reviewed"))
+
+    if facts:
+        lines.append("## Quick facts")
+        lines.append("")
+        lines.append("| Field | Value |")
+        lines.append("| --- | --- |")
+        for label, value in facts:
+            lines.append(f"| {label} | {value} |")
+        lines.append("")
+
+    pre = uc.get("pre") or []
+    if isinstance(pre, (list, tuple)) and pre:
+        lines.append("## Prerequisite use cases")
+        lines.append("")
+        for p in pre:
+            p_str = str(p).strip()
+            if not p_str:
+                continue
+            short = p_str[3:] if p_str.startswith("UC-") else p_str
+            lines.append(
+                f"- [{p_str}]({ctx.site_url}/uc/UC-{short}/)"
+            )
+        lines.append("")
+
+    enables = tuple(ctx.uc_reverse_prereq.get(f"UC-{uc_id}", ()))
+    if enables:
+        lines.append("## Enables")
+        lines.append("")
+        for e in enables:
+            short = e[3:] if e.startswith("UC-") else e
+            lines.append(
+                f"- [{e}]({ctx.site_url}/uc/UC-{short}/)"
+            )
+        lines.append("")
+
+    def _add_text_section(heading: str, raw: Any) -> None:
+        text = str(raw or "").strip()
+        if not text:
+            return
+        lines.append(f"## {heading}")
+        lines.append("")
+        lines.append(text)
+        lines.append("")
+
+    def _add_code_section(heading: str, raw: Any, lang: str = "spl") -> None:
+        text = str(raw or "").strip()
+        if not text:
+            return
+        lines.append(f"## {heading}")
+        lines.append("")
+        lines.append(f"```{lang}")
+        lines.append(text)
+        lines.append("```")
+        lines.append("")
+
+    _add_text_section("Description", uc.get("md") or uc.get("v"))
+    _add_text_section("Value", uc.get("v"))
+    _add_code_section("SPL", uc.get("q"), "spl")
+    _add_code_section("CIM SPL (tstats)", uc.get("qs"), "spl")
+    _add_text_section("Implementation", uc.get("m"))
+    _add_text_section("Detailed implementation", uc.get("md"))
+    _add_text_section("Visualization", uc.get("z"))
+
+    kfp = uc.get("kfp")
+    if kfp:
+        lines.append("## Known false positives")
+        lines.append("")
+        if isinstance(kfp, (list, tuple)):
+            for item in kfp:
+                if str(item).strip():
+                    lines.append(f"- {str(item).strip()}")
+        else:
+            lines.append(str(kfp).strip())
+        lines.append("")
+
+    mitre = uc.get("mitre") or []
+    if isinstance(mitre, (list, tuple)) and mitre:
+        lines.append("## MITRE ATT&CK")
+        lines.append("")
+        for t in mitre:
+            t_str = str(t).strip()
+            if t_str:
+                lines.append(f"- {t_str}")
+        lines.append("")
+
+    regs = uc.get("regs") or []
+    if isinstance(regs, (list, tuple)) and regs:
+        lines.append("## Regulations")
+        lines.append("")
+        for r in regs:
+            r_str = str(r).strip()
+            if r_str:
+                lines.append(f"- {r_str}")
+        lines.append("")
+
+    refs = uc.get("refs") or []
+    if isinstance(refs, (list, tuple)) and refs:
+        lines.append("## References")
+        lines.append("")
+        for r in refs:
+            r_str = str(r).strip()
+            if r_str:
+                lines.append(f"- {r_str}")
+        lines.append("")
+
+    lines.append("---")
+    lines.append("")
+    lines.append(
+        f"Source: [Splunk Monitoring Use Cases]({ctx.site_url}/) — "
+        f"licensed MIT. UC-IDs are stable; see "
+        f"[/llms.txt]({ctx.site_url}/llms.txt) for the catalog index "
+        f"and [/AGENTS.md]({ctx.site_url}/AGENTS.md) for the agent "
+        f"entrypoint."
+    )
+    lines.append("")
+
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -674,6 +901,7 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
 <link rel="canonical" href="{canonical}">
 <link rel="alternate" type="application/json" href="{json_alt}" title="JSON twin">
 <link rel="alternate" type="application/json" href="{json_alt}">
+<link rel="alternate" type="text/markdown" href="{md_alt}" title="LLM-friendly markdown twin">
 <meta property="og:type" content="article">
 <meta property="og:title" content="{og_title}">
 <meta property="og:description" content="{description}">
@@ -715,7 +943,7 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
 </header>
 {body}
 <footer>
-<p><a href="{json_url}" rel="alternate">JSON twin →</a></p>
+<p><a href="{json_url}" rel="alternate">JSON twin →</a> <a href="{md_url}" rel="alternate">Markdown twin →</a></p>
 </footer>
 </article>
 </main>

@@ -1,0 +1,89 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.75",
+  "title": "ISE Downloadable ACL (dACL) Push Failures and ACL-Length Truncation Detection",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Operations",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authorization* + *Failed-Attempts* — codes `5436` (dACL push successful), `5437` (dACL push failed), `5438` (dACL too long for switch). Field: `dacl_name`, `dacl_size_bytes`, `nas_ip`, `failure_reason`.",
+  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5437, 5438)\n| stats count by dacl_name, nas_ip, MessageCode, failure_reason\n| where count > 5",
+  "description": "Detects: (a) dACLs that fail to push to switches (incompatible IOS, ACL syntax errors). (b) dACLs that are truncated by switches with limited TCAM (older Catalyst with shallow ACL TCAM).",
+  "value": "Truncated dACLs silently weaken access control — the policy in ISE may allow X but the switch enforces Y. Catching dACL push failures lets policy engineering correct ACL design.",
+  "implementation": "Schedule the search every 1 hour over the last 24 hours; trigger when dACL drift is observed; throttle by `dacl_name` for 24 hours.",
+  "visualization": "dACL push failure trend; per-dACL failure heatmap.",
+  "cimModels": [],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 — Downloadable ACLs",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_dot1x_implementation.html"
+    }
+  ],
+  "knownFalsePositives": "(a) Intermittent push failures during NAD reboot.\n(b) Older Catalyst 2960 series have known ACL-length limits.",
+  "mitreAttack": [
+    "N/A (policy hygiene — measures dACL/AuthZ profile drift, no adversary technique)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "1.4.5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI 1.4.5 — segmentation enforcement integrity.",
+      "controlObjective": "Segmentation policy integrity.",
+      "evidenceArtifact": "UC-17.1.75 alert log.",
+      "obligationRef": "pci-dss@v4.0#1.4.5",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AC-4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "AC-4 information flow enforcement.",
+      "controlObjective": "Information flow enforcement.",
+      "evidenceArtifact": "UC-17.1.75 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#AC-4",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.20",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.20 networks segregation.",
+      "controlObjective": "Network segmentation enforcement.",
+      "evidenceArtifact": "UC-17.1.75 alert log.",
+      "obligationRef": "iso-27001@2022#A.8.20",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Push an oversized dACL to an old switch. UC-17.1.75 detects 5438 truncation.",
+    "negativeScenario": "Reasonable dACLs to current switches. No fires."
+  },
+  "detailedImplementation": "Standard pattern.",
+  "grandmaExplanation": "ISE pushes access rules to switches when a user connects. If the rule is too big or the switch can't accept it, the rule may be cut short — and the user gets less restricted than intended. We watch for these silent rule failures.",
+  "wave": "walk"
+}

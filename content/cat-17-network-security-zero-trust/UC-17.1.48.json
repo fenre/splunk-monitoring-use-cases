@@ -1,0 +1,116 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.48",
+  "title": "Cisco ISE Restore Audit and Configuration-Drift Detection Post-Restore",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Administrative and Operational Audit* category — restore codes `51040` (restore initiated), `51041` (restore completed), `51042` (restore failed), `51043` (restore partial), `51044` (post-restore replication mismatch). Fields: `restore_source`, `triggered_by`, `restore_type` (config|operational|standalone). Combined with the ISE config-export feed: an OpenAPI poller dumps the active policy set (`/api/v1/authz-policy`, `/api/v1/identity-store`) every 1h and writes to `index=nac sourcetype=cisco:ise:config_export`.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (51040, 51041, 51042, 51043, 51044))\n  OR (index=nac sourcetype=\"cisco:ise:config_export\")\n| stats count latest(_time) as last_event values(triggered_by) as admins by restore_type, MessageCode\n| where count > 0",
+  "description": "Audits all ISE restore operations (rare but high-impact events) and detects config drift in the immediate post-restore window — symptoms of an incomplete restore or a configuration roll-back gone wrong.",
+  "value": "Restoring ISE from backup is a high-risk operation; it overwrites current policies with the policies from the backup snapshot. Any in-flight policy work between the backup time and the restore time is lost. This UC ensures every restore is audited in real time and triggers a config-drift comparison against pre-restore state to surface unexpected loss.",
+  "implementation": "Confirm *Administrative and Operational Audit* category at INFO. The config-export OpenAPI poller is required for the drift comparison. Schedule the search every 30 min, search window `-4h@h to @h`, trigger on count > 0 (any restore event is alert-worthy).",
+  "visualization": "(1) Audit table: restore events last 365d. (2) Diff panel post-restore: count of authz rules changed, identity stores reconfigured, certs replaced.",
+  "cimModels": [
+    "Change"
+  ],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 Admin Guide — Backup and Restore",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_maintain.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **Lab restore drills** — Periodic restore exercises in lab environments will fire. Tag those nodes with `environment=lab` and exclude. (b) **Disaster-recovery exercise** — Annual DR exercise restores prod backup to DR; suppress within scheduled DR-exercise window.",
+  "mitreAttack": [
+    "N/A (platform lifecycle — ISE restore drill validation, no adversary technique)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "10.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI 10.2 audit trails — restore events are auditable system actions.",
+      "controlObjective": "Audit trail for restore actions.",
+      "evidenceArtifact": "UC-17.1.48 audit log retained 1y.",
+      "obligationRef": "pci-dss@v4.0#10.2",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "SOX ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.ChangeMgmt.Authorization",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "SOX-ITGC change management — restore is a change requiring audit.",
+      "controlObjective": "Change-management audit for restore actions.",
+      "evidenceArtifact": "UC-17.1.48 audit log.",
+      "obligationRef": "sox-itgc@PCAOB AS 2201#ITGC.ChangeMgmt.Authorization",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(c)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(c) — restore is part of backup/restore lifecycle.",
+      "controlObjective": "Restore lifecycle audit.",
+      "evidenceArtifact": "UC-17.1.48 audit log.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(c)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "CP-10",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "CP-10 (System Recovery and Reconstitution) — restore evidence.",
+      "controlObjective": "Continuity-of-operations evidence for ISE backup-and-restore readiness.",
+      "evidenceArtifact": "UC-17.1.48 audit log.",
+      "obligationRef": "nist-800-53@Rev. 5#CP-10",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.5.30",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.5.30 ICT readiness — restore audit.",
+      "controlObjective": "ICT readiness audit.",
+      "evidenceArtifact": "UC-17.1.48 audit log.",
+      "obligationRef": "iso-27001@2022#A.5.30",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Initiate a restore on a lab ISE. ISE emits 51040 followed by 51041. UC-17.1.48 captures both events.",
+    "negativeScenario": "No restore activity. UC-17.1.48 returns no rows."
+  },
+  "detailedImplementation": "Prerequisites\n• Same as UC-17.1.47.\n• Config-export poller deployed.\n\nStep 1 — Configure data collection\nDouble-check *Administrative and Operational Audit* INFO. Deploy config-export poller.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke a lab restore.\n\nStep 4 — Operationalize\nDashboard \"ISE — Restore Audit\":\n• 365-day audit log table.\n• Drift diff panel post-restore.\n\nNotification: Slack to `#ise-platform` on any restore event.\n\nStep 5 — Troubleshooting\n• **Restore initiated but no completion event** — Restore in progress; large operational-data restores can take 30–60 min.\n• **Drift panel shows huge diff** — Backup was significantly older than current state; coordinate with the change team to reapply lost changes.\n• **`triggered_by` empty** — Restore was triggered via CLI; admin user not captured in syslog. Cross-reference with shell login records.",
+  "grandmaExplanation": "If someone restores ISE from a safety copy — like rolling back to last week's notebook — we record exactly what happened so we know what was kept and what was lost.",
+  "wave": "walk"
+}

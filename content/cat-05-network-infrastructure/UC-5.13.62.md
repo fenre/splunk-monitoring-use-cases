@@ -165,5 +165,5 @@ index=catalyst sourcetype="cisco:dnac:wireless:rf"
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center RF Health APIs](https://developer.cisco.com/docs/catalyst-center/#!retrieve-rf-profiles)
-- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
+- [Catalyst Center Integration Guide (this repo)](../../docs/guides/catalyst-center.md)
 - [Cisco Wireless Design — RF Planning and Channel Management](https://www.cisco.com/c/en/us/solutions/design-zone/networking-design-guides/campus-wired-wireless.html)

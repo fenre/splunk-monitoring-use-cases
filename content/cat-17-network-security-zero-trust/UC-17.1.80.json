@@ -1,0 +1,104 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.80",
+  "title": "ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ISE ANC events `index=nac sourcetype=cisco:ise:syslog` MessageCode 86001 (ANC-applied) — combined with ES notable events `index=notable` and firewall/IDS data showing whether the endpoint's malicious traffic stopped after ANC. Time-window correlation: ANC apply time vs. last malicious event time per endpoint MAC.",
+  "app": "`Splunk Add-on for Cisco Identity Services` + Splunk Enterprise Security.",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=86001 anc_action=quarantine\n| eval anc_time=_time, endpoint_mac=mac\n| join endpoint_mac [search index=notable severity=high earliest=-1d | rename _time as last_attack_time]\n| eval quarantine_to_attack_stop=anc_time - last_attack_time\n| stats avg(quarantine_to_attack_stop) as avg_seconds, count by anc_policy",
+  "description": "Measures whether ANC quarantine actually stops the malicious activity. Correlates ANC timestamp with the last observed malicious event — if attacks continue post-ANC, the closed loop is broken.",
+  "value": "ANC is only as good as the network enforcement that follows. If switches don't enforce CoA, malicious activity continues — ANC becomes theatre. This UC measures the actual security outcome, not just the ANC API call.",
+  "implementation": "Schedule every 30 min.",
+  "visualization": "Quarantine-to-stop time gauge; per-endpoint timeline; failed-quarantine list.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "dataModelAcceleration": "Yes — Alerts.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 — Adaptive Network Control",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_anc_policy.html"
+    }
+  ],
+  "knownFalsePositives": "(a) Endpoint moved to a different switch port — CoA didn't propagate. Operations issue.\n(b) Endpoint legitimately back on network after admin unquarantine.",
+  "mitreAttack": [
+    "N/A (response-loop telemetry — measures ANC closed-loop quarantine flow, no adversary technique)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(b)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(b) incident-response effectiveness.",
+      "controlObjective": "Containment effectiveness.",
+      "evidenceArtifact": "UC-17.1.80 alert log.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(b)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.17",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "DORA Art.17 ICT-related incident management — containment metrics.",
+      "controlObjective": "Containment-effectiveness KPI for adaptive-network-control quarantine actions.",
+      "evidenceArtifact": "UC-17.1.80 alert log.",
+      "obligationRef": "dora@Regulation (EU) 2022/2554#Art.17",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "IR-4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "IR-4 incident handling — containment efficacy.",
+      "controlObjective": "Incident containment efficacy.",
+      "evidenceArtifact": "UC-17.1.80 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#IR-4",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.5.26",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.5.26 response to information security incidents.",
+      "controlObjective": "Incident response efficacy.",
+      "evidenceArtifact": "UC-17.1.80 alert log.",
+      "obligationRef": "iso-27001@2022#A.5.26",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Quarantine an endpoint actively attacking. Measure time until malicious traffic stops. Should be <2 minutes; otherwise UC-17.1.80 fires.",
+    "negativeScenario": "Quarantine immediately stops attack. Healthy KPI."
+  },
+  "detailedImplementation": "Standard pattern.",
+  "grandmaExplanation": "ISE can quarantine a misbehaving device. We measure if the bad activity actually stops after quarantine — sometimes the quarantine doesn't take effect, and bad traffic continues.",
+  "wave": "run"
+}

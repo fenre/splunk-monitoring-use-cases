@@ -161,5 +161,5 @@ index=catalyst sourcetype="cisco:dnac:swim" (eolStatus="END_OF_LIFE" OR eolStatu
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Cisco End-of-Life and End-of-Sale Notices](https://www.cisco.com/c/en/us/products/end-of-life-policy.html)
-- [Catalyst Center Integration Guide — Custom Scripted Inputs](docs/guides/catalyst-center.md#custom-scripted-inputs)
+- [Catalyst Center Integration Guide — Custom Scripted Inputs](../../docs/guides/catalyst-center.md#custom-scripted-inputs)
 - [NIST SP 800-53 Rev. 5 — SA-22 Unsupported System Components](https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_0/home?element=SA-22)

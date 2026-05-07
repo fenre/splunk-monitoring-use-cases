@@ -4,7 +4,10 @@
   "title": "IPv6 Address Stability and Interface ID Tracking (RFC 7217 / RFC 8981)",
   "criticality": "medium",
   "difficulty": "intermediate",
-  "monitoringType": ["Security", "Compliance"],
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
   "splunkPillar": "Platform",
   "dataSources": "`index=network` or `index=os` — Tracks IPv6 interface identifier generation methods across the network: deprecated EUI-64 (embeds MAC address), RFC 7217 stable OPAQUE identifiers, and RFC 8981 temporary addresses. Understanding which method each host uses is critical for privacy compliance (GDPR — see UC-5.20.93), forensic correlation, and address tracking.\n\n**Interface ID methods:**\n1. **EUI-64 (deprecated by RFC 8064).** Embeds the host's MAC address in the IPv6 address. Creates a persistent identifier that can track devices across networks.\n2. **RFC 7217 stable OPAQUE.** Generates a stable-within-a-network address that changes when the host moves to a different network. Does not embed the MAC. Recommended for server/infrastructure use.\n3. **RFC 8981 temporary addresses.** Short-lived addresses that change periodically (default: every few hours). Used for outbound connections to prevent tracking. Challenging for forensic correlation.",
   "app": "Splunk Enterprise",
@@ -14,19 +17,44 @@
   "implementation": "Analyse IPv6 source addresses for EUI-64 patterns (::ffXX:XXXX:XXXX with ff:fe in the middle). Track the distribution of address types over time.",
   "visualization": "(1) Pie chart: address type distribution. (2) Table: hosts using EUI-64 (remediation targets). (3) Trend: EUI-64 usage declining over time.",
   "references": [
-    {"title": "RFC 7217 — A Method for Generating Semantically Opaque Interface Identifiers", "url": "https://www.rfc-editor.org/rfc/rfc7217"},
-    {"title": "RFC 8981 — Temporary Address Extensions for Stateless Address Autoconfiguration in IPv6", "url": "https://www.rfc-editor.org/rfc/rfc8981"},
-    {"title": "RFC 8064 — Recommendation on Stable IPv6 Interface Identifiers", "url": "https://www.rfc-editor.org/rfc/rfc8064"}
+    {
+      "title": "RFC 7217 — A Method for Generating Semantically Opaque Interface Identifiers",
+      "url": "https://www.rfc-editor.org/rfc/rfc7217"
+    },
+    {
+      "title": "RFC 8981 — Temporary Address Extensions for Stateless Address Autoconfiguration in IPv6",
+      "url": "https://www.rfc-editor.org/rfc/rfc8981"
+    },
+    {
+      "title": "RFC 8064 — Recommendation on Stable IPv6 Interface Identifiers",
+      "url": "https://www.rfc-editor.org/rfc/rfc8064"
+    }
   ],
   "knownFalsePositives": "**Server addresses.** Servers often use static IPv6 addresses that may look like low-byte or manual assignments. These are intentional.\n\n**Router interfaces.** Router-facing interfaces typically use manually assigned addresses. Not a concern.",
-  "equipment": ["cisco", "microsoft", "apple", "linux"],
-  "equipmentModels": ["cisco_catalyst_9000", "windows_10_11", "macos", "linux"],
+  "equipment": [
+    "cisco",
+    "microsoft",
+    "apple",
+    "linux"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9000",
+    "windows_10_11",
+    "macos",
+    "linux"
+  ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• IPv6 traffic logs in Splunk.\n\nStep 1 — Configure data collection\nNo special configuration needed — this UC analyses existing traffic data.\n\nStep 2 — Create monitoring searches\n\n**EUI-64 device identification (remediation targets):**\n```spl\nindex=network earliest=-7d\n| eval is_eui64=if(match(src, \"[Ff][Ff][Ff][Ee]\"), 1, 0)\n| where is_eui64=1\n| rex field=src \"(?<prefix>[0-9a-fA-F:]+):(?<iid_high>[0-9a-fA-F]{1,4}):[Ff][Ff][Ff][Ee]:(?<iid_low>[0-9a-fA-F:]+)$\"\n| eval mac_oui=replace(iid_high . \":ff:fe:\" . iid_low, \"(..)(..):ff:fe:(..)(..)\", \"\\1:\\2:XX:XX:\\3:\\4\")\n| stats dc(src) as addresses count as events by mac_oui\n| sort -events\n```\n\nStep 3 — Validate\nCheck a known device's IPv6 address. If it contains ff:fe, it's using EUI-64.\n\nStep 4 — Operationalize\n**Dashboard:** Address type distribution. **Alert:** EUI-64 percentage increasing — regression.\n\nStep 5 — Troubleshooting\n• **Disabling EUI-64 on Linux:** `sysctl -w net.ipv6.conf.all.addr_gen_mode=2` (RFC 7217 stable privacy).\n• **Windows:** RFC 7217 is default since Windows 10 1703.",
   "grandmaExplanation": "Old-style IPv6 addresses embedded your device's unique hardware number (like a license plate), so anyone could track where you go. Modern addresses are like changing disguises — they look different on each network. We check how many devices on our network still have the old trackable addresses and need to be updated to the new anonymous style.",
-  "prerequisiteUseCases": ["5.20.6", "5.20.93"],
+  "prerequisiteUseCases": [
+    "UC-5.20.6",
+    "UC-5.20.93"
+  ],
   "wave": "walk"
 }

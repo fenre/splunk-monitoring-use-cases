@@ -42,7 +42,7 @@ Applies to covered entities (health plans, healthcare clearinghouses, most healt
 - **Clauses tracked**: 15
 - **Clauses covered by at least one UC**: 15 / 15 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 37
+- **Contributing UCs**: 44
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -55,18 +55,18 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`§164.308(a)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(1)) | Security management process | 1.0 | `partial` | [UC-22.10.1](#uc-22-10-1), [UC-22.10.2](#uc-22-10-2), [UC-22.10.22](#uc-22-10-22), [UC-22.10.55](#uc-22-10-55) |
 | [`§164.308(a)(3)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(3)) | Workforce security | 1.0 | `partial` | [UC-22.10.4](#uc-22-10-4) |
 | [`§164.308(a)(4)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(4)) | Information access management | 1.0 | `full` | [UC-22.10.21](#uc-22-10-21) |
-| [`§164.308(a)(5)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(5)) | Security awareness and training | 0.7 | `full` | [UC-22.10.6](#uc-22-10-6), [UC-22.46.1](#uc-22-46-1), [UC-22.6.53](#uc-22-6-53) |
+| [`§164.308(a)(5)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(5)) | Security awareness and training | 0.7 | `full` | [UC-17.1.53](#uc-17-1-53), [UC-22.10.6](#uc-22-10-6), [UC-22.46.1](#uc-22-46-1), [UC-22.6.53](#uc-22-6-53) |
 | [`§164.308(a)(6)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(6)) | Security incident procedures | 1.0 | `partial` | [UC-22.10.56](#uc-22-10-56), [UC-22.10.7](#uc-22-10-7), [UC-22.39.1](#uc-22-39-1) |
-| [`§164.308(a)(7)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(7)) | Contingency plan | 1.0 | `full` | [UC-22.10.8](#uc-22-10-8), [UC-22.45.2](#uc-22-45-2) |
+| [`§164.308(a)(7)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(7)) | Contingency plan | 1.0 | `full` | [UC-17.1.47](#uc-17-1-47), [UC-22.10.8](#uc-22-10-8), [UC-22.45.2](#uc-22-45-2) |
 | [`§164.308(a)(8)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(8)) | Evaluation | 0.7 | `partial` | [UC-22.10.9](#uc-22-10-9) |
 | [`§164.310(a)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.310(a)(1)) | Facility access controls | 1.0 | `partial` | [UC-22.10.31](#uc-22-10-31) |
-| [`§164.310(d)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.310(d)(1)) | Device and media controls | 0.7 | `full` | [UC-22.10.29](#uc-22-10-29), [UC-22.49.1](#uc-22-49-1), [UC-22.49.2](#uc-22-49-2) |
+| [`§164.310(d)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.310(d)(1)) | Device and media controls | 0.7 | `full` | [UC-17.1.50](#uc-17-1-50), [UC-22.10.29](#uc-22-10-29), [UC-22.49.1](#uc-22-49-1), [UC-22.49.2](#uc-22-49-2) |
 | [`§164.312(a)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(a)(1)) | Access control | 1.0 | `contributing` | [UC-22.10.21](#uc-22-10-21), [UC-22.10.24](#uc-22-10-24), [UC-22.10.25](#uc-22-10-25) |
 | [`§164.312(a)(2)(iv)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(a)(2)(iv)) | Encryption and decryption | 0.7 | `full` | [UC-22.10.16](#uc-22-10-16), [UC-22.41.1](#uc-22-41-1) |
-| [`§164.312(b)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(b)) | Audit controls | 1.0 | `contributing` | [UC-10.12.16](#uc-10-12-16), [UC-22.10.17](#uc-22-10-17), [UC-22.10.36](#uc-22-10-36) |
+| [`§164.312(b)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(b)) | Audit controls | 1.0 | `partial` | [UC-10.12.16](#uc-10-12-16), [UC-17.1.43](#uc-17-1-43), [UC-22.10.17](#uc-22-10-17), [UC-22.10.36](#uc-22-10-36), [UC-22.10.58](#uc-22-10-58) |
 | [`§164.312(c)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(c)(1)) | Integrity | 1.0 | `full` | [UC-22.10.18](#uc-22-10-18), [UC-22.10.27](#uc-22-10-27), [UC-22.35.2](#uc-22-35-2) |
-| [`§164.312(d)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(d)) | Person or entity authentication | 1.0 | `contributing` | [UC-22.10.19](#uc-22-10-19), [UC-22.10.23](#uc-22-10-23), [UC-22.10.42](#uc-22-10-42) |
-| [`§164.312(e)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(e)(1)) | Transmission security | 1.0 | `full` | [UC-22.10.20](#uc-22-10-20), [UC-22.10.22](#uc-22-10-22), [UC-22.10.26](#uc-22-10-26), [UC-22.41.2](#uc-22-41-2), [UC-22.8.31](#uc-22-8-31), [UC-22.8.38](#uc-22-8-38) |
+| [`§164.312(d)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(d)) | Person or entity authentication | 1.0 | `contributing` | [UC-17.1.38](#uc-17-1-38), [UC-22.10.19](#uc-22-10-19), [UC-22.10.23](#uc-22-10-23), [UC-22.10.42](#uc-22-10-42) |
+| [`§164.312(e)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(e)(1)) | Transmission security | 1.0 | `full` | [UC-17.1.31](#uc-17-1-31), [UC-22.10.20](#uc-22-10-20), [UC-22.10.22](#uc-22-10-22), [UC-22.10.26](#uc-22-10-26), [UC-22.41.2](#uc-22-41-2), [UC-22.8.31](#uc-22-8-31) (+1 more) |
 
 ### 4.1 Contributing UC detail
 
@@ -76,6 +76,42 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [`content/cat-10-security-infrastructure/UC-10.12.16.json`](../../content/cat-10-security-infrastructure/UC-10.12.16.json)
+<a id='uc-17-1-31'></a>
+- **UC-17.1.31** — Cisco ISE Certificate Expiry and Trust-Chain Health
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.31.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.31.json)
+<a id='uc-17-1-38'></a>
+- **UC-17.1.38** — EAP-TLS Client Certificate Failure and Trust-Chain Validation
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.38.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.38.json)
+<a id='uc-17-1-43'></a>
+- **UC-17.1.43** — Cisco ISE TACACS+ Device Administration — Privileged Command Auditing
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.43.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.43.json)
+<a id='uc-17-1-47'></a>
+- **UC-17.1.47** — Cisco ISE Backup Job Success and Operational-Data Backup Validation
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.47.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.47.json)
+<a id='uc-17-1-50'></a>
+- **UC-17.1.50** — Cisco ISE — MDM/UEM Connector Health and Compliance Drift
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.50.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.50.json)
+<a id='uc-17-1-53'></a>
+- **UC-17.1.53** — Posture Remediation Funnel — Detection-to-Compliant Conversion Rate
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.53.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.53.json)
 <a id='uc-22-10-1'></a>
 - **UC-22.10.1** —
   - Control family: `—`
@@ -122,7 +158,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-22.10.21** — Access Control — Role-Based Violations (Coder Accessing Medication Admin)
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.10.21.json`](../../content/cat-22-regulatory-compliance/UC-22.10.21.json)
 <a id='uc-22-10-22'></a>
 - **UC-22.10.22** —
@@ -202,6 +238,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
+<a id='uc-22-10-58'></a>
+- **UC-22.10.58** — HIPAA 164.312(b) — Endpoint Posture Compliance Evidence on Healthcare Endpoints
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.10.58.json`](../../content/cat-22-regulatory-compliance/UC-22.10.58.json)
 <a id='uc-22-10-6'></a>
 - **UC-22.10.6** —
   - Control family: `—`
@@ -417,7 +459,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 7.3
+catalogue_version: 7.4.1
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     05d15d6f921fc6af3c7dbfacf931dcfd40d45bd1e8a91ef250232b39e24f110e
 ```

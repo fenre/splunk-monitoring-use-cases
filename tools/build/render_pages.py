@@ -133,6 +133,9 @@ def _emit_uc(
     twin = t_uc.render_index_json(uc, cat, sub, cat_slug, ctx=ctx)
     _write_json(uc_dir / "index.json", twin, reproducible=reproducible)
 
+    md_twin = t_uc.render_markdown_twin(uc, cat, sub, cat_slug, ctx=ctx)
+    (uc_dir / "uc.md").write_text(md_twin, encoding="utf-8")
+
 
 def _emit_category(
     cat: dict,
@@ -318,9 +321,25 @@ def _build_context(catalog: Catalog, *, reproducible: bool) -> _helpers.RenderCo
             "REPO_URL",
             "https://github.com/fenre/splunk-monitoring-use-cases",
         ),
+        version=_read_catalogue_version(catalog.project_root),
         uc_reverse_prereq=uc_reverse_prereq,
         uc_title_index=uc_title_index,
     )
+
+
+def _read_catalogue_version(project_root: Path) -> str:
+    """Read the catalogue version from ``/VERSION`` (canonical source).
+
+    Falls back to ``"0.0.0"`` so a missing file never breaks the build —
+    consumers that key off the version string treat that as ``unset``.
+    """
+    p = project_root / "VERSION"
+    if p.exists() and p.is_file():
+        try:
+            return p.read_text(encoding="utf-8").strip() or "0.0.0"
+        except OSError:
+            return "0.0.0"
+    return "0.0.0"
 
 
 def _build_uc_prereq_indexes(

@@ -1,0 +1,138 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.32",
+  "title": "Cisco ISE License Consumption, Endpoint Capacity and MnT Log Retention",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Capacity",
+    "Compliance",
+    "Operations"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "Three feeds. (1) ISE syslog `index=nac sourcetype=cisco:ise:syslog` — license-related codes under *Administrative and Operational Audit*: `52070` (license expiring), `52071` (license expired), `52072` (license capacity warning ≥80%), `52073` (license capacity critical ≥95%), `52074` (license consumed for new tier — Premier/Advantage/Essentials). MnT log retention thresholds emit under *System Statistics*: `60530` (MnT operational data nearing retention threshold), `60531` (MnT log purge started), `60532` (MnT log purge errored). (2) ISE OpenAPI `/api/v1/license/system` (smart licensing summary) and `/api/v1/license/connection-info` polled every 1h, written to `index=nac sourcetype=cisco:ise:license`. Fields: `tier` (Essentials|Advantage|Premier), `entitled_count`, `consumed_count`, `expiry`, `smart_account`, `transport_state` (CONNECTED|DISCONNECTED|EVAL). (3) MnT operational-data summary from the OpenAPI `/api/v1/operations/data-purge-status` polled every 6h to `index=nac sourcetype=cisco:ise:mnt_retention`. Fields: `db_size_gb`, `oldest_event`, `retention_days_actual`, `retention_days_configured`. CIM mapping: not applicable for license; operational data optional.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) for syslog. Custom modular input (Splunkbase 1546 or Python) for OpenAPI license + retention feeds.",
+  "spl": "(index=nac sourcetype=\"cisco:ise:license\")\n| stats latest(consumed_count) as consumed, latest(entitled_count) as entitled, latest(expiry) as expiry, latest(transport_state) as transport_state by tier\n| eval consumption_pct = round((consumed / entitled) * 100, 1)\n| eval days_to_expiry = round((strptime(expiry, \"%Y-%m-%dT%H:%M:%S\") - now()) / 86400, 0)\n| eval status = case(\n    transport_state==\"DISCONNECTED\", \"CRITICAL_DISCONNECTED\",\n    consumption_pct >= 95 OR days_to_expiry < 30, \"CRITICAL\",\n    consumption_pct >= 80 OR days_to_expiry < 60, \"HIGH\",\n    consumption_pct >= 70 OR days_to_expiry < 90, \"MEDIUM\",\n    true(), \"OK\")\n| where status != \"OK\"\n| sort - consumption_pct",
+  "description": "Detects ISE Smart Licensing capacity exceeding 70/80/95% of the entitled count, license expiry within 90/60/30 days, Smart Licensing transport disconnection from cisco.com (which after the 90-day grace period downgrades the deployment to Essentials), and MnT operational-data retention falling below the configured target. Operational and capacity-planning detection — not an immediate-page-on-fire alert (those are different UCs), but the input that feeds the quarterly capacity-planning review.",
+  "value": "ISE Smart Licensing has a hard cap. When consumption hits 100% of entitlement, *new endpoint authentications stop being licensed* — and depending on the deployment policy, the endpoint either auths but is logged as license-violation or is denied outright. Either way it's a P0 the moment it crosses. This UC catches the trend at 70%, 80%, 95% — giving 30+ days to procure the additional licenses. MnT retention shrinking below configured target means audit log retention is silently degrading; an auditor asking 'show me 90 days of authentication history' may be told the system has only 47.",
+  "implementation": "Set up the Smart Licensing transport (cisco.com or on-prem CSSM satellite) on the Primary PAN — without it, this UC can collect license syslog signals but the OpenAPI `/license/system` returns stale data. Deploy the OpenAPI poller (same approach as UC-17.1.31). Schedule the search every 4h, search window `-12h@h to @h`, trigger on count > 0, throttle suppression on `tier`+`status` for 24h.",
+  "visualization": "(1) Single value tiles per tier (Essentials/Advantage/Premier): consumed/entitled, %% consumed, days to expiry. Colour-coded by status thresholds. (2) Trend timechart: consumed_count per tier last 90d; overlay entitled_count as a horizontal line — the visual gap is your headroom. (3) MnT retention panel: actual retention vs configured retention, last 30d. (4) Smart-Licensing transport-state status indicator (green=CONNECTED, red=DISCONNECTED, yellow=EVAL).",
+  "cimModels": [],
+  "dataModelAcceleration": "Not applicable — the data is sparse (1 license-summary event/h, 1 MnT-retention event/6h). DMA gain is negligible.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 Admin Guide — Licensing",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_licensing.html"
+    },
+    {
+      "title": "Cisco ISE 3.x Smart Licensing — Smart Account / Virtual Account setup",
+      "url": "https://www.cisco.com/c/en/us/products/collateral/security/identity-services-engine/at-a-glance-c45-744388.html"
+    },
+    {
+      "title": "Cisco ISE OpenAPI — License",
+      "url": "https://developer.cisco.com/docs/ise/3.4/openapi/#license"
+    },
+    {
+      "title": "Cisco ISE 3.4 Admin Guide — MnT Operational Data Purging",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_monitoring_and_troubleshooting.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **Eval license** — Fresh deployments run 90-day evaluation licenses. The `transport_state` shows `EVAL` and `expiry` is the eval end date — this is not a CRITICAL_DISCONNECTED issue, it's expected. Add `transport_state != \"EVAL\"` to the filter for the first 90 days post-deployment. (b) **MnT retention shrinks during a known endpoint storm** — A massive auth event (e.g. 100k endpoints reauthenticating after a CRL change) inflates MnT log volume, briefly compressing retention days. If retention rebounds within 7d, do not page; only alert when retention is < configured for >14 consecutive days. (c) **Smart Licensing transport flap during ISP maintenance** — A single DISCONNECTED event followed by CONNECTED within 1h is normal. Only alert when DISCONNECTED persists across 3+ polls (= 3h). (d) **Premier-tier consumption near 100% in TrustSec-only deployments** — Some deployments deliberately keep Premier consumption right at the limit because the TrustSec/SGT feature is the only Premier consumer and they've sized exactly. The trend should be flat — if consumed_count is climbing, it's a misconfiguration in policy assignment.",
+  "mitreAttack": [
+    "N/A (platform health monitoring — measures ISE PSN/PAN replication, no adversary technique)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.5.32",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.5.32 (Intellectual property rights) requires compliance with software licensing. License consumption monitoring evidences compliance with the Cisco Smart Licensing terms.",
+      "controlObjective": "Evidence operational compliance with ISE Smart Licensing terms.",
+      "evidenceArtifact": "Saved search 'UC-17.1.32' alert log + monthly license-utilisation report.",
+      "obligationRef": "iso-27001@2022#A.5.32",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.6",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.6 (Capacity management) requires resource use be monitored and projections of future capacity made. License consumption is a capacity input.",
+      "controlObjective": "Project future license-capacity needs for the access-control plane.",
+      "evidenceArtifact": "Quarterly capacity-planning report based on UC-17.1.32 trend.",
+      "obligationRef": "iso-27001@2022#A.8.6",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.5.33",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.5.33 (Protection of records) requires records be protected in accordance with statutory, regulatory, contractual, and business requirements. MnT operational-data retention is one such record-protection input.",
+      "controlObjective": "Maintain configured retention for ISE access-control audit records.",
+      "evidenceArtifact": "MnT-retention monitoring panel + monthly retention-attestation report.",
+      "obligationRef": "iso-27001@2022#A.5.33",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "10.5.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI DSS 10.5.1 requires audit-log retention of at least one year with a minimum of three months immediately available for analysis. MnT-retention monitoring evidences compliance for the access-control plane's audit feed.",
+      "controlObjective": "Evidence audit-log retention compliance for the cardholder-data-environment access-control plane.",
+      "evidenceArtifact": "MnT retention dashboard + monthly retention-attestation report retained for the PCI cycle.",
+      "obligationRef": "pci-dss@v4.0#10.5.1",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "HIPAA",
+      "version": "2013-final",
+      "clause": "§164.316(b)(2)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "164.316(b)(2) requires retention of policy/procedure documentation for 6 years. While ISE MnT operational data is not policy documentation per se, it is the audit record of access-control decisions and is treated by many CEs as evidence of policy enforcement worth retaining 6 years.",
+      "controlObjective": "Evidence operational maintenance of audit-record retention on the ePHI access-control plane.",
+      "evidenceArtifact": "MnT-retention dashboard + retention-attestation report.",
+      "obligationRef": "hipaa-security@45 CFR Parts 160, 162, 164#§164.316(b)(2)",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "SOX ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.AccessMgmt.Privileged",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "SOX-ITGC logical access requires evidence of access-control-system audit-log retention. Monitoring MnT retention provides operational evidence that the audit-log retention policy is being upheld.",
+      "controlObjective": "Maintain operational retention of access-control audit logs supporting ITGC logical access.",
+      "evidenceArtifact": "Quarterly MnT-retention attestation export.",
+      "obligationRef": "sox-itgc@PCAOB AS 2201#ITGC.AccessMgmt.Privileged",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "On a lab ISE running Smart Licensing in EVAL state, simulate consumption climbing past 80% by configuring a large endpoint identity group and assigning Premier authorization profiles to many endpoints. The next 1h-cadence license-poller run shows consumption_pct >= 80, and UC-17.1.32 emits a row with `status=HIGH`.",
+    "negativeScenario": "Reduce consumption back below 70% by removing the Premier policy assignments. Within 1h the next poller run shows consumption_pct < 70 and UC-17.1.32 does NOT fire."
+  },
+  "detailedImplementation": "Prerequisites\n• ISE 3.0+ Smart Licensing configured (Administration > System > Licensing) — either direct to cisco.com over the internet, or to an on-prem CSSM Satellite. Deployments running on the legacy traditional licensing model (ISE 2.x) need a different feed; this UC targets Smart Licensing.\n• ERS / OpenAPI service account with `Read-only Admin` (UC-17.1.31).\n• `ise_deployment.csv` lookup includes an `environment` column (lab/staging/prod).\n• Splunk role `srchIndexesAllowed = nac`.\n\nStep 1 — Configure data collection\n(a) Syslog signals — *Administrative and Operational Audit* category at INFO carries the 520xx license codes. *System Statistics* at WARN carries the 60530/60531/60532 MnT-retention codes. Confirm with:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (52070, 52071, 52072, 52073, 52074, 60530, 60531, 60532) earliest=-30d\n| stats count by MessageCode\n```\n\n(b) OpenAPI license poller. Implement as a Splunk_TA_REST stanza or Python cron script:\n```ini\n[rest://ise_license_summary]\nendpoint = https://<ise-pan>:443/api/v1/license/system\nauth_type = basic\nusername = ers_readonly\npassword = ${SECRET}\npolling_interval = 3600\nresponse_type = json\nindex = nac\nsourcetype = cisco:ise:license\n```\nThe API returns a JSON object with the consumption snapshot. Normalise per tier into an event:\n```\n{\n  \"tier\": \"Premier\",\n  \"entitled_count\": 25000,\n  \"consumed_count\": 18412,\n  \"expiry\": \"2026-12-31T23:59:59\",\n  \"smart_account\": \"YourCo - Production\",\n  \"transport_state\": \"CONNECTED\"\n}\n```\n\n(c) MnT retention poller. Same pattern, every 6h:\n```ini\n[rest://ise_mnt_retention]\nendpoint = https://<ise-pan>:443/api/v1/operations/data-purge-status\npolling_interval = 21600\nsourcetype = cisco:ise:mnt_retention\n```\nNormalise into events with `db_size_gb`, `oldest_event`, `retention_days_actual`, `retention_days_configured`.\n\nValidate:\n```spl\nindex=nac sourcetype=\"cisco:ise:license\" earliest=-7d\n| stats latest(consumed_count) as consumed by tier\n```\nExpected: 1 row per active tier (Essentials and/or Advantage and/or Premier).\n\nStep 2 — Create the search and alert\nPrimary search:\n\n```spl\n(index=nac sourcetype=\"cisco:ise:license\")\n| stats latest(consumed_count) as consumed, latest(entitled_count) as entitled, latest(expiry) as expiry, latest(transport_state) as transport_state, latest(_time) as last_seen by tier\n| eval consumption_pct = round((consumed / entitled) * 100, 1)\n| eval days_to_expiry = round((strptime(expiry, \"%Y-%m-%dT%H:%M:%S\") - now()) / 86400, 0)\n| eval status = case(\n    transport_state==\"DISCONNECTED\", \"CRITICAL_DISCONNECTED\",\n    consumption_pct >= 95 OR days_to_expiry < 30, \"CRITICAL\",\n    consumption_pct >= 80 OR days_to_expiry < 60, \"HIGH\",\n    consumption_pct >= 70 OR days_to_expiry < 90, \"MEDIUM\",\n    true(), \"OK\")\n| where status != \"OK\"\n| sort - consumption_pct\n```\n\nSecondary MnT retention search:\n```spl\nindex=nac sourcetype=\"cisco:ise:mnt_retention\" earliest=-14d\n| stats avg(retention_days_actual) as avg_actual latest(retention_days_configured) as configured by host\n| where avg_actual < configured * 0.85\n```\n\nSchedule both: every 4h, time range `-12h@h to @h`, trigger on count > 0.\n\nStep 3 — Validate\n(a) Compare to the PAN UI's Licensing page (Administration > System > Licensing > Smart Licensing). Numbers must agree.\n\n(b) Confirm trend logic:\n```spl\nindex=nac sourcetype=\"cisco:ise:license\" earliest=-30d@d\n| timechart span=1d max(consumed_count) by tier\n```\nThe series should be approximately flat for stable deployments; growth signals onboarding, increased rollout, or possibly a new licensing model change at Cisco.\n\n(c) Validate MnT retention:\n```spl\nindex=nac sourcetype=\"cisco:ise:mnt_retention\" earliest=-30d\n| timechart span=1d avg(retention_days_actual) avg(retention_days_configured)\n```\nThe two series should track each other within ~10%.\n\nStep 4 — Operationalize\nDashboard \"ISE — License & Capacity Planning\":\n• Single value tiles per tier: consumed / entitled, % consumed, days to expiry. Colour-coded.\n• 90d trend timechart of consumed per tier with horizontal entitled-count line.\n• Smart-Licensing transport-state indicator.\n• MnT retention panel: actual vs configured, 30d.\n• Capacity projection: linear regression of consumed_count last 90d, plotted forward 90d, dashed line. Reveals when current trend hits entitled.\n\nQuarterly review (cadence: quarterly, owner: ISE platform team + procurement):\n• Review consumption trend per tier.\n• Project to next renewal cycle. Procure additional entitlement if projected to exceed 90% before next renewal.\n\nRunbook (owner: ISE platform team):\n1. CRITICAL_DISCONNECTED: SSH to PAN, `show license summary`, `show license technical-support`. If transport is broken, run `license smart renew ID` and `license smart renew auth`.\n2. CRITICAL (>95% consumed): emergency procurement engagement with Cisco partner. Short-term, identify the largest endpoint group consuming Premier licenses and consider downgrading to Advantage if feature requirements allow.\n3. HIGH (>80% consumed): notify procurement. Check the consumption trend — is this expected onboarding or a misconfiguration?\n4. MnT retention shrinking: investigate the cause. Common causes — increased event volume per session due to new logging categories enabled; bulk endpoint storm; misconfigured retention setting. Adjust retention or scale MnT.\n\nStep 5 — Troubleshooting\n\n• **License poller returns stale data** — Smart Licensing transport is broken. Force a sync from the PAN CLI: `license smart renew ID`. The next poll cycle should show fresh data.\n\n• **`consumed_count > entitled_count`** — Hard cap exceeded. New endpoint sessions may already be denied (depending on deployment policy). This is a P0 — engage procurement immediately and consider emergency policy redistribution.\n\n• **Tier shows in OpenAPI but not in syslog** — Logging Categories don't include the *Administrative and Operational Audit* category at INFO. Switch on; license events appear within 1 day.\n\n• **MnT retention dropped from configured 90 days to 47 days** — MnT is event-volume saturated. Either expand MnT capacity (add a second MnT, switch to a larger appliance), reduce logging-category verbosity, or reduce configured retention.\n\n• **Eval license alerts firing on Day 1** — `transport_state=EVAL` is not a real disconnection. Add a 90-day grace exclusion for new deployments to the alert filter.\n\n• **Capacity projection panel shows projected breach in 30 days but no trend over 90 days** — Insufficient lookback for the projection. Adjust to 60 days, accept higher uncertainty, or wait until 90 days of data accumulates.",
+  "grandmaExplanation": "Like a phone plan with a fixed number of devices, the access-control system can only watch a certain number of devices before the plan runs out. We track how many are in use, warn when it's nearly full, and watch how long old activity records are kept so the records don't quietly disappear sooner than agreed.",
+  "wave": "crawl"
+}

@@ -1,0 +1,95 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.46",
+  "title": "Cisco Identity Intelligence (CII) Risk-Score Drift and Adaptive-Auth Triggering",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Cisco Identity Intelligence (CII) is a cloud service introduced 2024 that derives identity risk scores from cross-source telemetry (Duo, ISE, Cisco Secure Endpoint, MS Entra). Integration with ISE is via pxGrid Cloud (UC-17.1.35). Once integrated, ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Identity Intelligence* category — codes `82500` (CII risk score updated for endpoint), `82501` (CII high-risk score triggered adaptive auth), `82502` (CII feed import failed), `82503` (CII adapter cert error). Fields: `endpoint_user`, `risk_score`, `risk_change`, `triggered_action`. Direct CII REST API at `/api/v1/identity/risk` polled by a Splunk modular input.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (82500, 82501, 82502, 82503))\n  OR (index=nac sourcetype=\"cisco:cii\")\n| stats count, latest(_time) as last_event, count(eval(MessageCode==\"82502\")) as feed_failures, count(eval(MessageCode==\"82503\")) as cert_errors, count(eval(MessageCode==\"82501\")) as triggered_actions by endpoint_user\n| where feed_failures > 0 OR cert_errors > 0 OR triggered_actions > 0\n| sort - triggered_actions",
+  "description": "Tracks Cisco Identity Intelligence integration health (feed import, cert validity) and audits cases where CII risk-score elevation triggered adaptive auth (step-up MFA, additional verification, quarantine).",
+  "value": "CII is the consolidation point for cross-platform identity risk; when the integration breaks, ISE adaptive-auth decisions revert to ISE-only signals. Auditing the CII-triggered actions provides evidence the cross-source enrichment is materially driving access decisions.",
+  "implementation": "Confirm *Identity Intelligence* category at INFO. Deploy CII REST API poller every 30 min. Schedule the search every 15 min, search window `-1h@h to @h`, trigger on count > 0.",
+  "visualization": "(1) Single value: triggered actions last 24h. (2) Trend: avg risk-score per identity over 30d. (3) Top-N: identities with most triggered actions.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco Identity Intelligence (CII) Overview",
+      "url": "https://www.cisco.com/site/us/en/products/security/identity-intelligence/index.html"
+    },
+    {
+      "title": "Cisco ISE 3.4 — Identity Intelligence Integration",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_authentication.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **CII service maintenance** — Cisco-side CII maintenance briefly drops feed; cross-reference Cisco trust-center status. (b) **Initial onboarding** — First days of CII deployment, score baselines are stabilising; many adaptive-auth triggers may fire as the model calibrates.",
+  "mitreAttack": [
+    "N/A (identity-store hygiene — measures Cisco Identity Intelligence feed health, no attack mapping)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(j)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(j) covers MFA / continuous-auth solutions. CII-driven adaptive auth is one such solution; integration health evidences operational soundness.",
+      "controlObjective": "Operational continuity of adaptive-auth integration.",
+      "evidenceArtifact": "UC-17.1.46 alert log.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(j)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "IA-10",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "IA-10 (Adaptive Authentication) — CII-driven adaptive auth is a direct implementation; integration health evidences operational continuity.",
+      "controlObjective": "Operational continuity of adaptive-auth implementation.",
+      "evidenceArtifact": "UC-17.1.46 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#IA-10",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.5 (Secure authentication) — adaptive auth is an authentication approach; CII integration health evidences operational soundness.",
+      "controlObjective": "Operational soundness of adaptive-auth approach.",
+      "evidenceArtifact": "UC-17.1.46 alert log.",
+      "obligationRef": "iso-27001@2022#A.8.5",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Misconfigure CII API credentials. ISE emits 82502 on next sync attempt. UC-17.1.46 fires.",
+    "negativeScenario": "Restore credentials. Sync succeeds. Alert clears."
+  },
+  "detailedImplementation": "Prerequisites\n• Cisco Identity Intelligence subscription active.\n• ISE 3.3+ with CII integration configured.\n• `cii_high_risk_actions.csv` lookup of accepted adaptive-auth actions.\n\nStep 1 — Configure data collection\nEnable *Identity Intelligence* category at INFO. Deploy CII REST API poller.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 15 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — CII Adaptive Auth\":\n• Single value: triggered actions.\n• Trend: avg risk score.\n• Top-N: triggered identities.\n\nAlerting: medium PagerDuty on cert_error or sustained feed_failures.\n\nStep 5 — Troubleshooting\n• **Feed failures every 30 min** — API credential rotation or token expiry.\n• **No 82500 events** — Category at WARN; lower to INFO.\n• **Triggered_actions = 0 over 30d** — CII feed working but ISE adaptive-auth policy not consuming the score; review policy conditions.",
+  "grandmaExplanation": "Cisco's identity-risk service combines signals from multiple security tools and gives each user a risk score. We watch the link to that service — and ring the bell if the link breaks or if it triggers extra security checks for users we should know about.",
+  "wave": "run"
+}

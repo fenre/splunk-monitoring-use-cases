@@ -791,10 +791,14 @@ window.NON_TECHNICAL = {
       "Track your progress toward Zero Trust — device trust, micro-segmentation, and conditional access."
     ],
     areas: [
-      { name: "Network access control", description: "Who and what is allowed on your network. We track authentication, compliance posture, and rogue devices.", ucs: [
+      { name: "Network access control", description: "Who and what is allowed on your network. We track authentication, compliance posture, rogue devices, and the health of the platform that enforces all of it (Cisco ISE).", ucs: [
         { id: "17.1.2", why: "See which devices fail endpoint compliance checks — they might be vulnerable or unmanaged." },
         { id: "17.1.12", why: "Detect rogue devices connecting to your network — unknown devices are a risk." },
-        { id: "17.1.4", why: "Track guest network usage — is the guest network being abused?" }
+        { id: "17.1.31", why: "Monitor Cisco ISE certificates so they don't expire and break network access for everyone." },
+        { id: "17.1.40", why: "Track how fast Cisco ISE responds to login requests — slow responses make wifi feel broken." },
+        { id: "17.1.71", why: "Audit changes to who can administer Cisco ISE — admin role changes are big-deal events." },
+        { id: "17.1.80", why: "Measure if quarantining a misbehaving device actually stops the bad activity — sometimes it doesn't." },
+        { id: "17.1.82", why: "Time how fast automated containment finishes when SOAR tells ISE to block a device." }
       ]},
       { name: "VPN & remote access", description: "VPN tunnels, remote sessions, and geographical anomalies. We help you secure remote work.", ucs: [
         { id: "17.2.2", why: "Track VPN authentication failures — rising rates could mean a credential attack." },

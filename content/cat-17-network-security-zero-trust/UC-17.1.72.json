@@ -1,0 +1,92 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.72",
+  "title": "ISE GUI Admin Session Activity \u2014 Concurrent Sessions, Unusual Geo, and Long-Running Sessions",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Administrative-Operations-Audit* \u2014 codes `60005` (admin login), `60007` (admin logout), `60008` (admin session expired). GeoIP enrichment via `geoip(source_ip)` against MaxMind/ISO data.",
+  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=60005\n| iplocation source_ip\n| stats count, dc(source_ip) as src_ips, values(Country) as countries by admin_user\n| where src_ips > 2 OR mvcount(countries) > 1",
+  "description": "Detects unusual ISE admin session patterns \u2014 same admin account from multiple IPs, multiple countries within a short window, or sessions left running >24h.",
+  "value": "An admin account simultaneously active from two countries is a strong compromise signal. Long-running sessions are forgotten browser tabs that violate session-management policy.",
+  "implementation": "Schedule every 1h. Requires GeoIP database installed in Splunk.",
+  "visualization": "Admin geo map; concurrent-session table; long-session gauge.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "dataModelAcceleration": "Yes \u2014 Authentication.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 \u2014 Administrative Sessions",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_administrators.html"
+    }
+  ],
+  "knownFalsePositives": "(a) Admin transitioning between office and VPN.\n(b) Multi-region admin teams with shared accounts (anti-pattern, but exists).",
+  "mitreAttack": [
+    "T1078.003",
+    "T1078"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "8.2.7",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI 8.2.7 admin session limits.",
+      "controlObjective": "Admin session control.",
+      "evidenceArtifact": "UC-17.1.72 alert log.",
+      "obligationRef": "pci-dss@v4.0#8.2.7",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AC-12",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "AC-12 session termination.",
+      "controlObjective": "Session-management evidence.",
+      "evidenceArtifact": "UC-17.1.72 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#AC-12",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.5 secure authentication \u2014 anomalous session detection.",
+      "controlObjective": "Anomalous session detection.",
+      "evidenceArtifact": "UC-17.1.72 alert log.",
+      "obligationRef": "iso-27001@2022#A.8.5",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Same admin account login from two IPs in different countries within 5 min. UC-17.1.72 fires.",
+    "negativeScenario": "Admin from one location only. No fire."
+  },
+  "detailedImplementation": "Standard pattern.",
+  "grandmaExplanation": "If an admin account suddenly logs in from two countries in the same hour, something is wrong \u2014 they can't be in two places at once. We watch for these red flags.",
+  "wave": "run"
+}

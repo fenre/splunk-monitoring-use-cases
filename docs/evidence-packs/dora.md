@@ -42,7 +42,7 @@ Over 20 types of financial entities: credit institutions, investment firms, paym
 - **Clauses tracked**: 14
 - **Clauses covered by at least one UC**: 14 / 14 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 52
+- **Contributing UCs**: 63
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -52,23 +52,119 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`Art.5`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.5) | ICT risk-management governance | 1.0 | `contributing` | [UC-22.3.1](#uc-22-3-1), [UC-22.3.19](#uc-22-3-19), [UC-22.3.21](#uc-22-3-21), [UC-22.3.22](#uc-22-3-22), [UC-22.3.24](#uc-22-3-24), [UC-22.3.26](#uc-22-3-26) (+2 more) |
+| [`Art.5`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.5) | ICT risk-management governance | 1.0 | `contributing` | [UC-17.1.28](#uc-17-1-28), [UC-17.1.61](#uc-17-1-61), [UC-22.3.1](#uc-22-3-1), [UC-22.3.19](#uc-22-3-19), [UC-22.3.21](#uc-22-3-21), [UC-22.3.22](#uc-22-3-22) (+2 more) |
 | [`Art.6`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.6) | ICT risk-management framework | 1.0 | `full` | [UC-22.11.106](#uc-22-11-106), [UC-22.3.1](#uc-22-3-1), [UC-22.3.41](#uc-22-3-41), [UC-22.6.46](#uc-22-6-46) |
-| [`Art.7`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.7) | ICT systems, protocols and tools | 1.0 | `full` | [UC-22.3.1](#uc-22-3-1), [UC-22.3.42](#uc-22-3-42), [UC-22.8.32](#uc-22-8-32) |
+| [`Art.7`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.7) | ICT systems, protocols and tools | 1.0 | `full` | [UC-17.1.77](#uc-17-1-77), [UC-17.1.78](#uc-17-1-78), [UC-22.3.1](#uc-22-3-1), [UC-22.3.42](#uc-22-3-42), [UC-22.3.46](#uc-22-3-46), [UC-22.8.32](#uc-22-8-32) |
 | [`Art.8`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.8) | Identification | 1.0 | `full` | [UC-22.11.103](#uc-22-11-103), [UC-22.3.1](#uc-22-3-1), [UC-22.3.43](#uc-22-3-43) |
-| [`Art.9`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.9) | Protection and prevention | 1.0 | `full` | [UC-22.11.97](#uc-22-11-97), [UC-22.3.1](#uc-22-3-1), [UC-22.41.3](#uc-22-41-3) |
-| [`Art.10`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.10) | Detection | 1.0 | `full` | [UC-22.3.1](#uc-22-3-1), [UC-22.3.7](#uc-22-3-7), [UC-22.8.33](#uc-22-8-33) |
+| [`Art.9`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.9) | Protection and prevention | 1.0 | `full` | [UC-17.1.29](#uc-17-1-29), [UC-17.1.36](#uc-17-1-36), [UC-17.1.40](#uc-17-1-40), [UC-17.1.44](#uc-17-1-44), [UC-22.11.97](#uc-22-11-97), [UC-22.3.1](#uc-22-3-1) (+1 more) |
+| [`Art.10`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.10) | Detection | 1.0 | `full` | [UC-17.1.33](#uc-17-1-33), [UC-22.3.1](#uc-22-3-1), [UC-22.3.47](#uc-22-3-47), [UC-22.3.7](#uc-22-3-7), [UC-22.8.33](#uc-22-8-33) |
 | [`Art.11`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.11) | Response and recovery | 1.0 | `contributing` | [UC-22.3.1](#uc-22-3-1), [UC-22.3.5](#uc-22-3-5), [UC-22.3.8](#uc-22-3-8) |
-| [`Art.12`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.12) | Backup policies and recovery methods | 1.0 | `full` | [UC-22.3.1](#uc-22-3-1), [UC-22.3.5](#uc-22-3-5), [UC-22.3.9](#uc-22-3-9), [UC-22.35.3](#uc-22-35-3), [UC-22.45.1](#uc-22-45-1), [UC-22.45.3](#uc-22-45-3) |
-| [`Art.17`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.17) | ICT-related incident management process | 1.0 | `full` | [UC-22.3.2](#uc-22-3-2), [UC-22.3.23](#uc-22-3-23), [UC-22.3.31](#uc-22-3-31), [UC-22.3.44](#uc-22-3-44), [UC-22.6.51](#uc-22-6-51), [UC-22.6.52](#uc-22-6-52) (+2 more) |
+| [`Art.12`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.12) | Backup policies and recovery methods | 1.0 | `full` | [UC-17.1.47](#uc-17-1-47), [UC-22.3.1](#uc-22-3-1), [UC-22.3.5](#uc-22-3-5), [UC-22.3.9](#uc-22-3-9), [UC-22.35.3](#uc-22-35-3), [UC-22.45.1](#uc-22-45-1) (+1 more) |
+| [`Art.17`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.17) | ICT-related incident management process | 1.0 | `full` | [UC-17.1.30](#uc-17-1-30), [UC-17.1.42](#uc-17-1-42), [UC-17.1.80](#uc-17-1-80), [UC-17.1.82](#uc-17-1-82), [UC-22.3.2](#uc-22-3-2), [UC-22.3.23](#uc-22-3-23) (+2 more) |
 | [`Art.18`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.18) | Classification of ICT-related incidents | 1.0 | `contributing` | [UC-22.3.11](#uc-22-3-11), [UC-22.3.2](#uc-22-3-2) |
 | [`Art.19`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.19) | Reporting of major ICT-related incidents | 1.0 | `full` | [UC-22.3.12](#uc-22-3-12), [UC-22.3.2](#uc-22-3-2), [UC-22.3.38](#uc-22-3-38), [UC-22.39.1](#uc-22-39-1) |
 | [`Art.24`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.24) | Digital operational-resilience testing | 0.7 | `full` | [UC-22.11.105](#uc-22-11-105), [UC-22.3.25](#uc-22-3-25), [UC-22.3.27](#uc-22-3-27), [UC-22.3.28](#uc-22-3-28), [UC-22.3.3](#uc-22-3-3), [UC-22.3.39](#uc-22-3-39) (+1 more) |
 | [`Art.26`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.26) | Threat-led penetration testing | 0.7 | `contributing` | [UC-22.3.17](#uc-22-3-17), [UC-22.3.3](#uc-22-3-3) |
-| [`Art.28`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.28) | ICT third-party risk | 1.0 | `full` | [UC-22.3.4](#uc-22-3-4), [UC-22.3.40](#uc-22-3-40), [UC-22.38.3](#uc-22-38-3), [UC-22.44.1](#uc-22-44-1), [UC-22.44.2](#uc-22-44-2), [UC-22.44.3](#uc-22-44-3) (+1 more) |
+| [`Art.28`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.28) | ICT third-party risk | 1.0 | `full` | [UC-17.1.60](#uc-17-1-60), [UC-17.1.62](#uc-17-1-62), [UC-22.3.4](#uc-22-3-4), [UC-22.3.40](#uc-22-3-40), [UC-22.38.3](#uc-22-38-3), [UC-22.44.1](#uc-22-44-1) (+2 more) |
 
 ### 4.1 Contributing UC detail
 
+<a id='uc-17-1-28'></a>
+- **UC-17.1.28** — Cisco ISE Deployment Replication Health and PSN Sync Lag
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.28.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.28.json)
+<a id='uc-17-1-29'></a>
+- **UC-17.1.29** — Cisco ISE Node Resource Saturation (CPU, Memory, Disk, Threads)
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.29.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.29.json)
+<a id='uc-17-1-30'></a>
+- **UC-17.1.30** — Cisco ISE Process Crash and Service-Restart Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.30.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.30.json)
+<a id='uc-17-1-33'></a>
+- **UC-17.1.33** — Cisco ISE pxGrid Subscriber Connectivity and Topic Health
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.33.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.33.json)
+<a id='uc-17-1-36'></a>
+- **UC-17.1.36** — Cisco TrustSec / SGT Assignment Mismatch and SXP Listener Health
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.36.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.36.json)
+<a id='uc-17-1-40'></a>
+- **UC-17.1.40** — RADIUS Authentication Latency SLO and Slow PSN Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.40.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.40.json)
+<a id='uc-17-1-42'></a>
+- **UC-17.1.42** — Adaptive Network Control (ANC) Action Auditing and Excessive Quarantine Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.42.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.42.json)
+<a id='uc-17-1-44'></a>
+- **UC-17.1.44** — Cisco ISE External Identity Store Health (AD/LDAP/RADIUS/SAML/OAuth)
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.44.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.44.json)
+<a id='uc-17-1-47'></a>
+- **UC-17.1.47** — Cisco ISE Backup Job Success and Operational-Data Backup Validation
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.47.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.47.json)
+<a id='uc-17-1-60'></a>
+- **UC-17.1.60** — ISE on AWS / Azure / GCP — Cloud-Hosted PSN Health and Egress Cost
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.60.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.60.json)
+<a id='uc-17-1-61'></a>
+- **UC-17.1.61** — ISE Multi-Site Topology — Cross-Site Replication Lag and WAN Loss Impact
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.61.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.61.json)
+<a id='uc-17-1-62'></a>
+- **UC-17.1.62** — ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.62.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.62.json)
+<a id='uc-17-1-77'></a>
+- **UC-17.1.77** — Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.77.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.77.json)
+<a id='uc-17-1-78'></a>
+- **UC-17.1.78** — ISE PSN Authentication Distribution Imbalance and Sticky-Session Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.78.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.78.json)
+<a id='uc-17-1-80'></a>
+- **UC-17.1.80** — ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.80.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.80.json)
+<a id='uc-17-1-82'></a>
+- **UC-17.1.82** — Splunk SOAR + ISE Closed-Loop Playbook Audit and Mean-Time-to-Containment KPI
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.82.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.82.json)
 <a id='uc-22-11-103'></a>
 - **UC-22.11.103** — PCI-DSS 11.3 — Vulnerability programme: overdue scan cadence and unremediated high-severity
   - Control family: `regulation-specific`
@@ -97,133 +193,121 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-22.3.1** — DORA ICT Risk Management Dashboard
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.1.json`](../../content/cat-22-regulatory-compliance/UC-22.3.1.json)
 <a id='uc-22-3-11'></a>
 - **UC-22.3.11** — DORA Major ICT Incident 7-Criteria Classification
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.11.json`](../../content/cat-22-regulatory-compliance/UC-22.3.11.json)
 <a id='uc-22-3-12'></a>
 - **UC-22.3.12** — DORA ICT Incident Intermediate and Final Report Tracking
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.12.json`](../../content/cat-22-regulatory-compliance/UC-22.3.12.json)
 <a id='uc-22-3-17'></a>
 - **UC-22.3.17** — DORA Threat-Led Penetration Testing (TLPT) Lifecycle
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.17.json`](../../content/cat-22-regulatory-compliance/UC-22.3.17.json)
 <a id='uc-22-3-19'></a>
 - **UC-22.3.19** — DORA Management Body ICT Governance and Oversight
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.19.json`](../../content/cat-22-regulatory-compliance/UC-22.3.19.json)
 <a id='uc-22-3-2'></a>
 - **UC-22.3.2** — DORA ICT Incident Classification and Reporting
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.2.json`](../../content/cat-22-regulatory-compliance/UC-22.3.2.json)
 <a id='uc-22-3-21'></a>
 - **UC-22.3.21** — DORA ICT Concentration — Single-Provider Spend and Workload Share Thresholds
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.21.json`](../../content/cat-22-regulatory-compliance/UC-22.3.21.json)
 <a id='uc-22-3-22'></a>
 - **UC-22.3.22** — DORA ICT Concentration — Critical Service Dependency Fan-In by Provider
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.22.json`](../../content/cat-22-regulatory-compliance/UC-22.3.22.json)
 <a id='uc-22-3-23'></a>
 - **UC-22.3.23** — DORA ICT Concentration — Regional Provider Outage Correlation Exposure Score
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.23.json`](../../content/cat-22-regulatory-compliance/UC-22.3.23.json)
 <a id='uc-22-3-24'></a>
 - **UC-22.3.24** — DORA ICT Concentration — Substitutability and Secondary Sourcing Readiness Index
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.24.json`](../../content/cat-22-regulatory-compliance/UC-22.3.24.json)
 <a id='uc-22-3-25'></a>
 - **UC-22.3.25** — DORA TLPT — Test Planning Milestone and Scope Lock Audit Trail
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.25.json`](../../content/cat-22-regulatory-compliance/UC-22.3.25.json)
 <a id='uc-22-3-26'></a>
 - **UC-22.3.26** — DORA TLPT — Tester Independence and Conflict-of-Interest Attestation Log
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.26.json`](../../content/cat-22-regulatory-compliance/UC-22.3.26.json)
 <a id='uc-22-3-27'></a>
 - **UC-22.3.27** — DORA TLPT — Findings Severity, Remediation Owner, and Due Date Tracking
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.27.json`](../../content/cat-22-regulatory-compliance/UC-22.3.27.json)
 <a id='uc-22-3-28'></a>
 - **UC-22.3.28** — DORA TLPT — Retest and Control Effectiveness Verification Events
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.28.json`](../../content/cat-22-regulatory-compliance/UC-22.3.28.json)
-<a id='uc-22-3-29'></a>
-- **UC-22.3.29** — DORA Information Sharing — FINCERT-Style Submission Timeliness and Acknowledgment Log
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.3.29.json`](../../content/cat-22-regulatory-compliance/UC-22.3.29.json)
 <a id='uc-22-3-3'></a>
 - **UC-22.3.3** — DORA Digital Operational Resilience Testing
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.3.json`](../../content/cat-22-regulatory-compliance/UC-22.3.3.json)
-<a id='uc-22-3-30'></a>
-- **UC-22.3.30** — DORA Information Sharing — Indicator Distribution to Subsidiaries and Branches Coverage
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.3.30.json`](../../content/cat-22-regulatory-compliance/UC-22.3.30.json)
 <a id='uc-22-3-31'></a>
 - **UC-22.3.31** — DORA Information Sharing — Anonymized Incident TTP Contribution Quality Metrics
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.31.json`](../../content/cat-22-regulatory-compliance/UC-22.3.31.json)
 <a id='uc-22-3-38'></a>
 - **UC-22.3.38** — DORA ICT Third-Party Risk Register — Inherent vs Residual Risk Score Reconciliation
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.38.json`](../../content/cat-22-regulatory-compliance/UC-22.3.38.json)
 <a id='uc-22-3-39'></a>
 - **UC-22.3.39** — DORA ICT Third-Party Risk Register — Control Testing Evidence Freshness by Provider Tier
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.39.json`](../../content/cat-22-regulatory-compliance/UC-22.3.39.json)
 <a id='uc-22-3-4'></a>
 - **UC-22.3.4** — DORA Third-Party ICT Provider Concentration Risk
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.4.json`](../../content/cat-22-regulatory-compliance/UC-22.3.4.json)
 <a id='uc-22-3-40'></a>
 - **UC-22.3.40** — DORA ICT Third-Party Risk Register — Issue Density and Open Finding Trend by Provider
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.40.json`](../../content/cat-22-regulatory-compliance/UC-22.3.40.json)
 <a id='uc-22-3-41'></a>
 - **UC-22.3.41** — DORA Art.6 — ICT risk-management framework evidence: control catalogue drift detection
@@ -255,29 +339,41 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.45.json`](../../content/cat-22-regulatory-compliance/UC-22.3.45.json)
+<a id='uc-22-3-46'></a>
+- **UC-22.3.46** — DORA Art.7 — Cisco ISE PSN Capacity SLO Evidence (ICT Resilience)
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.3.46.json`](../../content/cat-22-regulatory-compliance/UC-22.3.46.json)
+<a id='uc-22-3-47'></a>
+- **UC-22.3.47** — DORA Art.10 — Cisco ISE Multi-Site Replication Resilience Evidence
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.3.47.json`](../../content/cat-22-regulatory-compliance/UC-22.3.47.json)
 <a id='uc-22-3-5'></a>
 - **UC-22.3.5** — DORA Cross-Region Disaster Recovery Compliance
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.5.json`](../../content/cat-22-regulatory-compliance/UC-22.3.5.json)
 <a id='uc-22-3-7'></a>
 - **UC-22.3.7** — DORA ICT Anomaly Detection Capabilities
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.7.json`](../../content/cat-22-regulatory-compliance/UC-22.3.7.json)
 <a id='uc-22-3-8'></a>
 - **UC-22.3.8** — DORA ICT Incident Response and Recovery Time Tracking
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.8.json`](../../content/cat-22-regulatory-compliance/UC-22.3.8.json)
 <a id='uc-22-3-9'></a>
 - **UC-22.3.9** — DORA Backup Completeness and Restoration Testing
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.9.json`](../../content/cat-22-regulatory-compliance/UC-22.3.9.json)
 <a id='uc-22-35-3'></a>
 - **UC-22.35.3** — Indexer replication lag exposing evidence to single-point failure
@@ -339,18 +435,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.6.46.json`](../../content/cat-22-regulatory-compliance/UC-22.6.46.json)
-<a id='uc-22-6-51'></a>
-- **UC-22.6.51** — ISO/IEC 27001:2022 Annex A.5.24 — Incident-management planning: runbook currency attestation
-  - Control family: `ir-drill-evidence`
-  - Owner: `Head of IR`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.6.51.json`](../../content/cat-22-regulatory-compliance/UC-22.6.51.json)
-<a id='uc-22-6-52'></a>
-- **UC-22.6.52** — ISO/IEC 27001:2022 Annex A.5.25 — Event classification decisions: SIEM-to-incident triage traceability
-  - Control family: `ir-drill-evidence`
-  - Owner: `Head of IR`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.6.52.json`](../../content/cat-22-regulatory-compliance/UC-22.6.52.json)
 <a id='uc-22-8-32'></a>
 - **UC-22.8.32** — SOC 2 CC6.7 — System boundary & data-transmission control: unapproved egress destinations
   - Control family: `data-flow-cross-border`
@@ -363,24 +447,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `Head of IT Operations`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.8.33.json`](../../content/cat-22-regulatory-compliance/UC-22.8.33.json)
-<a id='uc-22-8-34'></a>
-- **UC-22.8.34** — SOC 2 CC7.3 — Evaluated events: threshold breaches without documented rationale
-  - Control family: `ir-drill-evidence`
-  - Owner: `Head of IR`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.8.34.json`](../../content/cat-22-regulatory-compliance/UC-22.8.34.json)
-<a id='uc-22-8-35'></a>
-- **UC-22.8.35** — SOC 2 CC7.4 — Incident response: post-incident review completion SLA
-  - Control family: `ir-drill-evidence`
-  - Owner: `Head of IR`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.8.35.json`](../../content/cat-22-regulatory-compliance/UC-22.8.35.json)
-<a id='uc-22-8-37'></a>
-- **UC-22.8.37** — SOC 2 CC9.1 — Risk-mitigation activity: vendor-risk action closure SLA
-  - Control family: `third-party-activity`
-  - Owner: `Procurement`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.8.37.json`](../../content/cat-22-regulatory-compliance/UC-22.8.37.json)
 
 ## 5. Evidence collection
 
@@ -508,7 +574,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 7.3
+catalogue_version: 7.4.1
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     05d15d6f921fc6af3c7dbfacf931dcfd40d45bd1e8a91ef250232b39e24f110e
 ```

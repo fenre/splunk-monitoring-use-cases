@@ -42,7 +42,7 @@ All DoD contractors and subcontractors handling FCI or CUI. Level 1: 15 basic sa
 - **Clauses tracked**: 9
 - **Clauses covered by at least one UC**: 9 / 9 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 26
+- **Contributing UCs**: 29
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -52,9 +52,9 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`AC.L2-3.1.1`](https://dodcio.defense.gov/CMMC/#AC.L2-3.1.1) | Authorized access to systems | 1.0 | `partial` | [UC-22.20.1](#uc-22-20-1), [UC-22.32.17](#uc-22-32-17) |
+| [`AC.L2-3.1.1`](https://dodcio.defense.gov/CMMC/#AC.L2-3.1.1) | Authorized access to systems | 1.0 | `partial` | [UC-17.1.69](#uc-17-1-69), [UC-22.20.1](#uc-22-20-1), [UC-22.20.21](#uc-22-20-21), [UC-22.32.17](#uc-22-32-17) |
 | [`AC.L2-3.1.5`](https://dodcio.defense.gov/CMMC/#AC.L2-3.1.5) | Least privilege | 1.0 | `partial` | [UC-22.20.14](#uc-22-20-14), [UC-22.20.2](#uc-22-20-2) |
-| [`AU.L2-3.3.1`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.1) | Create audit records | 1.0 | `full` | [UC-10.12.40](#uc-10-12-40), [UC-22.20.3](#uc-22-20-3) |
+| [`AU.L2-3.3.1`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.1) | Create audit records | 1.0 | `full` | [UC-10.12.40](#uc-10-12-40), [UC-17.1.43](#uc-17-1-43), [UC-22.20.3](#uc-22-20-3) |
 | [`AU.L2-3.3.2`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.2) | Ensure unique user traceability | 1.0 | `full` | [UC-22.20.4](#uc-22-20-4) |
 | [`AU.L2-3.3.5`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.5) | Audit reporting and correlation | 1.0 | `partial` | [UC-22.20.16](#uc-22-20-16), [UC-22.20.18](#uc-22-20-18), [UC-22.20.20](#uc-22-20-20), [UC-22.20.5](#uc-22-20-5), [UC-22.32.18](#uc-22-32-18), [UC-22.32.19](#uc-22-32-19) |
 | [`CM.L2-3.4.1`](https://dodcio.defense.gov/CMMC/#CM.L2-3.4.1) | Baseline configurations | 1.0 | `full` | [UC-22.20.10](#uc-22-20-10), [UC-22.20.17](#uc-22-20-17), [UC-22.20.6](#uc-22-20-6) |
@@ -70,155 +70,173 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [`content/cat-10-security-infrastructure/UC-10.12.40.json`](../../content/cat-10-security-infrastructure/UC-10.12.40.json)
+<a id='uc-17-1-43'></a>
+- **UC-17.1.43** — Cisco ISE TACACS+ Device Administration — Privileged Command Auditing
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.43.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.43.json)
+<a id='uc-17-1-69'></a>
+- **UC-17.1.69** — TEAP (Tunnel EAP) Authentication Mode Tracking and Inner-Method Failure Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.69.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.69.json)
 <a id='uc-22-20-1'></a>
 - **UC-22.20.1** — CMMC Level 2 practice evidence — CUI control area 1
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.1.json`](../../content/cat-22-regulatory-compliance/UC-22.20.1.json)
 <a id='uc-22-20-10'></a>
 - **UC-22.20.10** — CMMC Level 2 practice evidence — CUI control area 10
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.10.json`](../../content/cat-22-regulatory-compliance/UC-22.20.10.json)
 <a id='uc-22-20-11'></a>
 - **UC-22.20.11** — CMMC Level 3 enhanced practice — threat scenario 1
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.11.json`](../../content/cat-22-regulatory-compliance/UC-22.20.11.json)
 <a id='uc-22-20-12'></a>
 - **UC-22.20.12** — CMMC Level 3 enhanced practice — threat scenario 2
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.12.json`](../../content/cat-22-regulatory-compliance/UC-22.20.12.json)
 <a id='uc-22-20-13'></a>
 - **UC-22.20.13** — CMMC Level 3 enhanced practice — threat scenario 3
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.13.json`](../../content/cat-22-regulatory-compliance/UC-22.20.13.json)
 <a id='uc-22-20-14'></a>
 - **UC-22.20.14** — CMMC Level 3 enhanced practice — threat scenario 4
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.14.json`](../../content/cat-22-regulatory-compliance/UC-22.20.14.json)
 <a id='uc-22-20-15'></a>
 - **UC-22.20.15** — CMMC Level 3 enhanced practice — threat scenario 5
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.15.json`](../../content/cat-22-regulatory-compliance/UC-22.20.15.json)
 <a id='uc-22-20-16'></a>
 - **UC-22.20.16** — CMMC assessment readiness — artifact 1
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.16.json`](../../content/cat-22-regulatory-compliance/UC-22.20.16.json)
 <a id='uc-22-20-17'></a>
 - **UC-22.20.17** — CMMC assessment readiness — artifact 2
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.17.json`](../../content/cat-22-regulatory-compliance/UC-22.20.17.json)
 <a id='uc-22-20-18'></a>
 - **UC-22.20.18** — CMMC assessment readiness — artifact 3
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.18.json`](../../content/cat-22-regulatory-compliance/UC-22.20.18.json)
 <a id='uc-22-20-19'></a>
 - **UC-22.20.19** — CMMC assessment readiness — artifact 4
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.19.json`](../../content/cat-22-regulatory-compliance/UC-22.20.19.json)
 <a id='uc-22-20-2'></a>
 - **UC-22.20.2** — CMMC Level 2 practice evidence — CUI control area 2
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.2.json`](../../content/cat-22-regulatory-compliance/UC-22.20.2.json)
 <a id='uc-22-20-20'></a>
 - **UC-22.20.20** — CMMC assessment readiness — artifact 5
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.20.json`](../../content/cat-22-regulatory-compliance/UC-22.20.20.json)
+<a id='uc-22-20-21'></a>
+- **UC-22.20.21** — CMMC 2.0 AC.L2-3.1.1 — Cisco ISE Strong-Authentication Coverage Evidence
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.21.json`](../../content/cat-22-regulatory-compliance/UC-22.20.21.json)
 <a id='uc-22-20-3'></a>
 - **UC-22.20.3** — CMMC AU.L2-3.3.1 — Audit record creation verification on CUI systems
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.3.json`](../../content/cat-22-regulatory-compliance/UC-22.20.3.json)
 <a id='uc-22-20-4'></a>
 - **UC-22.20.4** — CMMC AU.L2-3.3.2 — User-to-action traceability on CUI systems
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.4.json`](../../content/cat-22-regulatory-compliance/UC-22.20.4.json)
 <a id='uc-22-20-5'></a>
 - **UC-22.20.5** — CMMC Level 2 practice evidence — CUI control area 5
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.5.json`](../../content/cat-22-regulatory-compliance/UC-22.20.5.json)
 <a id='uc-22-20-6'></a>
 - **UC-22.20.6** — CMMC CM.L2-3.4.1 — Baseline configuration drift detection on CUI systems
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.6.json`](../../content/cat-22-regulatory-compliance/UC-22.20.6.json)
 <a id='uc-22-20-7'></a>
 - **UC-22.20.7** — CMMC IR.L2-3.6.1 — Incident response lifecycle tracking for CUI incidents
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.7.json`](../../content/cat-22-regulatory-compliance/UC-22.20.7.json)
 <a id='uc-22-20-8'></a>
 - **UC-22.20.8** — CMMC SC.L2-3.13.8 — Cryptographic protection of CUI in transit
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.8.json`](../../content/cat-22-regulatory-compliance/UC-22.20.8.json)
 <a id='uc-22-20-9'></a>
 - **UC-22.20.9** — CMMC SI.L2-3.14.6 — Real-time attack monitoring on CUI systems
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.9.json`](../../content/cat-22-regulatory-compliance/UC-22.20.9.json)
 <a id='uc-22-32-17'></a>
 - **UC-22.32.17** — Controlled unclassified information access control
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.32.17.json`](../../content/cat-22-regulatory-compliance/UC-22.32.17.json)
 <a id='uc-22-32-18'></a>
 - **UC-22.32.18** — CMMC practice implementation evidence collection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.32.18.json`](../../content/cat-22-regulatory-compliance/UC-22.32.18.json)
 <a id='uc-22-32-19'></a>
 - **UC-22.32.19** — CMMC assessment readiness scoring
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.32.19.json`](../../content/cat-22-regulatory-compliance/UC-22.32.19.json)
 <a id='uc-22-32-20'></a>
 - **UC-22.32.20** — CUI incident response evidence
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.32.20.json`](../../content/cat-22-regulatory-compliance/UC-22.32.20.json)
 <a id='uc-22-32-21'></a>
 - **UC-22.32.21** — Continuous monitoring for CMMC practice families
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.32.21.json`](../../content/cat-22-regulatory-compliance/UC-22.32.21.json)
 
 ## 5. Evidence collection
@@ -348,7 +366,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 7.3
+catalogue_version: 7.4.1
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     05d15d6f921fc6af3c7dbfacf931dcfd40d45bd1e8a91ef250232b39e24f110e
 ```

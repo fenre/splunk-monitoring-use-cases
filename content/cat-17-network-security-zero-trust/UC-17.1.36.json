@@ -1,0 +1,138 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.36",
+  "title": "Cisco TrustSec / SGT Assignment Mismatch and SXP Listener Health",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Configuration",
+    "Compliance",
+    "Operations"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Three feeds: (1) ISE syslog `index=nac sourcetype=cisco:ise:syslog` *TrustSec* category — codes `83001` (SGT assigned to session), `83002` (SGT mapping changed), `83003` (SXP peer connected), `83004` (SXP peer disconnected), `83005` (SXP binding-update sent), `83006` (SXP binding-update failed), `83010` (SGT-to-VLAN mapping change). (2) Network Access Device (NAD) RADIUS-accounting `index=radius sourcetype=radius:accounting` carries the SGT assigned to each session as `cisco-av-pair=cts:security-group-tag=...`. (3) IOS-XE / NX-OS / SD-WAN device logs `index=network sourcetype=cisco:ios` carry the SXP peer state on the NAD side (`%CTS-3-SXP_PEER_DOWN`, `%CTS-6-SXP_PEER_UP`).",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) + `Splunk Add-on for Cisco IOS-XE/NX-OS` for network device logs.",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (83003, 83004, 83006))\n  OR (index=network sourcetype=\"cisco:ios\" (\"CTS-3-SXP_PEER_DOWN\" OR \"CTS-3-SXP_BINDING_FAIL\"))\n| eval peer = coalesce(SXPPeerIP, src_ip, host)\n| stats count latest(_time) as last_event, count(eval(MessageCode==\"83004\" OR like(_raw, \"%CTS-3-SXP_PEER_DOWN%\"))) as peer_downs, count(eval(MessageCode==\"83006\" OR like(_raw, \"%CTS-3-SXP_BINDING_FAIL%\"))) as binding_failures by peer\n| where peer_downs >= 2 OR binding_failures >= 1\n| sort - binding_failures - peer_downs",
+  "description": "Detects SXP peer flapping (≥2 downs in 15 min), SXP binding-update failures, and SGT assignment mismatches between ISE and the NAD. SGT-based segmentation only works when SGT mappings are consistent across ISE and the NADs that enforce — drift in either direction means a host either gets the wrong privileges or no privileges.",
+  "value": "TrustSec/SGT segmentation is the core of zero-trust microsegmentation in Cisco environments. When a NAD's SXP peer to ISE flaps, *no SGT-based ACEs are enforced* on that NAD until the peer is re-established and the binding table is re-populated. Catching the flap quickly preserves segmentation enforcement.",
+  "implementation": "Confirm the *TrustSec* logging category is enabled at INFO on ISE (UC-17.1.28 plumbing). Onboard NAD logs (IOS-XE/NX-OS/SD-WAN edge devices) into `index=network`. Schedule the search every 5 min, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `peer` for 30 min.",
+  "visualization": "(1) Timeline: SXP peer up/down events last 24h, Y = peer, color by event class. (2) Top-N table: peers with most flaps last 7d. (3) SGT distribution panel: count of active sessions per SGT (from RADIUS accounting), last 1h — useful for capacity verification.",
+  "cimModels": [
+    "Network_Sessions"
+  ],
+  "dataModelAcceleration": "Optional. Accelerating Network_Sessions over a 7d window can speed up the SGT distribution panel for very large deployments (>1M sessions).",
+  "references": [
+    {
+      "title": "Cisco TrustSec — Configuration Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/trustsec/configuration/guide/trustsec.html"
+    },
+    {
+      "title": "Cisco ISE 3.4 Admin Guide — TrustSec",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_segmentation.html"
+    },
+    {
+      "title": "Cisco SXP (Security Group Exchange Protocol) RFC-style spec",
+      "url": "https://datatracker.ietf.org/doc/draft-smith-kandula-sxp/"
+    }
+  ],
+  "knownFalsePositives": "(a) **NAD reload during scheduled change** — A switch reload generates one SXP peer-down then peer-up. Cross-reference change tickets and suppress within the change window. (b) **SXP keepalive misconfiguration** — Different keepalive timers between ISE and NAD cause repeated benign peer-flaps every 60–120s. Symptoms: peer_downs > 5 in an hour but no actual binding loss. Fix the keepalive config (`cts sxp connection peer ... password default mode local listener hold-time min 90 max 180`) and the alert noise resolves. (c) **Brief WAN brown-out for remote-site NAD** — A brief WAN drop will flap the SXP peer but not necessarily lose binding state if the NAD has a short-term cache. Single isolated peer-down events should not page; threshold ≥2 in 15 min.",
+  "mitreAttack": [
+    "T1599",
+    "T1499.001"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "1.4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI DSS 1.4 requires network security controls between trusted and untrusted networks. SGT-based segmentation is exactly such a control; SXP-peer health monitoring evidences the segmentation enforcement plane is operational.",
+      "controlObjective": "Evidence operational health of the segmentation enforcement plane between trusted and untrusted networks.",
+      "evidenceArtifact": "UC-17.1.36 alert log + monthly SXP-peer-availability report.",
+      "obligationRef": "pci-dss@v4.0#1.4",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(d)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(d) requires supply-chain security and access-control measures. SGT-segmentation is the primary access-control mechanism for east-west traffic; SXP health evidences operational continuity.",
+      "controlObjective": "Maintain operational continuity of east-west access-control plane.",
+      "evidenceArtifact": "UC-17.1.36 alert log + segmentation operational report.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(d)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "SC-7(5)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "SC-7(5) (Boundary Protection — Deny by Default / Allow by Exception) requires network architecture deny by default. SGT-based segmentation is one such mechanism.",
+      "controlObjective": "Maintain segmentation-enforcement health to support boundary-protection deny-by-default architecture.",
+      "evidenceArtifact": "UC-17.1.36 alert log + boundary-protection operational report.",
+      "obligationRef": "nist-800-53@Rev. 5#SC-7(5)",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AC-4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "AC-4 (Information Flow Enforcement) requires controls on information flow. SGT-segmentation is the implementation of this control on the data-plane; SXP-peer health evidences operational fidelity.",
+      "controlObjective": "Maintain operational fidelity of information-flow-enforcement controls.",
+      "evidenceArtifact": "UC-17.1.36 + flow-enforcement operational report.",
+      "obligationRef": "nist-800-53@Rev. 5#AC-4",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.22",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.22 (Segregation of networks) requires segregation of network services on need-to-know. SGT-segmentation operationalises this control; SXP-peer health evidences operational continuity.",
+      "controlObjective": "Maintain operational continuity of network segregation.",
+      "evidenceArtifact": "UC-17.1.36 alert log + segregation operational report.",
+      "obligationRef": "iso-27001@2022#A.8.22",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.9",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.9 (Protection and prevention) requires sound, robust ICT systems. SGT segmentation is one such robustness measure; SXP health evidences operational continuity.",
+      "controlObjective": "Operational continuity of segmentation-enforcement plane for the financial-entity ICT environment.",
+      "evidenceArtifact": "UC-17.1.36 alert log.",
+      "obligationRef": "dora@Regulation (EU) 2022/2554#Art.9",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "On a lab NAD, configure an SXP peer to ISE then disable the peer config (`no cts sxp connection peer ...`). Within 60s ISE emits 83004 (SXP peer disconnected) and the NAD emits `%CTS-3-SXP_PEER_DOWN`. UC-17.1.36 fires showing the peer with `peer_downs >= 2` after a second flap.",
+    "negativeScenario": "Restore the SXP peer config. Within 60s the peer reconnects (83003 / `%CTS-6-SXP_PEER_UP`). UC-17.1.36 does NOT fire on the next schedule."
+  },
+  "detailedImplementation": "Prerequisites\n• Cisco TrustSec deployed: ISE has SGTs defined, NADs configured with `cts sxp` and `cts role-based enforcement`.\n• `sxp_peers.csv` lookup with `peer_ip`, `peer_name`, `is_critical`, `site`.\n• Splunk role with `srchIndexesAllowed = nac, network, radius`.\n\nStep 1 — Configure data collection\n(a) ISE side — *TrustSec* category at INFO, forwarded.\n(b) NAD side — IOS-XE/NX-OS syslog forwarded to Splunk, parsed via the appropriate Cisco network TA.\n\nVerify both:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (83001, 83003, 83004, 83006) earliest=-7d | stats count by MessageCode\nindex=network sourcetype=\"cisco:ios\" \"CTS-\" earliest=-7d | stats count by host\n```\n\nStep 2 — Create the search\nSearch is in `spl` field. Schedule every 5 min, time range `-15m@m to @m`, throttle `peer` for 30 min.\n\nStep 3 — Validate\nProvoke as in `controlTest`. Confirm UC fires.\n\nStep 4 — Operationalize\nDashboard \"ISE — TrustSec / SXP Health\":\n• Single value: SXP peers up vs total.\n• Timeline: peer events last 24h.\n• Top-N: peers with most flaps last 7d.\n• SGT distribution panel — sessions per SGT.\n\nAlerting: PagerDuty medium on flap; high if multiple peers flap simultaneously (suggests ISE-side issue rather than peer-side).\n\nRunbook:\n1. Identify peer.\n2. SSH to NAD: `show cts sxp connections`. Confirm peer state.\n3. SSH to ISE PSN: `show cts sxp connection`. Confirm peer state from ISE side.\n4. Validate keepalive timers match.\n5. Validate IP reachability and TCP/64999 (default SXP port) on the path.\n\nStep 5 — Troubleshooting\n\n• **Peers flapping every 90s** — keepalive mismatch. Standardise on the recommended hold-time min/max.\n\n• **Binding updates failing on one peer** — peer's binding table is full; check `show cts sxp binding` on the peer.\n\n• **NAD reports CTS-3 errors but ISE shows the peer up** — Asymmetric SXP path; the NAD's local view differs from ISE's. Manual `clear cts sxp connection peer` on the NAD usually resolves.",
+  "grandmaExplanation": "When ISE tells switches and routers which group each user belongs to, those switches use that group label to allow or deny traffic. We watch the live conversation between ISE and the network gear — if the conversation drops, the group labels stop being delivered and security rules silently stop working. We catch that.",
+  "wave": "walk"
+}

@@ -1,0 +1,76 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.107",
+  "title": "PCI DSS v4.0 4.2.1 — Strong Wireless Authentication Mode Evidence (Cisco ISE)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "4.2.1",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PCI DSS v4.0 4.2.1 requires strong cryptography over public/wireless networks. UC-17.1.74 evidences mode purity per SSID — particularly that CDE-touching SSIDs are not regressing from 802.1X to MAB.",
+      "controlObjective": "Demonstrate that wireless networks carrying CDE traffic enforce strong authentication only — no MAB exceptions, no PSK, no weak EAP methods.",
+      "evidenceArtifact": "Saved search 'UC-22.11.107' running on `index=nac sourcetype=cisco:ise:syslog`, archived to `audit_evidence` with `pcidss_clause=4.2.1`.",
+      "obligationRef": "pci-dss@v4.0#4.2.1",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` *Authentication* category. Cross-reference UC-17.1.74. CDE SSID list is maintained in `pci_cde_ssid_inventory.csv`.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5200 earliest=-1d\n| lookup pci_cde_ssid_inventory.csv ssid OUTPUT pci_cde_relevant\n| where pci_cde_relevant=\"yes\"\n| stats count by ssid, AuthenticationMethod\n| where AuthenticationMethod IN (\"PSK\", \"iPSK\", \"MAB\", \"EAP-MD5\", \"LEAP\")\n| eval pcidss_clause=\"4.2.1\", control=\"Strong_Wireless_Auth\"\n| collect index=audit_evidence",
+  "description": "We continuously evidence PCI DSS v4.0 4.2.1 — strong wireless authentication for CDE-relevant SSIDs.",
+  "value": "PCI auditors require evidence that wireless networks touching the CDE use strong authentication. This UC's daily attestation (and zero-result steady state) is the audit-quality artefact.",
+  "implementation": "Daily. Maintain `pci_cde_ssid_inventory.csv` with cardholder-data SSIDs.",
+  "visualization": "PCI 4.2.1 panel: per-SSID auth-mode trend; weak-auth incident table.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "PCI DSS v4.0",
+      "url": "https://www.pcisecuritystandards.org/document_library/"
+    },
+    {
+      "title": "UC-17.1.74 — ISE iPSK / MAB / 802.1X Mode Distribution",
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.74.json"
+    }
+  ],
+  "knownFalsePositives": "1. Approved PSK SSIDs that only carry guest traffic and are formally documented as out-of-CDE — exclude via `pci_cde_ssid_inventory.csv` with `pci_cde_relevant=no`.",
+  "requiredFields": [
+    "_time",
+    "ssid",
+    "AuthenticationMethod"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "lastReviewed": "2026-05-06",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.74 operational.\n- `pci_cde_ssid_inventory.csv` maintained with PCI scope review.\n- `audit_evidence` index with 1y+ retention.\n\n## Step 1 — Data\n\nVia ISE add-on plus `pci_cde_ssid_inventory.csv` (manually maintained).\n\n## Step 2 — Implementation\n\n```ini\n[UC-22.11.107: PCI 4.2.1 — Strong Wireless Auth Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.11.107,reg=PCIDSS,clause=4.2.1\n```\n\n## Step 3 — Validate\n\nAdd a CDE SSID with PSK enabled in test, confirm 22.11.107 captures evidence.\n\n## Step 4 — Operationalize\n\nDashboard panel 'PCI 4.2.1: CDE Wireless Auth Compliance'. Steady state should be zero rows.\n\n## Step 5 — Audit\n\nQuarterly evidence pack for PCI QSA review.",
+  "grandmaExplanation": "We continuously evidence PCI DSS v4.0 4.2.1 — strong wireless authentication for CDE-relevant SSIDs. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "PCI QSA",
+  "controlTest": {
+    "positiveScenario": "Add MAB to a CDE SSID. UC-22.11.107 captures evidence within 1 day.",
+    "negativeScenario": "All CDE SSIDs use 802.1X with strong EAP. Empty result; control attested."
+  },
+  "evidence": "Saved search results archived to `audit_evidence` with PCI 4.2.1 tagging.",
+  "exclusions": "Out-of-CDE SSIDs documented in PCI scope reduction excluded."
+}

@@ -168,5 +168,5 @@ index=catalyst sourcetype="cisco:dnac:client" connectionType="WIRELESS"
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center Intent API — Client Detail endpoint](https://developer.cisco.com/docs/catalyst-center/#!get-client-detail)
-- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
+- [Catalyst Center Integration Guide (this repo)](../../docs/guides/catalyst-center.md)
 - [Cisco 802.11r, 802.11k, 802.11v — Fast Roaming Best Practices](https://www.cisco.com/c/en/us/td/docs/wireless/controller/technotes/8-x/Fast_Secure_Roaming.html)

@@ -52,6 +52,8 @@ from splunk_uc_mcp.tools import (
     GET_EQUIPMENT_SCHEMA,
     GET_REGULATION_OUTPUT_SCHEMA,
     GET_REGULATION_SCHEMA,
+    GET_USE_CASE_MARKDOWN_OUTPUT_SCHEMA,
+    GET_USE_CASE_MARKDOWN_SCHEMA,
     GET_USE_CASE_OUTPUT_SCHEMA,
     GET_USE_CASE_SCHEMA,
     LIST_CATEGORIES_OUTPUT_SCHEMA,
@@ -69,6 +71,7 @@ from splunk_uc_mcp.tools import (
     get_equipment,
     get_regulation,
     get_use_case,
+    get_use_case_markdown,
     list_categories,
     list_equipment,
     list_regulations,
@@ -90,6 +93,8 @@ SERVER_INSTRUCTIONS = (
     "categories, 60 regulations, 105 equipment slugs, signed provenance "
     "ledger). Read-only. Use `search_use_cases` for discovery, "
     "`get_use_case` for the full SPL + compliance detail on a single UC, "
+    "`get_use_case_markdown` for the same content pre-rendered as plain "
+    "markdown (drop straight into a system prompt or RAG chunk), "
     "`list_regulations` / `get_regulation` for framework context, "
     "`list_equipment` / `get_equipment` for deployment stacks, and the "
     "compliance-story layer when an auditor asks which clauses are still "
@@ -230,6 +235,19 @@ def _tool_definitions() -> list[Tool]:
             outputSchema=GET_USE_CASE_OUTPUT_SCHEMA,
         ),
         Tool(
+            name="get_use_case_markdown",
+            description=(
+                "Return the LLM-friendly plain-markdown twin for one "
+                "UC. Same content as get_use_case but pre-rendered as "
+                "markdown — drop straight into a system prompt or RAG "
+                "chunk with no field-mapping work. Use this when the "
+                "downstream consumer is a text-completion model rather "
+                "than a structured-output pipeline."
+            ),
+            inputSchema=GET_USE_CASE_MARKDOWN_SCHEMA,
+            outputSchema=GET_USE_CASE_MARKDOWN_OUTPUT_SCHEMA,
+        ),
+        Tool(
             name="list_categories",
             description=(
                 "List the 23 primary categories with per-subcategory UC "
@@ -330,6 +348,9 @@ def _tool_dispatch(
             catalog=catalog, **args
         ),
         "get_use_case": lambda args: get_use_case(catalog=catalog, **args),
+        "get_use_case_markdown": lambda args: get_use_case_markdown(
+            catalog=catalog, **args
+        ),
         "list_categories": lambda _args: list_categories(catalog=catalog),
         "list_regulations": lambda args: list_regulations(
             catalog=catalog, **args

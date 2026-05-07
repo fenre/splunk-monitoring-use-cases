@@ -1,0 +1,112 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.40",
+  "title": "RADIUS Authentication Latency SLO and Slow PSN Detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Operations"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authentication* category. Every 5400 (auth success) and 5411/5417/5440 (auth failure) event carries the `Step Latency` extension fields recording per-step processing time inside ISE: `Step1Latency` (RADIUS receive→initial parse), `Step2Latency` (parsing→identity-store query), `Step3Latency` (identity-store query→policy evaluation), `Step4Latency` (policy eval→Access-Accept emit). Total is `TotalLatency`. Network Access Devices (NADs) also emit RADIUS server-response-time when configured: `index=network sourcetype=cisco:ios` codes `%RADIUS-3-NORESPONSE` and `%RADIUS-4-RADIUSDEAD`. CIM mapping: `Authentication.duration` after a calculated field aliases `TotalLatency` (in ms).",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) + `Splunk Add-on for Cisco IOS-XE/NX-OS`.",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5400, 5411, 5417)\n| rex \"NodeName=(?<psn>[^,\\s]+)\"\n| rex \"TotalLatency=(?<latency_ms>\\d+)\"\n| rex \"Step1Latency=(?<step1>\\d+)\"\n| rex \"Step2Latency=(?<step2>\\d+)\"\n| rex \"Step3Latency=(?<step3>\\d+)\"\n| rex \"Step4Latency=(?<step4>\\d+)\"\n| eval latency_ms = tonumber(latency_ms)\n| stats avg(latency_ms) as avg_lat perc95(latency_ms) as p95_lat perc99(latency_ms) as p99_lat avg(step1) as avg_step1 avg(step2) as avg_step2 avg(step3) as avg_step3 avg(step4) as avg_step4 count as auth_count by psn\n| eval slo_breached = if(p95_lat > 2000, \"yes\", \"no\")\n| where slo_breached==\"yes\" OR p99_lat > 5000\n| sort - p95_lat",
+  "description": "Detects ISE PSNs whose 95th-percentile total RADIUS authentication latency exceeds the SLO of 2000ms (or 99th-percentile exceeds 5000ms) over a rolling 15-minute window. Decomposes the latency into the 4 ISE processing steps so the bottleneck is identifiable: Step2 spike → identity-store slowness; Step3 spike → complex authorization policy.",
+  "value": "When RADIUS latency exceeds NAD timeout (typically 5s), the NAD considers ISE 'dead' and either falls through to a backup ISE PSN, falls through to a local fallback (allow-all), or denies all auths. The downstream user impact: failed wireless auth, slow Wi-Fi roaming, dropped 802.1X sessions on switching. Catching the latency drift at p95>2s gives the platform team time to investigate before the timeouts start.",
+  "implementation": "Confirm the *Authentication* category is forwarded at INFO. Most deployments already accept this data. Schedule the search every 5 min, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `psn` for 30 min.",
+  "visualization": "(1) Per-PSN p95 latency timechart, last 24h, span=5m. SLO line at 2000ms. (2) Per-PSN p99 latency timechart, last 24h, span=5m. SLO line at 5000ms. (3) Stacked bar: average step latency breakdown per PSN — reveals which step is the bottleneck. (4) Top-N table: PSNs by p95 last 7d.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "dataModelAcceleration": "Yes — Authentication DM acceleration speeds the percentile calculations on >24h windows.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 Admin Guide — Performance Monitoring",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_monitoring_and_troubleshooting.html"
+    },
+    {
+      "title": "Cisco ISE Performance & Scalability Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/performance_and_scalability/b_ise_perf_and_scale.html"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Identity Services (Splunkbase 1915)",
+      "url": "https://splunkbase.splunk.com/app/1915"
+    }
+  ],
+  "knownFalsePositives": "(a) **First 5 minutes after PSN restart** — JIT compilation and cache priming spike latency. Suppress per `psn` for 15 min after a 60030 event. (b) **Identity store provider degradation** — When AD or LDAP is slow, every PSN authenticating against it shows elevated step2 latency. Cross-reference UC-17.1.44 (identity store health) and treat ISE PSN as a victim, not a cause. (c) **Bulk reauth event** — A CRL push or SGT mapping change triggers reauth from many endpoints simultaneously, briefly saturating PSN auth queues. Cross-ref UC-17.1.18. (d) **Initial baseline after deployment scale-up** — Adding endpoints to an undersized PSN; latency rises until auth load redistributes after NAD RADIUS server-list reorder.",
+  "mitreAttack": [
+    "T1499.001"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(c)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(c) covers business continuity. PSN latency is operational continuity input.",
+      "controlObjective": "Operational continuity of access-control plane.",
+      "evidenceArtifact": "UC-17.1.40 alert log + monthly SLO report.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(c)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.9",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.9 (Protection and prevention) — robust ICT systems require demonstrable performance margins. SLO monitoring evidences this.",
+      "controlObjective": "Operational performance margins for ICT system.",
+      "evidenceArtifact": "UC-17.1.40 + monthly SLO report.",
+      "obligationRef": "dora@Regulation (EU) 2022/2554#Art.9",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.5.30",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.5.30 ICT readiness for business continuity — performance monitoring evidences operational readiness.",
+      "controlObjective": "Operational ICT readiness.",
+      "evidenceArtifact": "UC-17.1.40 alert log.",
+      "obligationRef": "iso-27001@2022#A.5.30",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "A1.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A1.1 (Availability — capacity and demand) — latency-SLO evidence.",
+      "controlObjective": "Capacity-demand monitoring.",
+      "evidenceArtifact": "UC-17.1.40 + monthly SLO report.",
+      "obligationRef": "soc-2@2017 TSC#A1.1",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "On a lab PSN, induce identity-store latency by inserting a network impairment (e.g. `tc qdisc add dev eth0 root netem delay 1500ms`) on the path between PSN and AD. The next batch of auths shows step2 latency spike; UC-17.1.40 fires within 15 min showing the PSN with `p95_lat > 2000`.",
+    "negativeScenario": "Remove the impairment. Latency returns to baseline within 15 min. Alert clears on next schedule."
+  },
+  "detailedImplementation": "Prerequisites\n• *Authentication* category at INFO.\n• `psn_inventory.csv` lookup with `psn`, `site`, `expected_p95_ms`.\n• Authentication DM accelerated.\n\nStep 1 — Configure data collection\nValidate latency fields are extracted:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5400 earliest=-1h\n| eval has_lat = if(isnotnull(TotalLatency), \"yes\", \"no\")\n| stats count by has_lat\n```\nIf `has_lat=no` dominates, the TA's regex isn't extracting `TotalLatency`. Upgrade Splunkbase 1915.\n\nStep 2 — Create the search\nPrimary search in `spl` field. Schedule every 5 min.\n\nStep 3 — Validate\nProvoke as above. Confirm step-latency decomposition shows step2 spike when AD is slow.\n\nStep 4 — Operationalize\nDashboard \"ISE — RADIUS Latency SLO\":\n• Per-PSN p95 timechart with SLO line.\n• Per-PSN p99 timechart with SLO line.\n• Stacked bar: avg step latency per PSN.\n• Top-N PSNs by p95.\n\nAlerting:\n• PagerDuty medium on individual PSN p95 > 2000ms sustained 15 min.\n• PagerDuty high on fleet-wide p95 > 2000ms (all PSNs simultaneously — implies upstream identity-store issue).\n\nRunbook:\n1. Identify offending PSN.\n2. Inspect step decomposition. If step2 dominates → identity-store issue (UC-17.1.44).\n3. If step3 dominates → policy complexity. Review the matched authorization rules; consider ordering optimisation.\n4. If step1/step4 dominate → ISE-internal queue saturation; correlate with UC-17.1.29 (resource saturation).\n\nStep 5 — Troubleshooting\n• **TotalLatency missing** — Old TA version. Upgrade.\n• **Latency reports look reasonable but NADs are timing out** — NAD's RADIUS timeout is set lower than 2000ms (e.g. 1500ms). Either tighten ISE SLO or relax NAD timeout. Consult NAD config: `radius-server timeout 5`.\n• **One PSN consistently slow** — under-sized PSN handling more sessions than its capacity tier. Redistribute load via NAD RADIUS server-list reorder.\n• **All PSNs spike at the same time** — Identity store (AD/LDAP) issue. Engage AD team.",
+  "grandmaExplanation": "We measure how long the access-control system takes to say 'yes, you're allowed in' — like checking how fast a shop checkout works. If a checkout starts taking too long for too many customers, we ring the bell so a manager can investigate before the queue blocks the shop.",
+  "wave": "walk"
+}

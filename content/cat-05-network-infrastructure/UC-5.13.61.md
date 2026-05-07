@@ -168,5 +168,5 @@ index=catalyst sourcetype="cisco:dnac:issue" category="Security" (name="*rogue*"
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center Rogue AP Detection — Cisco Docs](https://www.cisco.com/c/en/us/td/docs/wireless/controller/technotes/rogue-management.html)
-- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
+- [Catalyst Center Integration Guide (this repo)](../../docs/guides/catalyst-center.md)
 - [PCI DSS v4.0 — Requirement 11.2.1 Wireless Detection](https://www.pcisecuritystandards.org/document_library/)

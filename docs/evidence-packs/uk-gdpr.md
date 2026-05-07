@@ -81,13 +81,13 @@ Because this regulation derives from `gdpr` with identity inheritance, the claus
 - **UC-22.1.16** — GDPR Consent Withdrawal Processing Enforcement
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.1.16.json`](../../content/cat-22-regulatory-compliance/UC-22.1.16.json)
 <a id='uc-22-1-46'></a>
 - **UC-22.1.46** — GDPR Consent Mechanism Audit (Lawful Basis Alignment)
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.1.46.json`](../../content/cat-22-regulatory-compliance/UC-22.1.46.json)
 <a id='uc-22-35-2'></a>
 - **UC-22.35.2** — Log tamper detection via write-once-read-many chain-of-custody
@@ -342,7 +342,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 7.3
+catalogue_version: 7.4.1
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     05d15d6f921fc6af3c7dbfacf931dcfd40d45bd1e8a91ef250232b39e24f110e
 ```

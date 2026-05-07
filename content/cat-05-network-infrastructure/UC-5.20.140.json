@@ -4,8 +4,10 @@
   "title": "IPv6 Flow Label Misuse and Covert Channel Detection (RFC 6437)",
   "criticality": "medium",
   "difficulty": "advanced",
-  "monitoringType": ["Security"],
-  "splunkPillar": "ES",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
   "dataSources": "`index=network sourcetype=netflow` — Detects misuse of the IPv6 Flow Label field (20 bits in the IPv6 header, RFC 6437) for covert channel communication. The Flow Label should be set uniformly random per flow; non-random patterns, encoded data, or zero values on all flows may indicate either misconfiguration or deliberate covert channel use.",
   "app": "Splunk Enterprise Security",
   "spl": "index=network sourcetype=\"netflow\" earliest=-24h\n| eval is_ipv6=if(match(src, \":\") OR match(dest, \":\"), 1, 0)\n| where is_ipv6=1\n| eval flow_label=if(isnotnull(flow_label), flow_label, 0)\n| stats count as flows dc(flow_label) as unique_labels avg(flow_label) as avg_label stdev(flow_label) as stdev_label by src\n| eval label_ratio=round(unique_labels/flows, 4)\n| eval anomaly=case(\n    unique_labels=1 AND flows > 100 AND flow_label=0, \"ALL_ZERO — \" . flows . \" flows with flow_label=0 — legacy behaviour or misconfiguration\",\n    label_ratio < 0.01 AND flows > 100, \"LOW_DIVERSITY — only \" . unique_labels . \" labels across \" . flows . \" flows — possible encoding\",\n    stdev_label < 100 AND flows > 100, \"LOW_ENTROPY — flow labels have suspiciously low randomness\",\n    1=1, null())\n| where isnotnull(anomaly)\n| sort -flows",
@@ -14,18 +16,35 @@
   "implementation": "Analyze Flow Label diversity and entropy per source. Alert on anomalous patterns.",
   "visualization": "(1) Histogram: Flow Label distribution. (2) Table: sources with anomalous labels. (3) Single-value: % of flows with zero labels.",
   "references": [
-    {"title": "RFC 6437 — IPv6 Flow Label Specification", "url": "https://www.rfc-editor.org/rfc/rfc6437"},
-    {"title": "IPv6 Flow Labels as Covert Channel — Academic Research", "url": "https://doi.org/10.1109/ACSAC.2005.25"}
+    {
+      "title": "RFC 6437 — IPv6 Flow Label Specification",
+      "url": "https://www.rfc-editor.org/rfc/rfc6437"
+    },
+    {
+      "title": "IPv6 Flow Labels as Covert Channel — Academic Research",
+      "url": "https://doi.org/10.1109/ACSAC.2005.25"
+    }
   ],
   "knownFalsePositives": "**Legacy stacks.** Older IPv6 implementations set Flow Label to zero on all packets. This is valid per RFC 6437 but reduces QoS effectiveness.\n\n**Load balancers.** Some load balancers set specific Flow Label patterns for ECMP distribution. These are legitimate.",
-  "equipment": ["cisco", "juniper"],
-  "equipmentModels": ["cisco_catalyst_9000", "juniper_mx"],
+  "equipment": [
+    "cisco",
+    "juniper"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9000",
+    "juniper_mx"
+  ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• NetFlow/IPFIX exporting Flow Label field.\n• Note: Not all NetFlow implementations export the Flow Label.\n\nStep 1 — Verify NetFlow exports include Flow Label.\n\nStep 2 — Baseline normal Flow Label distribution.\n\nStep 3 — Validate: Generate test traffic with known Flow Labels. Verify detection.\n\nStep 4 — Operationalize\n**Dashboard:** Flow Label analysis. **Alert:** Low-entropy Flow Labels — investigate.\n\nStep 5 — Troubleshooting\n• Zero Flow Labels: Usually harmless but indicate the source stack doesn't implement RFC 6437. Update OS/firmware.\n• Encoded data in labels: Investigate the source for malware or unauthorized tools.",
   "grandmaExplanation": "Every IPv6 packet has a small label, like a shipping tag. It should be a random number for each conversation. If someone is writing secret messages on these tags instead of random numbers, they could be smuggling data out of the network. We check that these tags look properly random and flag any suspicious patterns.",
-  "prerequisiteUseCases": ["5.20.98"],
+  "prerequisiteUseCases": [
+    "UC-5.20.98"
+  ],
   "wave": "run"
 }

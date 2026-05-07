@@ -10,6 +10,217 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [7.4.2] - 2026-05-07
+
+### AI-friendliness lift, part 2 — coordinated UC representations + 11th MCP tool
+
+Theme: **make every UC reachable as plain markdown without a second
+fetch** and let MCP-connected agents skip the JSON-twin → manual-render
+step. Builds directly on the AI-friendliness foundation laid in 7.4.
+
+- **Per-UC `uc.md` is now a first-class peer of `index.html` / `index.json`.**
+  Every static-site UC page advertises the markdown twin via
+  `<link rel="alternate" type="text/markdown">` in the document head and
+  a "Markdown twin →" link in the footer. The JSON twin's discovery
+  block now carries a `markdown` field alongside `html` and `json`, so
+  any of the three representations gets you the other two in one hop.
+- **Per-UC freshness stamping.** `uc.md` now opens with a
+  `Last-modified: <YYYY-MM-DD> · Catalogue-version: <semver>` line,
+  sourced from the UC's `reviewed` field (build timestamp fallback) and
+  the canonical `/VERSION`. Agents can now reason about staleness at the
+  individual-UC level rather than the catalogue level.
+- **New MCP tool: `get_use_case_markdown`.** The 11th tool returns the
+  same content as `get_use_case`, pre-rendered as plain markdown. Drop
+  the result straight into a system prompt or RAG chunk with no field-
+  mapping work — the markdown body is byte-for-byte equivalent to the
+  static-site `uc.md`. The tool re-uses `get_use_case` internally so
+  it stays consistent with the structured surface and never falls out of
+  sync. `SERVER_INSTRUCTIONS`, the drift guard
+  (`scripts/audit_mcp_tool_schemas.py`), and `docs/mcp-server.md` all
+  reflect the 10 → 11 tool count.
+- **`AGENTS.md` and `docs.html` surface the new artefacts.** The agent
+  entrypoint now lists `AGENTS-EXAMPLES.md`, `ai.txt`, the per-UC
+  markdown twin, and the new MCP tool in its Key entry points table,
+  and gains a "How an AI agent should consume this catalog" section
+  enumerating the three principal access patterns. `docs.html` adds a
+  dedicated "For AI Agents & LLMs" section (with a TOC anchor) wiring
+  human readers to AGENTS.md, AGENTS-EXAMPLES.md, llms.txt, ai.txt,
+  the MCP server guide, and the JSON API.
+- **Recipe 8 in `AGENTS-EXAMPLES.md`** demonstrates the new markdown
+  workflow end-to-end across the three access patterns (MCP tool, raw
+  HTTP fetch, and bare-LLM prompt). Existing recipes were renumbered
+  upward by one — Recipe 9 is now the UC-existence-check workflow.
+
+This release is purely additive: no breaking changes to any existing
+UC ID, schema, URL, or build artefact. Build pipeline tests (61),
+MCP tests (345), and the MCP drift guard all pass.
+
+---
+
+## [7.4.1] - 2026-05-06
+
+### Cisco ISE near-complete coverage — 55 new UCs, 24 compliance wrappers, integration guide
+
+Theme: **make Cisco Identity Services Engine (ISE) a first-class
+content domain in the catalogue**. Closes the gap between the existing
+27 ISE-adjacent UCs in `cat-17.1` and a complete operational + security
++ compliance picture across the Cisco ISE platform — from RADIUS,
+TrustSec/SGT, and pxGrid health to AI Endpoint Analytics, ANC closed-
+loop response, and Splunk ES Risk-Based Alerting.
+
+- **55 new ISE use cases (UC-17.1.28 &mdash; UC-17.1.82).** Hand-authored
+  to the UC-1.1.1 gold standard with deep `detailedImplementation`,
+  specific `knownFalsePositives`, plain-language `grandmaExplanation`,
+  and structured `compliance[]` arrays. Coverage spans:
+  - **Platform health.** Replication topology lag, MnT operational-data
+    purge, ISE node CPU/memory/disk saturation, certificate hygiene,
+    Smart Licensing telemetry, application-process crash detection.
+  - **pxGrid 2.0.** Subscriber connectivity drops, topic throughput vs
+    PSN load, cloud-relay TLS health.
+  - **TrustSec / SGT.** Assignment drift between ISE and switching
+    fabric, SXP peer health, ACI / Secure Workload sync deltas.
+  - **Advanced authentication.** EAP-TLS handshake-failure clustering,
+    EAP method-drift across PSN, RADIUS p95 latency SLO.
+  - **Threat / response.** TC-NAC threat-feed health, Adaptive Network
+    Control (ANC) action audit, TACACS+ command-authorisation drift.
+  - **Identity stores.** External AD / LDAP / SAML connector health,
+    PassiveID provider continuity, Cisco Identity Intelligence (CII)
+    risk-score ingestion drift.
+  - **Platform ops.** Backup integrity, restore drill outcome, patch /
+    upgrade window auditing, MDM connector freshness, sponsor + self-
+    registration portal abuse.
+  - **Posture &amp; agent.** Remediation funnel, Secure Client agent
+    heartbeat, profiler-quality drift, CoA failure clustering.
+  - **APIs / data.** ERS / OpenAPI brute-force, Data Connect query
+    audit, Edge Processor pipeline observability.
+  - **Deployment topology.** Cloud-hosted PSN egress validation,
+    multi-site latency, hybrid PSN deployment health, stealth-mode
+    posture, Custom Posture Provisioning (CPP), Continuous Compliance
+    Monitoring (CoCM).
+  - **AI / IoT.** AI Endpoint Analytics anomaly funnel, AI Endpoint
+    Behavioural drift, IoT / OT onboarding progression.
+  - **Admin ops.** TEAP rollout health, OCSP / CRL reachability, admin
+    account lockouts, GUI session anomalies.
+  - **Wireless &amp; segmentation.** WLC + ISE wireless authentication
+    funnel, iPSK / MAB / 802.1X mode distribution, downloadable ACL
+    push failures, Group-Based Policy (GBP) effective-policy drift.
+  - **Capacity &amp; policy.** PSN TPS SLO tracking, authentication
+    distribution imbalance, authorisation-policy funnel observability.
+  - **Closed-loop response.** ANC quarantine effectiveness, ISE risk
+    score &rarr; Splunk ES RBA, SOAR + ISE mean-time-to-contain (MTTC).
+- **24 compliance evidence wrappers (cat-22).** Each maps a specific
+  ISE operational UC to a regulatory clause &mdash; ISO/IEC 27001:2022,
+  PCI DSS v4.0, HIPAA Security Rule, NIS2 Article&nbsp;21, DORA RTS,
+  NIST SP 800-53 Rev.&nbsp;5, SOX / ITGC PCAOB AS 5, SOC 2 TSC 2017,
+  CMMC 2.0, and NERC CIP v5+. Wrappers `collect` evidence into the
+  `audit_evidence` index with auditor-facing tags so the same ISE
+  detection telemetry doubles as a control-attestation artefact for
+  privileged access (22.40), encryption / PKI lifecycle (22.41), and
+  the framework-specific subcategories listed above.
+- **Cisco ISE Integration Guide (`docs/guides/cisco-ise.md`).** New
+  long-form integration guide covering: quick-start, architecture
+  diagram, prerequisites, data-source matrix, sample events, TA
+  configuration (Splunkbase 1915), syslog / pxGrid / ERS / Data
+  Connect onboarding, CIM mapping, compliance mapping, crawl / walk /
+  run roadmap, cross-product correlation patterns (with Catalyst
+  Center, ASA / FTD, ACI, Webex, Spaces, ThousandEyes), SOAR closed-
+  loop patterns, ITSI service modelling, Splunk ES RBA, capacity
+  planning, validation checklist, troubleshooting, known limitations,
+  FAQ, glossary, and references. Lists all 82 ISE UCs and 24 compliance
+  wrappers with their maturity tiers and cross-references.
+- **Catalogue metadata sync.** `_category.json` for `cat-17` (27 &rarr;
+  82 UCs in `17.1`; total 153 &rarr; 208) and `cat-22` (1332 &rarr;
+  1356 UCs across the affected subcategories) updated. The v7.1 / 22.6
+  / 22.11 / 22.10 / 22.13 / 22.14 / 22.40 / 22.41 counts and others
+  stepped up to match new wrapper IDs. `non-technical-view.js` now
+  surfaces seven ISE-flavoured plain-language entries under
+  `Network access control`. `docs-uc-map.js` registers the new ISE
+  guide and links it to all 79 affected UCs.
+
+This release is purely additive: no breaking changes to any existing
+UC ID, schema, URL, or build artefact. The 55 ISE UCs and 24 compliance
+wrappers all validate against `schemas/uc.schema.json` (v1.6.x) and
+follow the structured `compliance[]` contract introduced earlier.
+
+---
+
+## [7.4] - 2026-05-06
+
+### AI-friendliness lift — per-UC markdown twins, AI policy, and richer discovery
+
+Theme: **make the catalogue trivially consumable by AI agents and LLMs**
+without requiring an MCP client. Six artefacts ship together so a cold
+fetch from any agent (Cursor, Claude Code, Codex, ChatGPT browse,
+Perplexity, custom RAG pipeline) can find the right entry point and
+bring back exactly one use case as plain text.
+
+- **Per-UC plain-markdown twin (`/uc/UC-X.Y.Z/uc.md`).** Every one of the
+  7,578 use cases now ships a clean-markdown sibling next to its
+  `index.html` and `index.json`. The twin is HTML-free, ~3 KB on average,
+  and ordered for LLM consumption: title, plain-language explanation
+  (`grandmaExplanation`), quick-facts table, prerequisite/enables links,
+  description, value, SPL, CIM SPL (tstats), implementation, detailed
+  implementation, visualization, known false positives, MITRE ATT&amp;CK,
+  regulations, and references. Generated by a new `render_markdown_twin`
+  in `tools/build/templates/uc.py` and emitted from `_emit_uc` in
+  `render_pages.py`. Curl-friendly, deterministic, and footer-stamped
+  with provenance pointers back to `/llms.txt` and `/AGENTS.md`.
+- **`AGENTS-EXAMPLES.md` &mdash; copy-paste prompt recipes.** New top-level
+  document with eight grounded recipes (find UCs by criticality and
+  category, find compliance gaps, find equipment-driven UCs, plan a
+  crawl/walk/run rollout, generate a non-technical summary, do a
+  what's-new differential, supply a RAG-pipeline grounding template,
+  disambiguate a guessed UC-ID). Each recipe shows the MCP form, the
+  raw JSON form, and the LLM-prompt form so agents pick whichever
+  matches their tooling.
+- **`ai.txt` &mdash; AI usage policy declaration.** New plain-text policy
+  shipped at both `/ai.txt` and `/.well-known/ai.txt` (the spawning.ai
+  convention). Declares the open-source MIT licence, attribution
+  preference, accuracy guidance (SPL is a starting point, validate in
+  your environment, prefer `qs` over `q` for high-volume), out-of-scope
+  notes (catalog is content-only, not a live monitoring service),
+  and pointers to every machine-readable surface. Mirrored into the
+  v7 build by a new `_write_well_known_ai_txt` step in `render_meta.py`.
+- **AI-crawler-aware `robots.txt`.** Replaces the stub four-line
+  `robots.txt` with an explicit allow-all for sixteen named AI/LLM
+  user-agents (`GPTBot`, `ChatGPT-User`, `OAI-SearchBot`, `ClaudeBot`,
+  `Claude-Web`, `anthropic-ai`, `Google-Extended`, `PerplexityBot`,
+  `Perplexity-User`, `CCBot`, `cohere-ai`, `Bytespider`,
+  `Applebot-Extended`, `Meta-ExternalAgent`, `DuckAssistBot`, `Diffbot`,
+  `FacebookBot`). Uses comments to point readers at `/ai.txt`,
+  `/AGENTS.md`, and `/llms.txt`. Pure declaration &mdash; no behaviour
+  change for crawlers that already followed the wildcard rule.
+- **Open Graph + Twitter Card metadata on every subpage.** Eight pages
+  (`scorecard.html`, `api-docs.html`, `clause-navigator.html`,
+  `compliance-story.html`, `regulatory-primer.html`, `guide-reader.html`,
+  `docs.html`, `graph.html`) now carry per-page `og:type`, `og:title`,
+  `og:description`, `og:url`, `og:site_name`, `twitter:card`,
+  `twitter:title`, `twitter:description`. Critical for LLM-summary
+  preview cards (Slack/Discord/Teams unfurl, ChatGPT search rich card)
+  and traditional SEO. `api-docs.html` and `graph.html` also gained the
+  `<link rel="canonical">` they were missing.
+- **Freshness timestamps on machine surfaces.** `llms.txt` and
+  `llms-full.txt` headers now carry `Catalogue-version:` and
+  `Last-modified:` lines (ISO-8601 UTC). `catalog.json` gained four new
+  top-level keys: `version`, `lastModified`, `_agents_examples_url`, and
+  `_ai_policy_url`. Timestamps are sourced from `SOURCE_DATE_EPOCH` when
+  in reproducible-build mode, then `git log -1 --format=%ct HEAD`, then
+  wall clock &mdash; so a deterministic build still produces identical
+  output.
+- **Sitemap expanded.** `sitemap.xml` (legacy build) now lists
+  `AGENTS.md`, `AGENTS-EXAMPLES.md`, `ai.txt`, `docs.html`, `graph.html`,
+  and `guide-reader.html`. The v7 sharded sitemap-index already covers
+  per-UC URLs.
+- **Build pipeline integration.** `tools/build/build.py` `_PROJECT_STATIC_FILES`
+  now includes `ai.txt`, `AGENTS.md`, and `AGENTS-EXAMPLES.md` so the v7
+  static-file mirror copies them into `dist/`. The legacy `build.py`
+  advertises the new artefacts in the `## Docs` section of `llms.txt`
+  and stamps timestamps into the `catalog.json` header.
+
+This release is purely additive: no breaking changes to any existing
+URL or schema. The MIT licence, the abbreviated catalog field map, and
+the v7 manifest schema are all unchanged.
+
 ## [7.3] - 2026-04-30
 
 ### Interactive knowledge graph

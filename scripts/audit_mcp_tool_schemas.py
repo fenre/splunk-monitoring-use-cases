@@ -12,8 +12,9 @@ Checks performed:
 
 1. Required tools are declared: the eight MVP tools plus the two
    clause-level story tools (``get_clause_coverage`` and
-   ``list_uncovered_clauses``) shipped in v1.6.x — all with matching
-   input and output schemas.
+   ``list_uncovered_clauses``) shipped in v1.6.x and the v7.4.2
+   ``get_use_case_markdown`` LLM-friendly markdown twin — all with
+   matching input and output schemas.
 2. Slug regexes are frozen (UC/regulation/equipment) — the drift guard
    asserts the compiled patterns the server uses to validate resource
    URIs, so a future change that relaxes them raises a red flag.
@@ -56,6 +57,7 @@ MCP_SRC = REPO_ROOT / "mcp" / "src"
 _PROBE_ARGS: dict[str, dict[str, Any]] = {
     "search_use_cases": {"query": "GDPR", "limit": 2},
     "get_use_case": {"uc_id": "22.1.1"},
+    "get_use_case_markdown": {"uc_id": "22.1.1"},
     "list_categories": {},
     "list_regulations": {"tier": 1},
     "get_regulation": {"regulation_id": "gdpr", "version": "2016-679"},
@@ -167,16 +169,21 @@ def _check_runtime_schemas(issues: list[str]) -> None:
         get_equipment,
         get_regulation,
         get_use_case,
+        get_use_case_markdown,
         list_categories,
         list_equipment,
         list_regulations,
         list_uncovered_clauses,
         search_use_cases,
     )
+    from splunk_uc_mcp.tools.use_case import (
+        GET_USE_CASE_MARKDOWN_OUTPUT_SCHEMA,
+    )
 
     schemas: dict[str, dict[str, Any]] = {
         "search_use_cases": SEARCH_USE_CASES_OUTPUT_SCHEMA,
         "get_use_case": GET_USE_CASE_OUTPUT_SCHEMA,
+        "get_use_case_markdown": GET_USE_CASE_MARKDOWN_OUTPUT_SCHEMA,
         "list_categories": LIST_CATEGORIES_OUTPUT_SCHEMA,
         "list_regulations": LIST_REGULATIONS_OUTPUT_SCHEMA,
         "get_regulation": GET_REGULATION_OUTPUT_SCHEMA,
@@ -189,6 +196,7 @@ def _check_runtime_schemas(issues: list[str]) -> None:
     callables: dict[str, Any] = {
         "search_use_cases": search_use_cases,
         "get_use_case": get_use_case,
+        "get_use_case_markdown": get_use_case_markdown,
         "list_categories": list_categories,
         "list_regulations": list_regulations,
         "get_regulation": get_regulation,

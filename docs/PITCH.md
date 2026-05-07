@@ -235,7 +235,7 @@ findings, **five** SPL warnings (all legitimate `dbxquery` callouts).
 ### vs. "just write your own"
 
 - **10,323 lines of automation** so you don't have to. Ours.
-- **7,364 UCs of curated content.** Would take a team of four three
+- **7,657 UCs of curated content.** Would take a team of four three
   years to write from scratch.
 - **Zero runtime dependencies.** It'll still build in 2035.
 
@@ -280,7 +280,7 @@ research should look.
 **v6.0 (shipped):** Verifiable quality — every shipped SPL demonstrably
 correct, every metric transparently measured.
 
-**v7.0–v7.3 (shipped):** 195 UCs rewritten to true-gold standard.
+**v7.0–v7.3 (shipped):** 195 detections rewritten to true-gold standard.
 69 regulatory frameworks with clause-level provenance. Interactive
 knowledge graph. Cisco Catalyst Center, OpenShift, and NIS2 deep-dives.
 MCP server with ten tools for AI-agent integration.

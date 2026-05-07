@@ -1,0 +1,113 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.30",
+  "title": "Cisco ISE Process Crash and Service-Restart Detection",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability",
+    "Operations"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` from the Splunk Add-on for Cisco Identity Services 5.0 ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)). Process state is reported under the *Internal Operations Diagnostics* and *System Statistics* logging categories. Key message codes: `60030` (process restart), `60031` (process restart failed), `60040` (process unresponsive — watchdog kill), `60050` (memory threshold exceeded for a service), `60060` (database connection lost), `52030` (admin-initiated service stop), `52031` (admin-initiated service start). ISE process names referenced in the `ProcessName` field: `application-server` (Tomcat — admin UI + REST), `database` (Oracle replicator), `runtime-AAA-Server` (RADIUS/TACACS+ engine), `MnT-MIB-Daemon`, `pxGrid-Server`, `ise-elasticsearch`, `redis-server`, `crl-server`, `licensemgr`, `replication-jvm`. CIM mapping: `Change.action=stopped|started|modified Change.object_category=service`.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) on Heavy Forwarders + Search Heads.",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60030, 60031, 60040, 60060, 52030, 52031)\n| rex \"NodeName=(?<node>[^,\\s]+)\"\n| rex \"ProcessName=(?<process>[^,\\s]+)\"\n| rex \"AdminUser=(?<admin_user>[^,\\s]+)\"\n| eval event_class = case(\n    MessageCode==\"60030\", \"unplanned_restart\",\n    MessageCode==\"60031\", \"restart_failed\",\n    MessageCode==\"60040\", \"watchdog_kill\",\n    MessageCode==\"60060\", \"db_connection_lost\",\n    MessageCode==\"52030\", \"admin_stop\",\n    MessageCode==\"52031\", \"admin_start\")\n| stats count latest(_time) as last_event values(event_class) as classes by node, process\n| sort - last_event\n| where mvfind(classes, \"unplanned_restart\")>=0 OR mvfind(classes, \"restart_failed\")>=0 OR mvfind(classes, \"watchdog_kill\")>=0 OR mvfind(classes, \"db_connection_lost\")>=0",
+  "description": "Detects Cisco ISE process crashes, watchdog-triggered service kills, and database connection losses on any deployment node. Differentiates planned admin-initiated service stops/starts from unplanned crashes so the alert only fires for genuinely unexpected service-state changes.",
+  "value": "An unplanned restart of `runtime-AAA-Server` on a PSN means RADIUS authentications fail closed for 30–120 seconds. An unplanned restart of `pxGrid-Server` severs the SOC's context feed silently — Splunk ES and Cisco Secure Workload may keep running with a stale endpoint context for minutes before the gap is detected via the missing-events check. A `database` process restart on the PAN delays admin operations and can corrupt an in-flight bulk import. This UC catches all of these immediately and routes to the on-call ISE engineer.",
+  "implementation": "ISE syslog is already collected via UC-17.1.28's data plumbing. This UC adds an additional saved search and uses the same dataset. Schedule every 5 minutes, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `node`+`process` for 30 min so a restart loop produces one page rather than dozens.",
+  "visualization": "(1) Single value: \"Unplanned restarts last 24h\" (red >0). (2) Table: node | process | event_class | last_event | count. (3) Timeline (Splunk Timeline visualisation): events as marker points, colour by event_class, Y-axis = node. Reveals 'cluster of crashes at 14:32' patterns. (4) Sankey: process → event_class → node, last 7d. Useful for trending which processes are most fragile in the deployment.",
+  "cimModels": [
+    "Change"
+  ],
+  "dataModelAcceleration": "Yes — these are `Change` events (`Change.action=stopped|started|modified Change.object_category=service`). If you accelerate the `Change` data model for 30 days, the trend panels become near-instant.",
+  "references": [
+    {
+      "title": "Splunk Add-on for Cisco Identity Services (Splunkbase 1915)",
+      "url": "https://splunkbase.splunk.com/app/1915"
+    },
+    {
+      "title": "Cisco ISE Syslog Reference — Internal Operations Diagnostics",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/syslog/Cisco_ISE_Syslogs/m_SyslogsList.html"
+    },
+    {
+      "title": "Cisco ISE 3.4 Admin Guide — Service Management",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **Patch installation** — `application install` triggers planned restart of multiple processes. Correlate against the *Administrative and Operational Audit* category for the matching admin operation; suppress within 30 min of a 51020 (patch operation) event. (b) **Manual `application restart`** — generates 52030 + 52031 events; the search already filters these out (only fires on 60030/60031/60040/60060). (c) **JVM full-GC pause >60s** — the watchdog kills `application-server` mistaking the GC pause for a hang. This is rare but happens on under-provisioned PANs. Escalate to ISE platform team for heap tuning rather than to RADIUS on-call. (d) **`database` connection-lost during PAN failover** — when the Primary PAN fails over to Secondary, every other node logs 60060 once for the connection loss. Suppress 60060 events for 5 min after a 60030 on the Primary PAN. (e) **First-boot of a new node** — multiple processes start in sequence and emit 52031 events; this is expected and the search filters these.",
+  "mitreAttack": [
+    "T1499",
+    "T1489"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(b)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(b) requires incident handling. Service-crash detection is a primary input — uncontrolled restarts of access-control services may need to be reported as significant incidents under Art.23.",
+      "controlObjective": "Provide timely detection of service-availability incidents in the access-control system to support NIS2 incident-handling and reporting obligations.",
+      "evidenceArtifact": "Saved search 'UC-17.1.30' alert log retained 7y; cross-referenced with the Art.23 24h/72h/1m incident-reporting timeline when a service crash escalates to a significant incident.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(b)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.17",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.17 (ICT-related incident management process) requires processes to detect, manage, and notify ICT incidents. Service-crash detection on a critical access-control system is exactly such detection.",
+      "controlObjective": "Detect ICT-related incidents in the access-control plane to support DORA's incident-management process.",
+      "evidenceArtifact": "Saved search 'UC-17.1.30' alert log + linked DORA major-incident classification matrix when applicable.",
+      "obligationRef": "dora@Regulation (EU) 2022/2554#Art.17",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AU-12",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "AU-12 (Audit Record Generation) requires the system generate audit records for events including service-state changes. Forwarding ISE process events to Splunk evidences fulfilment.",
+      "controlObjective": "Generate audit records for service-state changes in the access-control system.",
+      "evidenceArtifact": "Saved search 'UC-17.1.30' archived events + retention policy in audit_evidence index.",
+      "obligationRef": "nist-800-53@Rev. 5#AU-12",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.5.25",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.5.25 (Assessment and decision on information security events) requires the organisation assess and decide on the categorisation of security events. Process-crash detection feeds directly into the assessment process for the access-control plane.",
+      "controlObjective": "Generate categorisable security events for assessment and decision-making.",
+      "evidenceArtifact": "Saved search 'UC-17.1.30' + linkage to the security-event-assessment runbook.",
+      "obligationRef": "iso-27001@2022#A.5.25",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "On a lab ISE PSN, SSH in and run `application stop ise` (this is admin-initiated and emits 52030, which the search excludes). Then SSH back in and forcibly kill the AAA process (e.g. `kill -9` of the runtime-AAA-Server PID). The watchdog will emit MessageCode 60040 and ISE will auto-restart the process emitting 60030 within 30s. UC-17.1.30 must fire showing that node + process with `event_class=watchdog_kill` and `unplanned_restart`.",
+    "negativeScenario": "Run a planned `application restart ise` on the same node. Only 52030 + 52031 events are emitted. UC-17.1.30 must NOT fire — the search's `MessageCode IN (60030, 60031, 60040, 60060, 52030, 52031)` deliberately includes 52030/52031 in the base filter so they are *visible to humans* in ad-hoc searches, but the final `where` clause excludes them via `mvfind(classes, \"unplanned_restart\")>=0 ...`."
+  },
+  "detailedImplementation": "Prerequisites\n• Same as UC-17.1.28: ISE syslog forwarded to Splunk via the *Distributed Management*, *System Statistics*, *Internal Operations Diagnostics*, and *Administrative and Operational Audit* logging categories at WARN severity (52030/52031 require *Administrative and Operational Audit* at INFO).\n• Splunk_TA_cisco-ise 5.0+ on Heavy Forwarders + Search Heads.\n• `ise_deployment.csv` lookup with `node`, `persona`. Used to enrich the alert page with persona context.\n• Splunk role with `srchIndexesAllowed = nac`.\n\nStep 1 — Configure data collection\nVerify the categories are forwarded:\n```\nAdministration > System > Logging > Logging Categories\n  Internal Operations Diagnostics: severity = WARN, target = Splunk-HF-1\n  System Statistics: severity = WARN, target = Splunk-HF-1\n  Administrative and Operational Audit: severity = INFO, target = Splunk-HF-1\n```\nAnd validate event flow:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60030, 60031, 60040, 60060, 52030, 52031) earliest=-7d\n| stats count by MessageCode, ProcessName, NodeName\n```\nA stable deployment over 7d should show single-digit counts for 52030/52031 (planned admin operations) and zero for 60030/60040/60060 — if you see 60030 events week after week, the platform has a chronic instability worth investigating.\n\nStep 2 — Create the search and alert\nPrimary search:\n\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60030, 60031, 60040, 60060, 52030, 52031)\n| rex \"NodeName=(?<node>[^,\\s]+)\"\n| rex \"ProcessName=(?<process>[^,\\s]+)\"\n| rex \"AdminUser=(?<admin_user>[^,\\s]+)\"\n| eval event_class = case(\n    MessageCode==\"60030\", \"unplanned_restart\",\n    MessageCode==\"60031\", \"restart_failed\",\n    MessageCode==\"60040\", \"watchdog_kill\",\n    MessageCode==\"60060\", \"db_connection_lost\",\n    MessageCode==\"52030\", \"admin_stop\",\n    MessageCode==\"52031\", \"admin_start\")\n| stats count latest(_time) as last_event values(event_class) as classes values(admin_user) as admin_users by node, process\n| sort - last_event\n| where mvfind(classes, \"unplanned_restart\")>=0 OR mvfind(classes, \"restart_failed\")>=0 OR mvfind(classes, \"watchdog_kill\")>=0 OR mvfind(classes, \"db_connection_lost\")>=0\n| lookup ise_deployment.csv node OUTPUT persona, site\n```\n\nWhy `mvfind(...)>=0` instead of `=`?  `=` works for single-value fields but `classes` is a multi-value field after `values()`. `mvfind` returns the position of a match (>=0 if present, -1 if not).\n\nSchedule: cron `*/5 * * * *`, time range `-15m@m to @m`, trigger on `count > 0`, throttle suppression on `node`+`process` for 30 min.\n\nStep 3 — Validate\n(a) Lab provoke. Pick a non-production PSN. SSH in:\n```\nise/admin# show process status\nise/admin# # find the runtime-AAA-Server PID\nise/admin# tech sudo kill -9 <PID>\n```\n(`tech sudo` is the documented escape to run a privileged shell command in ISE.) Watch the syslog stream — within 5–15 seconds you should see MessageCode 60040 (watchdog kill) followed by 60030 (unplanned restart). Confirm the alert fires.\n\n(b) Negative test. On the same node, `application restart ise`. Confirm the alert does NOT fire — only 52030/52031 events are emitted, and the where-clause filters them.\n\n(c) Field validation:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-30d MessageCode IN (60030, 60040)\n| stats count by ProcessName\n```\nA stable deployment may show zero counts. If a single process (commonly `application-server` or `runtime-AAA-Server`) shows >5 events in a month, escalate to ISE platform team for root-cause.\n\nStep 4 — Operationalize\nDashboard \"ISE — Service Crash History\":\n• Single value: \"Crashes last 24h\" (red >0), \"Crashes last 7d\" (orange).\n• Timeline panel: 30 days of events, colour by `event_class`, Y-axis = node.\n• Top-N table: which (node, process) tuple has the most unplanned restarts last 30d.\n• Sankey: process → event_class → site (from lookup) — useful when one site reports more crashes than others (DC environmental issue?).\n\nAlerting:\n• PagerDuty: high-urgency on first unplanned restart of `runtime-AAA-Server` or `database`. Medium-urgency on first unplanned restart of `application-server` or `pxGrid-Server`. Low on others.\n• Auto-create SOAR ticket with: node + process + event_class + 'tech support bundle' job suggestion.\n\nRunbook (owner: ISE on-call):\n1. Identify node + process from the alert.\n2. SSH to node: `show application status ise`. Confirm the process is currently running. If not, `application start ise` and re-check.\n3. Capture a tech-support bundle while the issue is fresh: `tech support` from CLI. The bundle includes the just-crashed process's core file (if it crashed cleanly) and the last 60s of `cmm.log` / `localStore.log`.\n4. Open Cisco TAC case if the crash recurs within 24h on the same process.\n5. If the process is `runtime-AAA-Server` and the crash recurred: the deployment may be RADIUS-overloaded. Consider redistributing PSN load (NAD RADIUS server-list reordering) until the platform team has reviewed.\n\nStep 5 — Troubleshooting\n\n• **Alert fires repeatedly on `application-server` for the same node** — Tomcat memory leak. Check JVM heap settings: `tech support` bundle > tomcat.log. Long-term fix is heap tuning by Cisco TAC; short-term mitigation is a daily scheduled `application restart ise` during the maintenance window.\n\n• **`runtime-AAA-Server` crashes during peak auth load** — PSN is undersized or has a misconfigured upstream identity store with poor latency. Cross-reference UC-17.1.40 (RADIUS latency) — if latency was >2s before the crash, the AAA process queue overflowed.\n\n• **`db_connection_lost` (60060) on every node simultaneously** — The Primary PAN restarted or its database service flapped. Look for 60030 on the Primary PAN at the same timestamp. If present, root-cause the PAN crash first; the 60060 events from other nodes are the symptom, not the cause.\n\n• **No 52030/52031 events appear when admins use `application restart`** — *Administrative and Operational Audit* category is not enabled at INFO. Switch it on; events should appear within 60s of the next admin action.\n\n• **`AdminUser` field is null** — The TA's regex extracts only on the *Administrative and Operational Audit* category but the event was emitted under *Internal Operations Diagnostics* (no admin user attached). This is correct behaviour — for auto-generated events, the field is null. Do not depend on `admin_user` for non-52xxx codes.",
+  "grandmaExplanation": "If a part of the access-control system stops working unexpectedly, like a service that quietly crashed and restarted itself, we ring the bell so a human investigates. We carefully ignore planned restarts and only alert when something stopped on its own.",
+  "wave": "crawl"
+}

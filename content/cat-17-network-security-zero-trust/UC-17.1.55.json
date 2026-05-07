@@ -1,0 +1,90 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.55",
+  "title": "Cisco ISE Profiler Probe Quality and Endpoint-Classification Coverage",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Operations",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Profiler* category — codes `80001` (endpoint profiled), `80002` (endpoint reprofiled), `80003` (probe failure), `80004` (probe rate-limit), `80010` (profiler-feed update). Probes covered: DHCP, RADIUS, SNMP, NMAP, NetFlow, HTTP, DNS, AD, Active Probing. Field: `probe_type`, `endpoint_mac`, `device_type`, `confidence_score`. ISE OpenAPI `/api/v1/profile/feed` polled every 6h, written to `index=nac sourcetype=cisco:ise:profiler_feed`.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (80001, 80003, 80004))\n  OR (index=nac sourcetype=\"cisco:ise:profiler_feed\")\n| stats count, dc(endpoint_mac) as unique_endpoints, count(eval(MessageCode==\"80003\")) as probe_failures, count(eval(MessageCode==\"80004\")) as rate_limits, avg(confidence_score) as avg_confidence by probe_type\n| eval health = case(probe_failures > 0 OR rate_limits > 0, \"degraded\", avg_confidence < 70, \"low_confidence\", true(), \"healthy\")\n| where health != \"healthy\"",
+  "description": "Detects probe failures, rate-limits, and low-confidence endpoint classifications across ISE's profiler probe types. When probes are unhealthy, endpoints are mis-classified, leading to wrong authorization profiles.",
+  "value": "Profiler is how ISE knows what kind of device just authenticated — printer, IP phone, IoT sensor, laptop. Wrong classification means wrong authorization profile (and possibly wrong VLAN, wrong dACL). Catching probe degradation preserves classification fidelity.",
+  "implementation": "Confirm *Profiler* category at INFO. Schedule every 30 min, search window `-2h@h to @h`, trigger on count > 0.",
+  "visualization": "(1) Per-probe health tile. (2) Confidence score distribution per probe. (3) Top-N: device types with low confidence.",
+  "cimModels": [],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 — Endpoint Profiling",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_profiling.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **NMAP probe firewall block** — Some networks block active scanning; tag and exclude. (b) **DHCP probe coverage gap** — DHCP probe requires SPAN or DHCP relay; coverage may be partial. (c) **NetFlow probe rate-limit during traffic peak** — During a traffic spike, NetFlow probe may be rate-limited; expected.",
+  "mitreAttack": [
+    "N/A (data-quality monitoring — measures ISE profiler probe reliability, no adversary technique)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(d)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(d) — access control. Profiler classification feeds access-control policy.",
+      "controlObjective": "Access-control profile fidelity.",
+      "evidenceArtifact": "UC-17.1.55 alert log.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(d)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AC-3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "AC-3 (Access Enforcement) — profile-driven enforcement requires profiler health.",
+      "controlObjective": "Access enforcement fidelity.",
+      "evidenceArtifact": "UC-17.1.55 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#AC-3",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.18",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.18 (Privileged utilities) — profiler is privileged-info source.",
+      "controlObjective": "Profile-source fidelity.",
+      "evidenceArtifact": "UC-17.1.55 alert log.",
+      "obligationRef": "iso-27001@2022#A.8.18",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Disable the DHCP probe on a PSN. Within 30 min, classification confidence drops. UC-17.1.55 fires showing `dhcp` probe with `health=degraded`.",
+    "negativeScenario": "Re-enable the probe. Health returns to 'healthy'."
+  },
+  "detailedImplementation": "Prerequisites\n• ISE Profiler enabled with multiple probe types active.\n• `device_inventory.csv` for cross-reference.\n\nStep 1 — Configure data collection\nEnable *Profiler* category at INFO.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — Profiler Probe Health\":\n• Per-probe health tile.\n• Confidence distribution.\n• Top-N low-confidence device types.\n\nStep 5 — Troubleshooting\n• **All probes show degraded** — PSN resource saturation; cross-ref UC-17.1.29.\n• **DHCP probe absent** — DHCP relay not configured to forward DHCP to PSN.\n• **NMAP probe disabled** — Either by policy (firewall) or PSN config.",
+  "grandmaExplanation": "ISE figures out what each device is — phone, printer, laptop — using several different methods. We check each method is working; if one is broken, ISE may be guessing wrong about what kind of device just connected.",
+  "wave": "walk"
+}

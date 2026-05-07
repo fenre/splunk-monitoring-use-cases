@@ -46,11 +46,14 @@ from splunk_uc_mcp.tools.search import (
     search_use_cases,
 )
 from splunk_uc_mcp.tools.use_case import (
+    GET_USE_CASE_MARKDOWN_OUTPUT_SCHEMA,
+    GET_USE_CASE_MARKDOWN_SCHEMA,
     GET_USE_CASE_OUTPUT_SCHEMA,
     GET_USE_CASE_SCHEMA,
     LIST_CATEGORIES_OUTPUT_SCHEMA,
     LIST_CATEGORIES_SCHEMA,
     get_use_case,
+    get_use_case_markdown,
     list_categories,
 )
 
@@ -63,6 +66,8 @@ __all__ = [
     "GET_EQUIPMENT_SCHEMA",
     "GET_REGULATION_OUTPUT_SCHEMA",
     "GET_REGULATION_SCHEMA",
+    "GET_USE_CASE_MARKDOWN_OUTPUT_SCHEMA",
+    "GET_USE_CASE_MARKDOWN_SCHEMA",
     "GET_USE_CASE_OUTPUT_SCHEMA",
     "GET_USE_CASE_SCHEMA",
     "LIST_CATEGORIES_OUTPUT_SCHEMA",
@@ -80,6 +85,7 @@ __all__ = [
     "get_equipment",
     "get_regulation",
     "get_use_case",
+    "get_use_case_markdown",
     "list_categories",
     "list_equipment",
     "list_regulations",

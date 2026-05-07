@@ -9,11 +9,14 @@ import respx
 
 from splunk_uc_mcp.catalog import Catalog, CatalogNotFoundError
 from splunk_uc_mcp.tools.use_case import (
+    GET_USE_CASE_MARKDOWN_OUTPUT_SCHEMA,
+    GET_USE_CASE_MARKDOWN_SCHEMA,
     GET_USE_CASE_OUTPUT_SCHEMA,
     GET_USE_CASE_SCHEMA,
     LIST_CATEGORIES_OUTPUT_SCHEMA,
     LIST_CATEGORIES_SCHEMA,
     get_use_case,
+    get_use_case_markdown,
     list_categories,
 )
 
@@ -254,3 +257,69 @@ class TestListCategoriesSynthetic:
         cat_22 = r["categories"][1]
         assert cat_22["useCaseCount"] == 1
         assert cat_22["subcategories"] == [{"id": "22.1", "useCaseCount": 1}]
+
+
+class TestGetUseCaseMarkdownSchemas:
+    def test_input_schema_shape(self) -> None:
+        s = GET_USE_CASE_MARKDOWN_SCHEMA
+        assert "uc_id" in s["required"]
+        assert s["additionalProperties"] is False
+        assert s["properties"]["uc_id"]["type"] == "string"
+
+    def test_output_schema_shape(self) -> None:
+        s = GET_USE_CASE_MARKDOWN_OUTPUT_SCHEMA
+        for key in ("id", "url", "markdown"):
+            assert key in s["required"]
+        assert s["properties"]["markdown"]["type"] == "string"
+
+
+class TestGetUseCaseMarkdownSynthetic:
+    def test_compliance_uc_renders_full_doc(
+        self, synthetic_catalog: Catalog
+    ) -> None:
+        r = get_use_case_markdown(catalog=synthetic_catalog, uc_id="22.1.1")
+        assert r["id"] == "UC-22.1.1"
+        assert r["url"].endswith("/uc/UC-22.1.1/uc.md")
+        md = r["markdown"]
+        # Title and source line frame the document.
+        assert md.startswith("# UC-22.1.1 — GDPR PII access detection")
+        assert "Source: [Splunk Monitoring Use Cases]" in md
+        # SPL must be in a fenced code block.
+        assert "```spl" in md
+        assert "index=azure | stats count by user" in md
+        # Quick facts table includes structured metadata.
+        assert "| Field | Value |" in md
+        assert "| Wave | walk |" in md
+        # Compliance mapping rendered.
+        assert "## Compliance mappings" in md
+        assert "GDPR — Art.5" in md
+        # Prerequisite UC link uses the canonical site URL.
+        assert "[UC-1.1.1](https://fenre.github.io/splunk-monitoring-use-cases/uc/UC-1.1.1/)" in md
+
+    def test_thin_uc_renders_minimal_doc(
+        self, isolated_synthetic_catalog: Catalog
+    ) -> None:
+        r = get_use_case_markdown(
+            catalog=isolated_synthetic_catalog, uc_id="1.1.1"
+        )
+        assert r["id"] == "UC-1.1.1"
+        md = r["markdown"]
+        assert md.startswith("# UC-1.1.1 — Test UC One")
+        # Non-compliance UCs have no compliance section.
+        assert "## Compliance mappings" not in md
+        # Quick facts still render the basics.
+        assert "| Wave | crawl |" in md
+
+    def test_unknown_uc_raises(
+        self, isolated_synthetic_catalog: Catalog
+    ) -> None:
+        with pytest.raises(CatalogNotFoundError):
+            get_use_case_markdown(
+                catalog=isolated_synthetic_catalog, uc_id="99.99.99"
+            )
+
+    def test_invalid_uc_id_rejected(
+        self, synthetic_catalog: Catalog
+    ) -> None:
+        with pytest.raises(ValueError, match="uc_id"):
+            get_use_case_markdown(catalog=synthetic_catalog, uc_id="../etc")

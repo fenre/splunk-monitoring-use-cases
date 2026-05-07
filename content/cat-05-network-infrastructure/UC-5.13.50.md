@@ -185,5 +185,5 @@ index=catalyst sourcetype="cisco:dnac:audit:logs"
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center Audit Log API](https://developer.cisco.com/docs/catalyst-center/#!get-audit-log-records)
-- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
+- [Catalyst Center Integration Guide (this repo)](../../docs/guides/catalyst-center.md)
 - [NIST SP 800-53 Rev. 5 — AU-3 Content of Audit Records](https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_0/home?element=AU-3)

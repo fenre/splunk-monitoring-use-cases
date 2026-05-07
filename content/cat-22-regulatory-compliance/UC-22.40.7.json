@@ -1,0 +1,95 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.40.7",
+  "title": "Cross-cutting \u2014 ISE Admin Session Anomaly Evidence (Geographic, Concurrent)",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "8.2.7",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI 8.2.7 \u2014 admin session controls, including impossible-travel detection.",
+      "controlObjective": "Admin session anomaly detection.",
+      "evidenceArtifact": "UC-22.40.7 alert log.",
+      "obligationRef": "pci-dss@v4.0#8.2.7",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AC-12",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "AC-12 session termination \u2014 anomalous-session evidence.",
+      "controlObjective": "Session anomaly evidence.",
+      "evidenceArtifact": "UC-22.40.7 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#AC-12",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.5 secure authentication \u2014 anomalous-session evidence.",
+      "controlObjective": "Anomalous-session detection.",
+      "evidenceArtifact": "UC-22.40.7 alert log.",
+      "obligationRef": "iso-27001@2022#A.8.5",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` admin events + GeoIP. Cross-reference UC-17.1.72.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=60005 earliest=-1d\n| iplocation source_ip\n| stats dc(source_ip) as ips, values(Country) as countries by admin_user\n| where ips > 2 OR mvcount(countries) > 1\n| eval evidence_status=\"admin_session_anomaly\"\n| collect index=audit_evidence",
+  "description": "We continuously evidence admin session anomalies (impossible-travel, multi-IP) for cross-cutting privileged-access compliance.",
+  "value": "Multiple frameworks require monitoring of privileged-account anomalies. This UC produces the cross-framework evidence.",
+  "implementation": "Schedule the saved search daily at 06:00 local time; archive results to the `audit_evidence` summary index for the cross-cutting MFA-control evidence pack.",
+  "visualization": "Admin geo-anomaly dashboard.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "UC-17.1.72 \u2014 ISE GUI Admin Session Activity",
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.72.json"
+    }
+  ],
+  "knownFalsePositives": "1. VPN-shifted admin location.",
+  "requiredFields": [
+    "_time",
+    "admin_user",
+    "source_ip"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "lastReviewed": "2026-05-06",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.72 operational; GeoIP database installed.\n\n## Step 1-5\n\n```ini\n[UC-22.40.7: Admin Session Anomaly Coverage]\ncron_schedule = 0 7 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.40.7,family=privileged_access\n```",
+  "grandmaExplanation": "We continuously evidence admin session anomalies for cross-cutting privileged-access compliance. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel",
+  "controlTest": {
+    "positiveScenario": "Admin login from two countries within 5 min. Evidence captured.",
+    "negativeScenario": "Single-location admin. Empty result."
+  },
+  "evidence": "Saved search archived to `audit_evidence`.",
+  "exclusions": "Approved travel admin accounts excluded via lookup."
+}

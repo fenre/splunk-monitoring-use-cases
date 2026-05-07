@@ -42,7 +42,7 @@ Essential entities (EE) and important entities (IE) as defined in Annex I and An
 - **Clauses tracked**: 52
 - **Clauses covered by at least one UC**: 52 / 52 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 63
+- **Contributing UCs**: 86
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -61,15 +61,15 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`Art.21(1)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(1)) | Art.21(1) | 1.0 | `partial` | [UC-22.2.48](#uc-22-2-48) |
 | [`Art.21(2)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)) | Legacy NIS2 mapping already present in the catalogue | 1.0 | `contributing` | [UC-22.2.21](#uc-22-2-21), [UC-22.2.22](#uc-22-2-22), [UC-22.2.32](#uc-22-2-32) |
 | [`Art.21(2)(a)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(a)) | Risk analysis and information-system security policies | 1.0 | `partial` | [UC-22.2.18](#uc-22-2-18), [UC-22.2.26](#uc-22-2-26), [UC-22.2.36](#uc-22-2-36), [UC-22.2.37](#uc-22-2-37), [UC-22.2.56](#uc-22-2-56), [UC-22.2.6](#uc-22-2-6) |
-| [`Art.21(2)(b)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(b)) | Incident handling | 1.0 | `partial` | [UC-22.2.23](#uc-22-2-23) |
-| [`Art.21(2)(c)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(c)) | Business continuity and crisis management | 1.0 | `partial` | [UC-22.2.17](#uc-22-2-17), [UC-22.2.24](#uc-22-2-24), [UC-22.2.4](#uc-22-2-4), [UC-22.2.40](#uc-22-2-40), [UC-22.2.53](#uc-22-2-53) |
-| [`Art.21(2)(d)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(d)) | Supply-chain security | 1.0 | `full` | [UC-22.2.16](#uc-22-2-16), [UC-22.2.2](#uc-22-2-2), [UC-22.2.25](#uc-22-2-25), [UC-22.2.50](#uc-22-2-50), [UC-22.3.42](#uc-22-3-42), [UC-22.44.1](#uc-22-44-1) |
-| [`Art.21(2)(e)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(e)) | Security in acquisition, development and maintenance | 1.0 | `partial` | [UC-22.2.15](#uc-22-2-15), [UC-22.2.27](#uc-22-2-27), [UC-22.2.3](#uc-22-2-3), [UC-22.2.38](#uc-22-2-38), [UC-22.2.51](#uc-22-2-51), [UC-22.43.1](#uc-22-43-1) |
+| [`Art.21(2)(b)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(b)) | Incident handling | 1.0 | `partial` | [UC-17.1.30](#uc-17-1-30), [UC-17.1.33](#uc-17-1-33), [UC-17.1.42](#uc-17-1-42), [UC-17.1.52](#uc-17-1-52), [UC-17.1.56](#uc-17-1-56), [UC-17.1.57](#uc-17-1-57) (+2 more) |
+| [`Art.21(2)(c)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(c)) | Business continuity and crisis management | 1.0 | `partial` | [UC-17.1.29](#uc-17-1-29), [UC-17.1.40](#uc-17-1-40), [UC-17.1.47](#uc-17-1-47), [UC-17.1.48](#uc-17-1-48), [UC-17.1.61](#uc-17-1-61), [UC-17.1.73](#uc-17-1-73) (+2 more) |
+| [`Art.21(2)(d)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(d)) | Supply-chain security | 1.0 | `full` | [UC-17.1.36](#uc-17-1-36), [UC-17.1.37](#uc-17-1-37), [UC-17.1.45](#uc-17-1-45), [UC-17.1.50](#uc-17-1-50), [UC-17.1.51](#uc-17-1-51), [UC-17.1.55](#uc-17-1-55) (+2 more) |
+| [`Art.21(2)(e)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(e)) | Security in acquisition, development and maintenance | 1.0 | `partial` | [UC-17.1.41](#uc-17-1-41), [UC-17.1.49](#uc-17-1-49), [UC-17.1.53](#uc-17-1-53), [UC-22.2.15](#uc-22-2-15), [UC-22.2.27](#uc-22-2-27), [UC-22.2.3](#uc-22-2-3) (+2 more) |
 | [`Art.21(2)(f)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(f)) | Policies and procedures effectiveness | 1.0 | `partial` | [UC-22.2.39](#uc-22-2-39), [UC-22.2.43](#uc-22-2-43), [UC-22.2.51](#uc-22-2-51), [UC-22.2.57](#uc-22-2-57), [UC-22.2.9](#uc-22-2-9) |
-| [`Art.21(2)(g)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(g)) | Cyber-hygiene and training | 1.0 | `full` | [UC-22.2.10](#uc-22-2-10), [UC-22.2.28](#uc-22-2-28), [UC-22.46.1](#uc-22-46-1), [UC-22.46.2](#uc-22-46-2) |
-| [`Art.21(2)(h)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(h)) | Cryptography and encryption | 1.0 | `full` | [UC-22.2.11](#uc-22-2-11), [UC-22.2.29](#uc-22-2-29), [UC-22.41.2](#uc-22-41-2) |
+| [`Art.21(2)(g)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(g)) | Cyber-hygiene and training | 1.0 | `full` | [UC-17.1.28](#uc-17-1-28), [UC-17.1.34](#uc-17-1-34), [UC-17.1.59](#uc-17-1-59), [UC-17.1.70](#uc-17-1-70), [UC-22.2.10](#uc-22-2-10), [UC-22.2.28](#uc-22-2-28) (+2 more) |
+| [`Art.21(2)(h)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(h)) | Cryptography and encryption | 1.0 | `full` | [UC-17.1.31](#uc-17-1-31), [UC-22.2.11](#uc-22-2-11), [UC-22.2.29](#uc-22-2-29), [UC-22.41.2](#uc-22-41-2) |
 | [`Art.21(2)(i)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(i)) | Human resources and access control | 1.0 | `partial` | [UC-22.2.13](#uc-22-2-13), [UC-22.2.14](#uc-22-2-14), [UC-22.2.30](#uc-22-2-30), [UC-22.2.5](#uc-22-2-5), [UC-22.2.52](#uc-22-2-52) |
-| [`Art.21(2)(j)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(j)) | MFA and secure communications | 1.0 | `partial` | [UC-22.2.12](#uc-22-2-12), [UC-22.2.46](#uc-22-2-46), [UC-22.2.52](#uc-22-2-52) |
+| [`Art.21(2)(j)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(j)) | MFA and secure communications | 1.0 | `partial` | [UC-17.1.38](#uc-17-1-38), [UC-17.1.44](#uc-17-1-44), [UC-17.1.46](#uc-17-1-46), [UC-22.2.12](#uc-22-2-12), [UC-22.2.46](#uc-22-2-46), [UC-22.2.52](#uc-22-2-52) |
 | [`Art.21(3)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(3)) | Art.21(3) | 1.0 | `partial` | [UC-22.2.50](#uc-22-2-50) |
 | [`Art.21(4)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(4)) | Art.21(4) | 1.0 | `partial` | [UC-22.2.48](#uc-22-2-48) |
 | [`Art.21(5)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(5)) | Art.21(5) | 1.0 | `partial` | [UC-22.2.56](#uc-22-2-56) |
@@ -107,6 +107,210 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 ### 4.1 Contributing UC detail
 
+<a id='uc-17-1-28'></a>
+- **UC-17.1.28** — Cisco ISE Deployment Replication Health and PSN Sync Lag
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.28.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.28.json)
+<a id='uc-17-1-29'></a>
+- **UC-17.1.29** — Cisco ISE Node Resource Saturation (CPU, Memory, Disk, Threads)
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.29.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.29.json)
+<a id='uc-17-1-30'></a>
+- **UC-17.1.30** — Cisco ISE Process Crash and Service-Restart Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.30.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.30.json)
+<a id='uc-17-1-31'></a>
+- **UC-17.1.31** — Cisco ISE Certificate Expiry and Trust-Chain Health
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.31.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.31.json)
+<a id='uc-17-1-33'></a>
+- **UC-17.1.33** — Cisco ISE pxGrid Subscriber Connectivity and Topic Health
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.33.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.33.json)
+<a id='uc-17-1-34'></a>
+- **UC-17.1.34** — pxGrid Topic Throughput Anomaly and Subscriber Lag Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.34.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.34.json)
+<a id='uc-17-1-36'></a>
+- **UC-17.1.36** — Cisco TrustSec / SGT Assignment Mismatch and SXP Listener Health
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.36.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.36.json)
+<a id='uc-17-1-37'></a>
+- **UC-17.1.37** — ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.37.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.37.json)
+<a id='uc-17-1-38'></a>
+- **UC-17.1.38** — EAP-TLS Client Certificate Failure and Trust-Chain Validation
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.38.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.38.json)
+<a id='uc-17-1-40'></a>
+- **UC-17.1.40** — RADIUS Authentication Latency SLO and Slow PSN Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.40.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.40.json)
+<a id='uc-17-1-41'></a>
+- **UC-17.1.41** — Threat-Centric NAC (TC-NAC) — STIX/TAXII Feed and Auto-Quarantine Effectiveness
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.41.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.41.json)
+<a id='uc-17-1-42'></a>
+- **UC-17.1.42** — Adaptive Network Control (ANC) Action Auditing and Excessive Quarantine Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.42.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.42.json)
+<a id='uc-17-1-44'></a>
+- **UC-17.1.44** — Cisco ISE External Identity Store Health (AD/LDAP/RADIUS/SAML/OAuth)
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.44.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.44.json)
+<a id='uc-17-1-45'></a>
+- **UC-17.1.45** — Cisco ISE PassiveID — WMI / AD Agent / Syslog Provider Health
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.45.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.45.json)
+<a id='uc-17-1-46'></a>
+- **UC-17.1.46** — Cisco Identity Intelligence (CII) Risk-Score Drift and Adaptive-Auth Triggering
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.46.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.46.json)
+<a id='uc-17-1-47'></a>
+- **UC-17.1.47** — Cisco ISE Backup Job Success and Operational-Data Backup Validation
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.47.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.47.json)
+<a id='uc-17-1-48'></a>
+- **UC-17.1.48** — Cisco ISE Restore Audit and Configuration-Drift Detection Post-Restore
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.48.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.48.json)
+<a id='uc-17-1-49'></a>
+- **UC-17.1.49** — Cisco ISE Patch and Upgrade Health — Pre/Post-Upgrade Validation
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.49.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.49.json)
+<a id='uc-17-1-50'></a>
+- **UC-17.1.50** — Cisco ISE — MDM/UEM Connector Health and Compliance Drift
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.50.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.50.json)
+<a id='uc-17-1-51'></a>
+- **UC-17.1.51** — ISE Sponsor Portal — Sponsor Approval Latency and Approval-Pattern Anomalies
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.51.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.51.json)
+<a id='uc-17-1-52'></a>
+- **UC-17.1.52** — Self-Registration Portal Storm Detection and Bot-Onboarding Defense
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.52.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.52.json)
+<a id='uc-17-1-53'></a>
+- **UC-17.1.53** — Posture Remediation Funnel — Detection-to-Compliant Conversion Rate
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.53.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.53.json)
+<a id='uc-17-1-55'></a>
+- **UC-17.1.55** — Cisco ISE Profiler Probe Quality and Endpoint-Classification Coverage
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.55.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.55.json)
+<a id='uc-17-1-56'></a>
+- **UC-17.1.56** — ISE RADIUS Change-of-Authorization (CoA) Failure Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.56.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.56.json)
+<a id='uc-17-1-57'></a>
+- **UC-17.1.57** — ISE ERS / OpenAPI Brute-Force, Token Theft, and Anomalous API-Caller Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.57.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.57.json)
+<a id='uc-17-1-59'></a>
+- **UC-17.1.59** — Cisco ISE Logs through Splunk Edge Processor — Pipeline Health and Routing
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.59.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.59.json)
+<a id='uc-17-1-61'></a>
+- **UC-17.1.61** — ISE Multi-Site Topology — Cross-Site Replication Lag and WAN Loss Impact
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.61.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.61.json)
+<a id='uc-17-1-66'></a>
+- **UC-17.1.66** — Cisco AI Endpoint Analytics — IoT/OT Classification Confidence and New-Profile Discovery
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.66.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.66.json)
+<a id='uc-17-1-67'></a>
+- **UC-17.1.67** — Cisco AI Endpoint Behavioural (AEB) Profile-Drift and Behaviour-Anomaly Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.67.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.67.json)
+<a id='uc-17-1-68'></a>
+- **UC-17.1.68** — ISE IoT/OT Device Onboarding — Profile Match and SGT Assignment Validation
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.68.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.68.json)
+<a id='uc-17-1-70'></a>
+- **UC-17.1.70** — OCSP Responder and CRL Repository Reachability and Latency Monitoring
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.70.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.70.json)
+<a id='uc-17-1-73'></a>
+- **UC-17.1.73** — Cisco WLC + ISE Wireless Authentication Funnel — Association → Auth → DHCP → Posture
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.73.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.73.json)
+<a id='uc-17-1-77'></a>
+- **UC-17.1.77** — Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.77.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.77.json)
+<a id='uc-17-1-80'></a>
+- **UC-17.1.80** — ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.80.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.80.json)
 <a id='uc-22-2-1'></a>
 - **UC-22.2.1** — NIS2 Art.23(4)(a) — 24-Hour Early-Warning Notification Readiness
   - Control family: `ir-drill-evidence`
@@ -149,12 +353,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `Board / Audit Committee`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.2.15.json`](../../content/cat-22-regulatory-compliance/UC-22.2.15.json)
-<a id='uc-22-2-16'></a>
-- **UC-22.2.16** — NIS2 Supply Chain Third-Party Risk Continuous Monitoring
-  - Control family: `third-party-activity`
-  - Owner: `Procurement`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.2.16.json`](../../content/cat-22-regulatory-compliance/UC-22.2.16.json)
 <a id='uc-22-2-17'></a>
 - **UC-22.2.17** — NIS2 Backup Management and Disaster Recovery Verification
   - Control family: `backup-restore-evidence`
@@ -167,12 +365,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.2.18.json`](../../content/cat-22-regulatory-compliance/UC-22.2.18.json)
-<a id='uc-22-2-2'></a>
-- **UC-22.2.2** — NIS2 Supply Chain Security Monitoring
-  - Control family: `third-party-activity`
-  - Owner: `Procurement`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.2.2.json`](../../content/cat-22-regulatory-compliance/UC-22.2.2.json)
 <a id='uc-22-2-20'></a>
 - **UC-22.2.20** — NIS2 Management Body Accountability and Governance Evidence
   - Control family: `board-exec-reporting`
@@ -191,24 +383,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `Head of IT Operations`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.2.22.json`](../../content/cat-22-regulatory-compliance/UC-22.2.22.json)
-<a id='uc-22-2-23'></a>
-- **UC-22.2.23** — NIS2 Art.21(2)(b) — Incident Handling Playbook Adherence
-  - Control family: `ir-drill-evidence`
-  - Owner: `Head of IR`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.2.23.json`](../../content/cat-22-regulatory-compliance/UC-22.2.23.json)
-<a id='uc-22-2-24'></a>
-- **UC-22.2.24** — NIS2 Business Continuity and ICT Continuity Evidence
-  - Control family: `backup-restore-evidence`
-  - Owner: `Head of IT Operations`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.2.24.json`](../../content/cat-22-regulatory-compliance/UC-22.2.24.json)
-<a id='uc-22-2-25'></a>
-- **UC-22.2.25** — NIS2 Supply Chain Security Assessment Coverage
-  - Control family: `third-party-activity`
-  - Owner: `Procurement`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.2.25.json`](../../content/cat-22-regulatory-compliance/UC-22.2.25.json)
 <a id='uc-22-2-26'></a>
 - **UC-22.2.26** — NIS2 Network Security Monitoring Coverage by Segment
   - Control family: `regulation-specific`
@@ -287,18 +461,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.2.39.json`](../../content/cat-22-regulatory-compliance/UC-22.2.39.json)
-<a id='uc-22-2-4'></a>
-- **UC-22.2.4** — NIS2 Business Continuity and Crisis Management Monitoring
-  - Control family: `ir-drill-evidence`
-  - Owner: `Head of IT Operations`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.2.4.json`](../../content/cat-22-regulatory-compliance/UC-22.2.4.json)
-<a id='uc-22-2-40'></a>
-- **UC-22.2.40** — NIS2 Safety System Integrity Monitoring (SIL / SIS Interlocks)
-  - Control family: `ir-drill-evidence`
-  - Owner: `Head of IT Operations`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.2.40.json`](../../content/cat-22-regulatory-compliance/UC-22.2.40.json)
 <a id='uc-22-2-41'></a>
 - **UC-22.2.41** — NIS2 Management Body Cybersecurity Training Evidence
   - Control family: `training-effectiveness`
@@ -371,12 +533,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.2.52.json`](../../content/cat-22-regulatory-compliance/UC-22.2.52.json)
-<a id='uc-22-2-53'></a>
-- **UC-22.2.53** — NIS2 Art.21 business continuity, backup restore and physical-environmental resilience evidence
-  - Control family: `backup-restore-evidence`
-  - Owner: `Head of IT Operations`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.2.53.json`](../../content/cat-22-regulatory-compliance/UC-22.2.53.json)
 <a id='uc-22-2-54'></a>
 - **UC-22.2.54** — NIS2 Art.31-35 supervision, enforcement, fine exposure and GDPR coordination evidence
   - Control family: `evidence-continuity`
@@ -425,12 +581,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `HR`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.2.9.json`](../../content/cat-22-regulatory-compliance/UC-22.2.9.json)
-<a id='uc-22-3-42'></a>
-- **UC-22.3.42** — DORA Art.7 — ICT systems inventory completeness: unmanaged endpoints attached to financial services
-  - Control family: `log-source-completeness`
-  - Owner: `Head of IT Operations`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.3.42.json`](../../content/cat-22-regulatory-compliance/UC-22.3.42.json)
 <a id='uc-22-3-44'></a>
 - **UC-22.3.44** — DORA Art.17 — ICT incident classification timeliness: major-incident clock evidence
   - Control family: `ir-drill-evidence`
@@ -455,18 +605,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.41.2.json`](../../content/cat-22-regulatory-compliance/UC-22.41.2.json)
-<a id='uc-22-43-1'></a>
-- **UC-22.43.1** — Critical vulnerability SLA tracker — unpatched 30+ days with exploited-in-the-wild indicator
-  - Control family: `regulation-specific`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.43.1.json`](../../content/cat-22-regulatory-compliance/UC-22.43.1.json)
-<a id='uc-22-44-1'></a>
-- **UC-22.44.1** — Supplier attestation currency — stale SOC 2 / ISO 27001 reports for critical vendors
-  - Control family: `third-party-activity`
-  - Owner: `Procurement`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.44.1.json`](../../content/cat-22-regulatory-compliance/UC-22.44.1.json)
 <a id='uc-22-46-1'></a>
 - **UC-22.46.1** — Mandatory security training — completion SLA by role
   - Control family: `training-effectiveness`
@@ -610,7 +748,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 7.3
+catalogue_version: 7.4.1
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     05d15d6f921fc6af3c7dbfacf931dcfd40d45bd1e8a91ef250232b39e24f110e
 ```

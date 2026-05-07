@@ -155,5 +155,5 @@ index=catalyst sourcetype="cisco:dnac:issue" category="Onboarding"
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center Intent API — Issues endpoint](https://developer.cisco.com/docs/catalyst-center/#!issues)
-- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
+- [Catalyst Center Integration Guide (this repo)](../../docs/guides/catalyst-center.md)
 - [Cisco ISE Authentication Troubleshooting](https://www.cisco.com/c/en/us/support/security/identity-services-engine/products-troubleshooting-guides-list.html)

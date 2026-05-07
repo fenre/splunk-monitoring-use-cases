@@ -37,6 +37,39 @@ OUTPUT_LLMS_TXT = os.path.join(SCRIPT_DIR, "llms.txt")
 OUTPUT_LLM_TXT = os.path.join(SCRIPT_DIR, "llm.txt")
 OUTPUT_LLMS_FULL_TXT = os.path.join(SCRIPT_DIR, "llms-full.txt")
 
+
+def _read_version():
+    """Read the canonical catalogue version from the VERSION file."""
+    try:
+        with open(os.path.join(SCRIPT_DIR, "VERSION"), "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except (FileNotFoundError, OSError):
+        return "unknown"
+
+
+def _generated_at_iso():
+    """Return an ISO-8601 timestamp suitable for stamping generated artefacts.
+
+    Uses ``SOURCE_DATE_EPOCH`` when set (reproducible-build mode), then
+    falls back to ``git log -1 --format=%ct HEAD`` (so the timestamp
+    only changes when the catalogue itself changes), and finally to
+    ``datetime.utcnow()`` if both are unavailable.
+    """
+    import subprocess
+    epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    if epoch and epoch.isdigit():
+        return datetime.utcfromtimestamp(int(epoch)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        out = subprocess.check_output(
+            ["git", "log", "-1", "--format=%ct", "HEAD"],
+            cwd=SCRIPT_DIR,
+            stderr=subprocess.DEVNULL,
+        )
+        ts = int(out.decode().strip())
+        return datetime.utcfromtimestamp(ts).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+        return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
 SITE_BASE_URL = "https://fenre.github.io/splunk-monitoring-use-cases"
 RAW_GITHUB_URL = "https://raw.githubusercontent.com/fenre/splunk-monitoring-use-cases/main"
 
@@ -3096,6 +3129,8 @@ def _cat_file_for_id(cat_id, files):
 
 def write_llms_txt(data, cat_meta, files, total_uc):
     """Write a concise llms.txt file following the llms.txt standard."""
+    generated_at = _generated_at_iso()
+    catalogue_version = _read_version()
     lines = [
         "# Splunk Infrastructure Monitoring Use Cases",
         "",
@@ -3103,6 +3138,9 @@ def write_llms_txt(data, cat_meta, files, total_uc):
         "organized across {cat_count} technology domains. Each use case includes criticality, "
         "SPL queries, CIM data model mappings, implementation guidance, equipment tagging, "
         "and visualization recommendations.".format(uc_count=total_uc, cat_count=len(data)),
+        "",
+        "Catalogue-version: {ver}".format(ver=catalogue_version),
+        "Last-modified: {at}".format(at=generated_at),
         "",
         "This repository provides ready-to-use Splunk monitoring content for servers, "
         "virtualization, cloud, containers, networking, security, databases, IoT/OT, "
@@ -3121,6 +3159,11 @@ def write_llms_txt(data, cat_meta, files, total_uc):
         "",
         "- [AGENTS.md]({base}/AGENTS.md): AI agent entrypoint — schemas, field maps, "
         "MCP tools, build commands, and Cursor rules".format(base=SITE_BASE_URL),
+        "- [AGENTS-EXAMPLES.md]({base}/AGENTS-EXAMPLES.md): Copy-paste prompt recipes "
+        "for common agent tasks — search-by-criticality, find-coverage-gap, equipment "
+        "deployment plan, RAG grounding template".format(base=SITE_BASE_URL),
+        "- [ai.txt]({base}/ai.txt): AI usage policy — licence, attribution preference, "
+        "and accuracy guidance for systems that summarise this catalog".format(base=SITE_BASE_URL),
         "- [Catalog JSON]({base}/catalog.json): Machine-readable JSON catalog of all use cases "
         "(structured data with abbreviated field keys; includes inline _field_map)".format(base=SITE_BASE_URL),
         "- [Catalog Schema]({base}/docs/catalog-schema.md): Field reference for catalog.json — "
@@ -3220,6 +3263,8 @@ def write_llms_txt(data, cat_meta, files, total_uc):
 
 def write_llms_full_txt(data, cat_meta, files, total_uc):
     """Write an expanded llms-full.txt with every use case ID and title."""
+    generated_at = _generated_at_iso()
+    catalogue_version = _read_version()
     lines = [
         "# Splunk Infrastructure Monitoring Use Cases — Full Index",
         "",
@@ -3227,6 +3272,9 @@ def write_llms_full_txt(data, cat_meta, files, total_uc):
         "across {cat_count} technology domains. Each entry shows the use case ID, title, and "
         "criticality. For full SPL queries and implementation details, see the per-category "
         "markdown files linked below.".format(uc_count=total_uc, cat_count=len(data)),
+        "",
+        "Catalogue-version: {ver}".format(ver=catalogue_version),
+        "Last-modified: {at}".format(at=generated_at),
         "",
         "For a concise category-level overview with descriptions, steering directives, "
         "and documentation links, see: {base}/llms.txt".format(base=SITE_BASE_URL),
@@ -3936,6 +3984,10 @@ def main():
     catalog = {
         "_schema_url": f"{SITE_BASE_URL}/docs/catalog-schema.md",
         "_agents_url": f"{SITE_BASE_URL}/AGENTS.md",
+        "_agents_examples_url": f"{SITE_BASE_URL}/AGENTS-EXAMPLES.md",
+        "_ai_policy_url": f"{SITE_BASE_URL}/ai.txt",
+        "version": _read_version(),
+        "lastModified": _generated_at_iso(),
         "_readme": (
             "Splunk monitoring use case catalog. Keys are abbreviated — see _schema_url "
             "for full field reference. DATA contains categories with subcategories and use "
@@ -4005,9 +4057,15 @@ def main():
         f"{SITE_BASE_URL}/regulatory-primer.html",
         f"{SITE_BASE_URL}/clause-navigator.html",
         f"{SITE_BASE_URL}/compliance-story.html",
+        f"{SITE_BASE_URL}/docs.html",
+        f"{SITE_BASE_URL}/graph.html",
+        f"{SITE_BASE_URL}/guide-reader.html",
         f"{SITE_BASE_URL}/openapi.yaml",
         f"{SITE_BASE_URL}/llms.txt",
         f"{SITE_BASE_URL}/llms-full.txt",
+        f"{SITE_BASE_URL}/AGENTS.md",
+        f"{SITE_BASE_URL}/AGENTS-EXAMPLES.md",
+        f"{SITE_BASE_URL}/ai.txt",
         f"{SITE_BASE_URL}/catalog.json",
         f"{SITE_BASE_URL}/provenance.json",
         f"{SITE_BASE_URL}/scorecard.json",

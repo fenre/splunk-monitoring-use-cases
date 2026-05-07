@@ -4,7 +4,10 @@
   "title": "IPv6 Stateless Address Autoconfiguration (SLAAC) Monitoring and Anomaly Detection",
   "criticality": "high",
   "difficulty": "intermediate",
-  "monitoringType": ["Availability", "Security"],
+  "monitoringType": [
+    "Availability",
+    "Security"
+  ],
   "splunkPillar": "Platform",
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Monitors SLAAC (RFC 4862) operations: prefix advertisement consistency, address assignment, DAD (Duplicate Address Detection) outcomes, and SLAAC vs DHCPv6 managed flag behaviour. SLAAC is the default IPv6 address assignment method and depends entirely on Router Advertisements being correct and trusted.\n\n**SLAAC operational concerns:**\n1. **Prefix consistency.** All routers on a segment MUST advertise the same prefix(es) via RA. Conflicting prefixes cause split addressing.\n2. **M/O flag management.** The Managed (M) flag tells hosts to use DHCPv6 for addresses. The Other (O) flag tells hosts to use DHCPv6 for DNS/NTP only. Incorrect flags cause addressing failures.\n3. **DAD failures.** If DAD detects a duplicate address, the host cannot use that address. Repeated DAD failures indicate a DAD-based DoS attack or genuine address conflicts.\n4. **Prefix lifetime.** If Valid Lifetime < Preferred Lifetime, or if lifetimes are too short, hosts lose connectivity when addresses expire before renewal.",
   "app": "Splunk Enterprise",
@@ -14,18 +17,38 @@
   "implementation": "Monitor RA advertisements for prefix consistency. Track DAD outcomes. Alert on DAD failures and prefix conflicts.",
   "visualization": "(1) Table: SLAAC events by type. (2) Single-value: DAD failures. (3) Timechart: SLAAC events. (4) Status: prefix consistency.",
   "references": [
-    {"title": "RFC 4862 — IPv6 Stateless Address Autoconfiguration", "url": "https://www.rfc-editor.org/rfc/rfc4862"},
-    {"title": "RFC 4861 — Neighbor Discovery for IP version 6", "url": "https://www.rfc-editor.org/rfc/rfc4861"}
+    {
+      "title": "RFC 4862 — IPv6 Stateless Address Autoconfiguration",
+      "url": "https://www.rfc-editor.org/rfc/rfc4862"
+    },
+    {
+      "title": "RFC 4861 — Neighbor Discovery for IP version 6",
+      "url": "https://www.rfc-editor.org/rfc/rfc4861"
+    }
   ],
   "knownFalsePositives": "**VM migration.** When VMs migrate (vMotion), the new location may trigger DAD for the existing address. Brief DAD events during migration are normal.\n\n**VRRP/HSRP.** Redundancy protocols may briefly cause duplicate addresses during failover.",
-  "equipment": ["cisco", "juniper", "arista"],
-  "equipmentModels": ["cisco_catalyst_9000", "juniper_ex", "arista_7050"],
+  "equipment": [
+    "cisco",
+    "juniper",
+    "arista"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9000",
+    "juniper_ex",
+    "arista_7050"
+  ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• Router NDP logging enabled.\n\nStep 1 — Configure SLAAC monitoring\nNDP events are logged by default at informational level. Ensure syslog captures these events.\n\nStep 2 — Create monitoring searches\n\n**DAD failure detection:**\n```spl\nindex=network \"DAD\" AND (\"fail\" OR \"duplicate\" OR \"conflict\") earliest=-24h\n| stats count as failures by host\n| where failures > 3\n```\n\n**Prefix consistency check:**\n```spl\nindex=network \"RA\" AND \"prefix\" earliest=-1h\n| rex field=_raw \"prefix\\s*(?<prefix>[0-9a-fA-F:/]+)\"\n| stats dc(host) as advertising_routers values(host) as routers by prefix\n| where advertising_routers > 1\n```\n\nStep 3 — Validate\nJoin a new host to a SLAAC-enabled VLAN. Verify it receives an address via SLAAC and that the event appears in Splunk.\n\nStep 4 — Operationalize\n**Dashboard:** SLAAC health by VLAN. **Alert:** DAD failure — high. Prefix conflict — high.\n\nStep 5 — Troubleshooting\n• DAD failures: Check for devices with statically assigned addresses that conflict with SLAAC assignments.\n• Prefix conflicts: Verify only one router is advertising prefixes on each segment, or that all routers advertise the same prefixes.",
   "grandmaExplanation": "When a new device joins the network, it automatically picks up a new-format address (IPv6) by listening to the router's announcements. But first, it checks to make sure nobody else already has that same address (DAD). We monitor this process to make sure addresses are being handed out correctly and nobody is blocking new devices from getting their addresses.",
-  "prerequisiteUseCases": ["5.20.5", "5.20.6"],
+  "prerequisiteUseCases": [
+    "UC-5.20.5",
+    "UC-5.20.6"
+  ],
   "wave": "walk"
 }

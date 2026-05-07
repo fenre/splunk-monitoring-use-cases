@@ -143,5 +143,5 @@ index=catalyst sourcetype="cisco:dnac:devicehealth"
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center Intent API — Device Health endpoint](https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-device-health)
-- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
+- [Catalyst Center Integration Guide (this repo)](../../docs/guides/catalyst-center.md)
 - [Catalyst Center Device Types and Platform IDs](https://developer.cisco.com/docs/catalyst-center/#!get-device-list)

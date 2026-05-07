@@ -30,6 +30,7 @@ from splunk_uc_mcp.server import (
 EXPECTED_TOOLS = {
     "search_use_cases",
     "get_use_case",
+    "get_use_case_markdown",
     "list_categories",
     "list_regulations",
     "get_regulation",

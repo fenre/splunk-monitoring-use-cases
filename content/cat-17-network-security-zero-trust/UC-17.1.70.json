@@ -1,0 +1,102 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.70",
+  "title": "OCSP Responder and CRL Repository Reachability and Latency Monitoring",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Operations",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Certificate* category — codes `35100` (OCSP request sent), `35101` (OCSP responder reachable), `35102` (OCSP responder unreachable), `35103` (OCSP response latency), `35200` (CRL download successful), `35201` (CRL download failed). Field: `ocsp_responder_url`, `crl_repository_url`, `latency_ms`, `failure_reason`.",
+  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (35102, 35201, 35103)\n| stats count by ocsp_responder_url, crl_repository_url, MessageCode, failure_reason\n| where (MessageCode==\"35102\" AND count > 5) OR (MessageCode==\"35201\" AND count > 1) OR (MessageCode==\"35103\" AND count > 0)",
+  "description": "Tracks OCSP responder availability and latency, and CRL repository download success/failure. Alerts when OCSP becomes unreachable, OCSP latency exceeds 2 seconds, or CRL downloads fail.",
+  "value": "OCSP/CRL failures cause certificate revocation checks to fall back to a pre-configured behaviour (often 'allow' or 'use cached'). Either silently weakens authentication or causes mass auth failures depending on configuration. Visibility prevents both.",
+  "implementation": "Schedule every 15 min.",
+  "visualization": "OCSP responder availability heatmap; CRL freshness by repository; latency distribution.",
+  "cimModels": [],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 — Certificate Revocation",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_basic_setup.html"
+    }
+  ],
+  "knownFalsePositives": "(a) Brief OCSP responder maintenance windows.\n(b) Network blips affecting external OCSP responders.",
+  "mitreAttack": [
+    "T1550.001"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "8.3.10",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI 8.3.10 — certificate revocation checking integrity.",
+      "controlObjective": "Cert revocation checking integrity.",
+      "evidenceArtifact": "UC-17.1.70 alert log.",
+      "obligationRef": "pci-dss@v4.0#8.3.10",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "IA-5(2)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "IA-5(2) PKI-based authentication — OCSP/CRL revocation enforcement.",
+      "controlObjective": "PKI revocation infrastructure availability.",
+      "evidenceArtifact": "UC-17.1.70 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#IA-5(2)",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.24",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.24 cryptography — revocation checks part of crypto lifecycle.",
+      "controlObjective": "Crypto lifecycle integrity.",
+      "evidenceArtifact": "UC-17.1.70 alert log.",
+      "obligationRef": "iso-27001@2022#A.8.24",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(g)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(g) cryptography use.",
+      "controlObjective": "Crypto availability.",
+      "evidenceArtifact": "UC-17.1.70 alert log.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(g)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Block OCSP responder URL via firewall. ISE emits 35102. UC-17.1.70 fires.",
+    "negativeScenario": "OCSP/CRL reachable. No fires."
+  },
+  "detailedImplementation": "Standard pattern.",
+  "grandmaExplanation": "When a certificate is presented, ISE asks the issuing authority 'is this still valid?' over OCSP/CRL. If those services are down, ISE may silently approve or block everyone. We watch their health.",
+  "wave": "run"
+}

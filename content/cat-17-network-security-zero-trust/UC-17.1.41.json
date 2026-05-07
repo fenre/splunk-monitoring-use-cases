@@ -1,0 +1,109 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.41",
+  "title": "Threat-Centric NAC (TC-NAC) — STIX/TAXII Feed and Auto-Quarantine Effectiveness",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Operations"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Threat-Centric NAC* (TC-NAC) category — codes `83100` (TC-NAC threat detected), `83101` (TC-NAC quarantine action taken), `83102` (TC-NAC vulnerability score updated), `83103` (TC-NAC feed import failed), `83104` (TC-NAC adapter connection lost). Vendor-side feeds (Qualys VM, Tenable Nessus, Rapid7 InsightVM, Cisco AMP for Endpoints) feed ISE via the TC-NAC adapters. ISE OpenAPI `/api/v1/threatlist/source` and `/api/v1/threatlist/threat` polled every 30 min for the threat-list catalogue and recent threat detections, written to `index=nac sourcetype=cisco:ise:tcnac`. Fields: `endpoint_mac`, `threat_type`, `vendor`, `score`, `quarantine_state`. CIM mapping: `Alerts.severity`, `Alerts.signature` after a `props.conf` mapping.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) for syslog. Custom OpenAPI poller for the TC-NAC catalogue feed.",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (83100, 83101, 83102, 83103, 83104))\n  OR (index=nac sourcetype=\"cisco:ise:tcnac\")\n| stats count latest(_time) as last_event, count(eval(MessageCode==\"83100\")) as detections, count(eval(MessageCode==\"83101\")) as quarantines, count(eval(MessageCode==\"83103\")) as feed_failures, count(eval(MessageCode==\"83104\")) as adapter_drops by vendor\n| eval coverage_ratio = round((quarantines / detections) * 100, 1)\n| where feed_failures > 0 OR adapter_drops > 0 OR (detections > 5 AND coverage_ratio < 90)",
+  "description": "Detects TC-NAC adapter connection failures, threat-list import failures, and gaps in the detection-to-quarantine pipeline (where threats are detected by a vendor feed but ISE failed to apply the corresponding quarantine action).",
+  "value": "TC-NAC is the link between the vulnerability scanner / EDR fabric and ISE network enforcement. When an adapter fails or the feed import errors, ISE's authorization decisions revert to the non-threat-aware baseline — vulnerable endpoints continue to receive full network access. This UC catches the silent integration break.",
+  "implementation": "Confirm the *Threat-Centric NAC* category is at INFO. Deploy the OpenAPI poller every 30 min. Schedule the search every 15 min, search window `-1h@h to @h`, trigger on count > 0, throttle suppression `vendor` for 30 min.",
+  "visualization": "(1) Single value: TC-NAC adapters healthy / total. (2) Sankey: vendor → threat_type → quarantine_state. (3) Top-N: endpoints with highest threat scores, last 7d. (4) Trend: detection-to-quarantine ratio over 30d.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "dataModelAcceleration": "Optional. Alerts DM acceleration helps cross-correlation panels.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 — Threat-Centric NAC",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_compliance_segmentation.html"
+    },
+    {
+      "title": "Cisco TC-NAC Adapter Catalog",
+      "url": "https://www.cisco.com/c/en/us/products/security/identity-services-engine/index.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **Vendor scanner maintenance** — Qualys / Tenable / Rapid7 maintenance windows briefly drop adapter connection. Cross-reference vendor maintenance calendars. (b) **Endpoint not currently on the network** — Threat detected by EDR for an endpoint that's offline. ISE has no session to quarantine. The detection-to-quarantine ratio drops legitimately. Maintain a `tcnac_endpoint_offline.csv` lookup updated from active-session data and exclude offline endpoints. (c) **Newly added vendor feed before first sync** — Initial population delay; suppress for 4h after a new adapter is added.",
+  "mitreAttack": [
+    "T1190",
+    "T1059"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "11.3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI 11.3 requires vulnerability-management identification and remediation. TC-NAC ties vuln-scanner output to network-access enforcement; pipeline-health monitoring evidences the vuln-to-enforcement link is operational.",
+      "controlObjective": "Operational integrity of vuln-to-enforcement pipeline.",
+      "evidenceArtifact": "UC-17.1.41 alert log + monthly TC-NAC operational report.",
+      "obligationRef": "pci-dss@v4.0#11.3",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(e)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(e) covers vulnerability handling and disclosure. TC-NAC operational health evidences the enforcement arm of the vuln-handling process.",
+      "controlObjective": "Operational vuln-to-enforcement integration.",
+      "evidenceArtifact": "UC-17.1.41 alert log.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(e)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "RA-5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "RA-5 (Vulnerability Monitoring and Scanning) requires the system scan for vulns and remediate. TC-NAC's role bridges scanning and enforcement; pipeline monitoring evidences the bridge is operational.",
+      "controlObjective": "Operational integrity of scan-to-enforce bridge.",
+      "evidenceArtifact": "UC-17.1.41 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#RA-5",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.8",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.8 (Management of technical vulnerabilities) — TC-NAC is the operational link.",
+      "controlObjective": "Operational vuln management bridge.",
+      "evidenceArtifact": "UC-17.1.41 alert log.",
+      "obligationRef": "iso-27001@2022#A.8.8",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Disable a TC-NAC adapter (e.g. stop the Qualys API integration). ISE emits 83104 (adapter connection lost). UC-17.1.41 fires showing that vendor with adapter_drops > 0.",
+    "negativeScenario": "Re-enable the adapter and confirm ISE emits a new threat sync without errors. Alert clears."
+  },
+  "detailedImplementation": "Prerequisites\n• ISE TC-NAC license (Premier tier).\n• At least one TC-NAC adapter configured (Qualys/Tenable/Rapid7/Cisco AMP).\n• `tcnac_adapters.csv` lookup with `vendor`, `is_critical`.\n\nStep 1 — Configure data collection\nEnable *Threat-Centric NAC* category at INFO. Deploy OpenAPI poller for `/api/v1/threatlist/source` and `/api/v1/threatlist/threat` every 30 min.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 15 min.\n\nStep 3 — Validate\nProvoke as in controlTest. Confirm alert.\n\nStep 4 — Operationalize\nDashboard \"ISE — TC-NAC Pipeline Health\":\n• Per-vendor adapter status.\n• Detection-to-quarantine ratio trend.\n• Top-N endpoints by threat score.\n\nAlerting: PagerDuty medium on adapter drop. Slack on detection-to-quarantine ratio drop.\n\nStep 5 — Troubleshooting\n• **Adapter drops every hour** — vendor API rate limit. Tune polling interval.\n• **Detection-to-quarantine ratio = 0** — Authorization policy not consuming TC-NAC threat score; review the auth policy conditions.\n• **Feed-import failures** — vendor TLS cert change. Re-import vendor cert into ISE Trusted Certs.",
+  "grandmaExplanation": "When a vulnerability scanner finds a sick computer, ISE should quarantine it. We check that the message gets through from the scanner to ISE — and ring the bell if the connection is broken or the quarantine never happens.",
+  "wave": "run"
+}

@@ -1,0 +1,106 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.58",
+  "title": "Cisco ISE Data Connect \u2014 DB-Direct Query Audit and Slow-Query Detection",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Operations",
+    "Performance",
+    "Compliance"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "ISE Data Connect (introduced ISE 3.2) provides direct read-only Oracle connectivity to MnT data. Audit/connection events emitted in *Administrative and Operational Audit* category \u2014 codes `52100` (Data Connect login), `52101` (Data Connect login failure), `52110` (Data Connect slow query). Query details may be captured at the consumer side (e.g. Splunk DB Connect) \u2014 `index=splunkdbx sourcetype=splunkdbx:db_query`. ISE OpenAPI exposes Data Connect status via `/api/v1/dataconnect/status`. Field: `db_user`, `query_duration_ms`, `query_text`.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) + `Splunk DB Connect` for the consumer side.",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (52100, 52101, 52110))\n  OR (index=splunkdbx sourcetype=\"splunkdbx:db_query\" \"jdbc:oracle:thin:@//ise-mnt:2484\")\n| stats count, count(eval(MessageCode==\"52101\")) as login_failures, count(eval(MessageCode==\"52110\" OR query_duration_ms > 30000)) as slow_queries, max(query_duration_ms) as max_duration by db_user\n| where login_failures > 5 OR slow_queries > 0 OR max_duration > 60000",
+  "description": "Audits Data Connect direct DB access events and detects login failures (potential brute-force) AND slow queries (>30s) that may degrade ISE platform performance.",
+  "value": "Data Connect provides huge analytical value but exposes the MnT Oracle DB directly. Brute-force on the DB account or runaway slow queries can degrade the platform. Auditing protects the integration value while bounding the risk.",
+  "implementation": "Confirm *Administrative and Operational Audit* at INFO. If using Splunk DB Connect, ensure DB Connect is logging query details. Schedule every 30 min.",
+  "visualization": "(1) Single value: slow queries last 1h. (2) Top-N: queries by duration. (3) Login-failure trend.",
+  "cimModels": [],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 \u2014 Data Connect Configuration",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_data_connect.html"
+    },
+    {
+      "title": "Splunk DB Connect Documentation",
+      "url": "https://docs.splunk.com/Documentation/DBX"
+    }
+  ],
+  "knownFalsePositives": "(a) **Initial deployment query** \u2014 Initial schema discovery may produce slow queries.  (b) **Quarterly audit-extract query** \u2014 Large audit-data extracts can legitimately take minutes.",
+  "mitreAttack": [
+    "T1110.001"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "10.2.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI 10.2.2 \u2014 audit logging of admin actions; Data Connect direct DB access requires logging.",
+      "controlObjective": "Direct DB access audit.",
+      "evidenceArtifact": "UC-17.1.58 audit log.",
+      "obligationRef": "pci-dss@v4.0#10.2.2",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "SOX ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.AccessMgmt.Privileged",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "ITGC logical access \u2014 DB-direct access is privileged.",
+      "controlObjective": "Privileged DB access audit.",
+      "evidenceArtifact": "UC-17.1.58 audit log.",
+      "obligationRef": "sox-itgc@PCAOB AS 2201#ITGC.AccessMgmt.Privileged",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AU-12",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "AU-12 \u2014 audit-record generation.",
+      "controlObjective": "Audit-record generation for DB access.",
+      "evidenceArtifact": "UC-17.1.58 audit log.",
+      "obligationRef": "nist-800-53@Rev. 5#AU-12",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.15",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.15 \u2014 logging.",
+      "controlObjective": "Database-access logging evidence for ISE Data Connect read-only consumers.",
+      "evidenceArtifact": "UC-17.1.58 audit log.",
+      "obligationRef": "iso-27001@2022#A.8.15",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Run a deliberately heavy query via Data Connect (`SELECT * FROM mnt_radius_auth WHERE rownum > 1000000`). Query takes 60s. UC-17.1.58 fires.",
+    "negativeScenario": "Run a normal query that completes in 2s. UC-17.1.58 does not fire."
+  },
+  "detailedImplementation": "Prerequisites\n\u2022 ISE Data Connect enabled (Administration > System > Settings > Data Connect).\n\u2022 Splunk DB Connect or another consumer.\n\nStep 1 \u2014 Configure data collection\nEnable *Administrative and Operational Audit* at INFO.\n\nStep 2 \u2014 Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 \u2014 Validate\nProvoke as above.\n\nStep 4 \u2014 Operationalize\nDashboard \"ISE \u2014 Data Connect Audit\":\n\u2022 Slow-query count.\n\u2022 Top-N queries.\n\u2022 Login-failure trend.\n\nStep 5 \u2014 Troubleshooting\n\u2022 **Slow queries from analytics workload** \u2014 Coordinate to schedule outside peak.\n\u2022 **Login failures from one host** \u2014 Brute-force or stale credential cache.\n\u2022 **No DB Connect events** \u2014 DB Connect not configured to log queries.",
+  "grandmaExplanation": "ISE allows a special direct-to-database connection for big reports. We watch who's connecting and how long their queries take \u2014 slow queries can slow down ISE itself, and many failed logins can mean someone's trying to crack a password.",
+  "wave": "run"
+}

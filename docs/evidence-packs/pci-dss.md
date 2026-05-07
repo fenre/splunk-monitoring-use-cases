@@ -42,7 +42,7 @@ All merchants, service providers, issuers, and acquirers that handle primary acc
 - **Clauses tracked**: 22
 - **Clauses covered by at least one UC**: 22 / 22 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 23
+- **Contributing UCs**: 30
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -57,26 +57,68 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`2.2`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=2.2) | Secure system component configuration | 1.0 | `full` | [UC-22.11.92](#uc-22-11-92) |
 | [`3.3`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=3.3) | Sensitive authentication data not stored | 1.0 | `full` | [UC-22.11.93](#uc-22-11-93) |
 | [`3.5`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=3.5) | PAN protection | 1.0 | `full` | [UC-22.41.1](#uc-22-41-1) |
-| [`4.2`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=4.2) | Strong cryptography for CHD in transit | 1.0 | `full` | [UC-22.41.2](#uc-22-41-2) |
-| [`5.2`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=5.2) | Anti-malware mechanisms | 1.0 | `full` | [UC-22.11.94](#uc-22-11-94) |
+| [`4.2`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=4.2) | Strong cryptography for CHD in transit | 1.0 | `full` | [UC-17.1.31](#uc-17-1-31), [UC-17.1.35](#uc-17-1-35), [UC-22.41.2](#uc-22-41-2) |
+| [`5.2`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=5.2) | Anti-malware mechanisms | 1.0 | `full` | [UC-17.1.53](#uc-17-1-53), [UC-17.1.65](#uc-17-1-65), [UC-22.11.94](#uc-22-11-94) |
 | [`6.2`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=6.2) | Bespoke software developed securely | 1.0 | `full` | [UC-22.11.95](#uc-22-11-95) |
 | [`6.3`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=6.3) | Vulnerabilities identified and addressed | 1.0 | `full` | [UC-22.43.1](#uc-22-43-1), [UC-22.43.2](#uc-22-43-2) |
 | [`7.2`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=7.2) | Access granted on least privilege | 1.0 | `partial` | [UC-22.48.1](#uc-22-48-1) |
 | [`8.3`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=8.3) | Strong authentication | 1.0 | `full` | [UC-22.11.96](#uc-22-11-96) |
 | [`8.4`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=8.4) | MFA | 1.0 | `full` | [UC-22.11.97](#uc-22-11-97) |
 | [`8.6`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=8.6) | Application and system accounts | 1.0 | `full` | [UC-22.11.98](#uc-22-11-98) |
-| [`10.2`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.2) | Audit logs captured for all system components | 1.0 | `partial` | [UC-22.40.1](#uc-22-40-1) |
+| [`10.2`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.2) | Audit logs captured for all system components | 1.0 | `partial` | [UC-17.1.43](#uc-17-1-43), [UC-17.1.48](#uc-17-1-48), [UC-22.40.1](#uc-22-40-1) |
 | [`10.3`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.3) | Audit logs protected from modification | 1.0 | `full` | [UC-22.11.99](#uc-22-11-99) |
 | [`10.4`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.4) | Time synchronised | 1.0 | `full` | [UC-22.11.100](#uc-22-11-100) |
 | [`10.6`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.6) | Logs reviewed | 1.0 | `full` | [UC-22.11.101](#uc-22-11-101) |
 | [`10.7`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.7) | Log retention | 1.0 | `full` | [UC-22.11.102](#uc-22-11-102) |
-| [`11.3`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=11.3) | External and internal vulnerabilities identified | 1.0 | `full` | [UC-22.11.103](#uc-22-11-103) |
+| [`11.3`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=11.3) | External and internal vulnerabilities identified | 1.0 | `full` | [UC-17.1.41](#uc-17-1-41), [UC-22.11.103](#uc-22-11-103) |
 | [`11.4`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=11.4) | Intrusion detection / prevention | 1.0 | `full` | [UC-22.11.104](#uc-22-11-104) |
 | [`12.3`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=12.3) | Targeted risk analysis | 0.7 | `full` | [UC-22.11.106](#uc-22-11-106) |
 | [`12.10`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=12.10) | Security incident response | 1.0 | `full` | [UC-22.11.105](#uc-22-11-105) |
 
 ### 4.1 Contributing UC detail
 
+<a id='uc-17-1-31'></a>
+- **UC-17.1.31** — Cisco ISE Certificate Expiry and Trust-Chain Health
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.31.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.31.json)
+<a id='uc-17-1-35'></a>
+- **UC-17.1.35** — Cisco ISE pxGrid Cloud Connectivity and TLS Health
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.35.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.35.json)
+<a id='uc-17-1-41'></a>
+- **UC-17.1.41** — Threat-Centric NAC (TC-NAC) — STIX/TAXII Feed and Auto-Quarantine Effectiveness
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.41.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.41.json)
+<a id='uc-17-1-43'></a>
+- **UC-17.1.43** — Cisco ISE TACACS+ Device Administration — Privileged Command Auditing
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.43.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.43.json)
+<a id='uc-17-1-48'></a>
+- **UC-17.1.48** — Cisco ISE Restore Audit and Configuration-Drift Detection Post-Restore
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.48.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.48.json)
+<a id='uc-17-1-53'></a>
+- **UC-17.1.53** — Posture Remediation Funnel — Detection-to-Compliant Conversion Rate
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.53.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.53.json)
+<a id='uc-17-1-65'></a>
+- **UC-17.1.65** — ISE Continuous Compliance Monitoring (CoCM) Grace-Period Tracking
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.65.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.65.json)
 <a id='uc-22-11-100'></a>
 - **UC-22.11.100** — PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts
   - Control family: `log-source-completeness`
@@ -340,7 +382,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 7.3
+catalogue_version: 7.4.1
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     05d15d6f921fc6af3c7dbfacf931dcfd40d45bd1e8a91ef250232b39e24f110e
 ```

@@ -1,0 +1,93 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.54",
+  "title": "Cisco Secure Client / AnyConnect Posture Agent Heartbeat and Version Drift",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operations",
+    "Compliance"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Posture* category — codes `15050` (posture agent heartbeat), `15051` (posture agent version reported), `15052` (posture agent missing/timeout), `15053` (posture agent unsupported version), `15054` (posture agent stale config). Endpoint inventory feed from ISE OpenAPI `/api/v1/endpoint` polled hourly. Fields: `endpoint_mac`, `agent_version`, `agent_state`, `last_heartbeat`. Cisco Secure Endpoint API is the parallel feed.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (15050, 15051, 15052, 15053))\n  OR (index=nac sourcetype=\"cisco:ise:endpoint_inventory\")\n| stats count, latest(_time) as last_seen, latest(agent_version) as version, latest(agent_state) as state by endpoint_mac\n| eval days_since_heartbeat = round((now() - last_seen) / 86400, 1)\n| where days_since_heartbeat > 7 OR state==\"timeout\" OR like(version, \"4.10%\") OR like(version, \"4.9%\")",
+  "description": "Detects endpoints whose posture agent (Cisco Secure Client / AnyConnect) hasn't sent a heartbeat for >7 days OR is running a deprecated/unsupported version. Both conditions break the posture trust loop.",
+  "value": "Without an active posture agent, ISE has no way to validate endpoint compliance — it falls back to a default posture decision, typically less restrictive. Detecting agent absence at scale highlights the deployment gap (devices not yet enrolled, devices retired but still in inventory, or devices the install team missed).",
+  "implementation": "Confirm *Posture* category at INFO. Endpoint-inventory poller every 1h. Schedule the search daily at 06:00 UTC.",
+  "visualization": "(1) Single value: endpoints with stale heartbeat. (2) Bar chart: agent version distribution. (3) Top-N: device-types missing agents.",
+  "cimModels": [],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco Secure Client (formerly AnyConnect) Documentation",
+      "url": "https://www.cisco.com/c/en/us/products/security/secure-client/index.html"
+    },
+    {
+      "title": "Cisco ISE 3.4 — Posture Agent Configuration",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_compliance_segmentation.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **Devices on extended leave** — Employees on leave may have endpoints offline >7 days. Tag known-extended-offline. (b) **Decommissioned devices** — Old devices still in ISE endpoint inventory. Periodic cleanup needed.",
+  "mitreAttack": [
+    "N/A (agent fleet health — measures AnyConnect posture agent heartbeat, no attack mapping)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "5.3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI 5.3 — anti-malware mechanisms must be operational. Agent heartbeat evidences operational status.",
+      "controlObjective": "Anti-malware operational status.",
+      "evidenceArtifact": "UC-17.1.54 alert log + monthly agent-coverage report.",
+      "obligationRef": "pci-dss@v4.0#5.3",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.7",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.7 — protection against malware via active agent.",
+      "controlObjective": "Active agent protection.",
+      "evidenceArtifact": "UC-17.1.54 alert log.",
+      "obligationRef": "iso-27001@2022#A.8.7",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "SI-3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "SI-3 — malicious-code protection.",
+      "controlObjective": "Malicious code protection agent status.",
+      "evidenceArtifact": "UC-17.1.54 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#SI-3",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "On a lab endpoint, stop the Cisco Secure Client posture service. Wait 8 days (or simulate by changing system clock). UC-17.1.54 fires for the endpoint with `days_since_heartbeat > 7`.",
+    "negativeScenario": "Restart the agent. Heartbeat resumes. Alert clears."
+  },
+  "detailedImplementation": "Prerequisites\n• Cisco Secure Client / AnyConnect deployed to endpoints.\n• ISE *Posture* category at INFO.\n\nStep 1 — Configure data collection\nValidate event flow.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule daily.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — Posture Agent Coverage\":\n• Single value: endpoints with stale heartbeat.\n• Version distribution.\n• Top-N missing.\n\nMonthly review: agent-coverage report.\n\nStep 5 — Troubleshooting\n• **High count of stale heartbeats** — Mass-decommission scenario; clean inventory.\n• **All on old version** — Agent-update mechanism broken.\n• **Heartbeat events absent** — *Posture* category at WARN.",
+  "grandmaExplanation": "Each company computer runs a small program that tells ISE 'I'm OK'. We watch for computers that have stopped saying 'I'm OK' for over a week — they may be off, retired, or compromised.",
+  "wave": "walk"
+}

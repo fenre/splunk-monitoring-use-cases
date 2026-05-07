@@ -1,0 +1,76 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.78",
+  "title": "ISE PSN Authentication Distribution Imbalance and Sticky-Session Detection",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Operations"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "ISE syslog *Passed-Authentications* (5200) — count auths per PSN. Authentication is normally distributed across PSNs by NAD primary/secondary RADIUS server config or by load-balancer (F5, Catalyst PBR-LB).",
+  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5200\n| stats count as auth_count by host\n| eventstats avg(auth_count) as avg_count, stdev(auth_count) as stdev_count\n| eval z_score=(auth_count - avg_count) / stdev_count\n| where abs(z_score) > 2",
+  "description": "Detects when one PSN is receiving disproportionately more or fewer auths than its peers — usually caused by NAD misconfiguration (forgotten secondary RADIUS), load-balancer health-check failure, or sticky-session affinity gone wrong.",
+  "value": "Imbalanced PSN load means one PSN works hard while others sit idle — and is often the first sign of a load-balancer or RADIUS-server-list misconfiguration. Catching it preserves capacity headroom on the busy PSN.",
+  "implementation": "Schedule every 30 min.",
+  "visualization": "Per-PSN auth distribution; z-score chart; load-balancer health.",
+  "cimModels": [],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 — Load Distribution",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_install_ise.html"
+    }
+  ],
+  "knownFalsePositives": "(a) Geographic load distribution — campus PSNs serve only local NADs.\n(b) Active/standby designs.",
+  "mitreAttack": [
+    "N/A (SLO monitoring — measures PSN load distribution, no adversary technique)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.6",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.6 capacity management — load distribution.",
+      "controlObjective": "Capacity load distribution.",
+      "evidenceArtifact": "UC-17.1.78 alert log.",
+      "obligationRef": "iso-27001@2022#A.8.6",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.7",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "DORA Art.7 ICT risk — load distribution.",
+      "controlObjective": "ICT load distribution.",
+      "evidenceArtifact": "UC-17.1.78 alert log.",
+      "obligationRef": "dora@Regulation (EU) 2022/2554#Art.7",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Disable secondary RADIUS server on a NAD; one PSN receives all auth traffic. UC-17.1.78 fires.",
+    "negativeScenario": "Balanced cluster. No fire."
+  },
+  "detailedImplementation": "Standard pattern.",
+  "grandmaExplanation": "ISE has multiple servers. They should share work equally. We notice when one server suddenly does much more (or less) than the others, which usually means something is misconfigured.",
+  "wave": "walk"
+}

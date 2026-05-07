@@ -1,0 +1,116 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.82",
+  "title": "Splunk SOAR + ISE Closed-Loop Playbook Audit and Mean-Time-to-Containment KPI",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Operations"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Splunk SOAR audit logs `index=phantom` showing playbook runs, action results from the *Cisco ISE* SOAR app (https://splunkbase.splunk.com/app/4250) — `block_endpoint`, `unblock_endpoint`, `endpoint_session_info` actions. Combine with ISE syslog 86001 (ANC-applied) to audit reach.",
+  "app": "`Splunk SOAR Cisco ISE App` (Splunkbase 4250) + Splunk SOAR.",
+  "spl": "index=phantom action_name=block_endpoint\n| eval soar_apply_time=_time\n| stats earliest(soar_apply_time) as soar_t, latest(_time) as last_action by container_id, mac_address\n| join mac_address [search index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=86001 anc_action=quarantine | rename _time as ise_apply_time]\n| eval soar_to_ise_lag_s=ise_apply_time - soar_t\n| stats avg(soar_to_ise_lag_s) as avg_lag, max(soar_to_ise_lag_s) as max_lag",
+  "description": "Audits Splunk SOAR playbook → ISE ANC closed-loop performance. Measures (a) SOAR `block_endpoint` action success rate, (b) average lag from SOAR action to ISE 86001 confirmation, and (c) max lag (worst case).",
+  "value": "Automated containment is only as fast as its slowest link. SOAR playbook audit gives the SOC measurable evidence that playbooks executed end-to-end, satisfying NIS2/DORA incident-response requirements with quantitative MTTC.",
+  "implementation": "Schedule the search every 1 hour over the last 24 hours; emit MTTC KPI to a summary index for the SOAR-effectiveness dashboard.",
+  "visualization": "MTTC trend; per-playbook success rate; failed-action log.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "dataModelAcceleration": "Yes — Alerts.",
+  "references": [
+    {
+      "title": "Splunk SOAR Cisco ISE App",
+      "url": "https://splunkbase.splunk.com/app/4250"
+    }
+  ],
+  "knownFalsePositives": "(a) SOAR action retries cause apparent duplicate apply.\n(b) Endpoints already quarantined return success without a new 86001.",
+  "mitreAttack": [
+    "N/A (meta-detection — measures playbook execution KPIs, not adversary behaviour)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(b)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(b) incident handling — quantitative MTTC.",
+      "controlObjective": "Mean-time-to-contain KPI for ANC-driven SOAR playbook executions.",
+      "evidenceArtifact": "UC-17.1.82 alert log.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(b)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.17",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "DORA Art.17 ICT-related incident management — automated containment efficacy.",
+      "controlObjective": "Automated containment efficacy.",
+      "evidenceArtifact": "UC-17.1.82 alert log.",
+      "obligationRef": "dora@Regulation (EU) 2022/2554#Art.17",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "IR-4(1)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "IR-4(1) automated incident handling.",
+      "controlObjective": "Automated incident handling efficacy.",
+      "evidenceArtifact": "UC-17.1.82 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#IR-4(1)",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.5.26",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.5.26 incident response — MTTC.",
+      "controlObjective": "Incident-response MTTC.",
+      "evidenceArtifact": "UC-17.1.82 alert log.",
+      "obligationRef": "iso-27001@2022#A.5.26",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC7.4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "SOC-2 CC7.4 incident response — automated containment.",
+      "controlObjective": "Automated containment audit.",
+      "evidenceArtifact": "UC-17.1.82 alert log.",
+      "obligationRef": "soc-2@2017 TSC#CC7.4",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Run a SOAR `block_endpoint` playbook. Confirm ISE 86001 ANC apply within 30s.",
+    "negativeScenario": "All playbooks succeed within target MTTC. No fire."
+  },
+  "detailedImplementation": "Standard pattern.",
+  "grandmaExplanation": "Splunk SOAR is the automation that runs playbooks. When SOAR tells ISE to quarantine a device, we measure how long it takes — and prove the response actually happened.",
+  "wave": "run"
+}

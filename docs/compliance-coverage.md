@@ -1,26 +1,26 @@
 # Compliance coverage report
 
-Status: **passed**  |  Generated: 2026-05-02T17:07:40Z
+Status: **passed**  |  Generated: 2026-05-04T08:36:21Z
 
 ## Summary
 
-* UC files checked: **7364**
-* UC files valid:   **7364**
-* Compliance entries: **2082**
-* Findings: **0** (errors: **0**, baselined: **0**)
+* UC files checked: **7657**
+* UC files valid:   **7657**
+* Compliance entries: **2339**
+* Findings: **90** (errors: **0**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
 ## Global coverage (all tiers)
 
 * Clause coverage %: **100.0**
 * Priority-weighted %: **100.0**
-* Assurance-adjusted %: **66.1264**
+* Assurance-adjusted %: **66.2637**
 
 ## Per tier
 
 | Tier | Clause % | Priority-weighted % | Assurance-adjusted % |
 |------|----------|----------------------|-----------------------|
-| tier-1 | 100.0 | 100.0 | 74.2945 |
+| tier-1 | 100.0 | 100.0 | 74.5221 |
 | tier-2 | 100.0 | 100.0 | 53.7342 |
 | tier-3 | 100.0 | 100.0 | 50.0 |
 
@@ -55,11 +55,11 @@ Status: **passed**  |  Generated: 2026-05-02T17:07:40Z
 | gdpr | 100.0 | 100.0 | 68.6111 |
 | glba | 100.0 | 100.0 | 50.0 |
 | hipaa-privacy | 100.0 | 100.0 | 44.8529 |
-| hipaa-security | 100.0 | 100.0 | 66.6667 |
+| hipaa-security | 100.0 | 100.0 | 68.4783 |
 | hitrust | 100.0 | 100.0 | 75.0 |
 | hkma-tm-g-2 | 100.0 | 100.0 | 50.0 |
 | iec-62443 | 100.0 | 100.0 | 63.5135 |
-| iso-27001 | 100.0 | 100.0 | 84.7656 |
+| iso-27001 | 100.0 | 100.0 | 85.7422 |
 | it-grundschutz | 100.0 | 100.0 | 75.0 |
 | it-sig-2 | 100.0 | 100.0 | 50.0 |
 | mas-trm | 100.0 | 100.0 | 50.0 |
@@ -126,12 +126,12 @@ Status: **passed**  |  Generated: 2026-05-02T17:07:40Z
 | GDPR@2016/679 | 1 | 100.0 | 100.0 | 73.2659 |
 | GLBA@16 CFR 314 (2023 amendments) | 2 | 100.0 | 100.0 | 50.0 |
 | HIPAA Privacy@current | 2 | 100.0 | 100.0 | 44.8529 |
-| HIPAA Security@2013-final | 1 | 100.0 | 100.0 | 66.6667 |
+| HIPAA Security@2013-final | 1 | 100.0 | 100.0 | 68.4783 |
 | HITRUST@v11 | 2 | 100.0 | 100.0 | 75.0 |
 | HKMA TM-G-2@current | 2 | 100.0 | 100.0 | 50.0 |
 | IEC 62443@2013-ongoing | 2 | 100.0 | 100.0 | 63.5135 |
 | ISO 27001@2013 | 1 | 100.0 | 100.0 | 78.7234 |
-| ISO 27001@2022 | 1 | 100.0 | 100.0 | 86.1244 |
+| ISO 27001@2022 | 1 | 100.0 | 100.0 | 87.3206 |
 | IT-Grundschutz@2023 Edition | 2 | 100.0 | 100.0 | 75.0 |
 | IT-SiG 2.0@2021 | 2 | 100.0 | 100.0 | 50.0 |
 | LGPD@Lei nº 13.709/2018 | 2 | 100.0 | 100.0 | 50.0 |

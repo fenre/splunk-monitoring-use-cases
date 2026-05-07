@@ -1,0 +1,126 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.53",
+  "title": "Posture Remediation Funnel — Detection-to-Compliant Conversion Rate",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Operations"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Posture* category — codes `15041` (posture compliant), `15042` (posture non-compliant), `15043` (posture pending), `15044` (posture remediation initiated), `15045` (posture remediation completed), `15046` (posture remediation failed). Fields: `endpoint_mac`, `posture_policy`, `failed_condition`, `remediation_action`. CIM mapping: `Vulnerability.severity`.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (15042, 15044, 15045, 15046) earliest=-7d\n| eval stage = case(MessageCode==\"15042\", \"detected\", MessageCode==\"15044\", \"remediation_started\", MessageCode==\"15045\", \"remediation_completed\", MessageCode==\"15046\", \"remediation_failed\")\n| stats values(stage) as stages dc(_time) as event_count by endpoint_mac, posture_policy\n| eval reached_compliance = if(mvfind(stages, \"remediation_completed\")>=0, \"yes\", \"no\")\n| stats count as endpoints, sum(eval(if(reached_compliance==\"yes\",1,0))) as compliant by posture_policy\n| eval conversion_pct = round((compliant/endpoints)*100, 1)\n| sort conversion_pct",
+  "description": "Tracks the posture-remediation funnel: how many endpoints flagged as non-compliant successfully reach a compliant state, broken down per posture policy. Exposes ineffective posture policies (low conversion rate) for tuning.",
+  "value": "Posture is only valuable if non-compliant endpoints actually become compliant. A posture policy with a 20% conversion rate is largely ineffective — endpoints stay quarantined or fall through default-allow. Tracking the funnel weekly drives policy improvement.",
+  "implementation": "Confirm *Posture* category at INFO. Schedule weekly summary report (Monday 06:00 UTC). For real-time per-endpoint tracking, schedule a 4h cadence search to populate a summary index `ise_posture_funnel` with per-endpoint state.",
+  "visualization": "(1) Funnel chart: detected → remediation_started → remediation_completed. (2) Top-N: lowest-conversion-rate posture policies. (3) Trend: weekly conversion rate per policy.",
+  "cimModels": [],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 — Posture Services",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_compliance_segmentation.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **First-day rollout** — A new posture policy may show low conversion until devices receive the agent and remediation packages. (b) **Endpoint offline** — An endpoint that goes offline mid-remediation appears as non-converted; track only endpoints currently online.",
+  "mitreAttack": [
+    "N/A (posture remediation pipeline — measures policy compliance flow, no adversary technique)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "5.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI 5.2 — anti-malware deployment. Posture validates anti-malware and remediates non-compliance.",
+      "controlObjective": "Anti-malware deployment validation.",
+      "evidenceArtifact": "UC-17.1.53 weekly funnel report.",
+      "obligationRef": "pci-dss@v4.0#5.2",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "6.3.3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI 6.3.3 — patch within 1 month. Posture's patch checks evidence ongoing patch cadence.",
+      "controlObjective": "Patch cadence evidence.",
+      "evidenceArtifact": "UC-17.1.53 weekly funnel report.",
+      "obligationRef": "pci-dss@v4.0#6.3.3",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(e)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(e) — vulnerability handling.",
+      "controlObjective": "Vulnerability handling evidence.",
+      "evidenceArtifact": "UC-17.1.53 weekly funnel report.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(e)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "SI-3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "SI-3 (Malicious Code Protection) — posture validates protections.",
+      "controlObjective": "Malicious-code-protection validation.",
+      "evidenceArtifact": "UC-17.1.53 weekly funnel report.",
+      "obligationRef": "nist-800-53@Rev. 5#SI-3",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.7",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.7 (Protection against malware) — posture is one such control.",
+      "controlObjective": "Malware protection evidence.",
+      "evidenceArtifact": "UC-17.1.53 weekly funnel report.",
+      "obligationRef": "iso-27001@2022#A.8.7",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "HIPAA",
+      "version": "2013-final",
+      "clause": "§164.308(a)(5)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "164.308(a)(5) Security Awareness and Training — including malware protection.",
+      "controlObjective": "Malware-protection technical safeguard.",
+      "evidenceArtifact": "UC-17.1.53 weekly funnel report.",
+      "obligationRef": "hipaa-security@45 CFR Parts 160, 162, 164#§164.308(a)(5)",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Trigger posture remediation on 10 lab endpoints; 8 succeed, 2 fail. UC-17.1.53 reports the policy with `endpoints=10, compliant=8, conversion_pct=80`.",
+    "negativeScenario": "All 10 succeed. UC-17.1.53 reports `conversion_pct=100`."
+  },
+  "detailedImplementation": "Prerequisites\n• ISE Posture configured.\n• Posture agent deployed to endpoints.\n• `posture_policies.csv` with `posture_policy`, `target_conversion_pct`.\n\nStep 1 — Configure data collection\nEnable *Posture* category at INFO.\n\nStep 2 — Create the search\nWeekly search in `spl` field.\n\nA secondary 4h cadence search populates summary index for trend analysis.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — Posture Funnel\":\n• Funnel chart per policy.\n• Top-N lowest conversion.\n• Trend over 12 weeks.\n\nWeekly review: posture team reviews lowest-conversion policies and tunes.\n\nStep 5 — Troubleshooting\n• **All policies show 0% conversion** — Posture agent not reaching endpoints; cross-ref UC-17.1.54.\n• **One policy at 0%** — Remediation action mis-configured.\n• **Trend declining** — New endpoint type incompatible with existing remediation.",
+  "grandmaExplanation": "When ISE finds a sick computer (missing antivirus, missing patch), it tries to fix it before letting it on the network. We measure how many sick computers actually got fixed — the lower the number, the more useless the fix-up rules are.",
+  "wave": "walk"
+}

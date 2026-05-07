@@ -27,9 +27,9 @@ _Cybersecurity Maturity Model Certification_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `AC.L2-3.1.1` | Authorized access to systems | 1.00 | ✔ 2 | partial | 22.20.1, 22.32.17 |
+| `AC.L2-3.1.1` | Authorized access to systems | 1.00 | ✔ 4 | partial | 17.1.69, 22.20.1, 22.20.21, 22.32.17 |
 | `AC.L2-3.1.5` | Least privilege | 1.00 | ✔ 2 | partial | 22.20.14, 22.20.2 |
-| `AU.L2-3.3.1` | Create audit records | 1.00 | ✔ 2 | full | 10.12.40, 22.20.3 |
+| `AU.L2-3.3.1` | Create audit records | 1.00 | ✔ 3 | full | 10.12.40, 17.1.43, 22.20.3 |
 | `AU.L2-3.3.2` | Ensure unique user traceability | 1.00 | ✔ 1 | full | 22.20.4 |
 | `AU.L2-3.3.5` | Audit reporting and correlation | 1.00 | ✔ 6 | partial | 22.20.16, 22.20.18, 22.20.20, 22.20.5, 22.32.18, 22.32.19 |
 | `CM.L2-3.4.1` | Baseline configurations | 1.00 | ✔ 3 | full | 22.20.10, 22.20.17, 22.20.6 |
@@ -50,20 +50,20 @@ _EU Digital Operational Resilience Act_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Art.5` | ICT risk-management governance | 1.00 | ✔ 14 | contributing | 22.3.1, 22.3.19, 22.3.21, 22.3.22, 22.3.24, 22.3.26, 22.3.29, 22.3.30 |
+| `Art.5` | ICT risk-management governance | 1.00 | ✔ 16 | contributing | 17.1.28, 17.1.61, 22.3.1, 22.3.19, 22.3.21, 22.3.22, 22.3.24, 22.3.26 |
 | `Art.6` | ICT risk-management framework | 1.00 | ✔ 4 | full | 22.11.106, 22.3.1, 22.3.41, 22.6.46 |
-| `Art.7` | ICT systems, protocols and tools | 1.00 | ✔ 3 | full | 22.3.1, 22.3.42, 22.8.32 |
+| `Art.7` | ICT systems, protocols and tools | 1.00 | ✔ 6 | full | 17.1.77, 17.1.78, 22.3.1, 22.3.42, 22.3.46, 22.8.32 |
 | `Art.8` | Identification | 1.00 | ✔ 3 | full | 22.11.103, 22.3.1, 22.3.43 |
-| `Art.9` | Protection and prevention | 1.00 | ✔ 3 | full | 22.11.97, 22.3.1, 22.41.3 |
-| `Art.10` | Detection | 1.00 | ✔ 3 | full | 22.3.1, 22.3.7, 22.8.33 |
+| `Art.9` | Protection and prevention | 1.00 | ✔ 7 | full | 17.1.29, 17.1.36, 17.1.40, 17.1.44, 22.11.97, 22.3.1, 22.41.3 |
+| `Art.10` | Detection | 1.00 | ✔ 5 | full | 17.1.33, 22.3.1, 22.3.47, 22.3.7, 22.8.33 |
 | `Art.11` | Response and recovery | 1.00 | ✔ 3 | contributing | 22.3.1, 22.3.5, 22.3.8 |
-| `Art.12` | Backup policies and recovery methods | 1.00 | ✔ 6 | full | 22.3.1, 22.3.5, 22.3.9, 22.35.3, 22.45.1, 22.45.3 |
-| `Art.17` | ICT-related incident management process | 1.00 | ✔ 8 | full | 22.3.2, 22.3.23, 22.3.31, 22.3.44, 22.6.51, 22.6.52, 22.8.34, 22.8.35 |
+| `Art.12` | Backup policies and recovery methods | 1.00 | ✔ 7 | full | 17.1.47, 22.3.1, 22.3.5, 22.3.9, 22.35.3, 22.45.1, 22.45.3 |
+| `Art.17` | ICT-related incident management process | 1.00 | ✔ 12 | full | 17.1.30, 17.1.42, 17.1.80, 17.1.82, 22.3.2, 22.3.23, 22.3.31, 22.3.44 |
 | `Art.18` | Classification of ICT-related incidents | 1.00 | ✔ 2 | contributing | 22.3.11, 22.3.2 |
 | `Art.19` | Reporting of major ICT-related incidents | 1.00 | ✔ 4 | full | 22.3.12, 22.3.2, 22.3.38, 22.39.1 |
 | `Art.24` | Digital operational-resilience testing | 0.70 | ✔ 7 | full | 22.11.105, 22.3.25, 22.3.27, 22.3.28, 22.3.3, 22.3.39, 22.3.45 |
 | `Art.26` | Threat-led penetration testing | 0.70 | ✔ 2 | contributing | 22.3.17, 22.3.3 |
-| `Art.28` | ICT third-party risk | 1.00 | ✔ 7 | full | 22.3.4, 22.3.40, 22.38.3, 22.44.1, 22.44.2, 22.44.3, 22.8.37 |
+| `Art.28` | ICT third-party risk | 1.00 | ✔ 9 | full | 17.1.60, 17.1.62, 22.3.4, 22.3.40, 22.38.3, 22.44.1, 22.44.2, 22.44.3 |
 
 ### GDPR — `gdpr`
 
@@ -115,18 +115,18 @@ _HIPAA Security Rule_
 | `§164.308(a)(1)` | Security management process | 1.00 | ✔ 4 | partial | 22.10.1, 22.10.2, 22.10.22, 22.10.55 |
 | `§164.308(a)(3)` | Workforce security | 1.00 | ✔ 1 | partial | 22.10.4 |
 | `§164.308(a)(4)` | Information access management | 1.00 | ✔ 1 | full | 22.10.21 |
-| `§164.308(a)(5)` | Security awareness and training | 0.70 | ✔ 3 | full | 22.10.6, 22.46.1, 22.6.53 |
+| `§164.308(a)(5)` | Security awareness and training | 0.70 | ✔ 4 | full | 17.1.53, 22.10.6, 22.46.1, 22.6.53 |
 | `§164.308(a)(6)` | Security incident procedures | 1.00 | ✔ 3 | partial | 22.10.56, 22.10.7, 22.39.1 |
-| `§164.308(a)(7)` | Contingency plan | 1.00 | ✔ 2 | full | 22.10.8, 22.45.2 |
+| `§164.308(a)(7)` | Contingency plan | 1.00 | ✔ 3 | full | 17.1.47, 22.10.8, 22.45.2 |
 | `§164.308(a)(8)` | Evaluation | 0.70 | ✔ 1 | partial | 22.10.9 |
 | `§164.310(a)(1)` | Facility access controls | 1.00 | ✔ 1 | partial | 22.10.31 |
-| `§164.310(d)(1)` | Device and media controls | 0.70 | ✔ 3 | full | 22.10.29, 22.49.1, 22.49.2 |
+| `§164.310(d)(1)` | Device and media controls | 0.70 | ✔ 4 | full | 17.1.50, 22.10.29, 22.49.1, 22.49.2 |
 | `§164.312(a)(1)` | Access control | 1.00 | ✔ 3 | contributing | 22.10.21, 22.10.24, 22.10.25 |
 | `§164.312(a)(2)(iv)` | Encryption and decryption | 0.70 | ✔ 2 | full | 22.10.16, 22.41.1 |
-| `§164.312(b)` | Audit controls | 1.00 | ✔ 3 | contributing | 10.12.16, 22.10.17, 22.10.36 |
+| `§164.312(b)` | Audit controls | 1.00 | ✔ 5 | partial | 10.12.16, 17.1.43, 22.10.17, 22.10.36, 22.10.58 |
 | `§164.312(c)(1)` | Integrity | 1.00 | ✔ 3 | full | 22.10.18, 22.10.27, 22.35.2 |
-| `§164.312(d)` | Person or entity authentication | 1.00 | ✔ 3 | contributing | 22.10.19, 22.10.23, 22.10.42 |
-| `§164.312(e)(1)` | Transmission security | 1.00 | ✔ 6 | full | 22.10.20, 22.10.22, 22.10.26, 22.41.2, 22.8.31, 22.8.38 |
+| `§164.312(d)` | Person or entity authentication | 1.00 | ✔ 4 | contributing | 17.1.38, 22.10.19, 22.10.23, 22.10.42 |
+| `§164.312(e)(1)` | Transmission security | 1.00 | ✔ 7 | full | 17.1.31, 22.10.20, 22.10.22, 22.10.26, 22.41.2, 22.8.31, 22.8.38 |
 
 ### ISO 27001 — `iso-27001`
 
@@ -164,17 +164,17 @@ _ISO/IEC 27001 — ISMS_
 | `8.2` | Information-security risk assessment | 1.00 | ✔ 3 | full | 22.11.106, 22.6.48, 22.9.7 |
 | `9.1` | Monitoring, measurement, analysis, evaluation | 1.00 | ✔ 6 | full | 22.6.47, 22.6.49, 22.9.10, 22.9.6, 22.9.7, 22.9.9 |
 | `9.2` | Internal audit | 1.00 | ✔ 1 | full | 22.6.50 |
-| `A.5.7` | Threat intelligence (2022 new) | 0.70 | ✔ 1 | contributing | 22.6.11 |
+| `A.5.7` | Threat intelligence (2022 new) | 0.70 | ✔ 3 | contributing | 17.1.33, 17.1.81, 22.6.11 |
 | `A.5.15` | Access control | 1.00 | ✔ 1 | full | 22.40.2 |
-| `A.5.18` | Access rights review | 1.00 | ✔ 3 | full | 22.12.36, 22.12.37, 22.40.3 |
+| `A.5.18` | Access rights review | 1.00 | ✔ 5 | full | 17.1.44, 17.1.79, 22.12.36, 22.12.37, 22.40.3 |
 | `A.5.23` | Information security in cloud services (2022 new) | 1.00 | ✔ 1 | contributing | 22.6.13 |
 | `A.5.24` | Incident management planning | 1.00 | ✔ 3 | full | 22.11.105, 22.3.44, 22.6.51 |
-| `A.5.25` | Assessment and decision on events | 1.00 | ✔ 2 | full | 22.6.52, 22.8.34 |
-| `A.8.2` | Privileged access rights | 1.00 | ✔ 1 | contributing | 22.6.26 |
+| `A.5.25` | Assessment and decision on events | 1.00 | ✔ 3 | full | 17.1.30, 22.6.52, 22.8.34 |
+| `A.8.2` | Privileged access rights | 1.00 | ✔ 4 | partial | 17.1.71, 22.40.6, 22.6.26, 22.6.57 |
 | `A.8.9` | Configuration management (2022 new) | 1.00 | ✔ 2 | full | 22.11.92, 22.6.32 |
 | `A.8.12` | Data leakage prevention | 1.00 | ✔ 3 | full | 22.11.93, 22.6.35, 22.8.38 |
-| `A.8.15` | Logging | 1.00 | ✔ 2 | full | 22.11.99, 22.6.38 |
-| `A.8.16` | Monitoring activities | 1.00 | ✔ 3 | full | 22.11.104, 22.6.1, 22.6.39 |
+| `A.8.15` | Logging | 1.00 | ✔ 5 | full | 17.1.43, 17.1.58, 17.1.59, 22.11.99, 22.6.38 |
+| `A.8.16` | Monitoring activities | 1.00 | ✔ 6 | full | 17.1.34, 17.1.65, 17.1.67, 22.11.104, 22.6.1, 22.6.39 |
 | `A.8.17` | Clock synchronisation | 0.70 | ✔ 2 | full | 22.11.100, 22.6.40 |
 | `A.8.23` | Web filtering (2022 new) | 0.70 | ✔ 2 | partial | 22.6.42, 22.8.32 |
 | `A.8.25` | Secure development life cycle | 1.00 | ✔ 2 | full | 22.11.95, 22.6.45 |
@@ -202,15 +202,15 @@ _EU NIS2 Directive_
 | `Art.21(1)` | Art.21(1) | 1.00 | ✔ 1 | partial | 22.2.48 |
 | `Art.21(2)` | Legacy NIS2 mapping already present in the catalogue | 1.00 | ✔ 3 | contributing | 22.2.21, 22.2.22, 22.2.32 |
 | `Art.21(2)(a)` | Risk analysis and information-system security policies | 1.00 | ✔ 6 | partial | 22.2.18, 22.2.26, 22.2.36, 22.2.37, 22.2.56, 22.2.6 |
-| `Art.21(2)(b)` | Incident handling | 1.00 | ✔ 1 | partial | 22.2.23 |
-| `Art.21(2)(c)` | Business continuity and crisis management | 1.00 | ✔ 5 | partial | 22.2.17, 22.2.24, 22.2.4, 22.2.40, 22.2.53 |
-| `Art.21(2)(d)` | Supply-chain security | 1.00 | ✔ 6 | full | 22.2.16, 22.2.2, 22.2.25, 22.2.50, 22.3.42, 22.44.1 |
-| `Art.21(2)(e)` | Security in acquisition, development and maintenance | 1.00 | ✔ 6 | partial | 22.2.15, 22.2.27, 22.2.3, 22.2.38, 22.2.51, 22.43.1 |
+| `Art.21(2)(b)` | Incident handling | 1.00 | ✔ 13 | partial | 17.1.30, 17.1.33, 17.1.42, 17.1.52, 17.1.56, 17.1.57, 17.1.67, 17.1.80 |
+| `Art.21(2)(c)` | Business continuity and crisis management | 1.00 | ✔ 12 | partial | 17.1.29, 17.1.40, 17.1.47, 17.1.48, 17.1.61, 17.1.73, 17.1.77, 22.2.17 |
+| `Art.21(2)(d)` | Supply-chain security | 1.00 | ✔ 15 | full | 17.1.36, 17.1.37, 17.1.45, 17.1.50, 17.1.51, 17.1.55, 17.1.66, 17.1.68 |
+| `Art.21(2)(e)` | Security in acquisition, development and maintenance | 1.00 | ✔ 9 | partial | 17.1.41, 17.1.49, 17.1.53, 22.2.15, 22.2.27, 22.2.3, 22.2.38, 22.2.51 |
 | `Art.21(2)(f)` | Policies and procedures effectiveness | 1.00 | ✔ 5 | partial | 22.2.39, 22.2.43, 22.2.51, 22.2.57, 22.2.9 |
-| `Art.21(2)(g)` | Cyber-hygiene and training | 1.00 | ✔ 4 | full | 22.2.10, 22.2.28, 22.46.1, 22.46.2 |
-| `Art.21(2)(h)` | Cryptography and encryption | 1.00 | ✔ 3 | full | 22.2.11, 22.2.29, 22.41.2 |
+| `Art.21(2)(g)` | Cyber-hygiene and training | 1.00 | ✔ 8 | full | 17.1.28, 17.1.34, 17.1.59, 17.1.70, 22.2.10, 22.2.28, 22.46.1, 22.46.2 |
+| `Art.21(2)(h)` | Cryptography and encryption | 1.00 | ✔ 4 | full | 17.1.31, 22.2.11, 22.2.29, 22.41.2 |
 | `Art.21(2)(i)` | Human resources and access control | 1.00 | ✔ 5 | partial | 22.2.13, 22.2.14, 22.2.30, 22.2.5, 22.2.52 |
-| `Art.21(2)(j)` | MFA and secure communications | 1.00 | ✔ 3 | partial | 22.2.12, 22.2.46, 22.2.52 |
+| `Art.21(2)(j)` | MFA and secure communications | 1.00 | ✔ 6 | partial | 17.1.38, 17.1.44, 17.1.46, 22.2.12, 22.2.46, 22.2.52 |
 | `Art.21(3)` | Art.21(3) | 1.00 | ✔ 1 | partial | 22.2.50 |
 | `Art.21(4)` | Art.21(4) | 1.00 | ✔ 1 | partial | 22.2.48 |
 | `Art.21(5)` | Art.21(5) | 1.00 | ✔ 1 | partial | 22.2.56 |
@@ -259,28 +259,28 @@ _NIST SP 800-53 Rev. 5_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `AC-2` | Account management | 1.00 | ✔ 3 | full | 22.14.16, 22.40.3, 5.13.49 |
-| `AC-3` | Access enforcement | 1.00 | ✔ 1 | contributing | 22.14.17 |
-| `AC-6` | Least privilege | 1.00 | ✔ 4 | full | 22.14.19, 22.40.1, 22.40.2, 5.13.47 |
-| `AU-2` | Event logging | 1.00 | ✔ 3 | partial | 22.14.1, 5.13.45, 5.13.47 |
+| `AC-2` | Account management | 1.00 | ✔ 4 | full | 17.1.51, 22.14.16, 22.40.3, 5.13.49 |
+| `AC-3` | Access enforcement | 1.00 | ✔ 3 | contributing | 17.1.55, 17.1.68, 22.14.17 |
+| `AC-6` | Least privilege | 1.00 | ✔ 5 | full | 17.1.79, 22.14.19, 22.40.1, 22.40.2, 5.13.47 |
+| `AU-2` | Event logging | 1.00 | ✔ 5 | partial | 17.1.43, 22.14.1, 22.40.6, 5.13.45, 5.13.47 |
 | `AU-3` | Content of audit records | 1.00 | ✔ 2 | partial | 22.14.2, 5.13.50 |
-| `AU-6` | Audit review, analysis, and reporting | 1.00 | ✔ 2 | partial | 22.14.5, 5.13.50 |
+| `AU-6` | Audit review, analysis, and reporting | 1.00 | ✔ 3 | partial | 17.1.42, 22.14.5, 5.13.50 |
 | `AU-8` | Time stamps | 1.00 | ✔ 2 | full | 22.11.100, 22.14.7 |
 | `AU-9` | Protection of audit information | 1.00 | ✔ 2 | full | 22.14.8, 22.35.3 |
-| `AU-12` | Audit record generation | 1.00 | ✔ 1 | contributing | 22.14.11 |
+| `AU-12` | Audit record generation | 1.00 | ✔ 4 | contributing | 17.1.30, 17.1.43, 17.1.58, 22.14.11 |
 | `CM-2` | Baseline configuration | 1.00 | ✔ 4 | full | 22.14.52, 22.42.2, 5.13.56, 5.13.57 |
 | `CM-6` | Configuration settings | 1.00 | ✔ 8 | full | 22.11.92, 22.14.56, 22.42.2, 5.13.28, 5.13.29, 5.13.30, 5.13.31, 5.13.33 |
-| `CP-9` | System backup | 1.00 | ✔ 4 | full | 22.14.79, 22.45.1, 22.45.2, 22.45.3 |
+| `CP-9` | System backup | 1.00 | ✔ 5 | full | 17.1.47, 22.14.79, 22.45.1, 22.45.2, 22.45.3 |
 | `IA-2` | Identification and authentication (users) | 1.00 | ✔ 3 | full | 22.11.96, 22.11.98, 22.14.26 |
-| `IA-5` | Authenticator management | 1.00 | ✔ 1 | contributing | 22.14.29 |
-| `IR-4` | Incident handling | 1.00 | ✔ 4 | partial | 22.14.45, 22.6.51, 22.6.52, 5.13.58 |
+| `IA-5` | Authenticator management | 1.00 | ✔ 2 | contributing | 17.1.44, 22.14.29 |
+| `IR-4` | Incident handling | 1.00 | ✔ 7 | partial | 17.1.42, 17.1.56, 17.1.80, 22.14.45, 22.6.51, 22.6.52, 5.13.58 |
 | `PM-1` | Information security program plan | 0.70 | ✔ 1 | partial | 22.47.1 |
 | `PS-4` | Personnel termination | 1.00 | ✔ 1 | full | 22.10.5 |
-| `RA-5` | Vulnerability scanning | 1.00 | ✔ 11 | full | 22.11.103, 22.14.75, 22.3.43, 22.43.1, 22.43.2, 5.13.34, 5.13.35, 5.13.36 |
+| `RA-5` | Vulnerability scanning | 1.00 | ✔ 12 | full | 17.1.41, 22.11.103, 22.14.75, 22.3.43, 22.43.1, 22.43.2, 5.13.34, 5.13.35 |
 | `SC-7` | Boundary protection | 1.00 | ✔ 1 | contributing | 22.14.67 |
 | `SC-8` | Transmission confidentiality and integrity | 1.00 | ✔ 2 | full | 22.14.68, 22.41.2 |
-| `SC-13` | Cryptographic protection | 1.00 | ✔ 3 | full | 22.14.71, 22.41.1, 22.41.3 |
-| `SI-4` | System monitoring | 1.00 | ✔ 2 | full | 22.14.36, 22.8.33 |
+| `SC-13` | Cryptographic protection | 1.00 | ✔ 4 | full | 17.1.39, 22.14.71, 22.41.1, 22.41.3 |
+| `SI-4` | System monitoring | 1.00 | ✔ 3 | full | 17.1.67, 22.14.36, 22.8.33 |
 | `SR-3` | Supply chain controls and processes | 0.70 | ✔ 1 | partial | 22.44.1 |
 | `PT-3` | Personally identifiable information processing purposes | 0.70 | ✔ 1 | partial | 22.1.48 |
 
@@ -363,20 +363,20 @@ _Payment Card Industry Data Security Standard_
 | `2.2` | Secure system component configuration | 1.00 | ✔ 1 | full | 22.11.92 |
 | `3.3` | Sensitive authentication data not stored | 1.00 | ✔ 1 | full | 22.11.93 |
 | `3.5` | PAN protection | 1.00 | ✔ 1 | full | 22.41.1 |
-| `4.2` | Strong cryptography for CHD in transit | 1.00 | ✔ 1 | full | 22.41.2 |
-| `5.2` | Anti-malware mechanisms | 1.00 | ✔ 1 | full | 22.11.94 |
+| `4.2` | Strong cryptography for CHD in transit | 1.00 | ✔ 3 | full | 17.1.31, 17.1.35, 22.41.2 |
+| `5.2` | Anti-malware mechanisms | 1.00 | ✔ 3 | full | 17.1.53, 17.1.65, 22.11.94 |
 | `6.2` | Bespoke software developed securely | 1.00 | ✔ 1 | full | 22.11.95 |
 | `6.3` | Vulnerabilities identified and addressed | 1.00 | ✔ 2 | full | 22.43.1, 22.43.2 |
 | `7.2` | Access granted on least privilege | 1.00 | ✔ 1 | partial | 22.48.1 |
 | `8.3` | Strong authentication | 1.00 | ✔ 1 | full | 22.11.96 |
 | `8.4` | MFA | 1.00 | ✔ 1 | full | 22.11.97 |
 | `8.6` | Application and system accounts | 1.00 | ✔ 1 | full | 22.11.98 |
-| `10.2` | Audit logs captured for all system components | 1.00 | ✔ 1 | partial | 22.40.1 |
+| `10.2` | Audit logs captured for all system components | 1.00 | ✔ 3 | partial | 17.1.43, 17.1.48, 22.40.1 |
 | `10.3` | Audit logs protected from modification | 1.00 | ✔ 1 | full | 22.11.99 |
 | `10.4` | Time synchronised | 1.00 | ✔ 1 | full | 22.11.100 |
 | `10.6` | Logs reviewed | 1.00 | ✔ 1 | full | 22.11.101 |
 | `10.7` | Log retention | 1.00 | ✔ 1 | full | 22.11.102 |
-| `11.3` | External and internal vulnerabilities identified | 1.00 | ✔ 1 | full | 22.11.103 |
+| `11.3` | External and internal vulnerabilities identified | 1.00 | ✔ 2 | full | 17.1.41, 22.11.103 |
 | `11.4` | Intrusion detection / prevention | 1.00 | ✔ 1 | full | 22.11.104 |
 | `12.3` | Targeted risk analysis | 0.70 | ✔ 1 | full | 22.11.106 |
 | `12.10` | Security incident response | 1.00 | ✔ 1 | full | 22.11.105 |
@@ -399,15 +399,15 @@ _SOC 2 Trust Services Criteria_
 | `CC3.1` | Risk assessment | 1.00 | ✔ 5 | partial | 22.47.2, 22.8.12, 22.8.19, 22.8.23, 22.9.9 |
 | `CC5.1` | Control activities | 1.00 | ✔ 3 | full | 22.47.1, 22.8.15, 22.9.8 |
 | `CC6.1` | Logical access controls | 1.00 | ✔ 4 | full | 22.11.96, 22.40.1, 22.8.1, 22.8.16 |
-| `CC6.6` | Encryption in transit | 1.00 | ✔ 3 | full | 22.11.91, 22.8.18, 22.8.31 |
+| `CC6.6` | Encryption in transit | 1.00 | ✔ 4 | full | 17.1.44, 22.11.91, 22.8.18, 22.8.31 |
 | `CC6.7` | System boundaries and data transmission | 1.00 | ✔ 1 | full | 22.8.32 |
 | `CC7.1` | System operations monitoring | 1.00 | ✔ 6 | full | 22.11.101, 22.11.104, 22.12.40, 22.6.49, 22.8.1, 22.8.33 |
 | `CC7.2` | System monitoring for anomalies | 1.00 | ✔ 10 | partial | 22.11.99, 22.35.2, 22.8.13, 22.8.14, 22.8.17, 22.8.20, 22.8.24, 22.8.25 |
 | `CC7.3` | Evaluated events and incidents | 1.00 | ✔ 2 | full | 22.6.52, 22.8.34 |
-| `CC7.4` | Incident response | 1.00 | ✔ 2 | full | 22.11.105, 22.8.35 |
+| `CC7.4` | Incident response | 1.00 | ✔ 5 | full | 17.1.42, 17.1.82, 22.11.105, 22.8.35, 22.8.40 |
 | `CC8.1` | Change management | 1.00 | ✔ 9 | full | 22.11.92, 22.11.95, 22.12.38, 22.12.39, 22.42.1, 22.6.55, 22.8.1, 22.8.21 |
 | `CC9.1` | Risk mitigation activities | 0.70 | ✔ 1 | full | 22.8.37 |
-| `A1.2` | Availability commitments | 0.70 | ✔ 5 | full | 22.35.3, 22.45.1, 22.8.22, 22.8.27, 22.8.28 |
+| `A1.2` | Availability commitments | 0.70 | ✔ 7 | full | 17.1.28, 17.1.47, 22.35.3, 22.45.1, 22.8.22, 22.8.27, 22.8.28 |
 | `C1.1` | Confidentiality | 0.70 | ✔ 3 | full | 22.11.93, 22.8.29, 22.8.38 |
 | `P1.1` | Privacy notice | 0.40 | ✔ 1 | full | 22.8.39 |
 
@@ -424,12 +424,12 @@ _SOX — PCAOB AS 2201 ITGCs_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `ITGC.AccessMgmt.Provisioning` | User provisioning | 1.00 | ✔ 3 | full | 22.12.1, 22.12.36, 9.5.15 |
+| `ITGC.AccessMgmt.Provisioning` | User provisioning | 1.00 | ✔ 8 | full | 17.1.71, 17.1.76, 22.12.1, 22.12.36, 22.12.41, 22.12.42, 22.12.43, 9.5.15 |
 | `ITGC.AccessMgmt.Termination` | Timely deprovisioning | 1.00 | ✔ 2 | full | 22.12.37, 22.12.5 |
-| `ITGC.AccessMgmt.Privileged` | Privileged access | 1.00 | ✔ 5 | full | 22.12.2, 22.12.28, 22.40.1, 22.40.2, 7.1.21 |
+| `ITGC.AccessMgmt.Privileged` | Privileged access | 1.00 | ✔ 8 | full | 17.1.32, 17.1.43, 17.1.58, 22.12.2, 22.12.28, 22.40.1, 22.40.2, 7.1.21 |
 | `ITGC.AccessMgmt.SOD` | Segregation of duties | 1.00 | ✔ 3 | full | 22.12.3, 22.48.1, 22.48.2 |
 | `ITGC.AccessMgmt.Review` | Periodic access review | 0.70 | ✔ 2 | full | 22.12.26, 22.40.3 |
-| `ITGC.ChangeMgmt.Authorization` | Change authorised | 1.00 | ✔ 3 | full | 16.4.1, 22.42.1, 7.1.13 |
+| `ITGC.ChangeMgmt.Authorization` | Change authorised | 1.00 | ✔ 6 | full | 16.4.1, 17.1.43, 17.1.48, 17.1.49, 22.42.1, 7.1.13 |
 | `ITGC.ChangeMgmt.Testing` | Change tested | 1.00 | ✔ 29 | full | 22.11.95, 22.12.12, 22.12.13, 22.12.14, 22.12.15, 22.12.16, 22.12.17, 22.12.18 |
 | `ITGC.ChangeMgmt.Approval` | Change approved | 1.00 | ✔ 6 | full | 12.2.17, 22.12.10, 22.12.11, 22.12.39, 22.6.55, 5.13.46 |
 | `ITGC.Operations.JobSchedule` | Batch scheduling and monitoring | 0.70 | ✔ 1 | full | 22.12.40 |

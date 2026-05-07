@@ -688,6 +688,200 @@ index=nac sourcetype="nac:quarantine"
 
 ---
 
+> **Note on UC-17.1.23 — UC-17.1.82 (Cisco ISE deep-coverage expansion).**
+> The 60 use cases below are authored as JSON sidecars under
+> `content/cat-17-network-security-zero-trust/UC-17.1.23.json` …
+> `UC-17.1.82.json` (the v7+ source of truth). Each sidecar carries the
+> full Gold-standard payload (deep `detailedImplementation`, specific
+> `knownFalsePositives`, `grandmaExplanation`, structured `compliance[]`
+> mappings, MITRE ATT&CK, equipment models, and references). The legacy
+> `use-cases/cat-17.md` file lists header stubs only so the
+> non-technical-view sync audit can resolve UC IDs back to a markdown
+> heading. See [`docs/guides/cisco-ise.md`](../docs/guides/cisco-ise.md)
+> for the full Cisco ISE integration guide and a maturity-tier index.
+
+### UC-17.1.23
+**Title:** Cisco ISE pxGrid Subscriber Audit — see [`content/cat-17-network-security-zero-trust/UC-17.1.23.json`](../content/cat-17-network-security-zero-trust/UC-17.1.23.json).
+
+### UC-17.1.24
+**Title:** ISE PSN Authentication Latency — see [`content/cat-17-network-security-zero-trust/UC-17.1.24.json`](../content/cat-17-network-security-zero-trust/UC-17.1.24.json).
+
+### UC-17.1.25
+**Title:** ISE Authorization Policy Hit Distribution — see [`content/cat-17-network-security-zero-trust/UC-17.1.25.json`](../content/cat-17-network-security-zero-trust/UC-17.1.25.json).
+
+### UC-17.1.26
+**Title:** ISE Profiler Endpoint Identity Drift — see [`content/cat-17-network-security-zero-trust/UC-17.1.26.json`](../content/cat-17-network-security-zero-trust/UC-17.1.26.json).
+
+### UC-17.1.27
+**Title:** ISE Failure Reason Correlation — see [`content/cat-17-network-security-zero-trust/UC-17.1.27.json`](../content/cat-17-network-security-zero-trust/UC-17.1.27.json).
+
+### UC-17.1.28
+**Title:** Cisco ISE Replication Topology Lag and Convergence Health — see [`content/cat-17-network-security-zero-trust/UC-17.1.28.json`](../content/cat-17-network-security-zero-trust/UC-17.1.28.json).
+
+### UC-17.1.29
+**Title:** Cisco ISE MnT Operational Data Purge and Retention Compliance — see [`content/cat-17-network-security-zero-trust/UC-17.1.29.json`](../content/cat-17-network-security-zero-trust/UC-17.1.29.json).
+
+### UC-17.1.30
+**Title:** Cisco ISE Node CPU, Memory, and Disk Saturation — see [`content/cat-17-network-security-zero-trust/UC-17.1.30.json`](../content/cat-17-network-security-zero-trust/UC-17.1.30.json).
+
+### UC-17.1.31
+**Title:** Cisco ISE Certificate Hygiene (System, Admin, Portal, Trust Stores) — see [`content/cat-17-network-security-zero-trust/UC-17.1.31.json`](../content/cat-17-network-security-zero-trust/UC-17.1.31.json).
+
+### UC-17.1.32
+**Title:** Cisco ISE Smart Licensing Telemetry and Entitlement Health — see [`content/cat-17-network-security-zero-trust/UC-17.1.32.json`](../content/cat-17-network-security-zero-trust/UC-17.1.32.json).
+
+### UC-17.1.33
+**Title:** Cisco ISE pxGrid 2.0 Subscriber Connectivity Drops — see [`content/cat-17-network-security-zero-trust/UC-17.1.33.json`](../content/cat-17-network-security-zero-trust/UC-17.1.33.json).
+
+### UC-17.1.34
+**Title:** Cisco ISE pxGrid Topic Throughput vs PSN Load — see [`content/cat-17-network-security-zero-trust/UC-17.1.34.json`](../content/cat-17-network-security-zero-trust/UC-17.1.34.json).
+
+### UC-17.1.35
+**Title:** Cisco ISE pxGrid Cloud Relay TLS Health — see [`content/cat-17-network-security-zero-trust/UC-17.1.35.json`](../content/cat-17-network-security-zero-trust/UC-17.1.35.json).
+
+### UC-17.1.36
+**Title:** Cisco ISE TrustSec / SGT Assignment Drift (ISE ↔ Switching Fabric) — see [`content/cat-17-network-security-zero-trust/UC-17.1.36.json`](../content/cat-17-network-security-zero-trust/UC-17.1.36.json).
+
+### UC-17.1.37
+**Title:** Cisco ISE SXP Peer Health and ACI / Secure Workload Sync Delta — see [`content/cat-17-network-security-zero-trust/UC-17.1.37.json`](../content/cat-17-network-security-zero-trust/UC-17.1.37.json).
+
+### UC-17.1.38
+**Title:** Cisco ISE EAP-TLS Handshake-Failure Clustering — see [`content/cat-17-network-security-zero-trust/UC-17.1.38.json`](../content/cat-17-network-security-zero-trust/UC-17.1.38.json).
+
+### UC-17.1.39
+**Title:** Cisco ISE EAP Method Drift Across PSN — see [`content/cat-17-network-security-zero-trust/UC-17.1.39.json`](../content/cat-17-network-security-zero-trust/UC-17.1.39.json).
+
+### UC-17.1.40
+**Title:** Cisco ISE RADIUS p95 Latency SLO Tracking — see [`content/cat-17-network-security-zero-trust/UC-17.1.40.json`](../content/cat-17-network-security-zero-trust/UC-17.1.40.json).
+
+### UC-17.1.41
+**Title:** Cisco ISE Threat-Centric NAC (TC-NAC) Threat-Feed Health — see [`content/cat-17-network-security-zero-trust/UC-17.1.41.json`](../content/cat-17-network-security-zero-trust/UC-17.1.41.json).
+
+### UC-17.1.42
+**Title:** Cisco ISE Adaptive Network Control (ANC) Action Auditing — see [`content/cat-17-network-security-zero-trust/UC-17.1.42.json`](../content/cat-17-network-security-zero-trust/UC-17.1.42.json).
+
+### UC-17.1.43
+**Title:** Cisco ISE TACACS+ Command-Authorisation Drift — see [`content/cat-17-network-security-zero-trust/UC-17.1.43.json`](../content/cat-17-network-security-zero-trust/UC-17.1.43.json).
+
+### UC-17.1.44
+**Title:** Cisco ISE External Identity Store Connector Health (AD / LDAP / SAML) — see [`content/cat-17-network-security-zero-trust/UC-17.1.44.json`](../content/cat-17-network-security-zero-trust/UC-17.1.44.json).
+
+### UC-17.1.45
+**Title:** Cisco ISE PassiveID Provider Continuity — see [`content/cat-17-network-security-zero-trust/UC-17.1.45.json`](../content/cat-17-network-security-zero-trust/UC-17.1.45.json).
+
+### UC-17.1.46
+**Title:** Cisco Identity Intelligence (CII) Risk-Score Ingestion Drift — see [`content/cat-17-network-security-zero-trust/UC-17.1.46.json`](../content/cat-17-network-security-zero-trust/UC-17.1.46.json).
+
+### UC-17.1.47
+**Title:** Cisco ISE Configuration Backup Integrity — see [`content/cat-17-network-security-zero-trust/UC-17.1.47.json`](../content/cat-17-network-security-zero-trust/UC-17.1.47.json).
+
+### UC-17.1.48
+**Title:** Cisco ISE Restore Drill Outcome Audit — see [`content/cat-17-network-security-zero-trust/UC-17.1.48.json`](../content/cat-17-network-security-zero-trust/UC-17.1.48.json).
+
+### UC-17.1.49
+**Title:** Cisco ISE Patch / Upgrade Window Auditing — see [`content/cat-17-network-security-zero-trust/UC-17.1.49.json`](../content/cat-17-network-security-zero-trust/UC-17.1.49.json).
+
+### UC-17.1.50
+**Title:** Cisco ISE MDM Connector Freshness — see [`content/cat-17-network-security-zero-trust/UC-17.1.50.json`](../content/cat-17-network-security-zero-trust/UC-17.1.50.json).
+
+### UC-17.1.51
+**Title:** Cisco ISE Sponsor Portal Abuse Detection — see [`content/cat-17-network-security-zero-trust/UC-17.1.51.json`](../content/cat-17-network-security-zero-trust/UC-17.1.51.json).
+
+### UC-17.1.52
+**Title:** Cisco ISE Self-Registration Portal Abuse Detection — see [`content/cat-17-network-security-zero-trust/UC-17.1.52.json`](../content/cat-17-network-security-zero-trust/UC-17.1.52.json).
+
+### UC-17.1.53
+**Title:** Cisco ISE Posture Remediation Funnel — see [`content/cat-17-network-security-zero-trust/UC-17.1.53.json`](../content/cat-17-network-security-zero-trust/UC-17.1.53.json).
+
+### UC-17.1.54
+**Title:** Cisco Secure Client (AnyConnect) Posture Agent Heartbeat — see [`content/cat-17-network-security-zero-trust/UC-17.1.54.json`](../content/cat-17-network-security-zero-trust/UC-17.1.54.json).
+
+### UC-17.1.55
+**Title:** Cisco ISE Profiler Quality Drift — see [`content/cat-17-network-security-zero-trust/UC-17.1.55.json`](../content/cat-17-network-security-zero-trust/UC-17.1.55.json).
+
+### UC-17.1.56
+**Title:** Cisco ISE CoA Failure Clustering — see [`content/cat-17-network-security-zero-trust/UC-17.1.56.json`](../content/cat-17-network-security-zero-trust/UC-17.1.56.json).
+
+### UC-17.1.57
+**Title:** Cisco ISE ERS / OpenAPI Brute-Force Detection — see [`content/cat-17-network-security-zero-trust/UC-17.1.57.json`](../content/cat-17-network-security-zero-trust/UC-17.1.57.json).
+
+### UC-17.1.58
+**Title:** Cisco ISE Data Connect Query Audit — see [`content/cat-17-network-security-zero-trust/UC-17.1.58.json`](../content/cat-17-network-security-zero-trust/UC-17.1.58.json).
+
+### UC-17.1.59
+**Title:** Cisco ISE Edge Processor Pipeline Observability — see [`content/cat-17-network-security-zero-trust/UC-17.1.59.json`](../content/cat-17-network-security-zero-trust/UC-17.1.59.json).
+
+### UC-17.1.60
+**Title:** Cisco ISE Cloud-Hosted PSN Egress Validation — see [`content/cat-17-network-security-zero-trust/UC-17.1.60.json`](../content/cat-17-network-security-zero-trust/UC-17.1.60.json).
+
+### UC-17.1.61
+**Title:** Cisco ISE Multi-Site Latency — see [`content/cat-17-network-security-zero-trust/UC-17.1.61.json`](../content/cat-17-network-security-zero-trust/UC-17.1.61.json).
+
+### UC-17.1.62
+**Title:** Cisco ISE Hybrid PSN Deployment Health — see [`content/cat-17-network-security-zero-trust/UC-17.1.62.json`](../content/cat-17-network-security-zero-trust/UC-17.1.62.json).
+
+### UC-17.1.63
+**Title:** Cisco ISE Stealth-Mode Posture Audit — see [`content/cat-17-network-security-zero-trust/UC-17.1.63.json`](../content/cat-17-network-security-zero-trust/UC-17.1.63.json).
+
+### UC-17.1.64
+**Title:** Cisco ISE Custom Posture Provisioning (CPP) Audit — see [`content/cat-17-network-security-zero-trust/UC-17.1.64.json`](../content/cat-17-network-security-zero-trust/UC-17.1.64.json).
+
+### UC-17.1.65
+**Title:** Cisco ISE Continuous Compliance Monitoring (CoCM) Drift — see [`content/cat-17-network-security-zero-trust/UC-17.1.65.json`](../content/cat-17-network-security-zero-trust/UC-17.1.65.json).
+
+### UC-17.1.66
+**Title:** Cisco AI Endpoint Analytics (AIEA) Anomaly Funnel — see [`content/cat-17-network-security-zero-trust/UC-17.1.66.json`](../content/cat-17-network-security-zero-trust/UC-17.1.66.json).
+
+### UC-17.1.67
+**Title:** Cisco AI Endpoint Behavioural (AEB) Drift — see [`content/cat-17-network-security-zero-trust/UC-17.1.67.json`](../content/cat-17-network-security-zero-trust/UC-17.1.67.json).
+
+### UC-17.1.68
+**Title:** Cisco ISE IoT / OT Onboarding Progression — see [`content/cat-17-network-security-zero-trust/UC-17.1.68.json`](../content/cat-17-network-security-zero-trust/UC-17.1.68.json).
+
+### UC-17.1.69
+**Title:** Cisco ISE TEAP Rollout Health — see [`content/cat-17-network-security-zero-trust/UC-17.1.69.json`](../content/cat-17-network-security-zero-trust/UC-17.1.69.json).
+
+### UC-17.1.70
+**Title:** Cisco ISE OCSP / CRL Reachability — see [`content/cat-17-network-security-zero-trust/UC-17.1.70.json`](../content/cat-17-network-security-zero-trust/UC-17.1.70.json).
+
+### UC-17.1.71
+**Title:** Cisco ISE Admin Account Lockout Detection — see [`content/cat-17-network-security-zero-trust/UC-17.1.71.json`](../content/cat-17-network-security-zero-trust/UC-17.1.71.json).
+
+### UC-17.1.72
+**Title:** Cisco ISE GUI Session Anomaly Detection — see [`content/cat-17-network-security-zero-trust/UC-17.1.72.json`](../content/cat-17-network-security-zero-trust/UC-17.1.72.json).
+
+### UC-17.1.73
+**Title:** Cisco WLC + ISE Wireless Authentication Funnel — see [`content/cat-17-network-security-zero-trust/UC-17.1.73.json`](../content/cat-17-network-security-zero-trust/UC-17.1.73.json).
+
+### UC-17.1.74
+**Title:** Cisco WLC + ISE iPSK / MAB / 802.1X Mode Distribution — see [`content/cat-17-network-security-zero-trust/UC-17.1.74.json`](../content/cat-17-network-security-zero-trust/UC-17.1.74.json).
+
+### UC-17.1.75
+**Title:** Cisco ISE Downloadable ACL (dACL) Push Failures — see [`content/cat-17-network-security-zero-trust/UC-17.1.75.json`](../content/cat-17-network-security-zero-trust/UC-17.1.75.json).
+
+### UC-17.1.76
+**Title:** Cisco ISE Group-Based Policy (GBP) Effective-Policy Drift — see [`content/cat-17-network-security-zero-trust/UC-17.1.76.json`](../content/cat-17-network-security-zero-trust/UC-17.1.76.json).
+
+### UC-17.1.77
+**Title:** Cisco ISE PSN TPS SLO Tracking — see [`content/cat-17-network-security-zero-trust/UC-17.1.77.json`](../content/cat-17-network-security-zero-trust/UC-17.1.77.json).
+
+### UC-17.1.78
+**Title:** Cisco ISE Authentication Distribution Imbalance — see [`content/cat-17-network-security-zero-trust/UC-17.1.78.json`](../content/cat-17-network-security-zero-trust/UC-17.1.78.json).
+
+### UC-17.1.79
+**Title:** Cisco ISE Authorisation-Policy Funnel Observability — see [`content/cat-17-network-security-zero-trust/UC-17.1.79.json`](../content/cat-17-network-security-zero-trust/UC-17.1.79.json).
+
+### UC-17.1.80
+**Title:** Cisco ISE ANC Quarantine Closed-Loop Effectiveness — see [`content/cat-17-network-security-zero-trust/UC-17.1.80.json`](../content/cat-17-network-security-zero-trust/UC-17.1.80.json).
+
+### UC-17.1.81
+**Title:** Cisco ISE Risk Score → Splunk ES Risk-Based Alerting (RBA) — see [`content/cat-17-network-security-zero-trust/UC-17.1.81.json`](../content/cat-17-network-security-zero-trust/UC-17.1.81.json).
+
+### UC-17.1.82
+**Title:** Cisco ISE + SOAR Mean-Time-To-Contain (MTTC) — see [`content/cat-17-network-security-zero-trust/UC-17.1.82.json`](../content/cat-17-network-security-zero-trust/UC-17.1.82.json).
+
+---
+
 ### 17.2 VPN & Remote Access
 
 **Primary App/TA:** Cisco ASA/AnyConnect TA, Palo Alto GlobalProtect TA, Fortinet FortiGate Add-On (`TA-fortinet_fortigate`, Splunkbase 2846) for SSL-VPN, Splunk Add-on for Juniper (`Splunk_TA_juniper`, Splunkbase 2847) for SRX VPN, vendor syslog.

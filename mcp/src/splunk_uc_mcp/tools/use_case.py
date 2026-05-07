@@ -120,6 +120,60 @@ GET_USE_CASE_OUTPUT_SCHEMA: dict[str, Any] = {
 }
 
 
+GET_USE_CASE_MARKDOWN_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": ["uc_id"],
+    "properties": {
+        "uc_id": {
+            "type": "string",
+            "description": (
+                "Three-part dotted UC ID (same shape as get_use_case). "
+                "Returns a plain-markdown rendering of the UC instead of "
+                "the structured JSON document — drop directly into a "
+                "system prompt or RAG context with no field-mapping work."
+            ),
+            "pattern": UC_ID_PATTERN,
+        },
+    },
+    "additionalProperties": False,
+}
+
+
+GET_USE_CASE_MARKDOWN_OUTPUT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": ["id", "markdown", "url"],
+    "properties": {
+        "id": {
+            "type": "string",
+            "description": "Canonical UC ID with prefix (``UC-X.Y.Z``).",
+        },
+        "url": {
+            "type": "string",
+            "description": (
+                "Stable canonical URL of the markdown twin "
+                "(``/uc/UC-X.Y.Z/uc.md``)."
+            ),
+        },
+        "markdown": {
+            "type": "string",
+            "description": (
+                "Plain-markdown rendering of the use case (no HTML, no "
+                "JSON). Includes title, plain-language summary, quick-"
+                "facts table, prerequisites, value, SPL, implementation, "
+                "false positives, MITRE / regulations, and references."
+            ),
+        },
+        "lastModified": {
+            "type": "string",
+            "description": (
+                "ISO-8601 date of the last review (when set on the UC) "
+                "or the build timestamp otherwise."
+            ),
+        },
+    },
+}
+
+
 LIST_CATEGORIES_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -206,6 +260,204 @@ def get_use_case(*, catalog: Catalog, uc_id: str) -> dict[str, Any]:
             return out
 
     raise CatalogNotFoundError(f"Use case {uc_id} not found in catalogue")
+
+
+def get_use_case_markdown(*, catalog: Catalog, uc_id: str) -> dict[str, Any]:
+    """Return the LLM-friendly plain-markdown twin for one UC.
+
+    Mirrors the static-site artefact at ``/uc/UC-X.Y.Z/uc.md`` byte-for-
+    byte: same headings, same quick-facts table, same trailing source
+    line. Agents that prefer plain text over JSON can drop the result
+    straight into a system prompt or RAG chunk without any field-
+    mapping logic.
+
+    Implementation note: we re-use :func:`get_use_case` to load the UC
+    dict and then synthesise the markdown locally. This keeps the MCP
+    server self-contained (no dependency on the build pipeline) and
+    means the output is always up-to-date with the catalogue version
+    the server was started with — even if no static site has been
+    rebuilt since.
+    """
+
+    uc = get_use_case(catalog=catalog, uc_id=uc_id)
+
+    site_url = "https://fenre.github.io/splunk-monitoring-use-cases"
+    full_id = f"UC-{uc_id}"
+    md_url = f"{site_url}/uc/{full_id}/uc.md"
+    canonical_html = f"{site_url}/uc/{full_id}/"
+    json_url = f"{site_url}/uc/{full_id}/index.json"
+
+    title = str(uc.get("title") or full_id)
+    last_modified = str(uc.get("reviewed") or "").strip()
+
+    lines: list[str] = []
+    lines.append(f"# {full_id} — {title}")
+    lines.append("")
+    lines.append(
+        f"> Canonical HTML: {canonical_html}  ·  JSON twin: {json_url}"
+    )
+    if last_modified:
+        lines.append(f"> Last-modified: {last_modified}")
+    lines.append("")
+
+    ge = str(uc.get("grandmaExplanation") or uc.get("ge") or "").strip()
+    if ge:
+        lines.append("## In plain language")
+        lines.append("")
+        lines.append(f"> {ge}")
+        lines.append("")
+
+    facts: list[tuple[str, str]] = []
+
+    def _add_fact(label: str, raw: Any) -> None:
+        if raw is None or raw == "" or raw == [] or raw == {}:
+            return
+        if isinstance(raw, (list, tuple)):
+            value = ", ".join(str(v) for v in raw if v not in (None, ""))
+        else:
+            value = str(raw).strip()
+        if not value:
+            return
+        # Pipe characters in markdown table cells need escaping; collapse
+        # newlines so single rows stay on one logical line.
+        value = value.replace("|", "\\|").replace("\n", " ")
+        facts.append((label, value))
+
+    _add_fact("Criticality", uc.get("criticality"))
+    _add_fact("Difficulty", uc.get("difficulty"))
+    _add_fact("Wave", uc.get("wave"))
+    _add_fact("Pillar", uc.get("splunkPillar") or uc.get("pillar"))
+    _add_fact("Monitoring type", uc.get("monitoringType"))
+    _add_fact("App / TA", uc.get("app"))
+    _add_fact("Data sources", uc.get("dataSources"))
+    _add_fact("CIM models", uc.get("cimModels"))
+    _add_fact("Equipment", uc.get("equipment"))
+    _add_fact("Equipment models", uc.get("equipmentModels"))
+    _add_fact("MITRE ATT&CK", uc.get("mitreAttack"))
+    _add_fact("Last reviewed", uc.get("reviewed"))
+
+    if facts:
+        lines.append("## Quick facts")
+        lines.append("")
+        lines.append("| Field | Value |")
+        lines.append("| --- | --- |")
+        for label, value in facts:
+            lines.append(f"| {label} | {value} |")
+        lines.append("")
+
+    pre = uc.get("prerequisiteUseCases") or []
+    if isinstance(pre, list) and pre:
+        lines.append("## Prerequisite use cases")
+        lines.append("")
+        for p in pre:
+            p_str = str(p).strip()
+            if not p_str:
+                continue
+            short = p_str[3:] if p_str.startswith("UC-") else p_str
+            lines.append(f"- [{p_str}]({site_url}/uc/UC-{short}/)")
+        lines.append("")
+
+    def _add_text_section(heading: str, raw: Any) -> None:
+        text = str(raw or "").strip()
+        if not text:
+            return
+        lines.append(f"## {heading}")
+        lines.append("")
+        lines.append(text)
+        lines.append("")
+
+    def _add_code_section(heading: str, raw: Any, lang: str = "spl") -> None:
+        text = str(raw or "").strip()
+        if not text:
+            return
+        lines.append(f"## {heading}")
+        lines.append("")
+        lines.append(f"```{lang}")
+        lines.append(text)
+        lines.append("```")
+        lines.append("")
+
+    _add_text_section("Value", uc.get("value"))
+    _add_code_section("SPL", uc.get("spl"))
+    _add_code_section("CIM SPL (tstats)", uc.get("cimSpl"))
+    _add_text_section(
+        "Implementation",
+        uc.get("detailedImplementation") or uc.get("implementation"),
+    )
+    _add_text_section("Visualization", uc.get("visualization"))
+
+    kfp = uc.get("knownFalsePositives")
+    if kfp:
+        lines.append("## Known false positives")
+        lines.append("")
+        if isinstance(kfp, (list, tuple)):
+            for item in kfp:
+                if str(item).strip():
+                    lines.append(f"- {str(item).strip()}")
+        else:
+            lines.append(str(kfp).strip())
+        lines.append("")
+
+    refs = uc.get("references") or []
+    if isinstance(refs, list) and refs:
+        lines.append("## References")
+        lines.append("")
+        for r in refs:
+            if isinstance(r, dict):
+                t = str(r.get("title") or "").strip()
+                u = str(r.get("url") or "").strip()
+                if t and u:
+                    lines.append(f"- [{t}]({u})")
+                elif u:
+                    lines.append(f"- {u}")
+                elif t:
+                    lines.append(f"- {t}")
+            else:
+                r_str = str(r).strip()
+                if r_str:
+                    lines.append(f"- {r_str}")
+        lines.append("")
+
+    compl = uc.get("compliance") or []
+    if isinstance(compl, list) and compl:
+        lines.append("## Compliance mappings")
+        lines.append("")
+        for c in compl:
+            if not isinstance(c, dict):
+                continue
+            reg = str(c.get("regulation") or "").strip()
+            clause = str(c.get("clause") or "").strip()
+            mode = str(c.get("mode") or "").strip()
+            assurance = str(c.get("assurance") or "").strip()
+            extras: list[str] = []
+            if mode:
+                extras.append(f"mode: {mode}")
+            if assurance:
+                extras.append(f"assurance: {assurance}")
+            tail = f" ({'; '.join(extras)})" if extras else ""
+            if reg and clause:
+                lines.append(f"- {reg} — {clause}{tail}")
+            elif reg:
+                lines.append(f"- {reg}{tail}")
+        lines.append("")
+
+    lines.append("---")
+    lines.append("")
+    lines.append(
+        f"Source: [Splunk Monitoring Use Cases]({site_url}/) — "
+        f"licensed MIT. UC-IDs are stable; see "
+        f"[/llms.txt]({site_url}/llms.txt) for the catalogue index "
+        f"and [/AGENTS.md]({site_url}/AGENTS.md) for the agent "
+        f"entrypoint."
+    )
+    lines.append("")
+
+    return {
+        "id": full_id,
+        "url": md_url,
+        "markdown": "\n".join(lines),
+        "lastModified": last_modified,
+    }
 
 
 def list_categories(*, catalog: Catalog) -> dict[str, Any]:

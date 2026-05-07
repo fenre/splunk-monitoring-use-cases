@@ -1,0 +1,115 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.33",
+  "title": "Cisco ISE pxGrid Subscriber Connectivity and Topic Health",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Operations",
+    "Operations"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "Two feeds. (1) ISE syslog `index=nac sourcetype=cisco:ise:syslog` — pxGrid events under the *pxGrid* logging category (introduced ISE 2.0). Key codes: `82001` (subscriber connected), `82002` (subscriber disconnected), `82003` (subscriber denied — not approved), `82004` (subscriber publish-to-topic failure), `82005` (pxGrid client cert error), `82006` (pxGrid topic created), `82010` (pxGrid 2.0 WebSocket connection lost), `82020` (subscription rate-limited). Fields after TA extraction: `pxGridClient`, `pxGridTopic`, `SubscribeAction`, `Status`. (2) ISE OpenAPI `/api/v1/pxgrid/services` polled every 15 min for the live service catalogue and connected-client roster, written to `index=nac sourcetype=cisco:ise:pxgrid_services`. Fields: `service_name` (e.g. `com.cisco.ise.session`, `com.cisco.ise.config.profiler`), `subscriber_count`, `subscriber_list` (mv field of common-name strings). CIM mapping: not applicable; pxGrid is a pub/sub fabric outside the standard CIM models.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) for syslog. OpenAPI poller (Splunkbase 1546 or Python). For deployments where Splunk itself is the pxGrid subscriber, the `Cisco Identity Services Engine pxGrid Add-on` provides the consumer side — its connection state appears in `index=_internal` modular-input logs.",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (82001, 82002, 82004, 82005, 82010, 82020))\n  OR (index=nac sourcetype=\"cisco:ise:pxgrid_services\")\n| eval _client = coalesce(pxGridClient, mvindex(subscriber_list,0))\n| eval evt = case(\n    MessageCode==\"82001\", \"connected\",\n    MessageCode==\"82002\", \"disconnected\",\n    MessageCode==\"82004\", \"publish_failure\",\n    MessageCode==\"82005\", \"cert_error\",\n    MessageCode==\"82010\", \"ws_connection_lost\",\n    MessageCode==\"82020\", \"rate_limited\",\n    isnotnull(subscriber_count), \"snapshot\",\n    true(), \"other\")\n| stats latest(evt) as latest_evt, latest(subscriber_count) as snapshot_count, count(eval(evt==\"disconnected\")) as disconnects, count(eval(evt==\"publish_failure\")) as pub_failures, count(eval(evt==\"cert_error\")) as cert_errors, count(eval(evt==\"ws_connection_lost\")) as ws_drops, count(eval(evt==\"rate_limited\")) as rate_hits by _client, pxGridTopic, service_name\n| where disconnects > 1 OR pub_failures > 0 OR cert_errors > 0 OR ws_drops > 1 OR rate_hits > 0 OR (latest_evt==\"snapshot\" AND snapshot_count==0 AND service_name IN (\"com.cisco.ise.session\",\"com.cisco.ise.config.profiler\",\"com.cisco.ise.radius.failure\"))\n| sort - cert_errors - ws_drops - disconnects",
+  "description": "Detects pxGrid subscriber disconnect storms, certificate errors, publish failures, WebSocket drops, rate-limit hits, and *zero-subscriber* states on critical pxGrid topics (sessions, profiler, RADIUS failures). pxGrid is the fabric Cisco Secure Workload, Splunk ES, Cisco SecureX, FMC, FTD, and Cisco SOAR connectors all rely on for live ISE context.",
+  "value": "When pxGrid subscribers silently drop, the SOC keeps running with a stale endpoint context — Splunk ES sees an enriched authentication record from 8 minutes ago and assumes that's the current state. Investigators chase the wrong identity, and Adaptive Network Control (ANC) actions sent from Splunk SOAR to ISE never arrive. Catching the drop within 5 minutes of occurrence preserves the data integrity of every downstream pxGrid consumer.",
+  "implementation": "Confirm the *pxGrid* logging category is enabled at INFO and forwarded (UC-17.1.28 plumbing). Deploy the OpenAPI poller. Schedule the search every 5 minutes, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `_client`+`pxGridTopic` for 30 min. For zero-subscriber-state alerts, use a longer window (`-30m`) so a brief reconnection blip doesn't trigger a 'no subscribers' page when the subscriber returns 90s later.",
+  "visualization": "(1) Single value: count of pxGrid subscribers (across all topics, last snapshot). (2) Subscriber matrix: rows = subscriber CN, columns = topic, cell = subscribed (✓) or not (gap). Reveals which subscribers expect which topics. (3) Timechart: count of pxGrid disconnect events by client, last 24h. Spikes indicate flapping. (4) Top-N table: clients with cert_errors or ws_drops in the last 7d. Drilldown to the client's syslog detail.",
+  "cimModels": [],
+  "dataModelAcceleration": "Not applicable — pxGrid event volume is typically <500 events/day for a stable deployment with a handful of subscribers.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 Admin Guide — pxGrid",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_pxgrid.html"
+    },
+    {
+      "title": "Cisco pxGrid 2.0 Programming Guide",
+      "url": "https://developer.cisco.com/docs/pxgrid/"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Identity Services (Splunkbase 1915)",
+      "url": "https://splunkbase.splunk.com/app/1915"
+    },
+    {
+      "title": "pxGrid 2.0 WebSocket protocol overview",
+      "url": "https://github.com/cisco/pxgrid"
+    }
+  ],
+  "knownFalsePositives": "(a) **pxGrid subscriber app restart** — Restarts of any pxGrid client (e.g. Splunk SOAR connector, Cisco SecureX, FMC) generate a clean 82002 (disconnect) followed within 60s by 82001 (reconnect). Suppress isolated disconnect/reconnect pairs <60s apart. (b) **Subscriber approval pending** — A new subscriber that just registered shows up in 82003 events until an admin approves it on the PAN UI. This is expected during onboarding; tag those subscribers in `pxgrid_clients.csv` with status=`pending_approval` and exclude until approved. (c) **WebSocket idle timeout** — pxGrid 2.0 WS connections idle out after ~10 min if no events flow on a subscribed topic. The reconnect is automatic. Don't page on isolated 82010 events; only when ws_drops > 5 in 1h. (d) **Rate-limit hits during a known endpoint storm** — During a CRL-induced reauth storm, the *com.cisco.ise.session* topic emits at >1k events/sec and rate limits trigger. Cross-reference UC-17.1.18 (auth storm) — if an auth storm is in flight, pxGrid rate-limit hits are expected.",
+  "mitreAttack": [
+    "T1499.001"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(b)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(b) requires incident handling. pxGrid is the integration fabric carrying access-control context to detection systems; a disconnected subscriber materially impairs the SOC's ability to detect and respond to incidents.",
+      "controlObjective": "Maintain availability of the integration fabric carrying access-control context to detection and response systems.",
+      "evidenceArtifact": "Saved search 'UC-17.1.33' alert log + pxGrid availability report retained in audit_evidence index.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(b)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.10",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.10 (Detection mechanisms for ICT-related incidents) requires mechanisms to promptly detect anomalous activities. pxGrid availability monitoring evidences the integration fabric carrying detection context is operational.",
+      "controlObjective": "Evidence operational availability of the integration fabric carrying access-control detection context.",
+      "evidenceArtifact": "UC-17.1.33 alert log + integration availability report.",
+      "obligationRef": "dora@Regulation (EU) 2022/2554#Art.10",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AU-6(3)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "AU-6(3) (Correlate audit record repositories) requires correlation of audit records across different repositories. pxGrid carries the ISE audit context to Splunk and other repositories — its availability supports AU-6(3).",
+      "controlObjective": "Maintain availability of the cross-system correlation channel for access-control audit records.",
+      "evidenceArtifact": "UC-17.1.33 alert log + pxGrid uptime report retained 1y.",
+      "obligationRef": "nist-800-53@Rev. 5#AU-6(3)",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.5.7",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.5.7 (Threat intelligence) covers structures for collecting and exchanging threat intelligence. pxGrid's role in propagating identity context (a contextual input to threat intel) means its availability supports the control.",
+      "controlObjective": "Maintain availability of structures used to exchange access-control context with threat-detection systems.",
+      "evidenceArtifact": "UC-17.1.33 + pxGrid topic-availability monthly report.",
+      "obligationRef": "iso-27001@2022#A.5.7",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "On a lab pxGrid subscriber (e.g. a Cisco SOAR connector or Splunk pxGrid SDK example client), forcibly close its TCP connection to ISE port 8910 (`tcpkill` or stop the subscriber service). Within 60s ISE emits 82002 (subscriber disconnected) and 82010 (WebSocket connection lost). UC-17.1.33 fires showing the disconnected client and elevated `disconnects` and `ws_drops` counters.",
+    "negativeScenario": "Restart the subscriber service. Within 60s ISE emits 82001 (reconnect). With throttle suppression set to 30 min on (_client, pxGridTopic), the alert does not re-fire. Wait 30 min; the next polling cycle shows zero new disconnects and the alert remains cleared."
+  },
+  "detailedImplementation": "Prerequisites\n• Cisco ISE 2.4+ for pxGrid 2.0 (WebSocket-based). ISE 3.x is recommended.\n• At least one approved pxGrid subscriber. List your pxGrid subscribers — Splunk ES (via the pxGrid SDK or via the Splunk SOAR ISE connector), Cisco Secure Workload, Cisco SecureX, FMC, FTD, Cisco DNAC.\n• `pxgrid_clients.csv` lookup: `client_cn`, `description`, `is_critical`, `expected_topics`, `status` (`active`|`pending_approval`|`disabled`).\n• Splunk role with `srchIndexesAllowed = nac, _internal`.\n\nStep 1 — Configure data collection\n(a) Logging category — enable *pxGrid* category at INFO severity and forward to Splunk-HF-1.\n```\nAdministration > System > Logging > Logging Categories\n  pxGrid: severity = INFO, target = Splunk-HF-1\n```\nVerify:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (82001, 82002, 82010) earliest=-7d\n| stats count by MessageCode, pxGridClient\n```\n\n(b) OpenAPI service-catalogue poller. The `/api/v1/pxgrid/services` endpoint returns every registered pxGrid service. Define a poll every 15 min:\n```ini\n[rest://ise_pxgrid_services]\nendpoint = https://<ise-pan>:443/api/v1/pxgrid/services\nauth_type = basic\nusername = ers_readonly\npassword = ${SECRET}\npolling_interval = 900\nresponse_type = json\nindex = nac\nsourcetype = cisco:ise:pxgrid_services\n```\nThe poller writes one event per (service_name, snapshot) with `subscriber_count` and `subscriber_list`.\n\nValidate:\n```spl\nindex=nac sourcetype=\"cisco:ise:pxgrid_services\" earliest=-1d\n| stats values(service_name) values(subscriber_count) by host\n```\n\nStep 2 — Create the search and alert\nThe primary search is in the `spl` field. Add a per-subscriber zero-state subsearch:\n\n```spl\n(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (82001, 82002, 82004, 82005, 82010, 82020))\n  OR (index=nac sourcetype=\"cisco:ise:pxgrid_services\")\n| eval _client = coalesce(pxGridClient, mvindex(subscriber_list,0))\n| eval evt = case(\n    MessageCode==\"82001\", \"connected\",\n    MessageCode==\"82002\", \"disconnected\",\n    MessageCode==\"82004\", \"publish_failure\",\n    MessageCode==\"82005\", \"cert_error\",\n    MessageCode==\"82010\", \"ws_connection_lost\",\n    MessageCode==\"82020\", \"rate_limited\",\n    isnotnull(subscriber_count), \"snapshot\",\n    true(), \"other\")\n| stats latest(evt) as latest_evt, latest(subscriber_count) as snapshot_count, count(eval(evt==\"disconnected\")) as disconnects, count(eval(evt==\"publish_failure\")) as pub_failures, count(eval(evt==\"cert_error\")) as cert_errors, count(eval(evt==\"ws_connection_lost\")) as ws_drops, count(eval(evt==\"rate_limited\")) as rate_hits by _client, pxGridTopic, service_name\n| lookup pxgrid_clients.csv client_cn AS _client OUTPUT is_critical, status\n| where (isnull(status) OR status==\"active\") \n  AND (disconnects > 1 OR pub_failures > 0 OR cert_errors > 0 OR ws_drops > 1 OR rate_hits > 0 \n       OR (latest_evt==\"snapshot\" AND snapshot_count==0 AND service_name IN (\"com.cisco.ise.session\",\"com.cisco.ise.config.profiler\",\"com.cisco.ise.radius.failure\")))\n| sort - cert_errors - ws_drops - disconnects\n```\n\nSchedule: every 5 minutes, time range `-15m@m to @m`, trigger on count > 0, throttle suppression `_client`+`pxGridTopic` for 30 min.\n\nStep 3 — Validate\n(a) Disconnect a known-good subscriber as in `controlTest.positiveScenario` and confirm the alert fires within 5 min.\n\n(b) Check the snapshot view:\n```spl\nindex=nac sourcetype=\"cisco:ise:pxgrid_services\" earliest=-1h\n| stats latest(subscriber_count) as count by service_name\n| where service_name IN (\"com.cisco.ise.session\",\"com.cisco.ise.config.profiler\",\"com.cisco.ise.radius.failure\")\n```\nEvery critical service should have count >= 1. If any are at 0, the SOC's context is currently degraded.\n\n(c) Subscriber CN consistency:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode=82001 earliest=-30d\n| stats values(pxGridClient)\n```\nEvery returned client CN should map to a row in `pxgrid_clients.csv`. Unknown CNs are unauthorised subscribers and should be investigated.\n\nStep 4 — Operationalize\nDashboard \"ISE — pxGrid Health\":\n• Single-value tiles: total active subscribers, critical-topic zero-state alerts, disconnect events last 24h.\n• Subscriber-by-topic matrix: rows = subscriber CN, columns = service_name, cell colour = subscribed/not.\n• Timechart: disconnect/reconnect events by client, last 24h.\n• Top-N table: clients with most cert_errors / ws_drops last 7d.\n\nAlerting:\n• PagerDuty: high-urgency on cert_error or sustained zero-subscriber state on a critical topic. Low-urgency on individual disconnect events.\n• Slack notification to `#soc-pxgrid` on any rate-limit hit (informational — informs the SOC their event stream may be partial).\n\nRunbook:\n1. Identify which subscriber and topic.\n2. SSH to subscriber host (e.g. Splunk SH running the pxGrid SDK). Check the subscriber's local connection logs.\n3. If cert_error: validate the subscriber's pxGrid client cert — issuer must match an ISE Trusted Certificate. Re-import if needed. UC-17.1.31 (cert health) catches the same issue from the ISE side.\n4. If disconnect storm without cert_error: TCP/IP path issue between subscriber host and ISE port 8910. Verify firewall.\n5. If zero-subscriber state on com.cisco.ise.session: SOC is blind to live session state. Engage SOC lead immediately and prioritise reconnection.\n\nStep 5 — Troubleshooting\n\n• **Alert fires repeatedly on the same client every 10–15 min** — pxGrid 2.0 WS idle timeout. Subscriber not actively pulling events on the topic. Either tune the subscriber to send a periodic heartbeat or accept the ws_drop as expected and increase the threshold (>3 ws_drops in 1h triggers, not >1).\n\n• **`subscriber_count=0` on a topic that should have 5 subscribers** — All subscribers are disconnected. Check broader network (port 8910 TCP) reachability; check the ISE pxGrid node's status (`show pxgrid services`).\n\n• **New subscriber registered but stuck in 82003 (denied)** — Admin approval needed. PAN UI: Administration > pxGrid Services > Clients > Approve.\n\n• **Splunk pxGrid SDK reports `Connection refused`** — pxGrid persona not active on the targeted ISE node, or the persona was moved during a deployment change. `show pxgrid services` on the ISE node to confirm.\n\n• **Rate-limited (82020) bursts during admin operations** — pxGrid publishes per-event for many topics; a bulk admin operation (CSV import) can briefly saturate the bus. If this is recurring, increase the pxGrid rate limits in the deployment configuration (Administration > pxGrid Services > Settings).\n\n• **`pxGridClient` field empty** — Older TA version. Upgrade Splunkbase 1915 to 5.0+.",
+  "grandmaExplanation": "ISE shares a live information feed with the security team's other tools — like a phone call that should never go silent. We listen for the line to drop, for crackle on the line, and ring the bell when any tool is no longer hearing what ISE is saying.",
+  "wave": "crawl"
+}

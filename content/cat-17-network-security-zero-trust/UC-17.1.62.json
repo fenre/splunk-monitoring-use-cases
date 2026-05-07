@@ -1,0 +1,79 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.62",
+  "title": "ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Operations",
+    "Performance"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` for replication-lag fields. Network metrics for the on-prem→cloud path: VPN tunnel state from `index=network sourcetype=cisco:asa` or `cisco:ftd`; tunnel BW from `index=cloud sourcetype=aws:cloudwatch`.",
+  "app": "`Splunk Add-on for Cisco Identity Services` + Cisco firewall TA + cloud TA.",
+  "spl": "(index=network sourcetype IN (\"cisco:asa\",\"cisco:ftd\") \"%ASA-3-713\")\n  OR (index=cloud sourcetype=\"aws:cloudwatch\" metric_name=\"TunnelState\")\n| stats sum(eval(like(_raw, \"%713%\"))) as tunnel_drops, max(value) as tunnel_state by tunnel_id\n| where tunnel_drops > 0 OR tunnel_state==0",
+  "description": "Detects VPN-tunnel issues affecting hybrid on-prem PAN ↔ cloud PSN ISE deployments. When the VPN drops, cloud PSNs lose access to the PAN's policy updates and identity stores.",
+  "value": "Hybrid ISE deployments depend on stable VPN. A flapping IPsec tunnel manifests as intermittent auth issues at cloud-served sites; this UC catches the network-layer cause directly.",
+  "implementation": "Schedule every 15 min.",
+  "visualization": "(1) Tunnel state tile. (2) Tunnel-flap trend.",
+  "cimModels": [
+    "Network_Sessions"
+  ],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "Cisco ISE Hybrid Deployment",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/b_ISE_admin_setup.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **Scheduled VPN maintenance** — cross-reference.",
+  "mitreAttack": [
+    "N/A (data-feed liveness — measures ISE pxGrid topic delivery, no attack mapping)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.28",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.28 third-party ICT risk — cloud-hosting tunnel health.",
+      "controlObjective": "Cloud-hybrid tunnel health.",
+      "evidenceArtifact": "UC-17.1.62 alert log.",
+      "obligationRef": "dora@Regulation (EU) 2022/2554#Art.28",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.20",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.20 — networks security.",
+      "controlObjective": "Network-tunnel monitoring.",
+      "evidenceArtifact": "UC-17.1.62 alert log.",
+      "obligationRef": "iso-27001@2022#A.8.20",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Drop the VPN tunnel between on-prem and cloud. ISE lag spikes. UC-17.1.62 fires.",
+    "negativeScenario": "Restore tunnel. Lag returns to normal."
+  },
+  "detailedImplementation": "Prerequisites\n• Hybrid ISE deployment with VPN tunnel.\n\nStep 1 — Configure firewall + cloud TA.\nStep 2 — Search.\nStep 3 — Validate.\nStep 4 — Dashboard combining tunnel + ISE replication.\nStep 5 — Troubleshooting: validate IKE/IPsec config; check NAT-T.",
+  "grandmaExplanation": "When ISE has parts on the office network and parts in the cloud, they communicate through a secure tunnel. We watch the tunnel — if it breaks, the cloud parts lose their connection home.",
+  "wave": "run"
+}

@@ -170,5 +170,5 @@ index=catalyst sourcetype="cisco:dnac:swim" imageCompliance="NON_COMPLIANT"
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center SWIM — Golden Image Management](https://www.cisco.com/c/en/us/td/docs/cloud-systems-management/network-automation-and-management/catalyst-center/swim-guide.html)
-- [Catalyst Center Integration Guide — Custom Scripted Inputs](docs/guides/catalyst-center.md#custom-scripted-inputs)
+- [Catalyst Center Integration Guide — Custom Scripted Inputs](../../docs/guides/catalyst-center.md#custom-scripted-inputs)
 - [NIST SP 800-53 Rev. 5 — CM-2 Baseline Configuration](https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_0/home?element=CM-2)

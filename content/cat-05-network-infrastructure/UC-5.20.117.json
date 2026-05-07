@@ -22,14 +22,27 @@
     }
   ],
   "knownFalsePositives": "**Mobile devices.** Phones and laptops that leave the network naturally cause NUD failures for their addresses. High mobility environments will have higher NUD failure rates.\n\n**Sleep/hibernate.** Devices that sleep or hibernate become NUD-unreachable until they wake. This is normal for endpoint environments.",
-  "equipment": ["cisco", "juniper", "arista"],
-  "equipmentModels": ["cisco_catalyst_9000", "juniper_ex", "arista_7050"],
+  "equipment": [
+    "cisco",
+    "juniper",
+    "arista"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9000",
+    "juniper_ex",
+    "arista_7050"
+  ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• Router/switch NDP logging enabled.\n• Splunk receiving NDP syslog events.\n\nStep 1 — Configure data collection\n\nNDP NUD events are logged at informational level. Ensure `logging buffered 8192 informational` is configured and NDP events are forwarded to Splunk via syslog.\n\nStep 2 — Create monitoring searches\n\n**NUD failure rate by interface:**\n```spl\nindex=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-24h\n  \"FAILED\" AND \"neighbor\"\n| rex field=_raw \"interface\\s*(?<interface>\\S+)\"\n| timechart span=15m count by interface\n```\n\n**Correlated with interface flaps:**\n```spl\nindex=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-24h\n  (\"FAILED\" AND \"neighbor\") OR \"%LINK\" OR \"%LINEPROTO\"\n| eval event_type=if(match(_raw, \"FAILED\"), \"NUD_FAILURE\", \"LINK_EVENT\")\n| timechart span=5m count by event_type\n```\n\nStep 3 — Validate\n(a) Shut down a test host on a monitored VLAN. Verify NUD failure is logged within 30-60 seconds.\n\n(b) Bring the host back up. Verify the neighbour transitions back to REACHABLE.\n\nStep 4 — Operationalize\n\n**Dashboard** (\"IPv6 — NDP Health\"): NUD failures by interface, unreachable neighbour list, correlation with link events.\n\n**Alert:** >20 NUD failures on a single interface in 15 minutes — possible switch/link failure.\n\nStep 5 — Troubleshooting\n\n• **All neighbours on one interface failing.** The switch port, VLAN, or cable is likely down. Check physical layer.\n\n• **Single neighbour repeatedly failing.** The host may have a bad NIC, incorrect IPv6 configuration, or firewall blocking NS/NA.",
   "grandmaExplanation": "The router periodically checks if its neighbours are still there — like knocking on the door to see if they're home. If nobody answers after several tries, the router marks them as 'gone.' We monitor these 'nobody home' reports to quickly find out when devices on the network have stopped responding.",
-  "prerequisiteUseCases": ["5.20.21"],
+  "prerequisiteUseCases": [
+    "UC-5.20.21"
+  ],
   "wave": "walk"
 }

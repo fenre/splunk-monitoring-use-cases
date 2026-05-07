@@ -1,0 +1,77 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.71",
+  "title": "NERC CIP CIP-007-6 R5 \u2014 TACACS+ Privileged Access Logging on BES Cyber Systems",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-007-6 R5",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "NERC CIP-007-6 R5 \u2014 system access controls. UC-17.1.43 produces continuous TACACS+ command authorization evidence on BES Cyber System network devices.",
+      "controlObjective": "Demonstrate that privileged commands on BES Cyber System network devices are logged via TACACS+ command authorization, providing the audit trail required by CIP-007-6 R5.",
+      "evidenceArtifact": "Saved search 'UC-22.13.71' archiving high-risk TACACS+ command events on BES NADs to `audit_evidence` with `cip_clause=CIP-007-6 R5`.",
+      "obligationRef": "nerc-cip@current#CIP-007-6 R5",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` *Tacacs* + `bes_cyber_asset_inventory.csv` for BES classification. Cross-reference UC-17.1.43.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (11042, 11043) earliest=-1d\n| lookup bes_cyber_asset_inventory.csv device_ip OUTPUT bes_classification\n| where bes_classification IN (\"Medium-Impact\", \"High-Impact\")\n| where match(command, \"(?i)(write erase|no aaa|no logging|enable secret|config replace)\")\n| eval cip_clause=\"CIP-007-6 R5\", control=\"BES_Privileged_Command_Audit\"\n| table _time, user, device_ip, command, bes_classification, cip_clause\n| collect index=audit_evidence",
+  "description": "We continuously evidence NERC CIP-007-6 R5 \u2014 privileged commands on BES Cyber System network devices are TACACS-logged with attribution.",
+  "value": "NERC CIP audits will probe BES Cyber System access. This UC produces continuous, BES-scoped, machine-attested evidence \u2014 the regulator-quality artefact.",
+  "implementation": "Schedule the saved search daily at 06:00 local time; archive results to the `audit_evidence` summary index for SOC 2 2017 TSC evidence.",
+  "visualization": "CIP-007-6 panel: BES privileged command timeline.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "NERC CIP Standards",
+      "url": "https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx"
+    },
+    {
+      "title": "UC-17.1.43 \u2014 Cisco ISE TACACS+ Privileged Command Audit",
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.43.json"
+    }
+  ],
+  "knownFalsePositives": "1. Approved planned outages \u2014 annotate with NERC outage ticket.",
+  "requiredFields": [
+    "_time",
+    "user",
+    "device_ip",
+    "command",
+    "bes_classification"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "lastReviewed": "2026-05-06",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.43 operational.\n- `bes_cyber_asset_inventory.csv` maintained per CIP-002 attestation.\n- `audit_evidence` with NERC CIP retention.\n\n## Step 1-5\n\n```ini\n[UC-22.13.71: NERC CIP CIP-007-6 R5 \u2014 Privileged Command Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.13.71,reg=NERC_CIP,clause=CIP-007-6 R5\n```\n\nQuarterly review with NERC CIP compliance lead; annual audit submission for triennial NERC CIP audit.",
+  "grandmaExplanation": "We continuously evidence NERC CIP-007-6 R5 \u2014 privileged commands on BES Cyber System network devices are TACACS-logged with attribution. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "NERC CIP Compliance Lead",
+  "controlTest": {
+    "positiveScenario": "Privileged command on BES device. Evidence captured.",
+    "negativeScenario": "No privileged commands on BES devices. Empty result; control attested."
+  },
+  "evidence": "Saved search archived to `audit_evidence` with NERC CIP-007-6 R5 tagging.",
+  "exclusions": "Low-Impact and non-BES network devices excluded via `bes_cyber_asset_inventory.csv`."
+}

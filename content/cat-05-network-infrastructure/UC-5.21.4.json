@@ -4,8 +4,10 @@
   "title": "NTP Authentication Failures on Network Devices",
   "criticality": "high",
   "difficulty": "intermediate",
-  "monitoringType": ["Security"],
-  "splunkPillar": "ES",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=juniper:junos:structured` — NTP authentication failure syslog events: Cisco `%NTP-4-AUTH_FAIL`, `%NTP-6-AUTH_MISMATCH`; Juniper `NTP authentication failed` in ntpd messages. NTP authentication (MD5 or SHA1 key-based, RFC 5905 §7.3) prevents rogue NTP servers from poisoning device clocks — a time-shift attack can disable Kerberos, invalidate DNSSEC, evade IDS timestamp correlation, and manipulate certificate validity windows.",
   "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352), Splunk Add-on for Juniper (`Splunk_TA_juniper`, Splunkbase 2847)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\" OR sourcetype=\"juniper:junos:structured\") earliest=-24h\n  (\"NTP\" AND (\"auth\" OR \"authentication\") AND (\"fail\" OR \"mismatch\" OR \"reject\" OR \"denied\"))\n| rex field=_raw \"(?:peer|server|source)\\s*(?<ntp_source>[\\d\\.]+|[0-9a-fA-F:]+)\"\n| stats count as auth_failures earliest(_time) as first_seen latest(_time) as last_seen by host, ntp_source\n| eval severity=case(\n    auth_failures > 10, \"CRITICAL — \" . auth_failures . \" NTP auth failures from \" . ntp_source,\n    auth_failures > 3, \"HIGH — \" . auth_failures . \" NTP auth failures\",\n    1=1, \"MEDIUM — NTP auth failure detected\")\n| sort -auth_failures",
@@ -15,18 +17,39 @@
   "detailedImplementation": "Prerequisites\n• NTP authentication configured on network devices:\n```\nntp authenticate\nntp authentication-key 1 md5 <secret-key>\nntp trusted-key 1\nntp server 10.1.1.1 key 1\n```\n• Without `ntp authenticate`, devices accept time from any source without verification — this UC requires authentication to be enabled.\n• Syslog from devices flowing to Splunk via TA.\n\nStep 1 — Verify NTP auth events are being generated\n```spl\nindex=network sourcetype=\"cisco:ios\" NTP auth earliest=-7d\n| stats count by host, mnemonic\n```\nIf zero results, NTP authentication may not be enabled or no failures have occurred. To test, temporarily configure a wrong key on one device.\n\nStep 2 — Create monitoring search\nThe primary search (above) tracks authentication failures by source.\n\n**Rogue NTP server detection (auth failures from unexpected sources):**\n```spl\nindex=network sourcetype=\"cisco:ios\" NTP auth earliest=-24h\n| rex field=_raw \"(?:peer|server|source)\\s*(?<ntp_source>[\\d\\.]+|[0-9a-fA-F:]+)\"\n| lookup authorized_ntp_servers.csv ntp_server as ntp_source OUTPUT authorized\n| where NOT authorized=\"yes\"\n| stats count as attempts dc(host) as affected_devices by ntp_source\n| sort -attempts\n```\n\n**Key rotation compliance (detect stale keys):**\n```spl\nindex=network sourcetype=\"cisco:ios\" NTP auth earliest=-1h\n| stats count as failures by host\n| where failures > 0\n| eval action=\"Check NTP key configuration — may need rotation\"\n```\n\nStep 3 — Validate\n(a) Deliberately misconfigure an NTP key on a test device. Verify `%NTP-4-AUTH_FAIL` events appear in Splunk.\n(b) Verify the `authorized_ntp_servers.csv` lookup contains all legitimate NTP servers.\n(c) Check `show ntp associations detail` — the `authenticated` column should show `yes` for all configured peers.\n\nStep 4 — Operationalize\nDashboard (\"NTP Security\"):\n• Row 1 — Single-value: total auth failures in 24h (red if >0), unique rogue sources detected.\n• Row 2 — Table: ntp_source, affected devices, failure count, first/last seen.\n• Row 3 — Timeline: auth failure events over 7 days.\n\nAlerting:\n• Auth failures from unknown NTP source: Critical — potential rogue NTP injection.\n• >10 auth failures from known source: High — key mismatch, investigate key rotation status.\n• Any auth failure sustained >1 hour: investigate immediately.\n\nStep 5 — Troubleshooting\n• **Auth failures after key rotation.** If NTP keys were rotated and not all devices received the new key, auth failures are expected. Verify key distribution is complete across fleet.\n• **Auth failures from legitimate server.** Key ID mismatch — verify both sides use the same key ID and key string. Check `show ntp associations detail` for the `key` field.\n• **No NTP auth at all configured.** Many organizations skip NTP authentication. Without it, any device on the network can shift clocks via rogue NTP packets. This UC requires authentication to be enabled first.",
   "visualization": "(1) Single-value: auth failures (red >0). (2) Table: failures by source and device. (3) Timeline: auth failure events.",
   "references": [
-    {"title": "RFC 5905 — NTP Version 4 (Authentication)", "url": "https://www.rfc-editor.org/rfc/rfc5905#section-7.3"},
-    {"title": "NIST SP 800-119 — NTP Security Considerations", "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final"},
-    {"title": "MITRE ATT&CK — T1498 Network Denial of Service", "url": "https://attack.mitre.org/techniques/T1498/"}
+    {
+      "title": "RFC 5905 — NTP Version 4 (Authentication)",
+      "url": "https://www.rfc-editor.org/rfc/rfc5905#section-7.3"
+    },
+    {
+      "title": "NIST SP 800-119 — NTP Security Considerations",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final"
+    },
+    {
+      "title": "MITRE ATT&CK — T1498 Network Denial of Service",
+      "url": "https://attack.mitre.org/techniques/T1498/"
+    }
   ],
   "knownFalsePositives": "**Key rotation window.** During NTP key rotation, devices receiving the new key before the NTP server (or vice versa) will log auth failures. This is a brief operational window — typically <15 minutes during coordinated rotation.\n\n**Stale configuration.** Devices with outdated NTP server configurations may attempt to authenticate against servers that have been decommissioned. Clean up NTP configurations during regular audits.",
-  "equipment": ["cisco", "juniper"],
-  "equipmentModels": ["cisco_catalyst_9000", "cisco_isr_4000", "juniper_mx"],
+  "equipment": [
+    "cisco",
+    "juniper"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9000",
+    "cisco_isr_4000",
+    "juniper_mx"
+  ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@splunk-monitoring-use-cases",
   "grandmaExplanation": "We watch for someone trying to trick our network equipment into using a fake clock. Just like you would not let a stranger reset all the clocks in your house, we make sure our devices only accept time updates from trusted sources. If someone unauthorized tries, we catch it right away.",
-  "prerequisiteUseCases": ["5.21.1"],
+  "prerequisiteUseCases": [
+    "UC-5.21.1"
+  ],
   "wave": "walk"
 }

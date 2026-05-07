@@ -1,0 +1,133 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.42",
+  "title": "Adaptive Network Control (ANC) Action Auditing and Excessive Quarantine Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance",
+    "Operations"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Adaptive Network Control* category — codes `60150` (ANC policy applied to endpoint), `60151` (ANC policy removed from endpoint), `60152` (ANC quarantine — auto), `60153` (ANC quarantine — manual via UI), `60154` (ANC quarantine — pxGrid published action), `60155` (ANC unquarantine), `60156` (ANC port-bounce executed), `60157` (ANC port-shutdown executed). Fields: `endpoint_mac`, `anc_policy`, `triggered_by` (system|admin|pxgrid|api), `admin_user`, `policy_name`. CIM mapping: `Change.action=modified`, `Change.object_category=anc_quarantine`.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60150, 60151, 60152, 60153, 60154, 60155, 60156, 60157)\n| rex \"endpoint_mac=(?<mac>[^,\\s]+)\"\n| rex \"anc_policy=(?<policy>[^,\\s]+)\"\n| rex \"triggered_by=(?<trigger>[^,\\s]+)\"\n| rex \"admin_user=(?<admin>[^,\\s]+)\"\n| eval action = case(\n    MessageCode IN (60150,60152,60153,60154,60156,60157), \"quarantine\",\n    MessageCode IN (60151, 60155), \"unquarantine\")\n| stats count by trigger, action, admin\n| eventstats sum(eval(if(action==\"quarantine\",count,0))) as total_q sum(eval(if(action==\"unquarantine\",count,0))) as total_unq\n| eval ratio = round(total_q / (total_unq+1), 2)\n| where (action==\"quarantine\" AND count > 50) OR (trigger==\"admin\" AND count > 10)",
+  "description": "Audits all ANC actions (quarantine, unquarantine, port-bounce, port-shutdown) and detects excessive quarantine activity that may signal a misconfigured automation, a compromised admin account, or a legitimate large-scale incident-response action.",
+  "value": "ANC is the live arm of incident response — when SOAR/SIEM/SOC pushes a quarantine action, it's enforced through ANC. Auditing every action is foundational for incident-response evidence, compliance reporting, and detecting misuse (compromised admin pushing thousands of quarantine actions). Excessive quarantine detection is also a 'kill-switch' — if a runaway automation is quarantining the entire fleet, this UC catches it within 5 minutes.",
+  "implementation": "Confirm the *Adaptive Network Control* category is at INFO. Schedule the search every 5 min, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `trigger`+`admin` for 30 min.",
+  "visualization": "(1) Single value: ANC actions last 24h. (2) Stacked bar: actions by trigger source last 7d. (3) Top-N: admin users by ANC actions last 30d (audit). (4) Trend: quarantine vs unquarantine ratio over 30d.",
+  "cimModels": [
+    "Change"
+  ],
+  "dataModelAcceleration": "Yes — Change DM acceleration helps long-window audit reports.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 — Adaptive Network Control",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_compliance_segmentation.html"
+    },
+    {
+      "title": "Cisco ISE — ANC API",
+      "url": "https://developer.cisco.com/docs/ise/3.4/openapi/#anc"
+    }
+  ],
+  "knownFalsePositives": "(a) **Phishing-tabletop drill** — A planned IR exercise generates many quarantine actions in a short window. Cross-reference change tickets / IR exercise calendar. (b) **SOAR playbook bulk-action** — A SOAR playbook quarantining endpoints based on a campaign rule may legitimately push 50+ actions. Treat as expected if from a known SOAR service account. (c) **Initial deployment of an automated rule** — First-day operation may quarantine many endpoints as the ruleset evaluates against the fleet. Suppress for 24h after a known new rule deployment.",
+  "mitreAttack": [
+    "N/A (control-plane response — Adaptive Network Control quarantine telemetry, not adversary behaviour)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(b)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(b) requires incident handling. ANC is the enforcement arm of incident response; auditing evidences the operational fidelity of incident response.",
+      "controlObjective": "Operational fidelity and audit of incident-response enforcement actions.",
+      "evidenceArtifact": "UC-17.1.42 alert log + monthly ANC audit report retained 7y.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(b)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.17",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.17 (ICT-related incident management process) — ANC is incident-response enforcement; audit evidences fidelity.",
+      "controlObjective": "Incident-response audit fidelity.",
+      "evidenceArtifact": "UC-17.1.42 audit log.",
+      "obligationRef": "dora@Regulation (EU) 2022/2554#Art.17",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "IR-4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "IR-4 (Incident Handling) requires implementation of incident handling capability. ANC monitoring evidences the enforcement arm of incident handling.",
+      "controlObjective": "Operational evidence of incident-handling enforcement.",
+      "evidenceArtifact": "UC-17.1.42 audit log.",
+      "obligationRef": "nist-800-53@Rev. 5#IR-4",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AU-6",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "AU-6 (Audit Record Review and Analysis) — ANC actions are audit records that require review.",
+      "controlObjective": "Audit-record review for incident-response actions.",
+      "evidenceArtifact": "UC-17.1.42 audit log + monthly review attestation.",
+      "obligationRef": "nist-800-53@Rev. 5#AU-6",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.5.26",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.5.26 (Response to information security incidents) — ANC is the response arm; audit evidences operational integrity.",
+      "controlObjective": "Operational integrity of incident response.",
+      "evidenceArtifact": "UC-17.1.42 audit log.",
+      "obligationRef": "iso-27001@2022#A.5.26",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC7.4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "CC7.4 (Common Criteria — Response to Identified Issues) — ANC is the response action; audit evidences fidelity.",
+      "controlObjective": "Audit fidelity of response actions.",
+      "evidenceArtifact": "UC-17.1.42 audit log.",
+      "obligationRef": "soc-2@2017 TSC#CC7.4",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "From the ISE PAN UI, select an endpoint and apply an ANC policy. ISE emits 60150/60153 events. UC-17.1.42 records the action. Repeat 11 times in 15 min and the alert fires for the admin user.",
+    "negativeScenario": "Apply 5 ANC actions in 15 min via SOAR (with a service account flagged as low-noise). UC-17.1.42 records the actions but does not alert (count threshold not crossed)."
+  },
+  "detailedImplementation": "Prerequisites\n• ISE *Adaptive Network Control* category at INFO.\n• `anc_authorized_admins.csv` lookup of admin users authorised to apply ANC actions manually.\n• Splunk role with `srchIndexesAllowed = nac`.\n\nStep 1 — Configure data collection\nValidate event flow:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60150, 60153) earliest=-7d\n| stats count by trigger, admin_user\n```\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 5 min.\n\nStep 3 — Validate\nProvoke as in controlTest. Confirm alert.\n\nStep 4 — Operationalize\nDashboard \"ISE — ANC Audit\":\n• Single value: actions last 24h, last 30d.\n• Stacked bar: actions by trigger.\n• Top-N: admins by action volume.\n• Trend: quarantine/unquarantine ratio.\n\nMonthly audit attestation: ANC admin team signs off on the report; archived 7 years.\n\nAlerting: high-urgency on excessive quarantine; medium on unauthorised admin (admin_user not in lookup).\n\nStep 5 — Troubleshooting\n• **`admin_user` blank** — Action triggered by automation/pxGrid not by a human admin; expected.\n• **Excessive volume from one SOAR account** — Coordinate with the SOAR team to investigate the playbook.\n• **No 60150 events** — *Adaptive Network Control* category not enabled or set to WARN.",
+  "grandmaExplanation": "When ISE blocks or releases a device — like putting it in time-out — we record exactly who or what made the decision. If too many time-outs happen too quickly, we ring the bell so a human can verify it's not a runaway automation or a misuse of admin powers.",
+  "wave": "walk"
+}

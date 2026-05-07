@@ -1,0 +1,76 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.46",
+  "title": "DORA Art.7 \u2014 Cisco ISE PSN Capacity SLO Evidence (ICT Resilience)",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Capacity"
+  ],
+  "splunkPillar": "IT Operations",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.7",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "DORA Art.7 \u2014 ICT risk management framework requires capacity planning evidence. UC-17.1.77 produces continuous PSN capacity headroom measurements.",
+      "controlObjective": "Demonstrate that ISE NAC capacity is monitored against published platform TPS specifications and that headroom remains above target thresholds.",
+      "evidenceArtifact": "Saved search 'UC-22.3.46' archiving PSN capacity headroom measurements to `audit_evidence` with `dora_clause=Art.7`.",
+      "obligationRef": "dora@Regulation (EU) 2022/2554#Art.7",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` 5200/5400 + `ise_psn_capacity.csv`. Cross-reference UC-17.1.77.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5200, 5400) earliest=-1h\n| bin _time span=1m\n| stats count as auth_count by _time, host\n| eval tps=round(auth_count/60, 1)\n| lookup ise_psn_capacity.csv host OUTPUT psn_max_tps\n| eval headroom_pct=round(((psn_max_tps - tps) / psn_max_tps) * 100, 1)\n| eval dora_clause=\"Art.7\", control=\"ICT_Capacity\"\n| stats min(headroom_pct) as min_headroom, avg(headroom_pct) as avg_headroom by host\n| collect index=audit_evidence",
+  "description": "We continuously evidence DORA Art.7 \u2014 ISE NAC capacity headroom for ICT resilience.",
+  "value": "DORA's hallmark is quantitative ICT resilience. NAC capacity is foundational; this UC's daily archived evidence is the regulator-quality artefact.",
+  "implementation": "Hourly aggregation; daily evidence archive.",
+  "visualization": "DORA Art.7 panel: PSN headroom; capacity gauge.",
+  "cimModels": [
+    "Performance"
+  ],
+  "references": [
+    {
+      "title": "DORA Regulation (EU) 2022/2554",
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj"
+    },
+    {
+      "title": "UC-17.1.77 \u2014 PSN TPS SLO and Capacity Headroom",
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.77.json"
+    }
+  ],
+  "knownFalsePositives": "1. Morning login storm peaks.",
+  "requiredFields": [
+    "_time",
+    "host",
+    "psn_max_tps"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "lastReviewed": "2026-05-06",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.77 operational; `ise_psn_capacity.csv` populated.\n\n## Step 1-5\n\n```ini\n[UC-22.3.46: DORA Art.7 \u2014 ISE Capacity Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.3.46,reg=DORA,clause=Art.7\n```\n\nQuarterly review with DORA-aligned ICT risk management board.",
+  "grandmaExplanation": "We continuously evidence DORA Art.7 \u2014 ISE NAC capacity headroom for ICT resilience. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "DORA ICT Risk Officer",
+  "controlTest": {
+    "positiveScenario": "Generate load that drives a PSN to <30% headroom. Evidence captured.",
+    "negativeScenario": "All PSNs >50% headroom. Healthy capacity attestation."
+  },
+  "evidence": "Saved search archived to `audit_evidence` with DORA Art.7 tagging.",
+  "exclusions": "Test/lab PSNs excluded via `ise_psn_capacity.csv`."
+}

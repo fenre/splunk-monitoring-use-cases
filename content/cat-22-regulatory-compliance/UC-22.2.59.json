@@ -1,0 +1,76 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.59",
+  "title": "NIS2 Art.21(2)(b) — Splunk SOAR + ISE Mean-Time-to-Contain (MTTC) KPI Evidence",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(b)",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "NIS2 Art.21(2)(b) requires evidence of incident handling — including quantitative KPIs. UC-17.1.82 produces machine-attested MTTC measurements.",
+      "controlObjective": "Demonstrate quantitative MTTC for automated containment workflows that span Splunk SOAR and Cisco ISE.",
+      "evidenceArtifact": "Saved search 'UC-22.2.59' archiving MTTC measurements to `audit_evidence` with `nis2_clause=Art.21(2)(b)`.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(b)",
+      "requires_sme_review": false,
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    }
+  ],
+  "dataSources": "`index=phantom` + `index=nac`. Cross-reference UC-17.1.82.",
+  "app": "Splunk Enterprise Security (263) + Splunk SOAR + Splunk Add-on for Cisco Identity Services (1915).",
+  "spl": "index=phantom action_name=block_endpoint earliest=-1d\n| eval soar_apply_time=_time\n| stats earliest(soar_apply_time) as soar_t by container_id, mac_address\n| join mac_address [search index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=86001 anc_action=quarantine | rename _time as ise_apply_time]\n| eval mttc_seconds=ise_apply_time - soar_t\n| stats avg(mttc_seconds) as avg_mttc, max(mttc_seconds) as max_mttc, count\n| eval nis2_clause=\"Art.21(2)(b)\", control=\"MTTC_KPI\"\n| collect index=audit_evidence",
+  "description": "We continuously evidence NIS2 Art.21(2)(b) MTTC KPI via SOAR-ISE measurements.",
+  "value": "Quantitative MTTC is the hard NIS2 evidence — it shifts the audit from 'we have an IR plan' to 'we executed containment in N seconds'.",
+  "implementation": "Schedule the saved search daily at 06:00 local time; archive results to the `audit_evidence` summary index for NIS2 quarterly review.",
+  "visualization": "NIS2 MTTC dashboard.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "NIS2 Directive",
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "title": "UC-17.1.82 — Splunk SOAR + ISE Closed-Loop Playbook Audit",
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.82.json"
+    }
+  ],
+  "knownFalsePositives": "1. SOAR action retries cause double counts.",
+  "requiredFields": [
+    "_time",
+    "mac_address"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "lastReviewed": "2026-05-06",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.82 operational.\n- Splunk SOAR 6.x+.\n\n## Step 1-5\n\n```ini\n[UC-22.2.59: NIS2 — MTTC KPI Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.2.59,reg=NIS2,clause=Art.21(2)(b)\n```",
+  "grandmaExplanation": "We continuously evidence NIS2 Art.21(2)(b) MTTC KPI via SOAR-ISE measurements. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "NIS2 Compliance Officer",
+  "controlTest": {
+    "positiveScenario": "SOAR runs `block_endpoint` playbook. ISE 86001 within 30s. Healthy KPI.",
+    "negativeScenario": "Slow MTTC. Evidence captured for remediation."
+  },
+  "evidence": "Saved search archived to `audit_evidence` with NIS2 Art.21(2)(b) tagging.",
+  "exclusions": "Test playbook runs excluded."
+}

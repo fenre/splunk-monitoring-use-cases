@@ -4,8 +4,10 @@
   "title": "NDP Cache Anomalies and Poisoning Detection",
   "criticality": "high",
   "difficulty": "intermediate",
-  "monitoringType": ["Security"],
-  "splunkPillar": "ES",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Cisco SISF (Switch Integrated Security Features) mnemonics: `%SISF-4-IP_THEFT` (IPv6 address moved to different MAC/port), `%SISF-4-MAC_THEFT` (MAC address moved to different port), `%SISF-4-PAK_DROP` (packet dropped by SISF policy with IP/VLAN/MAC/interface/reason). Also Zeek/Suricata ICMPv6 type 135 (Neighbor Solicitation) and type 136 (Neighbor Advertisement) analysis for unsolicited NA with Override flag. This UC is the IPv6 counterpart to UC-5.1.12 (ARP/MAC Table Anomalies).",
   "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-4h\n  facility=\"SISF\" mnemonic IN (\"IP_THEFT\", \"MAC_THEFT\", \"PAK_DROP\", \"MAC_AND_IP_THEFT\")\n| rex field=_raw \"IP=(?<stolen_ip>[0-9a-fA-F:.]+).*VLAN=(?<vlan>\\d+).*MAC=(?<mac>[0-9a-fA-F.]+).*IF=(?<interface>\\S+)\"\n| eval event_type=case(\n    mnemonic=\"IP_THEFT\", \"IP moved to different MAC/port\",\n    mnemonic=\"MAC_THEFT\", \"MAC moved to different port\",\n    mnemonic=\"MAC_AND_IP_THEFT\", \"Both MAC and IP moved\",\n    mnemonic=\"PAK_DROP\", \"Packet dropped by SISF policy\",\n    1=1, mnemonic)\n| stats count as events earliest(_time) as first_seen latest(_time) as last_seen by host, event_type, stolen_ip, mac, interface, vlan\n| eval severity=case(\n    event_type=\"MAC_AND_IP_THEFT\", \"CRITICAL\",\n    event_type=\"IP_THEFT\" AND events > 5, \"HIGH\",\n    event_type=\"MAC_THEFT\", \"HIGH\",\n    event_type=\"PAK_DROP\" AND events > 50, \"MEDIUM\",\n    1=1, \"LOW\")\n| where severity IN (\"CRITICAL\", \"HIGH\", \"MEDIUM\")\n| sort -events",
@@ -15,18 +17,37 @@
   "detailedImplementation": "Prerequisites\n• Cisco Catalyst switches running IOS-XE 16.x+ or IOS 15.2(2)E+ with SISF support.\n• SISF policy configured and applied to access VLANs:\n```\ndevice-tracking policy SISF_POLICY\n security-level guard\n device-role node\n!\nvlan configuration 10-100\n device-tracking attach-policy SISF_POLICY\n```\n• Syslog from switches to Splunk via `TA-cisco_ios`.\n• For deeper analysis: Zeek or Suricata sensor with ICMPv6 visibility.\n\nStep 1 — Configure SISF data collection\nVerify SISF events are arriving:\n```spl\nindex=network sourcetype=\"cisco:ios\" facility=\"SISF\" earliest=-1h | stats count by mnemonic\n```\nExpect to see PAK_DROP, IP_THEFT, MAC_THEFT events. If zero events, verify: (a) SISF policy is applied to VLANs, (b) syslog severity includes level 4 (`logging trap notifications` or lower), (c) the SISF security-level is `guard` (not `glean` which only learns without enforcement).\n\nStep 2 — Create monitoring and alerting\nThe primary search (above) classifies SISF events by severity. Additionally, monitor for patterns:\n\n**Rapid MAC flapping (NDP poisoning indicator):**\n```spl\nindex=network sourcetype=\"cisco:ios\" facility=\"SISF\" mnemonic=\"IP_THEFT\" earliest=-15m\n| stats count as flap_count dc(mac) as mac_count by stolen_ip, vlan\n| where flap_count > 3 OR mac_count > 2\n```\n\n**Unsolicited NA detection via Zeek:**\n```spl\nindex=network sourcetype=\"zeek:conn\" service=\"icmp\" id.resp_p=136 earliest=-1h\n| stats count by id.orig_h\n| where count > 100\n```\n\nThresholds from RFC 6583 and operational experience:\n- >100 NAs/sec from single source: likely NDP poisoning\n- >1000 NS messages in 1-minute window: NS flood\n- >5 IP_THEFT events for same IP in 15 minutes: active MITM\n\nStep 3 — Validate\n(a) In a lab, run `parasite6 eth0` from THC-IPv6 toolkit. Verify SISF generates IP_THEFT events.\n(b) Compare SISF binding table (`show device-tracking database`) with NDP cache (`show ipv6 neighbors`).\n(c) Verify alert fires for the simulated attack.\n\nStep 4 — Operationalize\nDashboard (\"IPv6 NDP Security\"):\n• Row 1 — Single-value tiles: IP_THEFT events (red if >0), MAC_THEFT events (red if >0), PAK_DROP rate.\n• Row 2 — Table: recent theft events with IP, MAC, interface, VLAN, severity.\n• Row 3 — Timechart: SISF events over 24h by event type.\n• Drilldown: click event → show full SISF log context.\n\nAlerting:\n• IP_THEFT or MAC_THEFT: Immediate page to network security. Include affected VLAN, interface, and MAC for rapid port shutdown.\n• PAK_DROP > 50/hour: Investigation priority — may indicate attack being mitigated or false positive from HA/VM environments.\n\nStep 5 — Troubleshooting\n• **False positive: VM migration / HA failover.** CSCvx75602: SISF PAK_DROP blocks legitimate traffic in HA/VM environments where multiple IPs share one MAC. Workaround: Configure SISF to allow address overlap: `device-tracking policy SISF_POLICY` → `limit address-count 0` (no limit) for VM-hosting VLANs.\n• **False positive: Wireless roaming.** Clients roaming between APs may trigger MAC_THEFT as the MAC appears on a different switch port. Configure the policy with `trusted-port` on AP uplinks.\n• **No SISF events but NDP attacks visible on Zeek.** SISF may not be deployed on all switches. Run `show device-tracking policies` fleet-wide to identify gaps (see UC-5.20.142 for FHS coverage audit).",
   "visualization": "(1) Single-value tiles: IP_THEFT count (red >0), MAC_THEFT count (red >0). (2) Table: recent events with severity, IP, MAC, interface, VLAN. (3) Timechart: SISF events over 24h. (4) Map: affected switches (if site data available).",
   "references": [
-    {"title": "Cisco — IPv6 First-Hop Security (SISF)", "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6_fhsec/configuration/xe-3s/ip6f-xe-3s-book.html"},
-    {"title": "RFC 4861 — Neighbor Discovery for IPv6", "url": "https://www.rfc-editor.org/rfc/rfc4861"},
-    {"title": "THC-IPv6 Attack Toolkit (parasite6, fake_router6)", "url": "https://github.com/vanhauser-thc/thc-ipv6"}
+    {
+      "title": "Cisco — IPv6 First-Hop Security (SISF)",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6_fhsec/configuration/xe-3s/ip6f-xe-3s-book.html"
+    },
+    {
+      "title": "RFC 4861 — Neighbor Discovery for IPv6",
+      "url": "https://www.rfc-editor.org/rfc/rfc4861"
+    },
+    {
+      "title": "THC-IPv6 Attack Toolkit (parasite6, fake_router6)",
+      "url": "https://github.com/vanhauser-thc/thc-ipv6"
+    }
   ],
   "knownFalsePositives": "**VM migration and HA failover.** CSCvx75602: SISF generates PAK_DROP and IP_THEFT events when VMs migrate between hypervisors because the same IPv6 address appears on a different switch port. This is the #1 source of SISF false positives. Distinguish by correlating with vCenter/HyperV migration events.\n\n**Wireless client roaming.** Clients roaming between access points appear as MAC_THEFT when the MAC moves to a different switch port (AP uplink). Configure `trusted-port` on AP-facing ports to suppress.\n\n**Dual-homed hosts.** Hosts with multiple NICs on the same VLAN may trigger IP_THEFT. Verify with `show device-tracking database` that the binding table accurately reflects the host's configuration.",
-  "equipment": ["cisco"],
-  "equipmentModels": ["cisco_catalyst_9000", "cisco_catalyst_3850"],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9000",
+    "cisco_catalyst_3850"
+  ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@splunk-monitoring-use-cases",
   "grandmaExplanation": "We watch for someone pretending to be another device on our IPv6 network, like an impostor answering to your neighbor's name to intercept their mail. When a device's network identity suddenly moves to a different location, our switches catch the change and alert us before any data is stolen.",
-  "prerequisiteUseCases": ["5.1.12"],
+  "prerequisiteUseCases": [
+    "UC-5.1.12"
+  ],
   "wave": "walk"
 }

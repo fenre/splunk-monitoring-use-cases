@@ -688,10 +688,31 @@ acquirers, issuers, and service providers.
 | 11.3.x | Vulnerability scanning and pen-testing | 1.0 | full — §22.11 + 22.43 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.11 ships
-106 dedicated PCI DSS UCs, including cardholder-data-environment
+220 dedicated PCI DSS UCs, including cardholder-data-environment
 boundary detection, CHD-in-logs prevention, PAN-in-email detection,
 key-custody attestation, and PCI DSS 4.0 customised-approach-alternative
 evidence packaging.
+
+**Cisco ISE evidence.** Cisco Identity Services Engine is a primary
+evidence source for clauses 1.4 (segmentation around the CDE), 4.2
+(strong cryptography for CHD in transit), 8.3-8.6 (strong
+authentication, MFA, and per-account credentials), and 10.2 (audit
+logs for every authentication and access-policy decision). Strong
+authentication for CDE access is captured by EAP-TLS posture
+([UC-17.1.38](../content/cat-17-network-security-zero-trust/UC-17.1.38.json),
+[UC-17.1.69](../content/cat-17-network-security-zero-trust/UC-17.1.69.json),
+[UC-17.1.70](../content/cat-17-network-security-zero-trust/UC-17.1.70.json));
+account lockout and brute-force resistance by
+[UC-17.1.71](../content/cat-17-network-security-zero-trust/UC-17.1.71.json);
+TrustSec/SGT segmentation evidence by
+[UC-17.1.36](../content/cat-17-network-security-zero-trust/UC-17.1.36.json) and
+[UC-17.1.75](../content/cat-17-network-security-zero-trust/UC-17.1.75.json);
+TACACS+ command audit for CDE network device administration by
+[UC-17.1.43](../content/cat-17-network-security-zero-trust/UC-17.1.43.json).
+The cat-22 wrappers UC-22.11.107 through UC-22.11.110 package these
+into auditor-ready evidence under the customised-approach pattern.
+See [`docs/guides/cisco-ise.md`](guides/cisco-ise.md) for the full
+reference architecture.
 
 **Where to look:** §22.11 · `api/v1/compliance/regulations/pci-dss.json` ·
 [`api/v1/compliance/regulations/pci-dss@v4.0.json`](../api/v1/compliance/regulations/pci-dss@v4.0.json).
@@ -726,10 +747,27 @@ plans, healthcare clearinghouses) and their *business associates*.
 | Breach Notification §164.400-414 | Breach notification | 1.0 | full — §22.10 + 22.39 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.10 ships
-55 dedicated HIPAA UCs covering ePHI access logging, audit-trail gap
+58 dedicated HIPAA UCs covering ePHI access logging, audit-trail gap
 detection, encryption of ePHI at rest and in transit, minimum-necessary
 rule enforcement, workforce-termination access revocation, and
 breach-risk-assessment artefact generation.
+
+**Cisco ISE evidence.** For workforce access to ePHI-bearing systems,
+Cisco ISE provides the §164.308(a)(4) information-access-management
+record (Active-Directory-driven authorisation policies attested by
+[UC-17.1.29](../content/cat-17-network-security-zero-trust/UC-17.1.29.json)),
+the §164.312(a)(1) access-control evidence (segmentation drift via
+[UC-17.1.36](../content/cat-17-network-security-zero-trust/UC-17.1.36.json),
+[UC-17.1.75](../content/cat-17-network-security-zero-trust/UC-17.1.75.json)),
+the §164.312(b) audit-control trail (TACACS+ command-accounting via
+[UC-17.1.43](../content/cat-17-network-security-zero-trust/UC-17.1.43.json),
+ANC actions via
+[UC-17.1.42](../content/cat-17-network-security-zero-trust/UC-17.1.42.json)),
+and the §164.312(d) person-or-entity-authentication evidence (EAP-TLS
+via
+[UC-17.1.38](../content/cat-17-network-security-zero-trust/UC-17.1.38.json)).
+The cat-22 wrappers UC-22.10.57 (access control) and UC-22.10.58
+(audit controls) package this evidence per clause for OCR submission.
 
 **Where to look:** §22.10 · `api/v1/compliance/regulations/hipaa-security.json`.
 
@@ -760,10 +798,24 @@ objective taxonomy:
 | CC9.2 | Vendor management | 1.0 | full — §22.12 + 22.44 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.12 ships
-40 dedicated SOX ITGC UCs plus the cross-cutting SoD family (22.48).
+86 dedicated SOX ITGC UCs plus the cross-cutting SoD family (22.48).
 The catalogue is designed to produce both point-in-time evidence (snapshot
 at year-end) and period-of-operation evidence (continuous-control-monitoring
 dashboards) which aligns with the SOX Type 2-equivalent testing model.
+
+**Cisco ISE evidence.** For the *Logical Access* objective (network
+device administration, the hidden third leg of access management
+behind application access and infrastructure access), Cisco ISE
+generates the per-administrator command-accounting trail through
+TACACS+ ([UC-17.1.43](../content/cat-17-network-security-zero-trust/UC-17.1.43.json))
+and the AD-Connector authorisation provenance
+([UC-17.1.29](../content/cat-17-network-security-zero-trust/UC-17.1.29.json)).
+For the *Change Management* objective, ISE upgrade tracking
+([UC-17.1.49](../content/cat-17-network-security-zero-trust/UC-17.1.49.json))
+provides the change-window evidence auditors expect. The cat-22
+wrappers UC-22.12.41 (privileged access), UC-22.12.42 (segregation
+of duties), and UC-22.12.43 (change authorisation) package this for
+PCAOB AS 2201 walkthroughs.
 
 **Where to look:** §22.12 · `api/v1/compliance/regulations/sox-itgc.json`.
 
@@ -795,9 +847,26 @@ that require SOC 2 reports for downstream customers.
 | CC9.x | Risk mitigation | 1.0 | full — §22.8 + 22.44 |
 | A1.x | Availability | 0.7 | partial — §22.8 + 22.45 |
 
-**What the catalogue delivers:** 100 % tier-1 coverage. §22.8 ships 39 UCs
+**What the catalogue delivers:** 100 % tier-1 coverage. §22.8 ships 80 UCs
 dedicated to SOC 2 controls with particular focus on continuous control
 monitoring, which is the hallmark of a mature Type 2 programme.
+
+**Cisco ISE evidence.** For *CC6.1 Logical access* and *CC6.6
+Segmentation*, Cisco ISE provides population-level evidence that
+controls operated continuously over the audit period: AD-store
+health and authentication coverage
+([UC-17.1.29](../content/cat-17-network-security-zero-trust/UC-17.1.29.json)),
+EAP-TLS posture and lockout
+([UC-17.1.38](../content/cat-17-network-security-zero-trust/UC-17.1.38.json),
+[UC-17.1.71](../content/cat-17-network-security-zero-trust/UC-17.1.71.json)),
+auto-quarantine effectiveness
+([UC-17.1.41](../content/cat-17-network-security-zero-trust/UC-17.1.41.json)),
+and TrustSec/dACL segmentation drift
+([UC-17.1.36](../content/cat-17-network-security-zero-trust/UC-17.1.36.json),
+[UC-17.1.75](../content/cat-17-network-security-zero-trust/UC-17.1.75.json),
+[UC-17.1.76](../content/cat-17-network-security-zero-trust/UC-17.1.76.json)).
+The cat-22 wrapper UC-22.8.40 packages logical-access and
+segmentation evidence into a SOC 2 Type 2 deliverable.
 
 **Where to look:** §22.8 · `api/v1/compliance/regulations/soc-2.json`.
 
@@ -824,7 +893,24 @@ procurement.
 | Clause 9 | Performance evaluation | 1.0 | full — §22.6 + 22.47 |
 
 **What the catalogue delivers:** 100 % tier-1 `commonClauses` coverage.
-§22.6 ships 55 UCs dedicated to ISO 27001 Annex A controls.
+§22.6 ships 116 UCs dedicated to ISO 27001 Annex A controls.
+
+**Cisco ISE evidence.** For Annex A.5 organisational controls and A.8
+technological controls related to identity and network access, Cisco
+ISE provides direct evidence: A.5.16 identity management
+([UC-17.1.29](../content/cat-17-network-security-zero-trust/UC-17.1.29.json),
+[UC-17.1.38](../content/cat-17-network-security-zero-trust/UC-17.1.38.json),
+[UC-17.1.71](../content/cat-17-network-security-zero-trust/UC-17.1.71.json)),
+A.5.30 ICT readiness for business continuity
+([UC-17.1.28](../content/cat-17-network-security-zero-trust/UC-17.1.28.json),
+[UC-17.1.30](../content/cat-17-network-security-zero-trust/UC-17.1.30.json),
+[UC-17.1.49](../content/cat-17-network-security-zero-trust/UC-17.1.49.json)),
+A.8.2 privileged access rights (TACACS+ via
+[UC-17.1.43](../content/cat-17-network-security-zero-trust/UC-17.1.43.json)),
+and A.8.15 logging
+([UC-17.1.42](../content/cat-17-network-security-zero-trust/UC-17.1.42.json)).
+The cat-22 wrappers UC-22.6.56, UC-22.6.57, and UC-22.6.58 package
+this for ISMS audits.
 
 **Where to look:** §22.6 · `api/v1/compliance/regulations/iso-27001.json`.
 
@@ -887,9 +973,34 @@ non-federal organisations worldwide.
 | AT | Awareness and training | 0.7 | full — §22.14 + 22.46 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.14 ships
-80 UCs dedicated to 800-53 Rev.5 controls with `controlFamily` tags
+81 UCs dedicated to 800-53 Rev.5 controls with `controlFamily` tags
 that align with the OSCAL component-definition facade at
 `api/v1/oscal/component-definitions/*`.
+
+**Cisco ISE evidence.** Cisco ISE is one of the deepest evidence
+sources in the catalogue for the AC, AU, IA, IR, and SI families:
+AC-2/3/6 access enforcement and least privilege via
+[UC-17.1.29](../content/cat-17-network-security-zero-trust/UC-17.1.29.json),
+[UC-17.1.43](../content/cat-17-network-security-zero-trust/UC-17.1.43.json),
+[UC-17.1.51](../content/cat-17-network-security-zero-trust/UC-17.1.51.json);
+IA-2/5/8 strong authentication and credential management via
+[UC-17.1.38](../content/cat-17-network-security-zero-trust/UC-17.1.38.json),
+[UC-17.1.39](../content/cat-17-network-security-zero-trust/UC-17.1.39.json),
+[UC-17.1.69](../content/cat-17-network-security-zero-trust/UC-17.1.69.json),
+[UC-17.1.71](../content/cat-17-network-security-zero-trust/UC-17.1.71.json);
+AU-2/6/12 audit logging via
+[UC-17.1.42](../content/cat-17-network-security-zero-trust/UC-17.1.42.json),
+[UC-17.1.58](../content/cat-17-network-security-zero-trust/UC-17.1.58.json);
+IR-4/5 incident response via
+[UC-17.1.41](../content/cat-17-network-security-zero-trust/UC-17.1.41.json),
+[UC-17.1.80](../content/cat-17-network-security-zero-trust/UC-17.1.80.json);
+SI-4 system monitoring via
+[UC-17.1.40](../content/cat-17-network-security-zero-trust/UC-17.1.40.json),
+[UC-17.1.67](../content/cat-17-network-security-zero-trust/UC-17.1.67.json),
+[UC-17.1.68](../content/cat-17-network-security-zero-trust/UC-17.1.68.json),
+[UC-17.1.74](../content/cat-17-network-security-zero-trust/UC-17.1.74.json).
+The cat-22 wrapper UC-22.14.81 packages identity-and-authentication
+evidence to the OSCAL component-definition facade.
 
 **Where to look:** §22.14 · `api/v1/compliance/regulations/nist-800-53.json`
 · [`api/v1/oscal/catalogs/nist-sp-800-53-r5.normalised.json`](../api/v1/oscal/catalogs/nist-sp-800-53-r5.normalised.json).
@@ -925,8 +1036,25 @@ they are sole providers in a member state.
 | Art.21.2(j) | Use of MFA and secured communications | 1.0 | full — §22.2 + 22.40 |
 | Art.23 | Reporting obligations | 1.0 | full — §22.2 + 22.39 |
 
-**What the catalogue delivers:** 100 % tier-1 coverage. §22.2 ships 57
+**What the catalogue delivers:** 100 % tier-1 coverage. §22.2 ships 59
 dedicated NIS2 UCs.
+
+**Cisco ISE evidence.** For Art.21(2)(d) supply-chain security and
+network access policy, Cisco ISE attests how every authenticated
+session entering the network is profiled, posture-checked, and bound
+to a TrustSec policy
+([UC-17.1.36](../content/cat-17-network-security-zero-trust/UC-17.1.36.json),
+[UC-17.1.55](../content/cat-17-network-security-zero-trust/UC-17.1.55.json),
+[UC-17.1.66](../content/cat-17-network-security-zero-trust/UC-17.1.66.json),
+[UC-17.1.75](../content/cat-17-network-security-zero-trust/UC-17.1.75.json)).
+For Art.21(2)(g) basic cyber hygiene, ISE platform health
+([UC-17.1.28](../content/cat-17-network-security-zero-trust/UC-17.1.28.json),
+[UC-17.1.32](../content/cat-17-network-security-zero-trust/UC-17.1.32.json),
+[UC-17.1.40](../content/cat-17-network-security-zero-trust/UC-17.1.40.json),
+[UC-17.1.77](../content/cat-17-network-security-zero-trust/UC-17.1.77.json))
+keeps the access-policy-decision-point operating reliably. The cat-22
+wrappers UC-22.2.58 (access control) and UC-22.2.59 (supply-chain
+NAD vendor risk) package this for ENISA-aligned evidence submission.
 
 **Where to look:** §22.2 · `api/v1/compliance/regulations/nis2.json`.
 
@@ -966,8 +1094,31 @@ designated as "critical".
 | Art.28-30 | ICT third-party risk management | 1.0 | full — §22.3 + 22.44 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.3 ships
-45 dedicated DORA UCs with particular focus on Art.19 incident-reporting
+94 dedicated DORA UCs with particular focus on Art.19 incident-reporting
 (the single most-audited DORA clause in 2025).
+
+**Cisco ISE evidence.** For Art.6 ICT risk management Cisco ISE supplies
+the always-on identity-and-segmentation control plane (replication
+health [UC-17.1.28](../content/cat-17-network-security-zero-trust/UC-17.1.28.json),
+license capacity
+[UC-17.1.32](../content/cat-17-network-security-zero-trust/UC-17.1.32.json),
+PSN load
+[UC-17.1.78](../content/cat-17-network-security-zero-trust/UC-17.1.78.json)).
+For Art.9 protection and prevention, EAP-TLS strong authentication
+([UC-17.1.38](../content/cat-17-network-security-zero-trust/UC-17.1.38.json),
+[UC-17.1.69](../content/cat-17-network-security-zero-trust/UC-17.1.69.json),
+[UC-17.1.70](../content/cat-17-network-security-zero-trust/UC-17.1.70.json))
+and CoA enforcement
+([UC-17.1.56](../content/cat-17-network-security-zero-trust/UC-17.1.56.json))
+provide direct evidence. For Art.28-30 ICT third-party risk, pxGrid
+client approval
+([UC-17.1.35](../content/cat-17-network-security-zero-trust/UC-17.1.35.json))
+and ANC audit
+([UC-17.1.42](../content/cat-17-network-security-zero-trust/UC-17.1.42.json),
+[UC-17.1.51](../content/cat-17-network-security-zero-trust/UC-17.1.51.json))
+demonstrate vendor and partner control. Cat-22 wrappers UC-22.3.46
+(third-party governance) and UC-22.3.47 (strong authentication for
+ICT systems) package the evidence per Article.
 
 **Where to look:** §22.3 · `api/v1/compliance/regulations/dora.json`.
 
@@ -1005,7 +1156,23 @@ of its evidence base with NIST 800-53 coverage.
 | AT | Awareness and Training | 0.7 | full — §22.20 + 22.46 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.20 ships
-20 dedicated CMMC UCs.
+21 dedicated CMMC UCs.
+
+**Cisco ISE evidence.** Because CMMC AC, AU, IA, IR, and SC families
+are derivative of NIST 800-171 / 800-53, every Cisco ISE UC that
+serves NIST 800-53 also serves CMMC. The cat-22 wrapper UC-22.20.21
+ties together AC.L1-3.1.1 (authorised access), AU.L2-3.3.1
+(auditable events), and IA.L2-3.5.3 (multi-factor authentication for
+network access) into a single CCP-package evidence bundle citing
+[UC-17.1.38](../content/cat-17-network-security-zero-trust/UC-17.1.38.json),
+[UC-17.1.42](../content/cat-17-network-security-zero-trust/UC-17.1.42.json),
+[UC-17.1.43](../content/cat-17-network-security-zero-trust/UC-17.1.43.json),
+[UC-17.1.69](../content/cat-17-network-security-zero-trust/UC-17.1.69.json),
+and [UC-17.1.71](../content/cat-17-network-security-zero-trust/UC-17.1.71.json).
+DIB contractors should also reference the wireless-protected-Wi-Fi
+trail
+([UC-17.1.74](../content/cat-17-network-security-zero-trust/UC-17.1.74.json))
+when WPA3-Enterprise is in scope.
 
 **Where to look:** §22.20 · `api/v1/compliance/regulations/cmmc.json`.
 
@@ -1076,25 +1243,25 @@ is the machine-readable view.
 | Subcategory | Regulation | Jurisdiction | Tier | UCs | API endpoint |
 |-------------|------------|--------------|------|-----|--------------|
 | 22.1 | GDPR | EU/EEA | T1 | 50 | `regulations/gdpr.json` |
-| 22.2 | NIS2 | EU | T1 | 57 | `regulations/nis2.json` |
-| 22.3 | DORA | EU | T1 | 45 | `regulations/dora.json` |
+| 22.2 | NIS2 | EU | T1 | 59 | `regulations/nis2.json` |
+| 22.3 | DORA | EU | T1 | 94 | `regulations/dora.json` |
 | 22.4 | CCPA / CPRA | US-CA | T2 | inherit | `regulations/ccpa.json` |
 | 22.5 | MiFID II | EU | T2 | see §22.5 | `regulations/mifid-ii.json` |
-| 22.6 | ISO 27001 | GLOBAL | T1 | 55 | `regulations/iso-27001.json` |
+| 22.6 | ISO 27001 | GLOBAL | T1 | 116 | `regulations/iso-27001.json` |
 | 22.7 | NIST CSF | US/GLOBAL | T1 | 50 | `regulations/nist-csf.json` |
-| 22.8 | SOC 2 | US/GLOBAL | T1 | 39 | `regulations/soc-2.json` |
+| 22.8 | SOC 2 | US/GLOBAL | T1 | 80 | `regulations/soc-2.json` |
 | 22.9 | Compliance trending | cross-framework | n/a | dashboards | `compliance/coverage.json` |
-| 22.10 | HIPAA Security | US | T1 | 55 | `regulations/hipaa-security.json` |
-| 22.11 | PCI DSS v4.0 | GLOBAL | T1 | 106 | `regulations/pci-dss.json` |
-| 22.12 | SOX / ITGC | US | T1 | 40 | `regulations/sox-itgc.json` |
+| 22.10 | HIPAA Security | US | T1 | 58 | `regulations/hipaa-security.json` |
+| 22.11 | PCI DSS v4.0 | GLOBAL | T1 | 220 | `regulations/pci-dss.json` |
+| 22.12 | SOX / ITGC | US | T1 | 86 | `regulations/sox-itgc.json` |
 | 22.13 | NERC CIP | US/CA | T2 | see §22.13 | `regulations/nerc-cip.json` |
-| 22.14 | NIST 800-53 Rev.5 | US | T1 | 80 | `regulations/nist-800-53.json` |
+| 22.14 | NIST 800-53 Rev.5 | US | T1 | 81 | `regulations/nist-800-53.json` |
 | 22.15 | IEC 62443 | GLOBAL | T2 | see §22.15 | `regulations/iec-62443.json` |
 | 22.16 | TSA Pipeline Security | US | T2 | see §22.16 | `regulations/tsa-sd.json` |
 | 22.17 | FDA 21 CFR Part 11 | US | T2 | see §22.17 | `regulations/fda-part-11.json` |
 | 22.18 | API 1164 SCADA Security | US | T2 | see §22.18 | `regulations/api-rp-1164.json` |
 | 22.19 | FISMA / FedRAMP | US | T2 | see §22.19 | `regulations/fedramp.json` + `regulations/fisma.json` |
-| 22.20 | CMMC 2.0 | US | T1 | 20 | `regulations/cmmc.json` |
+| 22.20 | CMMC 2.0 | US | T1 | 21 | `regulations/cmmc.json` |
 | 22.21 | EU AI Act | EU | T2 | see §22.21 | `regulations/eu-ai-act.json` |
 | 22.22 | PSD2 / Payment Services | EU | T2 | see §22.22 | `regulations/psd2.json` |
 | 22.23 | EU Cyber Resilience Act (CRA) | EU | T2 | see §22.23 | `regulations/eu-cra.json` |

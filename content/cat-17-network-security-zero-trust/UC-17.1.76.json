@@ -1,0 +1,116 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.76",
+  "title": "ISE Group-Based Policy (GBP / Microsegmentation) Effective-Policy Drift",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Operations"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "ISE configuration data via OpenAPI (`/ers/config/sgmatrix`, `/ers/config/sgt`) — periodic export of the SGT-to-SGT (source-to-destination) policy matrix into a Splunk lookup `ise_sgt_matrix.csv`. ISE syslog *Authorization* — codes `5402`, `5403` for dynamic SGT-policy compilation events. Compare current matrix against baseline `ise_sgt_matrix_baseline.csv`.",
+  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "spl": "| inputlookup ise_sgt_matrix.csv \n| join type=outer source_sgt destination_sgt [| inputlookup ise_sgt_matrix_baseline.csv | rename action as baseline_action]\n| eval drift=if(action!=baseline_action, \"DRIFTED\", \"ok\")\n| where drift==\"DRIFTED\"",
+  "description": "Detects unauthorised changes to the SGT-to-SGT effective policy matrix. Compares each cell of the current matrix against the approved baseline and flags any drift.",
+  "value": "The GBP matrix is the heart of microsegmentation policy. A single cell change (e.g., `Employees → DC_PCI` from deny to allow) can compromise an entire segmentation strategy. Drift detection catches unauthorized changes within the polling interval.",
+  "implementation": "Daily. Requires a curated baseline CSV checked into version control.",
+  "visualization": "Drift cells over time; current matrix vs. baseline visualization.",
+  "cimModels": [
+    "Change"
+  ],
+  "dataModelAcceleration": "Yes — Change.",
+  "references": [
+    {
+      "title": "Cisco ISE 3.4 — TrustSec Policy Matrix",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_segmentation.html"
+    }
+  ],
+  "knownFalsePositives": "(a) Approved baseline change pending update — coordinate with policy engineering.",
+  "mitreAttack": [
+    "N/A (policy hygiene — measures Group-Based Policy hit counts, no adversary technique)"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "1.4.5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "PCI 1.4.5 — CDE segmentation policy stability.",
+      "controlObjective": "CDE segmentation stability.",
+      "evidenceArtifact": "UC-17.1.76 alert log.",
+      "obligationRef": "pci-dss@v4.0#1.4.5",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "SOX ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.AccessMgmt.Provisioning",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "SOX ITGC change management — segmentation policy changes.",
+      "controlObjective": "Segmentation policy change audit.",
+      "evidenceArtifact": "UC-17.1.76 alert log.",
+      "obligationRef": "sox-itgc@PCAOB AS 2201#ITGC.AccessMgmt.Provisioning",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "CM-3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "CM-3 configuration change control — segmentation matrix.",
+      "controlObjective": "Configuration change control.",
+      "evidenceArtifact": "UC-17.1.76 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#CM-3",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.32",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.8.32 change management.",
+      "controlObjective": "Change management evidence.",
+      "evidenceArtifact": "UC-17.1.76 alert log.",
+      "obligationRef": "iso-27001@2022#A.8.32",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(d)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(d) access control — segmentation enforcement.",
+      "controlObjective": "Access control segmentation.",
+      "evidenceArtifact": "UC-17.1.76 alert log.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(d)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Modify a single SGT-matrix cell. UC-17.1.76 detects drift on next run.",
+    "negativeScenario": "Matrix matches baseline. No drift."
+  },
+  "detailedImplementation": "Standard pattern.",
+  "grandmaExplanation": "The microsegmentation matrix is a big spreadsheet of which device groups can talk to which. We check it daily against the approved version and flag any cell that has changed.",
+  "wave": "run"
+}

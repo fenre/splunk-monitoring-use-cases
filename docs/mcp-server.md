@@ -66,7 +66,7 @@ the stdio transport makes the agent the sole trust boundary.
 │ splunk-uc-mcp (python package, this repo)                            │
 │                                                                      │
 │   ┌────────────┐  ┌──────────────────────┐  ┌──────────────────────┐ │
-│   │ server.py  │─▶│ tools/*.py (10 tools) │─▶│ catalog.py           │ │
+│   │ server.py  │─▶│ tools/*.py (11 tools) │─▶│ catalog.py           │ │
 │   │ stdio loop │  │ resources/uri_scheme │  │ (local + HTTPS)      │ │
 │   └────────────┘  └──────────────────────┘  └──────────┬───────────┘ │
 └─────────────────────────────────────────────────────────┼────────────┘
@@ -271,6 +271,22 @@ mirrored from `search_use_cases`.
 ```json
 {"uc_id": "22.1.1"}
 ```
+
+### `get_use_case_markdown`
+
+Same content as `get_use_case`, pre-rendered as plain markdown — drop
+straight into a system prompt or RAG chunk with no field-mapping work.
+Use this when the downstream consumer is a text-completion model
+rather than a structured-output pipeline. The returned `markdown`
+field mirrors the static-site artefact at `/uc/UC-X.Y.Z/uc.md`.
+
+```json
+{"uc_id": "22.1.1"}
+```
+
+Returns `{ id, url, markdown, lastModified }`. The `url` is the
+canonical `https://fenre.github.io/.../uc/UC-X.Y.Z/uc.md` location;
+agents can cite it directly.
 
 ### `list_categories`
 

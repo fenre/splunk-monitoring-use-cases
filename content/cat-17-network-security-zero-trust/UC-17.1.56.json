@@ -1,0 +1,96 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.1.56",
+  "title": "ISE RADIUS Change-of-Authorization (CoA) Failure Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operations",
+    "Security"
+  ],
+  "splunkPillar": "IT Operations",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authentication* category — CoA codes `5417` (CoA initiated), `5418` (CoA succeeded), `5419` (CoA failed), `5420` (CoA timeout), `5421` (CoA NAS not responding). Fields: `coa_action` (port-bounce|port-shutdown|reauth|disconnect), `NAS-IP-Address`, `endpoint_mac`, `error_code`. NAD-side: `index=network sourcetype=cisco:ios` `%RADIUS-3-COA_NACK`. CIM mapping: `Change.action`.",
+  "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) + Cisco network TA.",
+  "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5417, 5419, 5420, 5421))\n  OR (index=network sourcetype=\"cisco:ios\" \"%RADIUS-3-COA\")\n| eval action = case(MessageCode==\"5417\", \"initiated\", MessageCode==\"5419\", \"failed\", MessageCode==\"5420\", \"timeout\", MessageCode==\"5421\", \"nas_no_response\", like(_raw, \"%COA_NACK%\"), \"nas_nack\")\n| stats count by NAS-IP-Address, action, coa_action\n| where action != \"initiated\" AND count > 5",
+  "description": "Detects RADIUS CoA failures, timeouts, and NAS no-response events at scale. CoA is how ISE pushes runtime authorization changes (quarantine, reauth, port-bounce) to NADs — failures mean the enforcement action didn't reach the device.",
+  "value": "When SOAR pushes a quarantine to ISE and ISE pushes a CoA to the NAD that fails, the endpoint *remains uncontained*. CoA failure detection is the closure validation for incident-response automation.",
+  "implementation": "Confirm *Authentication* category at INFO. Schedule every 5 min, search window `-15m@m to @m`, throttle suppression on `NAS-IP-Address` for 30 min.",
+  "visualization": "(1) Single value: CoA failures last 1h. (2) Top-N NADs by failure count. (3) Failure-class breakdown.",
+  "cimModels": [
+    "Change"
+  ],
+  "dataModelAcceleration": "Optional.",
+  "references": [
+    {
+      "title": "RFC 5176 — Dynamic Authorization Extensions to RADIUS",
+      "url": "https://datatracker.ietf.org/doc/rfc5176/"
+    },
+    {
+      "title": "Cisco ISE 3.4 — RADIUS CoA",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/m_authentication.html"
+    }
+  ],
+  "knownFalsePositives": "(a) **NAD reload** — During NAD reload, CoA pkts time out; suppress within scheduled change window. (b) **CoA shared-secret mismatch** — One-time misconfiguration; permanent failure on that NAD. Triage as config issue, not transient. (c) **Older NAD without CoA support** — Some legacy gear doesn't support CoA; tag and exclude.",
+  "mitreAttack": [
+    "T1499.004"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ise"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-06",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(b)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Art.21(2)(b) — incident handling enforcement closure.",
+      "controlObjective": "IR closure validation.",
+      "evidenceArtifact": "UC-17.1.56 alert log.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(b)",
+      "provenance": "maintainer",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "IR-4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "IR-4 — IR closure.",
+      "controlObjective": "Incident-response closure evidence for change-of-authorization workflows.",
+      "evidenceArtifact": "UC-17.1.56 alert log.",
+      "obligationRef": "nist-800-53@Rev. 5#IR-4",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.5.26",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "A.5.26 — IR response.",
+      "controlObjective": "IR response closure.",
+      "evidenceArtifact": "UC-17.1.56 alert log.",
+      "obligationRef": "iso-27001@2022#A.5.26",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Misconfigure CoA shared secret on a lab NAD. Apply ANC quarantine to an endpoint on that NAD. ISE emits 5419 (CoA failed) and the NAD emits %RADIUS-3-COA_NACK. UC-17.1.56 fires.",
+    "negativeScenario": "Fix the shared secret. Quarantine succeeds via 5417/5418. Alert clears."
+  },
+  "detailedImplementation": "Prerequisites\n• NAD configured with `aaa server radius dynamic-author` (and matching shared secret).\n• `nad_inventory.csv` with `nas_ip`, `coa_supported`.\n\nStep 1 — Configure data collection\nValidate event flow.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 5 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — CoA Health\":\n• Single value: failures last 1h.\n• Top-N NADs.\n• Failure-class.\n\nAlerting: PagerDuty medium on sustained CoA failure for one NAD.\n\nStep 5 — Troubleshooting\n• **Shared-secret mismatch** — Realign on NAD and ISE.\n• **NAS no response** — UDP/3799 (or 1700) blocked.\n• **CoA initiated but NAD doesn't enforce** — NAD has `aaa authorization network ... default group ...` not configured to honour CoA.",
+  "grandmaExplanation": "When ISE tells a switch 'kick this person off the network' via a special message, we make sure the switch actually heard the message and acted on it.",
+  "wave": "walk"
+}

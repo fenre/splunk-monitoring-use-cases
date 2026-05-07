@@ -4,8 +4,10 @@
   "title": "IPv6 Duplicate Address Detection (DAD) DoS Attack Detection",
   "criticality": "high",
   "difficulty": "intermediate",
-  "monitoringType": ["Security"],
-  "splunkPillar": "ES",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=zeek:conn` — Detects DAD (Duplicate Address Detection) DoS attacks where an attacker responds to every DAD probe with a Neighbour Advertisement, preventing legitimate hosts from configuring any IPv6 address (RFC 3756 §4.1.3). This effectively denies IPv6 service to all hosts on the segment.",
   "app": "Splunk Enterprise Security",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\" OR sourcetype=\"zeek:conn\") earliest=-24h\n  (\"DAD\" AND (\"fail\" OR \"duplicate\" OR \"conflict\" OR \"defend\"))\n| rex field=_raw \"(?:address|target)\\s*(?<dad_address>[0-9a-fA-F:]+)\"\n| rex field=_raw \"(?:src|source|from)\\s*(?<responder>[0-9a-fA-F:]+)\"\n| stats count as dad_failures dc(dad_address) as unique_addresses by host\n| eval severity=case(\n    unique_addresses > 10 AND dad_failures > 20, \"CRITICAL — DAD DoS attack: \" . unique_addresses . \" unique addresses failed DAD (\" . dad_failures . \" failures)\",\n    unique_addresses > 5, \"HIGH — multiple DAD failures — possible targeted attack\",\n    dad_failures > 5, \"MEDIUM — repeated DAD failures for same address — investigate\",\n    1=1, null())\n| where isnotnull(severity)\n| sort -dad_failures",
@@ -14,18 +16,39 @@
   "implementation": "Monitor DAD failure events. Alert when multiple unique addresses fail DAD on the same segment (pattern of attack vs genuine duplicate).",
   "visualization": "(1) Single-value: DAD failures (red if >5). (2) Table: failed addresses. (3) Timechart: DAD failure rate. (4) Correlation: responder address (attacker).",
   "references": [
-    {"title": "RFC 3756 — IPv6 Neighbor Discovery (ND) Trust Models and Threats (§4.1.3 — DAD DoS)", "url": "https://www.rfc-editor.org/rfc/rfc3756#section-4.1.3"},
-    {"title": "RFC 4862 — IPv6 Stateless Address Autoconfiguration (§5.4 — DAD)", "url": "https://www.rfc-editor.org/rfc/rfc4862#section-5.4"}
+    {
+      "title": "RFC 3756 — IPv6 Neighbor Discovery (ND) Trust Models and Threats (§4.1.3 — DAD DoS)",
+      "url": "https://www.rfc-editor.org/rfc/rfc3756#section-4.1.3"
+    },
+    {
+      "title": "RFC 4862 — IPv6 Stateless Address Autoconfiguration (§5.4 — DAD)",
+      "url": "https://www.rfc-editor.org/rfc/rfc4862#section-5.4"
+    }
   ],
   "knownFalsePositives": "**Genuine duplicates.** Legitimate address conflicts occur when two devices are statically assigned the same address. Single DAD failures are usually genuine; multiple failures across many addresses indicate an attack.\n\n**VM cloning.** Cloned VMs with identical configurations may trigger DAD failures. This is a configuration issue, not an attack.",
-  "equipment": ["cisco", "juniper", "zeek"],
-  "equipmentModels": ["cisco_catalyst_9000", "juniper_ex", "zeek_sensor"],
+  "equipment": [
+    "cisco",
+    "juniper",
+    "zeek"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9000",
+    "juniper_ex",
+    "zeek_sensor"
+  ],
   "status": "verified",
   "lastReviewed": "2026-05-03",
-  "splunkVersions": ["9.2+", "Cloud"],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• Switch/router NDP logging enabled.\n• Zeek sensor for passive NDP monitoring.\n\nStep 1 — Enable DAD event logging.\n\nStep 2 — Create monitoring searches for DAD failure patterns.\n\nStep 3 — Validate: Simulate DAD DoS with `ndsend` tool. Verify detection fires.\n\nStep 4 — Operationalize\n**Dashboard:** DAD health. **Alert:** >5 unique addresses failing DAD on same segment — critical.\n\nStep 5 — Troubleshooting\n• Identify attacker: The NA response to DAD probes contains the attacker's source MAC. Use switch port security to identify and isolate.\n• Mitigation: Enable SISF (Switch Integrated Security Features) with DAD Guard.",
   "grandmaExplanation": "Before a device can use its new IPv6 address, it checks if anyone else already has the same address. An attacker can pretend to have EVERY address, so no new device can ever get an address — like someone at a hotel reception saying 'that room is taken' for every room, leaving all guests locked out. We watch for this trick and catch the impostor.",
-  "prerequisiteUseCases": ["5.20.21", "5.20.28", "5.20.124"],
+  "prerequisiteUseCases": [
+    "UC-5.20.21",
+    "UC-5.20.28",
+    "UC-5.20.124"
+  ],
   "wave": "walk"
 }

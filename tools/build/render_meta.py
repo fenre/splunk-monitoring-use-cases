@@ -45,6 +45,7 @@ def render(catalog: Catalog, out_dir: Path, *, reproducible: bool = False) -> No
     _write_robots(out_dir)
     _write_pwa_manifest(out_dir)
     _write_security_txt(out_dir)
+    _write_well_known_ai_txt(out_dir)
     _write_atom_feed(catalog, out_dir, reproducible=reproducible)
     _write_sitemap(catalog, out_dir, reproducible=reproducible)
     _write_machine_manifest(catalog, out_dir, reproducible=reproducible)
@@ -114,6 +115,24 @@ def _write_security_txt(out_dir: Path) -> None:
         ),
         encoding="utf-8",
     )
+
+
+def _write_well_known_ai_txt(out_dir: Path) -> None:
+    """Mirror the root /ai.txt to /.well-known/ai.txt so AI crawlers that
+    follow the spawning.ai well-known convention find the same policy.
+
+    Source of truth is /ai.txt at the project root (committed to git).
+    If for any reason the source is missing we silently skip — the v7
+    static-file mirror would have already raised on the primary copy.
+    """
+    src = Path(__file__).resolve().parent.parent.parent / "ai.txt"
+    if not src.exists() or not src.is_file():
+        return
+    dst = out_dir / ".well-known" / "ai.txt"
+    if dst.exists():
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def _write_atom_feed(catalog: Catalog, out_dir: Path, *, reproducible: bool) -> None:
