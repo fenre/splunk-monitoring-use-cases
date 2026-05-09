@@ -1,0 +1,148 @@
+// Devcontainer for splunk-monitoring-use-cases.
+//
+// Repo-overhaul plan §P11 (2026-05-08): a one-shot environment that
+// matches CI exactly so contributors don't fight environment drift on
+// their first PR. Boots in Codespaces, Cursor, VS Code Dev Containers,
+// or any CNCF devcontainer-spec-compatible client.
+//
+// Tools provisioned (via Microsoft hardened base + devcontainer features):
+//
+//   * Python 3.12 — same minor as every CI workflow uses.
+//   * Node.js 20 — required by the Story-layer UI smoke tests
+//     (axe-core, jsdom, ajv) in scripts/ui-smoke/.
+//   * GitHub CLI — `gh` is used by the action-pin audit, link-check,
+//     and `make pr` shortcuts that contributors learn from CONTRIBUTING.md.
+//   * make, jq, curl — preinstalled by the Microsoft base image.
+//
+// The Python image is pinned to its OCI image-index digest so a
+// re-pull from MCR cannot silently substitute a different revision.
+// To upgrade: re-run
+//
+//     curl -sIf -H "Accept: application/vnd.oci.image.index.v1+json" \
+//       https://mcr.microsoft.com/v2/devcontainers/python/manifests/3.12 \
+//       | grep -i docker-content-digest
+//
+// and update the digest below, mentioning the new digest in CHANGELOG.md.
+//
+// The post-create command intentionally hands off to a Make target so
+// the install sequence has one source of truth. Adjust there, not here.
+{
+  "name": "splunk-monitoring-use-cases",
+
+  // Pin by index digest so this is reproducible across pulls.
+  // Tag: mcr.microsoft.com/devcontainers/python:3.12 (resolved 2026-05-08).
+  "image": "mcr.microsoft.com/devcontainers/python:3.12@sha256:8b1b15e9f03bf2f2707209f86431bf2e8c96f20268eacf4b82533113b8453abd",
+
+  // Standard devcontainer features. Pinned to the documented stable
+  // major-version tag; the underlying upstream maintainers commit to a
+  // semver contract on these and the Microsoft devcontainer-spec
+  // ecosystem treats `:1` as a stability promise. We do not chase
+  // sub-minor releases because the install scripts are short and
+  // auditable.
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  // Forward `make serve` (the static-server port) so previews work
+  // out of the box. Other ports (8080, 3000) are not used by the
+  // current pipeline; add them when the apps/web/ Vite dev server
+  // ships in P5.
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {
+      "label": "make serve",
+      "onAutoForward": "openPreview"
+    }
+  },
+
+  // VS Code-specific config. Cursor, Codespaces web, and VS Code Dev
+  // Containers all read this section.
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // Python core (interpreter, debugger, type stub navigation).
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+
+        // Linting + formatting + types — match the pyproject.toml
+        // tool config so the local editor surfaces the same errors
+        // the CI gate reports. Avoids "passes locally, fails in CI".
+        "charliermarsh.ruff",
+        "ms-python.mypy-type-checker",
+
+        // Repo polish: YAML schema awareness, EditorConfig, GitHub
+        // Actions syntax (actions on `uses:` resolve through the GH
+        // marketplace), pre-commit awareness.
+        "redhat.vscode-yaml",
+        "EditorConfig.EditorConfig",
+        "github.vscode-github-actions",
+
+        // Markdown — the catalog ships a lot of markdown sidecars and
+        // ADRs. The linter mirrors `markdownlint-cli` config in
+        // .pre-commit-config.yaml.
+        "DavidAnson.vscode-markdownlint",
+
+        // Spell-check on prose; weighted heavily by the rules in
+        // .cspell.json (if present). Does NOT lint code identifiers.
+        "streetsidesoftware.code-spell-checker"
+      ],
+      "settings": {
+        // Ruff is the canonical linter + formatter; disable the legacy
+        // black/isort wiring so it doesn't fight Ruff on save.
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+          }
+        },
+        // mypy: use the same settings as `make type-check` so editor
+        // squiggles match the CI gate.
+        "mypy-type-checker.importStrategy": "fromEnvironment",
+        "mypy-type-checker.preferDaemon": true,
+
+        "files.exclude": {
+          "**/__pycache__": true,
+          "**/.pytest_cache": true,
+          "**/.mypy_cache": true,
+          "**/.ruff_cache": true,
+          "**/dist": false,
+          "**/dist-content": true,
+          "**/dist-legacy": true
+        },
+        "search.exclude": {
+          "dist/**": true,
+          "dist-content/**": true,
+          "dist-legacy/**": true,
+          "node_modules/**": true,
+          "**/.venv/**": true,
+          "**/__pycache__/**": true
+        }
+      }
+    }
+  },
+
+  // Run the project's centralized devcontainer init — installs Python
+  // extras, hooks pre-commit, and warm-builds dist/. See Makefile.
+  // `--mount` order: pre-commit needs git config which is available
+  // from the host, so this runs after the workspace mount completes.
+  "postCreateCommand": "make devcontainer-init",
+
+  // Default user is `vscode` (uid 1000). Microsoft's base image
+  // already configures this with sudo so postCreateCommand can
+  // install system packages if a feature needs to.
+  "remoteUser": "vscode",
+
+  // Containers are ephemeral by default; this opt-in mount lets us
+  // persist `pip` cache across rebuilds so a `Rebuild Container` on
+  // a slow network is still fast. Bind to a named volume rather than
+  // a host path so the same volume works on macOS, Windows, and
+  // Codespaces alike.
+  "mounts": [
+    "source=splunk-uc-pip-cache,target=/home/vscode/.cache/pip,type=volume"
+  ]
+}

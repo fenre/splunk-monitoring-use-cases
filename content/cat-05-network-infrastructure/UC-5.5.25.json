@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.5.25",
+  "title": "Cato Networks SASE Event Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Security"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Cato Networks event stream (`sourcetype=cato:events`) ingested via the Cato Networks Events App (Splunkbase 8037), or pulled directly from the Cato Management Application API for organisations on the older API path. Key event types: `connectivity` (socket / PoP transitions), `security` (Cato firewall and IPS verdicts), `traffic` (bandwidth and application telemetry). Per-site identity is in `site_name` and `site_id`; the SASE PoP is in `pop_name`.",
+  "app": "Cato Networks Events App for Splunk (Splunkbase 8037)",
+  "spl": "index=sdwan sourcetype=\"cato:events\" event_type=\"connectivity\"\n| search socket_status=\"disconnected\" OR pop_status=\"degraded\"\n| stats count, latest(_time) as last_seen by site_name, socket_name, pop_name, socket_status\n| sort - count",
+  "description": "Tracks the health of Cato Sockets (the on-premise SD-WAN edge appliances) and the SASE PoPs they connect to. Aggregates disconnect and PoP-degraded events so single-site outages and platform-wide PoP issues both surface from the same query.",
+  "value": "Cato Networks pioneered the SASE category — collapsing SD-WAN, secure web gateway, ZTNA, and CASB into a single cloud-native fabric. For organisations that have committed to SASE as their primary WAN architecture, the Cato Management Application is the only canonical view of what is healthy and what is not. That is fine for the network team but inconvenient for the SOC, the help desk, and the executive view. Forwarding Cato connectivity events into Splunk gives every team that already uses Splunk a single place to ask: 'are we connected?', and 'is the security stack between us and the internet up?'.",
+  "implementation": "Install the Cato Networks Events App from Splunkbase. Configure the Cato Management Application API integration in the app's setup page (API key, account ID, polling interval). Alert on socket disconnect events and on PoP-degraded events that affect more than one site.",
+  "visualization": "Status grid (socket health per site, coloured by latest state), Table (recent disconnection events with last-seen timestamp), Line chart (connectivity trend over the past 24h, per PoP).",
+  "references": [
+    {
+      "title": "Cato Networks Events App for Splunk (Splunkbase app 8037)",
+      "url": "https://splunkbase.splunk.com/app/8037"
+    },
+    {
+      "title": "Cato Networks API documentation",
+      "url": "https://api.catonetworks.com/"
+    }
+  ],
+  "knownFalsePositives": "**Cato platform PoP-shift events.** Cato occasionally moves customer traffic between PoPs for capacity-balancing reasons. The change can read as `pop_status=degraded` in the source events even though end-user impact is zero. Pair with traffic-volume signal before paging.\n\n**Mobile / road-warrior socket flapping.** Single-user road-warrior devices (laptops on hotel Wi-Fi) flap connectivity all day. Filter alerts to enterprise sites only, identified by `site_id` against an inventory lookup.\n\n**Cato API rate limits.** When the Cato API returns 429 it can stall the polling app and look like a Cato outage. Treat repeated 429s as a polling-side problem, not a SASE outage; escalate to the platform team rather than the network team.",
+  "equipment": [
+    "cato"
+  ],
+  "equipmentModels": [
+    "cato_socket_x1500",
+    "cato_socket_x1600",
+    "cato_socket_x1700",
+    "cato_vsocket"
+  ],
+  "status": "community",
+  "wave": "crawl",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "grandmaExplanation": "We watch the cloud-based network service (Cato) that connects all of our offices to the internet. When an office's connection drops or the cloud gets slow, we see it within minutes and tell the team — long before users notice that the apps they need are not loading."
+}

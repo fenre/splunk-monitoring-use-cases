@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fenre/splunk-monitoring-use-cases/schemas/coverage-baseline.schema.json",
+  "title": "Coverage baseline",
+  "description": "Locked snapshot of per-file test coverage that audit_coverage_budget.py uses as the no-regression contract. One baseline per minor release, committed under data/baselines/coverage-vX.Y.Z.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "captured_at",
+    "git_head",
+    "totals",
+    "tier_1_modules",
+    "tier_2_modules",
+    "tier_3_exempt"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Repo-relative path to this schema file (for editor validation)."
+    },
+    "version": {
+      "type": "string",
+      "description": "Semver of the release this baseline was captured against. Mirrors VERSION at the time of capture.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-.+)?$|^unknown$"
+    },
+    "captured_at": {
+      "type": "string",
+      "description": "ISO-8601 UTC timestamp (e.g. ``2026-05-09T09:01:06Z``) at the moment audit_coverage_budget.py --print-baseline was run.",
+      "format": "date-time"
+    },
+    "git_head": {
+      "type": "string",
+      "description": "Full 40-char SHA of the HEAD commit when the baseline was captured. Lets reviewers replay the same coverage measurement against the same source.",
+      "pattern": "^[0-9a-f]{40}$|^unknown$"
+    },
+    "totals": {
+      "type": "object",
+      "description": "Repo-wide rollup. Used as a one-glance sanity check; the gate itself runs per-file.",
+      "additionalProperties": false,
+      "required": [
+        "covered_lines",
+        "num_statements",
+        "percent_covered",
+        "missing_lines"
+      ],
+      "properties": {
+        "covered_lines": { "type": "integer", "minimum": 0 },
+        "num_statements": { "type": "integer", "minimum": 0 },
+        "percent_covered": { "type": "number", "minimum": 0, "maximum": 100 },
+        "missing_lines": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "tier_1_modules": {
+      "type": "object",
+      "description": "tools/build/ — the build-pipeline core. Strictest ratchet; audit_coverage_budget.py fails CI on any per-file regression beyond tolerance.",
+      "additionalProperties": { "$ref": "#/$defs/per_file_record" }
+    },
+    "tier_2_modules": {
+      "type": "object",
+      "description": "scripts/audit_*.py + named additions (equipment_lib, build_es, build_ta, generate_recommender_app). Same ratchet rules as tier-1 but a lower new-file floor.",
+      "additionalProperties": { "$ref": "#/$defs/per_file_record" }
+    },
+    "tier_3_exempt": {
+      "type": "array",
+      "description": "Files under scripts/ that are intentionally untested (one-shot uplift / migration / ingest helpers). Listed for transparency; not measured.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][\\w./-]+\\.py$"
+      },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "per_file_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "covered_lines",
+        "num_statements",
+        "percent_covered",
+        "missing_lines"
+      ],
+      "properties": {
+        "covered_lines": { "type": "integer", "minimum": 0 },
+        "num_statements": { "type": "integer", "minimum": 0 },
+        "percent_covered": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Percent of statements covered. Rounded to 2 decimals at capture time so baseline diffs stay readable."
+        },
+        "missing_lines": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

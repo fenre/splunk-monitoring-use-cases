@@ -50,7 +50,7 @@ make manifest         # Regenerate eventgen manifest
 | `generate_api_surface.py` | API payloads | Full API surface generation |
 | `generate_scorecard.py` | scorecard report | Quality scorecard markdown |
 | `generate_equipment_tags.py` | equipment tags | Equipment tag generation |
-| `generate_splunk_app.py` | Splunk app | Splunk app packaging |
+| `generate_recommender_app.py` | Splunk app | Generates the unified `splunk-uc-recommender` app (single artefact since v9.0) |
 | `build_es.py` | ES conf | Enterprise Security app conf |
 | `build_ta.py` | TA conf | Technology Add-on conf |
 | `build_provenance.py` | provenance ledger | Per-UC source provenance |

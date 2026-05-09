@@ -1,0 +1,54 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.1.68",
+  "title": "BFD Session State for IGP Fast Failure Detection",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Cisco IOS / IOS-XE / IOS-XR (`sourcetype=cisco:ios`) and Juniper Junos (`sourcetype=junos:syslog`) BFD syslog. Key mnemonics: `%BFD-6-BFD_SESS_DOWN` on Cisco, `BFD_STATE_CHANGE` on Junos. Each event identifies the BFD-paired neighbour and the state transition (UP / DOWN / ADMINDOWN).",
+  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352), Splunk Add-on for Juniper (`Splunk_TA_juniper`, Splunkbase 2847)",
+  "spl": "index=network (sourcetype=\"cisco:ios\" \"%BFD-6-BFD_SESS_DOWN\") OR (sourcetype=\"junos:syslog\" \"BFD_STATE_CHANGE\")\n| rex \"neighbor (?<bfd_peer>\\S+).*(?<bfd_state>UP|DOWN|ADMINDOWN)\"\n| stats count by host, bfd_peer, bfd_state\n| where bfd_state=\"DOWN\"\n| sort - count",
+  "description": "Surfaces Bidirectional Forwarding Detection (BFD) session-down events across the routed network. BFD is the sub-second failure-detection mechanism that runs alongside IGP (OSPF / IS-IS / EIGRP) and BGP — when a BFD session drops, the routing protocol gets to react faster than its own hello timers can.",
+  "value": "BFD is invisible until it fails — that is its job. The whole point of BFD is to detect a forwarding-path failure in 50–300 ms, faster than any routing-protocol hello timer can. When BFD itself is the thing failing, the IGP and BGP fall back to their own hello timers and convergence slows from sub-second to tens of seconds, which is plenty of time for VoIP calls to drop and TCP sessions to time out. Catching BFD session drops in Splunk is therefore the canonical monitoring pattern for fast-converging networks: BFD flapping more than three times in five minutes warrants immediate investigation of optics or cabling because the path that BFD is supposed to be keeping fast is in fact the slow path right now.",
+  "implementation": "Enable BFD for every IGP / BGP peer on core and distribution routers. Forward BFD syslog at severity 6 or lower to Splunk. Alert on BFD session DOWN events; correlate with IGP adjacency changes and interface status to distinguish BFD-only failures from underlying link failures. BFD flapping (more than three transitions in five minutes) warrants immediate optics / cabling investigation — see UC-5.1.6 (interface error counters).",
+  "visualization": "Status grid (BFD session state per peer pair, coloured by latest state), Table (down sessions sorted by event count), Timeline (state changes over time, useful for spotting concurrent flap events).",
+  "references": [
+    {
+      "title": "RFC 5880 — Bidirectional Forwarding Detection",
+      "url": "https://www.rfc-editor.org/rfc/rfc5880"
+    },
+    {
+      "title": "Cisco BFD Configuration Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_bfd/configuration/15-mt/irb-15-mt-book.html"
+    }
+  ],
+  "knownFalsePositives": "**Optics replacement window.** When an SFP / QSFP is being swapped, BFD will flap during the cable / module insertion. Suppress alerts during announced optics-swap windows.\n\n**ECMP load-balancing across asymmetric paths.** Some platforms run BFD per-path on ECMP bundles; one path failing while the other stays UP looks like a BFD flap but the data plane continues to forward fine. Treat repeated single-path drops as a transport-layer alarm rather than a network-wide one.\n\n**BFD-over-LAG state machine quirks.** A few platforms had software bugs where the BFD-over-LAG state machine would mis-report DOWN on rapid LACP renegotiation. Where this is known, suppress for known-buggy code and prioritise the upgrade.",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9300",
+    "cisco_catalyst_9500",
+    "cisco_asr_1000",
+    "cisco_asr_9000",
+    "cisco_isr_4000",
+    "cisco_ncs_540",
+    "cisco_ncs_5500",
+    "juniper_mx_204",
+    "juniper_mx_304",
+    "juniper_mx_480",
+    "juniper_ex_4300",
+    "juniper_ex_4600",
+    "juniper_qfx_5120"
+  ],
+  "status": "community",
+  "wave": "walk",
+  "cimModels": [],
+  "grandmaExplanation": "We watch the heartbeat that runs between routers — if either side stops hearing the heartbeat, traffic immediately reroutes through a different path. When the heartbeat itself fails, the rerouting becomes much slower and users lose voice calls or stalled web pages. We alert when a heartbeat drops so the team can fix the underlying cable or transceiver before traffic actually breaks."
+}

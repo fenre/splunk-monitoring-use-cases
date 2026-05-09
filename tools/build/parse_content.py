@@ -4,24 +4,20 @@ This module owns the **read** side of the build. Every subsequent
 ``render_*`` module consumes a single ``Catalog`` object so they can run
 in parallel CI jobs without re-reading the filesystem.
 
-Two loaders coexist here, selected by the ``SPLUNK_UC_LOADER`` env var:
+The single loader walks ``content/cat-NN-slug/UC-X.Y.Z.json`` — the
+per-UC canonical files emitted by ``migrate_to_per_uc.py`` and validated
+against ``schemas/uc.schema.json``. JSON keys are converted back to the
+v6 short-key form on the way out so downstream renderers (``render_api``,
+``render_html``, ``templates/uc.py`` …) keep working without knowing the
+on-disk shape changed.
 
-* ``content`` (default, v7+): walks ``content/cat-NN-slug/UC-X.Y.Z.json`` —
-  the per-UC canonical files emitted by ``migrate_to_per_uc.py`` and
-  validated against ``schemas/uc.schema.json``. JSON keys are converted
-  back to the v6 short-key form on the way out so downstream renderers
-  (``render_api``, ``render_html``, ``templates/uc.py`` …) keep working
-  without knowing the on-disk shape changed.
-
-* ``legacy`` (opt-in fallback): delegates to
-  ``build.parse_category_file`` + ``build.parse_index_metadata`` —
-  the v6 monolithic markdown parser. Useful while the migration is in
-  flight; will be removed after ``cleanup-and-docs``.
-
-Both loaders run the same legacy post-processor block (``escu``,
-``escu_rba``, ``e``, ``em``, ``sapp``, ``ta_link``, ``pillar``,
-``premium``, ``regs``) so every renderer sees byte-identical UC dicts
-regardless of which loader produced them.
+Repo-overhaul plan §P1 step 5a (2026-05-08): the legacy
+``SPLUNK_UC_LOADER=legacy`` markdown loader was deleted. It survived
+through P1 step 1–4 only as a parity reference and was never the
+default; nothing in CI invoked it. The repository-root ``build.py``
+remains until P1 step 7 closes the cimModels backfill and the
+project-root ``catalog.json`` / ``data.js`` / ``llms*.txt`` stop being
+authoritative — at which point P1 step 5b deletes ``build.py`` itself.
 
 The Catalog object is intentionally minimal — it carries the same shape
 the v6 site uses (see docs/catalog-schema.md):
@@ -33,19 +29,32 @@ the v6 site uses (see docs/catalog-schema.md):
 * ``equipment``   list of equipment definitions
 * ``regulations`` regulation_id -> regulation dict (loaded from data/regulations.json)
 * ``recently_added`` list of UC IDs added since the previous catalog
-* ``files``       list of source markdown filenames (legacy)
+* ``files``       list of source markdown filenames (legacy; empty post P1 step 5a)
 """
 
 from __future__ import annotations
 
-import glob
 import json
 import os
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterator, Optional, Tuple
+
+# Repo-overhaul plan §P1 step 1: ``tools.build.enrichment`` is the canonical
+# source for EQUIPMENT, CAT_GROUPS, SPLUNK_APPS, and every helper this loader
+# post-processes UCs with. Until ``build.py`` is deleted (P1 step 5), the
+# parity test in ``tests/build/test_enrichment_parity.py`` blocks any drift
+# between the two modules.
+from build import enrichment as _enrichment
+from build.types import (
+    CatalogCategory,
+    CatalogSubcategory,
+    CatalogUC,
+    CategoryMeta,
+    RegulationFramework,
+)
 
 try:
     import jsonschema
@@ -108,32 +117,51 @@ def _validate_uc_json(
 
 _LOADER_ENV = "SPLUNK_UC_LOADER"
 _LOADER_CONTENT = "content"
-_LOADER_LEGACY = "legacy"
+_LOADER_LEGACY = "legacy"  # retained for legacy CI scripts; behaves identically.
 _LOADER_DEFAULT = _LOADER_CONTENT
 
 
 def _resolve_loader_kind() -> str:
-    """Return ``"content"`` or ``"legacy"`` based on ``SPLUNK_UC_LOADER``.
+    """Always return ``"content"``.
 
-    Unknown values fall back to the default loader so a typo in CI
-    doesn't silently swap the build to a stale code path.
+    Repo-overhaul plan §P1 step 5a (2026-05-08) removed the
+    markdown-corpus loader. The function and the ``SPLUNK_UC_LOADER``
+    env var are kept for backward compatibility — any value (or none)
+    resolves to the JSON-corpus loader. A non-default value emits a
+    one-line stderr deprecation notice so legacy CI invocations show up
+    in the logs.
     """
     raw = (os.environ.get(_LOADER_ENV) or "").strip().lower()
-    if raw in (_LOADER_CONTENT, _LOADER_LEGACY):
-        return raw
+    if raw and raw != _LOADER_CONTENT:
+        print(
+            f"WARNING: SPLUNK_UC_LOADER={raw!r} is deprecated; the JSON "
+            "corpus loader is the only supported backend. Continuing with "
+            "the JSON loader. Unset the env var to silence this warning.",
+            file=sys.stderr,
+        )
     return _LOADER_DEFAULT
 
 
 @dataclass
 class Catalog:
-    """In-memory snapshot of every data source the renderers consume."""
+    """In-memory snapshot of every data source the renderers consume.
+
+    Field types use the wire-format TypedDicts from ``build.types`` so
+    every render_* consumer gets autocomplete + mypy field-access
+    checking. Equipment is the lone exception: ``EquipmentEntry``
+    cannot accurately model the ``models`` field today (it nests
+    full equipment-shaped dicts, not strings) and the loose
+    ``list[dict[str, Any]]`` annotation is preserved so the build
+    keeps round-tripping. Tightening that is tracked under the P4
+    consumer-migration burndown.
+    """
 
     project_root: Path
-    categories: list[dict[str, Any]] = field(default_factory=list)
-    cat_meta: dict[str, dict[str, Any]] = field(default_factory=dict)
+    categories: list[CatalogCategory] = field(default_factory=list)
+    cat_meta: dict[str, CategoryMeta] = field(default_factory=dict)
     cat_groups: dict[str, list[int]] = field(default_factory=dict)
     equipment: list[dict[str, Any]] = field(default_factory=list)
-    regulations: dict[str, dict[str, Any]] = field(default_factory=dict)
+    regulations: dict[str, RegulationFramework] = field(default_factory=dict)
     recently_added: list[str] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
     facets: dict[str, Any] = field(default_factory=dict)
@@ -151,13 +179,24 @@ class Catalog:
             for sub in cat.get("s", [])
         )
 
-    def iter_ucs(self):
+    def iter_ucs(
+        self,
+    ) -> Iterator[Tuple[CatalogCategory, CatalogSubcategory, CatalogUC]]:
+        """Iterate every (cat, sub, uc) triple in declared order.
+
+        Returns the wire-format TypedDicts (``CatalogCategory`` /
+        ``CatalogSubcategory`` / ``CatalogUC``) so render_* consumers
+        get autocomplete + mypy field-access checking without having to
+        import the types themselves. The runtime objects are still
+        plain dicts (TypedDict is purely a static-typing construct);
+        nothing in render_* knows or cares.
+        """
         for cat in self.categories:
             for sub in cat.get("s", []):
                 for uc in sub.get("u", []):
-                    yield cat, sub, uc
+                    yield cat, sub, uc  # type: ignore[misc]
 
-    def uc_by_id(self, uc_id: str) -> Optional[dict[str, Any]]:
+    def uc_by_id(self, uc_id: str) -> Optional[CatalogUC]:
         for _cat, _sub, uc in self.iter_ucs():
             if uc.get("i") == uc_id:
                 return uc
@@ -183,62 +222,20 @@ def load(project_root: Path, *, reproducible: bool = False) -> Catalog:
 
 
 # ---------------------------------------------------------------------------
-# Legacy module loader (shared by both loader paths)
-# ---------------------------------------------------------------------------
-
-_LEGACY = None
-
-
-def _legacy_module():
-    """Import the v6 build.py as a callable module.
-
-    We load it by absolute path with importlib so the import does not
-    collide with the new ``tools.build`` package (which shadows the
-    bare ``build`` name on sys.path). We also cache the imported module
-    so repeated calls don't re-exec 3 366 lines of legacy code.
-    """
-    global _LEGACY
-    if _LEGACY is not None:
-        return _LEGACY
-    import importlib.util
-
-    legacy_path = Path(__file__).resolve().parent.parent.parent / "build.py"
-    spec = importlib.util.spec_from_file_location("_legacy_build", legacy_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"could not load legacy build.py from {legacy_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["_legacy_build"] = module
-    spec.loader.exec_module(module)
-    _LEGACY = module
-    return module
-
-
-# ---------------------------------------------------------------------------
 # Category loaders
 # ---------------------------------------------------------------------------
 
 def _load_categories(cat: Catalog, project_root: Path, *, reproducible: bool) -> None:
-    """Dispatch to the configured loader and populate ``cat.categories``."""
-    if cat.loader == _LOADER_CONTENT:
-        _load_categories_from_content(cat, project_root, reproducible=reproducible)
-    else:
-        _load_categories_from_legacy(cat, project_root, reproducible=reproducible)
+    """Walk ``content/`` and populate ``cat.categories``.
 
-
-def _load_categories_from_legacy(
-    cat: Catalog, project_root: Path, *, reproducible: bool
-) -> None:
-    legacy = _legacy_module()
-    pattern = str(project_root / "use-cases" / "cat-[0-9]*.md")
-    files = sorted(glob.glob(pattern))
-    cat.files = [Path(f).name for f in files]
-    for filepath in files:
-        record = legacy.parse_category_file(filepath)
-        if "i" not in record:
-            continue
-        cat.categories.append(record)
-    if reproducible:
-        cat.categories.sort(key=lambda c: c["i"])
+    Repo-overhaul plan §P1 step 5a (2026-05-08): only the JSON-corpus
+    loader survives. The previous markdown-corpus loader was a parity
+    aid for the v6 → v7 migration and was never the default; it has
+    been removed now that the parity tests in
+    ``tests/build/test_enrichment_parity.py`` validate the SSOT
+    independently.
+    """
+    _load_categories_from_content(cat, project_root, reproducible=reproducible)
 
 
 def _load_categories_from_content(
@@ -263,7 +260,11 @@ def _load_categories_from_content(
         # Defensive: never explode in CI when the migration hasn't run.
         return
     cat_dirs = sorted(d for d in content_dir.iterdir() if d.is_dir())
-    legacy = _legacy_module()
+    # Post-processor source: enrichment is the SSOT (P1 step 1). We still
+    # mutate UC_DIR so ``_load_sidecar_equipment_cache`` (which reads
+    # equipment sidecars from ``use-cases/`` as a fallback) sees the right
+    # path under test fixtures with a moved project root.
+    legacy = _enrichment
     legacy.UC_DIR = str(project_root / "use-cases")  # equipment sidecars still live there until cleanup
     cat.files = []
     for cat_dir in cat_dirs:
@@ -359,10 +360,15 @@ def _load_categories_from_content(
         # Compute quality scores and inject into UC + subcategory dicts.
         _inject_quality_scores(record)
 
-        cat.categories.append(record)
+        # Cast: ``record`` is built from the CatalogCategory wire shape
+        # (i, n, s) plus auxiliary fields the post-processor adds. The
+        # TypedDict can't express the dynamically-extended shape, but
+        # it's structurally compatible — every key with a known
+        # CatalogCategory annotation has the right type at runtime.
+        cat.categories.append(record)  # type: ignore[arg-type]
 
     if reproducible:
-        cat.categories.sort(key=lambda c: c["i"])
+        cat.categories.sort(key=lambda c: c.get("i", 0))
 
 
 # ---------------------------------------------------------------------------
@@ -872,9 +878,9 @@ def _load_cat_meta(cat: Catalog, project_root: Path) -> None:
     if cat.loader == _LOADER_CONTENT:
         _load_cat_meta_from_content(cat, project_root)
     else:
-        legacy = _legacy_module()
-        legacy.UC_DIR = str(project_root / "use-cases")
-        cat_meta, _starters = legacy.parse_index_metadata()
+        # Legacy path uses the SSOT enrichment module (P1 step 1).
+        _enrichment.UC_DIR = str(project_root / "use-cases")
+        cat_meta, _starters = _enrichment.parse_index_metadata()
         cat.cat_meta = cat_meta
 
 
@@ -889,7 +895,7 @@ def _load_cat_meta_from_content(cat: Catalog, project_root: Path) -> None:
     content_dir = project_root / "content"
     if not content_dir.exists():
         return
-    out: dict[str, dict[str, Any]] = {}
+    out: dict[str, CategoryMeta] = {}
     for cat_dir in sorted(content_dir.iterdir()):
         if not cat_dir.is_dir():
             continue
@@ -904,7 +910,7 @@ def _load_cat_meta_from_content(cat: Catalog, project_root: Path) -> None:
         cid = meta.get("id")
         if cid is None:
             continue
-        entry: dict[str, Any] = {"icon": "", "desc": ""}
+        entry: CategoryMeta = {"icon": "", "desc": ""}
         if meta.get("icon"):
             entry["icon"] = meta["icon"]
         if meta.get("description"):
@@ -916,13 +922,13 @@ def _load_cat_meta_from_content(cat: Catalog, project_root: Path) -> None:
 
 
 def _load_cat_groups(cat: Catalog) -> None:
-    legacy = _legacy_module()
-    cat.cat_groups = legacy.CAT_GROUPS
+    """Read CAT_GROUPS from the canonical enrichment module (P1 step 1)."""
+    cat.cat_groups = _enrichment.CAT_GROUPS
 
 
 def _load_equipment(cat: Catalog) -> None:
-    legacy = _legacy_module()
-    cat.equipment = legacy.EQUIPMENT
+    """Read EQUIPMENT from the canonical enrichment module (P1 step 1)."""
+    cat.equipment = _enrichment.EQUIPMENT
 
 
 def _load_regulations(cat: Catalog, project_root: Path) -> None:
@@ -950,7 +956,9 @@ def _load_regulations(cat: Catalog, project_root: Path) -> None:
         reg_id = reg.get("id") or reg.get("shortName") or reg.get("name")
         if not reg_id:
             continue
-        cat.regulations[str(reg_id)] = reg
+        # Cast: data/regulations.json is validated against the RegulationFramework
+        # shape by audit_compliance_mappings.py at CI time; see types.py.
+        cat.regulations[str(reg_id)] = reg  # type: ignore[assignment]
 
 
 def _load_recently_added(cat: Catalog, project_root: Path) -> None:
@@ -965,9 +973,9 @@ def _load_recently_added(cat: Catalog, project_root: Path) -> None:
 
 
 def _load_facets(cat: Catalog) -> None:
-    legacy = _legacy_module()
-    if hasattr(legacy, "extract_filter_facets"):
-        cat.facets = legacy.extract_filter_facets(cat.categories)
+    """Build filter facets from the canonical enrichment helper (P1 step 1)."""
+    if hasattr(_enrichment, "extract_filter_facets"):
+        cat.facets = _enrichment.extract_filter_facets(cat.categories)
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,94 @@
+name: CodeQL
+
+# Repo-overhaul plan §P2 (2026-05-08): supplements pre-commit's
+# ``ruff`` + ``gitleaks`` with GitHub's native static analysis for
+# both Python and JavaScript. Findings surface in the Security tab
+# and as PR review comments.
+#
+# Coverage:
+#   - Python: tools/build/, scripts/, mcp/src/, tests/
+#   - JavaScript: src/scripts/, public/, *.js at the project root
+#
+# Excluded (.github/codeql/codeql-config.yml):
+#   - Generated artefacts (data.js, dist/, samples/, sample-data/)
+#   - Vendored upstream code (vendor/)
+#   - The legacy use-cases/ markdown tree
+#
+# Schedule:
+#   - On every PR to main (catches new issues at PR time)
+#   - On every push to main (catches issues that bypass PRs)
+#   - Weekly cron (catches issues from upgraded analyzers)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/*.py"
+      - "**/*.js"
+      - "**/*.mjs"
+      - "**/*.ts"
+      - ".github/workflows/codeql.yml"
+      - ".github/codeql/**"
+  schedule:
+    # Mondays at 06:17 UTC — off-peak, gives weekend signal a Monday-AM review window.
+    - cron: '17 6 * * 1'
+
+permissions:
+  # CodeQL needs to read the repo + write security results, nothing else.
+  contents: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # ``python`` and ``javascript`` are CodeQL's language identifiers
+        # — see https://aka.ms/codeql-docs/language-support
+        language: [python, javascript]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@7fd177fa680c9881b53cdab4d346d32574c9f7f4 # v3.35.4
+        with:
+          languages: ${{ matrix.language }}
+          config-file: ./.github/codeql/codeql-config.yml
+          # security-and-quality > security-extended > security-only.
+          # We accept the slightly noisier signal in exchange for catching
+          # quality issues (unused imports, dead code) that often hide bugs.
+          queries: security-and-quality
+
+      - name: Set up Python and install deps (Python target only)
+        if: matrix.language == 'python'
+        # Repo-overhaul plan §P2 (2026-05-08): centralised in the
+        # composite action so toolchain + extras stay in lockstep
+        # with the rest of CI.  Installs the same extras the audits
+        # + tests use so CodeQL sees the same call-graph that runs
+        # in validate.yml.
+        uses: ./.github/actions/setup-python
+        with:
+          install-extras: "audits,build,test"
+
+      - name: Autobuild
+        # JavaScript has no build step here; Python autobuild is a no-op
+        # given pip-installed deps. Kept for symmetry across matrix legs.
+        uses: github/codeql-action/autobuild@7fd177fa680c9881b53cdab4d346d32574c9f7f4 # v3.35.4
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@7fd177fa680c9881b53cdab4d346d32574c9f7f4 # v3.35.4
+        with:
+          category: "/language:${{ matrix.language }}"

@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fenre/splunk-monitoring-use-cases/schemas/license-inventory.schema.json",
+  "title": "License inventory",
+  "description": "Committed snapshot of every third-party Python dependency and every vendored LICENSE file in the repo, with the SPDX identifier each carries. audit_license_inventory.py rebuilds this snapshot from importlib.metadata + the working tree and fails CI if it drifts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "captured_at",
+    "git_head",
+    "repo_license",
+    "allowlist",
+    "python_packages",
+    "vendored_licenses"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Repo-relative path to this schema file (for editor validation)."
+    },
+    "version": {
+      "type": "string",
+      "description": "Semver of the release this inventory was captured against. Mirrors VERSION at the time of capture.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-.+)?$|^unknown$"
+    },
+    "captured_at": {
+      "type": "string",
+      "description": "ISO-8601 UTC timestamp at the moment audit_license_inventory.py --write was last run.",
+      "format": "date-time"
+    },
+    "git_head": {
+      "type": "string",
+      "description": "Full 40-char SHA of the HEAD commit when the inventory was captured. Reviewers can replay the same enumeration against the same source.",
+      "pattern": "^[0-9a-f]{40}$|^unknown$"
+    },
+    "repo_license": {
+      "type": "object",
+      "description": "License the repository itself ships under. Pulled from the top-level LICENSE file + pyproject.toml's [project].license declaration.",
+      "additionalProperties": false,
+      "required": ["spdx", "file"],
+      "properties": {
+        "spdx": {
+          "type": "string",
+          "description": "SPDX identifier (e.g. MIT, Apache-2.0)."
+        },
+        "file": {
+          "type": "string",
+          "description": "Repo-relative path to the LICENSE file the SPDX was inferred from."
+        }
+      }
+    },
+    "allowlist": {
+      "type": "array",
+      "description": "Sorted list of SPDX identifiers that audit_license_inventory.py treats as compatible with this repo's MIT licence. Anything outside this list fails CI; broadening the list requires legal sign-off in the same PR.",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "minItems": 1
+    },
+    "python_packages": {
+      "type": "array",
+      "description": "Every Python distribution declared in pyproject.toml ([project].dependencies + every optional-dependencies extra) for the root package and the MCP package, in sorted order. The same package appearing in both projects is reported once with both consumers listed.",
+      "items": { "$ref": "#/$defs/python_package" }
+    },
+    "vendored_licenses": {
+      "type": "array",
+      "description": "Every LICENSE-style file the repo ships outside the top-level LICENSE. Catches third-party content vendored into splunk-apps/, templates/, or wherever else upstream code lives in-tree.",
+      "items": { "$ref": "#/$defs/vendored_license" }
+    }
+  },
+  "$defs": {
+    "python_package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "spdx", "consumers", "extras"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Distribution name as it appears on PyPI (lowercase, hyphenated)."
+        },
+        "spdx": {
+          "type": "string",
+          "description": "Best-effort SPDX identifier extracted from the dist-info metadata. Resolution order: License-Expression -> License (parsed against an SPDX alias table) -> Trove classifier (License :: OSI Approved :: ...) -> the literal string \"UNKNOWN\" if every probe fails."
+        },
+        "license_source": {
+          "type": "string",
+          "description": "Which metadata field the SPDX was extracted from. One of: license-expression, license, classifier, unknown.",
+          "enum": ["license-expression", "license", "classifier", "unknown"]
+        },
+        "consumers": {
+          "type": "array",
+          "description": "Which of the repo's pyproject.toml files declare this dependency. Sorted; duplicates collapsed.",
+          "items": {
+            "type": "string",
+            "enum": ["splunk-uc", "splunk-uc-mcp"]
+          },
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "extras": {
+          "type": "array",
+          "description": "Which dependency group each consumer pulls this package through. Sorted; duplicates collapsed. Example: [\"audits\", \"test\"] means the package is in both extras for at least one consumer.",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "version_constraint": {
+          "type": "string",
+          "description": "Lower-bound version constraint as declared in pyproject.toml (PEP 440 specifier, e.g. \">=4.21\"). Empty if no constraint was declared."
+        }
+      }
+    },
+    "vendored_license": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "spdx", "subject"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Repo-relative path to the LICENSE file."
+        },
+        "spdx": {
+          "type": "string",
+          "description": "SPDX identifier inferred from the file header (e.g. MIT, Apache-2.0)."
+        },
+        "subject": {
+          "type": "string",
+          "description": "Short human-readable description of what code/content the LICENSE covers (e.g. \"splunk-uc-recommender Splunk app vendored verbatim\")."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,84 @@
+# gitleaks config
+#
+# Repo-overhaul plan §P0 hygiene + §P2 security CI (2026-05-08).
+#
+# This catalog is content-only and intentionally ships sample SPL,
+# placeholder API tokens in templates, lab IPs, and Splunkbase IDs
+# that resemble secrets. The default gitleaks rules light up on these
+# false positives, so we narrow the rule set + allowlist the safe
+# patterns below.
+#
+# Adding new exclusions:
+#   1. Run ``gitleaks detect --config .gitleaks.toml`` locally and
+#      confirm the finding is genuinely a false positive.
+#   2. Prefer ``allowlists.paths`` (path-scoped) over ``allowlists.regexes``
+#      (global). Path-scoped is safer because it can't accidentally hide
+#      a real secret elsewhere.
+#   3. Note the rationale next to the entry so future maintainers
+#      understand the trade-off.
+
+title = "splunk-monitoring-use-cases gitleaks config"
+
+# Use the upstream default ruleset as a base. We extend, never replace,
+# to pick up new rules as gitleaks releases land.
+[extend]
+useDefault = true
+
+# ---------------------------------------------------------------------------
+# Allowlists — paths and regexes that are safe by construction.
+# ---------------------------------------------------------------------------
+
+[[allowlists]]
+description = "Lab/sample IPs and tokens in fixture/example content"
+paths = [
+    # Use cases legitimately reference RFC 1918 lab IPs and ``hash``-prefixed
+    # placeholder tokens in their SPL. The catalog is published as-is.
+    '''^content/cat-.+/UC-.+\.(json|md)$''',
+    '''^use-cases/cat-.+\.md$''',
+    '''^samples/.*''',
+    '''^sample-data/.*''',
+    '''^templates/.*''',
+
+    # API + dist artefacts are generated from the JSON SSOT and inherit
+    # the same fixture-grade strings.
+    '''^api/.+\.json$''',
+    '''^catalog\.json$''',
+    '''^llms.*\.txt$''',
+    '''^data\.js$''',
+
+    # Tests purposely embed dummy tokens to exercise validators.
+    '''^tests/.*''',
+    '''^mcp/tests/.*''',
+
+    # Docs walk readers through redacted examples; they're not real
+    # credentials, but gitleaks rules don't know that.
+    '''^docs/.*\.md$''',
+    '''^.*\.md$''',
+]
+
+[[allowlists]]
+description = "Public Splunkbase numeric IDs (4–6 digit slugs)"
+# Pattern: ``Splunkbase 1928`` / ``app/1928`` / ``splunkbase.splunk.com/app/1928``.
+# These are not secrets — they're the public ID of a Splunkbase entry.
+regexTarget = "match"
+regexes = [
+    '''(?i)splunkbase[\/\s]+\d{2,6}\b''',
+    '''(?i)app/\d{2,6}\b''',
+    '''splunkbase\.splunk\.com/app/\d+''',
+]
+
+[[allowlists]]
+description = "Generic Splunk macros and tokens that resemble secrets"
+regexTarget = "match"
+regexes = [
+    # `summariesonly` and other Splunk SPL identifiers
+    '''`summariesonly`''',
+    '''\$\{?token\}?''',                     # template tokens like ${token} or $token
+    '''xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx''', # documented placeholder
+]
+
+# ---------------------------------------------------------------------------
+# Rule overrides — defaults are preserved unless explicitly tuned below.
+# ---------------------------------------------------------------------------
+# Currently no rule overrides. Add them here only with a written
+# rationale and link to the related GitHub issue or PR.

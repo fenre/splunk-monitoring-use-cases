@@ -32,6 +32,8 @@ against a live Splunk instance.
 | **AI usage policy** | [`ai.txt`](ai.txt) (also at `/.well-known/ai.txt`) — license, attribution preference, accuracy guidance |
 | **Changelog** | [`CHANGELOG.md`](CHANGELOG.md) — Keep a Changelog format |
 | **Version** | [`VERSION`](VERSION) — single source of truth for the release number |
+| **Catalogue health snapshot** | `dist/metrics.json` (generated, schema [`schemas/v2/metrics.schema.json`](schemas/v2/metrics.schema.json)) — top-line counts, quality-tier rollups, depth percentiles, coverage, and Top-N leaderboards. Trend-friendly across releases via [`data/metrics-history/`](data/metrics-history/). |
+| **Build telemetry** | `dist/build-telemetry.json` (generated only on non-reproducible builds, schema [`schemas/v2/build-telemetry.schema.json`](schemas/v2/build-telemetry.schema.json)) — per-stage wall-clock duration for the build pipeline. |
 
 ## Content layout
 
@@ -131,6 +133,10 @@ All audits are in `.github/workflows/validate.yml`. Key steps:
 - SPL hallucination audit (unknown commands, invalid eval functions)
 - Build freshness (regenerate and diff)
 - Version triple consistency (`VERSION` ↔ `CHANGELOG.md` ↔ `index.html`)
+- Roadmap consistency (`scripts/audit_roadmap_consistency.py --check`)
+- License inventory (`scripts/audit_license_inventory.py --check`)
+- Metrics history snapshot (`scripts/snapshot_metrics.py --check` — fails when `VERSION` is bumped without a matching `data/metrics-history/<VERSION>.json`)
+- Metrics shape (`dist/metrics.json` validates against `schemas/v2/metrics.schema.json` on every reproducible build)
 
 ## Quick commands
 
@@ -139,6 +145,12 @@ make build                                          # rebuild full site into dis
 make audit                                          # run core audit checks
 make audit-full                                     # run ALL audit checks
 make test                                           # unit tests + build validation
+make audit-roadmap                                  # validate ROADMAP.md structure + links
+make export-roadmap                                 # emit Project-board JSON snapshot
+make audit-license-inventory                        # validate dependency licenses against allowlist
+make write-license-inventory                        # regenerate data/license-inventory.json baseline
+make audit-metrics-snapshot                         # ensure release-time metrics snapshot exists
+make snapshot-metrics                               # write data/metrics-history/<VERSION>.json from dist/metrics.json
 python3 scripts/generate_grandma_explanations.py    # fill missing plain-language fields
 python3 scripts/splunk_fortune.py                   # random UC "fortune cookie"
 python3 scripts/audit_prerequisites.py --check      # validate implementation ordering
@@ -152,3 +164,6 @@ python3 scripts/audit_prerequisites.py --check      # validate implementation or
 - [`CODEBASE-DIAGRAM.md`](CODEBASE-DIAGRAM.md) — Mermaid diagrams
 - [`docs/replication-guide.md`](docs/replication-guide.md) — port to another platform
 - [`templates/replication-starter/`](templates/replication-starter/) — minimal fork template
+- [`docs/metrics-history.md`](docs/metrics-history.md) — release-time trend-record runbook
+- [`docs/license-inventory.md`](docs/license-inventory.md) — dependency-license rollup
+- [`docs/roadmap-sync.md`](docs/roadmap-sync.md) — Project-board sync runbook

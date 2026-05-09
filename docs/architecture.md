@@ -133,6 +133,14 @@ flowchart LR
 * **PyPI**: `splunk-uc-schemas` (schemas + Pydantic models) and `splunk-uc-client`
   (thin async client around `/api/v1/`) ship from CI on every tag.
 * **Splunkbase** continues to receive existing `splunk-apps/*` releases.
+  As of v9.0 only **one** Splunk app ships from this repo:
+  `splunk-uc-recommender`. The 12 per-regulation companion packs and the
+  helper TA (`splunk-uc-recommender-ta`) were folded into the unified
+  app; see [`migration-v8.md`](migration-v8.md) for the upgrade path.
+  The recommender consumes `/api/v1/recommender/*.json` (including the
+  v9.0-added `splunkbase-index.json` and `fingerprints.csv`) and writes
+  per-UC implementation state to its own KV collections, so it can run
+  Cloud-safe with no outbound fetches beyond the catalogue's allow-list.
 * **MCP**: `mcp/src/splunk_uc_mcp/server.py` reads from `/api/v1/` (URL is
   configurable so the same server can target a local checkout, GitHub Pages, jsDelivr,
   or a private mirror).
@@ -219,7 +227,11 @@ CI wall-clock target: ≤4 min for a full release build.
 
 ## Quality gates (CI-enforced, blocking)
 
-`.github/workflows/validate.yml` runs in sequence and blocks merge to `main`:
+`.github/workflows/validate.yml` is split into five **parallel** jobs (see
+[`docs/ci-architecture.md`](ci-architecture.md) for the full job-by-job
+playbook); the merge gate to `main` is the union of every job's success.
+
+The major gate categories:
 
 1. **Build & reproducibility** — two builds → byte diff.
 2. **Schema validation** — every UC validates against `schemas/uc.schema.json`; every

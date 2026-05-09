@@ -54,14 +54,15 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "tools"))
 
 from build import build_info, integrity, parse_content  # noqa: E402
 from build import render_api, render_assets, render_exports  # noqa: E402
-from build import render_meta, render_pages, render_search  # noqa: E402
+from build import render_meta, render_metrics, render_pages, render_search  # noqa: E402
+from build import render_telemetry  # noqa: E402
 
 DEFAULT_OUT = "dist"
 ALL_STAGES = (
@@ -76,6 +77,7 @@ ALL_STAGES = (
     "html_rewrite",
     "integrity",
     "build_info",
+    "metrics",
 )
 
 
@@ -622,6 +624,12 @@ def _stage_build_info(opts: BuildOptions, catalog: parse_content.Catalog) -> Non
     _log("BUILD-INFO.json written", t0)
 
 
+def _stage_metrics(opts: BuildOptions, catalog: parse_content.Catalog) -> None:
+    t0 = time.monotonic()
+    render_metrics.render(catalog, opts.out_dir, reproducible=opts.reproducible)
+    _log("metrics.json written", t0)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -726,28 +734,51 @@ def _run_once(args: argparse.Namespace) -> int:
     _ensure_clean_out(opts.out_dir)
     _log(f"output directory: {opts.out_dir}")
 
-    catalog = _stage_parse(opts) if "parse" in opts.only else parse_content.empty()
+    # Stage durations are accumulated here so the metrics stage can
+    # emit ``dist/build-telemetry.json`` for perf-regression dashboards.
+    # The artefact is only written in non-reproducible mode (see
+    # ``render_telemetry.render``); otherwise the wall-clock numbers
+    # would break the byte-equal contract enforced by ``--check``.
+    stage_telemetry: list[dict[str, Any]] = []
 
-    if "assets" in opts.only:
-        _stage_assets(opts, catalog)
-    if "pages" in opts.only:
-        _stage_pages(opts, catalog)
-    if "api" in opts.only:
-        _stage_api(opts, catalog)
-    if "search" in opts.only:
-        _stage_search(opts, catalog)
-    if "exports" in opts.only:
-        _stage_exports(opts, catalog)
-    if "meta" in opts.only:
-        _stage_meta(opts, catalog)
-    if "public" in opts.only:
-        _stage_public(opts)
-    if "html_rewrite" in opts.only:
-        _stage_html_rewrite(opts, catalog)
-    if "integrity" in opts.only:
-        _stage_integrity(opts)
-    if "build_info" in opts.only:
-        _stage_build_info(opts, catalog)
+    if "parse" in opts.only:
+        _ts = time.monotonic()
+        catalog = _stage_parse(opts)
+        stage_telemetry.append(
+            {"stage": "parse", "duration_ms": int(round((time.monotonic() - _ts) * 1000))}
+        )
+    else:
+        catalog = parse_content.empty()
+
+    _post_parse_stages: list[tuple[str, Any]] = [
+        ("assets", lambda: _stage_assets(opts, catalog)),
+        ("pages", lambda: _stage_pages(opts, catalog)),
+        ("api", lambda: _stage_api(opts, catalog)),
+        ("search", lambda: _stage_search(opts, catalog)),
+        ("exports", lambda: _stage_exports(opts, catalog)),
+        ("meta", lambda: _stage_meta(opts, catalog)),
+        ("public", lambda: _stage_public(opts)),
+        ("html_rewrite", lambda: _stage_html_rewrite(opts, catalog)),
+        ("integrity", lambda: _stage_integrity(opts)),
+        ("build_info", lambda: _stage_build_info(opts, catalog)),
+        ("metrics", lambda: _stage_metrics(opts, catalog)),
+    ]
+    for _name, _fn in _post_parse_stages:
+        if _name not in opts.only:
+            continue
+        _ts = time.monotonic()
+        _fn()
+        stage_telemetry.append(
+            {"stage": _name, "duration_ms": int(round((time.monotonic() - _ts) * 1000))}
+        )
+
+    total_seconds = time.monotonic() - t0
+    render_telemetry.render(
+        opts.out_dir,
+        stage_telemetry,
+        reproducible=opts.reproducible,
+        total_seconds=total_seconds,
+    )
 
     bytes_total, files_total = _measure(opts.out_dir)
     _log(

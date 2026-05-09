@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.5.21",
+  "title": "VMware VeloCloud Orchestrator Tunnel Health",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "VMware VeloCloud Orchestrator REST API (`/monitoring/aggregate/edge/link`) polled by a custom scripted input, normalised into `sourcetype=velocloud:link`. Per-link metrics include `latencyMsRx`, `latencyMsTx`, `jitterMsRx`, `lossPctRx`, and the link-state enum (`UP` / `DOWN` / `STANDBY`). Edge identity is carried in `edgeName` and `edgeId`; per-link identity in `linkName` and `linkLogicalId`.",
+  "app": "VMware VeloCloud Orchestrator REST API (custom scripted input or HEC push). No Splunkbase TA; `Splunk_TA_vmware` covers vCenter only and not VeloCloud.",
+  "spl": "index=sdwan sourcetype=\"velocloud:link\"\n| stats avg(latencyMsRx) as rx_latency, avg(latencyMsTx) as tx_latency, avg(jitterMsRx) as jitter, avg(lossPctRx) as loss_pct by edgeName, linkName\n| where rx_latency > 100 OR jitter > 30 OR loss_pct > 1\n| sort - rx_latency",
+  "description": "Polls the VMware VeloCloud Orchestrator API for per-link latency, jitter, and loss across the SD-WAN fabric, then aggregates by edge appliance and link. Surfaces transports whose receive-direction latency exceeds 100 ms, whose jitter crosses 30 ms, or whose loss climbs above 1% — the conventional thresholds that put real-time voice and video at risk.",
+  "value": "VMware SD-WAN (VeloCloud) sits on the WAN edge for thousands of branch sites in retail, manufacturing, and logistics. Without orchestrator-side polling, branch outages depend on someone at the branch noticing — a 2-hour mean-time-to-detect that retail customers cannot accept on a sale day. This UC turns the orchestrator's own per-link telemetry into a Splunk-native alerting surface so the NOC sees the degradation before the branch staff do, and lets capacity planning trend WAN quality across the entire estate.",
+  "implementation": "Configure a scripted input (Python or PowerShell) to poll the VeloCloud Orchestrator `/monitoring/aggregate/edge/link` endpoint at 5-minute intervals. Store the API key in `passwords.conf` (NEVER inline). Normalise the link-state enum (UP / DOWN / STANDBY) into a consistent value before alerting; the Orchestrator returns slightly different shapes depending on edge model and software version.",
+  "visualization": "Line chart (latency / jitter per edge over time), Table (top-N degraded links sorted by loss), Status grid (per-site link health, coloured red / amber / green).",
+  "references": [
+    {
+      "title": "VMware SD-WAN documentation",
+      "url": "https://docs.vmware.com/en/VMware-SD-WAN/index.html"
+    },
+    {
+      "title": "VeloCloud Orchestrator API reference",
+      "url": "https://docs.vmware.com/en/VMware-SD-WAN/4.5/vmware-sd-wan-api-reference/GUID-D4FC6FAC-D053-4FE3-A09F-D5547BFD7CA5.html"
+    }
+  ],
+  "knownFalsePositives": "**Cellular failover transports.** LTE / 5G backup transports legitimately run with much higher latency and jitter than fibre links, but the SD-WAN policy may already be steering away from them. Filter on `linkType` to avoid over-alerting on a transport whose role is to be the slow path.\n\n**Saturday-night residential links.** Branches whose primary transport is a residential broadband line will see jitter and loss climb on Saturday evenings as the local ISP loads up. This is a capacity-planning signal, not an outage; aggregate over a 7-day window before raising the priority.\n\n**Edge appliance reboots / upgrades.** Scheduled VeloCloud Edge reboots produce a brief tunnel-down + path-recovery sequence. Suppress alerts during announced maintenance windows.",
+  "equipment": [
+    "velocloud",
+    "vmware"
+  ],
+  "equipmentModels": [
+    "velocloud_edge_510",
+    "velocloud_edge_520",
+    "velocloud_edge_540",
+    "velocloud_edge_610",
+    "velocloud_edge_620",
+    "velocloud_edge_640",
+    "velocloud_edge_680",
+    "velocloud_edge_3400",
+    "velocloud_edge_3800"
+  ],
+  "status": "community",
+  "wave": "crawl",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "grandmaExplanation": "We watch the network connections between branch offices and headquarters. When voice or video calls start sounding choppy because a link is dropping data or running slow, we catch it before the branch employees have to call the help desk."
+}

@@ -1,0 +1,83 @@
+# Pre-commit hooks for splunk-monitoring-use-cases.
+#
+# Phase 0 of the repo-health overhaul: catch the cheap mistakes locally
+# instead of after a CI round-trip. To install:
+#
+#     pip install pre-commit
+#     pre-commit install
+#
+# All hooks run on every commit. To run manually against the whole tree:
+#
+#     pre-commit run --all-files
+#
+# Hooks are intentionally fast (<5s on a typical PR). Heavyweight checks
+# (full audits, build regeneration, link-check) live in CI.
+
+minimum_pre_commit_version: "3.5.0"
+
+repos:
+  # ---------- Generic file hygiene ----------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '^(content/|use-cases/|samples/|sample-data/|.*\.md$|vendor/)'
+      - id: end-of-file-fixer
+        exclude: '^(content/|use-cases/|samples/|sample-data/|.*\.md$|vendor/)'
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+        exclude: '^(content/|api/|samples/|sample-data/|vendor/)'
+      - id: check-added-large-files
+        args: ['--maxkb=2048']
+        exclude: '^(catalog\.json|data\.js|llms.*\.txt|content/|samples/|sample-data/|vendor/|dist.*/|api/v1/_evidence-packs-bak/)'
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # ---------- Secrets ----------
+  # gitleaks is the canonical secret scanner. We rely on .gitleaks.toml at
+  # the repo root for allowlists (template tokens, lab IPs, etc.).
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  # ---------- Python ----------
+  # Ruff replaces flake8/black/isort. Configured via pyproject.toml in P4.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.4
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # ---------- GitHub Actions ----------
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.4
+    hooks:
+      - id: actionlint
+        # Use the Docker-less version for portability.
+        args: [-shellcheck=]
+
+  # ---------- Markdown ----------
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.42.0
+    hooks:
+      - id: markdownlint
+        args: [--config, .markdownlint.json, --ignore, content, --ignore, use-cases, --ignore, vendor, --ignore, dist]
+
+  # ---------- Local: schema-aware checks ----------
+  # Validate UC sidecars against schemas/uc.schema.json. Cheap because we
+  # only validate the files staged for commit, not the whole 7,657-file
+  # corpus.
+  - repo: local
+    hooks:
+      - id: uc-schema-staged
+        name: Validate staged UC sidecars against uc.schema.json
+        entry: python3 scripts/validate_uc_schema_staged.py
+        language: system
+        files: '^content/cat-.+/UC-.+\.json$'
+        pass_filenames: true

@@ -78,7 +78,10 @@ def escape(text: Any) -> str:
         return ""
     if not isinstance(text, str):
         text = str(text)
-    return html.escape(text, quote=True)
+    # html.escape's stub returns Any in some Python versions; coerce
+    # explicitly so mypy --strict --warn-unreachable on this module
+    # passes without a per-function ``# type: ignore[no-any-return]``.
+    return str(html.escape(text, quote=True))
 
 
 def attr(value: Any) -> str:
@@ -116,11 +119,12 @@ def slug(name: str) -> str:
     return s or "category"
 
 
-def sort_key(value: Any) -> tuple:
+def sort_key(value: Any) -> tuple[tuple[int, Any], ...]:
     """Sort key for hierarchical IDs like ``"1.10.2"`` (dotted ints).
 
     Mirrors ``render_api._sort_key`` so the per-UC and per-category
-    iteration order matches the API.
+    iteration order matches the API. The tuple-of-tuples shape lets
+    mixed numeric/string segments compare deterministically.
     """
     s = str(value or "")
     parts: list[tuple[int, Any]] = []
@@ -171,12 +175,14 @@ def render_markdown(md: str) -> str:
     """Convert a tiny Markdown subset to safe HTML.
 
     Returns the empty string for empty input. Output is *self-contained*
-    HTML — every produced token is already escaped.
+    HTML — every produced token is already escaped. ``md`` is typed
+    ``str`` for static checkers; we don't dynamically coerce because
+    every production caller already passes a string. If you're
+    plumbing a non-string through, coerce at the call site so the
+    type signature stays honest.
     """
     if not md:
         return ""
-    if not isinstance(md, str):
-        md = str(md)
 
     lines = md.splitlines()
     out: list[str] = []

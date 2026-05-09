@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-"""
-Audit INDEX.md, build.py CAT_GROUPS / SPLUNK_APPS, and use-case markdown for consistency.
-Uses ast.parse on build.py (no import) to avoid side effects.
+"""Audit INDEX.md, the SSOT ``CAT_GROUPS`` / ``SPLUNK_APPS`` registries
+(``tools/build/enrichment.py``), and use-case markdown for consistency.
+
+Imports the constants directly from the SSOT module rather than parsing
+the legacy ``build.py`` source. Pre-P1-step-5c (before 2026-05-09) this
+audit ran ``ast.parse`` on the repo-root ``build.py`` to avoid the
+import-time side effects of that monolithic build script. After P1
+step 5c retires the legacy ``build.py``, the SSOT module
+``tools/build/enrichment.py`` is the only home of the registries and
+the import is side-effect-free.
 
 Run: python3 scripts/audit_repo_consistency.py
 """
 from __future__ import annotations
 
-import ast
 import glob
 import os
+import pathlib
 import re
 import sys
 
@@ -17,7 +24,12 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UC_DIR = os.path.join(REPO_ROOT, "use-cases")
 INDEX_PATH = os.path.join(REPO_ROOT, "content", "INDEX.md")
 INDEX_HTML = os.path.join(REPO_ROOT, "index.html")
-BUILD_PATH = os.path.join(REPO_ROOT, "build.py")
+
+# Ensure ``tools/`` is importable for both pip-installed and in-tree
+# checkout invocations (CI runs from a fresh checkout without install).
+_TOOLS_DIR = pathlib.Path(REPO_ROOT) / "tools"
+if _TOOLS_DIR.is_dir() and str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
 
 RE_CAT_HEADER = re.compile(r"^##\s+(\d+)\.\s+(.+)$")
 RE_ICON = re.compile(r"^-\s+\*\*Icon:\*\*\s*(.+)$")
@@ -85,27 +97,21 @@ def parse_index():
 
 
 def extract_build_assignments():
-    with open(BUILD_PATH, encoding="utf-8") as f:
-        src = f.read()
-    tree = ast.parse(src, filename=BUILD_PATH)
-    # CAT_GROUPS / SPLUNK_APPS are also defined in tools/build/enrichment.py;
-    # keep those tables in sync with root build.py when editing either file.
-    cat_groups = None
-    splunk_apps = None
-    for node in tree.body:
-        if not isinstance(node, ast.Assign):
-            continue
-        for target in node.targets:
-            if isinstance(target, ast.Name):
-                if target.id == "CAT_GROUPS":
-                    cat_groups = ast.literal_eval(node.value)
-                elif target.id == "SPLUNK_APPS":
-                    splunk_apps = ast.literal_eval(node.value)
-    if cat_groups is None:
-        raise RuntimeError("CAT_GROUPS not found in build.py")
-    if splunk_apps is None:
-        raise RuntimeError("SPLUNK_APPS not found in build.py")
-    return cat_groups, splunk_apps
+    """Return (CAT_GROUPS, SPLUNK_APPS) from the SSOT enrichment module.
+
+    Per ADR-0008 every constant lives in exactly one place; the SSOT for
+    these registries is ``tools/build/enrichment.py``. Importing the
+    module is side-effect-free (no I/O at import time) so this is just
+    as cheap as the previous ast-parsing approach but loses the
+    cross-source-of-truth drift risk.
+    """
+    from build.enrichment import CAT_GROUPS, SPLUNK_APPS  # type: ignore[import-not-found]
+
+    if not isinstance(CAT_GROUPS, dict):
+        raise RuntimeError("tools/build/enrichment.py:CAT_GROUPS is not a dict")
+    if not isinstance(SPLUNK_APPS, list):
+        raise RuntimeError("tools/build/enrichment.py:SPLUNK_APPS is not a list")
+    return CAT_GROUPS, SPLUNK_APPS
 
 
 def main() -> int:
@@ -175,7 +181,9 @@ def main() -> int:
     try:
         cat_groups, splunk_apps = extract_build_assignments()
     except Exception as e:
-        issues.append(f"build.py: Failed to parse CAT_GROUPS/SPLUNK_APPS — {e}")
+        issues.append(
+            f"tools/build/enrichment.py: Failed to import CAT_GROUPS/SPLUNK_APPS — {e}"
+        )
         cat_groups, splunk_apps = None, None
 
     if cat_groups is not None:

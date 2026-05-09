@@ -79,6 +79,45 @@ GET_USE_CASE_OUTPUT_SCHEMA: dict[str, Any] = {
         "splunkPillar": {"type": "string"},
         "monitoringType": {"type": "array", "items": {"type": "string"}},
         "app": {"type": ["string", "array"]},
+        "splunkbaseApps": {
+            "type": "array",
+            "description": (
+                "Structured list of Splunkbase apps required to "
+                "implement this UC. Added in catalogue schema v1.7.0; "
+                "always present (possibly empty) so callers can rely on "
+                "iteration without a None check. Each entry pins the "
+                "Splunkbase numeric id, a human-readable name, the role "
+                "the app plays for this UC (``primary``, "
+                "``data-source``, ``premium``, ``optional``), an "
+                "optional ``minVersion``, an optional canonical "
+                "splunkbase.splunk.com URL, and an optional "
+                "``setupSkill`` reference. Entries may carry "
+                "``requiresSmeReview: true`` while the v9.0 catalogue "
+                "migration is in flight — agents should treat those "
+                "as best-effort suggestions, not authoritative."
+            ),
+            "items": {
+                "type": "object",
+                "required": ["id", "name", "role"],
+                "properties": {
+                    "id": {"type": "integer", "minimum": 1},
+                    "name": {"type": "string"},
+                    "url": {"type": "string"},
+                    "minVersion": {"type": "string"},
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "primary",
+                            "data-source",
+                            "premium",
+                            "optional",
+                        ],
+                    },
+                    "setupSkill": {"type": "string"},
+                    "requiresSmeReview": {"type": "boolean"},
+                },
+            },
+        },
         "equipment": {"type": "array", "items": {"type": "string"}},
         "equipmentModels": {"type": "array", "items": {"type": "string"}},
         "mitreAttack": {"type": "array", "items": {"type": "string"}},
@@ -241,12 +280,15 @@ def get_use_case(*, catalog: Catalog, uc_id: str) -> dict[str, Any]:
         LOG.debug("get_use_case %s: using compliance sidecar", uc_id)
         out = _strip_meta(detail)
         # Guarantee array-typed fields are always arrays. Non-compliance
-        # UCs (cat-1 … cat-21) carry no compliance metadata, and UCs
+        # UCs (cat-1 … cat-21) carry no compliance metadata, UCs
         # without upstream dependencies carry no prerequisiteUseCases,
-        # but the output schema declares both as arrays so clients can
-        # call ``len()`` without a ``None`` check.
+        # and UCs not yet covered by the v1.7.0 Splunkbase migration
+        # carry no splunkbaseApps[]. The output schema declares all
+        # three as arrays so clients can call ``len()`` without a
+        # ``None`` check.
         out.setdefault("compliance", [])
         out.setdefault("prerequisiteUseCases", [])
+        out.setdefault("splunkbaseApps", _coerce_splunkbase_apps(out.get("sb")))
         return out
     except CatalogNotFoundError:
         LOG.debug("get_use_case %s: no compliance sidecar, falling back to uc-thin", uc_id)
@@ -257,6 +299,7 @@ def get_use_case(*, catalog: Catalog, uc_id: str) -> dict[str, Any]:
             out = dict(uc)
             out.setdefault("compliance", [])
             out.setdefault("prerequisiteUseCases", [])
+            out.setdefault("splunkbaseApps", _coerce_splunkbase_apps(out.get("sb")))
             return out
 
     raise CatalogNotFoundError(f"Use case {uc_id} not found in catalogue")
@@ -516,4 +559,40 @@ def _strip_meta(doc: dict[str, Any]) -> dict[str, Any]:
     out = {k: v for k, v in doc.items() if not k.startswith("$")}
     out.pop("_meta", None)
     out.pop("apiVersion", None)
+    return out
+
+
+def _coerce_splunkbase_apps(raw: Any) -> list[dict[str, Any]]:
+    """Promote the compact ``sb`` field on ``uc-thin.json`` to the
+    structured ``splunkbaseApps`` shape declared by
+    ``GET_USE_CASE_OUTPUT_SCHEMA``.
+
+    ``uc-thin.json`` carries only the minimum keys the recommender
+    dashboard needs (``id``, ``role``, ``name``, optional
+    ``minVersion``, optional ``requiresSmeReview``). MCP consumers
+    expect the full schema-stable object shape. We pass the keys
+    through unchanged but drop any that are not in the declared
+    enum; we never invent values.
+    """
+
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        item: dict[str, Any] = {}
+        for key in (
+            "id",
+            "name",
+            "url",
+            "minVersion",
+            "role",
+            "setupSkill",
+            "requiresSmeReview",
+        ):
+            if key in entry and entry[key] not in (None, ""):
+                item[key] = entry[key]
+        if "id" in item and "role" in item and "name" in item:
+            out.append(item)
     return out

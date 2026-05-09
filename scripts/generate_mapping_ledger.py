@@ -59,7 +59,25 @@ REGULATIONS_JSON = ROOT / "data" / "regulations.json"
 LEDGER_PATH = ROOT / "data" / "provenance" / "mapping-ledger.json"
 SIGNOFFS_DIR = ROOT / "data" / "provenance"
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "1.1.0"
+
+# v9.0 Splunkbase migration — repository-level data files whose SHA-256 the
+# ledger pins so the same Sigstore attestation covers them as well.  Add
+# files here when a new auditor-relevant dataset ships under data/.
+AUXILIARY_SOURCES: tuple[tuple[str, str], ...] = (
+    (
+        "data/splunkbase-catalog.json",
+        "Splunkbase app metadata cache used by the v9.0 recommender install guidance.",
+    ),
+    (
+        "data/splunkbase-catalog-overrides.json",
+        "Hand-curated overrides applied on top of the Splunkbase catalog.",
+    ),
+    (
+        "data/provenance/splunkbase-mappings-signoffs.json",
+        "Append-only ledger of SME sign-offs that cleared requiresSmeReview on splunkbaseApps[] entries.",
+    ),
+)
 HASH_ALGORITHM = "sha256"
 CANONICAL_ALGORITHM = "rfc8785"
 CANONICAL_JSON_FORM = "utf-8-nfc-sorted-keys-no-whitespace"
@@ -686,6 +704,8 @@ def build_ledger() -> dict[str, Any]:
     entries = sorted(by_id.values(), key=lambda x: x["mappingId"])
     merkle_root = compute_merkle_root(entries)
 
+    auxiliary = build_auxiliary_sources()
+
     ledger: dict[str, Any] = {
         "$schema": "../../schemas/mapping-ledger.schema.json",
         "schemaVersion": SCHEMA_VERSION,
@@ -705,7 +725,46 @@ def build_ledger() -> dict[str, Any]:
         },
         "entries": entries,
     }
+    if auxiliary:
+        ledger["auxiliarySources"] = auxiliary
     return ledger
+
+
+def build_auxiliary_sources() -> list[dict[str, Any]]:
+    """Compute SHA-256 + size for every AUXILIARY_SOURCES file.
+
+    Missing files are skipped with a stderr note (so a fresh checkout that
+    has not run the splunkbase sync yet still produces a ledger). The list
+    is sorted by ``path`` for deterministic output.
+    """
+
+    out: list[dict[str, Any]] = []
+    for rel_path, purpose in AUXILIARY_SOURCES:
+        abs_path = ROOT / rel_path
+        if not abs_path.exists():
+            print(
+                f"[generate_mapping_ledger] auxiliary source missing, skipping: {rel_path}",
+                file=sys.stderr,
+            )
+            continue
+        try:
+            payload = abs_path.read_bytes()
+        except OSError as err:
+            print(
+                f"[generate_mapping_ledger] auxiliary source unreadable, skipping: {rel_path}: {err}",
+                file=sys.stderr,
+            )
+            continue
+        out.append(
+            {
+                "path": rel_path,
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "bytes": len(payload),
+                "purpose": purpose,
+            }
+        )
+    out.sort(key=lambda x: x["path"])
+    return out
 
 
 # ----------------------------------------------------------------------

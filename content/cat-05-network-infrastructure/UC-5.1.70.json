@@ -1,0 +1,58 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.1.70",
+  "title": "NTP Stratum and Peer Health on Network Devices",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Cisco IOS / IOS-XE syslog (`%NTP-4-PEER_NO_ASSOC`, `%NTP-4-CLOCK_UNSYNC`) and Junos syslog (`NTPD_PEER_NO_RESPONSE`) ingested via `TA-cisco_ios` and `Splunk_TA_juniper`. Optionally enriched by SNMP polling of NTP-MIB (`ntpSysPeerOffset`, `ntpSysStratum`) for the headless quantitative view that the syslog stream cannot provide.",
+  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352), Splunk Add-on for Juniper (`Splunk_TA_juniper`, Splunkbase 2847), SNMP Modular Input or Splunk Connect for SNMP (SC4SNMP) for NTP-MIB polling.",
+  "spl": "index=network (sourcetype=\"cisco:ios\" \"%NTP-4-PEER_NO_ASSOC\" OR \"%NTP-4-CLOCK_UNSYNC\")\n  OR (sourcetype=\"junos:syslog\" \"NTPD_PEER_NO_RESPONSE\")\n| stats count by host\n| where count > 0\n| sort - count",
+  "description": "Surfaces network devices whose NTP peer associations have failed or whose local clock has drifted unsynchronised. Counts events per host and presents the worst offenders at the top — these are the routers and switches whose log timestamps are about to skew, breaking SIEM correlation and forensics integrity.",
+  "value": "Accurate time on every device is a foundational requirement that nobody notices until it breaks: log correlation across vendors requires sub-second alignment, X.509 certificates check `Not Before` / `Not After` against device clock, regulatory frameworks (PCI DSS 10.4, HIPAA `§164.312(b)`, SOX ITGC) explicitly require time synchronisation, and Splunk's own `_time` field comes from the device clock. Stratum drift on a single core router can cascade into stratum drift on every downstream peer that points at it. This is a low-difficulty, high-leverage UC — every Splunk deployment should have it as a crawl-tier baseline because the cost of having every other UC silently mis-correlated is enormous and discovered after the fact.",
+  "implementation": "Configure NTP on every network device, pointing at internal NTP servers (never public pools) for compliance reasons. Enable NTP syslog at severity 4 or lower. Optionally poll the NTP-MIB via SNMP for `ntpSysPeerOffset` (millisecond drift from peer) and `ntpSysStratum` (the device's stratum number). Alert when stratum exceeds 4 (you have left the trusted internal time hierarchy) or when peer associations drop entirely.",
+  "visualization": "Single-value (devices with NTP issues right now), Table (per-device NTP-event counts and last-seen timestamps), Gauge (stratum distribution across the fleet — concentration at stratum 2–3 is healthy, drift to 4–5 is a warning).",
+  "references": [
+    {
+      "title": "RFC 5905 — Network Time Protocol Version 4",
+      "url": "https://www.rfc-editor.org/rfc/rfc5905"
+    },
+    {
+      "title": "Cisco NTP best practices",
+      "url": "https://www.cisco.com/c/en/us/support/docs/availability/high-availability/19643-ntpm.html"
+    },
+    {
+      "title": "PCI DSS Requirement 10.4 — time synchronisation",
+      "url": "https://www.pcisecuritystandards.org/document_library/"
+    }
+  ],
+  "knownFalsePositives": "**Initial sync after device reboot.** A device that has just booted will spend several minutes unsynchronised before its first NTP poll completes. Tolerate a 5-minute warm-up window after `%SYS-5-RESTART`.\n\n**Internet-bound NTP servers blocked by firewall change.** A new firewall rule that blocks egress UDP 123 will silently break NTP for every device pointing at an external pool. The alert here is correct — make the actionable owner the firewall team, not the network team.\n\n**Lab devices intentionally desynchronised.** Test devices where engineers are validating clock-skew behaviour will alarm forever. Filter alerts to production loopback ranges only.",
+  "equipment": [
+    "cisco",
+    "juniper",
+    "arista",
+    "snmp",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9200",
+    "cisco_catalyst_9300",
+    "cisco_catalyst_9500",
+    "cisco_isr_1100",
+    "cisco_isr_4000",
+    "cisco_asr_1000",
+    "juniper_ex_2300",
+    "juniper_ex_4300",
+    "juniper_mx_204",
+    "arista_7050x3",
+    "arista_7260x3"
+  ],
+  "status": "community",
+  "wave": "crawl",
+  "cimModels": [],
+  "grandmaExplanation": "We make sure every router and switch has the right time. Wrong time on even one device corrupts every log we collect from it — making investigations and audits unreliable. We catch a device the moment its clock starts to drift and tell the team to fix it before the wrong-time data gets baked into reports."
+}

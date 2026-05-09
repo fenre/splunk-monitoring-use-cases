@@ -22,14 +22,16 @@ from __future__ import annotations
 
 from typing import Any
 
+from build.types import CatalogCategory, CatalogSubcategory, CategoryMeta
+
 from . import _css, _helpers
 
 
 def render_html(
-    cat: dict[str, Any],
+    cat: CatalogCategory,
     *,
     cat_slug: str,
-    cat_meta: dict[str, Any],
+    cat_meta: CategoryMeta,
     ctx: _helpers.RenderContext,
 ) -> str:
     """Render the static HTML page for a single category."""
@@ -121,10 +123,10 @@ def render_html(
 
 
 def render_index_json(
-    cat: dict[str, Any],
+    cat: CatalogCategory,
     *,
     cat_slug: str,
-    cat_meta: dict[str, Any],
+    cat_meta: CategoryMeta,
     ctx: _helpers.RenderContext,
 ) -> dict[str, Any]:
     """Build the JSON twin for ``/category/<slug>/index.json``."""
@@ -188,7 +190,7 @@ def render_index_json(
 # ---------------------------------------------------------------------------
 
 
-def _category_default_desc(name: str, cat: dict[str, Any]) -> str:
+def _category_default_desc(name: str, cat: CatalogCategory) -> str:
     n = sum(len(s.get("u", [])) for s in cat.get("s", []))
     return (
         f"{name} use cases for Splunk Enterprise: {n} curated detection, "
@@ -196,8 +198,14 @@ def _category_default_desc(name: str, cat: dict[str, Any]) -> str:
     )
 
 
-def _render_quick_facts(cat_meta: dict[str, Any]) -> str:
-    quick = cat_meta.get("quick") or {}
+def _render_quick_facts(cat_meta: CategoryMeta) -> str:
+    # ``quick`` is annotated as ``str`` in CategoryMeta (the SSOT shape)
+    # but historically was a ``dict[str, str | list[str]]`` in some
+    # legacy paths. Keep the dict branch as defence-in-depth — it
+    # silently no-ops on the SSOT path because ``quick`` is always a
+    # string today, but a future schema migration may re-introduce
+    # the structured form.
+    quick: Any = cat_meta.get("quick") or {}
     if not quick or not isinstance(quick, dict):
         return ""
     parts: list[str] = ['<dl class="facts">']
@@ -216,7 +224,7 @@ def _render_quick_facts(cat_meta: dict[str, Any]) -> str:
 
 
 def _render_subcategory(
-    sub: dict[str, Any],
+    sub: CatalogSubcategory,
     ctx: _helpers.RenderContext,
 ) -> str:
     sub_id = str(sub.get("i", ""))

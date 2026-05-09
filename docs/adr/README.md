@@ -17,12 +17,15 @@ We use the [MADR 3.0](https://adr.github.io/madr/) template (simplified).
 
 | ID | Title | Status |
 |---|---|---|
-| [ADR-0001](0001-markdown-as-source-of-truth.md) | Markdown as source of truth for UC content | Accepted |
+| [ADR-0001](0001-markdown-as-source-of-truth.md) | Markdown as source of truth for UC content | Superseded by [ADR-0007](0007-json-as-source-of-truth.md) |
 | [ADR-0002](0002-static-single-page-app.md) | Static single-page app with no back-end | Accepted |
 | [ADR-0003](0003-single-catalog-json-plus-per-category-api.md) | Emit both a single `catalog.json` and per-category `api/cat-N.json` | Accepted |
 | [ADR-0004](0004-python-stdlib-only.md) | Python stdlib only for build and audits | Accepted |
 | [ADR-0005](0005-uc-id-x-y-z-scheme.md) | Three-part numeric UC ID with gap-free ordering | Accepted |
 | [ADR-0006](0006-single-file-design-doc.md) | Single-file DESIGN.md, split by section only if a section exceeds ~1,500 words | Accepted |
+| [ADR-0007](0007-json-as-source-of-truth.md) | JSON sidecars as source of truth for UC content | Accepted (supersedes ADR-0001) |
+| [ADR-0008](0008-canonical-constants.md) | Every constant has exactly one home (Python or JSON), JS twins are generated | Accepted |
+| [ADR-0009](0009-generated-artefact-policy.md) | Generated artefacts are uncommitted by default; published via Pages or Releases with provenance | Accepted |
 
 ## When to write an ADR
 

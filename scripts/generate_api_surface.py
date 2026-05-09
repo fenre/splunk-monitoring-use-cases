@@ -10,7 +10,10 @@ Inputs (all in-repo, no network):
 
 * ``schemas/uc.schema.json``            - authoring schema (copied verbatim).
 * ``data/regulations.json``             - multi-version regulation catalogue.
-* ``use-cases/cat-*/uc-*.json``         - UC sidecars with compliance[].
+* ``content/cat-*/UC-*.json``           - UC sidecars with compliance[]
+                                          (canonical source of truth per
+                                          ADR-0007; supersedes the legacy
+                                          ``use-cases/cat-*.md`` corpus).
 * ``data/crosswalks/olir/*.normalised.json``
 * ``data/crosswalks/oscal/*.normalised.json``
   ``data/crosswalks/oscal/component-definition-*.json``
@@ -45,7 +48,14 @@ Outputs (written to ``api/v1/``):
 * ``recommender/sourcetype-index.json`` - sourcetype -> UC ids (full 6k catalogue).
 * ``recommender/cim-index.json``        - CIM model -> UC ids.
 * ``recommender/app-index.json``        - Splunk app/TA -> UC ids.
-* ``recommender/uc-thin.json``          - compact UC records for the recommender UI.
+* ``recommender/uc-thin.json``          - compact UC records for the recommender UI
+                                          (v9.0+ includes a ``sb`` array of
+                                          required Splunkbase app ids).
+* ``recommender/splunkbase-index.json`` - Splunkbase app install metadata keyed
+                                          by Splunkbase id (display name, URL,
+                                          latest version, cloud-vetted flag).
+                                          Source-of-truth: data/splunkbase-
+                                          catalog.json (+ overrides).
 * ``equipment/index.json``              - equipment slug -> UC ids + regulation
                                           ids, joining the EQUIPMENT registry in
                                           ``build.py`` with the structured
@@ -81,6 +91,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import pathlib
@@ -115,9 +126,27 @@ OSCAL_DIR = REPO_ROOT / "data" / "crosswalks" / "oscal"
 ATTACK_DIR = REPO_ROOT / "data" / "crosswalks" / "attack"
 D3FEND_DIR = REPO_ROOT / "data" / "crosswalks" / "d3fend"
 OLIR_DIR = REPO_ROOT / "data" / "crosswalks" / "olir"
+SPLUNKBASE_CATALOG_PATH = REPO_ROOT / "data" / "splunkbase-catalog.json"
+SPLUNKBASE_OVERRIDES_PATH = REPO_ROOT / "data" / "splunkbase-catalog-overrides.json"
 COVERAGE_REPORT = REPO_ROOT / "reports" / "compliance-coverage.json"
 UC_GLOB = "content/cat-*/UC-*.json"
-CATALOG_PATH = REPO_ROOT / "catalog.json"
+# Per ADR-0009, dist/catalog.json is the SSOT-authoritative copy. The
+# legacy project-root catalog.json is being retired in P1 step 5c.
+# Prefer dist/, fall back to project root for the one-release transition
+# window.
+CATALOG_PATH_PRIMARY = REPO_ROOT / "dist" / "catalog.json"
+CATALOG_PATH_LEGACY = REPO_ROOT / "catalog.json"
+
+
+def _resolve_catalog_path() -> Path | None:
+    """Return the path to catalog.json (SSOT preferred), or None if neither exists."""
+    if CATALOG_PATH_PRIMARY.exists():
+        return CATALOG_PATH_PRIMARY
+    if CATALOG_PATH_LEGACY.exists():
+        return CATALOG_PATH_LEGACY
+    return None
+
+
 VERSION_FILE = REPO_ROOT / "VERSION"
 
 NAMESPACE = "https://fenre.github.io/splunk-monitoring-use-cases"
@@ -892,15 +921,16 @@ def _load_catalog() -> List[Dict[str, Any]]:
     """Return every use-case from ``catalog.json`` as a flat list.
 
     ``catalog.json`` is already a committed artefact and holds the full
-    6 000+ catalogue (compact schema). The recommender app needs breadth, so
-    the indexes are built from this file instead of the 1 200 compliance
-    sidecars under ``use-cases/cat-22/``. The compliance sidecars remain the
+    7 000+ catalogue (compact schema). The recommender app needs breadth, so
+    the indexes are built from this file instead of the ~1 500 compliance
+    sidecars under ``content/cat-22-*/``. The compliance sidecars remain the
     authority for clause-level data and are served separately under
     ``/api/v1/compliance/ucs/``.
     """
-    if not CATALOG_PATH.exists():
+    catalog_path = _resolve_catalog_path()
+    if catalog_path is None:
         return []
-    data = _load_json(CATALOG_PATH)
+    data = _load_json(catalog_path)
     flat: List[Dict[str, Any]] = []
     for cat in data.get("DATA", []) or []:
         for sub in cat.get("s", []) or []:
@@ -998,7 +1028,10 @@ def _recommender_apps(uc: Mapping[str, Any]) -> List[str]:
     return sorted(out)
 
 
-def _recommender_uc_thin(uc: Mapping[str, Any]) -> Dict[str, Any]:
+def _recommender_uc_thin(
+    uc: Mapping[str, Any],
+    sidecar_sb_map: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+) -> Dict[str, Any]:
     """Compact UC record consumed by the recommender UI (~200 bytes each).
 
     ``equipment`` + ``equipmentModels`` come from the catalogue's compact
@@ -1008,6 +1041,15 @@ def _recommender_uc_thin(uc: Mapping[str, Any]) -> Dict[str, Any]:
     UCs without a sidecar. This is what drives the "pick your equipment"
     filter on the landing page — exposing it here means the recommender
     UI can filter on equipment without re-reading catalog.json.
+
+    ``sb`` (introduced in v9.0) lists the **authoritative** Splunkbase
+    apps required by the UC, sourced from each sidecar's
+    ``splunkbaseApps[]`` array (uc.schema.json v1.7.0+). Each entry is
+    a compact ``{id, role, name, requiresSmeReview}`` tuple — the
+    recommender UI cross-references ``id`` against
+    ``/recommender/splunkbase-index.json`` to render the install
+    checklist. Empty when the sidecar has not been migrated yet (we
+    keep emitting the field so consumers can detect coverage gaps).
     """
     # ``wave`` + ``prerequisiteUseCases`` drive the "where do I start?"
     # planner facets in the recommender UI. ``wave`` is a short string
@@ -1016,8 +1058,33 @@ def _recommender_uc_thin(uc: Mapping[str, Any]) -> Dict[str, Any]:
     # catalog doesn't declare them so serialization stays stable.
     pre_raw = uc.get("pre", []) or []
     pre = sorted({str(p) for p in pre_raw if isinstance(p, str) and p})
+    uc_id = str(uc.get("i", ""))
+    sb_raw: Sequence[Mapping[str, Any]] = ()
+    if sidecar_sb_map and uc_id in sidecar_sb_map:
+        sb_raw = sidecar_sb_map[uc_id] or ()
+    sb_compact: List[Dict[str, Any]] = []
+    for entry in sb_raw:
+        if not isinstance(entry, Mapping):
+            continue
+        sb_id = entry.get("id")
+        try:
+            sb_id_int = int(sb_id)
+        except (TypeError, ValueError):
+            continue
+        if sb_id_int <= 0:
+            continue
+        role = str(entry.get("role", "") or "")
+        name = str(entry.get("name", "") or "")
+        compact: Dict[str, Any] = {"id": sb_id_int, "role": role, "name": name}
+        min_version = entry.get("minVersion")
+        if isinstance(min_version, str) and min_version:
+            compact["minVersion"] = min_version
+        if entry.get("requiresSmeReview") is True:
+            compact["requiresSmeReview"] = True
+        sb_compact.append(compact)
+    sb_compact.sort(key=lambda e: (e.get("role", ""), e.get("id", 0)))
     return {
-        "id": str(uc.get("i", "")),
+        "id": uc_id,
         "title": str(uc.get("n", "") or ""),
         "value": str(uc.get("v", "") or ""),
         "criticality": str(uc.get("c", "") or ""),
@@ -1039,16 +1106,23 @@ def _recommender_uc_thin(uc: Mapping[str, Any]) -> Dict[str, Any]:
         "equipmentModels": sorted(
             [em for em in (uc.get("em", []) or []) if isinstance(em, str)]
         ),
+        "sb": sb_compact,
     }
 
 
 def _recommender_payloads(
     catalog_ucs: Sequence[Mapping[str, Any]],
+    sidecar_sb_map: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
 ) -> Dict[str, Dict[str, Any]]:
-    """Build the four recommender JSON payloads from ``catalog.json``.
+    """Build the recommender JSON payloads from ``catalog.json`` + sidecars.
 
     The output is deterministic (sorted keys, sorted value arrays) so the
     CI drift check produces a byte-identical diff on re-run.
+
+    ``sidecar_sb_map`` (optional, introduced in v9.0) maps UC id ->
+    ``splunkbaseApps[]`` from the sidecar. When provided, the
+    ``uc-thin.json`` records carry a compact ``sb`` field; without it
+    they emit ``sb: []`` and consumers must fall back to ``app``.
     """
     sourcetype_bucket: Dict[str, List[str]] = defaultdict(list)
     cim_bucket: Dict[str, List[str]] = defaultdict(list)
@@ -1064,7 +1138,7 @@ def _recommender_payloads(
             cim_bucket[cim].append(uc_id)
         for app in _recommender_apps(uc):
             app_bucket[app].append(uc_id)
-        thin_records.append(_recommender_uc_thin(uc))
+        thin_records.append(_recommender_uc_thin(uc, sidecar_sb_map))
     thin_records.sort(key=lambda r: _uc_sort_key({"id": r["id"]}))
 
     def _finalise(bucket: Mapping[str, List[str]]) -> Dict[str, List[str]]:
@@ -1128,12 +1202,126 @@ def _recommender_payloads(
             "description": (
                 "Compact UC records used by the recommender UI. Call "
                 "/api/v1/compliance/ucs/{id}.json for the full sidecar "
-                "of compliance-tagged UCs (category 22)."
+                "of compliance-tagged UCs (category 22). v9.0 adds the "
+                "`sb` field listing required Splunkbase apps; cross-"
+                "reference each id against /recommender/splunkbase-"
+                "index.json for the install metadata."
             ),
             "useCaseCount": len(thin_records),
             "useCases": thin_records,
         },
     }
+
+
+def _recommender_splunkbase_index() -> Dict[str, Any]:
+    """Build the ``/recommender/splunkbase-index.json`` payload.
+
+    The index is a flattened, install-oriented projection of
+    ``data/splunkbase-catalog.json`` (with ``data/splunkbase-catalog-
+    overrides.json`` merged on top). Each entry is keyed by the
+    Splunkbase app id (string-coerced for JSON-friendly use as an object
+    key) and carries the minimum metadata the recommender UI needs to
+    render a "Required Splunkbase apps" checklist:
+
+    * ``id`` — numeric Splunkbase app id
+    * ``name`` — short slug (kept stable across releases)
+    * ``displayName`` — human-readable label shown to operators
+    * ``url`` — canonical Splunkbase listing URL
+    * ``latestVersion`` — most recent release shipped on Splunkbase
+    * ``cloudVetted`` — bool; whether the app is approved for Splunk
+      Cloud installation (drives the warning badge in the UI)
+    * ``vendor`` — publisher (Splunk, Cisco, etc.)
+
+    The payload is intentionally cache-friendly. The ``etag`` field
+    (sha256 of the canonical body sans ``etag``/``generatedAt``) lets
+    consumers do conditional fetches even on hosts (GitHub Pages) where
+    HTTP-level ETag and ``Cache-Control`` headers cannot be set
+    per-file.
+
+    Falls back to an empty index when ``data/splunkbase-catalog.json``
+    is missing — the file is committed in v9.0+ but staying defensive
+    keeps the build hermetic during bisects.
+    """
+    catalog: Dict[str, Any] = {}
+    if SPLUNKBASE_CATALOG_PATH.is_file():
+        loaded = _load_json(SPLUNKBASE_CATALOG_PATH)
+        if isinstance(loaded, dict):
+            catalog = dict(loaded.get("apps") or {})
+    overrides: Dict[str, Any] = {}
+    if SPLUNKBASE_OVERRIDES_PATH.is_file():
+        loaded = _load_json(SPLUNKBASE_OVERRIDES_PATH)
+        if isinstance(loaded, dict):
+            overrides = dict(loaded.get("apps") or {})
+    merged: Dict[str, Dict[str, Any]] = {}
+    for source in (catalog, overrides):
+        for raw_id, raw_meta in source.items():
+            if not isinstance(raw_meta, Mapping):
+                continue
+            try:
+                int(raw_id)
+            except (TypeError, ValueError):
+                continue
+            entry = merged.setdefault(str(raw_id), {})
+            for field in (
+                "id",
+                "name",
+                "displayName",
+                "url",
+                "latestVersion",
+                "vendor",
+                "category",
+                "description",
+            ):
+                value = raw_meta.get(field)
+                if isinstance(value, str) and value:
+                    entry[field] = value
+                elif field == "id":
+                    try:
+                        entry[field] = int(value)
+                    except (TypeError, ValueError):
+                        continue
+            if "cloudVetted" in raw_meta:
+                entry["cloudVetted"] = bool(raw_meta["cloudVetted"])
+            versions = raw_meta.get("splunkVersionsSupported")
+            if isinstance(versions, list):
+                entry["splunkVersionsSupported"] = sorted(
+                    {str(v) for v in versions if isinstance(v, str) and v}
+                )
+
+    body: Dict[str, Any] = {
+        "apiVersion": API_VERSION,
+        "catalogueVersion": _read_version(),
+        "generatedAt": _deterministic_timestamp(),
+        "description": (
+            "Splunkbase app install metadata for the v9.0 recommender. "
+            "Keyed by Splunkbase app id. Refreshed weekly by "
+            "scripts/sync_splunkbase_catalog.py with hand-curated "
+            "overrides in data/splunkbase-catalog-overrides.json. "
+            "Cache hint: public, max-age=300, stale-while-revalidate="
+            "86400. Use `etag` for conditional refreshes when HTTP "
+            "headers are not available."
+        ),
+        "appCount": len(merged),
+        "apps": {
+            sb_id: dict(sorted(entry.items()))
+            for sb_id, entry in sorted(
+                merged.items(), key=lambda kv: int(kv[0])
+            )
+        },
+        "cacheControl": (
+            "public, max-age=300, stale-while-revalidate=86400"
+        ),
+    }
+    canonical = json.dumps(
+        {k: v for k, v in body.items() if k not in {"etag", "generatedAt"}},
+        indent=2,
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    body["etag"] = (
+        '"' + hashlib.sha256(canonical.encode("utf-8")).hexdigest() + '"'
+    )
+    return body
 
 
 # ---------------------------------------------------------------------------
@@ -1440,6 +1628,9 @@ def _manifest(
                 "cimIndex": f"/api/{API_VERSION}/recommender/cim-index.json",
                 "appIndex": f"/api/{API_VERSION}/recommender/app-index.json",
                 "ucThin": f"/api/{API_VERSION}/recommender/uc-thin.json",
+                "splunkbaseIndex": (
+                    f"/api/{API_VERSION}/recommender/splunkbase-index.json"
+                ),
             },
             "equipment": {
                 "index": f"/api/{API_VERSION}/equipment/index.json",
@@ -1670,6 +1861,28 @@ paths:
   /recommender/uc-thin.json:
     get:
       summary: Compact UC records (id, title, criticality, …) consumed by the recommender UI
+      description: |
+        v9.0 adds a ``sb`` array on every record listing the
+        Splunkbase apps required by the use case (id, role, name).
+        Cross-reference each id against
+        ``/recommender/splunkbase-index.json`` for the install
+        metadata (display name, URL, latest version, cloud-vetted
+        flag).
+  /recommender/splunkbase-index.json:
+    get:
+      summary: Splunkbase app install metadata keyed by Splunkbase id
+      description: |
+        Required-Splunkbase-app metadata for the v9.0 recommender,
+        sourced from data/splunkbase-catalog.json (refreshed weekly
+        by scripts/sync_splunkbase_catalog.py) merged with
+        data/splunkbase-catalog-overrides.json. Each entry carries
+        id, name, displayName, url, latestVersion, vendor, and a
+        cloudVetted flag. The body includes a content-addressable
+        ``etag`` field (sha256 of the canonical body) so consumers
+        can do conditional refreshes when HTTP-level ETag and
+        ``Cache-Control`` headers are not available (e.g. GitHub
+        Pages). Recommended cache: ``public, max-age=300, stale-
+        while-revalidate=86400``.
   /equipment/index.json:
     get:
       summary: Equipment index (equipmentId → UC count + touched regulation ids)
@@ -1915,7 +2128,19 @@ def _render(out_root: pathlib.Path) -> None:
 
     # Recommender (drives splunk-apps/splunk-uc-recommender)
     catalog_ucs = _load_catalog()
-    recommender = _recommender_payloads(catalog_ucs)
+    sidecar_sb_map: Dict[str, List[Dict[str, Any]]] = {}
+    for uc in ucs:
+        if not isinstance(uc, Mapping):
+            continue
+        uc_id = uc.get("id")
+        if not isinstance(uc_id, str):
+            continue
+        sb_field = uc.get("splunkbaseApps")
+        if isinstance(sb_field, list):
+            sidecar_sb_map[uc_id] = [
+                e for e in sb_field if isinstance(e, Mapping)
+            ]
+    recommender = _recommender_payloads(catalog_ucs, sidecar_sb_map)
     _write_json(
         out_root / "recommender" / "sourcetype-index.json",
         recommender["sourcetype-index"],
@@ -1931,6 +2156,10 @@ def _render(out_root: pathlib.Path) -> None:
     _write_json(
         out_root / "recommender" / "uc-thin.json",
         recommender["uc-thin"],
+    )
+    _write_json(
+        out_root / "recommender" / "splunkbase-index.json",
+        _recommender_splunkbase_index(),
     )
 
     # Equipment facade (equipment slug -> UCs + regulations). Uses the

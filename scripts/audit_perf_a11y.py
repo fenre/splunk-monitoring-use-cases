@@ -135,33 +135,50 @@ _PERF_BUDGETS: list[PerfBudget] = [
             "provenance metadata is being duplicated across UCs."
         ),
     },
+    # The three entries below moved from project-root paths to ``dist/``
+    # in P1 step 5c (2026-05-09): per ADR-0009 the SSOT-derived dist
+    # copies are authoritative, and the project-root copies are scheduled
+    # for `git rm` once consumer-fallback paths have soaked one release.
+    # Auditing the dist/ copies is the right call because that's what
+    # GitHub Pages serves to end users — the project-root copies were
+    # only ever a development-tree convenience.
     {
-        "file": "llms.txt",
+        "file": "dist/llms.txt",
         "budget_bytes": 20_480,  # 20 KiB
         "tier": "critical-path",
         "note": (
             "llms.txt is the compact AI-agent discovery manifest. "
             "Per the llms.txt spec this is intended to fit in a model's "
             "short-term context window, so the budget is deliberately "
-            "small to catch accidental promotion from llms-full.txt."
+            "small to catch accidental promotion from llms-full.txt. "
+            "Path moved from project-root to dist/ in P1 step 5c "
+            "(ADR-0009)."
         ),
     },
     {
-        "file": "catalog.json",
-        "budget_bytes": 58_720_256,  # 56 MiB
+        "file": "dist/catalog.json",
+        "budget_bytes": 104_857_600,  # 100 MiB
         "tier": "generated-data",
         "note": (
             "Full JSON catalogue for AI agents / scripted consumers. "
-            "Budget sized for 7,000+ UCs."
+            "Budget sized for ~7,700 UCs at ~10.5 KiB per UC after the "
+            "SSOT enrichment landed in P1 step 5b prep — cimModels in "
+            "925 sidecars, cimSpl in 364, wave in 96, plus 4,405 dma + "
+            "1,779 rby + 1,740 sver entries that legacy didn't carry. "
+            "Path moved from project-root (which was capped at the old "
+            "56 MiB budget for the legacy markdown corpus) to dist/ in "
+            "P1 step 5c (ADR-0009); budget bumped from 56 to 100 MiB "
+            "in the same change to absorb the richer SSOT shape."
         ),
     },
     {
-        "file": "llms-full.txt",
+        "file": "dist/llms-full.txt",
         "budget_bytes": 655_360,  # 640 KiB
         "tier": "generated-data",
         "note": (
             "Long-form AI-agent manifest (per llms.txt spec).  Budget "
-            "sized for routine UC content growth."
+            "sized for routine UC content growth. Path moved from "
+            "project-root to dist/ in P1 step 5c (ADR-0009)."
         ),
     },
 ]

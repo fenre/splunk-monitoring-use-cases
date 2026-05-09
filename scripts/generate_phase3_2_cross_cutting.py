@@ -16,7 +16,7 @@ the markdown files (``use-cases/cat-NN-<slug>.md``). Phase 3.2 is purely a
 metadata overlay that an auditor can consume: every existing compliance-aware
 script in the repo (``scripts/audit_compliance_mappings.py``,
 ``scripts/audit_compliance_gaps.py``, ``scripts/generate_api_surface.py``,
-``scripts/generate_splunk_app.py``) already reads ``use-cases/cat-*/uc-*.json``
+``scripts/generate_recommender_app.py``) already reads ``use-cases/cat-*/uc-*.json``
 so a minimal sidecar is sufficient to pick up the new clause tags without
 touching a single line of SPL.
 

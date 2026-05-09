@@ -1,0 +1,108 @@
+<!--
+Architecture / build-pipeline / CI / framework PR template.
+
+Pick this template via:
+  https://github.com/<owner>/splunk-monitoring-use-cases/compare/main...<branch>?template=architecture.md
+
+Use it for: build-pipeline changes, CI workflow changes, schema changes,
+typed-model migrations, frontend rebuild work, monorepo splits, anything
+under the repo-overhaul plan (P0–P19). For routine UC content PRs, stick
+with the default template.
+-->
+
+## Summary
+
+<!-- One or two sentences. WHY before WHAT. -->
+
+## Plan reference
+
+- [ ] This PR implements step **`<Phase>.<step>`** of the repo-overhaul plan
+      (`<docs/architecture-2027.md or plan-internal reference>`).
+- [ ] Changes the per-PR contract documented in §4 of the plan: **one
+      concern, < 500 net lines** (or labelled `[generated]` in the title).
+- [ ] Rollback path declared per [`docs/rollback-playbook.md`](../docs/rollback-playbook.md)
+      (Rollback section below).
+- [ ] CHANGELOG.md updated under `## [Unreleased]`.
+
+## Type of change
+
+<!-- Tick one or more. -->
+
+- [ ] Build pipeline / tooling
+- [ ] CI workflow
+- [ ] Schema (additive only — `additionalProperties: false` preserved)
+- [ ] Typed models / Python package layout
+- [ ] Frontend (HTML / TS / CSP / bundler)
+- [ ] Scripts taxonomy / module layout
+- [ ] Performance / accessibility budget
+- [ ] Security hardening
+- [ ] Documentation / ADR
+- [ ] Other (explain below)
+
+## Validation
+
+- [ ] `make build` succeeds locally and emits a byte-identical artefact
+      vs. the prior commit (or, if not byte-identical, the diff is
+      explained below under "Generated artefact diff").
+- [ ] `make test` green.
+- [ ] If touching `tools/build/**`, `mcp/**`, or `schemas/**`,
+      `make audit` and `make audit-full` are green.
+- [ ] If touching CI: `actionlint` + `yamllint` clean (run via
+      `pre-commit run --all-files`).
+- [ ] Public API / wire signatures unchanged (or migration documented
+      below — see §11 External-consumer impact matrix).
+
+## Rollback
+
+<!--
+EVERY architecture/CI/framework PR must declare a rollback path.
+
+Read `docs/rollback-playbook.md` for the per-phase contract before
+filling this in. Default soak windows for the common phases:
+
+  P1 SSOT      → one minor version
+  P2 / P4      → 7 days
+  P5 frontend  → 14 days (Pages caching)
+  P9 monorepo  → one minor version
+  P3 docs/ADR  → none
+
+Reviewers must reject the PR if any field below reads "TBD" / "???";
+those are unfinished requirements, not defaults.
+-->
+
+- Revert command:        `git revert <merge-sha>`
+- Data migration to undo: <none | path to undo script>
+- Soak window:           <minor-version | days | none>
+- Kill switch:           <env var | feature flag | `_PROJECT_STATIC_FILES` shadow | none + justification>
+- Cache invalidation:    <none | Pages purge | CDN-edge | downstream MCP refresh>
+
+## Baseline impact
+
+<!--
+If this PR moves a number captured in `data/baselines/v*.json`, name it.
+Examples: `make build` wall-clock, gzipped `index.html` size, validate.yml
+step count, Python test count, MCP tool count.
+-->
+
+| Metric (from `data/baselines/v7.4.2.json`) | Before | After | Δ |
+|---|---|---|---|
+| ... | ... | ... | ... |
+
+## Documentation touched
+
+- [ ] `AGENTS.md` updated if a public API surface changed (MCP tools,
+      catalog.json keys, api/v1 shapes).
+- [ ] `docs/architecture.md` / new ADR if an architectural invariant
+      changed.
+- [ ] `docs/migration-status.md` updated if a Phase-1 migration step
+      landed.
+- [ ] `CHANGELOG.md` entry above.
+
+## Generated artefact diff
+
+<!-- Only fill in if `make build` is NOT byte-identical to main. Paste
+the `git diff --stat` of the regenerated tree. -->
+
+## Related issues / plan items
+
+<!-- Fixes #NNN, Refs #NNN, plan todo IDs (p1-enrichment-ssot, etc.). -->

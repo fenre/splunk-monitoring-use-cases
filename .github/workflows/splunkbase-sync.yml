@@ -1,0 +1,94 @@
+# Weekly refresh of data/splunkbase-catalog.json from the public Splunkbase
+# REST API. Companion to scripts/sync_splunkbase_catalog.py. The job:
+#
+#   1. Pulls the current catalog,
+#   2. Paginates https://splunkbase.splunk.com/api/v1/app/ (1 req/sec, 429
+#      Retry-After honoured) via scripts/sync_splunkbase_catalog.py --sync,
+#   3. On any outage / non-2xx, the script keeps the cache and exits 0,
+#   4. Opens a pull request (peter-evans/create-pull-request) with the diff
+#      so a human reviews each catalog change. We never auto-commit catalog
+#      drift directly to main — that's the v9.0 trust-chain commitment.
+#
+# Why a PR instead of a direct push? data/splunkbase-catalog.json feeds the
+# recommender app's install-guidance UI. A spurious or compromised upstream
+# entry could mis-direct operators to the wrong app. Human PR review is the
+# trust gate.
+name: Splunkbase catalog sync
+
+on:
+  schedule:
+    # Tuesdays 08:00 UTC. Picks up the weekend's Splunkbase publishes and
+    # gives the compliance/SME team Tuesday-Wednesday to review the PR
+    # before the next on-call rotation.
+    - cron: "0 8 * * 2"
+  workflow_dispatch: {}
+
+concurrency:
+  group: splunkbase-catalog-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python
+        # Repo-overhaul plan §P2 (2026-05-08): centralised toolchain.
+        # ``sync_splunkbase_catalog.py`` is stdlib-only.
+        uses: ./.github/actions/setup-python
+
+      - name: Refresh catalog
+        run: |
+          python3 scripts/sync_splunkbase_catalog.py --sync | tee sync.log
+
+      - name: Validate refreshed catalog
+        run: |
+          python3 scripts/sync_splunkbase_catalog.py --check
+
+      - name: Open pull request on diff
+        # peter-evans/create-pull-request v8.1.1
+        # SHA verified via https://api.github.com/repos/peter-evans/create-pull-request/git/refs/tags/v8.1.1
+        # Bump as a follow-up PR; SHA must come from the release tag, never from a tag-mutable ref.
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          commit-message: "chore(splunkbase): refresh data/splunkbase-catalog.json"
+          branch: chore/splunkbase-catalog-sync
+          delete-branch: true
+          title: "chore(splunkbase): weekly catalog refresh"
+          body: |
+            Automated refresh of `data/splunkbase-catalog.json` from the public Splunkbase REST API.
+
+            * Source: <https://splunkbase.splunk.com/api/v1/app/>
+            * Script: `scripts/sync_splunkbase_catalog.py --sync`
+            * Trigger: weekly cron in `.github/workflows/splunkbase-sync.yml`
+
+            **Review checklist**
+
+            - [ ] Diff looks like routine version / download-count drift, not a hostile rewrite
+            - [ ] No new entries with implausible vendor / category fields (cross-check overrides if needed)
+            - [ ] `tools/audits/splunkbase_ids.py` passes against the new catalog
+            - [ ] `tools/audits/splunkbase_coverage.py` still GREEN
+
+            If the catalog body looks wrong, **do not merge** — instead update
+            `data/splunkbase-catalog-overrides.json` with a corrective entry, re-run
+            the workflow, and merge the resulting PR.
+          labels: |
+            splunkbase
+            chore
+          add-paths: |
+            data/splunkbase-catalog.json
+
+      - name: Upload sync log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: splunkbase-catalog-sync
+          path: sync.log
+          if-no-files-found: ignore

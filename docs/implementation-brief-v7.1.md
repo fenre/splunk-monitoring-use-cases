@@ -151,7 +151,8 @@ unchanged.
 ### Files to delete
 - `index2.html`
 - `content/cat-*/UC-*.md` (companion markdown files targeted for deletion in this plan)
-- `scripts/generate_md_from_json.py` (or move to `scripts/_archived/`)
+- `scripts/generate_md_from_json.py` (delete in P1; the legacy
+  `scripts/_archived/` copy was removed in the Phase 0 hygiene pass).
 
 ### Files to modify
 

@@ -37,11 +37,13 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from build.types import RegulationFramework
+
 from . import _css, _helpers
 
 
 def render_html(
-    framework: dict[str, Any],
+    framework: RegulationFramework,
     *,
     slug: str,
     ucs: list[dict[str, Any]],
@@ -131,7 +133,7 @@ def render_html(
 
 
 def render_index_json(
-    framework: dict[str, Any],
+    framework: RegulationFramework,
     *,
     slug: str,
     ucs: list[dict[str, Any]],
@@ -207,7 +209,7 @@ def render_index_json(
 
 def render_index_html(
     *,
-    frameworks: list[tuple[dict[str, Any], str, int]],
+    frameworks: list[tuple[RegulationFramework, str, int]],
     ctx: _helpers.RenderContext,
 ) -> str:
     """Render the ``/regulation/`` landing page listing every framework.
@@ -288,7 +290,7 @@ def render_index_html(
 
 def render_index_payload(
     *,
-    frameworks: list[tuple[dict[str, Any], str, int]],
+    frameworks: list[tuple[RegulationFramework, str, int]],
     ctx: _helpers.RenderContext,
 ) -> dict[str, Any]:
     """JSON twin for ``/regulation/index.json``."""
@@ -324,7 +326,7 @@ def render_index_payload(
 # ---------------------------------------------------------------------------
 
 
-def _framework_description(framework: dict[str, Any], uc_count: int) -> str:
+def _framework_description(framework: RegulationFramework, uc_count: int) -> str:
     name = str(framework.get("name") or framework.get("shortName") or framework.get("id") or "this framework")
     parts = [
         f"{uc_count} Splunk monitoring use cases mapped to {name}.",
@@ -338,7 +340,7 @@ def _framework_description(framework: dict[str, Any], uc_count: int) -> str:
     return _helpers.truncate(" ".join(parts), 240)
 
 
-def _render_facts(framework: dict[str, Any]) -> str:
+def _render_facts(framework: RegulationFramework) -> str:
     rows: list[str] = ['<dl class="facts">']
     name = framework.get("name")
     if name:

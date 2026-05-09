@@ -15,6 +15,7 @@ from splunk_uc_mcp.tools.use_case import (
     GET_USE_CASE_SCHEMA,
     LIST_CATEGORIES_OUTPUT_SCHEMA,
     LIST_CATEGORIES_SCHEMA,
+    _coerce_splunkbase_apps,
     get_use_case,
     get_use_case_markdown,
     list_categories,
@@ -67,6 +68,67 @@ class TestGetUseCaseSchemas:
         assert (
             props["prerequisiteUseCases"]["items"]["pattern"].startswith("^UC-")
         )
+
+    def test_output_schema_advertises_splunkbase_apps(self) -> None:
+        """v1.7.0 catalogue: every UC carries (possibly empty)
+        ``splunkbaseApps`` so agents can render install guidance.
+
+        The role enum must match ``schemas/uc.schema.json``; if the
+        enum drifts, hand-rolled MCP consumers will silently accept
+        invalid roles. Pin both the enum order and the required keys.
+        """
+
+        props = GET_USE_CASE_OUTPUT_SCHEMA["properties"]
+        assert "splunkbaseApps" in props
+        sb = props["splunkbaseApps"]
+        assert sb["type"] == "array"
+        item = sb["items"]
+        assert item["required"] == ["id", "name", "role"]
+        assert item["properties"]["id"]["type"] == "integer"
+        assert item["properties"]["role"]["enum"] == [
+            "primary",
+            "data-source",
+            "premium",
+            "optional",
+        ]
+
+
+class TestCoerceSplunkbaseApps:
+    def test_handles_missing_or_wrong_type(self) -> None:
+        assert _coerce_splunkbase_apps(None) == []
+        assert _coerce_splunkbase_apps("nope") == []
+        assert _coerce_splunkbase_apps({}) == []
+
+    def test_promotes_compact_to_full_shape(self) -> None:
+        out = _coerce_splunkbase_apps([
+            {
+                "id": 5631,
+                "role": "data-source",
+                "name": "Splunk_TA_cisco_meraki",
+                "minVersion": "2.7.1",
+            },
+            {
+                "id": 263,
+                "role": "premium",
+                "name": "ES",
+                "setupSkill": "splunk-es-setup",
+                "requiresSmeReview": True,
+            },
+        ])
+        assert out[0]["id"] == 5631
+        assert out[0]["minVersion"] == "2.7.1"
+        assert out[1]["setupSkill"] == "splunk-es-setup"
+        assert out[1]["requiresSmeReview"] is True
+
+    def test_drops_entries_missing_required_keys(self) -> None:
+        out = _coerce_splunkbase_apps([
+            {"id": None, "role": "primary"},
+            {"id": 5631, "role": "data-source"},
+            {"id": 5631, "name": "x"},
+            {"role": "data-source", "name": "y"},
+            "not-a-dict",
+        ])
+        assert out == []
 
     def test_input_schema_pattern_is_valid(self) -> None:
         import re

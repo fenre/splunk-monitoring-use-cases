@@ -14,12 +14,32 @@
 
   var DEFAULT_API_BASE = 'https://fenre.github.io/splunk-monitoring-use-cases/api/v1';
 
+  // v9.0 — implementation tracking constants.
+  var STATUS_LABELS = {
+    not_started: 'Not Started',
+    in_progress: 'In Progress',
+    implemented: 'Live',
+    needs_review: 'Action Needed',
+    decommissioned: 'Decommissioned',
+  };
+  var FAST_PATH_STATUSES = ['not_started', 'in_progress', 'implemented'];
+  var DESTRUCTIVE_STATUSES = ['decommissioned'];
+  var REQUIRED_CAPABILITY = 'edit_uc_implementations';
+  var SPLUNKBASE_URL_RX = /^https:\/\/splunkbase\.splunk\.com\/app\/\d+\/?$/;
+  var DECOMMISSION_SAVED_SEARCH = 'uc_implementation_decommission';
+  var RECONCILE_INTERVAL_MS = 5000;
+  var RECONCILE_MAX_TRIES = 6; // 30 s window for SHC replication.
+
   var STATE = {
     apiBase: DEFAULT_API_BASE,
     appName: 'splunk-uc-recommender',
     inventory: null,
     indexes: null,
     thin: null,
+    implementations: null,        // map uc_id -> implementation row
+    splunkbaseIndex: null,        // map sb_id -> {name, displayName, ...}
+    capability: false,            // user holds edit_uc_implementations?
+    upstreamErrors: {},          // per-endpoint error messages
     recommendations: [],
   };
 
@@ -95,23 +115,201 @@
     });
   }
 
+  // v9.0 uses Promise.allSettled so a single failed upstream never
+  // blanks the whole dashboard. Errors are recorded per-endpoint on
+  // STATE.upstreamErrors so render paths can show specific copy
+  // (§ 13d / § 13f). The fifth fetch (splunkbase-index.json) is also
+  // settled-tolerant: missing it just means the install checklist
+  // renders "Splunkbase metadata unavailable" instead of breaking
+  // every card.
   function loadRemoteIndexes(apiBase) {
-    return Promise.all([
-      fetchJson(apiBase + '/recommender/sourcetype-index.json'),
-      fetchJson(apiBase + '/recommender/cim-index.json'),
-      fetchJson(apiBase + '/recommender/app-index.json'),
-      fetchJson(apiBase + '/recommender/uc-thin.json'),
-    ]).then(function (all) {
-      return {
-        sourcetypes: all[0].sourcetypes || {},
-        cim: all[1].cimModels || {},
-        apps: all[2].apps || {},
-        thin: (all[3].useCases || []).reduce(function (acc, r) {
+    var endpoints = [
+      ['sourcetypes', apiBase + '/recommender/sourcetype-index.json'],
+      ['cim',         apiBase + '/recommender/cim-index.json'],
+      ['apps',        apiBase + '/recommender/app-index.json'],
+      ['thin',        apiBase + '/recommender/uc-thin.json'],
+      ['splunkbase',  apiBase + '/recommender/splunkbase-index.json'],
+    ];
+    return Promise.allSettled(endpoints.map(function (e) {
+      return fetchJson(e[1]).catch(function (err) {
+        STATE.upstreamErrors[e[0]] = err && err.message ? err.message : String(err);
+        throw err;
+      });
+    })).then(function (results) {
+      var out = {
+        sourcetypes: {},
+        cim: {},
+        apps: {},
+        thin: {},
+        splunkbase: {},
+      };
+      var s = results[0]; if (s.status === 'fulfilled') out.sourcetypes = s.value.sourcetypes || {};
+      var c = results[1]; if (c.status === 'fulfilled') out.cim = c.value.cimModels || {};
+      var a = results[2]; if (a.status === 'fulfilled') out.apps = a.value.apps || {};
+      var t = results[3]; if (t.status === 'fulfilled') {
+        out.thin = (t.value.useCases || []).reduce(function (acc, r) {
           acc[r.id] = r;
           return acc;
-        }, {}),
-      };
+        }, {});
+      }
+      var b = results[4]; if (b.status === 'fulfilled') out.splunkbase = b.value.apps || {};
+      return out;
     });
+  }
+
+  function loadImplementations() {
+    return runSearchJob('| inputlookup uc_recommender_implementations').then(function (rows) {
+      var map = {};
+      (rows || []).forEach(function (r) {
+        if (r && r.uc_id) map[r.uc_id] = r;
+      });
+      return map;
+    }).catch(function (err) {
+      STATE.upstreamErrors.implementations = err && err.message ? err.message : String(err);
+      return {};
+    });
+  }
+
+  function loadCapability() {
+    if (!hasRequire) return Promise.resolve(false);
+    return new Promise(function (resolve) {
+      var settled = false;
+      var timer;
+      function done(value) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(!!value);
+      }
+      timer = setTimeout(function () { done(false); }, 10000);
+
+      function checkCaps(caps) {
+        if (!caps) return false;
+        if (Array.isArray(caps)) return caps.indexOf(REQUIRED_CAPABILITY) !== -1;
+        return caps === REQUIRED_CAPABILITY;
+      }
+
+      function tryProxyFetch() {
+        if (settled) return;
+        // Splunk Web's documented pass-through proxy for splunkd REST.
+        // Bare /services/... 303s into /en-US/services/... which 404s
+        // as an HTML error page; /en-US/splunkd/__raw/services/... is
+        // the path Splunk Web actually serves to in-app dashboard JS.
+        var url = '/en-US/splunkd/__raw/services/authentication/current-context?output_mode=json';
+        fetch(url, {
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json' },
+        }).then(function (r) {
+          if (!r.ok) return null;
+          return r.json();
+        }).then(function (data) {
+          if (!data || !data.entry || !data.entry[0] || !data.entry[0].content) {
+            return done(false);
+          }
+          done(checkCaps(data.entry[0].content.capabilities));
+        }).catch(function () { done(false); });
+      }
+
+      require(['splunkjs/mvc'], function (mvc) {
+        try {
+          // Preferred: SplunkJS SDK's createService() — uses SplunkWebHttp
+          // transport which already knows how to dial through the
+          // authenticated Splunk Web proxy.
+          if (mvc && typeof mvc.createService === 'function') {
+            var service = mvc.createService();
+            if (service && typeof service.currentUser === 'function') {
+              service.currentUser(function (err, user) {
+                if (err || !user || typeof user.properties !== 'function') {
+                  return tryProxyFetch();
+                }
+                try {
+                  var props = user.properties() || {};
+                  done(checkCaps(props.capabilities));
+                } catch (_) {
+                  tryProxyFetch();
+                }
+              });
+              return;
+            }
+          }
+          tryProxyFetch();
+        } catch (_) {
+          tryProxyFetch();
+        }
+      }, function () { tryProxyFetch(); });
+    });
+  }
+
+  function safeSplunkbaseUrl(url) {
+    if (typeof url !== 'string') return null;
+    var trimmed = url.trim();
+    return SPLUNKBASE_URL_RX.test(trimmed) ? trimmed : null;
+  }
+
+  function statusOf(ucId) {
+    if (!STATE.implementations) return 'not_started';
+    var row = STATE.implementations[ucId];
+    if (!row || !row.status) return 'not_started';
+    return STATUS_LABELS[row.status] ? row.status : 'not_started';
+  }
+
+  function persistImplementation(ucId, payload) {
+    var url = '/splunkd/__raw/servicesNS/nobody/' + STATE.appName
+      + '/storage/collections/data/uc_recommender_implementations/'
+      + encodeURIComponent(ucId);
+    var body = Object.assign({
+      _key: ucId,
+      uc_id: ucId,
+      detection_source: 'manual',
+    }, payload || {});
+    return fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then(function (r) {
+      if (!r.ok) throw new Error('KV write failed (HTTP ' + r.status + ')');
+      return r.json().catch(function () { return body; });
+    });
+  }
+
+  function dispatchDecommission(ucId, reason) {
+    if (!hasRequire) return Promise.reject(new Error('Not in Splunk Web'));
+    var url = '/splunkd/__raw/servicesNS/nobody/' + STATE.appName
+      + '/saved/searches/' + encodeURIComponent(DECOMMISSION_SAVED_SEARCH)
+      + '/dispatch';
+    var requestId = String(Math.random()).slice(2) + '-' + Date.now();
+    var params = new URLSearchParams();
+    params.append('dispatch.search_args.uc_id', ucId);
+    params.append('dispatch.search_args.reason', reason || '');
+    params.append('dispatch.search_args.user', 'self');
+    params.append('dispatch.search_args.request_id', requestId);
+    return fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    }).then(function (r) {
+      if (!r.ok) throw new Error('Decommission dispatch failed (HTTP ' + r.status + ')');
+      return r.json().catch(function () { return null; });
+    });
+  }
+
+  function reconcileStatus(ucId, expectedStatus) {
+    var attempts = 0;
+    function tick() {
+      attempts += 1;
+      return loadImplementations().then(function (impl) {
+        STATE.implementations = impl;
+        var actual = (impl[ucId] || {}).status;
+        if (actual === expectedStatus) return true;
+        if (attempts >= RECONCILE_MAX_TRIES) return false;
+        return new Promise(function (resolve) {
+          setTimeout(function () { resolve(tick()); }, RECONCILE_INTERVAL_MS);
+        });
+      }).catch(function () { return false; });
+    }
+    return tick();
   }
 
   function runSearchJob(spl) {
@@ -119,6 +317,22 @@
       if (!hasRequire) {
         return reject(new Error('Not running inside Splunk Web'));
       }
+      var settled = false;
+      function safeResolve(rows) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(rows || []);
+      }
+      function safeReject(err) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
+      var timer = setTimeout(function () {
+        safeReject(new Error('search timed out after 15s'));
+      }, 15000);
       require(['splunkjs/mvc', 'splunkjs/mvc/searchmanager'], function (mvc, SearchManager) {
         try {
           var name = 'uc_recommender_job_' + Math.random().toString(36).slice(2);
@@ -132,16 +346,49 @@
             cache: true,
           });
           var results = sm.data('results', { count: 5000 });
-          results.on('data', function () {
-            var rows = results.data() && results.data().results
-              ? results.data().results
-              : [];
-            resolve(rows);
+          function pull() {
+            var d = (typeof results.data === 'function') ? results.data() : null;
+            var rows = (d && d.results) ? d.results : [];
+            safeResolve(rows);
+          }
+          // Two events can settle this promise, and they RACE on
+          // every search. Build 9 had a regression where the wrong
+          // one won and we returned [] for non-empty inventory.
+          //
+          //   * results.on('data', ...)  -- ResultsModel fires this
+          //     after its background fetch lands. Fires only when
+          //     resultCount > 0; for empty result sets it never
+          //     fires at all.
+          //   * sm.on('search:done', ...) -- SearchManager fires
+          //     this when the JOB transitions to isDone=true. This
+          //     happens BEFORE the ResultsModel fetch completes, so
+          //     calling results.data() in this handler can return
+          //     null or {results:[]} even when the search produced
+          //     thousands of rows.
+          //
+          // Build 10 fix: 'data' wins outright for non-empty
+          // results; 'search:done' is a deferred safety net so that
+          // empty result sets still settle in bounded time. The
+          // 800ms delay is invisible to users (the dashboard's own
+          // loading text shows for several seconds anyway) but is
+          // ample for the SDK's HTTP fetch to land and the 'data'
+          // event to fire on every Splunk version we test against.
+          var deferredPullTimer;
+          results.on('data', pull);
+          sm.on('search:done', function () {
+            clearTimeout(deferredPullTimer);
+            deferredPullTimer = setTimeout(pull, 800);
           });
-          sm.on('search:error', function (err) { reject(err); });
+          sm.on('search:error', function (err) { safeReject(err); });
+          sm.on('search:fail', function (err) { safeReject(err); });
+          sm.on('search:cancelled', function () {
+            safeReject(new Error('search cancelled'));
+          });
         } catch (err) {
-          reject(err);
+          safeReject(err);
         }
+      }, function (err) {
+        safeReject(err);
       });
     });
   }
@@ -226,6 +473,69 @@
     return out.slice(0, 100);
   }
 
+  function renderStatusBadge(parent, ucId) {
+    var status = statusOf(ucId);
+    var badge = safeAppend(parent, 'span', null, {
+      'class': 'uc-status-badge uc-status-' + status,
+      'data-status': status,
+      'role': 'status',
+    });
+    // Always set textContent — never rely on colour alone (a11y, § 12d).
+    badge.textContent = STATUS_LABELS[status] || 'Unknown';
+    return badge;
+  }
+
+  function renderRequiredSplunkbase(parent, sb) {
+    if (!Array.isArray(sb) || sb.length === 0) {
+      var none = safeAppend(parent, 'p', null, { 'class': 'uc-sb-none' });
+      none.textContent = (STATE.splunkbaseIndex && Object.keys(STATE.splunkbaseIndex).length)
+        ? 'No Splunkbase apps required.'
+        : 'Splunkbase metadata unavailable; consult catalog directly.';
+      return;
+    }
+    var details = safeAppend(parent, 'details', null, { 'class': 'uc-sb-section' });
+    var summary = safeAppend(details, 'summary');
+    summary.textContent = 'Required Splunkbase apps (' + sb.length + ')';
+    var ul = safeAppend(details, 'ul', null, { 'class': 'uc-sb-list' });
+    sb.forEach(function (entry) {
+      if (!entry || typeof entry.id === 'undefined') return;
+      var meta = (STATE.splunkbaseIndex || {})[String(entry.id)] || {};
+      var li = safeAppend(ul, 'li', null, { 'class': 'uc-sb-item' });
+      var label = (entry.name || meta.displayName || meta.name || ('App ' + entry.id));
+      var role = entry.role ? (' (' + entry.role + ')') : '';
+      // Try the catalog's URL first, but fall back to the canonical
+      // /app/<id>/ form if it fails the allow-list — this gives us a
+      // safe link even when upstream metadata is corrupt.
+      var url = safeSplunkbaseUrl(meta.url || '')
+        || safeSplunkbaseUrl('https://splunkbase.splunk.com/app/' + entry.id + '/');
+      if (url) {
+        var a = safeAppend(li, 'a', null, {
+          'href': url,
+          'target': '_blank',
+          'rel': 'noopener noreferrer',
+        });
+        a.textContent = label + role;
+      } else {
+        safeAppend(li, 'span', label + role);
+      }
+      if (entry.minVersion) {
+        safeAppend(li, 'span', '  min ' + entry.minVersion, {
+          'class': 'uc-sb-version',
+        });
+      }
+      if (entry.requiresSmeReview) {
+        safeAppend(li, 'span', '  needs review', {
+          'class': 'uc-sb-review',
+        });
+      }
+      if (meta.cloudVetted === false) {
+        safeAppend(li, 'span', '  not cloud-vetted', {
+          'class': 'uc-sb-not-cloud',
+        });
+      }
+    });
+  }
+
   function renderCard(parent, row) {
     var card = safeAppend(parent, 'div', null, {
       'class': 'uc-card uc-crit-' + (row.criticality || 'medium'),
@@ -235,6 +545,7 @@
     safeAppend(header, 'span', 'UC ' + row.id, { 'class': 'uc-id' });
     safeAppend(header, 'span', row.criticality || '', { 'class': 'uc-crit' });
     safeAppend(header, 'span', row.splunkPillar || '', { 'class': 'uc-pillar' });
+    renderStatusBadge(header, row.id);
     safeAppend(card, 'h4', row.title || ('UC ' + row.id));
     if (row.value) safeAppend(card, 'p', row.value, { 'class': 'uc-value' });
     if (row.reasons && row.reasons.length) {
@@ -242,6 +553,8 @@
       safeAppend(why, 'strong', 'Why: ');
       safeAppend(why, 'span', row.reasons.slice(0, 4).join('; '));
     }
+    var sbContainer = safeAppend(card, 'div', null, { 'class': 'uc-sb-container' });
+    renderRequiredSplunkbase(sbContainer, row.sb || []);
     var btnRow = safeAppend(card, 'div', null, { 'class': 'uc-btn-row' });
     var detailBtn = safeAppend(btnRow, 'button', 'Details', {
       'type': 'button',
@@ -251,7 +564,198 @@
     detailBtn.addEventListener('click', function () {
       openDetailDrawer(row);
     });
+    if (STATE.capability) {
+      var markBtn = safeAppend(btnRow, 'button', null, {
+        'type': 'button',
+        'class': 'uc-btn uc-btn-mark',
+        'data-uc-id': row.id,
+      });
+      markBtn.textContent = (statusOf(row.id) === 'not_started')
+        ? 'Mark as implemented'
+        : 'Edit status';
+      markBtn.addEventListener('click', function () {
+        openImplementationModal(row, markBtn);
+      });
+    }
     return card;
+  }
+
+  // Modal a11y: role=dialog, aria-modal, focus trap, Escape closes,
+  // focus-return on close. Per § 12d (WCAG 2.1 AA).
+  function openImplementationModal(row, openerBtn) {
+    var existing = document.getElementById('uc-impl-modal');
+    if (existing) existing.remove();
+    var modal = document.createElement('div');
+    modal.id = 'uc-impl-modal';
+    modal.className = 'uc-modal-backdrop';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'uc-impl-modal-title');
+
+    var dialog = safeAppend(modal, 'div', null, { 'class': 'uc-modal' });
+    safeAppend(dialog, 'h3', 'Update implementation status — UC ' + row.id, {
+      'id': 'uc-impl-modal-title',
+    });
+    safeAppend(dialog, 'p', row.title || '');
+
+    var statusLabel = safeAppend(dialog, 'label', 'Status');
+    var select = safeAppend(dialog, 'select', null, {
+      'class': 'uc-modal-status',
+      'aria-label': 'New status',
+    });
+    FAST_PATH_STATUSES.concat(['needs_review']).forEach(function (s) {
+      var opt = safeAppend(select, 'option', STATUS_LABELS[s] || s, {
+        'value': s,
+      });
+      if (statusOf(row.id) === s) opt.setAttribute('selected', 'selected');
+    });
+    DESTRUCTIVE_STATUSES.forEach(function (s) {
+      safeAppend(select, 'option', STATUS_LABELS[s] || s, {
+        'value': s,
+        'data-destructive': '1',
+      });
+    });
+
+    safeAppend(dialog, 'label', 'Notes (max 2000 chars; CR/LF stripped)');
+    var notes = safeAppend(dialog, 'textarea', null, {
+      'class': 'uc-modal-notes',
+      'maxlength': 2000,
+      'rows': 4,
+    });
+
+    var msg = safeAppend(dialog, 'div', '', {
+      'class': 'uc-modal-msg',
+      'role': 'alert',
+      'aria-live': 'polite',
+    });
+
+    var actions = safeAppend(dialog, 'div', null, { 'class': 'uc-modal-actions' });
+    var cancel = safeAppend(actions, 'button', 'Cancel', {
+      'type': 'button',
+      'class': 'uc-btn uc-btn-cancel',
+    });
+    var save = safeAppend(actions, 'button', 'Save', {
+      'type': 'button',
+      'class': 'uc-btn uc-btn-save',
+    });
+
+    function close() {
+      modal.remove();
+      if (openerBtn && typeof openerBtn.focus === 'function') {
+        openerBtn.focus();
+      }
+      document.removeEventListener('keydown', onKey);
+    }
+
+    function trapFocus(forward) {
+      var focusables = dialog.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusables.length) return;
+      var first = focusables[0];
+      var last = focusables[focusables.length - 1];
+      if (forward && document.activeElement === last) {
+        first.focus();
+        return true;
+      }
+      if (!forward && document.activeElement === first) {
+        last.focus();
+        return true;
+      }
+      return false;
+    }
+
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        close();
+      } else if (e.key === 'Tab') {
+        if (trapFocus(!e.shiftKey)) e.preventDefault();
+      }
+    }
+
+    cancel.addEventListener('click', close);
+    save.addEventListener('click', function () {
+      var newStatus = select.value;
+      var notesVal = (notes.value || '').replace(/[\r\n]+/g, ' ').slice(0, 2000);
+      if (!STATUS_LABELS[newStatus]) {
+        msg.textContent = 'Invalid status.';
+        return;
+      }
+      msg.textContent = 'Saving…';
+      save.disabled = true;
+      var op;
+      if (DESTRUCTIVE_STATUSES.indexOf(newStatus) !== -1) {
+        op = dispatchDecommission(row.id, notesVal || 'Operator decommission');
+      } else {
+        op = persistImplementation(row.id, {
+          status: newStatus,
+          notes: notesVal,
+          marked_at: new Date().toISOString(),
+        });
+      }
+      var optimistic = STATE.implementations || (STATE.implementations = {});
+      var prev = optimistic[row.id];
+      optimistic[row.id] = Object.assign({}, prev, {
+        uc_id: row.id,
+        status: newStatus,
+        notes: notesVal,
+      });
+      // Re-render the badge in-place with the optimistic state.
+      var badge = document.querySelector(
+        '.uc-card[data-uc-id="' + CSS.escape(row.id) + '"] .uc-status-badge'
+      );
+      if (badge) {
+        badge.className = 'uc-status-badge uc-status-' + newStatus;
+        badge.dataset.status = newStatus;
+        badge.textContent = STATUS_LABELS[newStatus];
+      }
+      op.then(function () {
+        msg.textContent = 'Saved. Reconciling with KV…';
+        return reconcileStatus(row.id, newStatus);
+      }).then(function (matched) {
+        if (matched) {
+          close();
+        } else {
+          // Drift — revert optimistic change, surface message.
+          if (prev) {
+            optimistic[row.id] = prev;
+          } else {
+            delete optimistic[row.id];
+          }
+          if (badge) {
+            var revertedStatus = statusOf(row.id);
+            badge.className = 'uc-status-badge uc-status-' + revertedStatus;
+            badge.dataset.status = revertedStatus;
+            badge.textContent = STATUS_LABELS[revertedStatus];
+          }
+          msg.textContent = 'Status didn\u2019t sync — try again.';
+          save.disabled = false;
+        }
+      }).catch(function (err) {
+        msg.textContent = (err && err.message) ? err.message : String(err);
+        save.disabled = false;
+        // Revert optimistic update on failure.
+        if (prev) {
+          optimistic[row.id] = prev;
+        } else {
+          delete optimistic[row.id];
+        }
+        if (badge) {
+          var revertedStatus2 = statusOf(row.id);
+          badge.className = 'uc-status-badge uc-status-' + revertedStatus2;
+          badge.dataset.status = revertedStatus2;
+          badge.textContent = STATUS_LABELS[revertedStatus2];
+        }
+      });
+    });
+
+    document.body.appendChild(modal);
+    document.addEventListener('keydown', onKey);
+    select.focus();
+    modal.addEventListener('click', function (ev) {
+      if (ev.target === modal) close();
+    });
   }
 
   function searchDeepLink(query) {
@@ -327,16 +831,167 @@
     });
   }
 
+  // URL-state helpers — persist filters across reloads & tabs (§ 12c).
+  function readUrlState() {
+    try {
+      var params = new URLSearchParams(window.location.search || '');
+      return {
+        text: params.get('q') || '',
+        status: params.get('status') || '',
+        criticality: params.get('crit') || '',
+      };
+    } catch (err) {
+      return { text: '', status: '', criticality: '' };
+    }
+  }
+
+  function writeUrlState(state) {
+    if (!window.history || typeof window.history.replaceState !== 'function') return;
+    try {
+      var url = new URL(window.location.href);
+      if (state.text) { url.searchParams.set('q', state.text); } else { url.searchParams.delete('q'); }
+      if (state.status) { url.searchParams.set('status', state.status); } else { url.searchParams.delete('status'); }
+      if (state.criticality) { url.searchParams.set('crit', state.criticality); } else { url.searchParams.delete('crit'); }
+      window.history.replaceState(null, '', url.toString());
+    } catch (err) {
+      /* ignore — URL persistence is best-effort */
+    }
+  }
+
+  function rowsToCsv(rows) {
+    var headers = ['uc_id', 'title', 'criticality', 'status', 'pillar', 'value', 'reasons'];
+    var esc = function (v) {
+      var s = (v === null || v === undefined) ? '' : String(v);
+      if (/[",\r\n]/.test(s)) {
+        s = '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    };
+    var out = [headers.join(',')];
+    rows.forEach(function (r) {
+      out.push([
+        r.id,
+        r.title || '',
+        r.criticality || '',
+        statusOf(r.id),
+        r.splunkPillar || '',
+        r.value || '',
+        (r.reasons || []).join('; '),
+      ].map(esc).join(','));
+    });
+    return out.join('\r\n');
+  }
+
+  function downloadCsv(filename, csv) {
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+  }
+
+  function applyFilters(rows, state) {
+    var f = (state.text || '').toLowerCase();
+    var statusFilter = state.status || '';
+    var critFilter = state.criticality || '';
+    return rows.filter(function (row) {
+      if (statusFilter && statusOf(row.id) !== statusFilter) return false;
+      if (critFilter && (row.criticality || '') !== critFilter) return false;
+      if (f) {
+        var hay = (row.id + ' ' + (row.title || '') + ' ' + (row.value || '') + ' '
+          + (row.reasons || []).join(' ')).toLowerCase();
+        if (hay.indexOf(f) === -1) return false;
+      }
+      return true;
+    });
+  }
+
   function renderRecommendations(root, rows) {
-    root.textContent = '';
     if (!rows.length) {
-      safeAppend(root, 'p', 'No matches yet — scan once then refresh. See the Scan tab for your current inventory.');
+      var empty = safeAppend(root, 'div', null, { 'class': 'uc-empty', 'role': 'status' });
+      safeAppend(empty, 'p', 'No matches yet.');
+      safeAppend(empty, 'p', 'Run the Scan tab once, wait for ingestion, then refresh — '
+        + 'the recommender needs at least one inventory row before it can match.');
       return;
     }
-    var grid = safeAppend(root, 'div', null, { 'class': 'uc-grid' });
-    rows.slice(0, 60).forEach(function (row) {
-      renderCard(grid, row);
+    var state = readUrlState();
+    // Toolbar: text filter, status filter, criticality filter, CSV export.
+    var toolbar = safeAppend(root, 'div', null, { 'class': 'uc-toolbar' });
+    var search = safeAppend(toolbar, 'input', null, {
+      'type': 'search',
+      'placeholder': 'Filter by id, title, value, reason…',
+      'class': 'uc-filter',
+      'value': state.text,
+      'aria-label': 'Filter recommendations',
     });
+    var statusSel = safeAppend(toolbar, 'select', null, {
+      'class': 'uc-status-filter',
+      'aria-label': 'Filter by implementation status',
+    });
+    safeAppend(statusSel, 'option', 'All statuses', { 'value': '' });
+    Object.keys(STATUS_LABELS).forEach(function (s) {
+      var opt = safeAppend(statusSel, 'option', STATUS_LABELS[s], { 'value': s });
+      if (s === state.status) opt.setAttribute('selected', 'selected');
+    });
+    var critSel = safeAppend(toolbar, 'select', null, {
+      'class': 'uc-crit-filter',
+      'aria-label': 'Filter by criticality',
+    });
+    safeAppend(critSel, 'option', 'All criticality', { 'value': '' });
+    ['critical', 'high', 'medium', 'low'].forEach(function (c) {
+      var opt = safeAppend(critSel, 'option', c, { 'value': c });
+      if (c === state.criticality) opt.setAttribute('selected', 'selected');
+    });
+    var exportBtn = safeAppend(toolbar, 'button', 'Export CSV', {
+      'type': 'button',
+      'class': 'uc-btn uc-btn-export',
+    });
+    var counter = safeAppend(toolbar, 'span', '', { 'class': 'uc-toolbar-count' });
+
+    var grid = safeAppend(root, 'div', null, { 'class': 'uc-grid' });
+
+    function refresh() {
+      grid.textContent = '';
+      var filtered = applyFilters(rows, state);
+      counter.textContent = 'Showing ' + Math.min(filtered.length, 60)
+        + ' of ' + filtered.length + ' (of ' + rows.length + ' total)';
+      filtered.slice(0, 60).forEach(function (row) {
+        renderCard(grid, row);
+      });
+      if (filtered.length === 0) {
+        var noResults = safeAppend(grid, 'p', 'No use cases match the current filters.', {
+          'class': 'uc-empty',
+          'role': 'status',
+        });
+      }
+    }
+
+    search.addEventListener('input', function (e) {
+      state.text = e.target.value;
+      writeUrlState(state);
+      refresh();
+    });
+    statusSel.addEventListener('change', function (e) {
+      state.status = e.target.value;
+      writeUrlState(state);
+      refresh();
+    });
+    critSel.addEventListener('change', function (e) {
+      state.criticality = e.target.value;
+      writeUrlState(state);
+      refresh();
+    });
+    exportBtn.addEventListener('click', function () {
+      var filtered = applyFilters(rows, state);
+      var ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+      downloadCsv('uc-recommender-' + ts + '.csv', rowsToCsv(filtered));
+    });
+
+    refresh();
   }
 
   function renderBrowse(root, thin) {
@@ -397,6 +1052,30 @@
     });
   }
 
+  function renderUpstreamBanner(target) {
+    var keys = Object.keys(STATE.upstreamErrors || {});
+    if (!keys.length) return;
+    var banner = safeAppend(target, 'div', null, {
+      'class': 'uc-banner uc-banner-warn',
+      'role': 'alert',
+    });
+    safeAppend(banner, 'strong', 'Some catalogue endpoints failed: ');
+    var msgs = keys.map(function (k) { return k + ' (' + STATE.upstreamErrors[k] + ')'; });
+    safeAppend(banner, 'span', msgs.join('; '));
+  }
+
+  function renderReadOnlyBanner(target) {
+    if (STATE.capability) return;
+    var banner = safeAppend(target, 'div', null, {
+      'class': 'uc-banner uc-banner-info',
+      'role': 'note',
+    });
+    safeAppend(banner, 'strong', 'Read-only mode: ');
+    safeAppend(banner, 'span',
+      'You do not hold the edit_uc_implementations capability. ' +
+      'Status updates are disabled; ask an admin or power user.');
+  }
+
   function boot() {
     var root = document.getElementById('uc-recommender-root');
     var browseRoot = document.getElementById('uc-recommender-browse-root');
@@ -426,15 +1105,25 @@
     target.textContent = '';
     safeAppend(target, 'p', 'Scanning…', { 'class': 'uc-loading' });
 
-    Promise.all([loadRemoteIndexes(STATE.apiBase), loadInventory()]).then(function (pair) {
-      var indexes = pair[0], inventory = pair[1];
-      STATE.indexes = indexes;
-      STATE.inventory = inventory;
-      var recs = matchUseCases(inventory, indexes);
+    Promise.all([
+      loadRemoteIndexes(STATE.apiBase),
+      loadInventory(),
+      loadImplementations(),
+      loadCapability(),
+    ]).then(function (parts) {
+      STATE.indexes = parts[0];
+      STATE.inventory = parts[1];
+      STATE.implementations = parts[2] || {};
+      STATE.capability = !!parts[3];
+      var recs = matchUseCases(STATE.inventory, STATE.indexes);
       STATE.recommendations = recs;
+      target.textContent = '';
+      renderUpstreamBanner(target);
+      renderReadOnlyBanner(target);
       renderRecommendations(target, recs);
     }).catch(function (err) {
       target.textContent = '';
+      renderUpstreamBanner(target);
       safeAppend(target, 'p', 'Recommender could not load: ' + (err.message || err));
     });
   }
@@ -451,5 +1140,22 @@
     score: score,
     validOrigin: validOrigin,
     safeLinkHref: safeLinkHref,
+    statusOf: statusOf,
+    safeSplunkbaseUrl: safeSplunkbaseUrl,
+    state: STATE,
+    renderCard: renderCard,
+    renderStatusBadge: renderStatusBadge,
+    renderRequiredSplunkbase: renderRequiredSplunkbase,
+    openImplementationModal: openImplementationModal,
+    persistImplementation: persistImplementation,
+    dispatchDecommission: dispatchDecommission,
+    reconcileStatus: reconcileStatus,
+    loadRemoteIndexes: loadRemoteIndexes,
+    loadImplementations: loadImplementations,
+    loadCapability: loadCapability,
+    runSearchJob: runSearchJob,
+    STATUS_LABELS: STATUS_LABELS,
+    DESTRUCTIVE_STATUSES: DESTRUCTIVE_STATUSES,
+    REQUIRED_CAPABILITY: REQUIRED_CAPABILITY,
   };
 })();

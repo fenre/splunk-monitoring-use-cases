@@ -41,7 +41,12 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CATALOG_PATH = REPO_ROOT / "catalog.json"
+# Per ADR-0009 + P1 step 5c, dist/catalog.json is the SSOT-authoritative
+# copy. Prefer dist/, fall back to project root for the one-release
+# transition window.
+_CATALOG_DIST = REPO_ROOT / "dist" / "catalog.json"
+_CATALOG_LEGACY = REPO_ROOT / "catalog.json"
+CATALOG_PATH = _CATALOG_DIST if _CATALOG_DIST.exists() else _CATALOG_LEGACY
 PROVENANCE_PATH = REPO_ROOT / "provenance.json"
 PROVENANCE_JS_PATH = REPO_ROOT / "provenance.js"
 DOC_PATH = REPO_ROOT / "docs" / "provenance-coverage.md"

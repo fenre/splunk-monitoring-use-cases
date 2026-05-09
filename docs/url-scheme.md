@@ -5,6 +5,11 @@
 > exposed by the latest release's `dist/manifest.json`. New URLs may be added at any
 > time; existing ones are retired only via the deprecation process in
 > [`api-versioning.md`](api-versioning.md).
+> External consumers should also read the
+> [`external-consumer-matrix.md`](external-consumer-matrix.md), which catalogues
+> every public surface (URLs, schemas, MCP tools, `.spl` packages,
+> `catalog.json` shape) and labels which repo-overhaul plan phases could put
+> each one at risk.
 
 ## Design rules
 

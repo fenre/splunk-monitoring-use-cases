@@ -1,0 +1,306 @@
+# Project-level Python configuration
+#
+# Repo-overhaul plan §P4 (2026-05-08): single source of truth for package
+# metadata, runtime dependencies, dev tooling configuration (ruff, mypy,
+# pytest, coverage), and CLI entry-points across the build pipeline,
+# audit suite, and content generators.
+#
+# The `splunk-uc-mcp` package keeps its own `mcp/pyproject.toml` because
+# it ships to PyPI as a self-contained MCP server. Everything else
+# (build pipeline, audits, scripts, tests) is configured here.
+#
+# Status today: this file is configuration-only. The repo is not yet
+# packaged as an installable wheel because the build pipeline still
+# uses `from build import …` imports that resolve via runtime
+# `sys.path` manipulation in `tools/build/build.py`. Wheel packaging is
+# deferred to a follow-up PR (`p6-scripts-taxonomy` reorganises
+# `scripts/` and `tools/build/` into `src/splunk_uc/…`, at which point
+# `[tool.hatch.build.targets.wheel]` becomes meaningful here).
+#
+# Until then, install for development with::
+#
+#     pip install -e ".[build,audits,dev]"
+#
+# which installs the runtime + audit + dev tool dependencies without
+# attempting to build a wheel.
+
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "splunk-uc"
+description = "Splunk Monitoring Use Cases — curated, reproducible, machine-readable catalogue of 7,300+ IT and security monitoring use cases."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+  { name = "Splunk Monitoring Use Cases maintainers" },
+]
+requires-python = ">=3.11"
+keywords = [
+  "splunk",
+  "monitoring",
+  "compliance",
+  "security",
+  "detection-engineering",
+  "use-cases",
+  "ssot",
+  "regulatory",
+  "cim",
+  "mitre",
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: System Administrators",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Security",
+  "Topic :: System :: Monitoring",
+  "Topic :: System :: Systems Administration",
+]
+dynamic = ["version"]
+
+# Runtime dependencies are minimal — the build pipeline is stdlib-only
+# by design (so a fresh CI runner can produce dist/ without `pip install`).
+# Optional extras add what the audit suite, ingestion scripts, and dev
+# tooling need.
+dependencies = []
+
+[project.optional-dependencies]
+
+# Schema validation + ingestion utilities used by ~13 audit scripts and
+# the regulatory ingest pipeline. Kept as an extra so the build pipeline
+# itself stays stdlib-only.
+audits = [
+  "jsonschema>=4.21",
+  "pyyaml>=6.0",
+]
+
+# Build-time helpers used by `make build` / `tools/build/build.py`.
+# Today this is empty (stdlib-only build) but the extra exists so future
+# additions are gated behind an explicit dependency choice.
+build = []
+
+# Test runners + coverage + property-based testing.
+test = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "pytest-asyncio>=0.23",
+  "respx>=0.21",
+  "hypothesis>=6.100",
+  "jsonschema>=4.21",
+]
+
+# Static analysis + formatting + type checking.
+dev = [
+  "ruff>=0.6.0",
+  "mypy>=1.10",
+  "pre-commit>=3.7",
+  "types-PyYAML>=6.0.12",
+]
+
+# Convenience meta-extra: install everything for full local development.
+all = [
+  "splunk-uc[audits,build,test,dev]",
+]
+
+[project.urls]
+Homepage = "https://fenre.github.io/splunk-monitoring-use-cases/"
+Repository = "https://github.com/fenre/splunk-monitoring-use-cases"
+Issues = "https://github.com/fenre/splunk-monitoring-use-cases/issues"
+Documentation = "https://github.com/fenre/splunk-monitoring-use-cases/blob/main/docs/architecture.md"
+Changelog = "https://github.com/fenre/splunk-monitoring-use-cases/blob/main/CHANGELOG.md"
+
+# -----------------------------------------------------------------------------
+# Hatchling — version is read from VERSION (single source of truth).
+# -----------------------------------------------------------------------------
+[tool.hatch.version]
+path = "VERSION"
+pattern = "^(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)\\s*$"
+
+# The wheel target ships only the ``tools/build/`` package today,
+# rebased to a top-level ``build`` package so ``from build import …``
+# resolves the same in an installed wheel as it does when running the
+# pipeline in-tree via ``python tools/build/build.py``. The legacy
+# repo-root ``build.py`` is excluded — it is scheduled for deletion in
+# P1 step 5b. After that, P6 will rename the package to ``splunk_uc``
+# and this section becomes ``packages = ["src/splunk_uc"]``.
+[tool.hatch.build.targets.wheel]
+sources = ["tools"]
+packages = ["tools/build"]
+exclude = [
+  "tools/build/__pycache__",
+  "tools/build/templates/.gitkeep",
+]
+
+# Source distribution mirrors the repo layout so a ``pip install <sdist>``
+# can rebuild from VERSION.
+[tool.hatch.build.targets.sdist]
+include = [
+  "tools/build/**/*.py",
+  "scripts/**/*.py",
+  "README.md",
+  "VERSION",
+  "pyproject.toml",
+  "schemas/**/*.json",
+]
+
+# -----------------------------------------------------------------------------
+# Pytest — single config across tests/ and mcp/tests/ for IDE & CI parity.
+# -----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests", "mcp/tests"]
+# We do NOT set ``pythonpath`` here on purpose: every test that needs
+# the ``tools/build`` package or a ``scripts/`` module already sets it
+# up locally with ``sys.path.insert(0, ...)`` to keep imports explicit.
+# Adding pytest-managed pythonpath entries here would let an early-
+# imported ``build.py`` (the legacy script at the repo root) shadow the
+# ``tools/build/`` package via ``sys.modules`` caching, breaking every
+# downstream ``from build import parse_content`` call. Once the legacy
+# ``build.py`` is deleted in P1 step 5b, this comment becomes obsolete
+# and we can hoist ``pythonpath = ["tools", "scripts", "mcp/src"]``
+# back here for IDE convenience.
+asyncio_mode = "auto"
+filterwarnings = [
+  "error",
+  "ignore::DeprecationWarning:mcp.*",
+  # Some third-party libraries still use deprecated stdlib APIs on
+  # Python 3.13/3.14; quiet them per-package below.
+  "ignore::DeprecationWarning:respx.*",
+]
+addopts = [
+  "-ra",
+  "--strict-markers",
+  "--tb=short",
+]
+markers = [
+  "slow: marks tests as slow (>5s); deselect via `-m 'not slow'`",
+  "network: marks tests that hit the network (deselected by default in CI)",
+]
+
+# -----------------------------------------------------------------------------
+# Ruff — formatter + linter. Keeps the repo readable as the pipeline grows.
+# -----------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+  "dist",
+  "build",  # legacy directory name
+  "use-cases",  # generated markdown
+  "data.js",
+  "ta",  # generated Splunk apps
+  "splunk-apps",  # generated Splunk apps
+  "vendor",
+  "templates/replication-starter",
+]
+
+[tool.ruff.lint]
+# Conservative selector: enable proven-useful rule sets. Tighten in a
+# follow-up PR after the existing lint debt is paid down.
+select = [
+  "E",     # pycodestyle errors
+  "F",     # pyflakes
+  "W",     # pycodestyle warnings
+  "I",     # isort import sorting
+  "B",     # flake8-bugbear (likely-bugs)
+  "UP",    # pyupgrade
+  "C4",    # flake8-comprehensions
+  "PIE",   # flake8-pie (misc lint)
+  "RUF",   # ruff-native rules
+]
+# Pre-existing waivers — to be burned down in a focused lint-cleanup PR.
+ignore = [
+  "E501",   # line-too-long (we have 100-char target but 100s of tests are wider)
+  "B008",   # function call in argument default (idiomatic in argparse defaults here)
+  "RUF012", # mutable class default (overzealous for legacy code)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["B011", "F401"]  # pytest patterns
+"scripts/**/*.py" = ["E402"]         # post-sys.path imports are intentional
+"tools/build/build.py" = ["E402"]    # post-sys.path imports are intentional
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = 88
+
+# -----------------------------------------------------------------------------
+# Mypy — type checking. Starting strict-but-scoped: only the new tools/build/
+# tree is type-clean today; the legacy `build.py` and audit scripts have a
+# type-debt backlog tracked in P4 step 2 (typed UseCase / Catalog models).
+# -----------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+no_implicit_optional = true
+check_untyped_defs = true
+disallow_untyped_decorators = false
+ignore_missing_imports = true
+files = [
+  "tools/build",
+  "scripts",
+  "tests",
+]
+exclude = [
+  "build\\.py$",   # legacy script, scheduled for deletion (P1 step 5b)
+]
+
+# Per-module strictness gradient. Tighten as P4 step 2 lands typed models.
+[[tool.mypy.overrides]]
+module = "tools.build.parse_content"
+disallow_untyped_defs = false  # legacy migration debt; tracked in P4 step 2
+
+[[tool.mypy.overrides]]
+module = "tools.build.enrichment"
+disallow_untyped_defs = false
+
+# tools.build.types is the typed-data-model SSOT introduced in P4 step 2
+# and is fully type-clean. Pin strict mode here so any future drift —
+# missing annotations, untyped helpers, implicit Any escapes — fails CI
+# immediately rather than silently degrading the model. The schema-parity
+# gate in tests/build/test_typed_models.py catches drift between the
+# TypedDicts and the JSON Schemas; mypy-strict here catches drift in the
+# TypedDict source itself.
+[[tool.mypy.overrides]]
+module = "tools.build.types"
+strict = true
+disallow_untyped_defs = true
+disallow_any_explicit = false   # `Any` is a legitimate escape hatch in obligationModel
+warn_return_any = true
+
+# -----------------------------------------------------------------------------
+# Coverage — used by P16 coverage burndown. Baselines committed under
+# data/baselines/coverage-v7.4.2.json once captured.
+# -----------------------------------------------------------------------------
+[tool.coverage.run]
+branch = true
+source = ["tools/build", "scripts", "mcp/src"]
+omit = [
+  "tests/*",
+  "mcp/tests/*",
+  "build.py",         # legacy, scheduled for deletion
+  "tools/build/migrate_*.py",
+  "tools/build/generate_*.py",
+]
+
+[tool.coverage.report]
+precision = 1
+show_missing = true
+skip_covered = false
+exclude_lines = [
+  "pragma: no cover",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]

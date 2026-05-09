@@ -23,13 +23,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from build.types import CatalogCategory, CatalogSubcategory, CatalogUC
+
 from . import _css, _helpers
 
 
 def render_html(
-    uc: dict[str, Any],
-    cat: dict[str, Any],
-    sub: dict[str, Any],
+    uc: CatalogUC,
+    cat: CatalogCategory,
+    sub: CatalogSubcategory,
     cat_slug: str,
     *,
     ctx: _helpers.RenderContext,
@@ -178,9 +180,9 @@ def render_html(
 
 
 def render_index_json(
-    uc: dict[str, Any],
-    cat: dict[str, Any],
-    sub: dict[str, Any],
+    uc: CatalogUC,
+    cat: CatalogCategory,
+    sub: CatalogSubcategory,
     cat_slug: str,
     *,
     ctx: _helpers.RenderContext,
@@ -252,9 +254,9 @@ def render_index_json(
 
 
 def render_markdown_twin(
-    uc: dict[str, Any],
-    cat: dict[str, Any],
-    sub: dict[str, Any],
+    uc: CatalogUC,
+    cat: CatalogCategory,
+    sub: CatalogSubcategory,
     cat_slug: str,
     *,
     ctx: _helpers.RenderContext,
@@ -413,16 +415,21 @@ def render_markdown_twin(
     _add_text_section("Detailed implementation", uc.get("md"))
     _add_text_section("Visualization", uc.get("z"))
 
-    kfp = uc.get("kfp")
-    if kfp:
+    # ``kfp`` is annotated as ``str`` in CatalogUC and the runtime data
+    # confirms this. The list/tuple defensive branch is preserved for
+    # forward compatibility (a future schema migration may expose
+    # structured falsePositives entries) — narrowed via Any to avoid
+    # mypy's disjoint-subclass complaint.
+    kfp_raw: Any = uc.get("kfp")
+    if kfp_raw:
         lines.append("## Known false positives")
         lines.append("")
-        if isinstance(kfp, (list, tuple)):
-            for item in kfp:
+        if isinstance(kfp_raw, (list, tuple)):
+            for item in kfp_raw:
                 if str(item).strip():
                     lines.append(f"- {str(item).strip()}")
         else:
-            lines.append(str(kfp).strip())
+            lines.append(str(kfp_raw).strip())
         lines.append("")
 
     mitre = uc.get("mitre") or []
@@ -445,7 +452,15 @@ def render_markdown_twin(
                 lines.append(f"- {r_str}")
         lines.append("")
 
-    refs = uc.get("refs") or []
+    # ``refs`` is the wire-format CSV string ("[Title](url), [...]") in
+    # the current SSOT-derived catalog; the conversion lives in
+    # parse_content. Pre-2026-05-09 catalogs sometimes carried a list
+    # of structured ``UseCaseReference`` entries instead, and the
+    # legacy markdown corpus did too — the list/tuple branch handles
+    # those cases for forward/backward compatibility. mypy correctly
+    # treats it as unreachable under the current TypedDict, but the
+    # branch is intentional defence-in-depth.
+    refs: Any = uc.get("refs") or []
     if isinstance(refs, (list, tuple)) and refs:
         lines.append("## References")
         lines.append("")
@@ -474,13 +489,13 @@ def render_markdown_twin(
 # ---------------------------------------------------------------------------
 
 
-def _section_value(uc: dict[str, Any], value: str) -> str:
+def _section_value(uc: CatalogUC, value: str) -> str:
     if not value:
         return ""
     return f'<p class="lede">{_helpers.escape(value)}</p>'
 
 
-def _section_quick_facts(uc: dict[str, Any], cat_name: str, sub_name: str) -> str:
+def _section_quick_facts(uc: CatalogUC, cat_name: str, sub_name: str) -> str:
     rows: list[tuple[str, str]] = []
 
     def _add(label: str, raw: Any, *, render_md: bool = False) -> None:
@@ -518,7 +533,7 @@ def _section_quick_facts(uc: dict[str, Any], cat_name: str, sub_name: str) -> st
     return f'<section><h2>Quick facts</h2><dl class="facts">{items}</dl></section>'
 
 
-def _section_prerequisites(uc: dict[str, Any]) -> str:
+def _section_prerequisites(uc: CatalogUC) -> str:
     parts: list[str] = []
     if uc.get("t"):
         parts.append(
@@ -572,7 +587,7 @@ def _wave_tooltip(mod: str) -> str:
 
 
 def _section_implementation_ordering(
-    uc: dict[str, Any], *, ctx: _helpers.RenderContext
+    uc: CatalogUC, *, ctx: _helpers.RenderContext
 ) -> str:
     """Render the UC-to-UC prerequisite + Enables section.
 
@@ -661,7 +676,7 @@ def _render_uc_chip(
     )
 
 
-def _section_spl(uc: dict[str, Any]) -> str:
+def _section_spl(uc: CatalogUC) -> str:
     spl = str(uc.get("q") or "").strip()
     if not spl:
         return ""
@@ -673,7 +688,7 @@ def _section_spl(uc: dict[str, Any]) -> str:
     )
 
 
-def _section_dma_spl(uc: dict[str, Any]) -> str:
+def _section_dma_spl(uc: CatalogUC) -> str:
     qs = str(uc.get("qs") or "").strip()
     dma = str(uc.get("dma") or "").strip()
     if not qs and not dma:
@@ -691,7 +706,7 @@ def _section_dma_spl(uc: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-def _section_implementation(uc: dict[str, Any]) -> str:
+def _section_implementation(uc: CatalogUC) -> str:
     text = str(uc.get("m") or "").strip()
     if not text:
         return ""
@@ -702,7 +717,7 @@ def _section_implementation(uc: dict[str, Any]) -> str:
     )
 
 
-def _section_visualization(uc: dict[str, Any]) -> str:
+def _section_visualization(uc: CatalogUC) -> str:
     text = str(uc.get("z") or "").strip()
     if not text:
         return ""
@@ -713,7 +728,7 @@ def _section_visualization(uc: dict[str, Any]) -> str:
     )
 
 
-def _section_known_fp(uc: dict[str, Any]) -> str:
+def _section_known_fp(uc: CatalogUC) -> str:
     text = str(uc.get("kfp") or "").strip()
     if not text:
         return ""
@@ -724,7 +739,7 @@ def _section_known_fp(uc: dict[str, Any]) -> str:
     )
 
 
-def _section_regulations_mitre(uc: dict[str, Any]) -> str:
+def _section_regulations_mitre(uc: CatalogUC) -> str:
     regs = uc.get("regs") or []
     mitre = uc.get("mitre") or []
     if not regs and not mitre:
@@ -740,48 +755,39 @@ def _section_regulations_mitre(uc: dict[str, Any]) -> str:
     if mitre:
         parts.append("<h3>MITRE ATT&amp;CK</h3><ul>")
         for m in mitre:
-            if isinstance(m, dict):
-                tid = m.get("id") or m.get("technique_id") or ""
-                tname = m.get("name") or m.get("technique") or ""
-                if tid and tname:
-                    label = f"{tid} — {tname}"
-                elif tid or tname:
-                    label = str(tid or tname)
-                else:
-                    continue
-            else:
-                label = str(m)
+            label = str(m)
+            if not label:
+                continue
             parts.append("<li>" + _helpers.escape(label) + "</li>")
         parts.append("</ul>")
     parts.append("</section>")
     return "\n".join(parts)
 
 
-def _section_apps(uc: dict[str, Any]) -> str:
+def _section_apps(uc: CatalogUC) -> str:
     sapp = uc.get("sapp") or []
-    ta = uc.get("ta_link")
+    ta = uc.get("ta_link") or {}
     if not sapp and not ta:
         return ""
     parts: list[str] = ["<section><h2>Splunkbase apps</h2><ul>"]
-    if isinstance(ta, dict) and ta.get("name"):
-        url = ta.get("url") or ""
-        if url:
+    ta_name = ta.get("name", "") if isinstance(ta, dict) else ""
+    if ta_name:
+        ta_url = ta.get("url", "") if isinstance(ta, dict) else ""
+        if ta_url:
             parts.append(
                 '<li><a href="'
-                + _helpers.attr(url)
+                + _helpers.attr(ta_url)
                 + '" rel="noopener noreferrer" target="_blank">'
-                + _helpers.escape(ta["name"])
+                + _helpers.escape(ta_name)
                 + "</a> <em>(primary TA)</em></li>"
             )
         else:
             parts.append(
                 "<li>"
-                + _helpers.escape(ta["name"])
+                + _helpers.escape(ta_name)
                 + " <em>(primary TA)</em></li>"
             )
     for app in sapp:
-        if not isinstance(app, dict):
-            continue
         name = app.get("name") or ""
         url = app.get("url") or ""
         desc = app.get("desc") or ""
@@ -803,7 +809,7 @@ def _section_apps(uc: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-def _section_references(uc: dict[str, Any]) -> str:
+def _section_references(uc: CatalogUC) -> str:
     refs = str(uc.get("refs") or "").strip()
     if not refs:
         return ""
@@ -814,7 +820,7 @@ def _section_references(uc: dict[str, Any]) -> str:
     )
 
 
-def _section_full_narrative(uc: dict[str, Any]) -> str:
+def _section_full_narrative(uc: CatalogUC) -> str:
     md = str(uc.get("md") or "").strip()
     if not md:
         return ""
@@ -837,7 +843,7 @@ def _section_full_narrative(uc: dict[str, Any]) -> str:
     )
 
 
-def _section_provenance(uc: dict[str, Any]) -> str:
+def _section_provenance(uc: CatalogUC) -> str:
     rby = str(uc.get("rby") or "").strip()
     sver = str(uc.get("sver") or "").strip()
     reviewed = str(uc.get("reviewed") or "").strip()

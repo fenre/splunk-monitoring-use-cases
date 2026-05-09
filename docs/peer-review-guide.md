@@ -176,7 +176,7 @@ re-run `scripts/generate_phase3_3_derivatives.py --check`).
 make build
 python3 scripts/audit_compliance_mappings.py
 python3 scripts/generate_api_surface.py --check
-python3 scripts/generate_splunk_app.py --check
+python3 scripts/generate_recommender_app.py --check
 python3 scripts/regenerate_cat22_ntv.py --check
 node --test tests/scorecard/render.test.mjs tests/recommender/match.test.mjs
 ```

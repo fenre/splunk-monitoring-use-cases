@@ -41,7 +41,7 @@ import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from .parse_content import Catalog
 from .templates import (
@@ -50,6 +50,13 @@ from .templates import (
     landing as t_landing,
     regulation as t_regulation,
     uc as t_uc,
+)
+from .types import (
+    CatalogCategory,
+    CatalogSubcategory,
+    CatalogUC,
+    CategoryMeta,
+    RegulationFramework,
 )
 
 
@@ -68,11 +75,12 @@ def render(catalog: Catalog, out_dir: Path, *, reproducible: bool = False) -> No
 
     ctx = _build_context(catalog, reproducible=reproducible)
     cat_slug_for = _build_slug_map(catalog)
-    cat_name_for = {
-        cat.get("i"): str(cat.get("n", ""))
-        for cat in catalog.categories
-        if cat.get("i") is not None
-    }
+    cat_name_for: dict[int, str] = {}
+    for cat in catalog.categories:
+        cid = cat.get("i")
+        if cid is None:
+            continue
+        cat_name_for[cid] = str(cat.get("n", ""))
 
     cats = catalog.categories
     if reproducible:
@@ -84,7 +92,11 @@ def render(catalog: Catalog, out_dir: Path, *, reproducible: bool = False) -> No
         if cat_id is None:
             continue
         slug = cat_slug_for.get(cat_id) or _helpers.slug(str(cat.get("n", "")))
-        cat_meta = catalog.cat_meta.get(str(cat_id), {}) or catalog.cat_meta.get(cat_id, {}) or {}
+        # ``cat_meta`` keys are always ``str(cat_id)`` (see _load_cat_meta).
+        # The pre-typing code also probed the int form, but that was always
+        # a no-op fallback at runtime — drop it now that mypy can prove the
+        # only correct lookup shape.
+        cat_meta: CategoryMeta = catalog.cat_meta.get(str(cat_id), {}) or {}
         _emit_category(cat, slug=slug, cat_meta=cat_meta, out_dir=out_dir, ctx=ctx, reproducible=reproducible)
         for sub in cat.get("s", []):
             for uc in sub.get("u", []):
@@ -112,10 +124,10 @@ def render(catalog: Catalog, out_dir: Path, *, reproducible: bool = False) -> No
 
 
 def _emit_uc(
-    uc: dict,
+    uc: CatalogUC,
     *,
-    cat: dict,
-    sub: dict,
+    cat: CatalogCategory,
+    sub: CatalogSubcategory,
     cat_slug: str,
     out_dir: Path,
     ctx: _helpers.RenderContext,
@@ -138,10 +150,10 @@ def _emit_uc(
 
 
 def _emit_category(
-    cat: dict,
+    cat: CatalogCategory,
     *,
     slug: str,
-    cat_meta: dict,
+    cat_meta: CategoryMeta,
     out_dir: Path,
     ctx: _helpers.RenderContext,
     reproducible: bool,
@@ -228,7 +240,7 @@ def _emit_regulations(
         return []
 
     # Render each per-framework rollup.
-    framework_rows: list[tuple[dict[str, Any], str, int]] = []
+    framework_rows: list[tuple[RegulationFramework, str, int]] = []
     for fw_id, ucs in grouped.items():
         fw = catalog.regulations.get(fw_id)
         if not fw:
@@ -374,9 +386,11 @@ def _build_uc_prereq_indexes(
                 wave = str(uc.get("wv") or "").strip().lower()
                 title_index[full] = (title, wave)
 
+                # ``pre`` is typed as list[FullUCId] in CatalogUC; the
+                # audit_prerequisites pipeline guarantees the shape, so no
+                # defensive isinstance() is needed (mypy --strict was
+                # flagging the dropped branch as unreachable).
                 pre = uc.get("pre") or []
-                if not isinstance(pre, (list, tuple)):
-                    continue
                 for dep in pre:
                     dep_s = str(dep).strip()
                     if not uc_id_pat.match(dep_s) or dep_s == full:
@@ -467,7 +481,7 @@ def _build_regulation_alias_index(
     return fw_slug_for, alias_to_fw_id
 
 
-def _alias_candidates(fw: dict[str, Any]):
+def _alias_candidates(fw: RegulationFramework) -> Iterator[str]:
     """Yield every recognised alias for a framework, including stripped variants."""
     for field_ in ("id", "shortName", "name"):
         value = fw.get(field_)
@@ -533,7 +547,7 @@ def _iso_timestamp(*, reproducible: bool) -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _write_json(path: Path, payload: dict, *, reproducible: bool) -> None:
+def _write_json(path: Path, payload: dict[str, Any], *, reproducible: bool) -> None:
     """Write ``payload`` as canonical JSON.
 
     Reproducible builds use ``sort_keys=True``. Either way we emit

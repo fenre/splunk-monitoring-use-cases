@@ -1,0 +1,72 @@
+name: "Set up Python (splunk-monitoring-use-cases)"
+description: |
+  Reusable composite action that sets up the project's pinned Python
+  toolchain.
+
+  Repo-overhaul plan §P2 (2026-05-08): every workflow that runs Python
+  audits or unit tests previously duplicated the same actions/setup-python
+  step (3.12 + pip cache + .github/requirements-ci.txt). The action SHAs
+  drift one-at-a-time across 9 workflow files, which is exactly the
+  comment-drift class of bug ``scripts/audit_action_pins.py`` was created
+  to catch. This composite action centralises the toolchain so a single
+  bump (e.g. setup-python v5.6.0 → v5.6.1) lands in one file instead of
+  rippling through the workflow tree.
+
+  Usage in a workflow:
+    - uses: ./.github/actions/setup-python
+      with:
+        install-audits: "true"     # default: false; true installs requirements-ci.txt
+        install-extras: "test"     # default: empty; passed to pip install -e .[<extras>]
+
+  The action does NOT call actions/checkout itself — callers must check
+  out the repo first, since some callers need fetch-depth: 0 (schema_diff
+  baseline resolution) while others want the default shallow clone.
+
+inputs:
+  python-version:
+    description: "Python version to install. Defaults to the project-wide pin (3.12)."
+    required: false
+    default: "3.12"
+  install-audits:
+    description: |
+      When true, installs .github/requirements-ci.txt
+      (jsonschema + PyYAML, the two deps every audit script needs).
+      Most workflows want this.
+    required: false
+    default: "false"
+  install-extras:
+    description: |
+      Optional pip extras to install in editable mode (e.g. "test",
+      "audits,test"). When non-empty, runs:
+          pip install -e .[<extras>]
+      against the repo root pyproject.toml. Empty string means skip.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python ${{ inputs.python-version }}
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+        cache-dependency-path: ".github/requirements-ci.txt"
+
+    - name: Install audit dependencies (.github/requirements-ci.txt)
+      if: ${{ inputs.install-audits == 'true' }}
+      shell: bash
+      run: |
+        # The audit-script floor: jsonschema for schema validation,
+        # PyYAML for config parsing. Pinned in requirements-ci.txt so
+        # CI runs are reproducible across the 9 workflows.
+        pip install --disable-pip-version-check -r .github/requirements-ci.txt
+
+    - name: Install editable extras (pip install -e .[<extras>])
+      if: ${{ inputs.install-extras != '' }}
+      shell: bash
+      run: |
+        # Editable install of the project itself with the requested
+        # extras. Per pyproject.toml: "audits", "build", "test", "dev",
+        # or "all" (or comma-separated combinations).
+        pip install --disable-pip-version-check -e ".[${{ inputs.install-extras }}]"

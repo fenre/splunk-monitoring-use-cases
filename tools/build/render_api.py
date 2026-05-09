@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .parse_content import Catalog
+from .types import CatalogUC, RegulationFramework
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +90,7 @@ def _trim_sapp(value: Any) -> Any:
     return out
 
 
-def _stub_uc(uc: dict[str, Any], cat_id: int, sub_id: str) -> dict[str, Any]:
+def _stub_uc(uc: CatalogUC, cat_id: int, sub_id: str) -> dict[str, Any]:
     """Return the catalog-index UC stub for a single use case."""
     stub: dict[str, Any] = {"i": uc.get("i"), "n": uc.get("n", ""), "cat": cat_id, "sub": sub_id}
     for key, value in uc.items():
@@ -288,8 +289,12 @@ def _build_regulations_index(catalog: Catalog) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for reg_id in sorted(catalog.regulations.keys()):
         reg = catalog.regulations[reg_id]
+        # The audit_compliance_mappings.py gate validates this shape at
+        # CI time, but JSON loading itself is unchecked — keep the
+        # defensive isinstance() in case a malformed data/regulations.json
+        # ever sneaks past audits.
         if not isinstance(reg, dict):
-            continue
+            continue  # type: ignore[unreachable]
         slug = _slug(reg.get("shortName") or reg.get("name") or reg_id)
         entry: dict[str, Any] = {
             "id": reg_id,
@@ -338,8 +343,9 @@ def _count_ucs_per_regulation(catalog: Catalog) -> dict[str, int]:
 
     aliases_by_id: dict[str, set[str]] = {}
     for reg_id, reg in catalog.regulations.items():
+        # See defensive-isinstance comment above (_build_regulations_index).
         if not isinstance(reg, dict):
-            continue
+            continue  # type: ignore[unreachable]
         candidates: set[str] = {reg_id, reg.get("name", ""), reg.get("shortName", "")}
         if isinstance(reg.get("aliases"), list):
             for a in reg["aliases"]:
@@ -355,8 +361,10 @@ def _count_ucs_per_regulation(catalog: Catalog) -> dict[str, int]:
         if not uc_id:
             continue
         for raw_tag in regs:
+            # ``regs`` is typed as list[RegulationId] (= str) but the
+            # runtime JSON value isn't validated, so keep the str-guard.
             if not isinstance(raw_tag, str):
-                continue
+                continue  # type: ignore[unreachable]
             tag = _norm(raw_tag)
             tag = rewrites.get(tag, tag)
             head = tag.split(" ", 1)[0]

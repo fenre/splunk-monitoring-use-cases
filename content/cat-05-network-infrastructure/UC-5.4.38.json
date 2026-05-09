@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.4.38",
+  "title": "Cisco C9800 WLC AP Join Failures",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Cisco Catalyst 9800 wireless LAN controller syslog ingested via `TA-cisco_ios` (Splunkbase 1352). Look for the CAPWAP and DTLS facilities at severity 3 and below: `%CAPWAP-3-ERRORLOG`, `%DTLS-3-HANDSHAKE_FAILURE`, `%AP_EVENT-3-CRASH`. The AP name is normally extractable from the message body via the `AP <name>` literal.",
+  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352)",
+  "spl": "index=network sourcetype=\"cisco:ios\" host=\"c9800*\"\n  (\"%CAPWAP-3-ERRORLOG\" OR \"%DTLS-3-HANDSHAKE_FAILURE\" OR \"%AP_EVENT-3-CRASH\")\n| rex \"AP (?<ap_name>\\S+)\"\n| stats count by host, ap_name, _raw\n| sort - count",
+  "description": "Surfaces APs that fail to register with the Cisco Catalyst 9800 wireless LAN controller because of CAPWAP tunnel failures, DTLS certificate-handshake errors, or repeated AP-side crashes. Each failed-join event represents one AP's worth of campus Wi-Fi coverage going dark.",
+  "value": "Cisco Catalyst 9800 wireless controllers are the campus Wi-Fi backbone for thousands of enterprises. AP join failures are uniquely silent: the AP looks 'present' on the wired switch port (LLDP, MAC table, PoE) but never finishes handshaking with the WLC, so users in that coverage cell get no Wi-Fi at all. Three classic failure modes converge here — expired or untrusted controller certificates, CAPWAP MTU / firewall mismatches between AP and WLC, and AP-side crashes that should have triggered a hardware-replacement workflow but did not. Detection at the controller is the only place all three are visible together.",
+  "implementation": "Forward Cisco C9800 syslog to Splunk at severity 3 or lower so the CAPWAP / DTLS / AP_EVENT facilities reach the indexer. Alert when any AP triggers a join failure or repeatedly crashes inside a 15-minute window. Correlate with the certificate-expiry calendar for the WLC trustpoint — most surprise outages trace back to expired CAs.",
+  "visualization": "Table (failed APs with cause), Status grid (AP join state per WLC, coloured by health), Timeline (join failures over time, useful for spotting controller-wide flap events).",
+  "references": [
+    {
+      "title": "Cisco Catalyst 9800 series wireless controllers",
+      "url": "https://www.cisco.com/c/en/us/support/wireless/catalyst-9800-series-wireless-controllers/series.html"
+    },
+    {
+      "title": "CAPWAP troubleshooting on Catalyst 9800",
+      "url": "https://www.cisco.com/c/en/us/support/docs/wireless/catalyst-9800-series-wireless-controllers/214286-troubleshoot-and-debug-capwap-issues.html"
+    }
+  ],
+  "knownFalsePositives": "**Scheduled controller upgrades.** Rolling AP firmware upgrades and WLC HA failovers generate CAPWAP errors as APs reset and rejoin the partner controller. Suppress alerts during announced maintenance windows.\n\n**Powered-down lab APs.** Lab APs that are physically powered off but still configured on the WLC will alarm forever. Filter by AP name pattern or move lab APs to a dedicated WLC.\n\n**Single-AP DTLS handshake retries.** Some AP models retry DTLS handshakes with a brief delay; one or two retries per join is normal. Threshold the alert on count > 3 within 5 minutes for a single AP.",
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_catalyst_9800",
+    "cisco_catalyst_9100",
+    "cisco_ios"
+  ],
+  "status": "community",
+  "wave": "crawl",
+  "cimModels": [],
+  "grandmaExplanation": "We watch the wireless access points on the ceiling check in with the building's main Wi-Fi controller. When any of them fail to check in, that part of the office loses Wi-Fi entirely — even though the device looks alive on the wall. We alert before users start asking why their phones say no signal."
+}

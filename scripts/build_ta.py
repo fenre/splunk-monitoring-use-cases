@@ -33,7 +33,12 @@ from typing import Dict, Iterable, List, Tuple
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
-CATALOG = os.path.join(REPO_ROOT, "catalog.json")
+# Per ADR-0009 + P1 step 5c, dist/catalog.json is the SSOT-authoritative
+# copy. Prefer dist/, fall back to project root for the one-release
+# transition window.
+_CATALOG_DIST = os.path.join(REPO_ROOT, "dist", "catalog.json")
+_CATALOG_LEGACY = os.path.join(REPO_ROOT, "catalog.json")
+CATALOG = _CATALOG_DIST if os.path.exists(_CATALOG_DIST) else _CATALOG_LEGACY
 INDEX_MD = os.path.join(REPO_ROOT, "content", "INDEX.md")
 TA_DIR = os.path.join(REPO_ROOT, "ta", "TA-splunk-use-cases")
 DEFAULT_DIR = os.path.join(TA_DIR, "default")

@@ -1,8 +1,8 @@
 # Splunk UC Recommender
 
 App ID: `splunk-uc-recommender`  
-App version: **7.3.0**  
-Generated: `2026-05-02T17:07:40Z`  
+App version: **8.0.0**  
+Generated: `2026-05-07T19:43:18Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 This app does **two** things in one Splunk install:
@@ -112,15 +112,14 @@ splunk-uc-recommender/
 │   ├── tags.conf
 │   └── data/ui/
 │       ├── nav/default.xml      # Recommend · Scan · Browse · Compliance ·
-│       │                        # Studio · Settings · Search
+│       │                        # Implementations · Settings · Search
 │       └── views/
 │           ├── recommend.xml    # primary recommendation page
 │           ├── scan.xml         # raw inventory tables
 │           ├── browse.xml       # full catalogue filter
 │           ├── compliance.xml   # filter bundled UCs by regulation/clause
-│           ├── settings.xml     # API base URL override, reset
-│           ├── recommend_studio.xml
-│           └── recommend.json   # Dashboard Studio v2 layout
+│           ├── implementations.xml  # backlog + bulk operator workflow
+│           └── settings.xml     # API base URL override, reset
 ├── appserver/static/
 │   ├── js/
 │   │   ├── recommender.js       # main UI, AMD module
@@ -160,14 +159,15 @@ their `description`/`action.uc_compliance.param.regulations` field.
 The same UC fans out to one row per (regulation, clause) tuple in the
 lookup so per-clause reporting still works.
 
-## Companion TA (`splunk-uc-recommender-ta`)
+## Field-coverage matching
 
-Enterprise-only add-on that adds a modular input
-(`uc_recommender_deep_scan`) which samples one event per
-`(index, sourcetype)` pair and writes extracted field names back into
-the inventory. Install it on any search head where you want the
-recommender to prefer UCs whose `requiredFields` are actually present
-in your data. **Not Cloud-vetted** — leave it off Splunk Cloud stacks.
+UCs declare a `requiredFields` set in their schema. The recommender
+flags every match with **field coverage unknown** by default; the
+prior Enterprise-only `splunk-uc-recommender-ta` modular input that
+sampled `(index, sourcetype)` pairs to populate `fields_extracted` was
+retired in v9.0 to keep this repo to a single Cloud-safe artefact. A
+future Cloud-safe replacement (e.g. `| metadata` + `| typelearner`)
+is on the roadmap.
 
 ---
 

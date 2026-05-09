@@ -95,6 +95,29 @@ PILLAR_SECURITY_WORDS = [
 # Monitoring type values that indicate observability
 PILLAR_OBS_MTYPES = {"performance", "availability", "capacity", "fault", "configuration"}
 
+
+def _atomic_write(path, content, encoding="utf-8"):
+    """Write *content* to *path* atomically via a temp file + os.replace.
+
+    Lifted from ``build.py`` (P1 step 1, 2026-05-08) so the SSOT writers
+    in this module no longer need to import the legacy script. Behaviour
+    is byte-identical: the parity test in
+    ``tests/build/test_enrichment_parity.py`` ensures any future change
+    here is mirrored in ``build.py`` until the latter is deleted.
+    """
+    dir_name = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding=encoding) as f:
+            f.write(content)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
 # Equipment (IT assets) → TA patterns. Used to filter use cases by "what equipment do you have?"
 # Each entry: id (slug), label (user-facing), tas (substrings; if any appears in UC's App/TA field, UC is relevant).
 # Matching is case-insensitive substring: pattern.lower() in app_ta_field.lower()
@@ -1360,11 +1383,47 @@ def assign_pillar(uc, cat_id):
     return "observability"
 
 
+_SPLUNKBASE_ID_RE = re.compile(
+    r"(?:splunkbase\s+|app/|splunkbase\.splunk\.com/app/)(\d{2,5})\b",
+    re.IGNORECASE,
+)
+
+
+def _splunkbase_ids_in(raw: str) -> set:
+    """Extract Splunkbase numeric IDs cited in a free-form App/TA string.
+
+    Matches the three patterns curators actually write today:
+
+    * ``Splunkbase 1928``
+    * ``app/1928`` (anchor in a URL)
+    * ``splunkbase.splunk.com/app/1928``
+
+    Returning IDs lets ``apps_for_ta_string`` and ``ta_link_for_ta_string``
+    succeed on SSOT prose like ``Splunk Add-on for ServiceNow
+    (Splunkbase 1928)`` where the legacy token-only match (looking for the
+    bare ``Splunk_TA_servicenow`` token) fails. Repo-overhaul plan §P1
+    step 5b prep #2 (2026-05-08): closes the 22-UC ``sapp`` and 10-UC
+    ``ta_link`` field-loss gap captured in
+    ``tests/build/test_legacy_artifacts_parity.py``.
+    """
+    if not raw:
+        return set()
+    return {int(m) for m in _SPLUNKBASE_ID_RE.findall(raw)}
+
+
 def apps_for_ta_string(ta_str):
-    """Given a use case's App/TA field, return list of matching SPLUNK_APPS entries."""
+    """Given a use case's App/TA field, return list of matching SPLUNK_APPS entries.
+
+    Two-pass match: (1) substring match against the registered
+    ``app["tas"]`` patterns (legacy behaviour); then (2) numeric
+    Splunkbase-ID match for IDs cited explicitly in the App/TA prose
+    (SSOT migration support — see ``_splunkbase_ids_in``). Pass 2 only
+    adds entries; it never removes a pass-1 match.
+    """
     if not (ta_str or "").strip():
         return []
-    raw = (ta_str or "").replace("`", "").strip().lower()
+    raw_orig = (ta_str or "").replace("`", "").strip()
+    raw = raw_orig.lower()
     if not raw:
         return []
     matched = []
@@ -1384,19 +1443,52 @@ def apps_for_ta_string(ta_str):
                     entry["predecessor"] = app["predecessor"]
                 matched.append(entry)
                 break
+    cited_ids = _splunkbase_ids_in(raw_orig) - seen_ids
+    if cited_ids:
+        for app in SPLUNK_APPS:
+            if app["id"] not in cited_ids:
+                continue
+            seen_ids.add(app["id"])
+            entry = {
+                "name": app["name"],
+                "id": app["id"],
+                "url": app["url"],
+                "desc": app.get("desc", ""),
+                "screenshots": app.get("screenshots", []),
+            }
+            if app.get("predecessor"):
+                entry["predecessor"] = app["predecessor"]
+            matched.append(entry)
     return matched
 
 
 def ta_link_for_ta_string(ta_str):
-    """Given a use case's App/TA field, return first matching SPLUNK_TAS entry as {name, id, url} or None."""
+    """Given a use case's App/TA field, return first matching SPLUNK_TAS entry as {name, id, url} or None.
+
+    Two-pass match: (1) substring match against the registered
+    ``ta["tas"]`` patterns (legacy behaviour); then (2) numeric
+    Splunkbase-ID match for IDs cited explicitly in the App/TA prose.
+    Pass 2 only fires if pass 1 finds no match — preserving the legacy
+    "first match wins" precedence.
+    """
     if not (ta_str or "").strip():
         return None
-    raw = (ta_str or "").replace("`", "").strip().lower()
+    raw_orig = (ta_str or "").replace("`", "").strip()
+    raw = raw_orig.lower()
     if not raw:
         return None
     for ta in SPLUNK_TAS:
         for pattern in ta["tas"]:
             if pattern.lower() in raw:
+                return {
+                    "name": ta["name"],
+                    "id": ta["id"],
+                    "url": f"https://splunkbase.splunk.com/app/{ta['id']}",
+                }
+    cited_ids = _splunkbase_ids_in(raw_orig)
+    if cited_ids:
+        for ta in SPLUNK_TAS:
+            if ta["id"] in cited_ids:
                 return {
                     "name": ta["name"],
                     "id": ta["id"],
@@ -1533,27 +1625,51 @@ _SIDECAR_QUALITY_CACHE = None
 CONTENT_DIR = os.path.join(PROJECT_ROOT, "content")
 
 
-def _load_sidecar_grandma_cache():
-    """Lazy-load every canonical UC sidecar's ``grandmaExplanation`` string.
+def _populate_content_sidecar_caches():
+    """Walk ``content/cat-*/UC-*.json`` once and populate all three caches.
 
-    Walks ``content/cat-*/UC-*.json`` — the v7+ per-UC canonical files —
-    and returns a dict keyed by UC id ("22.1.1") mapping to the
-    ``grandmaExplanation`` value when set. UCs without the field (or with
-    an empty string) do not appear in the cache, which signals the
-    caller to fall back to the curated ``non-technical-view.js`` ``why``
-    lines (or simply hide the explanation paragraph).
+    The legacy build pipeline historically walked ``content/`` three
+    separate times — once for the grandma cache, once for compliance,
+    once for quality — each opening every JSON sidecar individually
+    (~7,657 stat + open + json.load calls × 3 = 23k file ops on a typical
+    build). Repo-overhaul plan §P1 step 4 (2026-05-08) consolidates the
+    three walks into this single pass: one stat / open / parse per
+    sidecar populates whichever caches are still ``None``.
 
-    Cached for the life of the build. Safe to call even when the
-    ``content`` tree is missing (early Phase-1 checkouts, stripped CI
-    environments) — the cache just returns empty.
+    Lazy semantics are preserved at the per-cache level: an isolated
+    caller of ``_load_sidecar_grandma_cache()`` still only triggers ONE
+    walk; the other two caches are populated as a free side effect, and
+    a later caller of ``_load_sidecar_compliance_cache()`` finds them
+    already filled and returns immediately.
+
+    The function is idempotent: if all three caches are already loaded
+    it returns without re-reading the disk. Used internally by
+    ``_load_sidecar_{grandma,compliance,quality}_cache()`` and never
+    called directly from outside this module.
     """
     global _SIDECAR_GRANDMA_CACHE
-    if _SIDECAR_GRANDMA_CACHE is not None:
-        return _SIDECAR_GRANDMA_CACHE
-    cache = {}
+    global _SIDECAR_COMPLIANCE_CACHE
+    global _SIDECAR_QUALITY_CACHE
+
+    grandma_needed = _SIDECAR_GRANDMA_CACHE is None
+    compliance_needed = _SIDECAR_COMPLIANCE_CACHE is None
+    quality_needed = _SIDECAR_QUALITY_CACHE is None
+    if not (grandma_needed or compliance_needed or quality_needed):
+        return
+
+    grandma = {} if grandma_needed else _SIDECAR_GRANDMA_CACHE
+    compliance = {} if compliance_needed else _SIDECAR_COMPLIANCE_CACHE
+    quality = {} if quality_needed else _SIDECAR_QUALITY_CACHE
+
     if not os.path.isdir(CONTENT_DIR):
-        _SIDECAR_GRANDMA_CACHE = cache
-        return cache
+        if grandma_needed:
+            _SIDECAR_GRANDMA_CACHE = grandma
+        if compliance_needed:
+            _SIDECAR_COMPLIANCE_CACHE = compliance
+        if quality_needed:
+            _SIDECAR_QUALITY_CACHE = quality
+        return
+
     for root, _dirs, files in os.walk(CONTENT_DIR):
         for fname in files:
             if not fname.startswith("UC-") or not fname.endswith(".json"):
@@ -1570,11 +1686,96 @@ def _load_sidecar_grandma_cache():
             uc_id = side.get("id")
             if not isinstance(uc_id, str) or not uc_id:
                 continue
-            ge = side.get("grandmaExplanation")
-            if isinstance(ge, str) and ge.strip():
-                cache[uc_id] = ge.strip()
-    _SIDECAR_GRANDMA_CACHE = cache
-    return cache
+
+            if grandma_needed:
+                ge = side.get("grandmaExplanation")
+                if isinstance(ge, str) and ge.strip():
+                    grandma[uc_id] = ge.strip()
+
+            if compliance_needed:
+                comp_list = side.get("compliance")
+                if isinstance(comp_list, list) and comp_list:
+                    rows = []
+                    for entry in comp_list:
+                        if not isinstance(entry, dict):
+                            continue
+                        reg = entry.get("regulation")
+                        ver = entry.get("version")
+                        clause = entry.get("clause")
+                        if not (isinstance(reg, str) and reg
+                                and isinstance(ver, str) and ver
+                                and isinstance(clause, str) and clause):
+                            continue
+                        row = {
+                            "r": reg.strip(),
+                            "v": ver.strip(),
+                            "cl": clause.strip(),
+                        }
+                        mode = entry.get("mode")
+                        if isinstance(mode, str) and mode.strip():
+                            row["m"] = mode.strip()
+                        assurance = entry.get("assurance")
+                        if isinstance(assurance, str) and assurance.strip():
+                            row["a"] = assurance.strip()
+                        co = entry.get("controlObjective")
+                        if isinstance(co, str) and co.strip():
+                            row["co"] = co.strip()
+                        ea = entry.get("evidenceArtifact")
+                        if isinstance(ea, str) and ea.strip():
+                            row["ea"] = ea.strip()
+                        url = entry.get("clauseUrl")
+                        if isinstance(url, str) and url.strip():
+                            row["u"] = url.strip()
+                        rows.append(row)
+                    if rows:
+                        rows.sort(key=lambda x: (x["r"], x["v"], x["cl"]))
+                        compliance[uc_id] = rows
+
+            if quality_needed:
+                entry = {}
+                kfp = side.get("knownFalsePositives")
+                if isinstance(kfp, str) and kfp.strip():
+                    entry["kfp"] = kfp.strip()
+                mitre = side.get("mitreAttack")
+                if isinstance(mitre, list) and mitre:
+                    entry["mitre"] = [
+                        str(m).strip()
+                        for m in mitre
+                        if str(m).strip()
+                    ]
+                reviewed = side.get("lastReviewed")
+                if isinstance(reviewed, str) and reviewed.strip():
+                    entry["reviewed"] = reviewed.strip()
+                if entry:
+                    quality[uc_id] = entry
+
+    if grandma_needed:
+        _SIDECAR_GRANDMA_CACHE = grandma
+    if compliance_needed:
+        _SIDECAR_COMPLIANCE_CACHE = compliance
+    if quality_needed:
+        _SIDECAR_QUALITY_CACHE = quality
+
+
+def _load_sidecar_grandma_cache():
+    """Lazy-load every canonical UC sidecar's ``grandmaExplanation`` string.
+
+    Returns a dict keyed by UC id ("22.1.1") mapping to the
+    ``grandmaExplanation`` value when set. UCs without the field (or with
+    an empty string) do not appear in the cache, which signals the
+    caller to fall back to the curated ``non-technical-view.js`` ``why``
+    lines (or simply hide the explanation paragraph).
+
+    Walks ``content/cat-*/UC-*.json`` exactly once via
+    ``_populate_content_sidecar_caches`` and shares the file-IO with
+    the compliance and quality caches (P1 step 4, 2026-05-08).
+    Cached for the life of the build. Safe to call even when the
+    ``content`` tree is missing (early Phase-1 checkouts, stripped CI
+    environments) — the cache just returns empty.
+    """
+    if _SIDECAR_GRANDMA_CACHE is None:
+        _populate_content_sidecar_caches()
+    return _SIDECAR_GRANDMA_CACHE if _SIDECAR_GRANDMA_CACHE is not None else {}
 
 
 def _sidecar_grandma_for(uc_full_id):
@@ -1622,74 +1823,18 @@ def _load_sidecar_compliance_cache():
     dropped because they can't be deep-linked from the clause filter
     dropdown.
 
-    Cached for the life of the build. Safe to call in environments where
-    the ``content`` tree is absent (stripped CI checkouts, early v6-only
+    Walks ``content/cat-*/UC-*.json`` exactly once via
+    ``_populate_content_sidecar_caches`` and shares the file-IO with
+    the grandma and quality caches (P1 step 4, 2026-05-08). Cached for
+    the life of the build. Safe to call in environments where the
+    ``content`` tree is absent (stripped CI checkouts, early v6-only
     builds): the cache just returns empty and the ``cmp`` field never
     appears on any UC dict, which is what the renderer treats as "no
     structured compliance data available".
     """
-    global _SIDECAR_COMPLIANCE_CACHE
-    if _SIDECAR_COMPLIANCE_CACHE is not None:
-        return _SIDECAR_COMPLIANCE_CACHE
-    cache = {}
-    if not os.path.isdir(CONTENT_DIR):
-        _SIDECAR_COMPLIANCE_CACHE = cache
-        return cache
-    for root, _dirs, files in os.walk(CONTENT_DIR):
-        for fname in files:
-            if not fname.startswith("UC-") or not fname.endswith(".json"):
-                continue
-            path = os.path.join(root, fname)
-            try:
-                with open(path, "r", encoding="utf-8") as fh:
-                    side = json.load(fh)
-            except (IOError, ValueError) as exc:
-                print(f"  WARN  skipping malformed sidecar {path}: {exc}")
-                continue
-            if not isinstance(side, dict):
-                continue
-            uc_id = side.get("id")
-            if not isinstance(uc_id, str) or not uc_id:
-                continue
-            compliance = side.get("compliance")
-            if not isinstance(compliance, list) or not compliance:
-                continue
-            rows = []
-            for entry in compliance:
-                if not isinstance(entry, dict):
-                    continue
-                reg = entry.get("regulation")
-                ver = entry.get("version")
-                clause = entry.get("clause")
-                if not (isinstance(reg, str) and reg and isinstance(ver, str) and ver
-                        and isinstance(clause, str) and clause):
-                    continue
-                row = {
-                    "r": reg.strip(),
-                    "v": ver.strip(),
-                    "cl": clause.strip(),
-                }
-                mode = entry.get("mode")
-                if isinstance(mode, str) and mode.strip():
-                    row["m"] = mode.strip()
-                assurance = entry.get("assurance")
-                if isinstance(assurance, str) and assurance.strip():
-                    row["a"] = assurance.strip()
-                co = entry.get("controlObjective")
-                if isinstance(co, str) and co.strip():
-                    row["co"] = co.strip()
-                ea = entry.get("evidenceArtifact")
-                if isinstance(ea, str) and ea.strip():
-                    row["ea"] = ea.strip()
-                url = entry.get("clauseUrl")
-                if isinstance(url, str) and url.strip():
-                    row["u"] = url.strip()
-                rows.append(row)
-            if rows:
-                rows.sort(key=lambda x: (x["r"], x["v"], x["cl"]))
-                cache[uc_id] = rows
-    _SIDECAR_COMPLIANCE_CACHE = cache
-    return cache
+    if _SIDECAR_COMPLIANCE_CACHE is None:
+        _populate_content_sidecar_caches()
+    return _SIDECAR_COMPLIANCE_CACHE if _SIDECAR_COMPLIANCE_CACHE is not None else {}
 
 
 def _sidecar_compliance_for(uc_full_id):
@@ -1712,43 +1857,16 @@ def _load_sidecar_quality_cache():
       kfp      — knownFalsePositives string (or "")
       mitre    — list of MITRE ATT&CK technique IDs (or [])
       reviewed — lastReviewed date string YYYY-MM-DD (or "")
+
+    Walks ``content/cat-*/UC-*.json`` exactly once via
+    ``_populate_content_sidecar_caches`` and shares the file-IO with
+    the grandma and compliance caches (P1 step 4, 2026-05-08). Empty
+    quality dicts (``entry == {}``) are dropped so callers can use
+    plain ``cache.get(uc_id, {})``.
     """
-    global _SIDECAR_QUALITY_CACHE
-    if _SIDECAR_QUALITY_CACHE is not None:
-        return _SIDECAR_QUALITY_CACHE
-    cache = {}
-    if not os.path.isdir(CONTENT_DIR):
-        _SIDECAR_QUALITY_CACHE = cache
-        return cache
-    for root, _dirs, files in os.walk(CONTENT_DIR):
-        for fname in files:
-            if not fname.startswith("UC-") or not fname.endswith(".json"):
-                continue
-            path = os.path.join(root, fname)
-            try:
-                with open(path, "r", encoding="utf-8") as fh:
-                    side = json.load(fh)
-            except (IOError, ValueError):
-                continue
-            if not isinstance(side, dict):
-                continue
-            uc_id = side.get("id")
-            if not isinstance(uc_id, str) or not uc_id:
-                continue
-            entry = {}
-            kfp = side.get("knownFalsePositives")
-            if isinstance(kfp, str) and kfp.strip():
-                entry["kfp"] = kfp.strip()
-            mitre = side.get("mitreAttack")
-            if isinstance(mitre, list) and mitre:
-                entry["mitre"] = [str(m).strip() for m in mitre if str(m).strip()]
-            reviewed = side.get("lastReviewed")
-            if isinstance(reviewed, str) and reviewed.strip():
-                entry["reviewed"] = reviewed.strip()
-            if entry:
-                cache[uc_id] = entry
-    _SIDECAR_QUALITY_CACHE = cache
-    return cache
+    if _SIDECAR_QUALITY_CACHE is None:
+        _populate_content_sidecar_caches()
+    return _SIDECAR_QUALITY_CACHE if _SIDECAR_QUALITY_CACHE is not None else {}
 
 
 def _sidecar_quality_for(uc_full_id):

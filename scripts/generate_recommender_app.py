@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
-"""Generate the ``splunk-uc-recommender`` Splunk app (plus companion TA).
+"""Generate the ``splunk-uc-recommender`` Splunk app (single-artefact).
 
-Companion to ``scripts/generate_splunk_app.py``.  The recommender app is a
-Cloud-safe search-head companion to the use-case repository:
+The recommender app is a Cloud-safe search-head companion to the
+use-case repository:
 
 * scans a Splunk environment for sourcetypes, indexes, CIM acceleration
   status, and installed apps (four Cloud-safe saved searches);
 * matches that inventory against the upstream API indexes under
   ``/api/v1/recommender/`` to preview UCs the operator can enable;
 * never writes to ``savedsearches.conf`` on the target instance — the UI
-  ships "Copy SPL" and "Open in Search app" deep-links only.
+  ships "Copy SPL" and "Open in Search app" deep-links only;
+* tracks per-UC implementation status in two KV collections
+  (``uc_recommender_implementations`` + ``uc_recommender_audit``);
+* surfaces the Splunkbase apps required to implement each UC and gates
+  the install guidance on a custom ``edit_uc_implementations`` capability.
 
-The companion ``splunk-uc-recommender-ta`` adds a modular input that can
-sample a single event per ``(index, sourcetype)`` pair to enrich the
-inventory with extracted field names.  That input is Enterprise-only
-because modular inputs must be explicitly vetted for Splunk Cloud.
-
-Design rules (same as ``scripts/generate_splunk_app.py``):
+Design rules:
 
 * **Deterministic** — same inputs always produce byte-identical output.
   CI runs ``--check`` to diff the committed tree against the regenerated
@@ -28,19 +27,18 @@ Design rules (same as ``scripts/generate_splunk_app.py``):
   unless they are the low-cost inventory refreshers that the recommender
   strictly relies on.
 * **Cloud-safe** — no ``commands.conf``, ``restmap.conf``,
-  ``web.conf[expose:*]``, or ``[script://]`` inputs in the primary app.
+  ``web.conf[expose:*]``, or ``[script://]`` inputs.
+
+History: v9.0 consolidated this repo to a single Splunk artefact. The
+companion ``splunk-uc-recommender-ta`` (Enterprise-only modular input
+TA) and the 12 per-regulation app variants were both retired in favour
+of this one app. See ``docs/migration-v8.md``.
 
 CLI
 ---
 
-    # Default: generate both the primary app and the TA
+    # Default: generate the recommender app
     python3 scripts/generate_recommender_app.py
-
-    # Only the primary app (no TA)
-    python3 scripts/generate_recommender_app.py --no-ta
-
-    # Only the companion TA
-    python3 scripts/generate_recommender_app.py --ta-only
 
     # Determinism guard (CI)
     python3 scripts/generate_recommender_app.py --check
@@ -75,24 +73,100 @@ REPO_ROOT = SCRIPT_DIR.parent
 VERSION_FILE = REPO_ROOT / "VERSION"
 LICENSE_FILE = REPO_ROOT / "LICENSE"
 DEFAULT_OUTPUT = REPO_ROOT / "splunk-apps"
+USE_CASES_DIR = REPO_ROOT / "use-cases"
+CONTENT_DIR = REPO_ROOT / "content"
+DATA_DIR = REPO_ROOT / "data"
+REGULATIONS_FILE = DATA_DIR / "regulations.json"
+SPLUNKBASE_CATALOG_FILE = DATA_DIR / "splunkbase-catalog.json"
+SPLUNKBASE_OVERRIDES_FILE = DATA_DIR / "splunkbase-catalog-overrides.json"
 
 PRIMARY_APP_ID = "splunk-uc-recommender"
-TA_APP_ID = "splunk-uc-recommender-ta"
 API_BASE_URL = "https://fenre.github.io/splunk-monitoring-use-cases/api/v1"
 
-# Compliance helpers are reused from generate_splunk_app.py so the recommender
-# stays in lock-step with the per-regulation generator instead of forking the
-# ingest logic. We import lazily inside the loader to keep import order tidy.
-sys.path.insert(0, str(SCRIPT_DIR))
-from generate_splunk_app import (  # noqa: E402  (intentionally after sys.path tweak)
-    REGULATIONS_FILE as _GSA_REGULATIONS_FILE,
-    _framework_by_id as _gsa_framework_by_id,
-    _load_json as _gsa_load_json,
-    _load_ucs as _gsa_load_ucs,
-    _regulation_alias_to_id as _gsa_alias_map,
-    _safe_stanza as _gsa_safe_stanza,
-    _uc_sort_key as _gsa_uc_sort_key,
-)
+
+# ---------------------------------------------------------------------------
+# Inlined compliance/UC helpers (formerly imported from generate_splunk_app.py
+# which was retired in v9.0). Kept name-stable internally so callers below
+# still read as ``_gsa_*``.
+# ---------------------------------------------------------------------------
+
+
+def _gsa_load_json(path: pathlib.Path) -> Any:
+    with path.open("r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _gsa_uc_sort_key(uc: Mapping[str, Any]) -> Tuple[int, ...]:
+    uid = uc.get("id") or ""
+    try:
+        return tuple(int(part) for part in str(uid).split("."))
+    except ValueError:  # pragma: no cover - malformed IDs
+        return (9_999,)
+
+
+def _gsa_load_ucs() -> List[Dict[str, Any]]:
+    seen_ids: set = set()
+    items: List[Dict[str, Any]] = []
+
+    def _ingest(root: pathlib.Path, glob: str) -> None:
+        if not root.exists():
+            return
+        for path in sorted(root.rglob(glob)):
+            try:
+                data = _gsa_load_json(path)
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"Invalid JSON in {path}: {exc}") from exc
+            if not isinstance(data, dict) or not data.get("id"):
+                continue
+            uid = data["id"]
+            if uid in seen_ids:
+                continue
+            seen_ids.add(uid)
+            data["_sourcePath"] = str(path.relative_to(REPO_ROOT))
+            items.append(data)
+
+    _ingest(CONTENT_DIR, "UC-*.json")
+    _ingest(USE_CASES_DIR, "uc-*.json")
+    items.sort(key=_gsa_uc_sort_key)
+    return items
+
+
+def _gsa_alias_map(regs: Mapping[str, Any]) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for fw in regs.get("frameworks", []):
+        fid = fw.get("id")
+        if not fid:
+            continue
+        out[fid.lower()] = fid
+        short = fw.get("shortName")
+        if short:
+            out[short.lower()] = fid
+        for alias in fw.get("aliases", []) or []:
+            out[str(alias).lower()] = fid
+    for alias, target in (regs.get("aliasIndex") or {}).items():
+        if alias.startswith("$"):
+            continue
+        out[str(alias).lower()] = str(target)
+    return out
+
+
+def _gsa_framework_by_id(regs: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
+    return {
+        fw["id"]: fw
+        for fw in regs.get("frameworks", [])
+        if fw.get("id")
+    }
+
+
+_SAFE_STANZA_RE = re.compile(r"[\[\]\n\r]")
+
+
+def _gsa_safe_stanza(name: str) -> str:
+    return _SAFE_STANZA_RE.sub(" ", name).strip()
+
+
+# Backwards-compatible alias used by call sites below.
+_GSA_REGULATIONS_FILE = REGULATIONS_FILE
 
 GENERATED_CONF_BANNER = (
     "# -----------------------------------------------------------------\n"
@@ -215,13 +289,25 @@ def _primary_app_conf(version: str) -> str:
         "catalogue (fenre/splunk-monitoring-use-cases). Preview-only: "
         "saved searches are never written to the instance."
     )
+    # AppInspect's ``check_app_conf_id_matches_app_directory_name``
+    # wants an explicit ``[id]`` stanza on top of ``[package]``.
+    # Splunk Cloud admission has rejected manifest-only apps in the
+    # past — keep both as a belt-and-braces measure.
     sections = [
         (
             "install",
             [
                 ("is_configured", "0"),
                 ("state", "enabled"),
-                ("build", "1"),
+                ("build", "10"),
+            ],
+        ),
+        (
+            "id",
+            [
+                ("name", PRIMARY_APP_ID),
+                ("version", version),
+                ("build", "10"),
             ],
         ),
         (
@@ -243,49 +329,6 @@ def _primary_app_conf(version: str) -> str:
             "package",
             [
                 ("id", PRIMARY_APP_ID),
-                ("check_for_updates", "false"),
-            ],
-        ),
-    ]
-    return _render_conf(GENERATED_CONF_BANNER, sections)
-
-
-def _ta_app_conf(version: str) -> str:
-    description = (
-        "Companion TA for the Splunk UC Recommender app (Enterprise "
-        "only). Provides a deep-scan modular input that samples one "
-        "event per (index, sourcetype) pair and records extracted field "
-        "names back into the uc_recommender_inventory KV store so the "
-        "recommender can prefer UCs whose required fields are present."
-    )
-    sections = [
-        (
-            "install",
-            [
-                ("is_configured", "0"),
-                ("state", "enabled"),
-                ("build", "1"),
-            ],
-        ),
-        (
-            "ui",
-            [
-                ("is_visible", "false"),
-                ("label", "Splunk UC Recommender TA"),
-            ],
-        ),
-        (
-            "launcher",
-            [
-                ("author", "Splunk Monitoring Use Cases contributors"),
-                ("description", description),
-                ("version", version),
-            ],
-        ),
-        (
-            "package",
-            [
-                ("id", TA_APP_ID),
                 ("check_for_updates", "false"),
             ],
         ),
@@ -741,9 +784,190 @@ def _savedsearches_conf() -> str:
             ],
         ),
     ]
+    sections.extend(_implementation_tracking_savedsearches())
     compliance_ucs, frameworks = _load_compliance_bundle()
     sections.extend(_compliance_savedsearches_sections(compliance_ucs, frameworks))
     return _render_conf(GENERATED_CONF_BANNER, sections)
+
+
+def _implementation_tracking_savedsearches() -> List[Tuple[str, List[Tuple[str, str]]]]:
+    """Four v9.0 saved searches — fingerprint scan, drift, audit, retention.
+
+    All four follow the v9.0 productionisation guards:
+
+    * ``dispatch.max_count = 50000`` and ``dispatch.max_time = 600`` to
+      cap runaway searches (per § 12c).
+    * Off-peak cron offsets so they don't pile up against the existing
+      sourcetype/index/CIM/apps inventory scans.
+    * No outbound HTTP — every dependency is an in-app lookup
+      (``uc_fingerprints.csv``) or KV collection
+      (``uc_recommender_implementations`` / ``uc_recommender_audit``).
+
+    The fingerprint scan is the auto-detect side of the hybrid
+    implementation-tracking pattern (§ 6a). It joins canonicalised
+    SPL hashes from the local saved-search registry against
+    ``lookups/uc_fingerprints.csv`` (shipped in-app — never HTTP-fetched
+    at runtime, see ``tools/build/render_api.py`` and
+    ``scripts/generate_recommender_app.py``).
+    """
+    fingerprint_spl = (
+        "| rest /services/saved/searches splunk_server=local "
+        '| eval fingerprint=sha256(tostring(uc_normalise(search))) '
+        "| inputlookup append=t uc_fingerprints "
+        '| stats values(uc_id) AS matched_uc_id '
+        'values(title) AS evidence_search_name BY fingerprint '
+        "| where isnotnull(matched_uc_id) AND isnotnull(evidence_search_name) "
+        '| eval _key=matched_uc_id, status="implemented", '
+        'detection_source="auto-fingerprint", '
+        'evidence_first_seen_at=coalesce(evidence_first_seen_at, '
+        'strftime(now(),"%Y-%m-%dT%H:%M:%S%z")), '
+        'evidence_last_seen_at=strftime(now(),"%Y-%m-%dT%H:%M:%S%z") '
+        "| outputlookup uc_recommender_implementations append=t key_field=_key"
+    )
+    drift_spl = (
+        "| inputlookup uc_recommender_implementations "
+        '| where status="implemented" '
+        '| eval seconds_absent=now() - strptime(evidence_last_seen_at, '
+        '"%Y-%m-%dT%H:%M:%S%z") '
+        "| where seconds_absent > 86400 "
+        "| eval status=\"needs_review\", "
+        'detection_source="auto-drift", '
+        'marked_at=strftime(now(),"%Y-%m-%dT%H:%M:%S%z") '
+        "| outputlookup uc_recommender_implementations append=t key_field=_key"
+    )
+    audit_append_spl = (
+        "| inputlookup uc_recommender_implementations "
+        "| eval kv_seen=1 "
+        "| inputlookup append=t uc_recommender_implementations_prev "
+        "| stats values(status) AS statuses, values(uc_id) AS uc_ids, "
+        "values(marked_by) AS users BY _key "
+        "| where mvcount(statuses)=2 "
+        "| eval old_status=mvindex(statuses,0), "
+        "new_status=mvindex(statuses,1), "
+        "uc_id=mvindex(uc_ids,0), "
+        "user=coalesce(mvindex(users,0), \"system\"), "
+        'timestamp=strftime(now(),"%Y-%m-%dT%H:%M:%S%z"), '
+        "request_id=md5(_key . tostring(now())) "
+        "| where old_status!=new_status "
+        "| table uc_id user old_status new_status timestamp request_id "
+        "| outputlookup uc_recommender_audit append=t "
+    )
+    audit_retention_spl = (
+        "| inputlookup uc_recommender_audit "
+        '| eval retain=if((now() - strptime(timestamp, '
+        '"%Y-%m-%dT%H:%M:%S%z")) < 13*30*86400, 1, 0) '
+        "| where retain=1 "
+        "| fields - retain "
+        "| outputlookup uc_recommender_audit append=f"
+    )
+    common_caps: List[Tuple[str, str]] = [
+        ("dispatch.max_count", "50000"),
+        ("dispatch.max_time", "600"),
+        ("enableSched", "1"),
+        ("is_scheduled", "1"),
+        ("disabled", "0"),
+        ("alert.track", "0"),
+        ("action.email", "0"),
+        ("action.logevent", "0"),
+    ]
+    return [
+        (
+            "Recommender — Saved-search fingerprint",
+            [
+                (
+                    "description",
+                    "Auto-detect side of v9.0 hybrid implementation tracking. Joins SHA-256 fingerprints of canonicalised local saved-search SPL against the shipped lookups/uc_fingerprints.csv. Runs every 6 hours; updates evidence_last_seen_at for matches. Cloud-safe: no HTTP egress, fingerprints ship in-app.",
+                ),
+                ("search", fingerprint_spl),
+                ("cron_schedule", "17 */6 * * *"),
+                ("dispatch.earliest_time", "-1d@d"),
+                ("dispatch.latest_time", "now"),
+                *common_caps,
+            ],
+        ),
+        (
+            "Recommender — Drift detection",
+            [
+                (
+                    "description",
+                    "Re-flags implementations with evidence_last_seen_at older than 24h to needs_review. Time-window check (not point-in-time disable) defeats mass-flip via search disable+re-enable.",
+                ),
+                ("search", drift_spl),
+                ("cron_schedule", "37 4 * * *"),
+                ("dispatch.earliest_time", "-2d@d"),
+                ("dispatch.latest_time", "now"),
+                *common_caps,
+            ],
+        ),
+        (
+            "Recommender — Audit append",
+            [
+                (
+                    "description",
+                    "Diffs uc_recommender_implementations against the previous snapshot every 5 minutes and writes one audit row per detected change for the fast-path (JS-only) writes. Destructive transitions write atomically through the saved-search-wrapper, so this 5-min cadence covers only non-destructive transitions (in_progress, implemented).",
+                ),
+                ("search", audit_append_spl),
+                ("cron_schedule", "*/5 * * * *"),
+                ("dispatch.earliest_time", "-15m@m"),
+                ("dispatch.latest_time", "now"),
+                *common_caps,
+            ],
+        ),
+        (
+            "Recommender — Audit retention",
+            [
+                (
+                    "description",
+                    "Default 13-month retention on uc_recommender_audit (privacy hygiene per codeguard-0-privacy-data-protection). Operators can disable this saved search if local compliance mandates longer retention.",
+                ),
+                ("search", audit_retention_spl),
+                ("cron_schedule", "47 5 * * *"),
+                ("dispatch.earliest_time", "-1d@d"),
+                ("dispatch.latest_time", "now"),
+                *common_caps,
+            ],
+        ),
+        (
+            "uc_implementation_decommission",
+            [
+                (
+                    "description",
+                    "Saved-search wrapper for destructive transition (anything -> decommissioned). Server-side validates uc_id, reason, user; writes the implementations row and the audit row atomically via append/outputlookup. Dispatched from recommender.js with $uc_id$/$reason$/$user$/$request_id$ tokens; only callable by users holding edit_uc_implementations.",
+                ),
+                (
+                    "search",
+                    "| makeresults | eval uc_id=\"$uc_id$\", reason=\"$reason$\", "
+                    "user=\"$user$\", request_id=\"$request_id$\" "
+                    '| where match(uc_id, "^\\d+\\.\\d+\\.\\d+$") '
+                    "AND len(reason) > 0 AND len(reason) <= 2000 "
+                    'AND match(reason, "^[^\\r\\n]*$") '
+                    '| eval _key=uc_id, status="decommissioned", '
+                    "marked_by=user, "
+                    'marked_at=strftime(now(),"%Y-%m-%dT%H:%M:%S%z"), '
+                    'detection_source="manual", notes=reason '
+                    "| outputlookup uc_recommender_implementations "
+                    "append=t key_field=_key "
+                    "| append [ "
+                    '| makeresults | eval uc_id="$uc_id$", '
+                    'user="$user$", '
+                    'old_status="implemented", '
+                    'new_status="decommissioned", '
+                    'timestamp=strftime(now(),"%Y-%m-%dT%H:%M:%S%z"), '
+                    'request_id="$request_id$" '
+                    "| outputlookup uc_recommender_audit append=t "
+                    "]",
+                ),
+                ("dispatchAs", "user"),
+                ("disabled", "1"),
+                ("is_scheduled", "0"),
+                ("alert.track", "0"),
+                ("action.email", "0"),
+                ("action.logevent", "0"),
+                ("dispatch.max_count", "50000"),
+                ("dispatch.max_time", "120"),
+            ],
+        ),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -752,6 +976,12 @@ def _savedsearches_conf() -> str:
 
 
 def _collections_conf() -> str:
+    # ``replicate = true`` is mandatory on the new v9.0 collections so SHC
+    # members converge after every KV write. ``accelerated_fields`` are
+    # plain JSON specs Splunk can lift into MongoDB-style indexes — they
+    # turn the per-UC implementation lookup from O(7,364) full-scan into
+    # O(log N) on every dashboard render. ``_key`` is implicit and never
+    # declared.
     sections = [
         (
             "uc_recommender_inventory",
@@ -776,6 +1006,44 @@ def _collections_conf() -> str:
                 ("field.scan_type", "string"),
                 ("field.run_at", "string"),
                 ("field.run_by", "string"),
+            ],
+        ),
+        (
+            "uc_recommender_implementations",
+            [
+                ("enforceTypes", "false"),
+                ("replicate", "true"),
+                ("field.uc_id", "string"),
+                ("field.status", "string"),
+                ("field.detection_source", "string"),
+                ("field.marked_by", "string"),
+                ("field.marked_at", "string"),
+                ("field.notes", "string"),
+                ("field.evidence_search_name", "string"),
+                ("field.evidence_first_seen_at", "string"),
+                ("field.evidence_last_seen_at", "string"),
+                ("field.required_tas_missing", "string"),
+                ("accelerated_fields.uc_id_idx", "{\"uc_id\": 1}"),
+                (
+                    "accelerated_fields.status_idx",
+                    "{\"status\": 1, \"uc_id\": 1}",
+                ),
+            ],
+        ),
+        (
+            "uc_recommender_audit",
+            [
+                ("enforceTypes", "false"),
+                ("replicate", "true"),
+                ("field.uc_id", "string"),
+                ("field.user", "string"),
+                ("field.old_status", "string"),
+                ("field.new_status", "string"),
+                ("field.timestamp", "string"),
+                ("field.request_id", "string"),
+                ("field.notes", "string"),
+                ("accelerated_fields.uc_id_idx", "{\"uc_id\": 1}"),
+                ("accelerated_fields.timestamp_idx", "{\"timestamp\": 1}"),
             ],
         ),
     ]
@@ -806,6 +1074,39 @@ def _transforms_conf() -> str:
                 ("external_type", "kvstore"),
                 ("collection", "uc_recommender_scan_runs"),
                 ("fields_list", "_key, scan_type, run_at, run_by"),
+            ],
+        ),
+        (
+            "uc_recommender_implementations",
+            [
+                ("external_type", "kvstore"),
+                ("collection", "uc_recommender_implementations"),
+                (
+                    "fields_list",
+                    "_key, uc_id, status, detection_source, marked_by, "
+                    "marked_at, notes, evidence_search_name, "
+                    "evidence_first_seen_at, evidence_last_seen_at, "
+                    "required_tas_missing",
+                ),
+            ],
+        ),
+        (
+            "uc_recommender_audit",
+            [
+                ("external_type", "kvstore"),
+                ("collection", "uc_recommender_audit"),
+                (
+                    "fields_list",
+                    "_key, uc_id, user, old_status, new_status, "
+                    "timestamp, request_id, notes",
+                ),
+            ],
+        ),
+        (
+            "uc_fingerprints",
+            [
+                ("filename", "uc_fingerprints.csv"),
+                ("case_sensitive_match", "true"),
             ],
         ),
         (
@@ -938,6 +1239,12 @@ def _tags_conf() -> str:
 
 
 def _nav_default_xml() -> str:
+    # ``implementations`` slots between ``compliance`` and ``settings``
+    # per the v9.0 plan §6d so operators land on the backlog view
+    # without leaving the app's primary nav. (The Studio collection
+    # that originally sat after ``implementations`` was retired in
+    # build 4 — see the note above ``_recommend_studio_view_xml``'s
+    # former location.)
     return (
         f"{GENERATED_XML_BANNER}\n"
         "<nav search_view=\"search\" color=\"#65a637\">\n"
@@ -945,9 +1252,7 @@ def _nav_default_xml() -> str:
         "  <view name=\"scan\" />\n"
         "  <view name=\"browse\" />\n"
         "  <view name=\"compliance\" />\n"
-        "  <collection label=\"Studio\">\n"
-        "    <view name=\"recommend_studio\" />\n"
-        "  </collection>\n"
+        "  <view name=\"implementations\" />\n"
         "  <view name=\"settings\" />\n"
         "  <view name=\"search\" />\n"
         "</nav>\n"
@@ -961,7 +1266,7 @@ def _nav_default_xml() -> str:
 
 def _recommend_view_xml(api_base: str) -> str:
     return f"""{GENERATED_XML_BANNER}
-<dashboard version="1.1" theme="light" script="recommender.js" stylesheet="recommender.css">
+<dashboard version="1.1" theme="light" script="js/recommender.js" stylesheet="css/recommender.css">
   <label>Recommend</label>
   <description>Match locally-detected data against the upstream use-case catalogue and preview ready-to-enable UCs.</description>
   <row>
@@ -1089,7 +1394,7 @@ def _scan_view_xml() -> str:
 
 def _browse_view_xml(api_base: str) -> str:
     return f"""{GENERATED_XML_BANNER}
-<dashboard version="1.1" theme="light" script="recommender.js" stylesheet="recommender.css">
+<dashboard version="1.1" theme="light" script="js/recommender.js" stylesheet="css/recommender.css">
   <label>Browse</label>
   <description>Browse the full use-case catalogue (all categories, 6k+ entries). Click a card to load the full sidecar.</description>
   <row>
@@ -1116,7 +1421,7 @@ def _compliance_view_xml() -> str:
     that satisfies it, and click through to the saved search to enable.
     """
     return f"""{GENERATED_XML_BANNER}
-<form version="1.1" theme="light" stylesheet="recommender.css">
+<form version="1.1" theme="light" stylesheet="css/recommender.css">
   <label>Compliance</label>
   <description>Filter the bundled tier-1 compliance UCs by regulation, criticality, or clause. Every saved search is shipped disabled — open one in Search to review and enable it.</description>
   <fieldset autoRun="true" submitButton="false">
@@ -1195,9 +1500,149 @@ def _compliance_view_xml() -> str:
 """
 
 
+def _implementations_view_xml() -> str:
+    """v9.0 ``Implementations`` dashboard.
+
+    Top row: counts by status (Live / In Progress / Action Needed /
+    Not Started / Decommissioned) as ``<single>`` panels.
+
+    Filter row: status, criticality, and equipment slug — bound to URL
+    tokens via Splunk's ``<form>`` mechanism so reload preserves the
+    operator's choices (per § 12d).
+
+    Body: the implementations KV joined client-side against the
+    upstream ``uc-thin.json`` for titles + criticality. The recommender
+    JS handles the join (``recommender.js`` at boot fetches both KV via
+    ``inputlookup`` and the upstream API via fetch); the dashboard
+    panels just render explicit empty-state copy when both sides are
+    quiet.
+
+    CSV export panel-action surfaces via the existing ``<form>`` token
+    pattern (browser save dialog on a ``| outputcsv`` URL).
+    """
+    return f"""{GENERATED_XML_BANNER}
+<form version="1.1" theme="light" script="js/recommender.js" stylesheet="css/recommender.css">
+  <label>Implementations</label>
+  <description>Track which use cases are Live, In Progress, or Action Needed. Filter the backlog and mark UCs as implemented from the Recommend dashboard.</description>
+  <fieldset submitButton="false" autoRun="true">
+    <input type="multiselect" token="status_filter" searchWhenChanged="true">
+      <label>Status</label>
+      <choice value="not_started">Not Started</choice>
+      <choice value="in_progress">In Progress</choice>
+      <choice value="implemented">Live</choice>
+      <choice value="needs_review">Action Needed</choice>
+      <choice value="decommissioned">Decommissioned</choice>
+      <default>not_started,in_progress,implemented,needs_review</default>
+      <!-- Token expands to: (status="x" OR status="y" OR ...). Joined
+           with " OR " (not ",") because Splunk's `where` command — and
+           inputlookup's inline filter syntax — both require boolean
+           operators between predicates. The previous "," form produced
+           "(status=x,status=y)" which inputlookup's parser rejects with
+           "Invalid argument: '(status=x'", crashing the table panel
+           with a 400. -->
+      <delimiter> OR </delimiter>
+      <prefix>(</prefix>
+      <suffix>)</suffix>
+      <valuePrefix>status="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+    </input>
+    <input type="dropdown" token="criticality_filter" searchWhenChanged="true">
+      <label>Criticality (any tier and above)</label>
+      <choice value="*">Any</choice>
+      <choice value="critical">Critical</choice>
+      <choice value="high">High or above</choice>
+      <choice value="medium">Medium or above</choice>
+      <default>*</default>
+    </input>
+    <input type="text" token="equipment_filter" searchWhenChanged="true">
+      <label>Equipment slug contains</label>
+      <default></default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <single>
+        <title>Live</title>
+        <search>
+          <query>| inputlookup uc_recommender_implementations | where status="implemented" | stats count as v</query>
+          <earliest>-15m</earliest><latest>now</latest>
+        </search>
+        <option name="rangeColors">["0xa6c84b","0x53a051"]</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>In Progress</title>
+        <search>
+          <query>| inputlookup uc_recommender_implementations | where status="in_progress" | stats count as v</query>
+          <earliest>-15m</earliest><latest>now</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>Action Needed</title>
+        <search>
+          <query>| inputlookup uc_recommender_implementations | where status="needs_review" | stats count as v</query>
+          <earliest>-15m</earliest><latest>now</latest>
+        </search>
+        <option name="rangeColors">["0xdc4e41","0xdc4e41"]</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>Not Started</title>
+        <search>
+          <query>| inputlookup uc_recommender_implementations | where status="not_started" | stats count as v</query>
+          <earliest>-15m</earliest><latest>now</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>Decommissioned</title>
+        <search>
+          <query>| inputlookup uc_recommender_implementations | where status="decommissioned" | stats count as v</query>
+          <earliest>-15m</earliest><latest>now</latest>
+        </search>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h3>Implementation backlog</h3>
+        <p class="ucr-implementations-empty" data-status="loading">Loading backlog &#8230;</p>
+        <div id="ucr-implementations-grid" class="ucr-implementations-grid" data-source="implementations" role="region" aria-live="polite">
+          <p class="ucr-implementations-empty">No implementations tracked yet &#8212; head to <a href="recommend">Recommend</a> and click &quot;Mark as implemented&quot; on a UC card to start tracking.</p>
+        </div>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>Raw implementations KV (current filter)</title>
+        <search>
+          <query>| inputlookup uc_recommender_implementations | where $status_filter$ | table uc_id status detection_source marked_by marked_at notes evidence_search_name evidence_first_seen_at evidence_last_seen_at | sort uc_id</query>
+          <earliest>-15m</earliest><latest>now</latest>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">25</option>
+        <drilldown>
+          <link target="_blank">recommend?uc_id=$row.uc_id$</link>
+        </drilldown>
+        <option name="csvButton">true</option>
+      </table>
+    </panel>
+  </row>
+</form>
+"""
+
+
 def _settings_view_xml(api_base: str) -> str:
     return f"""{GENERATED_XML_BANNER}
-<dashboard version="1.1" theme="light" script="recommender.js" stylesheet="recommender.css">
+<dashboard version="1.1" theme="light" script="js/recommender.js" stylesheet="css/recommender.css">
   <label>Settings</label>
   <description>Override the upstream catalogue URL, trigger a manual scan, and inspect the inventory KV store.</description>
   <row>
@@ -1227,132 +1672,17 @@ def _settings_view_xml(api_base: str) -> str:
 """
 
 
-def _recommend_studio_view_xml(api_base: str) -> str:
-    """Simple XML wrapper that loads the Dashboard Studio JSON via iframe.
-
-    The Studio view proper lives at
-    ``default/data/ui/views/recommend.json``; this XML wrapper is what
-    Splunk Web navigates to and simply exposes the JSON dashboard as a
-    ``<dashboard version="2">`` entry. Splunk 9.2+ understands both
-    layouts natively, so we only need the XML stub for the nav.
-    """
-    return f"""{GENERATED_XML_BANNER}
-<dashboard version="2" theme="light">
-  <label>Recommend (Dashboard Studio)</label>
-  <description>Dashboard Studio layout of the recommendation page. Companion to recommend.xml.</description>
-  <definition src="recommend.json"/>
-</dashboard>
-"""
-
-
 # ---------------------------------------------------------------------------
-# default/data/ui/views/recommend.json — Dashboard Studio v2
+# Dashboard Studio note: an earlier release shipped a
+# ``recommend_studio.xml`` view that mirrored the Classic Recommend
+# dashboard for tenants that have switched to Dashboard Studio. It was
+# removed in build 4 because Studio's ``splunk.viz.html`` strips
+# ``<script>`` tags for security, so the recommender card grid (status
+# badges, Splunkbase install checklist, "Mark as implemented" modal) can
+# never run inside a Studio dashboard. The lite "KPIs + go-elsewhere
+# callout" replacement was just visual noise — operators are better
+# served by the single Classic Recommend dashboard.
 # ---------------------------------------------------------------------------
-
-
-def _recommend_studio_json(api_base: str) -> Dict[str, Any]:
-    """Minimal Dashboard Studio layout replicating ``recommend.xml``.
-
-    Kept lean because the bulk of the UI is driven by ``recommender.js``
-    mounted on the ``uc-recommender-root`` HTML splunk-visualization.
-    """
-    return {
-        "title": "Recommend (Dashboard Studio)",
-        "description": "Match locally-detected data against the upstream use-case catalogue.",
-        "version": "2.0.0",
-        "visualizations": {
-            "kpi_sourcetypes": {
-                "type": "splunk.singlevalue",
-                "title": "Sourcetypes detected",
-                "options": {"majorColor": "#65a637"},
-                "dataSources": {"primary": "ds_sourcetypes"},
-            },
-            "kpi_cim": {
-                "type": "splunk.singlevalue",
-                "title": "CIM models accelerated",
-                "options": {"majorColor": "#65a637"},
-                "dataSources": {"primary": "ds_cim"},
-            },
-            "kpi_apps": {
-                "type": "splunk.singlevalue",
-                "title": "Apps detected",
-                "options": {"majorColor": "#65a637"},
-                "dataSources": {"primary": "ds_apps"},
-            },
-            "recommender_html": {
-                "type": "viz.html",
-                "options": {
-                    "html": (
-                        "<div id=\"uc-recommender-studio-root\" "
-                        f"data-api-base=\"{API_BASE_URL}\" "
-                        f"data-app-name=\"{PRIMARY_APP_ID}\" "
-                        "data-mode=\"studio\">"
-                        "<p><em>Loading use-case recommendations\u2026</em></p>"
-                        "</div>"
-                    ),
-                },
-            },
-        },
-        "dataSources": {
-            "ds_sourcetypes": {
-                "type": "ds.search",
-                "options": {
-                    "query": "| inputlookup uc_recommender_inventory | where type=\"sourcetype\" | stats dc(name) as v",
-                    "queryParameters": {"earliest": "-15m", "latest": "now"},
-                },
-            },
-            "ds_cim": {
-                "type": "ds.search",
-                "options": {
-                    "query": "| inputlookup uc_recommender_inventory | where type=\"cim_model\" AND extras=\"accelerated\" | stats dc(name) as v",
-                    "queryParameters": {"earliest": "-60m", "latest": "now"},
-                },
-            },
-            "ds_apps": {
-                "type": "ds.search",
-                "options": {
-                    "query": "| inputlookup uc_recommender_inventory | where type=\"app\" | stats dc(name) as v",
-                    "queryParameters": {"earliest": "-1d", "latest": "now"},
-                },
-            },
-        },
-        "inputs": {},
-        "layout": {
-            "type": "absolute",
-            "options": {"display": "auto-scale", "width": 1440, "height": 800},
-            "structure": [
-                {
-                    "item": "kpi_sourcetypes",
-                    "type": "block",
-                    "position": {"x": 10, "y": 10, "w": 460, "h": 140},
-                },
-                {
-                    "item": "kpi_cim",
-                    "type": "block",
-                    "position": {"x": 490, "y": 10, "w": 460, "h": 140},
-                },
-                {
-                    "item": "kpi_apps",
-                    "type": "block",
-                    "position": {"x": 970, "y": 10, "w": 460, "h": 140},
-                },
-                {
-                    "item": "recommender_html",
-                    "type": "block",
-                    "position": {"x": 10, "y": 170, "w": 1420, "h": 600},
-                },
-            ],
-        },
-        "defaults": {
-            "dataSources": {
-                "global": {
-                    "options": {
-                        "refresh": "10m",
-                    },
-                },
-            },
-        },
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -1363,10 +1693,12 @@ def _recommend_studio_json(api_base: str) -> Dict[str, Any]:
 def _js_recommender(api_base: str) -> str:
     """Main UI bootstrapper — fetches remote indexes and renders cards.
 
-    Uses AMD (Splunk Web's module system) so it can run in both classic
-    (``script="recommender.js"`` in Simple XML) and Dashboard Studio
-    views. All external HTML is sanitised via a small allow-list
-    renderer to avoid XSS from the remote catalogue.
+    Loaded via the dashboard's ``script="js/recommender.js"`` attribute
+    in Simple XML; paths are resolved relative to ``appserver/static/``.
+    (Splunk Dashboard Studio is unsupported because ``splunk.viz.html``
+    strips ``<script>`` tags — see the note where the Studio dashboard
+    used to live.) All external HTML is sanitised via a small allow-
+    list renderer to avoid XSS from the remote catalogue.
     """
     body = f"""{GENERATED_JS_BANNER}
 /* eslint-disable */
@@ -1381,12 +1713,32 @@ def _js_recommender(api_base: str) -> str:
 
   var DEFAULT_API_BASE = '{api_base}';
 
+  // v9.0 — implementation tracking constants.
+  var STATUS_LABELS = {{
+    not_started: 'Not Started',
+    in_progress: 'In Progress',
+    implemented: 'Live',
+    needs_review: 'Action Needed',
+    decommissioned: 'Decommissioned',
+  }};
+  var FAST_PATH_STATUSES = ['not_started', 'in_progress', 'implemented'];
+  var DESTRUCTIVE_STATUSES = ['decommissioned'];
+  var REQUIRED_CAPABILITY = 'edit_uc_implementations';
+  var SPLUNKBASE_URL_RX = /^https:\\/\\/splunkbase\\.splunk\\.com\\/app\\/\\d+\\/?$/;
+  var DECOMMISSION_SAVED_SEARCH = 'uc_implementation_decommission';
+  var RECONCILE_INTERVAL_MS = 5000;
+  var RECONCILE_MAX_TRIES = 6; // 30 s window for SHC replication.
+
   var STATE = {{
     apiBase: DEFAULT_API_BASE,
     appName: '{PRIMARY_APP_ID}',
     inventory: null,
     indexes: null,
     thin: null,
+    implementations: null,        // map uc_id -> implementation row
+    splunkbaseIndex: null,        // map sb_id -> {{name, displayName, ...}}
+    capability: false,            // user holds edit_uc_implementations?
+    upstreamErrors: {{}},          // per-endpoint error messages
     recommendations: [],
   }};
 
@@ -1462,23 +1814,201 @@ def _js_recommender(api_base: str) -> str:
     }});
   }}
 
+  // v9.0 uses Promise.allSettled so a single failed upstream never
+  // blanks the whole dashboard. Errors are recorded per-endpoint on
+  // STATE.upstreamErrors so render paths can show specific copy
+  // (§ 13d / § 13f). The fifth fetch (splunkbase-index.json) is also
+  // settled-tolerant: missing it just means the install checklist
+  // renders "Splunkbase metadata unavailable" instead of breaking
+  // every card.
   function loadRemoteIndexes(apiBase) {{
-    return Promise.all([
-      fetchJson(apiBase + '/recommender/sourcetype-index.json'),
-      fetchJson(apiBase + '/recommender/cim-index.json'),
-      fetchJson(apiBase + '/recommender/app-index.json'),
-      fetchJson(apiBase + '/recommender/uc-thin.json'),
-    ]).then(function (all) {{
-      return {{
-        sourcetypes: all[0].sourcetypes || {{}},
-        cim: all[1].cimModels || {{}},
-        apps: all[2].apps || {{}},
-        thin: (all[3].useCases || []).reduce(function (acc, r) {{
+    var endpoints = [
+      ['sourcetypes', apiBase + '/recommender/sourcetype-index.json'],
+      ['cim',         apiBase + '/recommender/cim-index.json'],
+      ['apps',        apiBase + '/recommender/app-index.json'],
+      ['thin',        apiBase + '/recommender/uc-thin.json'],
+      ['splunkbase',  apiBase + '/recommender/splunkbase-index.json'],
+    ];
+    return Promise.allSettled(endpoints.map(function (e) {{
+      return fetchJson(e[1]).catch(function (err) {{
+        STATE.upstreamErrors[e[0]] = err && err.message ? err.message : String(err);
+        throw err;
+      }});
+    }})).then(function (results) {{
+      var out = {{
+        sourcetypes: {{}},
+        cim: {{}},
+        apps: {{}},
+        thin: {{}},
+        splunkbase: {{}},
+      }};
+      var s = results[0]; if (s.status === 'fulfilled') out.sourcetypes = s.value.sourcetypes || {{}};
+      var c = results[1]; if (c.status === 'fulfilled') out.cim = c.value.cimModels || {{}};
+      var a = results[2]; if (a.status === 'fulfilled') out.apps = a.value.apps || {{}};
+      var t = results[3]; if (t.status === 'fulfilled') {{
+        out.thin = (t.value.useCases || []).reduce(function (acc, r) {{
           acc[r.id] = r;
           return acc;
-        }}, {{}}),
-      }};
+        }}, {{}});
+      }}
+      var b = results[4]; if (b.status === 'fulfilled') out.splunkbase = b.value.apps || {{}};
+      return out;
     }});
+  }}
+
+  function loadImplementations() {{
+    return runSearchJob('| inputlookup uc_recommender_implementations').then(function (rows) {{
+      var map = {{}};
+      (rows || []).forEach(function (r) {{
+        if (r && r.uc_id) map[r.uc_id] = r;
+      }});
+      return map;
+    }}).catch(function (err) {{
+      STATE.upstreamErrors.implementations = err && err.message ? err.message : String(err);
+      return {{}};
+    }});
+  }}
+
+  function loadCapability() {{
+    if (!hasRequire) return Promise.resolve(false);
+    return new Promise(function (resolve) {{
+      var settled = false;
+      var timer;
+      function done(value) {{
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(!!value);
+      }}
+      timer = setTimeout(function () {{ done(false); }}, 10000);
+
+      function checkCaps(caps) {{
+        if (!caps) return false;
+        if (Array.isArray(caps)) return caps.indexOf(REQUIRED_CAPABILITY) !== -1;
+        return caps === REQUIRED_CAPABILITY;
+      }}
+
+      function tryProxyFetch() {{
+        if (settled) return;
+        // Splunk Web's documented pass-through proxy for splunkd REST.
+        // Bare /services/... 303s into /en-US/services/... which 404s
+        // as an HTML error page; /en-US/splunkd/__raw/services/... is
+        // the path Splunk Web actually serves to in-app dashboard JS.
+        var url = '/en-US/splunkd/__raw/services/authentication/current-context?output_mode=json';
+        fetch(url, {{
+          credentials: 'same-origin',
+          headers: {{ 'Accept': 'application/json' }},
+        }}).then(function (r) {{
+          if (!r.ok) return null;
+          return r.json();
+        }}).then(function (data) {{
+          if (!data || !data.entry || !data.entry[0] || !data.entry[0].content) {{
+            return done(false);
+          }}
+          done(checkCaps(data.entry[0].content.capabilities));
+        }}).catch(function () {{ done(false); }});
+      }}
+
+      require(['splunkjs/mvc'], function (mvc) {{
+        try {{
+          // Preferred: SplunkJS SDK's createService() — uses SplunkWebHttp
+          // transport which already knows how to dial through the
+          // authenticated Splunk Web proxy.
+          if (mvc && typeof mvc.createService === 'function') {{
+            var service = mvc.createService();
+            if (service && typeof service.currentUser === 'function') {{
+              service.currentUser(function (err, user) {{
+                if (err || !user || typeof user.properties !== 'function') {{
+                  return tryProxyFetch();
+                }}
+                try {{
+                  var props = user.properties() || {{}};
+                  done(checkCaps(props.capabilities));
+                }} catch (_) {{
+                  tryProxyFetch();
+                }}
+              }});
+              return;
+            }}
+          }}
+          tryProxyFetch();
+        }} catch (_) {{
+          tryProxyFetch();
+        }}
+      }}, function () {{ tryProxyFetch(); }});
+    }});
+  }}
+
+  function safeSplunkbaseUrl(url) {{
+    if (typeof url !== 'string') return null;
+    var trimmed = url.trim();
+    return SPLUNKBASE_URL_RX.test(trimmed) ? trimmed : null;
+  }}
+
+  function statusOf(ucId) {{
+    if (!STATE.implementations) return 'not_started';
+    var row = STATE.implementations[ucId];
+    if (!row || !row.status) return 'not_started';
+    return STATUS_LABELS[row.status] ? row.status : 'not_started';
+  }}
+
+  function persistImplementation(ucId, payload) {{
+    var url = '/splunkd/__raw/servicesNS/nobody/' + STATE.appName
+      + '/storage/collections/data/uc_recommender_implementations/'
+      + encodeURIComponent(ucId);
+    var body = Object.assign({{
+      _key: ucId,
+      uc_id: ucId,
+      detection_source: 'manual',
+    }}, payload || {{}});
+    return fetch(url, {{
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {{ 'Content-Type': 'application/json' }},
+      body: JSON.stringify(body),
+    }}).then(function (r) {{
+      if (!r.ok) throw new Error('KV write failed (HTTP ' + r.status + ')');
+      return r.json().catch(function () {{ return body; }});
+    }});
+  }}
+
+  function dispatchDecommission(ucId, reason) {{
+    if (!hasRequire) return Promise.reject(new Error('Not in Splunk Web'));
+    var url = '/splunkd/__raw/servicesNS/nobody/' + STATE.appName
+      + '/saved/searches/' + encodeURIComponent(DECOMMISSION_SAVED_SEARCH)
+      + '/dispatch';
+    var requestId = String(Math.random()).slice(2) + '-' + Date.now();
+    var params = new URLSearchParams();
+    params.append('dispatch.search_args.uc_id', ucId);
+    params.append('dispatch.search_args.reason', reason || '');
+    params.append('dispatch.search_args.user', 'self');
+    params.append('dispatch.search_args.request_id', requestId);
+    return fetch(url, {{
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {{ 'Content-Type': 'application/x-www-form-urlencoded' }},
+      body: params.toString(),
+    }}).then(function (r) {{
+      if (!r.ok) throw new Error('Decommission dispatch failed (HTTP ' + r.status + ')');
+      return r.json().catch(function () {{ return null; }});
+    }});
+  }}
+
+  function reconcileStatus(ucId, expectedStatus) {{
+    var attempts = 0;
+    function tick() {{
+      attempts += 1;
+      return loadImplementations().then(function (impl) {{
+        STATE.implementations = impl;
+        var actual = (impl[ucId] || {{}}).status;
+        if (actual === expectedStatus) return true;
+        if (attempts >= RECONCILE_MAX_TRIES) return false;
+        return new Promise(function (resolve) {{
+          setTimeout(function () {{ resolve(tick()); }}, RECONCILE_INTERVAL_MS);
+        }});
+      }}).catch(function () {{ return false; }});
+    }}
+    return tick();
   }}
 
   function runSearchJob(spl) {{
@@ -1486,6 +2016,22 @@ def _js_recommender(api_base: str) -> str:
       if (!hasRequire) {{
         return reject(new Error('Not running inside Splunk Web'));
       }}
+      var settled = false;
+      function safeResolve(rows) {{
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(rows || []);
+      }}
+      function safeReject(err) {{
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }}
+      var timer = setTimeout(function () {{
+        safeReject(new Error('search timed out after 15s'));
+      }}, 15000);
       require(['splunkjs/mvc', 'splunkjs/mvc/searchmanager'], function (mvc, SearchManager) {{
         try {{
           var name = 'uc_recommender_job_' + Math.random().toString(36).slice(2);
@@ -1499,16 +2045,49 @@ def _js_recommender(api_base: str) -> str:
             cache: true,
           }});
           var results = sm.data('results', {{ count: 5000 }});
-          results.on('data', function () {{
-            var rows = results.data() && results.data().results
-              ? results.data().results
-              : [];
-            resolve(rows);
+          function pull() {{
+            var d = (typeof results.data === 'function') ? results.data() : null;
+            var rows = (d && d.results) ? d.results : [];
+            safeResolve(rows);
+          }}
+          // Two events can settle this promise, and they RACE on
+          // every search. Build 9 had a regression where the wrong
+          // one won and we returned [] for non-empty inventory.
+          //
+          //   * results.on('data', ...)  -- ResultsModel fires this
+          //     after its background fetch lands. Fires only when
+          //     resultCount > 0; for empty result sets it never
+          //     fires at all.
+          //   * sm.on('search:done', ...) -- SearchManager fires
+          //     this when the JOB transitions to isDone=true. This
+          //     happens BEFORE the ResultsModel fetch completes, so
+          //     calling results.data() in this handler can return
+          //     null or {{results:[]}} even when the search produced
+          //     thousands of rows.
+          //
+          // Build 10 fix: 'data' wins outright for non-empty
+          // results; 'search:done' is a deferred safety net so that
+          // empty result sets still settle in bounded time. The
+          // 800ms delay is invisible to users (the dashboard's own
+          // loading text shows for several seconds anyway) but is
+          // ample for the SDK's HTTP fetch to land and the 'data'
+          // event to fire on every Splunk version we test against.
+          var deferredPullTimer;
+          results.on('data', pull);
+          sm.on('search:done', function () {{
+            clearTimeout(deferredPullTimer);
+            deferredPullTimer = setTimeout(pull, 800);
           }});
-          sm.on('search:error', function (err) {{ reject(err); }});
+          sm.on('search:error', function (err) {{ safeReject(err); }});
+          sm.on('search:fail', function (err) {{ safeReject(err); }});
+          sm.on('search:cancelled', function () {{
+            safeReject(new Error('search cancelled'));
+          }});
         }} catch (err) {{
-          reject(err);
+          safeReject(err);
         }}
+      }}, function (err) {{
+        safeReject(err);
       }});
     }});
   }}
@@ -1593,6 +2172,69 @@ def _js_recommender(api_base: str) -> str:
     return out.slice(0, 100);
   }}
 
+  function renderStatusBadge(parent, ucId) {{
+    var status = statusOf(ucId);
+    var badge = safeAppend(parent, 'span', null, {{
+      'class': 'uc-status-badge uc-status-' + status,
+      'data-status': status,
+      'role': 'status',
+    }});
+    // Always set textContent — never rely on colour alone (a11y, § 12d).
+    badge.textContent = STATUS_LABELS[status] || 'Unknown';
+    return badge;
+  }}
+
+  function renderRequiredSplunkbase(parent, sb) {{
+    if (!Array.isArray(sb) || sb.length === 0) {{
+      var none = safeAppend(parent, 'p', null, {{ 'class': 'uc-sb-none' }});
+      none.textContent = (STATE.splunkbaseIndex && Object.keys(STATE.splunkbaseIndex).length)
+        ? 'No Splunkbase apps required.'
+        : 'Splunkbase metadata unavailable; consult catalog directly.';
+      return;
+    }}
+    var details = safeAppend(parent, 'details', null, {{ 'class': 'uc-sb-section' }});
+    var summary = safeAppend(details, 'summary');
+    summary.textContent = 'Required Splunkbase apps (' + sb.length + ')';
+    var ul = safeAppend(details, 'ul', null, {{ 'class': 'uc-sb-list' }});
+    sb.forEach(function (entry) {{
+      if (!entry || typeof entry.id === 'undefined') return;
+      var meta = (STATE.splunkbaseIndex || {{}})[String(entry.id)] || {{}};
+      var li = safeAppend(ul, 'li', null, {{ 'class': 'uc-sb-item' }});
+      var label = (entry.name || meta.displayName || meta.name || ('App ' + entry.id));
+      var role = entry.role ? (' (' + entry.role + ')') : '';
+      // Try the catalog's URL first, but fall back to the canonical
+      // /app/<id>/ form if it fails the allow-list — this gives us a
+      // safe link even when upstream metadata is corrupt.
+      var url = safeSplunkbaseUrl(meta.url || '')
+        || safeSplunkbaseUrl('https://splunkbase.splunk.com/app/' + entry.id + '/');
+      if (url) {{
+        var a = safeAppend(li, 'a', null, {{
+          'href': url,
+          'target': '_blank',
+          'rel': 'noopener noreferrer',
+        }});
+        a.textContent = label + role;
+      }} else {{
+        safeAppend(li, 'span', label + role);
+      }}
+      if (entry.minVersion) {{
+        safeAppend(li, 'span', '  min ' + entry.minVersion, {{
+          'class': 'uc-sb-version',
+        }});
+      }}
+      if (entry.requiresSmeReview) {{
+        safeAppend(li, 'span', '  needs review', {{
+          'class': 'uc-sb-review',
+        }});
+      }}
+      if (meta.cloudVetted === false) {{
+        safeAppend(li, 'span', '  not cloud-vetted', {{
+          'class': 'uc-sb-not-cloud',
+        }});
+      }}
+    }});
+  }}
+
   function renderCard(parent, row) {{
     var card = safeAppend(parent, 'div', null, {{
       'class': 'uc-card uc-crit-' + (row.criticality || 'medium'),
@@ -1602,6 +2244,7 @@ def _js_recommender(api_base: str) -> str:
     safeAppend(header, 'span', 'UC ' + row.id, {{ 'class': 'uc-id' }});
     safeAppend(header, 'span', row.criticality || '', {{ 'class': 'uc-crit' }});
     safeAppend(header, 'span', row.splunkPillar || '', {{ 'class': 'uc-pillar' }});
+    renderStatusBadge(header, row.id);
     safeAppend(card, 'h4', row.title || ('UC ' + row.id));
     if (row.value) safeAppend(card, 'p', row.value, {{ 'class': 'uc-value' }});
     if (row.reasons && row.reasons.length) {{
@@ -1609,6 +2252,8 @@ def _js_recommender(api_base: str) -> str:
       safeAppend(why, 'strong', 'Why: ');
       safeAppend(why, 'span', row.reasons.slice(0, 4).join('; '));
     }}
+    var sbContainer = safeAppend(card, 'div', null, {{ 'class': 'uc-sb-container' }});
+    renderRequiredSplunkbase(sbContainer, row.sb || []);
     var btnRow = safeAppend(card, 'div', null, {{ 'class': 'uc-btn-row' }});
     var detailBtn = safeAppend(btnRow, 'button', 'Details', {{
       'type': 'button',
@@ -1618,7 +2263,198 @@ def _js_recommender(api_base: str) -> str:
     detailBtn.addEventListener('click', function () {{
       openDetailDrawer(row);
     }});
+    if (STATE.capability) {{
+      var markBtn = safeAppend(btnRow, 'button', null, {{
+        'type': 'button',
+        'class': 'uc-btn uc-btn-mark',
+        'data-uc-id': row.id,
+      }});
+      markBtn.textContent = (statusOf(row.id) === 'not_started')
+        ? 'Mark as implemented'
+        : 'Edit status';
+      markBtn.addEventListener('click', function () {{
+        openImplementationModal(row, markBtn);
+      }});
+    }}
     return card;
+  }}
+
+  // Modal a11y: role=dialog, aria-modal, focus trap, Escape closes,
+  // focus-return on close. Per § 12d (WCAG 2.1 AA).
+  function openImplementationModal(row, openerBtn) {{
+    var existing = document.getElementById('uc-impl-modal');
+    if (existing) existing.remove();
+    var modal = document.createElement('div');
+    modal.id = 'uc-impl-modal';
+    modal.className = 'uc-modal-backdrop';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'uc-impl-modal-title');
+
+    var dialog = safeAppend(modal, 'div', null, {{ 'class': 'uc-modal' }});
+    safeAppend(dialog, 'h3', 'Update implementation status — UC ' + row.id, {{
+      'id': 'uc-impl-modal-title',
+    }});
+    safeAppend(dialog, 'p', row.title || '');
+
+    var statusLabel = safeAppend(dialog, 'label', 'Status');
+    var select = safeAppend(dialog, 'select', null, {{
+      'class': 'uc-modal-status',
+      'aria-label': 'New status',
+    }});
+    FAST_PATH_STATUSES.concat(['needs_review']).forEach(function (s) {{
+      var opt = safeAppend(select, 'option', STATUS_LABELS[s] || s, {{
+        'value': s,
+      }});
+      if (statusOf(row.id) === s) opt.setAttribute('selected', 'selected');
+    }});
+    DESTRUCTIVE_STATUSES.forEach(function (s) {{
+      safeAppend(select, 'option', STATUS_LABELS[s] || s, {{
+        'value': s,
+        'data-destructive': '1',
+      }});
+    }});
+
+    safeAppend(dialog, 'label', 'Notes (max 2000 chars; CR/LF stripped)');
+    var notes = safeAppend(dialog, 'textarea', null, {{
+      'class': 'uc-modal-notes',
+      'maxlength': 2000,
+      'rows': 4,
+    }});
+
+    var msg = safeAppend(dialog, 'div', '', {{
+      'class': 'uc-modal-msg',
+      'role': 'alert',
+      'aria-live': 'polite',
+    }});
+
+    var actions = safeAppend(dialog, 'div', null, {{ 'class': 'uc-modal-actions' }});
+    var cancel = safeAppend(actions, 'button', 'Cancel', {{
+      'type': 'button',
+      'class': 'uc-btn uc-btn-cancel',
+    }});
+    var save = safeAppend(actions, 'button', 'Save', {{
+      'type': 'button',
+      'class': 'uc-btn uc-btn-save',
+    }});
+
+    function close() {{
+      modal.remove();
+      if (openerBtn && typeof openerBtn.focus === 'function') {{
+        openerBtn.focus();
+      }}
+      document.removeEventListener('keydown', onKey);
+    }}
+
+    function trapFocus(forward) {{
+      var focusables = dialog.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusables.length) return;
+      var first = focusables[0];
+      var last = focusables[focusables.length - 1];
+      if (forward && document.activeElement === last) {{
+        first.focus();
+        return true;
+      }}
+      if (!forward && document.activeElement === first) {{
+        last.focus();
+        return true;
+      }}
+      return false;
+    }}
+
+    function onKey(e) {{
+      if (e.key === 'Escape') {{
+        e.preventDefault();
+        close();
+      }} else if (e.key === 'Tab') {{
+        if (trapFocus(!e.shiftKey)) e.preventDefault();
+      }}
+    }}
+
+    cancel.addEventListener('click', close);
+    save.addEventListener('click', function () {{
+      var newStatus = select.value;
+      var notesVal = (notes.value || '').replace(/[\\r\\n]+/g, ' ').slice(0, 2000);
+      if (!STATUS_LABELS[newStatus]) {{
+        msg.textContent = 'Invalid status.';
+        return;
+      }}
+      msg.textContent = 'Saving…';
+      save.disabled = true;
+      var op;
+      if (DESTRUCTIVE_STATUSES.indexOf(newStatus) !== -1) {{
+        op = dispatchDecommission(row.id, notesVal || 'Operator decommission');
+      }} else {{
+        op = persistImplementation(row.id, {{
+          status: newStatus,
+          notes: notesVal,
+          marked_at: new Date().toISOString(),
+        }});
+      }}
+      var optimistic = STATE.implementations || (STATE.implementations = {{}});
+      var prev = optimistic[row.id];
+      optimistic[row.id] = Object.assign({{}}, prev, {{
+        uc_id: row.id,
+        status: newStatus,
+        notes: notesVal,
+      }});
+      // Re-render the badge in-place with the optimistic state.
+      var badge = document.querySelector(
+        '.uc-card[data-uc-id="' + CSS.escape(row.id) + '"] .uc-status-badge'
+      );
+      if (badge) {{
+        badge.className = 'uc-status-badge uc-status-' + newStatus;
+        badge.dataset.status = newStatus;
+        badge.textContent = STATUS_LABELS[newStatus];
+      }}
+      op.then(function () {{
+        msg.textContent = 'Saved. Reconciling with KV…';
+        return reconcileStatus(row.id, newStatus);
+      }}).then(function (matched) {{
+        if (matched) {{
+          close();
+        }} else {{
+          // Drift — revert optimistic change, surface message.
+          if (prev) {{
+            optimistic[row.id] = prev;
+          }} else {{
+            delete optimistic[row.id];
+          }}
+          if (badge) {{
+            var revertedStatus = statusOf(row.id);
+            badge.className = 'uc-status-badge uc-status-' + revertedStatus;
+            badge.dataset.status = revertedStatus;
+            badge.textContent = STATUS_LABELS[revertedStatus];
+          }}
+          msg.textContent = 'Status didn\\u2019t sync — try again.';
+          save.disabled = false;
+        }}
+      }}).catch(function (err) {{
+        msg.textContent = (err && err.message) ? err.message : String(err);
+        save.disabled = false;
+        // Revert optimistic update on failure.
+        if (prev) {{
+          optimistic[row.id] = prev;
+        }} else {{
+          delete optimistic[row.id];
+        }}
+        if (badge) {{
+          var revertedStatus2 = statusOf(row.id);
+          badge.className = 'uc-status-badge uc-status-' + revertedStatus2;
+          badge.dataset.status = revertedStatus2;
+          badge.textContent = STATUS_LABELS[revertedStatus2];
+        }}
+      }});
+    }});
+
+    document.body.appendChild(modal);
+    document.addEventListener('keydown', onKey);
+    select.focus();
+    modal.addEventListener('click', function (ev) {{
+      if (ev.target === modal) close();
+    }});
   }}
 
   function searchDeepLink(query) {{
@@ -1694,16 +2530,167 @@ def _js_recommender(api_base: str) -> str:
     }});
   }}
 
+  // URL-state helpers — persist filters across reloads & tabs (§ 12c).
+  function readUrlState() {{
+    try {{
+      var params = new URLSearchParams(window.location.search || '');
+      return {{
+        text: params.get('q') || '',
+        status: params.get('status') || '',
+        criticality: params.get('crit') || '',
+      }};
+    }} catch (err) {{
+      return {{ text: '', status: '', criticality: '' }};
+    }}
+  }}
+
+  function writeUrlState(state) {{
+    if (!window.history || typeof window.history.replaceState !== 'function') return;
+    try {{
+      var url = new URL(window.location.href);
+      if (state.text) {{ url.searchParams.set('q', state.text); }} else {{ url.searchParams.delete('q'); }}
+      if (state.status) {{ url.searchParams.set('status', state.status); }} else {{ url.searchParams.delete('status'); }}
+      if (state.criticality) {{ url.searchParams.set('crit', state.criticality); }} else {{ url.searchParams.delete('crit'); }}
+      window.history.replaceState(null, '', url.toString());
+    }} catch (err) {{
+      /* ignore — URL persistence is best-effort */
+    }}
+  }}
+
+  function rowsToCsv(rows) {{
+    var headers = ['uc_id', 'title', 'criticality', 'status', 'pillar', 'value', 'reasons'];
+    var esc = function (v) {{
+      var s = (v === null || v === undefined) ? '' : String(v);
+      if (/[",\\r\\n]/.test(s)) {{
+        s = '"' + s.replace(/"/g, '""') + '"';
+      }}
+      return s;
+    }};
+    var out = [headers.join(',')];
+    rows.forEach(function (r) {{
+      out.push([
+        r.id,
+        r.title || '',
+        r.criticality || '',
+        statusOf(r.id),
+        r.splunkPillar || '',
+        r.value || '',
+        (r.reasons || []).join('; '),
+      ].map(esc).join(','));
+    }});
+    return out.join('\\r\\n');
+  }}
+
+  function downloadCsv(filename, csv) {{
+    var blob = new Blob([csv], {{ type: 'text/csv;charset=utf-8' }});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () {{ URL.revokeObjectURL(url); }}, 5000);
+  }}
+
+  function applyFilters(rows, state) {{
+    var f = (state.text || '').toLowerCase();
+    var statusFilter = state.status || '';
+    var critFilter = state.criticality || '';
+    return rows.filter(function (row) {{
+      if (statusFilter && statusOf(row.id) !== statusFilter) return false;
+      if (critFilter && (row.criticality || '') !== critFilter) return false;
+      if (f) {{
+        var hay = (row.id + ' ' + (row.title || '') + ' ' + (row.value || '') + ' '
+          + (row.reasons || []).join(' ')).toLowerCase();
+        if (hay.indexOf(f) === -1) return false;
+      }}
+      return true;
+    }});
+  }}
+
   function renderRecommendations(root, rows) {{
-    root.textContent = '';
     if (!rows.length) {{
-      safeAppend(root, 'p', 'No matches yet — scan once then refresh. See the Scan tab for your current inventory.');
+      var empty = safeAppend(root, 'div', null, {{ 'class': 'uc-empty', 'role': 'status' }});
+      safeAppend(empty, 'p', 'No matches yet.');
+      safeAppend(empty, 'p', 'Run the Scan tab once, wait for ingestion, then refresh — '
+        + 'the recommender needs at least one inventory row before it can match.');
       return;
     }}
-    var grid = safeAppend(root, 'div', null, {{ 'class': 'uc-grid' }});
-    rows.slice(0, 60).forEach(function (row) {{
-      renderCard(grid, row);
+    var state = readUrlState();
+    // Toolbar: text filter, status filter, criticality filter, CSV export.
+    var toolbar = safeAppend(root, 'div', null, {{ 'class': 'uc-toolbar' }});
+    var search = safeAppend(toolbar, 'input', null, {{
+      'type': 'search',
+      'placeholder': 'Filter by id, title, value, reason…',
+      'class': 'uc-filter',
+      'value': state.text,
+      'aria-label': 'Filter recommendations',
     }});
+    var statusSel = safeAppend(toolbar, 'select', null, {{
+      'class': 'uc-status-filter',
+      'aria-label': 'Filter by implementation status',
+    }});
+    safeAppend(statusSel, 'option', 'All statuses', {{ 'value': '' }});
+    Object.keys(STATUS_LABELS).forEach(function (s) {{
+      var opt = safeAppend(statusSel, 'option', STATUS_LABELS[s], {{ 'value': s }});
+      if (s === state.status) opt.setAttribute('selected', 'selected');
+    }});
+    var critSel = safeAppend(toolbar, 'select', null, {{
+      'class': 'uc-crit-filter',
+      'aria-label': 'Filter by criticality',
+    }});
+    safeAppend(critSel, 'option', 'All criticality', {{ 'value': '' }});
+    ['critical', 'high', 'medium', 'low'].forEach(function (c) {{
+      var opt = safeAppend(critSel, 'option', c, {{ 'value': c }});
+      if (c === state.criticality) opt.setAttribute('selected', 'selected');
+    }});
+    var exportBtn = safeAppend(toolbar, 'button', 'Export CSV', {{
+      'type': 'button',
+      'class': 'uc-btn uc-btn-export',
+    }});
+    var counter = safeAppend(toolbar, 'span', '', {{ 'class': 'uc-toolbar-count' }});
+
+    var grid = safeAppend(root, 'div', null, {{ 'class': 'uc-grid' }});
+
+    function refresh() {{
+      grid.textContent = '';
+      var filtered = applyFilters(rows, state);
+      counter.textContent = 'Showing ' + Math.min(filtered.length, 60)
+        + ' of ' + filtered.length + ' (of ' + rows.length + ' total)';
+      filtered.slice(0, 60).forEach(function (row) {{
+        renderCard(grid, row);
+      }});
+      if (filtered.length === 0) {{
+        var noResults = safeAppend(grid, 'p', 'No use cases match the current filters.', {{
+          'class': 'uc-empty',
+          'role': 'status',
+        }});
+      }}
+    }}
+
+    search.addEventListener('input', function (e) {{
+      state.text = e.target.value;
+      writeUrlState(state);
+      refresh();
+    }});
+    statusSel.addEventListener('change', function (e) {{
+      state.status = e.target.value;
+      writeUrlState(state);
+      refresh();
+    }});
+    critSel.addEventListener('change', function (e) {{
+      state.criticality = e.target.value;
+      writeUrlState(state);
+      refresh();
+    }});
+    exportBtn.addEventListener('click', function () {{
+      var filtered = applyFilters(rows, state);
+      var ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+      downloadCsv('uc-recommender-' + ts + '.csv', rowsToCsv(filtered));
+    }});
+
+    refresh();
   }}
 
   function renderBrowse(root, thin) {{
@@ -1764,6 +2751,30 @@ def _js_recommender(api_base: str) -> str:
     }});
   }}
 
+  function renderUpstreamBanner(target) {{
+    var keys = Object.keys(STATE.upstreamErrors || {{}});
+    if (!keys.length) return;
+    var banner = safeAppend(target, 'div', null, {{
+      'class': 'uc-banner uc-banner-warn',
+      'role': 'alert',
+    }});
+    safeAppend(banner, 'strong', 'Some catalogue endpoints failed: ');
+    var msgs = keys.map(function (k) {{ return k + ' (' + STATE.upstreamErrors[k] + ')'; }});
+    safeAppend(banner, 'span', msgs.join('; '));
+  }}
+
+  function renderReadOnlyBanner(target) {{
+    if (STATE.capability) return;
+    var banner = safeAppend(target, 'div', null, {{
+      'class': 'uc-banner uc-banner-info',
+      'role': 'note',
+    }});
+    safeAppend(banner, 'strong', 'Read-only mode: ');
+    safeAppend(banner, 'span',
+      'You do not hold the edit_uc_implementations capability. ' +
+      'Status updates are disabled; ask an admin or power user.');
+  }}
+
   function boot() {{
     var root = document.getElementById('uc-recommender-root');
     var browseRoot = document.getElementById('uc-recommender-browse-root');
@@ -1793,15 +2804,25 @@ def _js_recommender(api_base: str) -> str:
     target.textContent = '';
     safeAppend(target, 'p', 'Scanning…', {{ 'class': 'uc-loading' }});
 
-    Promise.all([loadRemoteIndexes(STATE.apiBase), loadInventory()]).then(function (pair) {{
-      var indexes = pair[0], inventory = pair[1];
-      STATE.indexes = indexes;
-      STATE.inventory = inventory;
-      var recs = matchUseCases(inventory, indexes);
+    Promise.all([
+      loadRemoteIndexes(STATE.apiBase),
+      loadInventory(),
+      loadImplementations(),
+      loadCapability(),
+    ]).then(function (parts) {{
+      STATE.indexes = parts[0];
+      STATE.inventory = parts[1];
+      STATE.implementations = parts[2] || {{}};
+      STATE.capability = !!parts[3];
+      var recs = matchUseCases(STATE.inventory, STATE.indexes);
       STATE.recommendations = recs;
+      target.textContent = '';
+      renderUpstreamBanner(target);
+      renderReadOnlyBanner(target);
       renderRecommendations(target, recs);
     }}).catch(function (err) {{
       target.textContent = '';
+      renderUpstreamBanner(target);
       safeAppend(target, 'p', 'Recommender could not load: ' + (err.message || err));
     }});
   }}
@@ -1818,6 +2839,23 @@ def _js_recommender(api_base: str) -> str:
     score: score,
     validOrigin: validOrigin,
     safeLinkHref: safeLinkHref,
+    statusOf: statusOf,
+    safeSplunkbaseUrl: safeSplunkbaseUrl,
+    state: STATE,
+    renderCard: renderCard,
+    renderStatusBadge: renderStatusBadge,
+    renderRequiredSplunkbase: renderRequiredSplunkbase,
+    openImplementationModal: openImplementationModal,
+    persistImplementation: persistImplementation,
+    dispatchDecommission: dispatchDecommission,
+    reconcileStatus: reconcileStatus,
+    loadRemoteIndexes: loadRemoteIndexes,
+    loadImplementations: loadImplementations,
+    loadCapability: loadCapability,
+    runSearchJob: runSearchJob,
+    STATUS_LABELS: STATUS_LABELS,
+    DESTRUCTIVE_STATUSES: DESTRUCTIVE_STATUSES,
+    REQUIRED_CAPABILITY: REQUIRED_CAPABILITY,
   }};
 }})();
 """
@@ -1994,6 +3032,128 @@ def _css_recommender() -> str:
 .uc-filter {{ width: 100%; padding: 6px 8px; margin: 8px 0; }}
 .uc-loading {{ color: #777; font-style: italic; }}
 .uc-msg {{ color: #255a15; margin-top: 6px; }}
+.uc-status-badge {{
+  margin-left: auto;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}}
+.uc-status-not_started {{ color: #555; background: #f3f3f3; border-color: #bbb; }}
+.uc-status-in_progress {{ color: #1f3d7a; background: #eef4ff; border-color: #2a4f9c; }}
+.uc-status-implemented {{ color: #1d6f1d; background: #e7f3e3; border-color: #65a637; }}
+.uc-status-needs_review {{ color: #b54708; background: #fff4e0; border-color: #f7bc38; }}
+.uc-status-decommissioned {{ color: #6f1d1d; background: #f7e3e3; border-color: #d93f3c; }}
+
+.uc-sb-container {{ margin: 6px 0 8px; }}
+.uc-sb-section summary {{ cursor: pointer; font-weight: 600; color: #2a4f9c; }}
+.uc-sb-list {{ margin: 4px 0 4px 18px; padding: 0; font-size: 12px; }}
+.uc-sb-item {{ list-style: disc; padding: 2px 0; }}
+.uc-sb-version {{ color: #777; }}
+.uc-sb-review {{ color: #b54708; font-weight: 600; }}
+.uc-sb-not-cloud {{ color: #d93f3c; font-weight: 600; }}
+.uc-sb-none {{ color: #777; font-style: italic; font-size: 12px; margin: 4px 0; }}
+
+.uc-banner {{
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: 8px 0;
+  font-size: 13px;
+  border: 1px solid;
+}}
+.uc-banner-warn {{ background: #fff4e0; border-color: #f58f39; color: #6f3a08; }}
+.uc-banner-info {{ background: #eef4ff; border-color: #2a4f9c; color: #1f3d7a; }}
+
+.uc-modal-backdrop {{
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}}
+.uc-modal {{
+  background: #fff;
+  border-radius: 6px;
+  padding: 18px 22px;
+  width: 480px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+}}
+.uc-modal h3 {{ margin: 0 0 8px; }}
+.uc-modal label {{ display: block; font-weight: 600; margin-top: 12px; font-size: 13px; }}
+.uc-modal-status, .uc-modal-notes {{
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid #bbb;
+  border-radius: 3px;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 13px;
+}}
+.uc-modal-actions {{
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}}
+.uc-btn-cancel {{
+  border-color: #bbb;
+  color: #444;
+}}
+.uc-modal-msg {{
+  margin-top: 8px;
+  font-size: 12px;
+  color: #555;
+  min-height: 1.2em;
+}}
+
+.uc-toolbar {{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0 12px;
+}}
+.uc-status-filter, .uc-crit-filter {{
+  padding: 6px 8px;
+  border: 1px solid #bbb;
+  border-radius: 3px;
+  font-size: 13px;
+  background: #fff;
+}}
+.uc-toolbar .uc-filter {{
+  flex: 1 1 240px;
+  min-width: 180px;
+  margin: 0;
+}}
+.uc-toolbar-count {{
+  font-size: 12px;
+  color: #666;
+  margin-left: auto;
+}}
+.uc-btn-export {{
+  border-color: #2a4f9c;
+  color: #2a4f9c;
+}}
+.uc-btn-export:hover {{ background: #eef4ff; }}
+.uc-empty {{
+  padding: 20px;
+  background: #fafafa;
+  border: 1px dashed #d0d0d0;
+  border-radius: 4px;
+  color: #555;
+  text-align: center;
+}}
+.uc-empty p {{ margin: 4px 0; }}
 """
 
 
@@ -2043,7 +3203,7 @@ def _primary_app_manifest(version: str) -> Dict[str, Any]:
                 "uri": "https://github.com/fenre/splunk-monitoring-use-cases/blob/main/LICENSE",
             },
             "privacyPolicy": {"name": None, "text": None, "uri": None},
-            "releaseDate": None,
+            "releaseDate": _deterministic_timestamp()[:10],
             "releaseNotes": {
                 "name": None,
                 "text": "README.md",
@@ -2064,70 +3224,15 @@ def _primary_app_manifest(version: str) -> Dict[str, Any]:
     }
 
 
-def _ta_app_manifest(version: str) -> Dict[str, Any]:
-    return {
-        "dependencies": {
-            "splunk-uc-recommender": {
-                "version": f">={version}",
-                "package": "splunk-uc-recommender",
-            },
-        },
-        "incompatibleApps": {},
-        "info": {
-            "author": [
-                {
-                    "company": None,
-                    "email": None,
-                    "name": "Splunk Monitoring Use Cases contributors",
-                }
-            ],
-            "classification": {
-                "categories": ["IT Operations"],
-                "developmentStatus": "Production/Stable",
-                "intendedAudience": "Platform owners, Splunk admins",
-            },
-            "commonInformationModels": {"Splunk_CIM": "5.3"},
-            "description": (
-                "Enterprise-only companion TA for splunk-uc-recommender. "
-                "Adds a modular input (uc_recommender_deep_scan) that "
-                "samples one event per (index, sourcetype) pair to "
-                "extract available field names and feed them back into "
-                "the recommender's KV store. Not vetted for Splunk Cloud."
-            ),
-            "id": {"group": None, "name": TA_APP_ID, "version": version},
-            "license": {
-                "name": "MIT",
-                "text": "LICENSE",
-                "uri": "https://github.com/fenre/splunk-monitoring-use-cases/blob/main/LICENSE",
-            },
-            "privacyPolicy": {"name": None, "text": None, "uri": None},
-            "releaseDate": None,
-            "releaseNotes": {
-                "name": None,
-                "text": "README.md",
-                "uri": "https://github.com/fenre/splunk-monitoring-use-cases/blob/main/CHANGELOG.md",
-            },
-            "title": "Splunk UC Recommender — TA",
-        },
-        "inputGroups": {
-            "uc_recommender_deep_scan": {
-                "name": "UC Recommender deep scan",
-                "description": (
-                    "Modular input that samples one event per "
-                    "(index, sourcetype) pair and writes extracted "
-                    "field names back into the KV store."
-                ),
-            }
-        },
-        "platformRequirements": {"splunk": {"Enterprise": ">=9.2"}},
-        "schemaVersion": "2.0.0",
-        "supportedDeployments": ["_standalone", "_distributed"],
-        "targetWorkloads": ["_search_heads"],
-        "tasks": [],
-    }
-
-
 def _default_meta_primary() -> str:
+    # AppInspect Cloud's ``check_meta_files`` requires every shipped
+    # KV collection to have an explicit ``[collections/<name>]`` stanza
+    # so cloud reviewers can grant scoped access. The new v9.0
+    # collections (``uc_recommender_implementations``,
+    # ``uc_recommender_audit``) get write access for admin + power so
+    # the JS modal can POST status changes without going through the
+    # owner-only system default. The implementations dashboard and the
+    # decommission saved-search wrapper get explicit stanzas too.
     return (
         "# Default export permissions. Regenerated by scripts/generate_recommender_app.py.\n"
         "[]\n"
@@ -2146,10 +3251,22 @@ def _default_meta_primary() -> str:
         "[savedsearches]\n"
         "export = none\n"
         "\n"
+        "[savedsearches/uc_implementation_decommission]\n"
+        "access = read : [ admin, power ], write : [ admin, power ]\n"
+        "export = none\n"
+        "\n"
         "[lookups]\n"
         "export = system\n"
         "\n"
         "[collections]\n"
+        "export = system\n"
+        "\n"
+        "[collections/uc_recommender_implementations]\n"
+        "access = read : [ * ], write : [ admin, power ]\n"
+        "export = system\n"
+        "\n"
+        "[collections/uc_recommender_audit]\n"
+        "access = read : [ admin, power ], write : [ admin, power ]\n"
         "export = system\n"
         "\n"
         "[transforms]\n"
@@ -2158,18 +3275,51 @@ def _default_meta_primary() -> str:
         "[views]\n"
         "export = user\n"
         "\n"
+        "[views/implementations]\n"
+        "access = read : [ * ], write : [ admin, power ]\n"
+        "export = user\n"
+        "\n"
         "[nav]\n"
         "export = user\n"
-    )
-
-
-def _default_meta_ta() -> str:
-    return (
-        "# Default export permissions. Regenerated by scripts/generate_recommender_app.py.\n"
-        "[]\n"
+        "\n"
+        "[capabilities/edit_uc_implementations]\n"
         "access = read : [ * ], write : [ admin ]\n"
-        "export = app\n"
+        "export = system\n"
     )
+
+
+def _authorize_conf() -> str:
+    """``default/authorize.conf`` for the v9.0 ``edit_uc_implementations`` capability.
+
+    Splunk's REST stack enforces this capability on every write to
+    ``/storage/collections/data/uc_recommender_implementations`` and on
+    dispatch of ``uc_implementation_decommission``. The JS modal hides
+    its buttons when the capability is absent, but that's purely
+    cosmetic — the real gate is the REST stack reading this stanza.
+
+    The capability is granted to ``admin`` and ``power`` here. Operators
+    can extend the grant set in ``local/authorize.conf`` without
+    touching the generator.
+    """
+    sections = [
+        (
+            "capability::edit_uc_implementations",
+            [],
+        ),
+        (
+            "role_admin",
+            [
+                ("edit_uc_implementations", "enabled"),
+            ],
+        ),
+        (
+            "role_power",
+            [
+                ("edit_uc_implementations", "enabled"),
+            ],
+        ),
+    ]
+    return _render_conf(GENERATED_CONF_BANNER, sections)
 
 
 def _lookup_static_csv(version: str, generated_at: str, api_base: str) -> str:
@@ -2179,7 +3329,6 @@ def _lookup_static_csv(version: str, generated_at: str, api_base: str) -> str:
     buf.write(f"apiBaseUrl,{api_base}\n")
     buf.write(f"generatedAt,{generated_at}\n")
     buf.write(f"primaryAppId,{PRIMARY_APP_ID}\n")
-    buf.write(f"taAppId,{TA_APP_ID}\n")
     return buf.getvalue()
 
 
@@ -2318,15 +3467,14 @@ scan** to kick one off immediately.
 │   ├── tags.conf
 │   └── data/ui/
 │       ├── nav/default.xml      # Recommend · Scan · Browse · Compliance ·
-│       │                        # Studio · Settings · Search
+│       │                        # Implementations · Settings · Search
 │       └── views/
 │           ├── recommend.xml    # primary recommendation page
 │           ├── scan.xml         # raw inventory tables
 │           ├── browse.xml       # full catalogue filter
 │           ├── compliance.xml   # filter bundled UCs by regulation/clause
-│           ├── settings.xml     # API base URL override, reset
-│           ├── recommend_studio.xml
-│           └── recommend.json   # Dashboard Studio v2 layout
+│           ├── implementations.xml  # backlog + bulk operator workflow
+│           └── settings.xml     # API base URL override, reset
 ├── appserver/static/
 │   ├── js/
 │   │   ├── recommender.js       # main UI, AMD module
@@ -2366,357 +3514,21 @@ their `description`/`action.uc_compliance.param.regulations` field.
 The same UC fans out to one row per (regulation, clause) tuple in the
 lookup so per-clause reporting still works.
 
-## Companion TA (`{TA_APP_ID}`)
+## Field-coverage matching
 
-Enterprise-only add-on that adds a modular input
-(`uc_recommender_deep_scan`) which samples one event per
-`(index, sourcetype)` pair and writes extracted field names back into
-the inventory. Install it on any search head where you want the
-recommender to prefer UCs whose `requiredFields` are actually present
-in your data. **Not Cloud-vetted** — leave it off Splunk Cloud stacks.
+UCs declare a `requiredFields` set in their schema. The recommender
+flags every match with **field coverage unknown** by default; the
+prior Enterprise-only `splunk-uc-recommender-ta` modular input that
+sampled `(index, sourcetype)` pairs to populate `fields_extracted` was
+retired in v9.0 to keep this repo to a single Cloud-safe artefact. A
+future Cloud-safe replacement (e.g. `| metadata` + `| typelearner`)
+is on the roadmap.
 
 ---
 
 _This app is generated. Edits in place will be overwritten. File bug
 reports and content requests at
 <https://github.com/fenre/splunk-monitoring-use-cases/issues>._
-"""
-
-
-def _ta_readme(version: str, generated_at: str) -> str:
-    return f"""# Splunk UC Recommender — TA
-
-App ID: `{TA_APP_ID}`  
-App version: **{version}**  
-Generated: `{generated_at}`
-
-Enterprise-only companion TA for the primary
-[`{PRIMARY_APP_ID}`](../{PRIMARY_APP_ID}/README.md) app.
-
-Ships a single modular input — `uc_recommender_deep_scan` — that
-runs once per day and samples one event per
-`(index, sourcetype)` pair. For each sample it extracts the set of
-field names, then writes them back into the primary app's
-`uc_recommender_inventory` KV store under the `fields_extracted`
-column so the recommender can prefer UCs whose `requiredFields` are
-actually present in your data.
-
-The TA is **not vetted for Splunk Cloud** (modular inputs require
-explicit Cloud vetting). Install it on Enterprise search heads only.
-Without the TA the recommender still works; it just flags every match
-with "field coverage unknown".
-
-## Install
-
-1. Install the primary app first.
-2. `tar czf {TA_APP_ID}.spl {TA_APP_ID}/` and upload via the Splunk
-   app manager.
-3. Enable the input under **Settings → Data inputs → UC Recommender
-   deep scan**.
-
----
-
-_This app is generated. Edits in place will be overwritten._
-"""
-
-
-# ---------------------------------------------------------------------------
-# splunk-apps/splunk-uc-recommender-ta — modular input
-# ---------------------------------------------------------------------------
-
-
-def _ta_inputs_conf() -> str:
-    sections = [
-        (
-            "uc_recommender_deep_scan://default",
-            [
-                ("interval", "86400"),
-                ("python.version", "python3"),
-                ("sourcetype", "uc_recommender:deep_scan"),
-                ("start_by_shell", "false"),
-                ("disabled", "1"),
-            ],
-        ),
-    ]
-    return _render_conf(GENERATED_CONF_BANNER, sections)
-
-
-_DEEP_SCAN_PY = """#!/usr/bin/env python3
-# GENERATED by scripts/generate_recommender_app.py -- DO NOT EDIT.
-# Source of truth: scripts/generate_recommender_app.py.
-# Re-run `python3 scripts/generate_recommender_app.py` after edits.
-#
-# ``uc_recommender_deep_scan`` modular input.
-#
-# Reads a small number of events per (index, sourcetype) pair via the
-# Splunk search API, extracts the set of field names that appear in at
-# least one sample, and writes a row per sourcetype to the
-# ``uc_recommender_inventory`` KV store on the primary app.
-#
-# This input is intentionally conservative: it executes one bounded
-# oneshot search per sourcetype with ``| head 5`` so the cost stays
-# below a few seconds per pair. Disabled by default; enable via
-# Settings -> Data inputs.
-
-from __future__ import annotations
-
-import json
-import os
-import sys
-import time
-import urllib.parse
-from typing import Any, Dict, List, Optional
-from xml.etree import ElementTree as ET
-
-SCHEME = (
-    '<scheme>'
-    '<title>UC Recommender deep scan</title>'
-    '<description>Samples one event per (index, sourcetype) pair and '
-    'writes extracted field names into the uc_recommender_inventory KV '
-    'store.</description>'
-    '<use_external_validation>true</use_external_validation>'
-    '<streaming_mode>simple</streaming_mode>'
-    '<endpoint>'
-    '<args>'
-    '<arg name="max_pairs"><title>Maximum (index, sourcetype) pairs to '
-    'scan per run</title><required_on_create>false</required_on_create>'
-    '<required_on_edit>false</required_on_edit></arg>'
-    '</args>'
-    '</endpoint>'
-    '</scheme>'
-)
-
-
-def _log(msg: str) -> None:
-    sys.stderr.write('uc_recommender_deep_scan: ' + msg + '\\n')
-    sys.stderr.flush()
-
-
-def _read_input_xml() -> Dict[str, Any]:
-    raw = sys.stdin.read()
-    if not raw.strip():
-        return {}
-    try:
-        root = ET.fromstring(raw)
-    except ET.ParseError as err:
-        _log('failed to parse input XML: ' + str(err))
-        return {}
-    out: Dict[str, Any] = {}
-    for stanza in root.findall('.//stanza'):
-        for param in stanza.findall('param'):
-            out[param.get('name') or ''] = param.text or ''
-        out['_session_key'] = stanza.get('session_key') or ''
-        out['_server_uri'] = stanza.get('server_uri') or ''
-    if 'session_key' not in out:
-        tok = root.find('.//token')
-        if tok is not None:
-            out['_session_key'] = tok.text or ''
-    return out
-
-
-def _splunk_request(
-    method: str,
-    session_key: str,
-    server_uri: str,
-    path: str,
-    data: Optional[Dict[str, str]] = None,
-) -> Dict[str, Any]:
-    # We avoid import of splunklib so the TA can be fielded without a
-    # bundled copy; the HTTPS client here is stdlib only.
-    import http.client
-    import ssl
-
-    u = urllib.parse.urlparse(server_uri or 'https://localhost:8089')
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE  # Splunkd self-signed certs are common
-
-    conn = http.client.HTTPSConnection(u.hostname, u.port or 8089, context=ctx)
-    headers = {
-        'Authorization': 'Splunk ' + session_key,
-        'Accept': 'application/json',
-    }
-    body: Optional[bytes] = None
-    if data:
-        headers['Content-Type'] = 'application/x-www-form-urlencoded'
-        body = urllib.parse.urlencode(data).encode('utf-8')
-    conn.request(method, path, body=body, headers=headers)
-    resp = conn.getresponse()
-    raw = resp.read()
-    if resp.status >= 400:
-        raise RuntimeError(
-            'splunkd ' + str(resp.status) + ' ' + (raw or b'').decode('utf-8', 'replace')[:400]
-        )
-    if not raw:
-        return {}
-    try:
-        return json.loads(raw.decode('utf-8'))
-    except ValueError:
-        return {}
-
-
-def _list_pairs(session_key: str, server_uri: str, limit: int) -> List[Dict[str, str]]:
-    # Return at most ``limit`` distinct (index, sourcetype) pairs.
-    params = {
-        'search': '| metadata type=sourcetypes index=* | head ' + str(limit),
-        'output_mode': 'json',
-        'exec_mode': 'oneshot',
-        'earliest_time': '-1d@d',
-        'latest_time': 'now',
-    }
-    res = _splunk_request(
-        'POST', session_key, server_uri, '/services/search/jobs', params
-    )
-    pairs: List[Dict[str, str]] = []
-    for row in (res.get('results') or []):
-        stype = row.get('sourcetype')
-        if not stype:
-            continue
-        pairs.append({'sourcetype': stype, 'index': row.get('index') or '*'})
-    return pairs
-
-
-def _sample_fields(
-    session_key: str,
-    server_uri: str,
-    sourcetype: str,
-    index: str,
-    max_events: int = 5,
-) -> List[str]:
-    # Bounded oneshot: five events per pair is enough to enumerate the
-    # common field names without paying for a scan over the full bucket.
-    safe_index = index if index and index != '*' else '*'
-    search = (
-        'search index="' + safe_index.replace('"', '') +
-        '" sourcetype="' + sourcetype.replace('"', '') + '" | head ' +
-        str(max_events)
-    )
-    params = {
-        'search': search,
-        'output_mode': 'json',
-        'exec_mode': 'oneshot',
-        'earliest_time': '-1d@d',
-        'latest_time': 'now',
-    }
-    try:
-        res = _splunk_request(
-            'POST', session_key, server_uri, '/services/search/jobs', params
-        )
-    except RuntimeError as err:
-        _log('sample failed for ' + sourcetype + ': ' + str(err))
-        return []
-    fields: set = set()
-    for row in (res.get('results') or []):
-        for k in row.keys():
-            if k.startswith('_'):
-                continue
-            fields.add(k)
-    return sorted(fields)
-
-
-def _update_inventory(
-    session_key: str,
-    server_uri: str,
-    app: str,
-    sourcetype: str,
-    fields: List[str],
-) -> None:
-    # KV store collection endpoint. ``app`` is the primary app name so
-    # we write into its namespace.
-    path = '/servicesNS/nobody/' + app + '/storage/collections/data/uc_recommender_inventory/'
-    key = 'sourcetype::' + sourcetype
-    payload = {
-        '_key': key,
-        'type': 'sourcetype',
-        'name': sourcetype,
-        'count': 0,
-        'firstSeen': '',
-        'lastSeen': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-        'extras': 'fields_extracted=' + ','.join(fields[:80]),
-    }
-    # POST to /data/<key> replaces the row; POST to /data/ creates.
-    import http.client
-    import ssl
-
-    u = urllib.parse.urlparse(server_uri or 'https://localhost:8089')
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    conn = http.client.HTTPSConnection(u.hostname, u.port or 8089, context=ctx)
-    headers = {
-        'Authorization': 'Splunk ' + session_key,
-        'Content-Type': 'application/json',
-    }
-    conn.request(
-        'POST',
-        path + urllib.parse.quote(key, safe=''),
-        body=json.dumps(payload).encode('utf-8'),
-        headers=headers,
-    )
-    resp = conn.getresponse()
-    resp.read()  # drain
-    if resp.status == 404:
-        # Row did not exist yet -> create.
-        conn2 = http.client.HTTPSConnection(u.hostname, u.port or 8089, context=ctx)
-        conn2.request(
-            'POST',
-            path,
-            body=json.dumps(payload).encode('utf-8'),
-            headers=headers,
-        )
-        conn2.getresponse().read()
-
-
-def run() -> int:
-    cfg = _read_input_xml()
-    session_key = cfg.get('_session_key') or ''
-    server_uri = cfg.get('_server_uri') or 'https://localhost:8089'
-    if not session_key:
-        _log('missing session key; abort')
-        return 1
-    try:
-        max_pairs = int(cfg.get('max_pairs') or '250')
-    except ValueError:
-        max_pairs = 250
-    max_pairs = max(1, min(max_pairs, 1000))
-
-    try:
-        pairs = _list_pairs(session_key, server_uri, max_pairs)
-    except RuntimeError as err:
-        _log('unable to list pairs: ' + str(err))
-        return 1
-
-    _log('discovered ' + str(len(pairs)) + ' (index, sourcetype) pairs')
-    for pair in pairs:
-        fields = _sample_fields(
-            session_key, server_uri, pair['sourcetype'], pair['index']
-        )
-        try:
-            _update_inventory(
-                session_key,
-                server_uri,
-                'splunk-uc-recommender',
-                pair['sourcetype'],
-                fields,
-            )
-        except Exception as err:
-            _log('kvstore write failed for ' + pair['sourcetype'] + ': ' + str(err))
-    return 0
-
-
-def main() -> int:
-    args = sys.argv[1:]
-    if args and args[0] == '--scheme':
-        sys.stdout.write(SCHEME)
-        return 0
-    if args and args[0] == '--validate-arguments':
-        # No complex validation needed; accept.
-        return 0
-    return run()
-
-
-if __name__ == '__main__':
-    sys.exit(main())
 """
 
 
@@ -2739,6 +3551,7 @@ def _build_primary_app(
     _write_text(app_root / "default" / "macros.conf", _macros_conf())
     _write_text(app_root / "default" / "eventtypes.conf", _eventtypes_conf())
     _write_text(app_root / "default" / "tags.conf", _tags_conf())
+    _write_text(app_root / "default" / "authorize.conf", _authorize_conf())
     _write_text(
         app_root / "default" / "data" / "ui" / "nav" / "default.xml",
         _nav_default_xml(),
@@ -2764,13 +3577,18 @@ def _build_primary_app(
         _compliance_view_xml(),
     )
     _write_text(
+        app_root / "default" / "data" / "ui" / "views" / "implementations.xml",
+        _implementations_view_xml(),
+    )
+    # The Studio variant (`recommend_studio.xml` + `recommend.json`)
+    # was removed in build 4. Strip any artefacts from a previous build
+    # so the produced bundle is reproducible regardless of what's on disk.
+    for _legacy in (
         app_root / "default" / "data" / "ui" / "views" / "recommend_studio.xml",
-        _recommend_studio_view_xml(api_base),
-    )
-    _write_json(
         app_root / "default" / "data" / "ui" / "views" / "recommend.json",
-        _recommend_studio_json(api_base),
-    )
+    ):
+        if _legacy.exists():
+            _legacy.unlink()
     _write_text(
         app_root / "appserver" / "static" / "js" / "recommender.js",
         _js_recommender(api_base),
@@ -2826,42 +3644,15 @@ def _build_primary_app(
     return app_root
 
 
-def _build_ta_app(
-    out_root: pathlib.Path,
-    version: str,
-    generated_at: str,
-) -> pathlib.Path:
-    ta_root = out_root / TA_APP_ID
-    _write_text(ta_root / "default" / "app.conf", _ta_app_conf(version))
-    _write_text(ta_root / "default" / "inputs.conf", _ta_inputs_conf())
-    _write_text(ta_root / "bin" / "uc_recommender_deep_scan.py", _DEEP_SCAN_PY)
-    _write_text(ta_root / "metadata" / "default.meta", _default_meta_ta())
-    _write_json(ta_root / "app.manifest", _ta_app_manifest(version))
-    _write_text(ta_root / "README.md", _ta_readme(version, generated_at))
-    if LICENSE_FILE.exists():
-        (ta_root / "LICENSE").write_text(
-            LICENSE_FILE.read_text(encoding="utf-8"),
-            encoding="utf-8",
-            newline="\n",
-        )
-    return ta_root
-
-
-def _render(
-    out_root: pathlib.Path,
-    build_primary: bool,
-    build_ta: bool,
-) -> Dict[str, pathlib.Path]:
+def _render(out_root: pathlib.Path) -> Dict[str, pathlib.Path]:
     version = _read_version()
     generated_at = _deterministic_timestamp()
     out_root.mkdir(parents=True, exist_ok=True)
-    built: Dict[str, pathlib.Path] = {}
-    if build_primary:
-        built[PRIMARY_APP_ID] = _build_primary_app(
+    built: Dict[str, pathlib.Path] = {
+        PRIMARY_APP_ID: _build_primary_app(
             out_root, version, generated_at, API_BASE_URL
         )
-    if build_ta:
-        built[TA_APP_ID] = _build_ta_app(out_root, version, generated_at)
+    }
     return built
 
 
@@ -2908,8 +3699,8 @@ def _scope_check_diff(
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Generate the splunk-uc-recommender app tree (+ optional "
-            "companion TA). Deterministic; use --check in CI."
+            "Generate the splunk-uc-recommender app tree (single artefact "
+            "since v9.0). Deterministic; use --check in CI."
         ),
     )
     parser.add_argument(
@@ -2926,32 +3717,14 @@ def main() -> int:
             "Exits 1 on drift so CI can gate PRs."
         ),
     )
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument(
-        "--no-ta",
-        action="store_true",
-        help="Do not generate splunk-uc-recommender-ta.",
-    )
-    group.add_argument(
-        "--ta-only",
-        action="store_true",
-        help="Only generate splunk-uc-recommender-ta (skip the primary app).",
-    )
     args = parser.parse_args()
 
-    build_primary = not args.ta_only
-    build_ta = not args.no_ta
-
-    apps = []
-    if build_primary:
-        apps.append(PRIMARY_APP_ID)
-    if build_ta:
-        apps.append(TA_APP_ID)
+    apps = [PRIMARY_APP_ID]
 
     if args.check:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = pathlib.Path(tmp) / "splunk-apps"
-            _render(tmp_root, build_primary, build_ta)
+            _render(tmp_root)
             diffs = _scope_check_diff(tmp_root, args.output, apps)
             if diffs:
                 sys.stderr.write(
@@ -2965,17 +3738,17 @@ def main() -> int:
                         f"... {len(diffs) - 200} additional diffs omitted\n"
                     )
                 return 1
-            sys.stdout.write("splunk-uc-recommender app(s) are up to date.\n")
+            sys.stdout.write("splunk-uc-recommender app is up to date.\n")
             return 0
 
-    built = _render(args.output, build_primary, build_ta)
+    built = _render(args.output)
     total_files = 0
     for app, path in built.items():
         n = sum(1 for _ in path.rglob("*") if _.is_file())
         total_files += n
         sys.stdout.write(f"  {app}: {n} files at {path}\n")
     sys.stdout.write(
-        f"Wrote {len(built)} apps ({total_files} files) under {args.output}\n"
+        f"Wrote {len(built)} app ({total_files} files) under {args.output}\n"
     )
     return 0
 

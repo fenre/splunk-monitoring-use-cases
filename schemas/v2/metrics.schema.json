@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://splunk-monitoring.io/schemas/v2/metrics.schema.json",
+  "title": "Catalogue health metrics snapshot",
+  "description": "Top-line catalogue health snapshot emitted to dist/metrics.json once per build. Scope deliberately differs from scorecard.json (per-category quality dimensions) and BUILD-INFO.json (build environment / git provenance): metrics.json carries trend-friendly rollups (counts, percentile blocks, top-N leaderboards) so a stewardship dashboard or a CI step can plot drift over releases without re-walking catalog.json itself. Adding fields is non-breaking and bumps the minor version; renaming or removing a field is a major bump.",
+  "version": "1.0.0",
+  "x-stability": "stable",
+  "x-since": "v9.x",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "generatedAt",
+    "catalogueVersion",
+    "build",
+    "counts",
+    "quality",
+    "coverage",
+    "distributions",
+    "ucsByCategory",
+    "leaders"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Pointer to this schema so consumers can locate it without an out-of-band fetch."
+    },
+    "schema_version": {
+      "type": "string",
+      "description": "Semver of the metrics.json wire format itself, NOT of the catalogue content.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "generatedAt": {
+      "type": "string",
+      "description": "ISO-8601 UTC timestamp; frozen to git commit time when --reproducible.",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "catalogueVersion": {
+      "type": "string",
+      "description": "Catalogue content version from VERSION (independent of schema_version).",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-.][a-zA-Z0-9.-]+)?$"
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reproducible", "python", "platform"],
+      "properties": {
+        "reproducible": {"type": "boolean"},
+        "python": {"type": "string"},
+        "platform": {"type": "string"}
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["categories", "subcategories", "useCases", "regulations", "equipment"],
+      "properties": {
+        "categories": {"type": "integer", "minimum": 0},
+        "subcategories": {"type": "integer", "minimum": 0},
+        "useCases": {"type": "integer", "minimum": 0},
+        "regulations": {"type": "integer", "minimum": 0},
+        "equipment": {"type": "integer", "minimum": 0}
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tierCounts", "tierPercentages", "depthScore", "grandmaExplanation"],
+      "properties": {
+        "tierCounts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["gold", "silver", "bronze", "none"],
+          "properties": {
+            "gold": {"type": "integer", "minimum": 0},
+            "silver": {"type": "integer", "minimum": 0},
+            "bronze": {"type": "integer", "minimum": 0},
+            "none": {"type": "integer", "minimum": 0}
+          }
+        },
+        "tierPercentages": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["gold", "silver", "bronze", "none"],
+          "properties": {
+            "gold": {"type": "number", "minimum": 0, "maximum": 100},
+            "silver": {"type": "number", "minimum": 0, "maximum": 100},
+            "bronze": {"type": "number", "minimum": 0, "maximum": 100},
+            "none": {"type": "number", "minimum": 0, "maximum": 100}
+          }
+        },
+        "depthScore": {"$ref": "#/$defs/percentileBlock"},
+        "grandmaExplanation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["presentCount", "presentPercentage", "characterLength"],
+          "properties": {
+            "presentCount": {"type": "integer", "minimum": 0},
+            "presentPercentage": {"type": "number", "minimum": 0, "maximum": 100},
+            "characterLength": {"$ref": "#/$defs/percentileBlock"}
+          }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "compliance",
+        "mitreAttack",
+        "cimModels",
+        "equipment",
+        "prerequisites",
+        "escuDetections",
+        "escuRiskBased"
+      ],
+      "properties": {
+        "compliance": {"$ref": "#/$defs/coverageEntry"},
+        "mitreAttack": {"$ref": "#/$defs/coverageEntry"},
+        "cimModels": {"$ref": "#/$defs/coverageEntry"},
+        "equipment": {"$ref": "#/$defs/coverageEntry"},
+        "prerequisites": {"$ref": "#/$defs/coverageEntry"},
+        "escuDetections": {"$ref": "#/$defs/coverageEntry"},
+        "escuRiskBased": {"$ref": "#/$defs/coverageEntry"}
+      }
+    },
+    "distributions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["wave", "criticality", "difficulty"],
+      "properties": {
+        "wave": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["crawl", "walk", "run"],
+          "properties": {
+            "crawl": {"type": "integer", "minimum": 0},
+            "walk": {"type": "integer", "minimum": 0},
+            "run": {"type": "integer", "minimum": 0}
+          }
+        },
+        "criticality": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "difficulty": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "ucsByCategory": {
+      "type": "object",
+      "description": "Map of category id (string) -> UC count.",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "leaders": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["regulations", "mitreAttack", "cimModels", "equipment"],
+      "properties": {
+        "regulations": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["regulation", "count"],
+            "properties": {
+              "regulation": {"type": "string", "minLength": 1},
+              "count": {"type": "integer", "minimum": 1}
+            }
+          }
+        },
+        "mitreAttack": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["technique", "count"],
+            "properties": {
+              "technique": {"type": "string", "minLength": 1},
+              "count": {"type": "integer", "minimum": 1}
+            }
+          }
+        },
+        "cimModels": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["model", "count"],
+            "properties": {
+              "model": {"type": "string", "minLength": 1},
+              "count": {"type": "integer", "minimum": 1}
+            }
+          }
+        },
+        "equipment": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "count"],
+            "properties": {
+              "id": {"type": "string", "minLength": 1},
+              "count": {"type": "integer", "minimum": 1}
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "percentileBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "min", "max", "mean", "p50", "p90", "p99"],
+      "properties": {
+        "count": {"type": "integer", "minimum": 0},
+        "min": {"type": "integer", "minimum": 0},
+        "max": {"type": "integer", "minimum": 0},
+        "mean": {"type": "number", "minimum": 0},
+        "p50": {"type": "integer", "minimum": 0},
+        "p90": {"type": "integer", "minimum": 0},
+        "p99": {"type": "integer", "minimum": 0}
+      }
+    },
+    "coverageEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "percentage"],
+      "properties": {
+        "count": {"type": "integer", "minimum": 0},
+        "percentage": {"type": "number", "minimum": 0, "maximum": 100}
+      }
+    }
+  }
+}

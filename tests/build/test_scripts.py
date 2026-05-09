@@ -35,9 +35,5 @@ def test_build_ta_parse_quickstart():
     assert any(len(v) > 0 for v in by_cat.values())
 
 
-def test_import_generate_splunk_app():
-    importlib.import_module("generate_splunk_app")
-
-
 def test_import_generate_recommender_app():
     importlib.import_module("generate_recommender_app")

@@ -559,6 +559,13 @@ On every PR, CI runs the catalog build and fails if tracked generated files drif
 | Contributor | Opens PRs adding or editing UCs, exports, or tooling |
 | Reviewer (v5.1+) | Named in `- **Reviewer:**` on a UC; attests the UC is production-ready |
 
+The role table above describes who *does* the work. The standing
+capacity assumption that sizes the repo-overhaul plan — 1–2
+platform engineers, 0.5 FTE curator, tier-1 legal-review capacity
+on demand — and the reduced/solo scope-down lists that activate
+when capacity drops below that line are documented in
+[`docs/capacity-and-staffing.md`](capacity-and-staffing.md).
+
 ### 11.2 Contribution flow
 
 ```mermaid
@@ -702,12 +709,15 @@ Architecture Decision Records live under [`docs/adr/`](adr/). Each ADR follows t
 
 | ID | Title | Status |
 |---|---|---|
-| [ADR-0001](adr/0001-markdown-as-source-of-truth.md) | Markdown as source of truth for UC content | Accepted |
+| [ADR-0001](adr/0001-markdown-as-source-of-truth.md) | Markdown as source of truth for UC content | Superseded by ADR-0007 |
 | [ADR-0002](adr/0002-static-single-page-app.md) | Static single-page app with no back-end | Accepted |
 | [ADR-0003](adr/0003-single-catalog-json-plus-per-category-api.md) | Emit both a single `catalog.json` and per-category `api/cat-N.json` | Accepted |
 | [ADR-0004](adr/0004-python-stdlib-only.md) | Python stdlib only for build and audits | Accepted |
 | [ADR-0005](adr/0005-uc-id-x-y-z-scheme.md) | Three-part numeric UC ID with gap-free ordering | Accepted |
 | [ADR-0006](adr/0006-single-file-design-doc.md) | Single-file DESIGN.md, split by section only if any section exceeds ~1,500 words | Accepted |
+| [ADR-0007](adr/0007-json-as-source-of-truth.md) | JSON sidecars as source of truth for UC content | Accepted (supersedes ADR-0001) |
+| [ADR-0008](adr/0008-canonical-constants.md) | Every constant has exactly one home (Python or JSON), JS twins are generated | Accepted |
+| [ADR-0009](adr/0009-generated-artefact-policy.md) | Generated artefacts are uncommitted by default; published via Pages or Releases with provenance | Accepted |
 
 ---
 

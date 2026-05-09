@@ -1,0 +1,79 @@
+name: Dependency Review
+
+# Repo-overhaul plan §P2 (2026-05-08): blocks PRs that introduce
+# dependencies (Python, npm, GitHub Actions) with critical / high CVEs
+# or non-permissive licenses.
+#
+# Runs only on pull_request events because dependency-review-action
+# diffs the PR's manifests against the base branch — there's nothing
+# to review on a push to main.
+#
+# What's covered:
+#   - pyproject.toml + requirements*.txt (Python)
+#   - package.json + package-lock.json (npm)
+#   - .github/workflows/* (action references)
+#
+# What's NOT covered:
+#   - The optional ``mcp/`` Python package's pyproject.toml — that
+#     pulls in larger LLM SDKs and is reviewed in mcp/CONTRIBUTING.md
+#     as a separate process.
+#   - Python ``audits`` extras already pinned to stdlib-equivalent libs.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: dependency-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # dependency-review-action diffs HEAD vs base; one commit of
+          # history is enough.
+          fetch-depth: 1
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          # Block on any CVE rated high or critical. Lower severities
+          # are surfaced in the PR comment but do not block.
+          fail-on-severity: high
+
+          # License allowlist — first-party code is MIT, transitive deps
+          # may be Apache-2.0/BSD-3-Clause/ISC/MIT/Python-2.0. Anything
+          # else triggers a review prompt (does not auto-block).
+          allow-licenses: >-
+            MIT,
+            Apache-2.0,
+            BSD-2-Clause,
+            BSD-3-Clause,
+            ISC,
+            MPL-2.0,
+            Unlicense,
+            CC0-1.0,
+            Python-2.0,
+            Python-2.0.1,
+            0BSD
+
+          # Comment summary on the PR for human review.
+          comment-summary-in-pr: on-failure
+
+          # Skip ourselves to avoid noisy self-loops on action upgrades.
+          deny-packages: ""
+
+          # Don't fail on advisories that are dismissed in the GitHub
+          # Security tab (false-positive triage stays in one place).
+          warn-on-openssf-scorecard-level: 3

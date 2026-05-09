@@ -26,19 +26,31 @@ This document covers:
 
 ## What the app ships
 
-This repository releases **two** Splunk apps — both generated from the
-same source of truth by
+As of v9.0 this repository releases **one** Splunk app, generated from
+the source of truth by
 [`scripts/generate_recommender_app.py`](../scripts/generate_recommender_app.py):
 
 | App | Audience | What it ships | Cloud-safe? |
 | --- | -------- | ------------- | ------------ |
-| [`splunk-uc-recommender`](../splunk-apps/splunk-uc-recommender/) | Platform owners, SecOps leads, compliance teams | Four inventory scans, a match-and-score UI against the 6 300+ UC catalogue, plus **every tier-1 compliance UC** (GDPR, HIPAA, PCI-DSS, NIS2, ISO 27001, NIST CSF, NIST 800-53, DORA, CMMC, SOC 2, SOX ITGC) shipped as **disabled** saved searches with a filterable Compliance view. | Yes — declarative content + AMD JS only. |
-| [`splunk-uc-recommender-ta`](../splunk-apps/splunk-uc-recommender-ta/) | Enterprise search heads only | One modular input that samples a few events per `(index, sourcetype)` and enriches the recommender's KV store with the observed field names. | **No** — Enterprise-only because modular inputs must be individually vetted for Splunk Cloud. |
+| [`splunk-uc-recommender`](../splunk-apps/splunk-uc-recommender/) | Platform owners, SecOps leads, compliance teams | Four inventory scans, a match-and-score UI against the 7 300+ UC catalogue, **every tier-1 compliance UC** (GDPR, HIPAA, PCI-DSS, NIS2, ISO 27001, NIST CSF, NIST 800-53, DORA, CMMC, SOC 2, SOX ITGC) shipped as **disabled** saved searches with a filterable Compliance view, **per-UC implementation tracking** (auto-detect via SPL fingerprinting + manual override), and **per-UC Splunkbase install guidance**. | Yes — declarative content + AMD JS only. |
 
-The older per-regulation packs (`splunk-uc-gdpr`, `splunk-uc-pci-dss`,
-etc.) are no longer part of the release. Their content lives inside
-`splunk-uc-recommender` as disabled saved searches and is exposed
-through the **Compliance** view.
+### What v9.0 retired
+
+Two earlier shapes were folded back into the single app:
+
+- **The 12 per-regulation packs** (`splunk-uc-gdpr`, `splunk-uc-pci-dss`, …)
+  — their content lives inside `splunk-uc-recommender` as disabled
+  saved searches and is exposed through the **Compliance** view.
+- **`splunk-uc-recommender-ta`** — the Enterprise-only modular input
+  that enriched the recommender's KV store with observed field names
+  was retired to keep the release to a single Cloud-safe artefact.
+  UCs that declare `requiredFields` are now flagged "field coverage
+  unknown"; a Cloud-safe replacement is on the roadmap.
+
+Customers running any of those legacy apps should follow
+[`docs/migration-v8.md`](migration-v8.md) before uninstalling. The
+`scripts/backup_legacy_app_state.sh` helper preserves operator-modified
+SPL, KV state, and enabled saved-search names before removal.
 
 ## Architecture
 
@@ -84,10 +96,9 @@ fetches happen **in the browser** from the operator's session to
 ## Install
 
 Prefer the official release artefacts under **GitHub → Releases** —
-each release ships two signed `.spl` archives with SHA-256 sidecars:
+each release ships one signed `.spl` archive with a SHA-256 sidecar:
 
 - `splunk-uc-recommender-<version>.spl`
-- `splunk-uc-recommender-ta-<version>.spl`
 
 Or build from source:
 
@@ -96,19 +107,16 @@ python3 scripts/generate_recommender_app.py
 scripts/package_splunk_apps.sh dist/
 ```
 
-The default packager produces only those two archives. Upload via
-**Settings → Manage apps → Install app from file**. Restart Splunk Web
-only if the installer asks for it (normally not required).
+Upload via **Settings → Manage apps → Install app from file**. Restart
+Splunk Web only if the installer asks for it (normally not required).
 
 The first inventory refresh runs 30 minutes after install. Hit
 **Recommender → Settings → Manual scan** to trigger one sooner.
 
 ### Splunk Cloud
 
-Only `splunk-uc-recommender` is Cloud-safe. Upload it via ACS
-self-service or a support ticket, depending on your tenant. **Do not**
-upload `splunk-uc-recommender-ta` to Splunk Cloud; it carries a Python
-modular input that must be individually vetted.
+`splunk-uc-recommender` is Cloud-safe. Upload it via ACS self-service
+or a support ticket, depending on your tenant.
 
 AppInspect readiness for `splunk-uc-recommender`:
 
@@ -123,8 +131,10 @@ AppInspect readiness for `splunk-uc-recommender`:
 
 ## Operator UI
 
-The nav carries five Simple XML views plus a Dashboard Studio variant
-of the recommendation page:
+The nav carries six Simple XML views (no Dashboard Studio variant —
+that was retired in build 4 because Splunk Studio strips embedded
+`<script>` tags from `splunk.viz.html`, so the recommender card grid
+cannot run inside a Studio dashboard):
 
 | View | File | Purpose |
 | ---- | ---- | ------- |
@@ -133,7 +143,6 @@ of the recommendation page:
 | **Browse** | [`default/data/ui/views/browse.xml`](../splunk-apps/splunk-uc-recommender/default/data/ui/views/browse.xml) | Full catalogue (all 6 300+ UCs) with a live text filter. |
 | **Compliance** | [`default/data/ui/views/compliance.xml`](../splunk-apps/splunk-uc-recommender/default/data/ui/views/compliance.xml) | Filter the bundled tier-1 compliance UCs by regulation, criticality, or clause. Drilldown opens the corresponding (disabled) saved search for review. |
 | **Settings** | [`default/data/ui/views/settings.xml`](../splunk-apps/splunk-uc-recommender/default/data/ui/views/settings.xml) | Override the upstream API base URL (validated against the allow-list); reset; view recent scan runs. |
-| **Recommend (Dashboard Studio)** | [`default/data/ui/views/recommend_studio.xml`](../splunk-apps/splunk-uc-recommender/default/data/ui/views/recommend_studio.xml) + [`recommend.json`](../splunk-apps/splunk-uc-recommender/default/data/ui/views/recommend.json) | Same KPIs and card grid but in the Dashboard Studio v2 layout for operators who have switched their tenant over. |
 
 Each card on **Recommend** exposes two actions:
 
@@ -230,16 +239,12 @@ Cadence:
 | CIM acceleration | `0 * * * *` | sub-second — REST probe of `/services/data/models` |
 | Installed apps | `13 3 * * *` (once/day) | sub-second — REST probe of `/services/apps/local` |
 
-The companion TA (`splunk-uc-recommender-ta`) adds one more
-input — `uc_recommender_deep_scan` — that once per day samples
-`| head 5` events per `(index, sourcetype)` pair, extracts the list
-of field names, and stuffs them into the `extras` column as
-`fields_extracted=<csv>`. The recommender can then prefer UCs whose
-`requiredFields` are actually present in your data.
-
-> **The TA is Enterprise-only.** Modular inputs must be explicitly
-> vetted for Splunk Cloud, so we ship the TA separately and mark it
-> `"Enterprise": ">=9.2"` with no Cloud `_cloud` deployment target.
+> **Field-coverage matching note.** v9.0 retired the
+> `splunk-uc-recommender-ta` companion TA that previously enriched
+> the `extras` column with `fields_extracted=<csv>` via a Python
+> modular input. UCs that declare `requiredFields` are now flagged
+> "field coverage unknown". A Cloud-safe replacement (likely
+> `| metadata` + `| typelearner`) is on the roadmap.
 
 ## Remote API contract
 
@@ -335,25 +340,17 @@ runs `python3 scripts/generate_api_surface.py --check` to reject drift.
   report at [docs/splunk-cloud-compat.md](splunk-cloud-compat.md)
   shows zero findings for `splunk-uc-recommender`.
 
-The companion TA does add a Python modular input. It uses the Splunk
-session key provided on stdin, talks only to `https://localhost:8089`,
-and writes back to the primary app's KV store. Source is at
-[`splunk-apps/splunk-uc-recommender-ta/bin/uc_recommender_deep_scan.py`](../splunk-apps/splunk-uc-recommender-ta/bin/uc_recommender_deep_scan.py).
-
 ## Developer guide
 
-### Regenerating the apps
+### Regenerating the app
 
-Every file in `splunk-apps/splunk-uc-recommender/` and
-`splunk-apps/splunk-uc-recommender-ta/` is **generated**. Source of
-truth is [`scripts/generate_recommender_app.py`](../scripts/generate_recommender_app.py).
+Every file in `splunk-apps/splunk-uc-recommender/` is **generated**.
+Source of truth is
+[`scripts/generate_recommender_app.py`](../scripts/generate_recommender_app.py).
 
 ```bash
-# Regenerate both apps.
+# Regenerate the recommender app.
 python3 scripts/generate_recommender_app.py
-
-# Only the primary app (skip the TA).
-python3 scripts/generate_recommender_app.py --no-ta
 
 # CI drift guard — exits 1 if any generated file is out of sync.
 python3 scripts/generate_recommender_app.py --check

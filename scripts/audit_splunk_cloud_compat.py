@@ -37,11 +37,25 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CATALOG_PATH = REPO_ROOT / "catalog.json"
+# Per ADR-0009, dist/catalog.json is the SSOT-authoritative copy. The
+# legacy project-root catalog.json is being retired in P1 step 5c. We
+# read from dist/ and fall back to the project-root copy only while
+# the legacy artefact is still in the tree (one transition release).
+CATALOG_PATH_PRIMARY = REPO_ROOT / "dist" / "catalog.json"
+CATALOG_PATH_LEGACY = REPO_ROOT / "catalog.json"
+
+
+def _resolve_catalog_path() -> Path | None:
+    """Pick the SSOT catalog if present, else fall back to legacy."""
+    if CATALOG_PATH_PRIMARY.exists():
+        return CATALOG_PATH_PRIMARY
+    if CATALOG_PATH_LEGACY.exists():
+        return CATALOG_PATH_LEGACY
+    return None
 TA_DIR = REPO_ROOT / "ta"
-# Phase 1.8 of the gold-standard plan adds regulation-scoped apps generated
-# by scripts/generate_splunk_app.py under splunk-apps/.  They must also
-# pass Splunk Cloud vetting, so the audit scans both trees.
+# As of v9.0 the only entry under splunk-apps/ is the unified
+# splunk-uc-recommender app. Both trees still feed into Splunk Cloud
+# vetting via this audit.
 APP_DIRS = (
     REPO_ROOT / "ta",
     REPO_ROOT / "splunk-apps",
@@ -233,7 +247,13 @@ class Finding:
 
 # ---------------------------------------------------------------------- SPL scan
 def audit_spl() -> tuple[list[Finding], int]:
-    with CATALOG_PATH.open("r", encoding="utf-8") as fh:
+    catalog_path = _resolve_catalog_path()
+    if catalog_path is None:
+        raise FileNotFoundError(
+            "Cannot find catalog.json in dist/ or project root. "
+            "Run `make build` (or `python3 tools/build/build.py --out dist`) first."
+        )
+    with catalog_path.open("r", encoding="utf-8") as fh:
         cat = json.load(fh)
     findings: list[Finding] = []
     total_ucs = 0
@@ -386,8 +406,12 @@ def main() -> int:
                         help="Do not write the markdown/json outputs (CI dry-run).")
     args = parser.parse_args()
 
-    if not CATALOG_PATH.exists():
-        print("catalog.json missing — run build.py first.", file=sys.stderr)
+    if _resolve_catalog_path() is None:
+        print(
+            "catalog.json missing in dist/ and project root — "
+            "run `make build` (or `python3 tools/build/build.py --out dist`) first.",
+            file=sys.stderr,
+        )
         return 2
 
     spl_findings, total_ucs = audit_spl()

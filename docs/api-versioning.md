@@ -4,6 +4,11 @@
 > read-only HTTP/JSON API exposed under `/api/v{N}/` and the unversioned helper
 > endpoints under `/api/`. Schema and content URL stability are governed separately
 > by [`schema-versioning.md`](schema-versioning.md) and [`url-scheme.md`](url-scheme.md).
+> External consumers (MCP clients, dashboards, CI pipelines, Splunk apps)
+> should also read the
+> [`external-consumer-matrix.md`](external-consumer-matrix.md), which maps
+> every public surface to the repo-overhaul plan phases that could put it at
+> risk and names the migration path for each.
 
 ## Mission
 
@@ -63,6 +68,8 @@ years without their builds breaking when we improve the catalogue.
 /api/v1/recommender/cim-index.json
 /api/v1/recommender/sourcetype-index.json
 /api/v1/recommender/uc-thin.json
+/api/v1/recommender/splunkbase-index.json    # added v9.0 — see schema 1.7.0
+/api/v1/recommender/fingerprints.csv         # added v9.0 — saved-search fingerprints
 
 /api/v1/evidence-packs/index.json
 /api/v1/evidence-packs/<regulation>.json
@@ -285,10 +292,13 @@ curl https://cdn.jsdelivr.net/gh/<owner>/<repo>@v7/api/v1/manifest.json
 
 ### Splunk
 
-Use the existing `splunk-uc-recommender` app (or its TA), or for ad-hoc queries:
+Install the unified `splunk-uc-recommender` app (v9.0+, the helper TA was
+folded back into the app). The app fetches `/api/v1/recommender/*.json` and
+the new `splunkbase-index.json` (catalogue 9.0+) at scheduled intervals to
+power the *Recommend* and *Implementations* dashboards. For ad-hoc queries:
 
 ```spl
-| rest /services/apps/local/splunk_monitoring_use_cases count=0
+| rest /services/apps/local/splunk-uc-recommender count=0
 | eval api_version="v1"
 ```
 

@@ -3,11 +3,11 @@
   "$id": "https://fenre.github.io/splunk-monitoring-use-cases/schemas/uc.schema.json",
   "title": "Splunk Monitoring Use Case",
   "description": "JSON-first authoring schema for a Splunk Monitoring Use Case (UC). Locked at Phase 1.1.",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "x-stability": "stable",
   "x-since": "v6.0",
   "x-changelog": "/schemas/changelogs/uc.md",
-  "schemaVersion": "1.6.1",
+  "schemaVersion": "1.7.0",
   "type": "object",
   "required": ["id", "title"],
   "additionalProperties": false,
@@ -328,6 +328,52 @@
     "app": {
       "type": "string",
       "description": "Primary Splunk app, add-on, or TA required. Free-form (e.g. 'Splunk Enterprise Security (Splunkbase 263)')."
+    },
+    "splunkbaseApps": {
+      "type": "array",
+      "description": "Structured list of Splunkbase apps required to implement this UC. Each entry pins the Splunkbase app id (numeric, the integer in https://splunkbase.splunk.com/app/<id>), the human-readable name, an optional minimum version, the role the app plays for this UC, and an optional reference to a Cursor agent skill that automates setup. The recommender app reads this field to render the per-card 'Required Splunkbase apps' section and to compute install-guidance status. Added in schema v1.7.0; population for the historical 7,300+ UC catalogue is staged via `requiresSmeReview = true` until SMEs sign each entry off.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "role"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Numeric Splunkbase app id (e.g. 5631 for Splunk_TA_cisco_meraki). Joins against data/splunkbase-catalog.json."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Short, human-readable app name (e.g. 'Splunk Add-on for Cisco Meraki'). Always required so the recommender always has readable text even before the catalog cache resolves."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://splunkbase\\.splunk\\.com/app/\\d+/?$",
+            "description": "Optional canonical Splunkbase deep link. Constrained to splunkbase.splunk.com/app/<id> so deep-links can never point at attacker-controlled origins."
+          },
+          "minVersion": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d+){1,2}$",
+            "description": "Optional minimum app version this UC depends on (MAJOR.MINOR or MAJOR.MINOR.PATCH). Drives the version-check traffic light in the recommender UI."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["primary", "data-source", "premium", "optional"],
+            "description": "What this app contributes to the UC. 'primary' = the app the UC is built on (often a TA); 'data-source' = supplies the events/metrics; 'premium' = a Splunk premium app the UC integrates with (ES/ITSI/SOAR/UBA/PCI/etc.); 'optional' = recommended but not required."
+          },
+          "setupSkill": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "Optional reference to a Cursor agent skill that automates setup (kebab-case, matching the skill ids under .cursor/skills/). Lays the groundwork for an MCP-driven install flow without committing v9.0 to it."
+          },
+          "requiresSmeReview": {
+            "type": "boolean",
+            "description": "Set true while the entry was proposed automatically by scripts/generate_splunkbase_mappings.py and has not yet been signed off by an SME. Cleared to false (or removed) once a human review confirms the mapping. CI's tools/audits/splunkbase_coverage.py uses this flag to track migration progress without blocking the build."
+          }
+        }
+      }
     },
     "premiumApps": {
       "type": "array",

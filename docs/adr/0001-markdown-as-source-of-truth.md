@@ -1,8 +1,14 @@
 # ADR-0001: Markdown as source of truth for UC content
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0007](0007-json-as-source-of-truth.md) (2026-05-08)
 - **Date:** 2023-03-15 (ratified retroactively 2026-04-16)
 - **Deciders:** Repository maintainers
+
+> **Status update — 2026-05-08:** This ADR is **superseded** by
+> [ADR-0007: JSON sidecars as source of truth for UC content](0007-json-as-source-of-truth.md).
+> The catalogue migrated to JSON sidecars in v7.0 (2026-04-18). The
+> markdown described below is now generated from the JSON, not the
+> other way around. This document is retained for historical context.
 
 ## Context
 
@@ -51,4 +57,4 @@ The markdown is the canonical form. If a generated file disagrees with the markd
 - Implementation: [`build.py:parse_category_file()`](../../build.py)
 - Validation: [`scripts/audit_uc_structure.py`](../../scripts/audit_uc_structure.py)
 - Field taxonomy: [docs/use-case-fields.md](../use-case-fields.md)
-- Superseded by: —
+- Superseded by: [ADR-0007: JSON sidecars as source of truth for UC content](0007-json-as-source-of-truth.md)

@@ -14,22 +14,40 @@ data against our schemas — and trust that those schemas evolve predictably.
 
 ## Where schemas live
 
+The actual on-disk layout (regenerate by running `find schemas -type f`):
+
 ```
 schemas/
-  uc.schema.json                       Use case (the central authoring schema)
+  baselines.schema.json                Repo-overhaul baseline captures (data/baselines/v*.json)
   category.schema.json                 Per-category metadata (_category.json)
-  regulation.schema.json
-  crosswalk.schema.json
-  evidence-pack.schema.json
-  manifest.schema.json                 Schema for /api/v1/manifest.json
-  catalog-index.schema.json            Schema for /api/catalog-index.json
-  oscal/                               OSCAL component-definition fragments
-  stix/                                STIX 2.1 fragments
-  changelogs/                          Per-schema CHANGELOG.md (one per schema)
+  evidence-pack-extras.schema.json     Auditor-facing evidence packs (cat-22)
+  legal-review-signoff.schema.json     Legal review ledger entries
+  mapping-ledger.schema.json           UC ↔ regulation mapping ledger
+  peer-review-signoff.schema.json      Peer review ledger entries
+  per-regulation-phase3.2.schema.json  Per-regulation Phase 3.2 metadata bundle
+  regulations-watch.schema.json        Regulatory-watch nightly diff format
+  sme-review-signoff.schema.json       SME review ledger entries
+  uc-profile-gold.json                 Gold-tier authoring profile
+  uc.schema.json                       Use case (the central authoring schema)
+  oscal/v1.1.1/                        Pinned NIST OSCAL fragments (component-definition)
+  v2/                                  Schemas serving /api/v2 (catalog-index, search-index)
 ```
 
-Every schema in `schemas/` MUST include the four headers listed below. The CI
-audit (`tools/audits/schema_meta.py`) blocks merges that omit them.
+The plan in §11 of the repo-overhaul (P-schemas) tracks the residual gaps:
+
+* `regulation.schema.json`, `crosswalk.schema.json`, `evidence-pack.schema.json`,
+  and `manifest.schema.json` are referenced by `tools/build/render_*` but are
+  not yet committed under `schemas/`. Their shape today is captured implicitly
+  by the generators in `scripts/generate_api_surface.py`.
+* `schemas/stix/` is reserved for the planned STIX 2.1 export but does not
+  yet exist on disk.
+* `schemas/changelogs/` is the planned home for per-schema CHANGELOG files.
+  Until it is created, the global [`CHANGELOG.md`](../CHANGELOG.md) records
+  schema changes alphabetically per release.
+
+Every schema in `schemas/` MUST include the metadata headers listed below. The CI
+audit (`tools/audits/schema_meta.py`, planned) will block merges that omit
+them; the audit is currently advisory while the metadata backfill lands.
 
 ## Required schema metadata
 
@@ -176,21 +194,26 @@ Both audits are blocking gates in `.github/workflows/validate.yml`.
 ## Validation in the build
 
 Every JSON file emitted to `dist/` is validated by `tools/build/render_*` against
-its declaring schema before the file is written. The validation set:
+its declaring schema before the file is written. The validation set, current
+state plus planned additions:
 
-| Artefact | Schema |
-|---|---|
-| `dist/uc/UC-X.Y.Z/index.json` | `schemas/uc.schema.json` |
-| `dist/uc/UC-X.Y.Z/oscal.json` | `schemas/oscal/component-definition.schema.json` |
-| `dist/uc/UC-X.Y.Z/stix.json` | `schemas/stix/bundle.schema.json` |
-| `dist/category/<slug>/index.json` | `schemas/category.schema.json` |
-| `dist/regulation/<slug>/index.json` | `schemas/regulation.schema.json` |
-| `dist/api/catalog-index.json` | `schemas/catalog-index.schema.json` |
-| `dist/api/v1/manifest.json` | `schemas/manifest.schema.json` |
+| Artefact | Schema | Status |
+|---|---|---|
+| `dist/uc/UC-X.Y.Z/index.json` | `schemas/uc.schema.json` | Live |
+| `dist/category/<slug>/index.json` | `schemas/category.schema.json` | Live |
+| `dist/api/v2/catalog-index.json` | `schemas/v2/catalog-index.schema.json` | Live |
+| `dist/api/v2/search-index.json` | `schemas/v2/search-index.schema.json` | Live |
+| `data/baselines/v<VERSION>.json` | `schemas/baselines.schema.json` | Live (Phase 0) |
+| `dist/uc/UC-X.Y.Z/oscal.json` | `schemas/oscal/component-definition.schema.json` | Planned |
+| `dist/uc/UC-X.Y.Z/stix.json` | `schemas/stix/bundle.schema.json` | Planned (STIX export) |
+| `dist/regulation/<slug>/index.json` | `schemas/regulation.schema.json` | Planned (regulation schema) |
+| `dist/api/v1/manifest.json` | `schemas/manifest.schema.json` | Planned (manifest schema) |
 
 Source-of-truth files in `content/cat-NN-slug/UC-X.Y.Z.json` are validated by
-`tools/validate/validate_md.py` (the v7 successor to the root-level
-`validate_md.py`) before any build runs. Validation failure blocks the PR.
+the loader in `tools/build/parse_content.py` (Draft 2020-12 against
+`schemas/uc.schema.json`) before any build runs. Validation failure blocks
+the PR via the structure audit and the pre-commit hook
+`scripts/validate_uc_schema_staged.py` (Phase 0).
 
 ## Distribution
 

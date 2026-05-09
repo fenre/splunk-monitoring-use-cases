@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "5.5.22",
+  "title": "Aruba EdgeConnect SD-WAN Tunnel and Application Performance",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "HPE Aruba EdgeConnect appliance syslog (`sourcetype=aruba:edgeconnect`) forwarded over UDP / TCP 514, optionally enriched by polling the Aruba Orchestrator REST API for structured tunnel and application telemetry. Field shapes carry `tunnel_state` (UP / DOWN / DEGRADED), `tunnel_name`, `peer_name`, `appliance_name`, plus the WAN-optimisation savings counters when the Boost feature is in use.",
+  "app": "Aruba EdgeConnect syslog (raw forwarder), Aruba Orchestrator REST API (custom scripted input or HEC push). No vendor Splunkbase TA at the time of authoring; field extraction lives in a custom `props.conf` / `transforms.conf` pair under a local app.",
+  "spl": "index=sdwan sourcetype=\"aruba:edgeconnect\"\n| search tunnel_state=\"DOWN\" OR tunnel_state=\"DEGRADED\"\n| stats count by appliance_name, tunnel_name, tunnel_state, peer_name\n| sort - count",
+  "description": "Tracks tunnel state and peer health across the HPE Aruba EdgeConnect (formerly Silver Peak) SD-WAN fabric. Counts DOWN and DEGRADED events per appliance / tunnel / peer triplet so a single bad transport surfaces to the top of the table even when the overall fabric appears healthy.",
+  "value": "EdgeConnect powers SD-WAN for organisations that want WAN optimisation as a first-class feature alongside the SD-WAN overlay. The platform's selling point — Boost (compression, deduplication, caching) — also makes it harder to debug when something goes wrong, because traffic that the network team expects to see is being optimised away. Centralising tunnel and peer telemetry in Splunk lets the NOC see Boost bypass events, BIO failover, and tunnel-down transitions from one console — which the on-prem Orchestrator cannot do for organisations running multi-vendor SD-WAN estates.",
+  "implementation": "Forward EdgeConnect appliance syslog to Splunk on UDP/TCP 514. Optionally poll the Aruba Orchestrator API on a 5-minute schedule for structured tunnel and application metrics. Alert on tunnel DOWN / DEGRADED states and on WAN-optimisation bypass events that indicate Boost has gone idle.",
+  "visualization": "Status grid (per-appliance tunnel health), Table (degraded tunnels sorted by event count), Line chart (WAN-optimisation savings over time, useful for capacity-planning conversations).",
+  "references": [
+    {
+      "title": "HPE Aruba EdgeConnect SD-WAN",
+      "url": "https://www.arubanetworks.com/products/sd-wan/"
+    },
+    {
+      "title": "Aruba Orchestrator administration guide",
+      "url": "https://www.arubanetworks.com/techdocs/Orchestrator/Default.htm"
+    }
+  ],
+  "knownFalsePositives": "**Scheduled BIO failover testing.** Quarterly business-impact tests intentionally take a primary transport DOWN to validate failover. Suppress alerts during announced test windows.\n\n**Boost idle on small flows.** The WAN-optimisation engine intentionally bypasses very small flows (UDP DNS, ICMP). Filter the bypass alert on per-minute byte volume so it does not fire on a healthy steady state of bypass-eligible traffic.\n\n**Cross-region tunnel ping-time variance.** Tunnels spanning multiple continents legitimately oscillate between OK and DEGRADED on minute-level granularity. Use a 5-minute median, not a 1-minute snapshot, for the alert threshold.",
+  "equipment": [
+    "aruba",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "aruba_edgeconnect_ec_s",
+    "aruba_edgeconnect_ec_m",
+    "aruba_edgeconnect_ec_l",
+    "aruba_edgeconnect_ec_xl",
+    "aruba_orchestrator"
+  ],
+  "status": "community",
+  "wave": "crawl",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "grandmaExplanation": "We watch the SD-WAN appliances at branch offices report whether their connections to headquarters are healthy. When a connection goes down or starts dropping data, we alert the network team within minutes — long before users at that branch start complaining about slow apps."
+}

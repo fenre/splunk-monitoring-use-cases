@@ -16,7 +16,12 @@ import sys
 from typing import Any, List
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CATALOG_PATH = os.path.join(REPO_ROOT, "catalog.json")
+# Per ADR-0009 + P1 step 5c, dist/catalog.json is SSOT-authoritative.
+# Prefer dist/, fall back to project-root for the one-release transition
+# window during which the legacy artefact still ships in the tree.
+_CATALOG_DIST = os.path.join(REPO_ROOT, "dist", "catalog.json")
+_CATALOG_LEGACY = os.path.join(REPO_ROOT, "catalog.json")
+CATALOG_PATH = _CATALOG_DIST if os.path.exists(_CATALOG_DIST) else _CATALOG_LEGACY
 
 REQUIRED_TOP_LEVEL = (
     "_schema_url",

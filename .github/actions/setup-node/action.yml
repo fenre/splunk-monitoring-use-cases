@@ -1,0 +1,56 @@
+name: "Set up Node.js (splunk-monitoring-use-cases)"
+description: |
+  Reusable composite action that sets up the project's pinned Node.js
+  toolchain plus npm ci.
+
+  Repo-overhaul plan §P2 (2026-05-08): only ``validate.yml`` currently
+  needs Node + npm dependencies (axe-core, jsdom, ajv, etc. — see
+  package.json), but P2's parallel-job split will add more callers
+  (frontend bundler job, MCP HTTP transport job). Centralising the
+  setup avoids the comment-drift class of bug ``scripts/audit_action_pins.py``
+  was created to catch.
+
+  The Node version is pinned to the active LTS line (20.x as of this
+  writing) so CI and local dev agree on parser/ESM/Trusted-Types
+  behaviour.
+
+  Usage in a workflow:
+    - uses: ./.github/actions/setup-node
+      with:
+        install-deps: "true"     # default: true; runs npm ci
+
+  The action does NOT call actions/checkout itself — callers must check
+  out the repo first.
+
+inputs:
+  node-version:
+    description: "Node.js version to install. Defaults to the project-wide pin (20)."
+    required: false
+    default: "20"
+  install-deps:
+    description: |
+      When true (default), runs ``npm ci --no-audit --no-fund`` after
+      setup. Set to false for jobs that only need the toolchain
+      (e.g. running ``node --eval`` against a one-line script).
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js ${{ inputs.node-version }}
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: "npm"
+
+    - name: Install Node dependencies (npm ci)
+      if: ${{ inputs.install-deps == 'true' }}
+      shell: bash
+      run: |
+        # ``npm ci`` refuses to run if package-lock.json drifts from
+        # package.json, which is itself a CI-blocking signal — exactly
+        # the integrity property we want from a deterministic install.
+        # ``--no-audit --no-fund`` keeps the noise down; security audits
+        # are handled by the dependency-review and codeql workflows.
+        npm ci --no-audit --no-fund

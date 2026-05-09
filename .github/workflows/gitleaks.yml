@@ -1,0 +1,61 @@
+name: Secret scanning (gitleaks)
+
+# Repo-overhaul plan §P2 (2026-05-08): defence-in-depth backup to the
+# ``gitleaks`` pre-commit hook (.pre-commit-config.yaml).
+#
+# Why two layers?
+#   - Pre-commit catches secrets BEFORE they leave the developer's
+#     machine — but only if the developer has installed ``pre-commit
+#     install``. Some contributors and bot accounts don't.
+#   - This CI workflow scans every PR + push to main, so secrets that
+#     bypass the pre-commit layer fail before they reach a release.
+#
+# .gitleaks.toml at the repo root tunes the allowlist (template tokens,
+# lab IPs, sample SPL strings that look like API keys, etc.).
+#
+# Schedule:
+#   - On every PR (catches new secrets at PR time)
+#   - On every push to main (catches secrets that bypass PRs)
+#   - Weekly cron (catches when gitleaks rules grow stricter)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Tuesdays at 03:42 UTC — staggered from CodeQL's Monday slot.
+    - cron: '42 3 * * 2'
+
+permissions:
+  # Read-only — gitleaks just inspects the diff/tree.
+  contents: read
+
+concurrency:
+  group: gitleaks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Scan for secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # gitleaks needs full history to scan all commits on PRs.
+          # ``0`` = unshallow.
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITLEAKS_LICENSE is optional; without it the org-wide
+          # license features (SARIF upload, etc.) are skipped, but
+          # the basic scan still runs and fails the job on findings.
+          GITLEAKS_NOTIFY_USER_LIST: "@fenre"
+          GITLEAKS_ENABLE_COMMENTS: "true"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"

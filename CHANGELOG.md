@@ -10,6 +10,291 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [8.0.0] - 2026-05-09
+
+Major bump. Originally drafted as v9.0; v8.x was reserved for a parallel
+workstream that was deprioritised, so this release goes straight from
+7.4.x to 8.0.0. Two coordinated stories ship together: the
+`splunk-uc-recommender` Splunk app is rebuilt as a single Cloud-safe
+artefact that consolidates the 12 per-regulation packs and the helper
+TA, and the `docs/guides/` directory expands from 10 to 56 gold-standard
+integration guides covering 1,000+ use cases across the most-deployed
+infrastructure subcategories.
+
+### Splunk UC Recommender v8.0 — single Cloud-safe app with implementation tracking
+
+- **App consolidation (breaking).** `splunk-apps/cmmc-compliance-pack/`,
+  `dora-compliance-pack/`, `gdpr-compliance-pack/`, `hipaa-compliance-pack/`,
+  `iso27001-compliance-pack/`, `nis2-compliance-pack/`,
+  `nist-800-53-compliance-pack/`, `nist-csf-compliance-pack/`,
+  `pci-dss-compliance-pack/`, `soc2-compliance-pack/`,
+  `sox-itgc-compliance-pack/`, `uk-gdpr-compliance-pack/`, and
+  `splunk-uc-recommender-ta/` are deleted. All compliance content,
+  inventory KV writes, and recommender features now ship inside the
+  single `splunk-uc-recommender` app. Coexistence with legacy apps is
+  not supported. See `docs/migration-v8.md` for the upgrade path; the
+  legacy app tree is preserved at `data/v7-app-snapshot/` by
+  `scripts/backup_legacy_app_state.sh` for diff/rollback.
+- **Schema bump to v1.7.0.** `schemas/uc.schema.json` gains an optional
+  `splunkbaseApps[]` array per UC declaring `id`, `name`, `role`
+  (`primary | data-source | premium | optional`), and optional
+  `minVersion` / `setupSkill` / `requiresSmeReview` / `url`. The field
+  is forward-compatible: shipped UCs do not yet declare entries (the
+  catalogue-wide migration is **deferred to v8.x**), and tolerant
+  consumers ignore unknown fields per `docs/api-versioning.md`.
+- **New API endpoints.** `/api/v1/recommender/splunkbase-index.json`
+  (Splunkbase app metadata indexed by id; ETag + 1 h cache) and
+  `/api/v1/recommender/fingerprints.csv` (SHA-256 fingerprints of every
+  UC's canonicalised SPL, consumed by the auto-detect saved search).
+  The shipped `splunkbase-index.json` covers the apps the recommender
+  itself depends on; per-UC migration is the headline v8.x workstream.
+- **Hybrid implementation tracking.** New
+  `uc_recommender_implementations` KV collection records each UC's
+  status (`not_started | in_progress | implemented | needs_review |
+  decommissioned`). Auto-detection runs every 6 hours via SHA-256
+  fingerprints of canonicalised local saved-search SPL joined against
+  the shipped `uc_fingerprints.csv`. A drift-detection job flips stale
+  implementations to `needs_review` after 24 h. New
+  `uc_recommender_audit` collection retains every status change for
+  13 months.
+- **Manual override capability.** New `edit_uc_implementations`
+  capability gates write access (granted to `admin` and `power` in
+  `default/authorize.conf`; map custom roles in
+  `local/authorize.conf`). Recommend cards grow a "Mark as implemented"
+  button that POSTs via the fast path or dispatches the
+  `uc_implementation_decommission` saved-search wrapper for destructive
+  transitions (server-side SPL validation per Cloud admission rules).
+- **New "Implementations" dashboard.** Top-level Simple XML view shows
+  the implementation backlog with status, criticality, and equipment
+  filters, single-value status counts, and CSV export. The status
+  filter renders the `multiselect` token through a `where` clause so
+  SPL never injects an invalid `inputlookup` argument (see *Build 10
+  reliability fixes* below).
+- **Recommend dashboard polish.** Status badges with text labels (never
+  colour-only — WCAG 2.1 AA), expandable Required-Splunkbase panels,
+  capability-aware read-only banner, status / criticality filters with
+  URL persistence, CSV export of filtered cards, and an upstream-error
+  banner for graceful degradation when one of five catalogue endpoints
+  is unavailable.
+- **Build 10 reliability fixes.** `runSearchJob()` now resolves on
+  whichever of `results.on('data')` or a deferred `search:done`
+  arrives first, so non-empty inventories no longer race-lose to a
+  premature empty-array resolution — the cause of the "No matches yet"
+  symptom on populated search heads. Capability detection prefers
+  `splunkjs/mvc.createService().currentUser()` with a 10 s timeout and
+  a `/en-US/splunkd/__raw/` fallback, so the read-only banner stops
+  false-positiving for admin users. JS unit tests in
+  `tests/recommender/run_search_job.test.mjs` lock the regressions.
+- **Pre-deploy SPL audit.** New `scripts/audit_dashboard_spl.py`
+  extracts every `<query>` from every Simple XML view in the
+  recommender app, expands `$tokens$` from `<input>` defaults, and
+  dispatches each panel against a live splunkd in
+  `exec_mode=blocking`, asserting `isFailed=False`. Wired into
+  `scripts/deploy_to_splunk.sh` so every local deploy and CI smoke
+  validates that no panel will 400 on first paint. Python unit tests
+  in `tests/scripts/test_audit_dashboard_spl.py` cover token expansion
+  edge cases.
+- **CI lift.** `.github/workflows/validate.yml` packages the `.spl`
+  artefact on every push (downloadable from the workflow run for
+  pre-release manual installs) and runs `splunk-appinspect` with
+  `--included-tags cloud,private_app` so Splunk Cloud admission
+  failures surface in PRs. `.github/workflows/uc-tests.yml` gains a
+  Playwright e2e suite that boots Splunk {9.4.1, 10.2.1} containers
+  with the unified app mounted; the suite is gated on
+  `UC_TEST_SPLUNK_PASSWORD` so forks without the secret stay green.
+- **Splunk Cloud safety.** The single app contains no `commands.conf`,
+  `restmap.conf`, or `[script://]` inputs. KV writes go through
+  splunkd's standard REST endpoint with same-origin cookies; the
+  destructive transition uses a saved-search wrapper for server-side
+  SPL validation. Both tracking KV collections are flagged
+  `replicate = true` with `accelerated_fields` for SHC compatibility.
+- **Local-deploy helper.** New `scripts/deploy_to_splunk.sh` supports a
+  URL-fetch primary path (local HTTP server splunkd dials back to) and
+  an SSH-staging fallback, because Splunk's `/services/apps/local` REST
+  endpoint **does not accept multipart uploads** (the `.spl` must
+  already exist on the server's filesystem before splunkd will ingest
+  it). Documented in the new `splunk-remote-app-deploy` Cursor agent
+  skill.
+
+### Gold-standard integration-guide batch 6 — observability stack, FinOps, DC fabric, ISE deep-dive, compliance master
+
+Theme: **fill the largest documentation gaps** in the catalogue with
+eight new or substantially expanded gold-standard integration guides
+that match or exceed the `docs/guides/catalyst-center.md` quality bar.
+Together they wire 350+ use cases (cat 13.3, 13.4, 13.5, 13.6, 13.7,
+17.1, 18.1-18.4, 20.1-20.3, plus the cat-22 framework portal) into
+authoritative, opinionated, end-to-end deployment documentation.
+
+- **`docs/guides/splunk-observability-cloud.md`** — new gold-standard
+  guide for Splunk Observability Cloud, OpenTelemetry, and SRE patterns,
+  covering 21 use cases from cat 13.5. Documents APM / RUM / Synthetics
+  / IM / LOC, Splunk Distribution of OTel Collector deployment modes
+  (agent vs gateway vs sidecar) and pipeline anatomy, auto-instrumentation
+  for Java / .NET / Python / Node.js / Go, OTel semantic conventions,
+  sampling strategies (probabilistic, tail-based, head-based), SLO and
+  error-budget burn-rate patterns, the Four Golden Signals, RED method,
+  USE method, and cross-product correlation with Splunk ITSI / ES.
+- **`docs/guides/ai-llm-observability.md`** — new gold-standard guide
+  for AI / LLM observability, covering 17 use cases from cat 13.4.
+  Spans managed LLM APIs (OpenAI, Azure OpenAI, AWS Bedrock, Anthropic,
+  Vertex AI / Gemini), Microsoft 365 / GitHub Copilot integrations,
+  self-hosted LLMs, vector databases (Pinecone, Weaviate, Qdrant), LLM
+  gateways (LiteLLM, LangChain LangSmith, Portkey, Helicone), agent
+  frameworks (LangChain, LlamaIndex), RAG pipelines, OpenTelemetry GenAI
+  semantic conventions, prompt-injection detection, hallucination
+  scoring, PII / PHI in prompts, OWASP Top 10 for LLM Apps, token-cost
+  budgeting, and EU AI Act compliance evidence.
+- **`docs/guides/third-party-monitoring.md`** — new gold-standard guide
+  for integrating non-Splunk monitoring stacks, covering 19 use cases
+  from cat 13.3. Documents legacy NMS bridges (Nagios, Icinga 2,
+  Zabbix, SolarWinds, CA Nimsoft DX UIM, Microsoft SCOM, IBM Tivoli
+  Netcool/OMNIbus), modern observability SaaS (Datadog, Dynatrace, New
+  Relic, AppDynamics, Elastic, Grafana Cloud), Prometheus remote-write,
+  SNMP traps via SC4S, generic webhook intake, on-call paging
+  (PagerDuty, Opsgenie, Splunk On-Call, xMatters), cross-tool
+  deduplication, heartbeat monitoring, and CIM Alerts mapping.
+- **`docs/guides/finops-cost-capacity.md`** — new gold-standard guide
+  for FinOps, cloud cost, capacity planning, and license / subscription
+  management, covering 77 use cases across cat 20.1 + 20.2 + 20.3.
+  Spans AWS CUR 2.0 / FOCUS 1.x via Data Exports, AWS Cost Explorer
+  API, AWS Compute Optimizer, AWS Trusted Advisor, AWS Savings Plans /
+  RI utilization; Azure Cost Management exports + Advisor + Reservations
+  + Savings Plans; GCP Billing BigQuery Export + Recommender + Active
+  Assist; Splunk License Master and Cloud workload pricing; Microsoft
+  365 / Entra ID / Salesforce / Snowflake / Databricks / OpenAI token
+  cost; FinOps Foundation Framework capability mapping (Inform /
+  Optimize / Operate); anomaly detection, rightsizing, RI / SP coverage,
+  idle resource identification, chargeback / showback, unit economics,
+  budget alerts, and capacity forecasting.
+- **`docs/guides/datacenter-fabric-sdn.md`** — new gold-standard guide
+  for data-center fabric and SDN, covering 76 use cases across cat
+  18.1 + 18.2 + 18.3 + 18.4. Documents Cisco ACI (APIC, faults,
+  contracts, endpoints, audit), VMware NSX 4.x (DFW, IDFW, transport
+  nodes, Edge), Cisco Nexus Dashboard (NDI anomaly, NDFC, NDO multi-
+  site), NX-OS standalone EVPN/VXLAN fabric, Cilium / Calico Kubernetes
+  CNI (eBPF dataplane, Hubble flows, Felix policy), Open vSwitch (OVS),
+  Big Switch BCF / Arista CloudVision Portal (CVP), Juniper Apstra,
+  Aruba CX Fabric Composer, BGP-EVPN underlay, gNMI streaming
+  telemetry, NETCONF policy verification. Covers Zero Trust east-west
+  segmentation, microsegmentation effectiveness, contract violations,
+  endpoint mobility, fabric capacity, and PCI / HIPAA segmentation
+  evidence.
+- **`docs/guides/cisco-ise.md`** — promoted from a 573-line stub to a
+  2,400+ line gold-standard guide for Cisco Identity Services Engine
+  covering 82 use cases in cat 17.1. Covers NAC (802.1X, MAB), RADIUS,
+  TACACS+, Posture, Profiling, TrustSec / Group-Based Policy,
+  microsegmentation, pxGrid (context sharing), pxGrid Cloud (3.2+),
+  Adaptive Network Control (ANC) for closed-loop response, ERS /
+  OpenAPI polling, Data Connect (direct DB read), and Cisco Secure
+  Client telemetry. Details ISE 3.1 / 3.2 / 3.3 / 3.4 lifecycles, all
+  syslog categories and MessageCode references, architecture for PAN /
+  MnT / PSN / pxGrid, IAM / RBAC prerequisites, Splunk-side indexes /
+  macros / lookups, sample events, CIM mapping, extensive compliance
+  mapping (PCI-DSS v4, HIPAA, NIS2, DORA, NIST 800-53, ISO 27001, SOC
+  2, SOX ITGC, CMMC 2.0, NERC CIP, EU AI Act, IEC 62443), Crawl / Walk
+  / Run roadmap, cross-product correlation, SOAR playbooks, ITSI
+  service modeling, Splunk ES RBA mapping, dashboards, sizing /
+  performance, TrustSec / SGT operations, posture funnel, validation
+  checklist, security hardening, multi-tenant patterns, migration
+  patterns, troubleshooting, known limitations, FAQ, and glossary.
+- **`docs/guides/regulatory-compliance-master.md`** — new gold-standard
+  cross-framework portal covering 1,500+ use cases across all 49 cat-22
+  subcategories. Categorises frameworks into Privacy (GDPR, UK GDPR,
+  CCPA, PDPA, APPI, PIPL), Security (NIST CSF 2.0, NIST 800-53, ISO
+  27001:2022, SOC 2), Financial (SOX / ITGC, PCI-DSS v4.0, MiFID II,
+  PSD2, AML / CFT, SWIFT CSP), Healthcare (HIPAA, FDA Part 11 / 820),
+  Critical Infrastructure / OT (NERC CIP, IEC 62443, TSA Pipeline, API
+  1164, KRITIS / BSI), Federal / Defense (FedRAMP, FISMA, CMMC 2.0,
+  NIST 800-171), AI Governance (EU AI Act, ISO/IEC 42001, NIST AI RMF),
+  EU resilience (NIS2, DORA, eIDAS 2.0, EU Cyber Resilience Act), and
+  Regional / Sectoral (HKMA, MAS, JFSA, OAIC, Norwegian framework, UK
+  NIS / FCA / PRA). Defines 14 cross-cutting compliance domains
+  (evidence continuity, DSAR fulfillment, incident notification
+  timeliness, privileged access evidence, encryption / key management
+  attestation, change management, vulnerability management, third-party
+  risk, backup integrity, training awareness, control testing
+  freshness, segregation of duties, retention / disposal automation).
+  Documents the Splunk evidence-platform pattern, common compliance
+  patterns, evidence-pack methodology (the 12 tier-1 packs in
+  `docs/evidence-packs/`), OSCAL integration, audit workflow, Splunk-
+  side configuration (indexes, lookups), ITSI compliance service tree,
+  SOAR compliance playbooks, and recommended dashboards. The guide is
+  wired as the default `guide:` reference for every cat-22 subcategory
+  via `_category.json` so every framework page surfaces the master
+  portal.
+- **`docs/guides/observability-tooling-grafana-fluentd.md`** — new
+  gold-standard guide for keeping the observability tooling itself
+  observable, covering 27 use cases across cat 13.6 + 13.7. Spans
+  Grafana OSS / Enterprise / Cloud (dashboard render P95, panel query
+  duration, datasource error rates, Unified Alerting / ngalert
+  evaluation duration, plugin signing and version skew, RBAC drift,
+  permission churn, anonymous-org / public-dashboard exposure,
+  annotation storms, Loki cardinality), and Fluentd / Fluent Bit
+  (buffer overflow, retry exhaustion, output plugin errors, throughput
+  parity, worker / supervisor crashes, memory-buffer pre-overflow
+  forecasting, filesystem-storage backlog, multiline parser stuck
+  state, hot-reload configuration governance). Covers Splunk Connect
+  for Kubernetes (Fluentd-based) telemetry and the SCK → OTel migration
+  path. Adds two new subcategories (`13.6 Grafana Operations` and
+  `13.7 Fluentd & Fluent Bit Health`) to `_category.json` so the
+  previously orphaned UCs surface in catalogue views.
+
+#### Wiring
+
+- **`docs-uc-map.js`** &mdash; eight new entries (one per guide); the
+  bidirectional doc ↔ UC map now resolves 470+ UCs across 92 docs.
+- **`content/cat-13/_category.json`** &mdash; adds the missing `13.6`
+  and `13.7` subcategory metadata blocks (with curated `dataSources`
+  and `primaryAppTa`) and wires the new guide on `13.3`, `13.4`, `13.5`,
+  `13.6`, `13.7`. Each subcategory uses the new guide for `guide:`.
+- **`content/cat-17/_category.json`** &mdash; wires
+  `docs/guides/cisco-ise.md` as the `guide:` for `17.1` (NAC).
+- **`content/cat-18/_category.json`** &mdash; wires
+  `docs/guides/datacenter-fabric-sdn.md` as the `guide:` for all four
+  subcategories (`18.1` ACI, `18.2` NSX, `18.3` Other SDN, `18.4`
+  Nexus Dashboard / NX-OS Fabric) with curated `dataSources` /
+  `primaryAppTa` strings.
+- **`content/cat-20/_category.json`** &mdash; wires
+  `docs/guides/finops-cost-capacity.md` as the `guide:` for all three
+  subcategories (`20.1` Cloud Cost, `20.2` Capacity Planning, `20.3`
+  License & Subscription) with curated metadata.
+- **`content/cat-22/_category.json`** &mdash; wires
+  `docs/guides/regulatory-compliance-master.md` as the `guide:` for
+  every subcategory (idempotent script preserves existing per-framework
+  `primaryAppTa` / `dataSources` strings). Per-framework regulatory
+  primer and evidence pack remain referenced via
+  `non-technical-view.js`.
+
+### Catalogue-wide guide expansion
+
+Beyond the eight guides itemised above, v8.0.0 also lands batch 5 (the
+sixteen tier-1 server / cloud / network / database / identity guides
+for cat 1.1, 1.2, 2.1, 3.2, 4.1, 4.2, 4.3, 5.1, 5.2, 5.3, 5.9, 7.1,
+8.1, 9.1, 13.1, 13.2) and a further long-tail of integration guides
+(EDR, NGFW security, IDS/IPS, VPN / Zero-Trust / SASE, Email Security,
+Email & Collaboration, SIEM / SOAR, Vulnerability Management,
+Cert / PKI, Storage / Backup, Compute / HCI, DC Physical, Wireless
+Infrastructure, Network Flow, DNS / DHCP, NoSQL & Cloud Databases,
+Application Servers, Message Queues, API Gateways, Web Security,
+Service Management / ITSM, DevOps / CI-CD, IoT / OT). Combined with
+the 10 guides already in `docs/guides/` before this release,
+`docs/guides/` grows from 10 to 56 gold-standard guides covering ~1,000
+use cases. The bidirectional doc ↔ UC map in `docs-uc-map.js` now
+resolves 470+ UCs across 92 docs.
+
+### Backwards compatibility
+
+Schema-wise this release is purely additive: every UC valid against
+v1.6.x remains valid against v1.7.0. Strict-shape consumers that
+assert `additionalProperties: false` should regenerate their typed
+bindings from `@splunk-uc/schemas` v1.7.0 / `splunk-uc-schemas`
+v1.7.0. App-wise the consolidation of the 12 per-regulation packs and
+the helper TA into a single `splunk-uc-recommender` app is the
+breaking change documented above; coexistence with the legacy apps is
+not supported.
+
+---
+
 ## [7.4.2] - 2026-05-07
 
 ### AI-friendliness lift, part 2 — coordinated UC representations + 11th MCP tool
