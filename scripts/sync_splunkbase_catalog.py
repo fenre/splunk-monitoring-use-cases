@@ -77,7 +77,11 @@ USER_AGENT = (
 HTTP_TIMEOUT_SECONDS = 30
 SLEEP_BETWEEN_REQUESTS = 1.0
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
-PAGE_SIZE = 200
+# Splunkbase capped server-side ``limit`` at 100 in mid-2026; values above
+# 100 now return ``HTTP 400 {"errors": ["limit may not exceed 100"]}``.
+# Bumping ``MAX_PAGES`` keeps the 200-page upper-bound on total fetched
+# apps (200 × 100 = 20,000) well above the live catalogue (~1,800 apps).
+PAGE_SIZE = 100
 MAX_PAGES = 200
 MAX_RETRIES_PER_PAGE = 3
 
@@ -276,19 +280,44 @@ def _normalise_entry(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Translate a Splunkbase API result into the catalog shape.
 
     Returns ``None`` if the upstream entry is unusable (missing id/name).
-    The Splunkbase API has shifted field names over the years so we read
-    several aliases defensively and never raise on a missing field.
+    The Splunkbase API shifted field names in mid-2026: the legacy
+    ``appid`` field, which was a numeric id, was renamed to ``uid`` and
+    ``appid`` was repurposed as the kebab-case string slug. ``title``
+    became the display name (was ``displayName``); ``path`` became the
+    canonical URL (was ``appurl``/``appUrl``/``url``); ``download_count``
+    was already present but is now the only download stat. We accept
+    both shapes so the function stays backward-compatible with the
+    legacy 2024-era catalogs.
     """
 
-    app_id_raw = raw.get("appid") or raw.get("uid") or raw.get("id")
-    try:
-        app_id = int(app_id_raw)
-    except (TypeError, ValueError):
-        return None
-    if app_id <= 0:
+    # New API: ``uid`` carries the numeric id; legacy: ``appid`` did.
+    # Try numeric fields first so the new ``appid`` (string slug) does
+    # not short-circuit the int cast.
+    candidates = (raw.get("uid"), raw.get("id"), raw.get("appid"))
+    app_id: Optional[int] = None
+    for raw_value in candidates:
+        if raw_value is None:
+            continue
+        try:
+            candidate = int(raw_value)
+        except (TypeError, ValueError):
+            continue
+        if candidate > 0:
+            app_id = candidate
+            break
+    if app_id is None:
         return None
 
-    name = raw.get("appName") or raw.get("appname") or raw.get("name") or ""
+    appid_slug = raw.get("appid")
+    if isinstance(appid_slug, int):
+        appid_slug = None  # legacy shape; not the slug
+    name = (
+        raw.get("appName")
+        or raw.get("appname")
+        or raw.get("name")
+        or appid_slug
+        or ""
+    )
     display_name = raw.get("title") or raw.get("displayName") or name or f"app {app_id}"
     description = (raw.get("description") or "").strip()
 
@@ -306,13 +335,19 @@ def _normalise_entry(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not vendor:
         vendor = raw.get("vendor") or raw.get("created_by") or ""
 
+    # New API exposes Cloud-deployability via ``install_method_distributed``:
+    # values ``appmgmt_phase`` and ``self_service`` mean the app is
+    # accepted for Splunk Cloud distributed deployments; ``rejected``
+    # explicitly is not. Fall back to the legacy explicit boolean fields.
+    install_dist = str(raw.get("install_method_distributed") or "").lower()
     cloud_vetted = bool(
-        raw.get("is_supported_for_cloud")
+        install_dist in ("appmgmt_phase", "self_service")
+        or raw.get("is_supported_for_cloud")
         or raw.get("isCloudReady")
         or raw.get("cloudCompatible")
     )
 
-    category_raw = raw.get("category") or raw.get("appCategory") or ""
+    category_raw = raw.get("category") or raw.get("appCategory") or raw.get("type") or ""
     if isinstance(category_raw, list) and category_raw:
         category_raw = category_raw[0]
     if isinstance(category_raw, dict):
@@ -337,11 +372,16 @@ def _normalise_entry(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         last_updated = None
 
     url = (
-        raw.get("appurl")
+        raw.get("path")
+        or raw.get("appurl")
         or raw.get("appUrl")
         or raw.get("url")
         or f"https://{ALLOWED_HOST}/app/{app_id}"
     )
+    # ``path`` may carry a trailing slash (``/app/7633/``); the legacy
+    # canonical form omits it. Normalise so diffs stay clean.
+    if isinstance(url, str):
+        url = url.rstrip("/")
     if not url.startswith(f"https://{ALLOWED_HOST}/app/"):
         url = f"https://{ALLOWED_HOST}/app/{app_id}"
 
