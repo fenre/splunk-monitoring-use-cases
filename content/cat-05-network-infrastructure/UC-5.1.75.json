@@ -16,6 +16,9 @@
   "value": "Most networks have at least three competing answers to the question 'how many switches do we have?' — the spreadsheet, the asset-management system, and what the network actually has. The source-of-truth movement (NetBox, IP Fabric, Nautobot) collapses the spreadsheet and asset-management systems into one canonical record. This UC compares that canonical record against what Splunk is observing in production and surfaces three separate failure modes: (a) devices that exist on the network but no monitoring is collecting from them, (b) devices that monitoring expects to see but the device has been removed and the inventory was never updated, (c) silent monitoring failures where a device's syslog forwarder broke and nobody noticed because the device never went offline. All three are invisible without explicit reconciliation.",
   "implementation": "Export the device inventory from NetBox / IP Fabric / Nautobot via REST API on a daily schedule. Land the result in a Splunk lookup (CSV for small fleets, KV Store for large fleets with frequent updates). Schedule a daily reconciliation search comparing the source-of-truth inventory against devices actively sending syslog or SNMP to Splunk. Alert on devices present in the source of truth but not reporting to Splunk — those are the gaps. Reverse the join to also catch the rarer 'reporting to Splunk but not in inventory' case (rogue devices, decommissioned-but-not-removed switches).",
   "visualization": "Table (missing devices, sortable by site / role), Single-value (overall coverage percentage — the headline number for the asset-management dashboard), Bar chart (reporting status by site, useful for spotting site-wide collector failures).",
+  "cimModels": [
+    "Compute_Inventory"
+  ],
   "references": [
     {
       "title": "NetBox documentation",
@@ -32,16 +35,17 @@
   ],
   "knownFalsePositives": "**Maintenance-mode devices.** Devices that are intentionally powered off for maintenance will show as NOT_REPORTING but should not page on-call. Add a `maintenance=true` flag to the inventory lookup and filter the alert.\n\n**Brand-new devices in inventory but not yet provisioned.** Devices that have just been added to NetBox but have not yet been racked will appear as NOT_REPORTING for hours or days. Use a `provisioning_status` column from the source of truth to suppress unfinished items.\n\n**Stale inventory entries for decommissioned devices.** The reverse problem: the source of truth has a device that was decommissioned six months ago and nobody removed the record. The alert is correct — escalate to the network-inventory owner, not the network-operations team.",
   "equipment": [
+    "arista",
     "cisco",
     "juniper",
-    "arista",
+    "snmp",
     "syslog"
   ],
-  "equipmentModels": [],
-  "status": "community",
-  "wave": "run",
-  "cimModels": [
-    "Compute_Inventory"
+  "equipmentModels": [
+    "cisco_ios",
+    "snmp_generic"
   ],
-  "grandmaExplanation": "We compare the official list of all our network gear against what we actually see talking on the network each day. When the official list says we have a device but Splunk has not heard from it in 24 hours, the team gets alerted to investigate — either the device is broken, the monitoring is broken, or the list is wrong. All three are problems worth knowing."
+  "status": "community",
+  "grandmaExplanation": "We compare the official list of all our network gear against what we actually see talking on the network each day. When the official list says we have a device but Splunk has not heard from it in 24 hours, the team gets alerted to investigate — either the device is broken, the monitoring is broken, or the list is wrong. All three are problems worth knowing.",
+  "wave": "run"
 }
