@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from build.types import CatalogCategory, CatalogSubcategory, CatalogUC
+from build.models import CatalogCategory, CatalogSubcategory, CatalogUC
 
 from . import _css, _helpers
 

@@ -48,7 +48,7 @@ from typing import Any, Iterator, Optional, Tuple
 # parity test in ``tests/build/test_enrichment_parity.py`` blocks any drift
 # between the two modules.
 from build import enrichment as _enrichment
-from build.types import (
+from build.models import (
     CatalogCategory,
     CatalogSubcategory,
     CatalogUC,
@@ -146,7 +146,7 @@ def _resolve_loader_kind() -> str:
 class Catalog:
     """In-memory snapshot of every data source the renderers consume.
 
-    Field types use the wire-format TypedDicts from ``build.types`` so
+    Field types use the wire-format TypedDicts from ``build.models`` so
     every render_* consumer gets autocomplete + mypy field-access
     checking. Equipment is the lone exception: ``EquipmentEntry``
     cannot accurately model the ``models`` field today (it nests

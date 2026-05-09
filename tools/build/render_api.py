@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .parse_content import Catalog
-from .types import CatalogUC, RegulationFramework
+from .models import CatalogUC, RegulationFramework
 
 
 # ---------------------------------------------------------------------------

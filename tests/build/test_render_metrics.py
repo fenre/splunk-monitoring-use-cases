@@ -138,7 +138,7 @@ def _synthetic_catalog(project_root: Path) -> parse_content.Catalog:
     * ESCU / ESCU-RBA flags
 
     The literal vocabularies for criticality and difficulty mirror
-    ``schemas/uc.schema.json`` (and ``tools/build/types.CatalogUC``)
+    ``schemas/uc.schema.json`` (and ``tools/build/models.CatalogUC``)
     so static type checking catches drift here, not in production.
     """
     return parse_content.Catalog(

@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from build.types import RegulationFramework
+from build.models import RegulationFramework
 
 from . import _css, _helpers
 

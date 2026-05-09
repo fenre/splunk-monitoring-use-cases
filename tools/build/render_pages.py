@@ -51,7 +51,7 @@ from .templates import (
     regulation as t_regulation,
     uc as t_uc,
 )
-from .types import (
+from .models import (
     CatalogCategory,
     CatalogSubcategory,
     CatalogUC,

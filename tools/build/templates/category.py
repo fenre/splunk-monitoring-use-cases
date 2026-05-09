@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from build.types import CatalogCategory, CatalogSubcategory, CategoryMeta
+from build.models import CatalogCategory, CatalogSubcategory, CategoryMeta
 
 from . import _css, _helpers
 
@@ -161,11 +161,18 @@ def render_index_json(
                 "dataModels": uc.get("a") or [],
             })
         if uc_list:
-            subs_payload.append({
+            entry: dict[str, Any] = {
                 "id": sub.get("i"),
                 "name": sub.get("n", ""),
                 "useCases": uc_list,
-            })
+            }
+            # Surface the integration-guide pointer when the catalogue
+            # carries one (parse_content stores it under the abbreviated
+            # ``g`` key so the in-memory model stays compact). Tolerant
+            # consumers ignore the field if absent.
+            if sub.get("g"):
+                entry["guide"] = sub["g"]
+            subs_payload.append(entry)
 
     return {
         "$schema": "/schemas/v2/category.schema.json",

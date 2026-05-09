@@ -1,7 +1,7 @@
 """Schema-parity gates for the typed data models.
 
 Repo-overhaul plan §P4 step 2 (2026-05-08): the typed models in
-``tools/build/types.py`` must mirror three sources of truth:
+``tools/build/models.py`` must mirror three sources of truth:
 
 1. ``schemas/uc.schema.json`` — the JSON Schema used by
    ``scripts/audit_uc_structure.py`` to validate every UC sidecar.
@@ -10,7 +10,7 @@ Repo-overhaul plan §P4 step 2 (2026-05-08): the typed models in
 3. ``data/regulations.json`` — the cat-22 framework taxonomy.
 
 These tests guarantee that any field added to those files lights up
-this suite if it isn't also added to the matching :mod:`tools.build.types`
+this suite if it isn't also added to the matching :mod:`tools.build.models`
 TypedDict. That keeps consumers' static type checks meaningful even as
 the schema evolves.
 
@@ -19,24 +19,24 @@ What's covered
 
 * :func:`test_use_case_typed_dict_matches_schema` — every property in
   ``schemas/uc.schema.json`` (minus the optional ``$schema`` IDE hint)
-  has a matching :class:`~tools.build.types.UseCase` TypedDict field
+  has a matching :class:`~tools.build.models.UseCase` TypedDict field
   and vice versa.
 * :func:`test_catalog_typed_dicts_match_real_payload` — every key
   present in ``catalog.json`` for the seven catalog TypedDicts has a
-  matching field in :class:`~tools.build.types.CatalogJson`,
-  :class:`~tools.build.types.CatalogCategory`,
-  :class:`~tools.build.types.CatalogSubcategory`,
-  :class:`~tools.build.types.CatalogUC`,
-  :class:`~tools.build.types.CategoryMeta`,
-  :class:`~tools.build.types.EquipmentEntry`, and
-  :class:`~tools.build.types.ImplementationRoadmapEntry`.
+  matching field in :class:`~tools.build.models.CatalogJson`,
+  :class:`~tools.build.models.CatalogCategory`,
+  :class:`~tools.build.models.CatalogSubcategory`,
+  :class:`~tools.build.models.CatalogUC`,
+  :class:`~tools.build.models.CategoryMeta`,
+  :class:`~tools.build.models.EquipmentEntry`, and
+  :class:`~tools.build.models.ImplementationRoadmapEntry`.
 * :func:`test_regulation_typed_dicts_match_real_payload` — same for
-  :class:`~tools.build.types.RegulationFramework`,
-  :class:`~tools.build.types.RegulationVersionEntry`, and
-  :class:`~tools.build.types.RegulationCommonClause`.
+  :class:`~tools.build.models.RegulationFramework`,
+  :class:`~tools.build.models.RegulationVersionEntry`, and
+  :class:`~tools.build.models.RegulationCommonClause`.
 * :func:`test_typed_helpers_return_keysets` — the
-  :func:`~tools.build.types.use_case_typed_keys` and
-  :func:`~tools.build.types.catalog_uc_typed_keys` helpers return the
+  :func:`~tools.build.models.use_case_typed_keys` and
+  :func:`~tools.build.models.catalog_uc_typed_keys` helpers return the
   expected number of fields. Pins the cardinality so an accidental
   removal lights up immediately.
 
@@ -62,7 +62,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.fixture(scope="module")
 def types_module():
-    """Import ``tools.build.types`` without permanently mutating ``sys.path``.
+    """Import ``tools.build.models`` without permanently mutating ``sys.path``.
+
+    The fixture is still named ``types_module`` for backwards-compatibility
+    with the existing test bodies; the underlying module was renamed from
+    ``types.py`` to ``models.py`` because ``types`` shadows the stdlib
+    ``types`` module on ``sys.path[0]`` when ``python3 tools/build/build.py``
+    is invoked directly (Python 3.12 surfaces this as a circular-import
+    failure during ``import argparse``).
 
     The repository's Python tree puts ``tools/build/`` on ``sys.path``
     via the ``pyproject.toml`` ``pythonpath = ["tools"]`` setting in
@@ -72,9 +79,9 @@ def types_module():
     """
     sys.path.insert(0, str(REPO_ROOT / "tools"))
     try:
-        from build import types  # noqa: PLC0415
+        from build import models  # noqa: PLC0415
 
-        return types
+        return models
     finally:
         try:
             sys.path.remove(str(REPO_ROOT / "tools"))
@@ -106,11 +113,11 @@ def test_use_case_typed_dict_matches_schema(types_module):
 
     assert not missing_in_typed, (
         f"{sorted(missing_in_typed)} were added to uc.schema.json but not "
-        f"to tools/build/types.py:UseCase. Update the TypedDict so static "
+        f"to tools/build/models.py:UseCase. Update the TypedDict so static "
         f"type checking continues to cover the new fields."
     )
     assert not extra_in_typed, (
-        f"{sorted(extra_in_typed)} are declared in tools/build/types.py:UseCase "
+        f"{sorted(extra_in_typed)} are declared in tools/build/models.py:UseCase "
         f"but no longer exist in uc.schema.json. Remove the dead fields or "
         f"restore them to the schema."
     )
@@ -163,7 +170,7 @@ def test_catalog_typed_dicts_match_real_payload(types_module):
     typed_top = set(types_module.CatalogJson.__annotations__.keys())
     assert expected_top == typed_top, (
         f"catalog.json top-level keys: real={sorted(expected_top)!r}, "
-        f"TypedDict={sorted(typed_top)!r}. Update tools/build/types.py:CatalogJson."
+        f"TypedDict={sorted(typed_top)!r}. Update tools/build/models.py:CatalogJson."
     )
 
     # 2. Per-category keys.
@@ -326,7 +333,7 @@ def test_real_uc_sidecar_is_structurally_a_use_case(types_module):
 
     assert sample_keys.issubset(typed_keys), (
         f"UC-17.1.1 carries fields {sorted(sample_keys - typed_keys)!r} "
-        f"that are not declared in tools/build/types.py:UseCase."
+        f"that are not declared in tools/build/models.py:UseCase."
     )
     assert "id" in sample, "UC sidecar missing required 'id' field"
     assert "title" in sample, "UC sidecar missing required 'title' field"
