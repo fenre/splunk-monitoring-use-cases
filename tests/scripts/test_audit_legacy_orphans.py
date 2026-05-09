@@ -37,15 +37,28 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SRC_DIR = REPO_ROOT / "src"
 sys.path.insert(0, str(REPO_ROOT))
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
-_spec = importlib.util.spec_from_file_location(
-    "audit_legacy_orphans",
-    REPO_ROOT / "scripts" / "audit_legacy_orphans.py",
-)
-assert _spec is not None and _spec.loader is not None
-audit = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(audit)
+# P6 (scripts taxonomy, 2026-05-09): the audit body now lives at
+# src/splunk_uc/audits/legacy_orphans.py with a thin shim at the
+# original scripts/ path. Tests that monkeypatch module-level
+# constants (LEGACY_ROOT, SSOT_ROOT) MUST reach the implementation
+# module so the patches propagate into the function closures —
+# patching the shim only mutates its local re-export. The
+# legacy spec-loader path is preserved as a deliberate fallback.
+try:
+    import splunk_uc.audits.legacy_orphans as audit
+except ImportError:
+    _spec = importlib.util.spec_from_file_location(
+        "audit_legacy_orphans",
+        REPO_ROOT / "scripts" / "audit_legacy_orphans.py",
+    )
+    assert _spec is not None and _spec.loader is not None
+    audit = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(audit)
 
 
 # ---------------------------------------------------------------------------

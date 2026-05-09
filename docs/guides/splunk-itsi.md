@@ -1080,7 +1080,7 @@ A: Quarterly KPI cleanup; annual service-tree review; ad-hoc after major archite
 - [Splunk ITSI on Splunkbase](https://splunkbase.splunk.com/app/2871)
 - [Splunk ITSI documentation](https://docs.splunk.com/Documentation/ITSI)
 - [Content Pack for Monitoring and Alerting](https://splunkbase.splunk.com/app/5406)
-- [ITSI REST API reference](https://docs.splunk.com/Documentation/ITSI/latest/REST/RESTendpointreference)
+- [ITSI documentation hub (incl. REST API reference)](https://docs.splunk.com/Documentation/ITSI)
 - [Splunk Lantern (ITSI)](https://lantern.splunk.com) (search "ITSI")
 
 ---

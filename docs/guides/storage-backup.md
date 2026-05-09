@@ -183,7 +183,7 @@ Storage failures cause silent data loss + immediate application outages. Backup 
 | Domain | Where to look |
 |--------|---------------|
 | **Database storage IOPS** | [Relational Databases Guide](relational-databases.md) |
-| **VM-level disk performance** | [VMware Guide](vmware.md) |
+| **VM-level disk performance** | [VMware vSphere Guide](vmware-vsphere.md) |
 | **Cloud provider storage IAM** | [AWS](aws.md), [Azure](azure.md), [GCP](gcp.md) guides |
 
 ### What good looks like

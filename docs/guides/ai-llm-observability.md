@@ -1901,7 +1901,7 @@ cross-product correlation, and ITSI integration.
 ### Splunk official
 
 - [Splunk Observability Cloud — main docs](https://docs.splunk.com/observability/en/)
-- [Splunk APM AI/LLM observability guide](https://docs.splunk.com/observability/en/apm/ai-llm.html)
+- [Splunk Observability Cloud docs (APM, AI/LLM observability)](https://docs.splunk.com/observability)
 - [Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110)](https://splunkbase.splunk.com/app/3110)
 - [Splunk Add-on for AWS (Splunkbase 1876)](https://splunkbase.splunk.com/app/1876)
 - [Splunk Add-on for Office 365 (Splunkbase 4055)](https://splunkbase.splunk.com/app/4055)

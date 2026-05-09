@@ -34,6 +34,7 @@ against a live Splunk instance.
 | **Version** | [`VERSION`](VERSION) — single source of truth for the release number |
 | **Catalogue health snapshot** | `dist/metrics.json` (generated, schema [`schemas/v2/metrics.schema.json`](schemas/v2/metrics.schema.json)) — top-line counts, quality-tier rollups, depth percentiles, coverage, and Top-N leaderboards. Trend-friendly across releases via [`data/metrics-history/`](data/metrics-history/). |
 | **Build telemetry** | `dist/build-telemetry.json` (generated only on non-reproducible builds, schema [`schemas/v2/build-telemetry.schema.json`](schemas/v2/build-telemetry.schema.json)) — per-stage wall-clock duration for the build pipeline. |
+| **Stewardship digest** | `dist/stewardship-digest.{json,md}` (generated, schema [`schemas/v2/stewardship-digest.schema.json`](schemas/v2/stewardship-digest.schema.json)) — release-over-release deltas (counts, quality-tier mix, coverage, top movers in regulations / MITRE / CIM / equipment leaderboards), open audit warnings, and stale-UC backlog. Refreshed weekly by [`.github/workflows/stewardship.yml`](.github/workflows/stewardship.yml). |
 
 ## Content layout
 
@@ -137,6 +138,9 @@ All audits are in `.github/workflows/validate.yml`. Key steps:
 - License inventory (`scripts/audit_license_inventory.py --check`)
 - Metrics history snapshot (`scripts/snapshot_metrics.py --check` — fails when `VERSION` is bumped without a matching `data/metrics-history/<VERSION>.json`)
 - Metrics shape (`dist/metrics.json` validates against `schemas/v2/metrics.schema.json` on every reproducible build)
+- Stewardship digest schema (PR smoke-test of `scripts/generate_stewardship_digest.py` against `schemas/v2/stewardship-digest.schema.json`; weekly refresh in `.github/workflows/stewardship.yml`)
+- Build reproducibility (nightly + build-pipeline PRs: `python -m splunk_uc audit-reproducibility --keep` runs two consecutive `--reproducible` builds and asserts `dist/integrity.json` byte-identical; see `.github/workflows/build-reproducibility.yml`)
+- `splunk_uc` dispatcher smoke (per-PR: `python -m splunk_uc --help` and `--version` succeed; pinned by `tests/splunk_uc/test_dispatcher.py`)
 
 ## Quick commands
 
@@ -151,9 +155,14 @@ make audit-license-inventory                        # validate dependency licens
 make write-license-inventory                        # regenerate data/license-inventory.json baseline
 make audit-metrics-snapshot                         # ensure release-time metrics snapshot exists
 make snapshot-metrics                               # write data/metrics-history/<VERSION>.json from dist/metrics.json
+make stewardship-digest                             # generate dist/stewardship-digest.{json,md}
+make audit-reproducibility                          # two --reproducible builds must match (~90s)
+make audit-reproducibility-fast                     # single --reproducible build smoke (~30s)
+make splunk-uc-help                                 # show the python -m splunk_uc CLI help
+PYTHONPATH=src python3 -m splunk_uc --help          # canonical splunk_uc dispatcher entry point (P6)
 python3 scripts/generate_grandma_explanations.py    # fill missing plain-language fields
 python3 scripts/splunk_fortune.py                   # random UC "fortune cookie"
-python3 scripts/audit_prerequisites.py --check      # validate implementation ordering
+PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check  # validate implementation ordering
 ```
 
 ## Further reading
@@ -166,4 +175,6 @@ python3 scripts/audit_prerequisites.py --check      # validate implementation or
 - [`templates/replication-starter/`](templates/replication-starter/) — minimal fork template
 - [`docs/metrics-history.md`](docs/metrics-history.md) — release-time trend-record runbook
 - [`docs/license-inventory.md`](docs/license-inventory.md) — dependency-license rollup
+- [`docs/stewardship-digest.md`](docs/stewardship-digest.md) — weekly stewardship digest runbook
 - [`docs/roadmap-sync.md`](docs/roadmap-sync.md) — Project-board sync runbook
+- [`docs/scripts-taxonomy.md`](docs/scripts-taxonomy.md) — `splunk_uc` package + dispatcher runbook (P6)

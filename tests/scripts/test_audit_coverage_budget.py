@@ -34,17 +34,28 @@ import jsonschema
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SRC_DIR = REPO_ROOT / "src"
 sys.path.insert(0, str(REPO_ROOT))
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
-# The script lives at scripts/audit_coverage_budget.py. We load it as
-# a module so we can call its internals directly without a subprocess.
-_spec = importlib.util.spec_from_file_location(
-    "audit_coverage_budget",
-    REPO_ROOT / "scripts" / "audit_coverage_budget.py",
-)
-assert _spec is not None and _spec.loader is not None
-audit = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(audit)
+# P6 (scripts taxonomy, 2026-05-09): the audit body now lives at
+# src/splunk_uc/audits/coverage_budget.py with a thin shim at the
+# original scripts/ path. The test does not monkeypatch any module
+# state but loading the implementation module directly keeps the
+# import surface aligned with the rest of the migrated suite. The
+# legacy spec-loader path is preserved as a fallback for an unpacked
+# sdist that lost the src/ tree.
+try:
+    import splunk_uc.audits.coverage_budget as audit
+except ImportError:
+    _spec = importlib.util.spec_from_file_location(
+        "audit_coverage_budget",
+        REPO_ROOT / "scripts" / "audit_coverage_budget.py",
+    )
+    assert _spec is not None and _spec.loader is not None
+    audit = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(audit)
 
 
 def _make_report(per_file: dict[str, tuple[int, int]]) -> dict[str, Any]:

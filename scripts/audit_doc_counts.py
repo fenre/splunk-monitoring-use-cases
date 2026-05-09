@@ -1,47 +1,38 @@
 #!/usr/bin/env python3
-"""Doc freshness audit — checks that numeric claims in key docs are within tolerance of actual counts."""
+"""Compatibility shim — delegates to ``splunk_uc.audits.doc_counts``.
 
-import json, sys, pathlib, re
+The implementation moved under ``src/splunk_uc/audits/`` as part of
+the Phase 6 scripts taxonomy reorganisation. This shim keeps the
+historic ``scripts/audit_doc_counts.py`` invocation alive while the
+new dispatcher (``python -m splunk_uc audit-doc-counts``) becomes the
+primary entry-point.
+"""
 
-PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
+from __future__ import annotations
 
-def get_actual_uc_count():
-    """Count UC JSON files in content/."""
-    return len(list((PROJECT_ROOT / "content").rglob("UC-*.json")))
+import sys
+from pathlib import Path
 
-def get_actual_category_count():
-    """Count category directories."""
-    return len(list((PROJECT_ROOT / "content").glob("cat-*")))
+_SRC = Path(__file__).resolve().parent.parent / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
-CHECKS = [
-    ("AGENTS.md", r"(\d[\d,]+)\+?\s*(?:use[- ]cases|UCs)", "uc_count"),
-    ("docs/PITCH.md", r"(\d[\d,]+)\+?\s*(?:use[- ]cases|UCs)", "uc_count"),
-    ("docs/architecture.md", r"(\d[\d,]+)\+?\s*(?:use[- ]cases|UCs)", "uc_count"),
+from splunk_uc.audits.doc_counts import (
+    CHECKS,
+    PROJECT_ROOT,
+    get_actual_category_count,
+    get_actual_uc_count,
+    main,
+)
+
+__all__ = [
+    "CHECKS",
+    "PROJECT_ROOT",
+    "get_actual_category_count",
+    "get_actual_uc_count",
+    "main",
 ]
 
-def main():
-    actual_ucs = get_actual_uc_count()
-    tolerance = 0.05
-    warnings = []
-    
-    for rel_path, pattern, check_type in CHECKS:
-        fpath = PROJECT_ROOT / rel_path
-        if not fpath.exists():
-            continue
-        text = fpath.read_text(encoding="utf-8")
-        for m in re.finditer(pattern, text, re.IGNORECASE):
-            claimed = int(m.group(1).replace(",", ""))
-            if check_type == "uc_count":
-                if abs(claimed - actual_ucs) / actual_ucs > tolerance:
-                    warnings.append(f"{rel_path}: claims {claimed} UCs, actual is {actual_ucs} (>{tolerance*100:.0f}% drift)")
-    
-    if warnings:
-        print(f"Doc freshness: {len(warnings)} stale count(s):", file=sys.stderr)
-        for w in warnings:
-            print(f"  {w}", file=sys.stderr)
-        sys.exit(1)
-    
-    print(f"Doc freshness: all checked counts within {tolerance*100:.0f}% of actual ({actual_ucs} UCs).")
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

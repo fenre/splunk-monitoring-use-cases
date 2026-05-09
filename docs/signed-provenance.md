@@ -2,7 +2,9 @@
 
 > **Status:** required for any change to
 > `data/provenance/mapping-ledger.json`, `schemas/mapping-ledger.schema.json`,
-> `scripts/generate_mapping_ledger.py`, `scripts/audit_mapping_ledger.py`,
+> `scripts/generate_mapping_ledger.py`,
+> `src/splunk_uc/audits/mapping_ledger.py`
+> (verb: `python -m splunk_uc audit-mapping-ledger`),
 > `scripts/stamp_ledger_release.py`, or the ledger-signing steps in
 > `.github/workflows/release.yml`.
 >
@@ -30,7 +32,8 @@ merkle root of the ledger to a specific commit and workflow run.
    (`mappingId`, `ucId`, `regulationId`, `regulationVersion`, `clause`,
    `mode`, `assurance`, `derivationSource`) invalidates both the per-entry
    `canonicalHash` and the top-level `merkleRoot`. CI blocks the PR.
-2. **Completeness.** The in-repo audit (`scripts/audit_mapping_ledger.py`)
+2. **Completeness.** The in-repo audit
+   (`python -m splunk_uc audit-mapping-ledger`)
    performs a forward+reverse referential check: every UC sidecar's
    `compliance[]` entry must be in the ledger, and every ledger entry
    must point at a live UC. Dropping a mapping without removing the
@@ -75,7 +78,7 @@ the ledger establishes the truth of the record.
 | `schemas/mapping-ledger.schema.json`               | JSON Schema (Draft 2020-12) that governs the ledger. Defines entry shape, canonicalisation contract, and the `oneOf` signature envelope (`unsigned` or `attested`).                                                                                                                                        |
 | `data/provenance/mapping-ledger.json`              | The in-repo ledger. Always `signature.state = "unsigned"` on `main` (so PR CI is deterministic); the attested copy lives in `dist/` at release time.                                                                                                                                                       |
 | `scripts/generate_mapping_ledger.py`               | Deterministic generator. Walks every `content/cat-*/UC-*.json`, canonicalises regulation names against `data/regulations.json`, probes git history in a single bulk `git log` pass, snapshots peer/legal/SME signoffs, hashes each entry, and emits the sorted-leaf merkle root. `--check` mode diff-gates. |
-| `scripts/audit_mapping_ledger.py`                  | Independent verifier. Re-reads the ledger, recomputes all `canonicalHash`es and the `merkleRoot`, validates against the schema, performs referential integrity against current sidecars, and — when `--verify-signature` is passed — shells out to `gh attestation verify` against the Sigstore bundle.    |
+| `python -m splunk_uc audit-mapping-ledger`        | Independent verifier (implementation: `src/splunk_uc/audits/mapping_ledger.py`). Re-reads the ledger, recomputes all `canonicalHash`es and the `merkleRoot`, validates against the schema, performs referential integrity against current sidecars, and — when `--verify-signature` is passed — shells out to `gh attestation verify` against the Sigstore bundle. |
 | `scripts/stamp_ledger_release.py`                  | Release-time stamper. Copies the in-repo ledger to `dist/mapping-ledger.json` and flips `signature.state` from `unsigned` to `attested` _before_ Sigstore attestation (because attestation binds the file-at-rest).                                                                                         |
 | `.github/workflows/validate.yml`                   | Runs `--check` (regeneration drift) and the audit on every pull request. Uploads the ledger as part of the `qa-gates` artifact.                                                                                                                                                                             |
 | `.github/workflows/release.yml`                    | Generates, audits, stamps, and attests the ledger on `v*.*.*` tags. Produces `dist/mapping-ledger.json`, `dist/mapping-ledger.sigstore.bundle.json`, and `dist/mapping-ledger.manifest.md` as release assets.                                                                                                 |
@@ -187,7 +190,8 @@ root = hashlib.sha256("".join(leaves).encode("utf-8")).hexdigest()
 assert root == led["merkleRoot"]
 ```
 
-The per-entry hash is similarly recomputable; see `scripts/audit_mapping_ledger.py::canonical_hash_of` for the reference
+The per-entry hash is similarly recomputable; see
+`src/splunk_uc/audits/mapping_ledger.py::canonical_hash_of` for the reference
 implementation.
 
 ## 5. Signature envelope
@@ -234,7 +238,8 @@ The release workflow
 (`.github/workflows/release.yml`) performs five steps, in order:
 
 1. **Regenerate** the ledger at HEAD: `python3 scripts/generate_mapping_ledger.py --check`.
-2. **Audit** the in-repo (`unsigned`) ledger: `python3 scripts/audit_mapping_ledger.py`.
+2. **Audit** the in-repo (`unsigned`) ledger:
+   `PYTHONPATH=src python3 -m splunk_uc audit-mapping-ledger`.
 3. **Stamp** a release copy into `dist/`:
    `python3 scripts/stamp_ledger_release.py`. This copies
    `data/provenance/mapping-ledger.json` to `dist/mapping-ledger.json`
@@ -248,7 +253,7 @@ The release workflow
    workflow.
 5. **Verify end-to-end.** The workflow temporarily swaps the stamped
    copy over the audit source and runs
-   `scripts/audit_mapping_ledger.py --require-signature --verify-signature`.
+   `PYTHONPATH=src python3 -m splunk_uc audit-mapping-ledger --require-signature --verify-signature`.
    This exercises the same verification path a downstream consumer
    would use; if it fails, the release is aborted.
 
@@ -275,7 +280,7 @@ trust:
 ### 7.1 Trust-but-verify: the hash chain (no network, no tools beyond Python)
 
 ```bash
-python3 scripts/audit_mapping_ledger.py
+PYTHONPATH=src python3 -m splunk_uc audit-mapping-ledger
 ```
 
 Exit code 0 means:
@@ -292,7 +297,7 @@ This is the bar PR CI enforces.
 ### 7.2 Require-but-trust: insist on `signature.state == "attested"`
 
 ```bash
-python3 scripts/audit_mapping_ledger.py --require-signature
+PYTHONPATH=src python3 -m splunk_uc audit-mapping-ledger --require-signature
 ```
 
 Same as §7.1 but also refuses an `unsigned` ledger. Use this to
@@ -305,7 +310,7 @@ gh attestation verify mapping-ledger.json \
   --owner fenre \
   --bundle mapping-ledger.sigstore.bundle.json
 
-python3 scripts/audit_mapping_ledger.py \
+PYTHONPATH=src python3 -m splunk_uc audit-mapping-ledger \
   --require-signature \
   --verify-signature
 ```
@@ -317,8 +322,8 @@ for this release. The second command re-runs §7.1, then shells out to
 `gh attestation verify` itself as a belt-and-braces check that the
 bundle still validates against the file on disk.
 
-`scripts/audit_mapping_ledger.py` searches for the Sigstore bundle in
-three places, in order:
+The audit (`src/splunk_uc/audits/mapping_ledger.py`) searches for the
+Sigstore bundle in three places, in order:
 
 1. The repository root (in-tree case).
 2. The directory that contains the ledger file (the auditor downloaded
@@ -335,8 +340,8 @@ only when `--verify-signature` is explicitly requested.
 1. Edit the UC sidecar's `compliance[]` entry as normal.
 2. Run `python3 scripts/generate_mapping_ledger.py` to regenerate the
    ledger. The audit will fail if you skip this step.
-3. Run `python3 scripts/audit_mapping_ledger.py` to confirm the
-   regeneration is self-consistent.
+3. Run `PYTHONPATH=src python3 -m splunk_uc audit-mapping-ledger` to
+   confirm the regeneration is self-consistent.
 4. Commit both the sidecar change and
    `data/provenance/mapping-ledger.json` in the **same commit**, so
    `firstSeenCommit` / `lastModifiedCommit` point at the same SHA.
@@ -416,7 +421,7 @@ git clone --depth=1 \
 cd splunk-monitoring-use-cases
 cp ~/Downloads/mapping-ledger.json data/provenance/
 cp ~/Downloads/mapping-ledger.sigstore.bundle.json .
-python3 scripts/audit_mapping_ledger.py \
+PYTHONPATH=src python3 -m splunk_uc audit-mapping-ledger \
   --require-signature \
   --verify-signature
 ```

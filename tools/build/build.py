@@ -782,12 +782,15 @@ def _run_once(args: argparse.Namespace) -> int:
         )
 
     total_seconds = time.monotonic() - t0
-    render_telemetry.render(
+    telemetry_t0 = time.monotonic()
+    telemetry_path = render_telemetry.render(
         opts.out_dir,
         stage_telemetry,
         reproducible=opts.reproducible,
         total_seconds=total_seconds,
     )
+    if telemetry_path is not None:
+        _log(f"{telemetry_path.name} written ({len(stage_telemetry)} stages)", telemetry_t0)
 
     bytes_total, files_total = _measure(opts.out_dir)
     _log(

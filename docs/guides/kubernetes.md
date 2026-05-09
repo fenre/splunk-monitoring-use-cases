@@ -22,6 +22,7 @@ sourcetypes:
   - splunk:otel:journald
 collector_versions: "splunk-otel-collector chart 0.110+ (recommended); legacy splunk-connect-for-kubernetes 1.5.x supported (deprecated)"
 k8s_versions: "1.28, 1.29, 1.30, 1.31 (latest); cloud-managed equivalents EKS 1.29+, AKS 1.29+, GKE 1.29+"
+splunk_versions: "9.0, 9.1, 9.2, 9.3, 9.4 (current), 10.0+; Splunk Cloud (Victoria/Classic) supported; Splunk Observability Cloud (continuous SaaS)"
 cross_products: [Splunk Observability Cloud, Splunk APM, Splunk ITSI, Splunk ES, Prometheus, Grafana, Falco]
 compliance_frameworks: [PCI-DSS, HIPAA, SOX-ITGC, ISO-27001, NIST-800-53, CIS-Kubernetes, NIS2, DORA]
 use_case_subcategory: "3.2"

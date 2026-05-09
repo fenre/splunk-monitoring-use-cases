@@ -26,6 +26,7 @@ sourcetypes:
   - vmware:vcsa:syslog
 vsphere_versions: "7.0 U3+, 8.0 U2+, 8.0 U3 (recommended)"
 ta_versions: "5.x or later (DCN+OTel hybrid); legacy DCN-only deployments still supported"
+splunk_versions: "9.0, 9.1, 9.2, 9.3, 9.4 (current), 10.0+; Splunk Cloud (Victoria/Classic) supported"
 cross_products: [vSAN, NSX-T, Aria Operations / Tanzu, Site Recovery Manager (SRM), Splunk ITSI, Splunk SOAR]
 compliance_frameworks: [PCI-DSS, HIPAA, SOX-ITGC, ISO-27001, NIST-800-53, CIS-VMware, NIS2, DORA]
 use_case_subcategory: "2.1"
@@ -1309,7 +1310,7 @@ Don't migrate to OTel-only until the OTel receiver matches DCN coverage for even
 | Resource | URL |
 |----------|-----|
 | Splunk Add-on for VMware (Splunkbase 3215) | [splunkbase.splunk.com/app/3215](https://splunkbase.splunk.com/app/3215) |
-| `Splunk_TA_vmware` documentation | [docs.splunk.com/Documentation/AddOns/released/VMware](https://docs.splunk.com/Documentation/AddOns/released/VMware/Description) |
+| `Splunk_TA_vmware` documentation | [Splunkbase: Splunk Add-on for VMware](https://splunkbase.splunk.com/app/3215) and [docs.splunk.com/Documentation/AddOns](https://docs.splunk.com/Documentation/AddOns) |
 | Splunk OpenTelemetry Collector | [github.com/signalfx/splunk-otel-collector](https://github.com/signalfx/splunk-otel-collector) |
 | OTel vcenter receiver | [github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/vcenterreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/vcenterreceiver) |
 | vSphere API documentation | [developer.broadcom.com/xapis/vsphere-management-sdk](https://developer.broadcom.com/xapis/vsphere-management-sdk/latest/) |

@@ -322,7 +322,8 @@ The signoff file `data/provenance/sme-signoffs.json` is append-only.
 To add a record, edit the file on the same PR that contains the
 reviewed content. CI validates the file against
 `schemas/sme-review-signoff.schema.json` and enforces semantic
-invariants via `scripts/audit_sme_review_signoffs.py`.
+invariants via `python -m splunk_uc audit-sme-review-signoffs`
+(implementation: `src/splunk_uc/audits/sme_review_signoffs.py`).
 
 Example record:
 
@@ -481,6 +482,7 @@ The final commit must pass **all three** gates before merge.
   §5 escalation rules.
 - `schemas/sme-review-signoff.schema.json` — machine-readable schema
   the signoff file validates against.
-- `scripts/audit_sme_review_signoffs.py` — CI validator.
+- `python -m splunk_uc audit-sme-review-signoffs` — CI validator
+  (implementation: `src/splunk_uc/audits/sme_review_signoffs.py`).
 - [`LEGAL.md`](../LEGAL.md) — project-wide licence, attribution, and
   disclaimer document.

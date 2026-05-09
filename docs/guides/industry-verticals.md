@@ -658,11 +658,11 @@ index=insurance sourcetype="insurance:claim" earliest=-90d
 
 All verticals benefit from these common building blocks already covered in dedicated guides:
 - IT infrastructure: [Linux Servers Guide](linux-servers.md), [Windows Servers Guide](windows-servers.md)
-- Cloud: [AWS](aws-cloud.md), [Azure](azure-cloud.md), [GCP](gcp-cloud.md)
+- Cloud: [AWS](aws.md), [Azure](azure.md), [GCP](gcp.md)
 - Networking: [Cisco Catalyst](catalyst-center.md), [Firewalls](firewalls.md)
 - Security: [SIEM & SOAR](siem-soar.md), [EDR](edr.md), [VM](vulnerability-management.md)
 - ITSM: [Service Management & ITSM](service-management-itsm.md)
-- Data: [Database](database-monitoring.md), [Cloud DBs](nosql-cloud-databases.md)
+- Data: [Relational Databases](relational-databases.md), [NoSQL & Cloud DBs](nosql-cloud-databases.md)
 
 ---
 

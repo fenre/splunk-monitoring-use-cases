@@ -1,0 +1,161 @@
+# Repo-overhaul plan §P8 step 4 — weekly stewardship digest.
+#
+# Every Monday at 08:00 UTC, and on manual dispatch, we:
+#   1) Build the static site (`make build`) so dist/metrics.json is
+#      fresh and reflects current `content/`.
+#   2) Capture soft-failable audit warnings — today the only such audit
+#      is `audit_roadmap_consistency.py`, which emits `WARN :` lines
+#      when ROADMAP.md falls out of sync with VERSION / CHANGELOG.
+#   3) Generate `dist/stewardship-digest.{json,md}` via
+#      `scripts/generate_stewardship_digest.py`, threading those
+#      warnings through `--audit-warning`.
+#   4) Open or update a tracking GitHub issue summarising the digest
+#      so the markdown lands in maintainer-visible form without a
+#      separate dashboard.
+#
+# The artefacts themselves are uploaded as workflow artifacts for any
+# downstream tooling that wants the JSON raw.
+name: Stewardship digest
+
+on:
+  schedule:
+    # Mondays 08:00 UTC — early enough that the digest precedes the
+    # 09:00 UTC regulatory change-watch run, and slots into the
+    # European business day so the issue notification fires before
+    # the maintainer's first triage window.
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+    inputs:
+      reference_date:
+        description: "Override 'today' for staleness math (YYYY-MM-DD). Leave blank to use today (UTC)."
+        type: string
+        default: ""
+      stale_threshold_days:
+        description: "Age cutoff in days above which a UC is considered stale."
+        type: string
+        default: "180"
+
+# Never run two scheduled digests concurrently; the JSON artefact is a
+# singleton and a parallel run would only race itself.
+concurrency:
+  group: stewardship-digest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install dev dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install jsonschema==4.23.0
+
+      - name: Build site so dist/metrics.json is fresh
+        run: make build
+
+      - name: Capture audit-roadmap warnings (soft-fail today)
+        id: audits
+        run: |
+          set -u
+          # Capture WARN lines from the roadmap auditor without failing
+          # the workflow on its soft-fail exit (still 0 today).
+          python3 scripts/audit_roadmap_consistency.py --check 2>warnings.log || true
+          # The script writes WARN lines to stderr. Pipe them as
+          # repeated --audit-warning args so the digest captures them
+          # verbatim.
+          python3 - <<'PYEOF' >>$GITHUB_ENV
+          import pathlib
+          lines = pathlib.Path("warnings.log").read_text(encoding="utf-8").splitlines()
+          flags = []
+          for line in lines:
+              line = line.strip()
+              if not line.startswith("WARN :"):
+                  continue
+              message = line[len("WARN :"):].strip()
+              if message:
+                  flags.append(f"audit_roadmap_consistency={message}")
+          if flags:
+              # Newline-separated list; the next step splits on \n.
+              joined = "\n".join(flags)
+              print(f"AUDIT_FLAGS<<EOF\n{joined}\nEOF")
+          else:
+              print("AUDIT_FLAGS=")
+          PYEOF
+
+      - name: Generate stewardship digest
+        run: |
+          set -u
+          ref=""
+          if [ -n "${{ inputs.reference_date }}" ]; then
+            ref="--reference-date ${{ inputs.reference_date }}"
+          fi
+          threshold="--stale-threshold-days ${{ inputs.stale_threshold_days || '180' }}"
+          # Re-emit AUDIT_FLAGS from $GITHUB_ENV as repeated CLI args.
+          warning_args=""
+          if [ -n "${AUDIT_FLAGS:-}" ]; then
+            while IFS= read -r line; do
+              [ -n "$line" ] && warning_args="$warning_args --audit-warning \"$line\""
+            done <<< "$AUDIT_FLAGS"
+          fi
+          eval python3 scripts/generate_stewardship_digest.py \
+            $ref $threshold $warning_args
+
+      - name: Validate digest against schema
+        run: |
+          python3 - <<'PYEOF'
+          import json
+          import jsonschema
+          schema = json.load(open("schemas/v2/stewardship-digest.schema.json"))
+          digest = json.load(open("dist/stewardship-digest.json"))
+          jsonschema.Draft202012Validator(schema).validate(digest)
+          print(f"digest schema_version={digest['schema_version']} OK; staleUseCases.count={digest['staleUseCases']['count']}")
+          PYEOF
+
+      - name: Upload digest artefacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stewardship-digest
+          path: |
+            dist/stewardship-digest.json
+            dist/stewardship-digest.md
+          if-no-files-found: error
+
+      - name: Open or update tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -u
+          today=$(date -u +%Y-%m-%d)
+          title="Stewardship digest — ${today}"
+          body_file=$(mktemp)
+          {
+            echo "_Auto-generated by \`.github/workflows/stewardship.yml\` on ${today}._"
+            echo ""
+            cat dist/stewardship-digest.md
+            echo ""
+            echo "---"
+            echo ""
+            echo "Raw artefact: \`dist/stewardship-digest.json\` (uploaded to this run as the \`stewardship-digest\` artifact)."
+          } >"$body_file"
+          existing=$(gh issue list --state open --label stewardship-digest --json number --jq '.[0].number' || true)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file "$body_file"
+          else
+            gh issue create \
+              --title "$title" \
+              --body-file "$body_file" \
+              --label stewardship-digest
+          fi

@@ -26,6 +26,7 @@ sourcetypes:
   - cisco:dnac:event:notification
 catalyst_center_versions: "2.3.5+"
 ta_versions: "1.x+"
+splunk_versions: "9.0, 9.1, 9.2, 9.3, 9.4 (current), 10.0+; Splunk Cloud (Victoria/Classic) supported"
 cross_products: [ISE, SD-WAN, Meraki, ThousandEyes, Cyber Vision]
 compliance_frameworks: [NIST-800-53, PCI-DSS, SOX-ITGC, ISO-27001]
 use_case_subcategory: "5.13"

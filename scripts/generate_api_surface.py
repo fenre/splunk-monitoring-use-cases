@@ -975,6 +975,117 @@ def _recommender_cim_models(uc: Mapping[str, Any]) -> List[str]:
     return sorted(hits)
 
 
+_APP_TOKEN_BAD_SUFFIXES = (
+    " logs",
+    " log",
+    " export",
+    " exports",
+    " ingestion",
+    " polling",
+    " events",
+    " event",
+    " syslog",
+    " audit",
+    " audit log",
+    " hec",
+    " api",
+    " (optional)",
+    " only",
+    " feed",
+    " feeds",
+    " stream",
+    " streams",
+    " pcap",
+    " webhook",
+    " webhooks",
+)
+
+
+def _looks_like_app_label(token: str) -> bool:
+    """Reject prose fragments that ``_recommender_apps()`` accidentally
+    picked up from the comma-split of free-text ``t``.
+
+    The ``t`` field is human-authored markdown (e.g.
+    ``"Splunk Add-on for Cisco IOS (\\`Splunk_TA_cisco-ios\\`, Splunkbase 1352)"``).
+    Splitting on commas can land mid-parenthesis and produce tokens
+    like ``"Splunk Add-on for Cisco IOS (Splunk_TA_cisco-ios"`` or
+    ``"Splunkbase 1352)"`` — neither of which is a Splunk app label and
+    both of which pollute the recommender's app-index. This guard:
+
+    * rejects unbalanced-paren tokens
+    * rejects parenthetical lead-ins ("(optional)", "(2)", ...) which
+      are usually authoring notes attached to a real app name
+    * rejects markdown debris (leftover ``**``, version numbers, URL
+      slugs, plain digits)
+    * rejects tokens that end in known prose suffixes ("logs", "export",
+      "ingestion", ...) — these are description fragments, not apps
+    * rejects tokens with low alphanumeric ratio (mostly punctuation)
+    * rejects tokens that look like an orphaned Splunkbase trailer
+      ("Splunkbase 1234)", "Splunkbase 1234.")
+
+    The point of the guard is that anything entering the app-index is a
+    candidate match key for user-installed apps. False positives create
+    spurious "Why?" reasons on UC cards; false negatives just cost a
+    handful of low-confidence matches. We tilt firmly toward fewer-but-
+    cleaner keys.
+    """
+    if not token:
+        return False
+    if token.startswith("("):
+        return False
+    if token.startswith(("**", "__", "[", "<", "*", "/", "$", "#")):
+        return False
+    if token[0].isdigit():
+        return False
+    if "**" in token or "__" in token:
+        return False
+    if "://" in token.lower():
+        return False
+    open_p = token.count("(")
+    close_p = token.count(")")
+    if open_p != close_p:
+        return False
+    lower = token.lower()
+    # Reject prose-connective lead-ins. Free-text ``t`` often contains
+    # phrases like "or equivalent firewall TA populating ..." or
+    # "and the Alletra REST v2 object model" that get sliced off by
+    # the comma-splitter into self-standing pieces. None of these are
+    # real Splunk app labels and they balloon the app-index for no
+    # matching benefit.
+    for prefix in (
+        "or ",
+        "and ",
+        "with ",
+        "via ",
+        "using ",
+        "for ",
+        "in ",
+        "if ",
+        "the ",
+        "this ",
+        "that ",
+        "these ",
+        "those ",
+        "any ",
+    ):
+        if lower.startswith(prefix):
+            return False
+    for suffix in _APP_TOKEN_BAD_SUFFIXES:
+        if lower.endswith(suffix):
+            return False
+    if lower.startswith("splunkbase ") and lower[-1] in (")", "."):
+        return False
+    if lower.startswith("[splunkbase "):
+        return False
+    # Reject tokens with low alphanumeric ratio — these are almost
+    # always punctuation/markup leftovers ("...$", "/>"), not real
+    # app names.
+    alnum = sum(1 for c in token if c.isalnum())
+    if alnum < max(3, len(token) * 0.4):
+        return False
+    return True
+
+
 def _recommender_apps(uc: Mapping[str, Any]) -> List[str]:
     """Return the deduped canonical-ish app/TA labels referenced by ``uc``.
 
@@ -985,12 +1096,45 @@ def _recommender_apps(uc: Mapping[str, Any]) -> List[str]:
     - ``uc.sapp[].name`` — marketplace app display names (structured).
     - ``uc.premium`` — free-text premium-app string, normalised via the
       schema enum (``schemas/uc.schema.json``).
+
+    Backticked tokens inside ``t`` (e.g. ``\\`Splunk_TA_nix\\```) are
+    extracted as standalone entries BEFORE markdown stripping so we
+    keep the high-signal folder-name keys that would otherwise be lost
+    when the surrounding parenthesis is shredded by a misplaced comma.
     """
     out: set = set()
 
-    ta_raw = str(uc.get("t", "") or "").replace("`", "").strip()
-    if ta_raw:
-        for piece in re.split(r"[,;]", ta_raw):
+    raw_t = str(uc.get("t", "") or "")
+    # 1) Pull out backtick-delimited TA folder names (high-signal keys
+    #    like ``Splunk_TA_nix``, ``Splunk_SA_CIM``, ``cisco-meraki-app-for-splunk``)
+    #    BEFORE we strip backticks — these match the user's
+    #    ``apps/local`` ``title`` field directly and form the matcher's
+    #    most reliable exact-match path. Folder names by definition
+    #    have no spaces and aren't pure version numbers.
+    for backticked in re.findall(r"`([A-Za-z][A-Za-z0-9_\-\.]{2,79})`", raw_t):
+        token = backticked.strip()
+        if not token or " " in token:
+            continue
+        if re.fullmatch(r"\d+(\.\d+)*", token):
+            continue
+        # Folder names trivially pass _looks_like_app_label, but route
+        # them through it anyway for defence-in-depth.
+        if _looks_like_app_label(token):
+            out.add(token)
+
+    # 2) Strip markdown noise BEFORE the comma-split path. The ``t``
+    #    field is rich markdown — links, bolds, version emphasisers —
+    #    and the comma-splitter is otherwise oblivious to it.
+    cleaned = raw_t
+    # ``[text](url)`` -> ``text`` — keeps display names, drops URLs
+    cleaned = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", cleaned)
+    # ``**bold**`` -> ``bold``; ``__bold__`` -> ``bold``
+    cleaned = re.sub(r"\*\*([^*]+?)\*\*", r"\1", cleaned)
+    cleaned = re.sub(r"__([^_]+?)__", r"\1", cleaned)
+    cleaned = cleaned.replace("`", "").strip()
+
+    if cleaned:
+        for piece in re.split(r"[,;]", cleaned):
             p = piece.strip()
             if not p or len(p) > 80 or len(p) < 3:
                 continue
@@ -1002,6 +1146,10 @@ def _recommender_apps(uc: Mapping[str, Any]) -> List[str]:
             if "custom scripted" in lower or "scripted input" in lower:
                 continue
             if lower.startswith("scripted"):
+                continue
+            # Drop unbalanced-paren / prose-trailer / markdown-debris
+            # fragments produced by mid-parenthesis comma splits.
+            if not _looks_like_app_label(p):
                 continue
             out.add(p)
 
@@ -1017,13 +1165,20 @@ def _recommender_apps(uc: Mapping[str, Any]) -> List[str]:
 
     premium = str(uc.get("premium", "") or "").strip()
     if premium:
-        for piece in re.split(r",\s*", premium):
-            base = re.sub(r"\(.+?\)", "", piece).strip()
+        # Strip BALANCED parentheticals first ("ES (optional, for X)") so
+        # the comma-splitter doesn't shred the parenthetical into orphan
+        # tokens like "Splunk Enterprise Security (optional" and "for X)".
+        premium_clean = re.sub(r"\([^)]*\)", "", premium).strip()
+        for piece in re.split(r",\s*", premium_clean):
+            base = piece.strip()
             if not base:
                 continue
             canonical = _PREMIUM_APP_ALIASES.get(base.lower(), base)
-            if canonical and len(canonical) <= 120:
-                out.add(canonical)
+            if not canonical or len(canonical) > 120:
+                continue
+            if not _looks_like_app_label(canonical):
+                continue
+            out.add(canonical)
 
     return sorted(out)
 

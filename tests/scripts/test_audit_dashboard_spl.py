@@ -20,10 +20,23 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
-# ``scripts/`` isn't a package; load the audit module by file path so
-# pytest can import it without a sys.path hack at the global level.
+# P6 (scripts taxonomy, 2026-05-09): the audit body now lives at
+# src/splunk_uc/audits/dashboard_spl.py with a thin shim at the
+# original scripts/ path. Importing the implementation module
+# directly keeps the test surface aligned with the migrated suite.
+# The legacy spec-loader path is preserved as a fallback for an
+# unpacked sdist that lost the src/ tree.
 def _load_module():
     repo_root = Path(__file__).resolve().parents[2]
+    src_dir = repo_root / "src"
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+    try:
+        import splunk_uc.audits.dashboard_spl as impl
+
+        return impl
+    except ImportError:
+        pass
     target = repo_root / "scripts" / "audit_dashboard_spl.py"
     spec = importlib.util.spec_from_file_location("audit_dashboard_spl", target)
     if spec is None or spec.loader is None:
@@ -187,7 +200,9 @@ class PanelCollectionTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[2]
         views = repo_root / "splunk-apps/splunk-uc-recommender/default/data/ui/views"
         if not views.is_dir():
-            self.skipTest("recommender app not generated; run scripts/generate_recommender_app.py first")
+            self.skipTest(
+                "recommender app not generated; run scripts/generate_recommender_app.py first"
+            )
 
         all_panels = []
         for fp in sorted(views.glob("*.xml")):
@@ -218,7 +233,10 @@ class PanelCollectionTests(unittest.TestCase):
         # token directly after `inputlookup`), this test fails before
         # the smoke phase ever runs.
         repo_root = Path(__file__).resolve().parents[2]
-        impl_xml = repo_root / "splunk-apps/splunk-uc-recommender/default/data/ui/views/implementations.xml"
+        impl_xml = (
+            repo_root
+            / "splunk-apps/splunk-uc-recommender/default/data/ui/views/implementations.xml"
+        )
         if not impl_xml.exists():
             self.skipTest("implementations.xml not generated yet")
         text = impl_xml.read_text()

@@ -33,7 +33,7 @@ Please fill in the sections below. Delete anything that doesn't apply.
       (`dist/` mirror files if your branch tracks them, plus any root-level
       `catalog.json`, `api/*.json`, `llms*.txt`, `sitemap.xml`, etc., listed in
       `.github/workflows/validate.yml`).
-- [ ] Ran `python3 scripts/audit_uc_structure.py --full`.
+- [ ] Ran `make audit-structure` (or `python3 -m splunk_uc audit-uc-structure --full`).
 - [ ] SPL examples have been eyeballed for syntax errors.
 - [ ] If adding a new **Splunkbase app reference**, the `Splunkbase #NNNN`
       ID is correct (verified on splunkbase.splunk.com).
@@ -142,7 +142,7 @@ rubric: `docs/sme-review-guide.md`.
       relevant `compliance[]` entry of the UC sidecar.
 - [ ] **Signoff recorded** — if SME review was performed, the result
       is appended to `data/provenance/sme-signoffs.json` and validated
-      by `scripts/audit_sme_review_signoffs.py`.
+      by `python -m splunk_uc audit-sme-review-signoffs`.
 
 ## Screenshots / SPL excerpts
 

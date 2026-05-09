@@ -52,15 +52,30 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "audit_action_pins.py"
+SRC_DIR = REPO_ROOT / "src"
 
 
 def _load_audit_module():
-    """Import audit_action_pins.py without executing main().
+    """Import audit_action_pins without executing main().
 
-    The script lives outside any Python package so we load it as a
-    file-based module. This pattern is mirrored across other
-    ``tests/scripts/test_<script>.py`` files.
+    P6 (scripts taxonomy, 2026-05-09) relocated the implementation
+    to ``src/splunk_uc/audits/action_pins.py`` with a thin shim at
+    the original ``scripts/audit_action_pins.py`` path. Tests that
+    monkeypatch module-level state (``Path``, ``__file__``,
+    ``resolve_tag_sha``) MUST reach the implementation module so
+    the patches propagate into the function closures — patching
+    the shim only mutates its local re-export. The legacy
+    spec-loader path is preserved as a deliberate fallback for an
+    unpacked sdist that lost the ``src/`` tree.
     """
+    if str(SRC_DIR) not in sys.path:
+        sys.path.insert(0, str(SRC_DIR))
+    try:
+        import splunk_uc.audits.action_pins as impl
+
+        return impl
+    except ImportError:
+        pass
     spec = importlib.util.spec_from_file_location("audit_action_pins", SCRIPT_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -253,7 +268,11 @@ def test_main_exit_zero_when_all_match(
 
     monkeypatch.setattr(aap, "resolve_tag_sha", fake_resolve)
     monkeypatch.setattr(aap, "Path", _PathLike(workflow_tree))
-    monkeypatch.setattr(aap, "__file__", str(workflow_tree / "scripts" / "audit_action_pins.py"))
+    monkeypatch.setattr(
+        aap,
+        "__file__",
+        str(workflow_tree / "src" / "splunk_uc" / "audits" / "action_pins.py"),
+    )
 
     rc = aap.main()
     out = capsys.readouterr().out
@@ -276,7 +295,11 @@ def test_main_exit_one_on_real_mismatch(
 
     monkeypatch.setattr(aap, "resolve_tag_sha", fake_resolve)
     monkeypatch.setattr(aap, "Path", _PathLike(workflow_tree))
-    monkeypatch.setattr(aap, "__file__", str(workflow_tree / "scripts" / "audit_action_pins.py"))
+    monkeypatch.setattr(
+        aap,
+        "__file__",
+        str(workflow_tree / "src" / "splunk_uc" / "audits" / "action_pins.py"),
+    )
 
     rc = aap.main()
     out = capsys.readouterr().out
@@ -297,7 +320,11 @@ def test_main_exit_zero_on_transient_only(
 
     monkeypatch.setattr(aap, "resolve_tag_sha", always_rate_limit)
     monkeypatch.setattr(aap, "Path", _PathLike(workflow_tree))
-    monkeypatch.setattr(aap, "__file__", str(workflow_tree / "scripts" / "audit_action_pins.py"))
+    monkeypatch.setattr(
+        aap,
+        "__file__",
+        str(workflow_tree / "src" / "splunk_uc" / "audits" / "action_pins.py"),
+    )
 
     rc = aap.main()
     out = capsys.readouterr().out
@@ -321,7 +348,11 @@ def test_main_exit_one_on_404(
 
     monkeypatch.setattr(aap, "resolve_tag_sha", resolve_or_404)
     monkeypatch.setattr(aap, "Path", _PathLike(workflow_tree))
-    monkeypatch.setattr(aap, "__file__", str(workflow_tree / "scripts" / "audit_action_pins.py"))
+    monkeypatch.setattr(
+        aap,
+        "__file__",
+        str(workflow_tree / "src" / "splunk_uc" / "audits" / "action_pins.py"),
+    )
 
     rc = aap.main()
     out = capsys.readouterr().out
@@ -351,18 +382,31 @@ class _PathLike:
 
 class _StubPath:
     """Minimal pathlib-compatible facade that pretends ``__file__`` lives
-    inside the fixture repo so ``Path(__file__).resolve().parents[1]``
+    inside the fixture repo so ``Path(__file__).resolve().parents[N]``
     yields the fixture root, not the real repo.
+
+    P6 (scripts taxonomy, 2026-05-09) moved the audit body from
+    ``scripts/audit_action_pins.py`` (depth 1) to
+    ``src/splunk_uc/audits/action_pins.py`` (depth 3). The
+    implementation now reads ``parents[3]``; the stub exposes all
+    four parent levels so the test continues to redirect into the
+    synthetic ``workflow_tree``.
     """
 
     def __init__(self, repo_root: Path, _path: str):
         self._repo_root = repo_root
-        self._path = repo_root / "scripts" / "audit_action_pins.py"
+        self._path = repo_root / "src" / "splunk_uc" / "audits" / "action_pins.py"
 
-    def resolve(self) -> "_StubPath":
+    def resolve(self) -> _StubPath:
         return self
 
     @property
     def parents(self) -> list[Path]:
-        # parents[0] = scripts/ ; parents[1] = repo root.
-        return [self._repo_root / "scripts", self._repo_root]
+        # parents[0] = audits/, parents[1] = splunk_uc/,
+        # parents[2] = src/, parents[3] = repo root.
+        return [
+            self._repo_root / "src" / "splunk_uc" / "audits",
+            self._repo_root / "src" / "splunk_uc",
+            self._repo_root / "src",
+            self._repo_root,
+        ]

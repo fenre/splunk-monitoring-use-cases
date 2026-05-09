@@ -4,7 +4,7 @@ The catalogue is huge (6,424 UCs, ~855 KB index), so we intentionally use
 the *live* ``api/v1`` tree shipped in this repository whenever the test
 is concerned with real-world shapes. That keeps the tests honest and
 avoids drift between fixtures and reality — the CI drift guard
-(``scripts/audit_mcp_tool_schemas.py``) runs against the same data.
+(``python -m splunk_uc audit-mcp-tool-schemas``) runs against the same data.
 
 For edge-case tests that require a missing or malformed endpoint, the
 ``synthetic_catalog_root`` fixture builds a tiny fake ``api/v1`` tree on

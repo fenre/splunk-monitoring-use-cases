@@ -1894,7 +1894,7 @@ account team for capacity additions.
 ### Splunk
 
 - [Splunk Workload Pricing](https://www.splunk.com/en_us/products/pricing/workload-pricing-faqs.html)
-- [Splunk License Master docs](https://docs.splunk.com/Documentation/Splunk/latest/Admin/Configurelicensepoolswithlicensemanager)
+- [Splunk Enterprise admin docs (license manager and pools)](https://docs.splunk.com/Documentation/Splunk/latest/Admin)
 - [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 - [Splunk MLTK](https://splunkbase.splunk.com/app/2890)
 

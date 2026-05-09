@@ -135,10 +135,13 @@ jobs:
         run: pip install pytest pytest-cov pytest-asyncio && pytest tests/build/ -v --cov=tools.build --cov-report=term-missing
 
       - name: UC ID uniqueness and ordering
-        run: python3 scripts/audit_uc_ids.py --warn-gaps
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-uc-ids --warn-gaps
 
       - name: UC structure validation (full scan)
-        run: python3 scripts/audit_uc_structure.py --full
+        # P6 (scripts taxonomy, 2026-05-09): routed through the
+        # ``python -m splunk_uc`` dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-uc-structure --full
 
       - name: SPL grammar linter
         # Flags invalid SPL patterns that the hallucination audit can't
@@ -146,29 +149,46 @@ jobs:
         # post-timechart field references, case() with literal wildcards,
         # unbounded join subsearches, etc.). Hardens against regressions
         # surfaced in reports/quality-review/2026-04-18.md.
-        run: python3 scripts/audit_spl_grammar.py --check
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-spl-grammar --check
 
       - name: SPL hallucination audit
         # Flags fabricated command names, non-existent macros, and other
         # LLM-generated SPL that looks plausible but will fail at search
         # time. Runs after the grammar linter so only semantically
         # suspicious patterns are surfaced.
-        run: python3 scripts/audit_spl_hallucinations.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-spl-hallucinations
 
       - name: Design doc freshness
-        run: python3 scripts/audit_design_doc_freshness.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-design-doc-freshness
 
       - name: Regulatory primer freshness
-        run: python3 scripts/audit_regulatory_primer.py --strict
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-regulatory-primer --strict
 
       - name: Splunkbase ID audit (informational)
-        run: python3 scripts/audit_splunkbase_ids.py || true
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-splunkbase-ids || true
 
       - name: Schema metadata validation
         run: python3 tools/audits/schema_meta.py
 
       - name: Asset drift (inline blocks vs src/)
         run: python3 tools/audits/asset_drift.py
+
+      - name: splunk_uc CLI dispatcher smoke
+        # P6 (scripts taxonomy, 2026-05-09): the unified
+        # ``python -m splunk_uc <verb>`` dispatcher is the canonical
+        # entry point for migrated audits + generators. This smoke
+        # gate fails the PR if the package skeleton breaks (missing
+        # ``__init__.py``, registry-import error, dead verb registration,
+        # version-read regression). It is intentionally fast — sub-second
+        # — so it sits in the per-PR lane rather than the nightly job.
+        run: |
+          PYTHONPATH=src python3 -m splunk_uc --help
+          PYTHONPATH=src python3 -m splunk_uc --version
 
       - name: Audit — schema diff
         if: always()
@@ -201,42 +221,51 @@ jobs:
         # Rejects TODO/FIXME/TBD markers, literal "..." inside SPL,
         # generic "control theme N" titles, editorial section headers,
         # blank known-FP stubs, and other scaffolding artefacts.
-        run: python3 scripts/audit_placeholders.py --check
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-placeholders --check
 
       - name: MITRE ATT&CK taxonomy
         # Enforces that MITRE ATT&CK fields contain only Txxxx/TAxxxx
         # tokens. Rejects CVE IDs, URLs, parenthetical prose, and free
         # text that leaked in from mirrored ESCU content.
-        run: python3 scripts/audit_mitre_taxonomy.py --check
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-mitre-taxonomy --check
 
       - name: Monitoring-type policy
         # Flags unknown monitoring-type tokens and security UCs with
         # MITRE ATT&CK mappings that are missing the Security tag.
-        run: python3 scripts/audit_monitoring_type.py --check
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-monitoring-type --check
 
       - name: CIM ↔ SPL alignment
         # Validates that CIM Models declarations use canonical spellings
         # and that any datamodel= references in CIM SPL blocks match the
         # declared models.
-        run: python3 scripts/audit_cim_spl_alignment.py --check
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-cim-spl-alignment --check
 
       - name: Known false positives hygiene
         # Rejects `|` pipe stubs and empty/placeholder values in the
         # Known false positives field — artefacts from bulk imports that
         # leave noise-review guidance missing.
-        run: python3 scripts/audit_known_fp.py --check
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-known-fp --check
 
       - name: Non-technical view sync
-        run: python3 scripts/audit_non_technical_sync.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-non-technical-sync
 
       - name: CHANGELOG and cross-references
-        run: python3 scripts/audit_changelog_uc_refs.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-changelog-uc-refs
 
       - name: Repository consistency
-        run: python3 scripts/audit_repo_consistency.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-repo-consistency
 
       - name: Catalog schema validation
-        run: python3 scripts/audit_catalog_schema.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-catalog-schema
 
       # Roadmap / license-inventory / metrics-history / stewardship-digest
       # audits — parallel-author work in flight. The four steps that go
@@ -253,7 +282,7 @@ jobs:
 
       - name: Prerequisite graph audit (wave / pre)
         # Hard CI gate on the UC implementation-ordering graph encoded in
-        # catalog.json. scripts/audit_prerequisites.py walks every UC's
+        # catalog.json. ``audit-prerequisites`` walks every UC's
         # ``pre`` list, asserts all referenced ids exist and match the
         # UC-X.Y.Z grammar, rejects self-references and duplicates, runs
         # iterative DFS over the forward graph to detect cycles, and warns
@@ -262,7 +291,7 @@ jobs:
         # reports/prerequisites-audit.json so a forgotten regeneration,
         # hand-edited report, or drift between catalog.json and the
         # committed report all fail CI.
-        run: python3 scripts/audit_prerequisites.py --check
+        run: PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check
 
       - name: Compliance mapping audit (schema + regulations + golden + baseline)
         # Validates every content/cat-*/UC-*.json sidecar against
@@ -279,31 +308,35 @@ jobs:
         # ``compliance[].clause`` string is now a hard error that blocks
         # merges outright.  Only ``equipment-orphan`` remains baselineable;
         # the goal is to keep that backlog shrinking until it hits zero too.
-        run: python3 scripts/audit_compliance_mappings.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-compliance-mappings
 
       - name: Compliance audit — baseline drift guard (Phase F)
         # Phase F of the regulation-coverage-gap plan.  Double-checks that
         # no ``clause-grammar`` fingerprint has been re-introduced into
         # tests/golden/audit-baseline.json.  Even if a future contributor
         # re-adds ``clause-grammar`` to BASELINEABLE_CODES in
-        # scripts/audit_compliance_mappings.py, this step would still fail
-        # CI on any baselined malformed clause.  Belt-and-braces for the
-        # "new malformed clauses are rejected outright" invariant.
+        # src/splunk_uc/audits/compliance_mappings.py, this step would still
+        # fail CI on any baselined malformed clause.  Belt-and-braces for
+        # the "new malformed clauses are rejected outright" invariant.
         #
         # Fingerprints produced by
-        # ``scripts/audit_compliance_mappings.py::Finding.fingerprint``
+        # ``src/splunk_uc/audits/compliance_mappings.py::Finding.fingerprint``
         # are tab-separated: ``<code>\t<uc_id>\t<path>\t<message>``.
-        run: python3 scripts/audit_baseline_clause_grammar_free.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-baseline-clause-grammar-free
 
       - name: Regulation field alignment (compliance[].regulation labels)
-        run: python3 scripts/audit_regulation_alignment.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-regulation-alignment
 
       - name: Compliance audit — generated reports committed
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: |
-          python3 scripts/audit_compliance_mappings.py
+          PYTHONPATH=src python3 -m splunk_uc audit-compliance-mappings
           STRUCTURAL=$(git diff --unified=0 -- reports/compliance-coverage.json docs/compliance-coverage.md | grep '^[+-]' | grep -v '^[+-]\{3\}' | grep -v 'generatedAt' | grep -v 'Generated:' || true)
           if [ -n "$STRUCTURAL" ]; then
-            echo "::error::Compliance audit reports are out of date — run scripts/audit_compliance_mappings.py and commit"
+            echo "::error::Compliance audit reports are out of date — run \`python -m splunk_uc audit-compliance-mappings\` (or \`make audit-compliance-mappings\`) and commit"
             git --no-pager diff --stat -- reports/compliance-coverage.json docs/compliance-coverage.md
             exit 1
           fi
@@ -445,7 +478,8 @@ jobs:
         # in CI logs. The --check flag is not used here to avoid blocking PRs
         # on existing content — it should be enabled per-subcategory as uplift
         # PRs land.
-        run: python3 scripts/audit_gold_profile.py --summary
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-gold-profile --summary
         continue-on-error: true
 
       - name: Markdown freshness check
@@ -504,7 +538,7 @@ jobs:
         run: python3 -m pytest mcp/tests -q --cov=splunk_uc_mcp --cov-report=term-missing --cov-fail-under=70
 
       - name: MCP tool schema drift guard
-        # Phase 6 deliverable. scripts/audit_mcp_tool_schemas.py
+        # Phase 6 deliverable. src/splunk_uc/audits/mcp_tool_schemas.py
         # exercises every MCP tool against the committed
         # api/v1/*.json tree and validates each response against
         # the tool's declared outputSchema. If someone renames a
@@ -516,7 +550,8 @@ jobs:
         # tool has descriptions + schemas, the slug regex set is
         # frozen, and api/v1/manifest.json still exposes the
         # endpoint URLs the remote-fallback catalogue depends on.
-        run: python3 scripts/audit_mcp_tool_schemas.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-mcp-tool-schemas
 
       # Splunk app generator (splunk-apps/) regeneration check —
       # REMOVED in v8.0.0. The Phase 1.8 ``scripts/generate_splunk_app.py``
@@ -570,7 +605,8 @@ jobs:
         # data/regulations.json commonClauses[].  CI runs --check so the
         # committed report can never drift from the UC sidecars / regulations
         # index it was generated from.
-        run: python3 scripts/audit_compliance_gaps.py --check
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-compliance-gaps --check
 
       - name: Phase 4.2 evidence-pack generator regeneration check
         # Phase 4.2 deliverable. scripts/generate_evidence_packs.py is the
@@ -619,27 +655,29 @@ jobs:
       # ------------------------------------------------------------------
 
       - name: Phase 4.5a peer-review signoff audit
-        # scripts/audit_peer_review_signoffs.py validates
+        # src/splunk_uc/audits/peer_review_signoffs.py validates
         # data/provenance/peer-review-signoffs.json against the signoff
         # schema and the semantic invariants documented in
         # docs/peer-review-guide.md (reviewer identity non-empty, UC
         # reference resolves, signoff_date is ISO-8601, git commit is a
         # valid 7+ char hex SHA, etc).  Exit 1 on any schema or
         # semantic violation.
-        run: python3 scripts/audit_peer_review_signoffs.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-peer-review-signoffs
 
       - name: Phase 4.5b legal-review signoff audit
-        # scripts/audit_legal_review_signoffs.py validates
+        # ``audit-legal-review-signoffs`` validates
         # data/provenance/legal-review-signoffs.json against the legal
         # review schema.  Enforces that every regulation with a
         # registered legal advisor has a recent signoff and that the
         # quoted clause language matches what is in data/regulations.json
         # at the pinned version.  Exit 1 on any schema or semantic
         # violation.
-        run: python3 scripts/audit_legal_review_signoffs.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-legal-review-signoffs
 
       - name: Phase 5.2 SME-review signoff audit
-        # scripts/audit_sme_review_signoffs.py validates
+        # ``audit-sme-review-signoffs`` validates
         # data/provenance/sme-signoffs.json against the SME review
         # schema (schemas/sme-review-signoff.schema.json) and the
         # semantic invariants documented in docs/sme-review-guide.md:
@@ -648,7 +686,8 @@ jobs:
         # review, fixtureReplayResult self-consistency, UC-sidecar
         # caveat mirroring, and fixture/evidence-pack path existence.
         # Exit 1 on any schema or semantic violation.
-        run: python3 scripts/audit_sme_review_signoffs.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-sme-review-signoffs
 
       - name: Phase 5.3 regulatory change-watch (hermetic)
         # scripts/audit_regulatory_change_watch.py --check validates
@@ -660,7 +699,8 @@ jobs:
         # entry's lastCheckedAt using the file's stalenessPolicy.
         # Hermetic: no network calls, safe for pull-request CI.
         # --fetch runs weekly in .github/workflows/regulatory-watch.yml.
-        run: python3 scripts/audit_regulatory_change_watch.py --check
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-regulatory-change-watch --check
 
       - name: Phase 5.4 signed provenance ledger regenerate (determinism)
         # scripts/generate_mapping_ledger.py --check rebuilds the ledger
@@ -676,7 +716,7 @@ jobs:
         run: python3 scripts/generate_mapping_ledger.py --check
 
       - name: Phase 5.4 signed provenance ledger audit
-        # scripts/audit_mapping_ledger.py validates the ledger against
+        # ``audit-mapping-ledger`` validates the ledger against
         # schemas/mapping-ledger.schema.json, recomputes the canonicalHash
         # for every entry, recomputes the merkleRoot over the sorted
         # leaves, and performs forward+reverse referential integrity
@@ -684,16 +724,18 @@ jobs:
         # signature.state='unsigned' (no --require-signature); release.yml
         # re-runs the audit with --require-signature --verify-signature
         # after stamping and Sigstore attestation.
-        run: python3 scripts/audit_mapping_ledger.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-mapping-ledger
 
       - name: Phase 4.5c sandbox validation gate
-        # scripts/audit_sandbox_validation.py walks every UC sidecar
+        # ``audit-sandbox-validation`` walks every UC sidecar
         # that declares a controlTest.fixtureRef, asserts the fixture
         # exists on disk and has both a positive and negative case
         # populated, and writes reports/sandbox-validation.json.  The
         # --check step re-runs the audit in memory and diffs against
         # the committed report so the CI fails on drift.
-        run: python3 scripts/audit_sandbox_validation.py --check
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-sandbox-validation --check
 
       - name: Phase 4.5c sandbox validation Node drift guard
         # Independent structural check: tests/sandbox/validate.test.mjs
@@ -732,7 +774,8 @@ jobs:
         # committed file.  --check re-runs the audit in memory and
         # diffs reports/oscal-roundtrip.json so any NIST schema drift,
         # regeneration miss, or hand-edit blocks merges.
-        run: python3 scripts/audit_oscal_roundtrip.py --check
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-oscal-roundtrip --check
 
       - name: Phase 4.5e OSCAL round-trip Node drift guard
         # tests/oscal/roundtrip.test.mjs uses @splunk-free ajv to
@@ -744,7 +787,7 @@ jobs:
         run: node --test tests/oscal/roundtrip.test.mjs
 
       - name: Pre-build dist/ for Phase 4.5f perf + a11y
-        # The Phase 4.5f budget list (scripts/audit_perf_a11y.py) reads
+        # The Phase 4.5f budget list (audit-perf-a11y) reads
         # ``dist/catalog.json``, ``dist/llms.txt`` and ``dist/llms-full.txt``
         # per ADR-0009 (P1 step 5c moved the SSOT artefacts under ``dist/``).
         # The main "Build check" step at the end of this workflow rebuilds
@@ -757,7 +800,7 @@ jobs:
         run: python3 tools/build/build.py --out dist
 
       - name: Phase 4.5f perf + a11y audit gate
-        # scripts/audit_perf_a11y.py enforces two dimensions: per-file
+        # audit-perf-a11y enforces two dimensions: per-file
         # byte budgets on critical-path + generated-data assets, and
         # axe-core v4 accessibility audits (WCAG 2.1 A + AA +
         # best-practice) run under jsdom against scorecard.html and
@@ -765,7 +808,8 @@ jobs:
         # unless allowlisted with peer review.  --check diffs the
         # regenerated report against reports/perf-a11y.json so drift
         # (over-budget file, new violation, stale report) fails CI.
-        run: python3 scripts/audit_perf_a11y.py --check
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-perf-a11y --check
 
       - name: Phase 4.5f perf + a11y Node drift guard
         # tests/a11y/perfa11y.test.mjs asserts
@@ -863,7 +907,8 @@ jobs:
         # guard: the audit already ran on the pre-build catalog, but
         # if the build re-derived a different graph (e.g. someone edited
         # the markdown without regenerating the report), this catches it.
-        run: python3 scripts/audit_prerequisites.py --check
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check
 
       - name: Quality metadata coverage (warn-only)
         # Reports coverage of References, Known false positives, Status,
@@ -871,7 +916,8 @@ jobs:
         # `build.py` so catalog.json is fresh.  Currently warn-only;
         # switch to --strict once the non-mandatory fields are broadly
         # populated (tracked by the Gold Standard roadmap, v5.2).
-        run: python3 scripts/audit_quality_metadata.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-quality-metadata
 
       - name: Splunk Cloud compatibility audit
         # Scans every UC's SPL and every packaged .conf for patterns that
@@ -879,13 +925,14 @@ jobs:
         # deprecated SPL, etc.).  Regenerates docs/splunk-cloud-compat.md
         # and test-results/splunk-cloud-compat.json.  Fails on any
         # severity=fail; warn-only results are surfaced in the job log.
-        run: python3 scripts/audit_splunk_cloud_compat.py
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-splunk-cloud-compat
 
       - name: Splunk Cloud audit — generated report is committed
         run: |
           CHANGED=$(git diff --name-only -- docs/splunk-cloud-compat.md)
           if [ -n "$CHANGED" ]; then
-            echo "::error::docs/splunk-cloud-compat.md is out of date — run scripts/audit_splunk_cloud_compat.py and commit"
+            echo "::error::docs/splunk-cloud-compat.md is out of date — run \`python -m splunk_uc audit-splunk-cloud-compat\` and commit"
             git --no-pager diff --stat -- docs/splunk-cloud-compat.md
             exit 1
           fi
@@ -919,8 +966,8 @@ jobs:
       - name: Upload prerequisite graph audit report
         # Implementation-ordering audit (wave/prereq graph).  Reviewers
         # can download this artifact to inspect the full dependency
-        # graph, wave distribution, and any warnings without
-        # re-running scripts/audit_prerequisites.py locally.
+        # graph, wave distribution, and any warnings without re-running
+        # ``python -m splunk_uc audit-prerequisites`` locally.
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

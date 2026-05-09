@@ -604,7 +604,7 @@ index=azure_stack_hci sourcetype="WinEventLog:Microsoft-Windows-FailoverClusteri
 Combines: UCS + NetApp ONTAP + Cisco Nexus + VMware. See:
 - UCS section above
 - [Storage Guide](storage-backup.md) for ONTAP
-- VMware section in [Virtualization Guide](virtualization-vmware.md)
+- VMware section in [VMware vSphere Guide](vmware-vsphere.md)
 
 ### FlashStack (Cisco + Pure + VMware)
 

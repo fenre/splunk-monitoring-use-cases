@@ -30,6 +30,7 @@ sourcetypes:
   - linux_audit
   - journald
 ta_versions: "9.x (recommended); supports Splunk Enterprise 9.0+ and Splunk Cloud"
+splunk_versions: "9.0, 9.1, 9.2, 9.3, 9.4 (current), 10.0+; Splunk Cloud (Victoria/Classic) supported"
 linux_distributions: "RHEL/CentOS/Rocky/Alma 7/8/9, Ubuntu 18.04/20.04/22.04/24.04 LTS, SUSE 12/15, Amazon Linux 2/2023, Oracle Linux 7/8/9, Debian 10/11/12"
 cross_products: [Splunk Enterprise Security, ITSI, Splunk Connect for Syslog (SC4S), CrowdStrike, Microsoft Defender for Linux, AIDE, OSquery]
 compliance_frameworks: [PCI-DSS, HIPAA, SOX-ITGC, ISO-27001, NIST-800-53, CIS-Linux, NIS2, DORA]

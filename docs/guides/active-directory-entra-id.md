@@ -33,6 +33,7 @@ sourcetypes:
   - o365:reporting
   - o365:exchange:auditlog
 ta_versions: "Splunk_TA_windows 8.x+; Splunk_TA_microsoft-cloudservices 5.x+; M365 add-on 4.x+"
+splunk_versions: "9.0, 9.1, 9.2, 9.3, 9.4 (current), 10.0+; Splunk Cloud (Victoria/Classic) supported"
 ad_versions: "Windows Server 2016, 2019, 2022, 2025"
 cross_products: [Windows Servers, Splunk Enterprise Security, Splunk ITSI, Splunk SOAR, Microsoft Defender for Identity, Microsoft Defender for Cloud Apps, BloodHound, PingCastle]
 compliance_frameworks: [NIST-800-53, PCI-DSS, HIPAA, SOX-ITGC, ISO-27001, CIS-AD, NIS2, DORA]

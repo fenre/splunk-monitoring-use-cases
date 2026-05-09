@@ -4,7 +4,10 @@
 >
 > **Audience:** Authors and reviewers of UC sidecars under `content/cat-22-regulatory-compliance/`. Also applicable to non-regulatory cat-22 categories where the author wants to lift quality to the same bar.
 
-The playbook is opinionated. It is the contract enforced by `scripts/audit_gold_profile_v2.py` and the reference for SME and AI-agent authoring sessions.
+The playbook is opinionated. It is the contract enforced by
+`python -m splunk_uc audit-gold-profile-v2`
+(implementation: `src/splunk_uc/audits/gold_profile_v2.py`)
+and the reference for SME and AI-agent authoring sessions.
 
 ---
 
@@ -121,7 +124,9 @@ When authoring a UC in that domain, the author pulls these facts from the pack a
 
 The pack is **reference material** — it is not auto-merged into UC sidecars. It exists so the catalogue is internally coherent (every Veeam-backed UC names "Veeam App for Splunk (Splunkbase 7312)", not three different spellings).
 
-The pack is also testable: `scripts/audit_gold_profile_v2.py --pack data/nis2-domain-packs.json` checks each NIS2 UC's `dataSources`/`app` against the pack and warns on drift.
+The pack is also testable:
+`python -m splunk_uc audit-gold-profile-v2 --pack data/nis2-domain-packs.json`
+checks each NIS2 UC's `dataSources`/`app` against the pack and warns on drift.
 
 ### 3.1 Domain-pack contents (NIS2 reference)
 
@@ -157,7 +162,7 @@ Each pack record is the source of truth for facts in that family. When authoring
 7. **Build `controlTest`** with a positive and negative narrative. Drop a `sample-data/uc-X.Y.Z-fixture.json` that exercises the positive case.
 8. **Validate**:
    - `python3 scripts/audit_gold_profile.py --files content/cat-22-regulatory-compliance/UC-22.2.{n}.json`
-   - `python3 scripts/audit_gold_profile_v2.py --files content/cat-22-regulatory-compliance/UC-22.2.{n}.json`
+   - `PYTHONPATH=src python3 -m splunk_uc audit-gold-profile-v2 --files content/cat-22-regulatory-compliance/UC-22.2.{n}.json`
    - `python3 scripts/audit_uc_structure.py --full`
 9. **Regenerate** dependent artifacts:
    - `python3 scripts/generate_equipment_tags.py` (writes `equipment[]` / `equipmentModels[]` from your prose)
@@ -180,7 +185,7 @@ The methodology above is regulation-agnostic. To apply it to DORA, GDPR, ISO 270
 | Build the domain packs | `data/{reg}-domain-packs.json` (use the NIS2 file as a template) | Author |
 | Wire up the source map | `data/{reg}-source-map.json` (regulation-text URLs, supervisory-authority URLs, certified-translation URLs) | Author |
 | Add the no-gap audit | `scripts/audit_{reg}_no_gap.py` (clone of `audit_nis2_no_gap.py`) | Author |
-| Update the gold-profile-v2 audit's regulation registry to include `{reg}` so it runs in CI | One-line change to `scripts/audit_gold_profile_v2.py` | Author |
+| Update the gold-profile-v2 audit's regulation registry to include `{reg}` so it runs in CI | One-line change to `src/splunk_uc/audits/gold_profile_v2.py` | Author |
 
 ### 5.2 Phase 1 — Anchor UC per domain pack
 
@@ -235,7 +240,7 @@ The NIS2 regulation was the first to undergo a full gold-standard uplift of all 
 
 ```bash
 # 1. Confirm the audit baseline — how many UCs fail today?
-python3 scripts/audit_gold_profile_v2.py --regulation NIS2
+PYTHONPATH=src python3 -m splunk_uc audit-gold-profile-v2 --regulation NIS2
 
 # 2. Confirm the domain packs exist and are complete
 python3 -c "import json; d=json.load(open('data/nis2-domain-packs.json')); print(len(d), 'packs')"
@@ -278,10 +283,10 @@ After each batch:
 
 ```bash
 # 1. Gold-profile-v2 — the target standard (must be 100/100 for all NIS2 UCs)
-python3 scripts/audit_gold_profile_v2.py --regulation NIS2
+PYTHONPATH=src python3 -m splunk_uc audit-gold-profile-v2 --regulation NIS2
 
 # 2. No-gap — confirms every obligation is still covered
-python3 scripts/audit_nis2_no_gap.py
+PYTHONPATH=src python3 -m splunk_uc audit-nis2-no-gap
 
 # 3. Fix any failures, re-run until clean
 ```
@@ -357,10 +362,11 @@ Use this checklist when starting a new regulation uplift. Copy the table into a 
 - Bar definition: `docs/gold-standard-template.md`
 - Profile schema: `schemas/uc-profile-gold.json`
 - Legacy audit: `scripts/audit_gold_profile.py`
-- Tightened audit: `scripts/audit_gold_profile_v2.py`
+- Tightened audit: `python -m splunk_uc audit-gold-profile-v2`
+  (implementation: `src/splunk_uc/audits/gold_profile_v2.py`)
 - NIS2 domain packs: `data/nis2-domain-packs.json`
 - NIS2 obligation matrix: `data/per-regulation/nis2-coverage-expansion.json`
 - NIS2 source map: `data/nis2-source-map.json`
-- NIS2 no-gap audit: `scripts/audit_nis2_no_gap.py`
+- NIS2 no-gap audit: `python -m splunk_uc audit-nis2-no-gap`
 - NIS2 scorecard: §8.4 of this document
 - Authoring rule: `.cursor/rules/gold-standard-authoring.mdc`

@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://splunk-monitoring-use-cases/schemas/v2/stewardship-digest.schema.json",
+  "title": "Stewardship Digest",
+  "description": "Weekly stewardship report. Snapshots release-over-release deltas in catalogue counts, quality-tier mix, coverage, leaderboard movers, plus open audit warnings and stale-UC review backlog. Emitted by scripts/generate_stewardship_digest.py and gated in CI by tests/scripts/test_generate_stewardship_digest.py against this schema. Repo-overhaul plan §P8 step 4.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "generatedAt",
+    "referenceDate",
+    "current",
+    "deltas",
+    "qualityShifts",
+    "coverageShifts",
+    "topMovers",
+    "auditWarnings",
+    "staleUseCases"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path to this schema file; included so editors and validators can locate the contract from the artefact alone."
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Schema version. Bump alongside any breaking change to this contract."
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Wall-clock time when the digest was generated. Reproducibility-friendly: caller passes --reference-date so a CI fixture run produces stable output."
+    },
+    "referenceDate": {
+      "type": "string",
+      "format": "date",
+      "description": "Logical 'as-of' date for staleness calculations. Defaults to today (UTC) but can be overridden via --reference-date for deterministic test fixtures."
+    },
+    "current": {
+      "$ref": "#/$defs/snapshotCounts",
+      "description": "Counts from the live dist/metrics.json (or --metrics input)."
+    },
+    "previous": {
+      "anyOf": [
+        {"$ref": "#/$defs/snapshotCounts"},
+        {"type": "null"}
+      ],
+      "description": "Counts from the prior release snapshot in data/metrics-history/. Null when this is the first release ever captured."
+    },
+    "deltas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["useCases", "categories", "subcategories", "regulations", "equipment"],
+      "properties": {
+        "useCases": {"type": "integer"},
+        "categories": {"type": "integer"},
+        "subcategories": {"type": "integer"},
+        "regulations": {"type": "integer"},
+        "equipment": {"type": "integer"}
+      },
+      "description": "Signed integer deltas (current - previous). Zeros across the board when previous is null."
+    },
+    "qualityShifts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current", "deltas"],
+      "properties": {
+        "current": {"$ref": "#/$defs/qualityTiers"},
+        "previous": {
+          "anyOf": [
+            {"$ref": "#/$defs/qualityTiers"},
+            {"type": "null"}
+          ]
+        },
+        "deltas": {"$ref": "#/$defs/qualityTiers"}
+      },
+      "description": "Gold/silver/bronze/none counts current vs. prior, and the signed deltas. Trends the headline quality story release over release."
+    },
+    "coverageShifts": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/coverageShift"},
+      "description": "Per-coverage-axis (compliance / mitreAttack / cimModels / equipment / escuDetections / escuRiskBased / prerequisites) the current and prior count + percentage and signed deltas."
+    },
+    "topMovers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["regulations", "mitreAttack", "cimModels", "equipment"],
+      "properties": {
+        "regulations": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {"$ref": "#/$defs/leaderboardMover"}
+        },
+        "mitreAttack": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {"$ref": "#/$defs/leaderboardMover"}
+        },
+        "cimModels": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {"$ref": "#/$defs/leaderboardMover"}
+        },
+        "equipment": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {"$ref": "#/$defs/leaderboardMover"}
+        }
+      },
+      "description": "Top 10 leaderboard entries sorted by absolute delta magnitude (descending), tie-broken alphabetically by name. Empty arrays when previous is null."
+    },
+    "auditWarnings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/auditWarning"},
+      "description": "Audits that exit 0 but emit WARN-level diagnostics (notably scripts/audit_roadmap_consistency.py soft-fails). Captured here so they cannot rot silently."
+    },
+    "staleUseCases": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thresholdDays", "count", "byCategory", "topStale"],
+      "properties": {
+        "thresholdDays": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Age in days above which a UC is considered stale. Default 180 (six months); configurable via --stale-threshold-days."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of UCs whose lastReviewed is older than thresholdDays."
+        },
+        "byCategory": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0},
+          "description": "Stale-UC counts keyed by category number (string-cast for JSON)."
+        },
+        "topStale": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {"$ref": "#/$defs/staleUseCase"},
+          "description": "Up to 20 oldest stale UCs (longest age first; tie-broken by UC id)."
+        }
+      },
+      "description": "Sidecar staleness rollup. Walks content/cat-*/UC-*.json and compares lastReviewed against referenceDate. UCs missing lastReviewed are treated as max-age stale so curators see them first."
+    }
+  },
+  "$defs": {
+    "snapshotCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "useCases", "categories", "subcategories", "regulations", "equipment"],
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+",
+          "description": "Catalogue version recorded in this snapshot."
+        },
+        "useCases": {"type": "integer", "minimum": 0},
+        "categories": {"type": "integer", "minimum": 0},
+        "subcategories": {"type": "integer", "minimum": 0},
+        "regulations": {"type": "integer", "minimum": 0},
+        "equipment": {"type": "integer", "minimum": 0}
+      }
+    },
+    "qualityTiers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gold", "silver", "bronze", "none"],
+      "properties": {
+        "gold": {"type": "integer"},
+        "silver": {"type": "integer"},
+        "bronze": {"type": "integer"},
+        "none": {"type": "integer"}
+      }
+    },
+    "coverageShift": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currentCount", "currentPercentage", "delta"],
+      "properties": {
+        "currentCount": {"type": "integer", "minimum": 0},
+        "currentPercentage": {"type": "number"},
+        "previousCount": {"type": "integer", "minimum": 0},
+        "previousPercentage": {"type": "number"},
+        "delta": {"type": "integer"},
+        "percentageDelta": {"type": "number"}
+      }
+    },
+    "leaderboardMover": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "currentCount", "previousCount", "delta"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "currentCount": {"type": "integer", "minimum": 0},
+        "previousCount": {"type": "integer", "minimum": 0},
+        "delta": {"type": "integer"}
+      }
+    },
+    "auditWarning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["audit", "severity", "message"],
+      "properties": {
+        "audit": {"type": "string", "minLength": 1},
+        "severity": {
+          "type": "string",
+          "enum": ["warn", "error"]
+        },
+        "message": {"type": "string", "minLength": 1}
+      }
+    },
+    "staleUseCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "category", "ageDays"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "title": {"type": "string", "minLength": 1},
+        "category": {
+          "type": "string",
+          "description": "Category number as a string for JSON-safety."
+        },
+        "lastReviewed": {
+          "anyOf": [
+            {"type": "string", "format": "date"},
+            {"type": "null"}
+          ],
+          "description": "Null when the sidecar omits lastReviewed entirely; in that case ageDays is treated as 'maximum' so the UC bubbles to the top of topStale."
+        },
+        "ageDays": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Days since lastReviewed (or since referenceDate when lastReviewed is null, treated as +infinity then capped via sentinel)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["verified", "community", "draft", "unknown"]
+        }
+      }
+    }
+  }
+}

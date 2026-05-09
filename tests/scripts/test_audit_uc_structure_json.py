@@ -8,6 +8,7 @@ The tests do not invoke the audit as a subprocess; they import the
 function directly so failures are pinpoint and the suite stays under
 1 second.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -18,13 +19,29 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "audit_uc_structure.py"
+SRC_DIR = REPO_ROOT / "src"
 
 
 @pytest.fixture(scope="module")
 def audit():
-    spec = importlib.util.spec_from_file_location(
-        "audit_uc_structure", SCRIPT
-    )
+    """Load the audit module under test.
+
+    P6 (scripts taxonomy, 2026-05-09): the audit body now lives at
+    src/splunk_uc/audits/uc_structure.py with a thin shim at the
+    original scripts/ path. Importing the implementation module
+    directly keeps tests aligned with the rest of the migrated
+    suite. The legacy spec-loader path is preserved as a fallback
+    for an unpacked sdist that lost the src/ tree.
+    """
+    if str(SRC_DIR) not in sys.path:
+        sys.path.insert(0, str(SRC_DIR))
+    try:
+        import splunk_uc.audits.uc_structure as impl
+
+        return impl
+    except ImportError:
+        pass
+    spec = importlib.util.spec_from_file_location("audit_uc_structure", SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules.setdefault("audit_uc_structure", module)

@@ -1134,11 +1134,11 @@ A: Use UC-13.1's Splunk on Splunk dashboards + the `predict` SPL command for lic
 
 | Resource | URL |
 |----------|-----|
-| Monitoring Console docs | [docs.splunk.com/Documentation/Splunk/latest/DMC/MonitoringConsoleoverview](https://docs.splunk.com/Documentation/Splunk/latest/DMC/MonitoringConsoleoverview) |
+| Monitoring Console docs | [docs.splunk.com/Documentation/Splunk/latest/DMC](https://docs.splunk.com/Documentation/Splunk/latest/DMC) |
 | Splunk Validated Architectures | [www.splunk.com/en_us/pdfs/tech-brief/splunk-validated-architectures.pdf](https://www.splunk.com/pdfs/tech-brief/splunk-validated-architectures.pdf) |
 | Splunk Add-on for Splunk (Splunkbase 4055) | [splunkbase.splunk.com/app/4055](https://splunkbase.splunk.com/app/4055) |
 | Splunk on Splunk app | [splunkbase.splunk.com/app/748](https://splunkbase.splunk.com/app/748) |
-| Splunk Cloud Monitoring Console | [docs.splunk.com/Documentation/SplunkCloud/latest/Admin/MonitorClassicScloud](https://docs.splunk.com/Documentation/SplunkCloud/latest/Admin/MonitorClassicScloud) |
+| Splunk Cloud Monitoring Console | [docs.splunk.com/Documentation/SplunkCloud/latest/Admin](https://docs.splunk.com/Documentation/SplunkCloud/latest/Admin) |
 | Splunk Lantern - Platform monitoring | [lantern.splunk.com](https://lantern.splunk.com) (search "monitoring console") |
 
 ---

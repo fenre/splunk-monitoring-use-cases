@@ -1,11 +1,29 @@
 .PHONY: build serve clean audit audit-full audit-ntv audit-all audit-structure \
        audit-cim audit-links audit-consistency audit-perf audit-placeholders \
        audit-mitre audit-gold audit-spl-duplicates audit-spl-grammar audit-ids \
-       audit-monitoring-type inventory manifest test test-unit help
+       audit-spl-hallucinations audit-splunk-cloud-compat \
+       audit-monitoring-type audit-roadmap export-roadmap audit-license-inventory \
+       write-license-inventory audit-metrics-snapshot snapshot-metrics \
+       audit-regulation-alignment audit-nis2-no-gap audit-oscal \
+       audit-regulatory-change-watch \
+       audit-compliance-gaps audit-compliance-mappings \
+       audit-doc-counts audit-openapi-drift audit-content-quality \
+       audit-baseline-clause-grammar-free audit-peer-review-signoffs \
+       audit-mcp-tool-schemas \
+       stewardship-digest audit-reproducibility audit-reproducibility-fast \
+       splunk-uc splunk-uc-help \
+       inventory manifest test test-unit help
 
 PYTHON ?= python3
 BUILD  := $(PYTHON) tools/build/build.py --out dist
 DIST   := dist
+
+# P6 (scripts taxonomy, 2026-05-09): the dispatcher lives under
+# src/splunk_uc/. Until the package is editable-installed, we put
+# src/ on PYTHONPATH on demand. Both ``python3 -m splunk_uc <verb>``
+# and the legacy ``python3 scripts/<name>.py`` shims work; this
+# variable is the canonical way Makefile targets reach the new CLI.
+SPLUNK_UC := PYTHONPATH=src $(PYTHON) -m splunk_uc
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -29,46 +47,138 @@ audit: audit-structure audit-cim audit-consistency ## Run core audit checks
 audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
-	$(PYTHON) scripts/audit_uc_structure.py --full
+	$(SPLUNK_UC) audit-uc-structure --full
 
 audit-cim: ## Audit CIM ↔ SPL alignment
-	$(PYTHON) scripts/audit_cim_spl_alignment.py
+	$(SPLUNK_UC) audit-cim-spl-alignment
 
 audit-links: ## Check HTTP(S) URLs in UC references (network required)
-	$(PYTHON) scripts/audit_links.py
+	$(SPLUNK_UC) audit-links
 
 audit-consistency: ## Audit repo consistency (enrichment, INDEX, HTML)
-	$(PYTHON) scripts/audit_repo_consistency.py
+	$(SPLUNK_UC) audit-repo-consistency
 
 audit-perf: ## Performance + accessibility budget check
-	$(PYTHON) scripts/audit_perf_a11y.py
+	$(SPLUNK_UC) audit-perf-a11y
 
 audit-placeholders: ## Detect placeholder/scaffolded content
-	$(PYTHON) scripts/audit_placeholders.py
+	$(SPLUNK_UC) audit-placeholders
 
 audit-mitre: ## Validate MITRE ATT&CK taxonomy
-	$(PYTHON) scripts/audit_mitre_taxonomy.py
+	$(SPLUNK_UC) audit-mitre-taxonomy
 
 audit-gold: ## Gold standard quality profile audit
-	$(PYTHON) scripts/audit_gold_profile.py
+	$(SPLUNK_UC) audit-gold-profile
 
 audit-ntv:
-	$(PYTHON) scripts/audit_non_technical_sync.py
+	$(SPLUNK_UC) audit-non-technical-sync
 
 audit-all: audit audit-ntv audit-gold
 	@echo "All audit checks passed"
 
 audit-spl-duplicates: ## Find duplicate SPL queries across UCs
-	$(PYTHON) scripts/audit_spl_duplicates.py
+	$(SPLUNK_UC) audit-spl-duplicates
 
 audit-spl-grammar: ## Check SPL grammar issues
-	$(PYTHON) scripts/audit_spl_grammar.py
+	$(SPLUNK_UC) audit-spl-grammar
+
+audit-spl-hallucinations: ## Detect SPL hallucinations (unknown commands, bad CIM datasets)
+	$(SPLUNK_UC) audit-spl-hallucinations
+
+audit-splunk-cloud-compat: ## Audit SPL + content packs for Splunk Cloud compatibility
+	$(SPLUNK_UC) audit-splunk-cloud-compat
 
 audit-ids: ## Validate UC IDs (duplicates, ordering, category match)
-	$(PYTHON) scripts/audit_uc_ids.py
+	$(SPLUNK_UC) audit-uc-ids
 
 audit-monitoring-type: ## Validate monitoringType values and MITRE consistency
-	$(PYTHON) scripts/audit_monitoring_type.py
+	$(SPLUNK_UC) audit-monitoring-type
+
+audit-regulation-alignment: ## Lint compliance[].regulation against data/regulations.json
+	$(SPLUNK_UC) audit-regulation-alignment
+
+audit-nis2-no-gap: ## Validate the NIS2 no-gap obligation matrix and per-UC traceability
+	$(SPLUNK_UC) audit-nis2-no-gap
+
+audit-oscal: ## NIST OSCAL component-definition schema + canonical-byte gate
+	$(SPLUNK_UC) audit-oscal-roundtrip --check
+
+audit-regulatory-change-watch: ## Hermetic regulatory change-watch ledger audit (no network)
+	$(SPLUNK_UC) audit-regulatory-change-watch --check
+
+audit-compliance-gaps: ## Per-regulation clause-level gap analysis (--check ensures no drift)
+	$(SPLUNK_UC) audit-compliance-gaps --check
+
+audit-compliance-mappings: ## Validate compliance[] mappings + golden tuple gate + coverage metrics
+	$(SPLUNK_UC) audit-compliance-mappings
+
+audit-doc-counts: ## Cross-check numeric claims (UC counts) in AGENTS.md and docs/ vs actual content
+	$(SPLUNK_UC) audit-doc-counts
+
+audit-openapi-drift: ## Flag dist/api/ paths missing from openapi.yaml / api/v1/openapi.yaml
+	$(SPLUNK_UC) audit-openapi-drift
+
+audit-content-quality: ## Flag description==value, jargon in grandmaExplanation, broken fixtureRefs
+	$(SPLUNK_UC) audit-content-quality
+
+audit-baseline-clause-grammar-free: ## Refuse `clause-grammar` fingerprints in audit-baseline.json
+	$(SPLUNK_UC) audit-baseline-clause-grammar-free
+
+audit-peer-review-signoffs: ## Phase 4.5a peer-review gate (schema + semantic invariants)
+	$(SPLUNK_UC) audit-peer-review-signoffs
+
+audit-mcp-tool-schemas: ## Drift guard: MCP tool surface vs api/v1/* + outputSchema runtime probes
+	$(SPLUNK_UC) audit-mcp-tool-schemas
+
+audit-gold-profile-v2: ## Gold-standard v2 audit (SPL provenance, KFP, suppressions)
+	$(SPLUNK_UC) audit-gold-profile-v2
+
+audit-prerequisites: ## Validate UC prerequisite graph (cycles, unknown IDs, wave monotonicity)
+	$(SPLUNK_UC) audit-prerequisites --check
+
+audit-sandbox-validation: ## Audit sample-data/ fixture coverage and shape vs UC controlTest blocks
+	$(SPLUNK_UC) audit-sandbox-validation --check
+
+audit-sme-review-signoffs: ## Validate data/provenance/sme-signoffs.json (schema + cross-references)
+	$(SPLUNK_UC) audit-sme-review-signoffs
+
+audit-mapping-ledger: ## Validate data/provenance/mapping-ledger.json (schema + hash chain + integrity)
+	$(SPLUNK_UC) audit-mapping-ledger
+
+audit-roadmap: ## Validate ROADMAP.md structure + repo-relative links
+	$(SPLUNK_UC) audit-roadmap-consistency --check
+
+export-roadmap: ## Emit a Project-board JSON snapshot of ROADMAP.md
+	$(SPLUNK_UC) audit-roadmap-consistency --export reports/roadmap-export.json
+
+audit-license-inventory: ## Validate dependency licenses against allowlist
+	$(SPLUNK_UC) audit-license-inventory --check
+
+write-license-inventory: ## Regenerate data/license-inventory.json baseline
+	$(SPLUNK_UC) audit-license-inventory --write
+
+audit-metrics-snapshot: ## Ensure release-time metrics snapshot exists
+	$(PYTHON) scripts/snapshot_metrics.py --check
+
+snapshot-metrics: ## Write data/metrics-history/<VERSION>.json from dist/metrics.json
+	$(PYTHON) scripts/snapshot_metrics.py --write
+
+stewardship-digest: ## Generate dist/stewardship-digest.{json,md}
+	$(PYTHON) scripts/generate_stewardship_digest.py
+
+audit-reproducibility: ## Two consecutive --reproducible builds must match (~90s)
+	$(SPLUNK_UC) audit-reproducibility
+
+audit-reproducibility-fast: ## Single --reproducible build smoke (~30s)
+	$(SPLUNK_UC) audit-reproducibility --first-build-only
+
+# --- splunk_uc dispatcher (P6) ---
+
+splunk-uc: ## Show the splunk_uc CLI help (alias for `splunk-uc-help`)
+	@$(SPLUNK_UC) --help
+
+splunk-uc-help: ## Show the splunk_uc CLI help
+	@$(SPLUNK_UC) --help
 
 # --- Data generation ---
 

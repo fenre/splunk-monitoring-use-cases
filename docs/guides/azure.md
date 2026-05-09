@@ -22,6 +22,7 @@ sourcetypes:
   - mscs:resource
   - mscs:storage:blob
 ta_versions: "5.x or later (recommended); 4.x supported"
+splunk_versions: "9.0, 9.1, 9.2, 9.3, 9.4 (current), 10.0+; Splunk Cloud (Victoria/Classic) supported"
 azure_services_covered: 60+
 cross_products: [Splunk Enterprise Security, Splunk ITSI, Splunk SOAR, Splunk Observability Cloud, Microsoft Sentinel, Microsoft Defender]
 compliance_frameworks: [PCI-DSS, HIPAA, SOX-ITGC, ISO-27001, NIST-800-53, CIS-Azure, NIS2, DORA]

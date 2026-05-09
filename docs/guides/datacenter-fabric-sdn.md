@@ -220,13 +220,13 @@ Calico CNI policy).
 | Domain | Where to look |
 |---|---|
 | Edge campus switching | [Cisco Catalyst Center Guide](catalyst-center.md) |
-| Wireless LAN | [Wireless Infrastructure Guide](wireless.md) |
-| Edge / branch SD-WAN | [Cisco SD-WAN Guide](cisco-sdwan.md) |
+| Wireless LAN | [Wireless Infrastructure Guide](wireless-infrastructure.md) |
+| Edge / branch SD-WAN | [SD-WAN & Network Management Guide](sd-wan-network-management.md) |
 | Network Access Control | [VPN / NAC / Zero Trust / SASE Guide](vpn-zerotrust-sase.md) |
 | Cloud-native networking (AWS VPC, Azure VNet, GCP VPC) | [AWS](aws.md) / [Azure](azure.md) / [GCP](gcp.md) guides |
-| Container platform health (vs. CNI) | [Container Platforms Guide](container-platforms.md) |
+| Container platform health (vs. CNI) | [Container Platforms Guide](container-platforms-docker-openshift.md) |
 | Application traffic (L4-L7 LB, WAF) | [Application Servers Guide](application-servers.md) |
-| Fabric storage networking (FCoE, iSCSI) | [Storage Networking Guide](storage.md) |
+| Fabric storage networking (FCoE, iSCSI) | [Storage & Backup Guide](storage-backup.md) |
 
 ### Why monitor SDN in Splunk
 

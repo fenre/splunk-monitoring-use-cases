@@ -70,7 +70,10 @@ function loadRecommender() {
   sandbox.self = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(src, sandbox, { filename: 'recommender.js' });
-  return sandbox.window.__uc_recommender__;
+  return {
+    ...sandbox.window.__uc_recommender__,
+    helpers: sandbox.window.__uc_recommender_helpers__,
+  };
 }
 
 test('safeLinkHref accepts http, https, and mailto', () => {
@@ -162,4 +165,129 @@ test('matchUseCases tolerates inventory rows without matches', () => {
   // the shape instead of using deepEqual.
   assert.equal(res.length, 0);
   assert.equal(Array.isArray(res) || typeof res.length === 'number', true);
+});
+
+// Lock in the v9.x app-matcher behaviour: exact-match on the folder
+// name (`extras` field, populated by the saved-search inventory job
+// from `/services/apps/local::title`) outranks display-name fuzzy
+// matches. Regression test for the "Recommend tab shows nothing
+// despite Scan tab finding 90 apps" bug fixed in the v9.0 build.
+test('matchUseCases: exact match on folder-name (extras) outranks fuzzy display match', () => {
+  const { matchUseCases } = loadRecommender();
+  const indexes = {
+    sourcetypes: {},
+    cim: {},
+    apps: {
+      // Two ways the catalogue might list the same TA — folder name
+      // (high signal, exact) and a verbose display name (lower signal,
+      // fuzzy substring at best).
+      'Splunk_TA_paloalto': ['UC-FOLDER'],
+      'Splunk Add-on for Palo Alto Networks (2757)': ['UC-DISPLAY'],
+    },
+    thin: {
+      'UC-FOLDER': { id: 'UC-FOLDER', title: 'Folder', criticality: 'high' },
+      'UC-DISPLAY': { id: 'UC-DISPLAY', title: 'Display', criticality: 'medium' },
+    },
+  };
+  // Inventory row mirrors what the savedsearch produces:
+  //   name    = label (display)
+  //   extras  = title (folder slug, used for exact match)
+  const inventory = [
+    {
+      type: 'app',
+      name: 'Splunk Add-on for Palo Alto Networks',
+      extras: 'Splunk_TA_paloalto',
+    },
+  ];
+  const res = matchUseCases(inventory, indexes);
+  assert.ok(res.length >= 1, 'expected at least one match');
+  assert.equal(res[0].id, 'UC-FOLDER', 'folder-exact should outrank display-fuzzy');
+});
+
+// Verify the matcher silently drops garbage app-index keys that
+// somehow leak through the upstream filter — a defence-in-depth check.
+test('matchUseCases ignores unbalanced-paren garbage keys in apps', () => {
+  const { matchUseCases } = loadRecommender();
+  const indexes = {
+    sourcetypes: {},
+    cim: {},
+    apps: {
+      'Splunk_TA_nix': ['UC-OK'],
+      // These should never reach the matcher in v9.x but defence in
+      // depth — the JS-side ``looksLikeAppKey`` filter must drop them.
+      '(optional) Splunk_TA_nix for foo': ['UC-PROSE-1'],
+      'or equivalent firewall TA': ['UC-PROSE-2'],
+      'this use case requires a custom HEC poller (props': ['UC-PROSE-3'],
+    },
+    thin: {
+      'UC-OK': { id: 'UC-OK', title: 'OK', criticality: 'high' },
+      'UC-PROSE-1': { id: 'UC-PROSE-1', title: 'Bad1', criticality: 'high' },
+      'UC-PROSE-2': { id: 'UC-PROSE-2', title: 'Bad2', criticality: 'high' },
+      'UC-PROSE-3': { id: 'UC-PROSE-3', title: 'Bad3', criticality: 'high' },
+    },
+  };
+  const inventory = [
+    {
+      type: 'app',
+      name: '*nix',
+      extras: 'Splunk_TA_nix',
+    },
+  ];
+  const res = matchUseCases(inventory, indexes);
+  const ids = res.map((r) => r.id);
+  assert.ok(ids.includes('UC-OK'), 'real folder match must surface');
+  assert.equal(
+    ids.filter((id) => id.startsWith('UC-PROSE-')).length,
+    0,
+    'no UC sourced from a garbage key may surface',
+  );
+});
+
+test('looksLikeAppKey accepts canonical TA folder + display names', () => {
+  const { helpers } = loadRecommender();
+  assert.ok(helpers, 'helpers must be exposed');
+  assert.equal(helpers.looksLikeAppKey('Splunk_TA_nix'), true);
+  assert.equal(helpers.looksLikeAppKey('Splunk_TA_paloalto'), true);
+  assert.equal(helpers.looksLikeAppKey('splunk_app_db_connect'), true);
+  assert.equal(helpers.looksLikeAppKey('Splunk Add-on for AWS (1876)'), true);
+  assert.equal(helpers.looksLikeAppKey('Splunk Enterprise Security'), true);
+});
+
+test('looksLikeAppKey rejects unbalanced-paren prose fragments', () => {
+  const { helpers } = loadRecommender();
+  assert.equal(
+    helpers.looksLikeAppKey('this use case requires a custom HEC poller (props'),
+    false,
+  );
+  assert.equal(
+    helpers.looksLikeAppKey('Splunk Add-on for Salesforce (Splunk_TA_salesforce'),
+    false,
+  );
+  assert.equal(helpers.looksLikeAppKey('Wiz)'), false);
+});
+
+test('appNameTokens lowercases and drops short tokens', () => {
+  const { helpers } = loadRecommender();
+  // Tokens shorter than 3 chars are dropped; punctuation is split on.
+  const out = helpers.appNameTokens('Splunk Add-on for AWS (1876)');
+  assert.ok(out.includes('splunk'));
+  assert.ok(out.includes('add'));
+  assert.ok(out.includes('aws'));
+  assert.ok(out.includes('1876'));
+  // 'on' is 2-char so it's filtered. ``appNameTokens`` itself is a
+  // pure tokeniser; stop-word filtering happens inside matchUseCases
+  // (see ``matchUseCases respects APP_TOKEN_STOPWORDS`` test).
+  assert.ok(!out.includes('on'));
+});
+
+test('appNameTokens handles non-string inputs without throwing', () => {
+  const { helpers } = loadRecommender();
+  // VM-isolated arrays are not reference-equal to host []. Inspect
+  // length + Array shape instead.
+  const u = helpers.appNameTokens(undefined);
+  const n = helpers.appNameTokens(null);
+  const num = helpers.appNameTokens(42);
+  assert.equal(u.length, 0);
+  assert.equal(n.length, 0);
+  assert.equal(num.length, 0);
 });

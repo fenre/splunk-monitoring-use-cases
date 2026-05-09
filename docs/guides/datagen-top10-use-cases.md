@@ -1,6 +1,42 @@
+---
+title: Datagen setup guide — 10 representative use cases for Cribl Stream Datagen + EchoLake replay + Splunk HEC, demo + workshop + lab simulation
+type: tutorial
+domains: [Datagen, Lab, Demo, Workshop, Cribl, Eventgen]
+categories: [1, 3, 4, 5, 8, 9, 10, 13, 14, 22]
+product: Cribl Stream + Cribl Datagen + EchoLake (optional) + Splunk HEC + Splunk Universal Forwarder + Splunk Eventgen + scripted Python NDJSON generators
+product_aliases: [datagen, data generation, data simulation, synthetic data, test data, fake data, sample data, demo data, lab data, workshop data, eventgen, splunk eventgen, cribl, cribl stream, cribl edge, cribl logstream, cribl datagen, cribl pack, cribl pipeline, echolake, echo lake, log replay, NDJSON, HEC, splunk HEC, splunk HTTP event collector, manifest, manifest-top10, generate_manifest_samples, parse_uc_catalog, log family, sourcetype demo, demo sourcetype, catalog UC poc, POC, proof of concept, proof-of-concept, MVP, minimum viable product, sandbox, sandbox environment, lab environment, training environment, training, education, training data, learning environment]
+splunkbase_urls:
+  - https://splunkbase.splunk.com/app/1924
+indexes:
+  - catalog_uc_poc
+sourcetypes:
+  - catalog:syslog
+  - catalog:json:aws
+  - catalog:web
+  - catalog:k8s
+  - catalog:metrics
+  - catalog:ot
+  - catalog:json:edr
+  - catalog:json:iam
+  - catalog:json:compliance
+ta_versions: "Splunk Eventgen 8.x; Cribl Stream 4.x or 5.x"
+splunk_versions: "9.0, 9.1, 9.2, 9.3, 9.4 (current), 10.0+; Splunk Cloud Platform"
+cross_products: [Linux Servers (cat 1.1), Containers Kubernetes (cat 3.2), Cloud Infrastructure AWS (cat 4.1), Network BGP (cat 5.1), Application HTTP (cat 8.1), IAM AD (cat 9.1), Security EDR (cat 10.3), Splunk Platform Health (cat 13.1), IoT OT (cat 14.2), Compliance GDPR (cat 22.1)]
+maturity_tiers: {crawl: 10, walk: 0, run: 0}
+last_updated: 2026-05-09
+---
+
 # Datagen setup guide — 10 representative use cases
 
 This guide shows how to simulate **realistic, searchable** events for ten high-value use cases from this catalog using **Cribl Stream Datagen** (and optional [EchoLake](https://github.com/daveherrald/echolake) replay), with consistent fields for Splunk indexing and dashboard filtering.
+
+> **Audience:** SE / Solution Architect / Workshop Facilitator /
+> POC Engineer / Training Lead. Use this guide when you need to
+> demonstrate the catalogue without production data, run a hands-on
+> workshop, or validate a Splunk pipeline (HEC + props/transforms +
+> dashboards) without waiting for real ingest. Companion to
+> [eventgen_data/README.md](../../eventgen_data/README.md) and
+> [config/uc_to_log_family.json](../../config/uc_to_log_family.json).
 
 **Related repo files**
 
@@ -144,3 +180,171 @@ If you have **golden JSONL**, [EchoLake](https://github.com/daveherrald/echolake
 ## Script-only vs AI
 
 **No AI is required at runtime.** Cron, systemd, or CI can run generators and deploy steps. An LLM only speeds up **authoring** configs and samples.
+
+---
+
+## Architecture variants
+
+The same set of generators / samples can drive several deployment
+shapes depending on whether you want a self-contained lab, a
+shared workshop environment, or a CI-driven pipeline test.
+
+### Variant 1 — Local laptop demo (Cribl Stream → Splunk Cloud trial)
+
+- **Use case:** Solution Architect demo over Wi-Fi, partner workshop.
+- **Components:** Cribl Stream single-node + Splunk Cloud trial + HEC token.
+- **Volume:** ~1-10 EPS per UC (low cost, low impact).
+- **Setup time:** < 1 hour.
+- **Risk:** Network dependency between laptop and Splunk Cloud.
+
+### Variant 2 — Self-contained sandbox (Cribl Edge + Splunk Enterprise trial)
+
+- **Use case:** Air-gapped or offline lab; conference booth.
+- **Components:** Cribl Edge worker + Splunk Enterprise single-server trial,
+  both in Docker Compose or single VM.
+- **Volume:** 10-100 EPS per UC, scaled with worker resources.
+- **Setup time:** 2-4 hours (initial); rebuild < 30 min from snapshot.
+- **Risk:** Single point of failure; trial license expiry.
+
+### Variant 3 — Shared workshop (Cribl Stream cluster + Splunk Cloud)
+
+- **Use case:** Multi-user training; classroom of 20-30.
+- **Components:** Cribl Stream worker group (2-3 nodes) + Splunk Cloud
+  workshop tenant + per-user HEC tokens.
+- **Volume:** 100-1000 EPS aggregate.
+- **Setup time:** 4-8 hours; teardown < 1 hour.
+- **Risk:** Per-user RBAC discipline; cleanup of leftover data.
+
+### Variant 4 — CI pipeline test (GitHub Actions + ephemeral Splunk container)
+
+- **Use case:** Validate dashboard XML / SPL changes on every PR.
+- **Components:** GitHub Actions workflow + ephemeral Splunk container +
+  generate_manifest_samples.py + curl to HEC + dashboard health check.
+- **Volume:** Burst of 1k-10k events for 30s, then teardown.
+- **Setup time:** 4-8 hours initial; runs automatically on PR.
+- **Risk:** Container resource limits in GH Actions runner.
+
+### Variant 5 — Performance baseline (high-EPS load test)
+
+- **Use case:** Validate Splunk indexer throughput / props.conf
+  parsing performance / SPL alert latency under load.
+- **Components:** Multiple Cribl workers feeding parallel HEC ports.
+- **Volume:** 10k-100k EPS sustained.
+- **Setup time:** 1-2 days.
+- **Risk:** License burn; storage; index growth.
+
+---
+
+## Operating principles
+
+The 10 UCs here are deliberately small. Scaling beyond demo
+requires discipline:
+
+1. **Manifest-driven, not hand-edited.** Every UC has a manifest
+   row (`eventgen_data/manifest-top10.json`); update the manifest
+   first, regenerate samples second.
+2. **Log family = template grain, UC = label grain.** Dozens of
+   UCs share a syslog template; differentiate them via `uc_id` set
+   in Cribl Eval, not via separate template files.
+3. **Volume control via Throttle.** Cribl's Throttle function
+   keeps EPS predictable; otherwise a workshop becomes a noisy
+   neighbour.
+4. **Time discipline.** Cribl Datagen sets `_time` from internal
+   clock; verify NTP sync between Cribl + Splunk; avoid timezone
+   drift surprises in workshop dashboards.
+5. **No real PII.** Use `example.com` domains, `555` phone-number
+   range, fabricated SSNs (e.g. `000-00-XXXX`); apply a Cribl Mask
+   function as a second line of defence.
+6. **Cleanup.** Each UC should set `index=catalog_uc_poc` (not
+   `main`) so cleanup is `| delete index=catalog_uc_poc` after
+   the demo.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| HEC 401 | HEC token wrong / disabled | Recreate HEC token; verify `enableSSL` / `port` in inputs.conf |
+| HEC 400 | Malformed JSON / wrong sourcetype | Validate sample with `python -m json.tool`; pin `Content-Type: application/json` |
+| HEC 403 from Cribl | Cribl HEC destination URL has wrong path | Verify `/services/collector/raw` vs `/services/collector/event` |
+| `uc_id` not searchable in Splunk | Field-extraction missing | Add `EXTRACT-uc_id` to `props.conf` for the sourcetype |
+| All events `_time` = now | Generator not setting `_time` | Add `time_field` mapping in Cribl Datagen source; or ensure timestamp in sample |
+| Cribl Datagen too slow | Single worker | Add Cribl worker; reduce sample size |
+| Cribl Datagen too fast | EPS unbounded | Add Throttle function |
+| Splunk Cloud rejected events | Sourcetype not in allow-list | Use HEC's accepted sourcetypes only; or contact Splunk Cloud support |
+| Dashboards empty after import | Index name mismatch | Map dashboard `index=*` token to `index=catalog_uc_poc` |
+| GH Actions runner OOM | Splunk container > 6GB | Use Splunk Stream-only test or use external Splunk |
+| Mask function leaking real-looking PII | Pattern incomplete | Add additional patterns; review CSV samples |
+
+---
+
+## Cross-Product Integration
+
+| Other guide | Relationship |
+|---|---|
+| `cisco-networks.md` (cat 5.1) | Real BGP UC for production; here we generate synthetic BGP syslog |
+| `linux-servers.md` (cat 1.1) | Real kernel core dump UC; here we generate synthetic syslog |
+| `application-monitoring.md` (cat 7+8) | Real Apache UC; here we generate Apache combined log |
+| `cloud-monitoring.md` (cat 4) | Real AWS GuardDuty UC; here we generate finding JSON |
+| `security-monitoring.md` (cat 9+10+17) | Real EDR + IAM UCs; here we generate JSON |
+| `iot-ot.md` (cat 14) | Real OT process UC; here we generate JSON tag/value |
+| `compliance-business.md` (cat 22) | Real GDPR detection; here we generate fake-PII samples |
+| `splunk-platform-health.md` (cat 13) | Real `_internal` queue ratio; here we generate **demo** metrics |
+| `infrastructure-monitoring.md` | Domain master guide reference |
+
+---
+
+## References
+
+### Cribl
+
+- Cribl Stream — https://docs.cribl.io/stream/
+- Cribl Datagen Source — https://docs.cribl.io/stream/sources-datagens/
+- Use Datagens — https://docs.cribl.io/stream/datagens/
+- Splunk HEC Destination — https://docs.cribl.io/stream/destinations-splunk
+- Cribl Mask function — https://docs.cribl.io/stream/usage/functions/mask
+- Cribl Throttle function — https://docs.cribl.io/stream/usage/functions/throttle
+
+### Replay tools
+
+- EchoLake — https://github.com/daveherrald/echolake
+- Splunk Eventgen — https://splunkbase.splunk.com/app/1924
+- Faker (Python) — https://faker.readthedocs.io/
+- Locust (HEC load testing) — https://locust.io/
+
+### AWS sample formats
+
+- AWS GuardDuty findings — https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_finding_formats-active.html
+- AWS CloudTrail — https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-event-reference.html
+
+### Splunk HEC documentation
+
+- HEC overview — https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector
+- HEC `event` vs `raw` — https://docs.splunk.com/Documentation/Splunk/latest/RESTREF/RESTinput#services.2Fcollector
+- Splunk Cloud service docs (HEC limits, ingest quotas) — https://docs.splunk.com/Documentation/SplunkCloud/latest/Service
+
+### Repo artefacts
+
+- [eventgen_data/manifest-top10.json](../../eventgen_data/manifest-top10.json)
+- [eventgen_data/samples/](../../eventgen_data/samples/)
+- [scripts/generate_manifest_samples.py](../../scripts/generate_manifest_samples.py)
+- [scripts/parse_uc_catalog.py](../../scripts/parse_uc_catalog.py)
+- [config/uc_to_log_family.json](../../config/uc_to_log_family.json)
+- [.github/workflows/uc-manifest.yml](../../.github/workflows/uc-manifest.yml)
+- [eventgen_data/README.md](../../eventgen_data/README.md)
+- [dashboards/README.md](../../dashboards/README.md)
+- [scripts/deploy_dashboard_studio_rest.py](../../scripts/deploy_dashboard_studio_rest.py)
+
+---
+
+**Document maintenance.** Reviewed quarterly. Last verified
+against:
+- Splunk Enterprise 9.4
+- Splunk Cloud Platform (current)
+- Cribl Stream 4.10
+- Splunk HEC token format (current)
+- All sample files in `eventgen_data/samples/`
+
+For corrections or additions, file an issue with `datagen` label.
+

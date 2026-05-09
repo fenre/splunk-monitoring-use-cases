@@ -28,6 +28,7 @@ sourcetypes:
   - aws:inspector
   - aws:securityhub
 ta_versions: "7.x or later (recommended); 6.x supported"
+splunk_versions: "9.0, 9.1, 9.2, 9.3, 9.4 (current), 10.0+; Splunk Cloud (Victoria/Classic) supported"
 aws_services_covered: 50+
 cross_products: [Splunk Enterprise Security, Splunk ITSI, Splunk SOAR, Splunk Observability Cloud, Cribl Stream]
 compliance_frameworks: [PCI-DSS, HIPAA, SOX-ITGC, ISO-27001, NIST-800-53, CIS-AWS, AWS-Well-Architected, NIS2, DORA, FedRAMP]

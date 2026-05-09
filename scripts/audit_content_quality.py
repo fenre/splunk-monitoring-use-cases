@@ -1,75 +1,38 @@
 #!/usr/bin/env python3
-"""Content quality audit — flags description==value duplicates, jargon in grandmaExplanation,
-broken fixtureRefs, and implausible equipment tags."""
+"""Compatibility shim — delegates to ``splunk_uc.audits.content_quality``.
 
-import json, sys, pathlib, argparse
+The implementation moved under ``src/splunk_uc/audits/`` as part of
+the Phase 6 scripts taxonomy reorganisation. This shim keeps the
+historic ``scripts/audit_content_quality.py`` invocation alive while
+the new dispatcher (``python -m splunk_uc audit-content-quality``)
+becomes the primary entry-point.
+"""
 
-PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
-CONTENT_DIR = PROJECT_ROOT / "content"
-SAMPLE_DATA = PROJECT_ROOT / "sample-data"
+from __future__ import annotations
 
-JARGON_TERMS = ["tstats", "datamodel", "CIM", "sourcetype", "macro", "eval",
-                "rex", "lookup", "savedsearch", "props.conf", "transforms.conf"]
+import sys
+from pathlib import Path
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--baseline", type=str, help="Path to baseline file (existing violations to ignore)")
-    parser.add_argument("--generate-baseline", action="store_true", help="Output current violations as baseline JSON")
-    args = parser.parse_args()
-    
-    violations = []
-    
-    for uc_path in sorted(CONTENT_DIR.rglob("UC-*.json")):
-        try:
-            data = json.loads(uc_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            violations.append({"file": str(uc_path.relative_to(PROJECT_ROOT)), "issue": "invalid_json"})
-            continue
-        
-        uc_id = data.get("id", uc_path.stem)
-        rel = str(uc_path.relative_to(PROJECT_ROOT))
-        
-        # Check description == value
-        if data.get("description") and data.get("value") and data["description"].strip() == data["value"].strip():
-            violations.append({"file": rel, "id": uc_id, "issue": "description_equals_value"})
-        
-        # Check grandmaExplanation for jargon
-        grandma = data.get("grandmaExplanation", "")
-        for term in JARGON_TERMS:
-            if term.lower() in grandma.lower():
-                violations.append({"file": rel, "id": uc_id, "issue": f"jargon_in_grandma: {term}"})
-                break
-        
-        # Check fixtureRef exists
-        ct = data.get("controlTest", {})
-        if isinstance(ct, dict):
-            ref = ct.get("fixtureRef", "")
-            if ref and not (PROJECT_ROOT / ref).exists():
-                violations.append({"file": rel, "id": uc_id, "issue": f"broken_fixtureRef: {ref}"})
-    
-    if args.generate_baseline:
-        json.dump(violations, sys.stdout, indent=2)
-        sys.stdout.write("\n")
-        return
-    
-    baseline_ids = set()
-    if args.baseline:
-        bp = pathlib.Path(args.baseline)
-        if bp.exists():
-            baseline_ids = {(v["file"], v["issue"]) for v in json.loads(bp.read_text())}
-    
-    new_violations = [v for v in violations if (v["file"], v["issue"]) not in baseline_ids]
-    
-    if new_violations:
-        print(f"Content quality: {len(new_violations)} new violation(s):", file=sys.stderr)
-        for v in new_violations[:20]:
-            print(f"  {v['file']}: {v['issue']}", file=sys.stderr)
-        if len(new_violations) > 20:
-            print(f"  ... and {len(new_violations) - 20} more", file=sys.stderr)
-        sys.exit(1)
-    
-    total = len(violations)
-    print(f"Content quality: {total} existing violation(s) (all in baseline), 0 new.")
+_SRC = Path(__file__).resolve().parent.parent / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from splunk_uc.audits.content_quality import (
+    CONTENT_DIR,
+    JARGON_TERMS,
+    PROJECT_ROOT,
+    SAMPLE_DATA,
+    main,
+)
+
+__all__ = [
+    "CONTENT_DIR",
+    "JARGON_TERMS",
+    "PROJECT_ROOT",
+    "SAMPLE_DATA",
+    "main",
+]
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

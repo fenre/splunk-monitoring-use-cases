@@ -35,24 +35,45 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "audit_roadmap_consistency.py"
 LIVE_ROADMAP = REPO_ROOT / "ROADMAP.md"
+SRC_DIR = REPO_ROOT / "src"
 
 
 def _load_audit_module() -> ModuleType:
-    """Import the audit script as a module without going via ``scripts/``.
+    """Import the audit implementation module directly.
 
-    The script is at ``scripts/audit_roadmap_consistency.py`` and we
-    want to test the helpers it exposes; loading it via
-    ``importlib.util.spec_from_file_location`` keeps the import
-    explicit and avoids depending on ``sys.path`` munging.
+    P6 (scripts taxonomy, 2026-05-09) relocated the implementation to
+    ``src/splunk_uc/audits/roadmap_consistency.py``; the original
+    ``scripts/audit_roadmap_consistency.py`` is now a thin shim.
+
+    Tests that monkeypatch module-level constants (``VERSION_FILE``,
+    ``CHANGELOG_MD``) MUST go through the implementation module rather
+    than the shim — patching the shim only mutates its local
+    re-export and does not propagate into the implementation's
+    function closures. We therefore import the implementation module
+    directly via the package, which both honours that contract and
+    keeps the test resilient to future shim deletions in v9.
+
+    The legacy ``importlib.util.spec_from_file_location`` path is
+    preserved as a deliberate fallback for the (unlikely) case where
+    the package can't be imported (e.g. an unpacked sdist that lost
+    the ``src/`` tree); it loads the shim, which still re-exports
+    the same names.
     """
-    spec = importlib.util.spec_from_file_location(
-        "audit_roadmap_consistency", SCRIPT_PATH
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["audit_roadmap_consistency"] = module
-    spec.loader.exec_module(module)
-    return module
+    if str(SRC_DIR) not in sys.path:
+        sys.path.insert(0, str(SRC_DIR))
+    try:
+        import splunk_uc.audits.roadmap_consistency as impl
+
+        return impl
+    except ImportError:
+        spec = importlib.util.spec_from_file_location(
+            "audit_roadmap_consistency", SCRIPT_PATH
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["audit_roadmap_consistency"] = module
+        spec.loader.exec_module(module)
+        return module
 
 
 @pytest.fixture(scope="module")

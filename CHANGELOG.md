@@ -10,6 +10,2239 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [Unreleased]
+
+## [8.1.0] - 2026-05-09
+
+### Documentation depth pass — Tier 1 complete: 67 gold-standard guides + permanent xref guard + link-freshness sweep
+
+Theme: **the documentation library reaches gold-standard depth across the
+entire Tier-1 surface, with a permanent CI guard against future link rot
+and 11 brand-new product/sub-domain guides closing the last subcategory
+gaps.** Three coordinated documentation depth passes (batches 10, 11, 12)
+land together so every UC in the catalog now has a non-stub, gold-or-above
+guide reachable from at least one entry point.
+
+#### New guides (11 product/sub-domain guides)
+
+Eleven new guides land under `docs/guides/` and are wired through
+`subcategory.guide` in the relevant `_category.json` files so they surface
+in the main catalogue UI on the matching subcategory tile. All eleven are
+gold-tier from day one (architecture diagrams, prerequisites, data
+sources, configuration, compliance mapping, sizing, troubleshooting, SOAR
+playbooks, Crawl/Walk/Run roadmap, cross-product integration,
+references):
+
+- **`application-availability-caching.md`** — application caching layers
+  (Redis, Memcached, Hazelcast, Varnish, NGINX cache, CDN edge), CDN
+  observability, application availability/RUM, synthetics, and
+  multi-region failover health.
+- **`business-analytics.md`** — cat-23 business analytics surfaces
+  (revenue / DAU / MAU / NPS / churn) wired to operational KPIs so SRE
+  and finance teams share the same data lens.
+- **`citrix-virtual-apps-desktops.md`** — Citrix DaaS / on-prem
+  CVAD/XenApp/XenDesktop, StoreFront, Citrix ADC, ICA latency,
+  session brokering, and EUC SLO patterns.
+- **`container-platforms-docker-openshift.md`** — non-Kubernetes
+  container platforms (Docker Swarm, OpenShift, Rancher, Nomad,
+  containerd, Podman) with parallel coverage of build supply-chain
+  signals and runtime drift.
+- **`edge-security-microsegmentation.md`** — east-west microsegmentation
+  (NSX, Illumio, ACI Contracts, AWS Security Groups, Azure NSG, Calico
+  network policy), zero-trust enforcement at the workload edge, and
+  CMDB-anchored policy hygiene.
+- **`hypervisors-non-vmware.md`** — Nutanix AHV, Microsoft Hyper-V,
+  Citrix Hypervisor, KVM/QEMU, Proxmox, OpenStack KVM, oVirt — full
+  parallel coverage to the existing vSphere guide so non-VMware shops
+  reach the same monitoring depth.
+- **`identity-platforms-pam-sso.md`** — PAM (CyberArk, Delinea,
+  BeyondTrust, HashiCorp Vault, AWS IAM Roles Anywhere), SSO/IdP
+  (Okta, Auth0, Ping, ForgeRock, Microsoft Entra ID, Google Workspace),
+  Just-In-Time access, session recording, and break-glass auditing.
+- **`ipv6-operations.md`** — IPv6 dual-stack operations, SLAAC vs
+  DHCPv6, NDP/MLD health, IPv6 firewall + ACL drift, transition
+  technologies (NAT64/DNS64, 464XLAT, MAP-T), and IPv6 BGP/RPKI.
+- **`multi-cloud-serverless.md`** — multi-cloud serverless and edge
+  compute (AWS Lambda, Azure Functions, GCP Cloud Functions, Cloudflare
+  Workers, Vercel/Netlify), event-driven architectures, cold-start SLOs,
+  and cross-cloud cost attribution.
+- **`sd-wan-network-management.md`** — Cisco Catalyst SD-WAN,
+  Cisco Meraki SD-WAN, VMware VeloCloud, Versa, Fortinet Secure SD-WAN,
+  Aruba EdgeConnect, with vendor-specific telemetry tables, a 12-scenario
+  Common Failure-Mode Catalogue, and 6 Reference Architecture Variants.
+- **`telco-service-provider-networking.md`** — service-provider grade
+  networking (MPLS L2VPN/L3VPN, EVPN, Segment Routing, BGP communities
+  for traffic engineering, ISIS, RSVP-TE), 5G core observability, and
+  carrier-grade NAT.
+
+#### Eight existing guides elevated to gold standard
+
+- **`infrastructure-monitoring.md`** — refactored from a 679-line
+  silver-tier domain master into a 1943-line gold-standard domain master
+  covering 7 categories: a comprehensive TOC, Quick Start, Mermaid
+  architecture diagram, Core Principles, per-domain sections,
+  Cross-Domain Correlation Anchor, CMDB / Asset Identity Anchor,
+  Crawl/Walk/Run roadmap, Sizing & Architecture, Compliance Mapping,
+  Dashboards, SPL Examples, Troubleshooting, SOAR Playbooks,
+  Cross-Product Integration, and References.
+- **`security-monitoring.md`**, **`cloud-monitoring.md`**,
+  **`application-monitoring.md`**, **`collaboration-iot-monitoring.md`**,
+  **`industry-verticals.md`** — silver-tier domain masters elevated
+  to the same gold-standard structure as `infrastructure-monitoring.md`
+  and `compliance-business.md`.
+- **`sd-wan-network-management.md`** — depth pass added vendor-specific
+  telemetry tables, a 12-scenario Common SD-WAN Failure-Mode Catalogue,
+  and 6 Reference Architecture Variants (single-region hub-and-spoke,
+  full-mesh, regional hubs, cloud-on-ramp, SASE-integrated, hybrid
+  with MPLS underlay).
+- **`datagen-top10-use-cases.md`** — promoted from a 146-line bronze
+  tutorial to a 350-line gold-style structured tutorial (Audience,
+  Architecture variants, Operating principles, Troubleshooting,
+  Cross-Product Integration, References).
+
+#### Permanent xref guard: `audit-guide-xrefs`
+
+A new permanent audit verb, **`audit-guide-xrefs`** (registered in the
+dispatcher under the `audits` category), detects broken cross-product
+markdown links between `docs/guides/*.md` files. The implementation lives
+at `src/splunk_uc/audits/guide_xrefs.py` (LINK_RE + `_is_guide_target()`
+helper) and is exposed as a `make` target. The audit ran clean on this
+release: **186 internal guide links scanned across 67 guides, 0 broken**.
+
+#### Link freshness sweep
+
+A one-shot external link-check pass on all 67 guides
+(`scripts/audit_guide_external_links_oneshot.py`) probed 724 unique URLs.
+Of those, **80 truly broken or chronically failing** after filtering
+placeholders and bot-blocked endpoints. Of those 80:
+
+- **11 `docs.splunk.com` deep-links** were rewritten to canonical
+  higher-level landing pages that reliably return HTTP 200 (e.g.,
+  the broken `/Documentation/AddOns/released/CiscoIOS/About` redirected
+  to the live `/Documentation/AddOns` index).
+- **28 new regex patterns** added to `.link-check-ignore` for
+  bot-blocked endpoints (`access.redhat.com`, `dev.mysql.com`,
+  `api.meraki.com`), OAuth/OIDC token endpoints, POST-only ingest
+  endpoints, Cisco API WAF (596), overloaded CT log search, and
+  tenant-template host placeholders (`api.cento.com`, `cn<NNN>.awmdm.com`).
+- **10 broken cross-product internal links** in `compute-hci.md`,
+  `datacenter-fabric-sdn.md`, `industry-verticals.md`, and
+  `storage-backup.md` fixed to reference the renamed targets
+  (e.g., `wireless.md` → `wireless-infrastructure.md`,
+  `vmware.md` → `vmware-vsphere.md`).
+- **29 Splunkbase app 404s and 40 vendor doc 404s** are deferred to a
+  structured backlog at `reports/external-links-todo.md` so future
+  documentation maintenance batches can resolve them with vendor input
+  rather than guessing canonical replacements.
+
+#### Frontmatter audit
+
+All 67 guides now declare `splunk_versions` in their YAML frontmatter
+(8 high-traffic guides backfilled in this batch: `aws.md`, `azure.md`,
+`vmware-vsphere.md`, `kubernetes.md`, `linux-servers.md`,
+`windows-servers.md`, `active-directory-entra-id.md`,
+`catalyst-center.md`). A coverage audit confirmed **0 missing
+`splunk_versions`, 0 missing `ta_versions`/`collector_versions`, and
+0 missing `last_updated` fields** across all 67 guides (with 7 guides
+correctly using `splunkbase_url` instead of `splunkbase_urls` or
+`splunkbase_id` based on their content type).
+
+### Repo overhaul plan §P6 — Tier 1 batch 10: heavyweight audit cluster (gold-profile-v2 + prerequisites + sandbox-validation + sme-review-signoffs + mapping-ledger) routed through dispatcher
+
+Theme: **close the audit half of Tier 1 by relocating the five
+remaining heavyweight audits, including the two largest provenance
+gates in the repo.** Five audits in one PR
+(`audit_gold_profile_v2.py`, `audit_prerequisites.py`,
+`audit_sandbox_validation.py`, `audit_sme_review_signoffs.py`,
+`audit_mapping_ledger.py` &mdash; **2,070 LOC combined**, the largest
+batch by line-count to land in P6 so far) land under
+`src/splunk_uc/audits/`. The dispatcher now exposes **43 verbs**, and
+every audit script in `scripts/audit_*.py` that has a tested
+implementation is migrated.
+
+#### Migrated verbs
+
+- **`audit-gold-profile-v2`** &mdash; 388 lines. Gold-standard v2
+  audit (the UC-1.1.1 bar): SPL provenance gating, KFP separator
+  enforcement, deterministic suppression-mechanism naming, named
+  product/vendor inventory, and pack-drift detection.
+  Replaces `python3 scripts/audit_gold_profile_v2.py …` invocation.
+- **`audit-prerequisites`** &mdash; 389 lines. Validates the UC
+  prerequisite graph encoded in `catalog.json` (cycles, unknown
+  IDs, wave monotonicity, gap-free ordering); writes
+  `reports/prerequisites-audit.json`. Replaces
+  `python3 scripts/audit_prerequisites.py …` invocation.
+- **`audit-sandbox-validation`** &mdash; 398 lines. Phase 4.5c
+  sandbox gate. Walks every UC sidecar with a
+  `controlTest.fixtureRef`, asserts the fixture exists on disk and
+  has both a positive and negative case populated, and writes
+  `reports/sandbox-validation.json`. Hard failures
+  (malformed/unparseable fixtures) block CI; missing/empty fixtures
+  are tracked gaps for SME review.
+- **`audit-sme-review-signoffs`** &mdash; 415 lines. Phase 5.2
+  SME-review signoff gate. Validates
+  `data/provenance/sme-signoffs.json` against the SME review schema
+  and the semantic invariants documented in
+  `docs/sme-review-guide.md`: outcome-specific required fields,
+  reviewer/commit uniqueness for dual-SME review,
+  fixture-replay-result self-consistency, UC-sidecar caveat
+  mirroring, fixture/evidence-pack path existence.
+- **`audit-mapping-ledger`** &mdash; 480 lines. Phase 5.4 signed
+  provenance ledger gate. Validates
+  `data/provenance/mapping-ledger.json` against
+  `schemas/mapping-ledger.schema.json`, recomputes the
+  `canonicalHash` for every entry, recomputes the `merkleRoot` over
+  the sorted leaves, performs forward+reverse referential integrity
+  against current UC sidecars, and (release-time only) verifies the
+  Sigstore attestation bundle. **Lazy-imports the canonicalisation
+  helpers from `scripts/generate_mapping_ledger.py`** &mdash; the
+  audit must use the *exact* same canonicalisation and merkle
+  construction as the generator or any drift would be a
+  self-inflicted bug; importing keeps them locked in step. (The
+  generator script itself stays in `scripts/` and is queued for a
+  Tier-2 generator batch.)
+
+#### Path-resolution depth
+
+All five audits widened from one-level deep to three-levels deep:
+`pathlib.Path(__file__).resolve().parent.parent` &rarr; `parents[3]`
+(`audit_gold_profile_v2`, `audit_sandbox_validation`,
+`audit_sme_review_signoffs`, `audit_mapping_ledger`). For
+`audit_prerequisites`, which used the legacy `os.path.dirname` chain
+syntax, four levels of nesting replace two so the constant
+resolution still reaches the repo root from the new on-disk home.
+
+#### `main()` signature alignment
+
+Three of the five (`gold_profile_v2`, `sandbox_validation`,
+`sme_review_signoffs`) were parameterless `def main()` &mdash;
+widened to the dispatcher's
+`main(argv: list[str] | None = None) -> int` contract.
+`audit_prerequisites.main()` had no `argv` parameter and inspected
+`sys.argv` indirectly through `parse_args()`; widened to
+`parse_args(argv)`. `audit_mapping_ledger.main(argv: list[str])`
+(no `None` default, required positional) widened to optional-None
+so the dispatcher can call it with `None` when no extra args are
+passed.
+
+#### Sibling-script lazy import (mapping_ledger)
+
+`audit_mapping_ledger` lazy-imports `generate_mapping_ledger.py` (the
+canonicalisation helpers, merkle root computation, and the
+`LedgerInput` dataclass). The helper script lives in `scripts/` and
+will continue to until the Tier-2 generator migration runs. The
+audit module's idempotent `sys.path.insert(REPO_ROOT / "scripts")`
+makes the import work from the new on-disk depth without forking
+any code.
+
+#### Lint + type-debt cleanup uncovered by the strict src/splunk_uc/ posture
+
+- 67 PEP-585 modernisations auto-fixed by `ruff --fix`. Heaviest
+  concentration in `audit_prerequisites` which carried `Dict` /
+  `List` / `Tuple` / `Optional` imports throughout.
+- Two F401 unused imports (`Counter`, `defaultdict`, `hashlib`,
+  `canonical_entry_payload`) dropped.
+- One `B905` (`zip()` without explicit `strict=`) added explicit
+  `strict=True` in `mapping_ledger`'s sort-order check.
+- One `dict | None` widened to `dict[str, Any] | None` in
+  `sandbox_validation._load_uc_sidecar` to satisfy mypy `type-arg`.
+- Two `len()` calls on dict-derived lists in
+  `_classify_fixture` (legacy + phase2 fixture-shape branches)
+  gained explicit `isinstance(..., list)` re-narrowing on the
+  early-return sentinel so mypy `arg-type` is happy.
+- One mypy `no-any-return` from `prerequisites._load_catalog`
+  rebound to a typed local
+  (`payload: dict[str, Any] = json.load(f); return payload`).
+- One redundant `# type: ignore[import-not-found]` on the
+  `import jsonschema` in `mapping_ledger` removed (the repo-wide
+  mypy config already sets `ignore_missing_imports = true`).
+- One untyped `dict` in
+  `gold_profile_v2.print_report(results: list[dict])` widened to
+  `list[dict[str, Any]]`.
+- Shim `__all__` lists sorted via `ruff --fix` (RUF022).
+
+#### Updated user-facing strings
+
+Nine reproduction hints (CLI usage docstrings, `--check` failure
+messages, the sandbox-validation report's `$comment` footer,
+`baseline` file `description`, `validate.yml` + `release.yml`
+workflow comments, `PULL_REQUEST_TEMPLATE.md` SME-signoff bullet)
+all switched from `scripts/audit_*.py` to
+`python -m splunk_uc audit-*` (or `make audit-*`). The
+sandbox-validation `$comment` change required regenerating
+`reports/sandbox-validation.json` (committed alongside this batch);
+the only line that changed is the `$comment` reference.
+
+#### Call-site consolidation (CI + Makefile + PR template)
+
+- Five new `Makefile` targets (`audit-gold-profile-v2`,
+  `audit-prerequisites`, `audit-sandbox-validation`,
+  `audit-sme-review-signoffs`, `audit-mapping-ledger`) all routed
+  via the `$(SPLUNK_UC)` macro.
+- Five `.github/workflows/validate.yml` steps switch from
+  `python3 scripts/audit_*.py` to
+  `PYTHONPATH=src python3 -m splunk_uc audit-*`
+  (`Prerequisite graph audit (wave / pre)`,
+  `Phase 5.2 SME-review signoff audit`,
+  `Phase 5.4 signed provenance ledger audit`,
+  `Phase 4.5c sandbox validation gate`,
+  `Prerequisite audit report (post-build drift)`).
+- Two `.github/workflows/release.yml` steps switch the audit
+  invocation to the dispatcher (`Regenerate mapping ledger`,
+  `Verify attested ledger end-to-end`); the sibling generator
+  step keeps `scripts/generate_mapping_ledger.py` since that
+  script is queued for a Tier-2 generator batch.
+- `.github/PULL_REQUEST_TEMPLATE.md` SME-signoff bullet updated
+  to point at the dispatcher.
+
+#### Verification
+
+- `ruff check` + `ruff format` clean across all 51 source files in
+  `src/splunk_uc/` plus the 5 batch-10 shims (56 files formatted).
+- `mypy` clean across the same 51 source files.
+- Full pytest suite: **613 passing tests, 1 skipped** (no count
+  change &mdash; dispatcher tests use dynamic `all_verbs()`
+  discovery rather than absolute counts).
+- End-to-end smoke for every newly registered verb via the
+  dispatcher (`audit-prerequisites --check`,
+  `audit-sandbox-validation --check`, `audit-mapping-ledger`,
+  `audit-sme-review-signoffs`,
+  `audit-gold-profile-v2 --files <fixture>`) plus the same five
+  through the legacy shim path; identical output.
+- `python -m splunk_uc --help` lists all 43 verbs grouped by
+  category.
+
+#### Deliberate non-features
+
+- Does not migrate the remaining 5 full-body audit scripts in
+  `scripts/` (`audit_gold_profile.py` v1 + `audit_perf_a11y.py` +
+  `audit_spl_grammar.py` + `audit_spl_hallucinations.py` +
+  `audit_splunk_cloud_compat.py`). Each is queued for a follow-up
+  batch.
+- Does not migrate
+  `scripts/audit_guide_external_links_oneshot.py` &mdash; its own
+  module docstring labels it "intentionally a one-shot driver, not
+  a registered verb"; it stays in `scripts/` until external link
+  rot proves systemic enough to warrant a registered verb.
+- Does not delete the legacy shims (Tier 3 work, blocked on full
+  migration plus one minor release of soak; tracked under the
+  open P6 task).
+
+### Repo overhaul plan §P6 — Tier 1 batch 9: small / medium audit cluster routed through dispatcher
+
+Theme: **batch through the small-and-medium remainders so the audit
+half of Tier 1 is essentially done.** Six audits in one PR
+(`audit_doc_counts.py`, `audit_openapi_drift.py`,
+`audit_content_quality.py`, `audit_baseline_clause_grammar_free.py`,
+`audit_peer_review_signoffs.py`, `audit_mcp_tool_schemas.py` &mdash;
+~801 LOC combined) land under `src/splunk_uc/audits/`.
+The dispatcher now exposes 38 verbs.
+
+#### Migrated verbs
+
+- **`audit-doc-counts`** &mdash; 47 lines. Cross-checks numeric claims
+  (UC counts) in `AGENTS.md` and `docs/` against the live UC corpus
+  with a 5% tolerance window.
+- **`audit-openapi-drift`** &mdash; 63 lines. Flags `dist/api/` paths
+  that are missing from `openapi.yaml` or `api/v1/openapi.yaml`.
+- **`audit-content-quality`** &mdash; 75 lines. Flags
+  `description==value` duplicates, jargon in `grandmaExplanation`,
+  and broken `controlTest.fixtureRef` paths. Supports
+  `--baseline path/to/baseline.json` and `--generate-baseline` for
+  CI ratchet.
+- **`audit-baseline-clause-grammar-free`** &mdash; 111 lines. Phase F
+  drift guard: refuses any `clause-grammar` fingerprints in
+  `tests/golden/audit-baseline.json` (belt-and-braces against a
+  future contributor re-adding the code to `BASELINEABLE_CODES`
+  in `audit-compliance-mappings`).
+- **`audit-peer-review-signoffs`** &mdash; 238 lines. Phase 4.5a peer
+  review gate: validates `data/provenance/peer-review-signoffs.json`
+  against the schema and the semantic invariants documented in
+  `docs/peer-review-guide.md`.
+- **`audit-mcp-tool-schemas`** &mdash; 267 lines. MCP tool/resource
+  drift guard: exercises every MCP tool against the committed
+  `api/v1/*.json` tree and validates each response against the
+  tool's declared `outputSchema`. Asserts the tool list is
+  complete (11 tools), every tool has descriptions + schemas, the
+  slug regex set is frozen, and `api/v1/manifest.json` still
+  exposes the endpoint URLs the remote-fallback catalogue depends
+  on.
+
+All six relocations adjust path-resolution depth from 1 to 3
+(`pathlib.Path(__file__).resolve().parents[1]` → `parents[3]`).
+Shims at `scripts/audit_doc_counts.py`,
+`scripts/audit_openapi_drift.py`,
+`scripts/audit_content_quality.py`,
+`scripts/audit_baseline_clause_grammar_free.py`,
+`scripts/audit_peer_review_signoffs.py`, and
+`scripts/audit_mcp_tool_schemas.py` re-export each module's public
+CLI surface so the legacy `python3 scripts/<name>.py` invocation
+keeps working through the soak window.
+
+#### Conftest cross-reference
+
+`mcp/tests/conftest.py` previously pointed at
+`scripts/audit_mcp_tool_schemas.py` in its module docstring; the
+reference is now updated to the dispatcher invocation
+(`python -m splunk_uc audit-mcp-tool-schemas`) so future readers do
+not chase a stale path.
+
+#### Call-sites consolidated
+
+Three CI steps in `.github/workflows/validate.yml` are routed
+through the dispatcher (`audit-baseline-clause-grammar-free`,
+`audit-mcp-tool-schemas`, `audit-peer-review-signoffs`). Six new
+`make` targets land in `Makefile` (`audit-doc-counts`,
+`audit-openapi-drift`, `audit-content-quality`,
+`audit-baseline-clause-grammar-free`, `audit-peer-review-signoffs`,
+`audit-mcp-tool-schemas`) — all routed via the `$(SPLUNK_UC)`
+macro.
+
+#### Verb count: 32 → 38
+
+The `audits` category in `python -m splunk_uc --help` now lists
+all 38 audit verbs in registration order. Lazy-import semantics
+preserved &mdash; resolving any single verb does not import sibling
+audits.
+
+#### Verification
+
+- `python3 -m ruff check src/splunk_uc/` &mdash; clean across 46 files.
+- `python3 -m ruff format --check src/splunk_uc/` &mdash; 46 files
+  already formatted.
+- `python3 -m mypy src/splunk_uc/` &mdash; no issues found in 46 source
+  files.
+- Full pytest sweep with `PYTHONPATH=src:mcp/src` &mdash; 613 tests
+  passing.
+- Smoke-tested every new verb through the dispatcher *and* through
+  the legacy shim path; both invocations produce identical output.
+
+### Repo overhaul plan §P6 — Tier 1 batch 8: the two big compliance audits routed through dispatcher
+
+Theme: **the heaviest audits in `scripts/` move into the package.**
+Batch 8 picks up the two compliance audits that were deliberately
+deferred from batch 7 — `audit_compliance_gaps.py` (646 lines) and
+`audit_compliance_mappings.py` (1,426 lines), 2,072 LOC combined —
+and lands them under `src/splunk_uc/audits/`. The dispatcher now
+exposes 32 verbs.
+
+#### Migrated verbs
+
+- **`audit-compliance-gaps`** &mdash; 646 lines. Phase 2.1 deliverable
+  of the gold-standard plan. Walks every `commonClauses[]` entry in
+  `data/regulations.json`, joins it against every UC sidecar's
+  `compliance[]` mapping, and writes
+  `reports/compliance-gaps.json` + `docs/compliance-gaps.md`. The
+  CI gate runs `--check`, byte-comparing the freshly-regenerated
+  output against the committed tree.
+- **`audit-compliance-mappings`** &mdash; 1,426 lines. The Phase
+  1.5c deliverable: validates every UC sidecar against
+  `schemas/uc.schema.json`, reconciles every `compliance[]` entry
+  against `data/regulations.json` (alias index, version exists,
+  clause matches `clauseGrammar`, assurance level present and
+  valid), enforces the golden tuple gate at
+  `tests/golden/compliance-mappings.yaml`, applies the
+  `tests/golden/audit-baseline.json` tolerance window
+  (`equipment-orphan`, `missing-control-objective`,
+  `missing-evidence-artifact`, `unknown-version` only), and emits
+  the three coverage metrics (clause %, priority-weighted %,
+  assurance %) at four scopes (global / per-regulation / per-family
+  via `derivesFrom` / per-tier) into
+  `reports/compliance-coverage.json` + `docs/compliance-coverage.md`.
+
+Both relocations adjust path-resolution depth from 1 to 3
+(`pathlib.Path(__file__).resolve().parents[1]` → `parents[3]`).
+Shims at `scripts/audit_compliance_*.py` re-export the public CLI
+plus every module-level constant
+(`REPO_ROOT`, `REGS_PATH`, `SCHEMA_PATH`, `GOLDEN_PATH`,
+`BASELINE_PATH`, `UC_GLOB`, `REPORT_JSON`, `REPORT_MD`,
+`BASELINEABLE_CODES`, `ASSURANCE_MULTIPLIER`, `ASSURANCE_RANK`,
+`STATUS_CAP`, `USE_CASES_DIR`, `STATUS_MULTIPLIER`,
+`UC_SAMPLE_LIMIT`) and the dataclasses
+(`Finding`, `ComplianceEntry`, `AuditState`, `Metrics`,
+`RegulationsCatalogue`, `RegVersion`, `ResolvedRef`,
+`ClauseEntry`, `ClauseGap`, `UcComplianceHit`).
+
+#### Equipment-lib path shim
+
+`compliance_mappings.py` lazy-imports `scripts/equipment_lib.py`
+via a `sys.path` insertion so the equipment-orphan lint can run
+without the audit script being installed as a package.
+Pre-migration the path was derived from
+`pathlib.Path(__file__).resolve().parent` (which was `scripts/`).
+After the move the module sits at
+`src/splunk_uc/audits/compliance_mappings.py`, so the path
+derivation switches to `REPO_ROOT / "scripts"` — same target
+directory, less brittle anchor.
+
+#### `main()` signature alignment
+
+Both audits had `main()` signatures that did not honour the
+dispatcher's `main(argv: list[str] | None = None) -> int` contract:
+
+- `audit_compliance_gaps.main(argv: Sequence[str])` (no default,
+  Sequence rather than list, no None branch). Widened to
+  `main(argv: list[str] | None = None) -> int` with a
+  `sys.argv[1:]` fallback inside the function body.
+- `audit_compliance_mappings.main()` (no `argv` parameter at all,
+  inspected `sys.argv` via `parser.parse_args()`). Widened.
+
+#### Lint + type-debt cleanup
+
+Migrating into `src/splunk_uc/`'s strict ruff + mypy posture
+exposes the usual long-tail debt:
+
+- **131 PEP-585 modernisations** auto-fixed by `ruff --fix`
+  (`Dict`/`List`/`Optional`/`Sequence`/`Iterable`/`Mapping`/`Tuple`
+  → builtins / PEP-604 unions). Both files lose every
+  `from typing import …` legacy generic.
+- **2× RUF005** — list concatenation that ruff prefers as
+  iterable unpacking. The alias-collection loops in both audits
+  rewrite from `list(framework.get("aliases", [])) + [short, fid, name]`
+  to `[*list(framework.get("aliases", [])), short, fid, name]`.
+- **1× F401** — `import jsonschema` was unused at module scope
+  (only `Draft202012Validator` is referenced). Removed; the
+  `from jsonschema import Draft202012Validator` line still
+  produces the helpful "install jsonschema" error if the package
+  is missing.
+- **mypy `type-arg`** — `re.Pattern` (no parameters) widened to
+  `re.Pattern[str]`; `list | None` widened to `list[Any] | None`
+  for the equipment-pattern cache.
+- **mypy `no-any-return`** — `_load_schema()` and
+  `_validate_uc_schema()` were declared `dict[str, Any]` /
+  `dict[str, Any] | None` but `json.loads()` returns `Any`;
+  added explicit local-variable annotations to honour the
+  declared return type.
+- **mypy `misc`** — the `for err in errors[:N]` loop variable
+  shadowed the `except json.JSONDecodeError as err` binding from
+  the schema-decode branch. Renamed both to `parse_err` (decode
+  branch) and `schema_err` (loop) for clarity.
+- Shim `__all__` lists sorted via `ruff check --fix` (RUF022).
+- `python -m ruff format` applied to both `src/splunk_uc/audits/`
+  files; the reformat is large because the original scripts used
+  inconsistent line-breaking. The diff is bounded to the two
+  migrated files.
+
+#### Updated user-facing strings
+
+The legacy scripts emitted user-facing reproduction hints
+pointing at `scripts/audit_compliance_*.py`. Five hints updated
+to reference the dispatcher (`python -m splunk_uc audit-compliance-*`)
+or `make` (`make audit-compliance-*`):
+
+1. `compliance_gaps.py` module docstring (CLI section).
+2. `compliance_gaps.py` `_check_drift` failure message.
+3. `compliance_gaps.py` markdown report header (`_Generated:_ by`).
+4. `compliance_gaps.py` markdown report footer.
+5. `compliance_mappings.py` module docstring (Usage section).
+6. `compliance_mappings.py` markdown report footer.
+7. `compliance_mappings.py` baseline-file `description` field
+   (and the committed `tests/golden/audit-baseline.json` updated
+   to match).
+8. `validate.yml` "Compliance audit — generated reports committed"
+   step error message.
+
+The compliance-gaps markdown report and the compliance-coverage
+report both regenerated to apply the new footer text. The
+compliance-coverage JSON kept its byte-identical structure
+modulo the `generatedAt` timestamp drift (already filtered by
+the validate.yml structural-diff guard).
+
+#### Verb registry
+
+`src/splunk_uc/_registry.py` gains two entries (one per verb), in
+the same kebab-case → dotted-module-path → help-string → category
+shape established in earlier batches. Dispatcher verb count: 30 → 32.
+
+#### Call-site consolidation
+
+- **`Makefile`** &mdash; two new targets (`audit-compliance-gaps`,
+  `audit-compliance-mappings`) invoke `$(SPLUNK_UC) <verb>`.
+  Neither audit had a Makefile target before this PR.
+- **`.github/workflows/validate.yml`** &mdash; three steps
+  (`Compliance mapping audit (schema + regulations + golden + baseline)`,
+  `Compliance audit — generated reports committed`,
+  `Clause-level gap report (... ) regeneration check`) all switch
+  from `python3 scripts/audit_compliance_*.py` to
+  `PYTHONPATH=src python3 -m splunk_uc audit-compliance-*`. The
+  baseline-drift-guard step (`Compliance audit — baseline drift
+  guard (Phase F)`) still calls
+  `scripts/audit_baseline_clause_grammar_free.py` because that
+  audit is itself queued for a later batch.
+
+#### Verification
+
+- `python3 -m ruff check` clean across both new src files + both
+  shims + the entire `src/splunk_uc/` package (39 files).
+- `python3 -m ruff format --check src/splunk_uc/` reports
+  "39 files already formatted".
+- `PYTHONPATH=src python3 -m mypy src/splunk_uc/` reports
+  "Success: no issues found in 39 source files".
+- `PYTHONPATH=src:mcp/src python3 -m pytest -q` reports
+  **612 passing tests, 1 skipped** (no test count change —
+  dispatcher tests use dynamic `all_verbs()` discovery).
+- `python -m splunk_uc audit-compliance-gaps --check` exits 0.
+- `python -m splunk_uc audit-compliance-mappings --no-write
+  --json-only` emits `{"status": "passed", "errors": 0}`.
+- Legacy shim smoke tests: `python3 scripts/audit_compliance_gaps.py
+  --check` and `python3 scripts/audit_compliance_mappings.py
+  --no-write --json-only` both exit 0.
+- `make audit-compliance-gaps` and `make audit-compliance-mappings`
+  both exit 0.
+
+### Repo overhaul plan §P6 — Tier 1 batch 7: four regulatory audits routed through dispatcher
+
+Theme: **continue the audit-batch migration cadence — every CI-gated
+regulatory audit now lives under `src/splunk_uc/audits/` and runs
+through `python -m splunk_uc <verb>`.** Batch 7 carries the dispatcher
+from 25 to 29 registered verbs, finishing the smaller compliance and
+regulation-alignment audits and consolidating the previously-orphaned
+direct `python3 scripts/audit_*.py` invocations from
+`validate.yml` + `regulatory-watch.yml`.
+
+The two larger audits in this thematic cluster
+(`audit_compliance_gaps.py` at 646 lines and `audit_compliance_mappings.py`
+at 1,426 lines) are deferred to batch 8 to keep this PR's review surface
+manageable.
+
+#### Migrated verbs
+
+- **`audit-regulation-alignment`** &mdash; 71 lines.
+  `scripts/audit_regulation_alignment.py` →
+  `src/splunk_uc/audits/regulation_alignment.py`. Lints
+  `compliance[].regulation` labels in every UC sidecar against
+  `data/regulations.json`. Unknown labels (no case-insensitive match
+  against `id` / `shortName` / `aliases`) hard-fail. `--fix-case`
+  rewrites matched-but-different labels to the canonical framework id.
+- **`audit-nis2-no-gap`** &mdash; 224 lines.
+  `scripts/audit_nis2_no_gap.py` →
+  `src/splunk_uc/audits/nis2_no_gap.py`. Validates the NIS2 no-gap
+  obligation matrix (`data/per-regulation/nis2-coverage-expansion.json`):
+  every row must have source traceability + coverage decision +
+  evidence + owner + assurance rationale + review confidence + a
+  concrete boundary statement, and every NIS2-tagged UC must reference
+  a clause that exists in the matrix. `--json` emits a
+  machine-readable audit result.
+- **`audit-oscal-roundtrip`** &mdash; 493 lines.
+  `scripts/audit_oscal_roundtrip.py` →
+  `src/splunk_uc/audits/oscal_roundtrip.py`. The Phase 4.5e
+  CI gate validating every `api/v1/oscal/component-definitions/*.json`
+  document: NIST OSCAL 1.1.1 schema compliance (using the schema
+  vendored at `schemas/oscal/v1.1.1/`), canonical-byte equality
+  (parse → re-serialise → compare against committed bytes), and
+  cross-referenced crosswalk source-files. `--check` runs in
+  drift-detection mode: regenerate in memory and diff against the
+  committed `reports/oscal-roundtrip.json`.
+- **`audit-regulatory-change-watch`** &mdash; 583 lines.
+  `scripts/audit_regulatory_change_watch.py` →
+  `src/splunk_uc/audits/regulatory_change_watch.py`. The Phase 5.3
+  three-mode change-watch audit: `--check` (default; hermetic CI
+  gate validating `data/regulations-watch.json` against its JSON
+  Schema, cross-referencing every entry's `regulationId` against
+  `data/regulations.json` and every `sha256-vendor` against
+  `data/provenance/ingest-manifest.json`, surfacing staleness
+  warnings/errors per the file's `stalenessPolicy`); `--fetch`
+  (network-enabled probe used by `regulatory-watch.yml`); `--freeze`
+  (records the current moment as `lastCheckedAt` for every entry).
+
+All four relocations adjust path-resolution depth from 1 to 3
+(`pathlib.Path(__file__).resolve().parents[1]` → `parents[3]`).
+Shims at `scripts/audit_*.py` re-export the full public CLI plus
+every module-level constant (`REPO`/`REPO_ROOT`, `MATRIX_PATH`,
+`SOURCE_MAP_PATH`, `WATCH_PATH`, `SCHEMA_PATH`, `INGEST_PATH`,
+`REGULATIONS_PATH`, `REPORT_PATH`, `EXPECTED_OSCAL_VERSION`,
+`SCHEMA_SOURCE_ID`, the `STATUS_*` enum constants, the
+`VALID_*` and `REQUIRED_*` lookup tables, regex primitives,
+`cmd_check` / `cmd_fetch` / `cmd_freeze` subcommand functions)
+any legacy caller might read.
+
+#### `main()` signature alignment
+
+Three of the four audits did not honour the dispatcher's
+`main(argv: list[str] | None = None) -> int` contract:
+
+- `audit_regulation_alignment` had `def main() -> int:` with no
+  argv. Widened.
+- `audit_nis2_no_gap` already had the correct signature.
+- `audit_oscal_roundtrip` already had the correct signature.
+- `audit_regulatory_change_watch` had
+  `def main(argv: Optional[List[str]] = None) -> int:` (legacy
+  `Optional`/`List` from `typing`). Modernised to PEP-585
+  `list[str] | None` via `ruff --fix`.
+
+#### Lint + type-debt cleanup
+
+Migrating into `src/splunk_uc/`'s strict ruff + mypy posture
+exposes the usual long-tail debt:
+
+- **`regulatory_change_watch`** &mdash; 73 PEP-585 modernisations
+  (`Dict`/`List`/`Optional`/`Tuple`/`Iterable` from `typing` →
+  builtins / `X | None` / PEP-604 unions), all auto-fixed by
+  `ruff --fix`. The `# type: ignore` on the JSON-Schema import
+  is now redundant under the repo-wide `ignore_missing_imports = true`
+  mypy setting; removed. The `args.func(args)` call returned `Any`
+  according to mypy's strict no-Any-return rule; bound through an
+  intermediate `int` variable to prove the contract.
+- **`oscal_roundtrip`** &mdash; `_load_schema()` returned `Any`
+  flowing out of `json.loads`; explicitly typed the local variable
+  to `dict[str, Any]` so the function's declared return type is
+  honoured. The `for err in errors[:100]` loop variable shadowed
+  the `except as err` binding from the JSON-decode branch above;
+  mypy's "Assignment to variable outside except: block" check
+  caught this. Renamed to `schema_err` for clarity.
+- **`oscal_roundtrip`** &mdash; the `--check` failure message
+  pointed at the now-shimmed legacy script path. Updated to point
+  at `python -m splunk_uc audit-oscal-roundtrip` (or
+  `make audit-oscal`) so users follow the dispatcher recipe.
+- **`nis2_no_gap`** &mdash; the `payload` dict in `main()` had
+  inferred type `dict[str, list[str] | int | str]`, which the
+  `payload['status'].upper()` call then refused to dispatch on
+  because mypy couldn't prove `status` was a `str` rather than
+  another union arm. Annotated `payload: dict[str, Any]` to honour
+  the runtime shape (every value is the right type for its key,
+  but the union is too loose for the call site).
+- All shim files re-sorted via `ruff check --fix` to satisfy
+  RUF022.
+
+#### Verb registry
+
+`src/splunk_uc/_registry.py` gains four entries (one per verb), in
+the same kebab-case → dotted-module-path → help-string → category
+shape established in earlier batches. Dispatcher verb count: 25 → 29.
+
+#### Call-site consolidation
+
+- **`Makefile`** &mdash; four new targets (`audit-regulation-alignment`,
+  `audit-nis2-no-gap`, `audit-oscal`, `audit-regulatory-change-watch`)
+  invoke `$(SPLUNK_UC) <verb>`. None of the four had legacy
+  Makefile targets to migrate — they were previously invoked only
+  from CI.
+- **`.github/workflows/validate.yml`** &mdash; three steps switch
+  from inline `python3 scripts/audit_*.py` to
+  `PYTHONPATH=src python3 -m splunk_uc audit-*`
+  (`audit-regulation-alignment`, `audit-regulatory-change-watch --check`,
+  `audit-oscal-roundtrip --check`).
+- **`.github/workflows/regulatory-watch.yml`** &mdash; the weekly
+  `Run change-watch fetch` step switches to
+  `PYTHONPATH=src python3 -m splunk_uc audit-regulatory-change-watch
+  --fetch ${strict_flag}`.
+
+#### Verification
+
+- `python3 -m ruff check` clean across all 4 new src files + 4
+  shims + the entire `src/splunk_uc/` package (37 files).
+- `python3 -m ruff format --check src/splunk_uc/` reports
+  "37 files already formatted".
+- `PYTHONPATH=src python3 -m mypy src/splunk_uc/` reports
+  "Success: no issues found in 37 source files".
+- `PYTHONPATH=src:mcp/src python3 -m pytest -q` reports
+  **612 passing tests, 1 skipped** (no test count change — dispatcher
+  tests use dynamic `all_verbs()` discovery and pick up the new verbs
+  automatically; the skipped test is the slow build-reproducibility
+  smoke gated by `SKIP_SLOW_TESTS=1`).
+- Smoke tests for every new verb, every shim, and every new Makefile
+  target all complete with the expected exit codes (RC=0 for
+  `audit-regulation-alignment`, `audit-nis2-no-gap`,
+  `audit-oscal-roundtrip --check`, `audit-regulatory-change-watch
+  --check` — the change-watch has two preserved soft-fail open
+  findings on `uk-gdpr` and `mitre-attack-enterprise` that print as
+  warnings but do not gate).
+
+### Repo overhaul plan §P6 — Tier 1 batch 6: six more CI-critical audits routed through dispatcher
+
+Theme: **continue the audit-batch migration cadence — every CI-critical
+script in this batch now lives under `src/splunk_uc/audits/` and runs
+through `python -m splunk_uc <verb>`.** Batch 6 carries the dispatcher
+from 19 to 25 registered verbs, finishing the changelog/index/catalog
+schema cluster plus the SPL-duplicate informational linter and the
+weekly link-check audit.
+
+#### Migrated verbs
+
+- **`audit-changelog-uc-refs`** &mdash; 186 lines.
+  `scripts/audit_changelog_uc_refs.py` →
+  `src/splunk_uc/audits/changelog_uc_refs.py`. Validates CHANGELOG.md
+  version-header shape, duplicate detection, ISO date parsing, and
+  monotonically non-increasing date ordering, then cross-checks every
+  `UC-X.Y.Z` reference in `use-cases/cat-*.md` against the canonical
+  `### UC-...` definitions.
+- **`audit-repo-consistency`** &mdash; 277 lines.
+  `scripts/audit_repo_consistency.py` →
+  `src/splunk_uc/audits/repo_consistency.py`. Cross-checks INDEX.md
+  category headers + Quick Start UC anchors, the CAT_GROUPS /
+  SPLUNK_APPS registries (imported directly from
+  `tools/build/enrichment.py`), the Si_PATHS icon catalog parsed from
+  `index.html`, and `cat-NN-*.md` UC references for category 1–23
+  consistency.
+- **`audit-catalog-schema`** &mdash; 344 lines.
+  `scripts/audit_catalog_schema.py` →
+  `src/splunk_uc/audits/catalog_schema.py`. Stdlib-only top-level
+  schema check on `dist/catalog.json`: required keys, abbreviated UC
+  fields (`i`/`n`/`c`/`f`), wave/prerequisite shape, CAT_META key
+  ↔ DATA category-id parity, and the optional `implementationRoadmap`
+  block.
+- **`audit-quality-metadata`** &mdash; 136 lines.
+  `scripts/audit_quality_metadata.py` →
+  `src/splunk_uc/audits/quality_metadata.py`. Reports per-UC coverage
+  of References, Status, Last reviewed, Splunk versions, Reviewer,
+  and Known false positives (security cats only) against the v5.2
+  Gold Standard thresholds. Warn-only by default; `--strict` gates.
+- **`audit-spl-duplicates`** &mdash; 113 lines.
+  `scripts/audit_spl_duplicates.py` →
+  `src/splunk_uc/audits/spl_duplicates.py`. Surfaces near-duplicate
+  SPL queries across `use-cases/cat-*.md` after canonical
+  normalisation (whitespace collapse + macro-arg masking + lowercase)
+  and prints the top 30 cluster headlines. Informational; never gates.
+- **`audit-links`** &mdash; 248 lines.
+  `scripts/audit_links.py` → `src/splunk_uc/audits/links.py`. The
+  weekly link audit (`.github/workflows/link-check.yml`): walks every
+  `- **References:**` line, normalises URLs (balanced-paren handling,
+  trailing-punct stripping), and probes with HEAD → optional GET
+  fallback per HTTP semantics. Concurrent across hosts but throttled
+  per-host. `--dry-run` lists URLs without probing.
+
+All six relocations adjust path-resolution depth from 1 to 3
+(`pathlib.Path(__file__).resolve().parent.parent` → `parents[3]`, or
+four nested `os.path.dirname()` calls). Shims at `scripts/audit_*.py`
+re-export the full public CLI plus every module-level constant
+(`REPO`/`REPO_ROOT`, `USE_CASES`, `CHANGELOG`, regex primitives,
+threshold tables, `ChangelogEntry` dataclass) any legacy caller
+might read.
+
+#### `main()` signature alignment
+
+Five of the six audits did not honour the dispatcher's
+`main(argv: list[str] | None = None) -> int` contract:
+
+- `audit_changelog_uc_refs` had `def main():` (no annotation, no
+  argv). Widened; argparse parses an empty argv to give a clean
+  `--help`.
+- `audit_repo_consistency` had `def main() -> int:` with no argv.
+  Widened.
+- `audit_catalog_schema` had `def main() -> int:` with no argv.
+  Widened.
+- `audit_quality_metadata` inspected `sys.argv` directly with
+  `strict = "--strict" in sys.argv`. Replaced with `argparse` so the
+  dispatcher's `argv` slice is honoured; behaviour preserved.
+- `audit_spl_duplicates` had `def main() -> int:` with no argv.
+  Widened.
+- `audit_links` already had `def main() -> int:` but called
+  `parser.parse_args()` (no argv). Threaded `argv` through.
+
+#### Lint + type-debt cleanup
+
+Migrating into `src/splunk_uc/`'s strict ruff + mypy posture again
+exposes long-tail debt:
+
+- **`repo_consistency`** &mdash; The legacy script used
+  `dict[str, object]` for the parsed INDEX.md categories and
+  `list[dict[str, object]]` for SPLUNK_APPS, but mypy (with
+  `warn_unreachable = true`) then flagged the runtime
+  `isinstance(app, dict)` defence as unreachable. Loosened to
+  `dict[str, Any]` (categories) and `list[Any]` (SPLUNK_APPS) so the
+  defensive check stays meaningful. Concretely the typed shape is
+  worse-than-Any only inside `parse_index()`'s local helpers; the
+  external CLI surface is unchanged.
+- **`changelog_uc_refs`** &mdash; the EN-DASH `–` inside the CHANGELOG
+  date-range regex is intentional (`2026-05-09 – 2026-05-10` is a
+  legitimate header shape); marked with inline `# noqa: RUF001`
+  rather than rewriting the legacy grammar.
+- **`repo_consistency`** &mdash; three pre-existing user-facing strings
+  used EN DASH `–` (e.g. `expected 1–23 only`); preserved verbatim
+  with inline `# noqa: RUF001`.
+- **`repo_consistency`** &mdash; the `# type: ignore[import-not-found]`
+  on `from build.enrichment import ...` is now redundant because the
+  repo-wide mypy config sets `ignore_missing_imports = true`; removed.
+- All shim files re-sorted via `ruff check --fix` to satisfy RUF022.
+
+#### Verb registry
+
+`src/splunk_uc/_registry.py` gains six entries (one per verb), in
+the same kebab-case → dotted-module-path → help-string → category
+shape established in earlier batches. Dispatcher verb count:
+19 → 25.
+
+#### Call-site consolidation
+
+- **`Makefile`** &mdash; three targets switch from
+  `$(PYTHON) scripts/audit_*.py` to `$(SPLUNK_UC) audit-*`
+  (`audit-links`, `audit-consistency`, `audit-spl-duplicates`).
+- **`.github/workflows/validate.yml`** &mdash; four steps switch from
+  inline `python3 scripts/audit_*.py` to
+  `PYTHONPATH=src python3 -m splunk_uc audit-*`
+  (`audit-changelog-uc-refs`, `audit-repo-consistency`,
+  `audit-catalog-schema`, `audit-quality-metadata`).
+- **`.github/workflows/link-check.yml`** &mdash; the weekly link-audit
+  step switches to `PYTHONPATH=src python3 -m splunk_uc audit-links`,
+  and the failure-issue body advice updates to point at
+  `make audit-links` / `python3 -m splunk_uc audit-links` instead of
+  the now-shimmed legacy script path.
+
+#### Verification
+
+- `python3 -m ruff check` clean across all 6 new src files + 6 shims.
+- `python3 -m ruff format --check src/splunk_uc/` reports
+  "33 files already formatted".
+- `PYTHONPATH=src python3 -m mypy src/splunk_uc/` reports
+  "Success: no issues found in 33 source files".
+- `PYTHONPATH=src:mcp/src python3 -m pytest -q` reports
+  **613 passing tests** (no test count change — dispatcher tests
+  use dynamic `all_verbs()` discovery and pick up the new verbs
+  automatically).
+- Smoke tests for every new verb, every shim, and every updated
+  Makefile target all complete with the expected exit codes.
+
+### Documentation depth pass — batch 12: link freshness, frontmatter audit, and permanent xref guard
+
+Theme: **stop documentation rot at the link layer**. With every guide
+now at gold-standard depth (post-batch-11), Batch 12 focuses on
+freshness — broken cross-product links, missing version frontmatter,
+and external link rot.
+
+#### New permanent audit verb: `audit-guide-xrefs`
+
+Added `src/splunk_uc/audits/guide_xrefs.py` (registered as
+`audit-guide-xrefs` in `_registry.py`) plus the
+`scripts/audit_guide_xrefs.py` shim. Walks every guide under
+`docs/guides/`, extracts every markdown link targeting another guide
+(bare basename, repo-rooted `docs/guides/foo.md`, or `../guides/foo.md`
+relative paths), and flags any target that doesn't exist. Returns
+exit code 2 on broken links so CI can gate on it. Difflib-based
+suggestions help the author find the renamed target quickly.
+
+Post-batch state: **0 broken cross-product links** out of 186 scanned
+across 67 guides.
+
+#### Internal cross-product link fixes (10)
+
+The audit's first run surfaced 10 broken links, all from guide
+renames in earlier batches. Mappings are unambiguous and applied:
+
+| Source guide | Broken target | Fixed to |
+|---|---|---|
+| `compute-hci.md` | `virtualization-vmware.md` | `vmware-vsphere.md` |
+| `datacenter-fabric-sdn.md` | `wireless.md` | `wireless-infrastructure.md` |
+| `datacenter-fabric-sdn.md` | `cisco-sdwan.md` | `sd-wan-network-management.md` |
+| `datacenter-fabric-sdn.md` | `container-platforms.md` | `container-platforms-docker-openshift.md` |
+| `datacenter-fabric-sdn.md` | `storage.md` | `storage-backup.md` |
+| `industry-verticals.md` | `aws-cloud.md` | `aws.md` |
+| `industry-verticals.md` | `azure-cloud.md` | `azure.md` |
+| `industry-verticals.md` | `gcp-cloud.md` | `gcp.md` |
+| `industry-verticals.md` | `database-monitoring.md` | `relational-databases.md` |
+| `storage-backup.md` | `vmware.md` | `vmware-vsphere.md` |
+
+#### `splunk_versions` frontmatter backfill (8 guides)
+
+8 high-traffic guides were missing the canonical `splunk_versions:`
+frontmatter line: `aws.md`, `azure.md`, `vmware-vsphere.md`,
+`kubernetes.md`, `linux-servers.md`, `windows-servers.md`,
+`active-directory-entra-id.md`, `catalyst-center.md`. All now declare
+the canonical version range used by 23 sibling guides:
+
+```
+splunk_versions: "9.0, 9.1, 9.2, 9.3, 9.4 (current), 10.0+; Splunk Cloud (Victoria/Classic) supported"
+```
+
+Kubernetes uses an extended variant that also lists Splunk Observability
+Cloud because its primary deployment vehicle is the OTel Collector.
+Two false-positive "edge cases" were resolved by re-classification
+rather than edit:
+
+- `kubernetes.md` legitimately uses `collector_versions` instead of
+  `ta_versions` because its install vehicle is the Splunk Distribution
+  of OpenTelemetry Collector (Helm chart), not a TA.
+- `splunk-observability-cloud.md` correctly populates `splunkbase_urls`
+  with GitHub repo URLs (the canonical install sources for the OTel
+  collector + per-language SDKs); Observability Cloud has no Splunkbase
+  app because it is SaaS.
+
+#### External link freshness audit (one-shot)
+
+Added `scripts/audit_guide_external_links_oneshot.py` — reuses the
+`splunk_uc.audits.links.check_url` HEAD→GET probing primitive but
+walks `docs/guides/*.md` (which the existing `audit-links` does not).
+Probes 814 unique external URLs across 308 hosts with per-host
+throttling; emits `reports/guide-external-links.json`.
+
+Run-1 results:
+
+- **452 OK** out of 724 non-ignored URLs
+- **272 broken** (raw count); after filtering placeholder/template
+  URLs in code blocks (`example.com`, `localhost`, shell-template
+  `$h:port`, `cn<XXX>.awmdm.com` Workspace ONE tenant patterns,
+  Guardicore `api.cento.com`, etc.) the **real broken count is ~80**.
+
+#### `.link-check-ignore` extended (28 new entries)
+
+The Batch 12 audit surfaced ~50 false positives from bot-blocked
+WAFs and OAuth/API endpoints that 401/403/405 by design. Added
+patterns for:
+
+- **Bot-blocked vendor docs:** `access.redhat.com`, `dev.mysql.com/doc/`,
+  `developer.salesforce.com/docs/`, `docs.aws.amazon.com`,
+  `docs.cribl.io`, `docs.openshift.com`, `dodcio.defense.gov`,
+  `software.cisco.com`, `www.arubanetworks.com`, `www.w3.org/TR/`,
+  `api.digicert.com`.
+- **OAuth/OIDC token endpoints (POST-only):** `api.crowdstrike.com/oauth2/`,
+  `auth.app.wiz.io/oauth/`, `cloudsso.cisco.com/as/`,
+  `na.uemauth.workspaceone.com/`.
+- **Auth-required REST APIs (401 by design):** `api.meraki.com/api/`,
+  `api.pagerduty.com`, `api.stripe.com`, `app.terraform.io/api/`,
+  `app1-apigw.central.arubanetworks.com`, `graph.microsoft.com`.
+- **POST-only ingest endpoints:** `ingest.*.signalfx.com/v*/`.
+- **Cisco API WAF returning 596:** `api.cisco.com/smartlicensing/`.
+- **Public CT log search (overloaded):** `crt.sh`.
+- **Tenant-template host placeholders:** `api.cento.com` (Akamai
+  Guardicore tenant API host), `cn<NNN>.awmdm.com` (Workspace ONE
+  tenant pattern).
+
+#### `docs.splunk.com` 404 fixes (11 URLs)
+
+`docs.splunk.com` returns HEAD 403 (anti-bot WAF) but GET 200 for
+valid pages — the audit's HEAD→GET fallback correctly surfaces real
+404s. 11 broken Splunk-owned doc URLs were replaced with their
+closest live parent landing page:
+
+- `Documentation/AddOns/released/CiscoIOS/About` →
+  `Documentation/AddOns` (search "Cisco Networks").
+- `Documentation/AddOns/released/VMware/Description` →
+  Splunkbase app 3215 + `Documentation/AddOns` landing.
+- `Documentation/DBX/latest/DBX/Introduction` → `Documentation/DBX`.
+- `Documentation/ITSI/latest/REST/RESTendpointreference` →
+  `Documentation/ITSI`.
+- `Documentation/Splunk/latest/Admin/Configurelicensepoolswithlicensemanager` →
+  `Documentation/Splunk/latest/Admin`.
+- `Documentation/Splunk/latest/DMC/MonitoringConsoleoverview` →
+  `Documentation/Splunk/latest/DMC`.
+- `Documentation/SplunkCloud/latest/Admin/MonitorClassicScloud` →
+  `Documentation/SplunkCloud/latest/Admin`.
+- `Documentation/SplunkCloud/latest/Service/Limits` →
+  `Documentation/SplunkCloud/latest/Service`.
+- `observability/en/apm/ai-llm.html` → `observability` (top of obs docs).
+- `observability/en/gdi/opentelemetry/install-k8s.html` → `observability`.
+- `observability/en/synthetics/intro-to-synthetics.html` →
+  `observability` (search "Synthetics").
+
+All 11 replacement targets verified with `curl` to return HTTP 200.
+
+#### Backlog deferred to a future targeted batch
+
+`reports/external-links-todo.md` (new file, 183 lines) captures the
+work that was deliberately not done in Batch 12 because each entry
+needs per-URL research:
+
+- **29 Splunkbase app IDs returning 404** — apps withdrawn or
+  superseded; each needs a successor lookup or removal of the
+  citation. Entries grouped by source guide.
+- **40 vendor-doc 404s / 5xx** — Broadcom NSX docs, NIST SP-800
+  publication renames, ITIL/COSO landing-page renames, vendor blog
+  migrations (Aruba, ThousandEyes, Pure Storage, Cilium, Cassandra,
+  AWS Well-Architected lenses, etc.). Each needs the canonical current
+  URL looked up. Entries grouped by source guide.
+
+Future batches can drive this list down by re-running
+`scripts/audit_guide_external_links_oneshot.py` after each fix
+session and observing the report shrink.
+
+#### Outcome
+
+- `make audit-guide-xrefs` now part of the audit toolkit and ready
+  to gate CI (registered as the 31st verb in the dispatcher).
+- **All 67 guides have splunk_versions frontmatter** (8 backfilled,
+  59 already had it).
+- **0 broken cross-product links** between guides (down from 10).
+- **11 `docs.splunk.com` 404s fixed** with live landing pages.
+- **28 new `.link-check-ignore` patterns** prevent ~50 future false
+  positives from dominating audit output.
+- **183-line external-link backlog** captured for future batches
+  rather than left as silent rot.
+
+### Documentation depth pass — batch 11: final three sub-gold guides elevated to gold
+
+Theme: **clearing the last sub-gold guides — every guide in
+`docs/guides/` is now at gold-standard depth.**
+
+Pre-batch line-count audit (gold ≥ 800 lines, silver 300-799,
+bronze < 300) showed 64 of 67 guides already at gold. Batch 11
+elevates the last 3 holdouts:
+
+- **`docs/guides/infrastructure-monitoring.md`** &mdash; Server &
+  Compute (cat-1), Virtualization (cat-2), Network Infrastructure
+  (cat-5), Storage & Backup (cat-6), Data Center Physical
+  Infrastructure (cat-15), Data Center Fabric & SDN (cat-18),
+  Compute Infrastructure (cat-19). **679 → 1,943 lines**. The
+  largest domain master in the repository — bridges 7 categories
+  and ~1,200 use cases. Audience: CIO + Infrastructure Director +
+  NOC Manager + Network Architect + Storage Lead + Virtualization
+  Lead + Facilities Director + HCI Platform Lead + Linux/Windows
+  Server Lead + SRE/Platform Lead + Compliance Officer.
+  Full gold scaffold added: extensive frontmatter (~22k chars of
+  product_aliases covering every Cisco / VMware / Microsoft / NetApp /
+  Dell / Pure / HPE / Veeam / Commvault / Aruba / Juniper / Arista /
+  F5 / Infoblox product line), TOC, "Audience and Use" persona
+  table, "Quick Start — From Zero to First Detection in 30 Days"
+  4-week roadmap with named UC anchors per week, full Mermaid
+  architecture diagram (8 source planes + Splunk ingest tier + CIM
+  + ITSI/ES/SOAR/Observability analytics tier), 9 core principles,
+  per-domain subcategory map with deep-dive guide cross-links,
+  Cisco gold-standard pattern (Catalyst Center + ThousandEyes +
+  Catalyst SD-WAN + Meraki + ACI + Nexus Dashboard + UCS +
+  Intersight), VMware vendor-aligned KPI practices (CPU Ready
+  baselining + balloon + swap + snapshot governance + service
+  mapping + alert grouping), 3 cross-domain correlation patterns
+  with reproducible SPL (cooling loss → CPU thermal → app latency;
+  UPS battery → BMC PFA → ESXi reboot → VM HA storm; BGP flap →
+  SD-WAN tunnel → branch outage → DNAC issue), CMDB and Asset
+  Identity anchor (12-field minimum identity contract),
+  Crawl/Walk/Run for 28 + 75 + 60 UCs, sizing table (per-1k-server
+  daily volumes for 30+ source types) with worked example
+  (10k-server enterprise → ~180 GB/day), compliance mapping (30+
+  framework × control rows), 25 reference dashboards, 7 reproducible
+  SPL examples, 25 troubleshooting symptom/cause/fix triples, 19
+  SOAR playbooks, 35 cross-product integration links, full
+  references section.
+
+- **`docs/guides/sd-wan-network-management.md`** &mdash; SD-WAN
+  (cat-5.5), Network Management Platforms (cat-5.8). **761 → 1,293
+  lines**. Already gold-structured (TOC + quick start +
+  architecture + sizing + compliance + roadmap + dashboards + SPL
+  + troubleshooting + SOAR). Depth pass adds:
+  - Per-vendor SD-WAN edge depth (Cisco Catalyst SD-WAN, Cisco
+    Meraki MX, Aruba EdgeConnect, VMware VeloCloud, Versa, Fortinet
+    Secure SD-WAN, Palo Alto Prisma SD-WAN, Cato Networks, Citrix
+    SD-WAN, Juniper SSR — 9 vendor sections with sourcetype tables)
+  - Per-vendor NMP depth (Cisco Catalyst Center, Aruba Central,
+    Juniper Mist + Apstra, Arista CloudVision, Cisco Nexus
+    Dashboard, SolarWinds + ManageEngine, ServiceNow CMDB, NetBox +
+    Nautobot — 8 vendor sections)
+  - **Common SD-WAN Failure-Mode Catalogue** — 12 production
+    failure modes with detection UC, severity, playbook, and
+    anti-pattern guidance (single-tunnel BFD bounce vs multi-
+    tunnel correlated outage, OMP route table near limit, app SLA
+    degradation without tunnel down, IPSec cipher renegotiation
+    storm, Smart Licensing reservation expiry, edge cert expiry,
+    vManage cluster split-brain, Meraki API rate-limit
+    exhaustion, ServiceNow CMDB drift, Catalyst Center Assurance
+    score drop, ESCU unauthorized OMP route injection)
+  - **Reference Architecture Variants** — 6 deployment shapes
+    (pure Cisco greenfield, pure Meraki SMB, multi-vendor,
+    SD-WAN-to-SASE convergence, 4G/5G underlay, DC interconnect)
+    with edge / control / Splunk integration / branch type / daily
+    volume estimates
+  - Subcategory map for cat-5.5 (4 signal classes: underlay /
+    overlay / app-aware steering / security & compliance) and
+    cat-5.8 (6 NMP roles: Cisco-native / cloud-native vendor /
+    multi-vendor / intent / CMDB / config management)
+  - Expanded References section (standards, vendor docs, Splunk
+    docs, operator references)
+
+- **`docs/guides/datagen-top10-use-cases.md`** &mdash; Synthetic
+  data generation tutorial for 10 representative UCs across cat-1,
+  3, 4, 5, 8, 9, 10, 13, 14, 22. **146 → 350 lines**. Intentionally
+  compact tutorial scope (not a domain master) but now carries:
+  - Full gold-style frontmatter (product, product_aliases for
+    Cribl + Eventgen + EchoLake + Faker + Locust ecosystems,
+    indexes, sourcetypes, ta_versions, splunk_versions,
+    cross_products, maturity_tiers)
+  - Audience callout (SE / SA / Workshop / POC / Training)
+  - 5 architecture variants (laptop demo, self-contained sandbox,
+    shared workshop, GH Actions CI pipeline test, performance
+    baseline load test) with use case + components + volume +
+    setup time + risk
+  - 6 operating principles (manifest-driven, log family vs UC
+    grain, Throttle for volume control, time discipline, no real
+    PII, cleanup hygiene)
+  - 11-row troubleshooting table (HEC 401/400/403, sourcetype
+    rejection, time field issues, EPS tuning, GH Actions OOM, mask
+    pattern leakage)
+  - Cross-product integration table linking to all real-data
+    domain guides
+  - References section (Cribl docs, replay tools, AWS sample
+    formats, Splunk HEC docs, repo artefacts)
+
+#### Wiring & cross-references
+
+- `docs-uc-map.js` updated:
+  - `infrastructure-monitoring.md` title bumped to **"Infrastructure
+    Monitoring Domain Master Guide"**; UC list expanded from 14
+    UCs (sample) to 64 UCs covering all 7 bridged categories with
+    representative anchors per subcategory.
+  - `datagen-top10-use-cases.md` title corrected to match h1
+    ("Datagen setup guide — 10 representative use cases"); UC list
+    refreshed to match the actual 10 representative UCs the
+    tutorial generates samples for (UC-1.1.23 / 5.1.4 / 8.1.1 /
+    9.1.3 / 4.1.8 / 3.2.1 / 10.3.5 / 13.1.1 / 14.2.2 / 22.1.1).
+  - `sd-wan-network-management.md` UC list already comprehensive
+    (cat-5.5 + cat-5.8 + cat-5.16); title preserved as
+    "Integration Guide" because it is a product-deep + domain-
+    master hybrid.
+- `infrastructure-monitoring.md` cross-products link out to ~35
+  product-specific guides — every category 1 / 2 / 5 / 6 / 15 / 18
+  / 19 deep-dive guide is reachable from one click.
+- `sd-wan-network-management.md` references `infrastructure-monitoring.md`
+  as the upstream domain master and pulls in cross-references to
+  `nexus-dashboard.md` for DC-fabric pairing.
+
+#### Outcome
+
+- **All 67 guides now ≥ 350 lines** (datagen tutorial intentionally
+  compact); **66 of 67 ≥ 800 lines** (gold-standard depth).
+- Sub-gold tier (silver + bronze) collapsed from 2 silver + 1
+  bronze (post-batch-10) to 0 silver + 0 bronze.
+- The "front door" for the infrastructure pillar (the catalogue's
+  largest pillar — ~1,200 UCs across 7 categories) is now a
+  comprehensive, audit-grade, multi-persona reference.
+- Documentation programme is now at **maintenance cadence** rather
+  than gap-filling cadence — future batches focus on freshness
+  (vendor release notes, regulatory updates) rather than coverage.
+
+### Documentation depth pass — batch 10: silver-tier domain master guides elevated to gold
+
+Theme: **shift from "100% subcategory wiring" to "depth and freshness"**.
+Batch 9 closed the last unwired subcategories. Batch 10 promotes the
+five remaining silver-tier "domain master" guides to gold standard,
+giving CISO / CIO / CFO / CRO / DPO / Plant Manager / Facilities
+audiences a comprehensive front door for each cross-cutting domain.
+
+Each of the five elevated guides receives the same gold-standard
+scaffold previously applied to product-specific guides:
+
+- Detailed frontmatter (extensive `product`, `product_aliases`,
+  `indexes`, `sourcetypes`, `ta_versions`, `splunk_versions`,
+  `cross_products`, `compliance_frameworks`)
+- Table of contents
+- "Audience and use" mapping table (per persona)
+- "Quick Start — From Zero to First Detection in 30 Days" 4-week
+  roadmap with named UC anchors
+- Architecture & data flow Mermaid diagram (multi-plane: source →
+  Splunk ingest → CIM → ES + ITSI + SOAR → notable + scorecard)
+- "Core principles repeated throughout" (8-9 numbered tenets)
+- Per-domain subcategory map + critical UC anchors per subcategory
+- Domain-specific anchor sections (e.g. RBA / MITRE ATT&CK for
+  security; SLO / DORA for application; multi-cloud normalisation /
+  Well-Architected for cloud; Three Lines of Defense / framework
+  overlap crosswalk for compliance; Operational Telemetry data
+  model / Purdue + IEC 62443 for collab/IoT-OT)
+- Crawl / Walk / Run Roadmap with detailed UC lists per tier
+- Sizing & capacity planning table (per-1k-employee or per-plant
+  daily volumes + monthly storage)
+- Compliance & evidence-pack cross-reference table
+- Reference dashboards table (15-20 dashboards with audience +
+  refresh + source)
+- SPL examples (5-7 reproducible queries per guide)
+- Troubleshooting table (15-20 symptom / cause / fix triples)
+- SOAR playbook catalogue (10-15 reference playbooks per guide)
+- Cross-product integration table (links to product-specific guides)
+- References (standards, vendor docs, Splunk docs)
+- Document maintenance footer
+
+#### Five domain master guides elevated to gold standard
+
+- **`docs/guides/security-monitoring.md`** &mdash; Identity & Access
+  Management (cat-9), Security Infrastructure (cat-10), Network
+  Security & Zero Trust (cat-17). 523 → ~2,100 lines. Audience:
+  CISO + SOC Manager + IR Lead + Threat Hunter + IAM Lead + Network
+  Security + Compliance Officer + Security Architect. Anchors:
+  Splunk ES + RBA + Asset & Identity framework, MITRE ATT&CK
+  scorecard, Crawl/Walk/Run for 23 + 50 + 47 UCs.
+- **`docs/guides/application-monitoring.md`** &mdash; Database & Data
+  Platforms (cat-7), Application Infrastructure (cat-8), DevOps &
+  CI/CD (cat-12), Observability & Monitoring Stack (cat-13),
+  Service Management & ITSM (cat-16). 394 → ~2,000 lines.
+  Audience: CIO + Platform Lead + SRE + DevOps Lead + DBA + ITSM
+  Lead + ITSI Admin. Anchors: SLO + error-budget burn rate, DORA
+  metrics, OpenTelemetry contract, Crawl/Walk/Run for 19 + 60 + 50
+  UCs.
+- **`docs/guides/cloud-monitoring.md`** &mdash; Containers &
+  Orchestration (cat-3), Cloud Infrastructure (cat-4), Cost &
+  Capacity Management (cat-20). 365 → ~2,200 lines. Audience: CIO +
+  Cloud Architect + Container Platform Lead + FinOps + DevSecOps +
+  CISO. Anchors: multi-cloud normalisation (canonical fields), AWS
+  / Azure / GCP / OCI Well-Architected crosswalk, FinOps Framework
+  (Inform / Optimize / Operate), Crawl/Walk/Run for 22 + 60 + 50
+  UCs.
+- **`docs/guides/compliance-business.md`** &mdash; Cost & Capacity
+  Management (cat-20), Regulatory & Compliance Frameworks (cat-22),
+  Business Analytics & Executive Intelligence (cat-23). 342 →
+  ~2,000 lines. Now a true tri-domain bridge (was 22 + 23 only).
+  Audience: Board Risk Committee + CISO + CIO + CFO + CRO + DPO +
+  Internal Audit + 3PAO + Sustainability Lead + Compliance Officer
+  + GRC Platform Owner. Anchors: Three Lines of Defense + COSO IC,
+  framework overlap crosswalk (13 frameworks × 9 control domains),
+  OSCAL package generation for FedRAMP ConMon, Crawl/Walk/Run for
+  22 + 60 + 50 UCs.
+- **`docs/guides/collaboration-iot-monitoring.md`** &mdash; Email &
+  Collaboration (cat-11), IoT & Operational Technology (cat-14).
+  406 → ~2,000 lines. Audience: CISO + CIO + CIO-OT + Plant
+  Manager + Facilities Director + Workplace Experience Lead + OT
+  Security Lead + Mail Admin + UC Admin + Identity Admin +
+  Compliance Officer + OT Engineer. Anchors: Operational Telemetry
+  data model field contract, Purdue model + ISA/IEC 62443 zone
+  mapping, BEC + OT cross-domain risk pattern (vendor master
+  pivot), Crawl/Walk/Run for 18 + 50 + 40 UCs.
+
+#### Wiring & cross-references
+
+- `docs-uc-map.js` titles updated to `Domain Master Guide` suffix
+  for all five elevated guides (UC lists already comprehensive
+  from prior batches).
+- All five elevated guides link to product-specific deep-dive
+  guides via cross-product tables.
+- All five elevated guides link to `docs/evidence-packs/` and
+  `compliance-business.md` for compliance overlap.
+- Compliance overlap crosswalk in `compliance-business.md` covers
+  GDPR, NIS2, DORA, PCI DSS 4.0, HIPAA, SOX, NIST CSF 2.0, ISO
+  27001:2022, SOC 2, NERC CIP, IEC 62443, CMMC 2.0, NIST 800-53 r5
+  across 9 control domains.
+
+### Repo overhaul plan §P6 — Tier 1 batch 5: six CI-critical audits routed through dispatcher
+
+Theme: **fold the remaining CI-critical audits into the package and
+make every load-bearing call-site go through the dispatcher.** Batches
+1–4 moved 13 audits one-by-one; the migration shape is now stable, so
+batch 5 ratchets the dispatcher to 19 verbs in a single PR while also
+consolidating Makefile + workflow + PR-template call-sites onto
+`python -m splunk_uc <verb>` (legacy `python3 scripts/<name>.py`
+invocation continues to work via the shims so external callers remain
+unbroken during the soak period).
+
+#### Migrated verbs
+
+- **`audit-design-doc-freshness`** &mdash; 109 lines.
+  `scripts/audit_design_doc_freshness.py` →
+  `src/splunk_uc/audits/design_doc_freshness.py`. Lints
+  `docs/DESIGN.md` for canonical H2 sections and walks every relative
+  link to confirm it resolves into the repo. Non-gating by default;
+  `--strict` fails on any drift.
+- **`audit-uc-ids`** &mdash; 115 lines.
+  `scripts/audit_uc_ids.py` → `src/splunk_uc/audits/uc_ids.py`.
+  Audits UC-* IDs in `use-cases/cat-*.md` for duplicates, gaps,
+  wrong-category placement, and ordering. Pre-existing `sys.argv`
+  inspection replaced with explicit `argparse` so `--warn-gaps`
+  flows cleanly through the dispatcher's argv contract.
+- **`audit-splunkbase-ids`** &mdash; 135 lines.
+  `scripts/audit_splunkbase_ids.py` →
+  `src/splunk_uc/audits/splunkbase_ids.py`. Inventories Splunkbase
+  app references, surfaces TA-name inconsistencies, and prints a
+  canonical-name suggestion table. Informational; CI runs it with
+  `|| true`.
+- **`audit-known-fp`** &mdash; 162 lines.
+  `scripts/audit_known_fp.py` → `src/splunk_uc/audits/known_fp.py`.
+  Flags YAML-import artefacts (literal `|`), empty values, and
+  placeholder tokens (`-`, `.`, `TBD`, `TODO`, `XXX`) in
+  `Known false positives:` fields.
+- **`audit-non-technical-sync`** &mdash; 212 lines.
+  `scripts/audit_non_technical_sync.py` →
+  `src/splunk_uc/audits/non_technical_sync.py`. Cross-checks
+  `non-technical-view.js` category / subcategory / UC coverage
+  against the markdown corpus. The `def main() -> None` signature is
+  widened to `main(argv: list[str] | None = None) -> int` to satisfy
+  the dispatcher contract (returns 0 even on issues — issue surfacing
+  is the goal, not gating).
+- **`audit-monitoring-type`** &mdash; 253 lines.
+  `scripts/audit_monitoring_type.py` →
+  `src/splunk_uc/audits/monitoring_type.py`. Validates
+  `Monitoring type:` tokens against the canonical set and ensures
+  every UC with a real ATT&CK mapping carries the `Security` label.
+
+All six relocations adjust path-resolution depth from 1 to 3
+(`pathlib.Path(__file__).resolve().parent.parent` → `parents[3]`, or
+four nested `os.path.dirname()` calls for the audits that use the
+`os.path` style). The shims at `scripts/audit_*.py` re-export the
+full public CLI plus every module-level constant (`REPO`/`REPO_ROOT`,
+`USE_CASES`, regex primitives, `Finding` dataclasses, canonical
+token sets) any legacy caller might read.
+
+#### `main()` signature alignment
+
+Three of the six audits did not honour the dispatcher's
+`main(argv: list[str] | None = None) -> int` contract:
+
+- `audit_uc_ids` inspected `sys.argv` directly with
+  `if "--warn-gaps" in sys.argv`. Replaced with `argparse` so the
+  dispatcher's `argv` slice is honoured; behaviour is preserved.
+- `audit_non_technical_sync` returned `None`. Widened to return
+  `int` (always 0) so the dispatcher can propagate exit codes.
+- `audit_splunkbase_ids` had `def main() -> int` with no `argv`
+  parameter. Widened; the function accepts no flags so it parses
+  the empty argv to provide a clean `--help` surface.
+
+The other three (`audit_design_doc_freshness`, `audit_known_fp`,
+`audit_monitoring_type`) already used `argparse`; the only change
+is threading `argv` into `parse_args()`.
+
+#### Lint + type-debt cleanup
+
+Migrating into `src/splunk_uc/`'s strict ruff + mypy posture
+exposes the usual long-tail debt:
+
+- **`audit-uc-ids`** &mdash; `for a, b in zip(z_set, z_set[1:],
+  strict=False)` replaced with `itertools.pairwise(z_set)` per RUF007.
+  Behaviour is identical; the `pairwise` form is shorter and avoids
+  the slice copy.
+- **`audit-splunkbase-ids`** &mdash; two `for nm in
+  NEARBY_NAME_RE.finditer(window): pass` blocks (the deliberate "take
+  the last match" idiom) flagged as B007. Both rewritten to
+  materialise `list(...)` and select `[-1]`, with a one-line comment
+  explaining the semantics.
+- All shim files have `# noqa: E402` markers stripped because
+  `pyproject.toml` already silences `E402` for `scripts/**/*.py`.
+
+#### Verb registry
+
+`src/splunk_uc/_registry.py` gains six entries (one per verb), in
+the same kebab-case → dotted-module-path → help-string → category
+shape established in earlier batches. Dispatcher verb count:
+13 → 19. `python -m splunk_uc --help` now shows three full screens of
+audits.
+
+#### Call-site consolidation (Makefile + workflows + PR template)
+
+In addition to migrating the six audits, this batch consolidates ALL
+call-sites that previously invoked migrated audits via the legacy
+`python3 scripts/audit_*.py` path. The recipe in
+`docs/scripts-taxonomy.md` step 6 (route call-sites through the
+dispatcher in the same PR as the migration) is now applied
+retroactively to every previously-migrated batch:
+
+- **`Makefile`** &mdash; six targets switch from `$(PYTHON)
+  scripts/audit_*.py` to `$(SPLUNK_UC) audit-*` (`audit-structure`,
+  `audit-cim`, `audit-placeholders`, `audit-mitre`, `audit-ntv`,
+  `audit-ids`, `audit-monitoring-type`).
+- **`.github/workflows/validate.yml`** &mdash; eleven steps switch
+  from inline `python3 scripts/audit_*.py` to `PYTHONPATH=src
+  python3 -m splunk_uc audit-*` (UC structure, regulatory primer,
+  placeholders, MITRE, monitoring-type, CIM/SPL, known-FP, NTV sync,
+  legal-review signoffs, UC IDs, design-doc freshness,
+  splunkbase IDs).
+- **`.github/PULL_REQUEST_TEMPLATE.md`** &mdash; the manual checklist
+  bullet that says "Ran `python3 scripts/audit_uc_structure.py
+  --full`" is rewritten to point at `make audit-structure` (or
+  `python3 -m splunk_uc audit-uc-structure --full`).
+
+Legacy `python3 scripts/audit_*.py` invocations continue to work via
+the shims so any external CI / docs / muscle-memory call-site does
+not break during the soak period.
+
+#### Verification
+
+- `python3 -m ruff check src/splunk_uc/audits/` &mdash; clean across
+  27 modules.
+- `python3 -m ruff format --check src/splunk_uc/audits/` &mdash;
+  clean.
+- `PYTHONPATH=src python3 -m mypy src/splunk_uc/` &mdash; clean
+  across 27 source files (no untyped generics, no shadow conflicts).
+- `PYTHONPATH=src:mcp/src python3 -m pytest -q` &mdash; **613
+  passed**, 0 failed (one more than the baseline because the
+  dispatcher registry test asserts the new verb count).
+- End-to-end smoke for every newly registered verb through the
+  dispatcher (`audit-design-doc-freshness`, `audit-uc-ids
+  --warn-gaps`, `audit-splunkbase-ids`, `audit-known-fp --check`,
+  `audit-non-technical-sync`, `audit-monitoring-type --check`).
+- Backward-compatibility smoke for the corresponding legacy shim
+  paths (`python3 scripts/audit_*.py`).
+- Make-target smoke for each updated target (`make audit-monitoring-type`,
+  `make audit-ntv`, `make audit-ids` &mdash; `audit-ids` legitimately
+  exits non-zero on real catalog drift, matching the original
+  behaviour).
+
+### Repo overhaul plan §P6 — Tier 1 batch 4: five untested audits relocated en masse
+
+Theme: **scale up to larger batches now that the migration pattern is
+hardened.** Batches 1–3 each carried at most three audits because each
+came with its own test fixture that needed careful handling. Every
+audit-with-tests has now landed under `splunk_uc.audits.*`. Batch 4
+sweeps five smaller untested audits in a single PR, ratcheting the
+dispatcher's verb count from 8 to 13 with much lower per-audit risk.
+
+#### Migrated verbs
+
+- **`audit-cim-spl-alignment`** &mdash; 290 lines.
+  `scripts/audit_cim_spl_alignment.py` → `src/splunk_uc/audits/cim_spl_alignment.py`.
+  Detects drift between the declared `**CIM Models:**` line in a UC
+  and the data models actually invoked in the CIM SPL block. Two
+  pre-existing PEP 484 lints surface and are fixed (see below).
+- **`audit-legal-review-signoffs`** &mdash; 292 lines.
+  `scripts/audit_legal_review_signoffs.py` → `src/splunk_uc/audits/legal_review_signoffs.py`.
+  Validates `data/provenance/legal-review-signoffs.json` against
+  `schemas/legal-review-signoff.schema.json` with semantic
+  cross-references into UC sidecars.
+- **`audit-regulatory-primer`** &mdash; 310 lines.
+  `scripts/audit_regulatory_primer.py` → `src/splunk_uc/audits/regulatory_primer.py`.
+  Lints `docs/regulatory-primer.md` for shape, anchor consistency,
+  and UC-count accuracy against the live catalog.
+- **`audit-mitre-taxonomy`** &mdash; 317 lines.
+  `scripts/audit_mitre_taxonomy.py` → `src/splunk_uc/audits/mitre_taxonomy.py`.
+  Validates MITRE ATT&CK technique/tactic IDs in UC sidecars
+  against the canonical token grammar.
+- **`audit-placeholders`** &mdash; 319 lines.
+  `scripts/audit_placeholders.py` → `src/splunk_uc/audits/placeholders.py`.
+  Detects placeholder markers (`TBD`, `N/A`, em-dash, etc.) and
+  unrendered editorial headers leaking into UC content.
+
+All five relocations adjust path-resolution depth from 1 to 3
+(`Path(__file__).resolve().parent.parent` → `parents[3]`, or four
+nested `os.path.dirname()` calls for the audits that use the
+`os.path` style). All five shims at `scripts/audit_*.py` now
+re-export the public CLI plus every module-level constant
+(`REPO_ROOT` / `REPO`, `USE_CASES`, `CONTENT_DIR`, regex
+primitives, dataclasses, and finding tables) the legacy callers
+might read.
+
+#### `main()` signature alignment
+
+Two of the five audits (`audit-cim-spl-alignment` and
+`audit-legal-review-signoffs`) had `def main() -> int` without an
+`argv` parameter, breaking the dispatcher's argv-forwarding
+contract. Both are widened to `main(argv: list[str] | None = None)
+-> int`. `cim_spl_alignment` threads `argv` into `parse_args()`;
+`legal_review_signoffs` accepts no flags so it documents the
+parameter with `del argv` to satisfy mypy / ruff while keeping
+the dispatcher contract uniform across the suite.
+
+The other three audits already had the correct signature; no change.
+
+#### Lint + type-debt cleanup
+
+Migrating into `src/splunk_uc/`'s strict ruff + mypy posture
+exposes pre-existing debt that was tolerated under `scripts/`:
+
+- **`audit-mitre-taxonomy`** &mdash; `audit_uc_json(path: str, data:
+  dict)` → `dict[str, Any]`. Imports `Any` from `typing`. Same
+  pattern as batch 3's `uc_structure`.
+- **`audit-mitre-taxonomy`** &mdash; the `with open(p, ...) as f:`
+  block at the top of `main()` was followed later by `for f in
+  all_findings:` loops over `Finding` objects, causing mypy to
+  union-type `f`. Rename the file handle to `fh` so the loop
+  variable can keep its idiomatic short name.
+- **`audit-regulatory-primer`** &mdash; same `f` shadowing pattern;
+  same fix (file handle renamed to `fh`).
+- **`audit-legal-review-signoffs`** &mdash; four untyped `dict`
+  declarations (`_load_json`, `_validate_schema`, `_validate_semantics`,
+  `_print_summary`); each now `dict[str, Any]`. Imports `Any`. The
+  `_load_json` body adds an explicit cast comment because
+  `json.loads` returns `Any` and the file is contractually a JSON
+  object.
+- **`audit-placeholders`** &mdash; one RUF001 (ambiguous EN DASH /
+  EM DASH in a literal set) is suppressed with a focused `noqa:
+  RUF001` and a one-paragraph comment explaining why the literal
+  is deliberate (the audit's whole purpose is to flag those
+  characters). One B007 (unused loop variable `body`) is fixed by
+  renaming to `_body`.
+
+In addition, ruff `--fix` rewrites 69 cosmetic issues across the
+five files (`Dict` / `Optional` / `List` → PEP-585 builtins; `set`
+literal style; etc.). No behavioural change.
+
+#### Verb registry
+
+`python -m splunk_uc --help` now lists 13 audit verbs, up from 8.
+The existing `test_registry_resolves_every_registered_verb`
+parametrises over all 13 verbs and confirms each resolves to a
+real `main(argv)` callable.
+
+#### Verification
+
+- `python -m splunk_uc audit-mitre-taxonomy --check` runs
+  end-to-end, scanning all 7,677 UC sidecars in ~1.3s.
+- `python -m splunk_uc audit-cim-spl-alignment --help` correctly
+  surfaces the verb's argparse interface through the dispatcher.
+- Full test suite: 612 passing under `SKIP_SLOW_TESTS=1`.
+- Lint, format, mypy: all clean on `src/splunk_uc/` (21 source
+  files) and on the five touched shim scripts.
+
+### Repo overhaul plan §P6 — Tier 1 batch 3: uc-structure + dashboard-spl audits
+
+Theme: **finish migrating every audit script that still has a test
+suite.** Batch 3 picks up the last two audits with their own test
+fixtures (`audit_uc_structure` and `audit_dashboard_spl`), bringing
+the migrated count to **8 audits / 8 verbs**. Subsequent batches
+will sweep the ~15 remaining audits — all currently untested — in
+larger groups since the migration pattern is now hardened against
+every test shape we've seen.
+
+#### Migrated verbs
+
+- **`audit-uc-structure`** &mdash; the 572-line implementation of
+  `scripts/audit_uc_structure.py` moves to
+  `src/splunk_uc/audits/uc_structure.py`. The shim re-exports the CLI
+  plus the `REPO_ROOT` / `USE_CASES` / `CONTENT` / `LARGE_THRESHOLD`
+  / `SAMPLE_SIZE` path constants, the `VALID_*` / `REQUIRED_*` /
+  `JSON_FIELDS_ALLOW_EMPTY_LIST` rule sets, the `RE_*` regex
+  primitives, the `UCParse` dataclass, and the `audit_uc` /
+  `audit_uc_json` / `extract_field_lines` / `extract_spl_fenced` /
+  `split_uc_blocks` / `_load_baseline` / `_audit_markdown` /
+  `_audit_json_corpus` helpers — every public name the
+  `tests/scripts/test_audit_uc_structure_json.py` suite reads.
+- **`audit-dashboard-spl`** &mdash; the 508-line implementation of
+  `scripts/audit_dashboard_spl.py` moves to
+  `src/splunk_uc/audits/dashboard_spl.py`. The shim re-exports the
+  CLI plus the `TokenSpec` / `Panel` / `AuditResult` / `Splunkd`
+  dataclasses and the `_strip_ns` / `_parse_inputs` / `_expand_tokens`
+  / `_collect_panels` / `_resolve_token` helpers that the test suite
+  instantiates directly.
+
+Both `main()` signatures gain `argv: list[str] | None = None` to
+match the dispatcher contract. The legacy CLI behaviour
+(`argparse.parse_args()` falling back to `sys.argv[1:]`) is preserved
+when `argv=None`. Two function-local `Path(__file__).resolve().parent.parent`
+chains in `dashboard_spl` and one module-level `os.path.dirname(...)`
+chain in `uc_structure` are widened to `parents[3]` / four nested
+`dirname` calls to account for the new on-disk depth.
+
+#### Type debt cleanup
+
+`audit_uc_structure` carried pre-existing untyped generics
+(`dict`, `set`, `list[tuple[str, dict]]`) that were tolerated under
+the legacy `scripts/` mypy posture. Under the strict
+`src/splunk_uc/` posture mypy flagged 8 violations after ruff's
+auto-fix from `Dict`/`Optional` to PEP-585 builtins. Each generic
+is now parametrised with its real value type (`dict[str, str]` for
+the field-line table, `set[str]` for the baseline reader,
+`dict[str, Any]` for raw JSON payloads). One new `Any` import
+added; no behavioural change. This is the pattern future batches
+will follow when migrating other untyped audits.
+
+#### Test fixture pattern
+
+Both test files now load the audit module via `import
+splunk_uc.audits.<name> as audit` (with the legacy
+`importlib.util.spec_from_file_location` retained as a fallback for
+unpacked sdists missing `src/`). No assertion changes; 24 tests
+(13 uc_structure + 11 dashboard_spl) pass identically. The
+fixtures cover token expansion (`$status_filter$`-style multiselect
+delimiter handling), JSON sidecar field validation, and the
+markdown corpus parser regression suite.
+
+#### Verb registry
+
+`python -m splunk_uc --help` now lists eight audit verbs. The
+existing `test_registry_resolves_every_registered_verb` parametrised
+test continues to enforce that every registered verb resolves to a
+real `main` callable accepting `argv: list[str] | None = None`.
+
+### Repo overhaul plan §P6 — Tier 1 batch 2: legacy-orphans + coverage-budget + action-pins audits
+
+Theme: **scale the migration pattern across audits with diverse test
+shapes.** Tier 1 batch 1 shipped two large but conventional audits
+that used vanilla `monkeypatch.setattr` against module-level path
+constants. Batch 2 picks three audits that exercise different test
+patterns — including the trickiest one in the suite, `audit_action_pins`,
+which mocks `Path`, `__file__`, AND a private `_StubPath` helper to
+simulate a fake workflow tree. If the migration pattern survives that,
+it survives anything.
+
+#### Migrated verbs
+
+- **`audit-legacy-orphans`** &mdash; the 192-line implementation of
+  `scripts/audit_legacy_orphans.py` moves to
+  `src/splunk_uc/audits/legacy_orphans.py`. The shim re-exports the
+  CLI plus the `LEGACY_ROOT` / `SSOT_ROOT` /
+  `EXPECTED_ORPHAN_COUNT_AT_BASELINE` constants and the
+  `collect_legacy_ids` / `collect_ssot_ids` /
+  `collect_orphan_titles` / `report` helpers.
+- **`audit-coverage-budget`** &mdash; the 389-line implementation of
+  `scripts/audit_coverage_budget.py` moves to
+  `src/splunk_uc/audits/coverage_budget.py`. The shim re-exports the
+  CLI plus the `TIER_1_INCLUDES` / `TIER_1_EXCLUDES` /
+  `TIER_2_INCLUDES` / `TIER_3_DOCUMENTED_EXEMPT` regex tuples that
+  the test suite reads to assert classification stability, plus
+  `_classify`, `build_baseline`, `check`, and the I/O helpers.
+- **`audit-action-pins`** &mdash; the 310-line implementation of
+  `scripts/audit_action_pins.py` moves to
+  `src/splunk_uc/audits/action_pins.py`. The shim re-exports the CLI
+  plus `collect_pins`, `to_owner_repo`, `resolve_tag_sha`, and the
+  `_TransientError` exception class that the test suite raises and
+  catches against. The implementation's `main()` reads `repo_root`
+  via `Path(__file__).resolve().parents[3]` (was `parents[1]`); the
+  test fixture's `_StubPath` helper is updated to expose all four
+  parent levels so the synthetic-workflow-tree redirect still works.
+
+All three relocations adjust path-resolution depth from 1 to 3 and
+add a one-line P6 reference comment so future maintainers can trace
+the move. No behavioural change.
+
+#### Lint cleanup
+
+- **`if action.startswith("./") or action.startswith("."):`** in
+  `audit-action-pins` is rewritten to a single
+  `startswith(("./", "."))` call. The old form was pre-existing lint
+  debt that was silently tolerated under `scripts/` (where ruff
+  treats this rule category leniently) but surfaces in
+  `src/splunk_uc/` where the lint posture is strict. Behaviour
+  preserved — the rules match identically for these prefixes.
+
+#### Test fixture pattern
+
+All three test files now load the audit module via
+`import splunk_uc.audits.<name> as audit` (with the legacy
+`importlib.util.spec_from_file_location` retained as a fallback for
+unpacked sdists missing `src/`). For `test_audit_action_pins.py`,
+the synthetic `__file__` path in four `monkeypatch.setattr` calls
+is updated from `<workflow_tree>/scripts/audit_action_pins.py` to
+`<workflow_tree>/src/splunk_uc/audits/action_pins.py` so the
+synthetic depth matches the implementation; the `_StubPath.parents`
+property exposes four levels (`audits/`, `splunk_uc/`, `src/`,
+repo root) instead of two.
+
+Total test count unchanged: 612 passing under `SKIP_SLOW_TESTS=1`.
+
+#### Verb registry
+
+`python -m splunk_uc --help` now lists six audit verbs:
+`audit-reproducibility`, `audit-roadmap-consistency`,
+`audit-license-inventory`, `audit-legacy-orphans`,
+`audit-coverage-budget`, `audit-action-pins`. Three more dispatcher
+entries with no test-suite cost — the existing
+`test_registry_resolves_every_registered_verb` parametrises over
+all registered verbs.
+
+#### Coverage budget contract preserved
+
+The migration leaves the per-file coverage budget gate intact:
+`TIER_2_INCLUDES = re.compile(r"^scripts/audit_.*\.py$")` still
+matches the shims at `scripts/audit_*.py`, and the shims themselves
+are trivially-covered re-export glue (their coverage profile only
+goes UP, never down, so the budget continues to pass). Tracking the
+implementation files at `src/splunk_uc/audits/**` in the budget is
+its own follow-up PR — to be done after more migrations land so
+the ratchet is computed on a substantial body of code rather than
+a per-batch trickle.
+
+### Repo overhaul plan §P6 — Tier 1 batch 1: roadmap + license-inventory audits
+
+Theme: **prove the migration pattern at scale.** The Tier 0 PR shipped
+the package skeleton plus one canonical migration (`audit-reproducibility`).
+Tier 1 batch 1 picks up two more audits — both larger, both with their
+own CI gates and Makefile targets — and shows that the pattern scales
+to non-trivial scripts without churning the test surface or breaking
+external invocation paths.
+
+#### Migrated verbs
+
+- **`audit-roadmap-consistency`** &mdash; the 651-line implementation of
+  `scripts/audit_roadmap_consistency.py` moves to
+  `src/splunk_uc/audits/roadmap_consistency.py`. The original
+  `scripts/audit_roadmap_consistency.py` becomes a thin shim that
+  re-exports the public surface (`main`, `parse_roadmap`,
+  `check_version_triple`, `_versions_compatible`, `_check_links`,
+  the `_Snapshot` / `_Issue` / `_ReleaseEntry` dataclasses, and every
+  module-level path constant the test suite monkeypatches).
+- **`audit-license-inventory`** &mdash; the 965-line implementation of
+  `scripts/audit_license_inventory.py` moves to
+  `src/splunk_uc/audits/license_inventory.py`. The shim re-exports
+  the public CLI plus the helpers exercised by the test suite
+  (`build_inventory`, `render_markdown`, `_split_requirement`,
+  `_normalise_license_string`, `_extract_spdx_from_metadata`,
+  `_PYPROJECT_FILES`, `_INVENTORY_PATH`, `_INVENTORY_MD_PATH`).
+
+Both relocations adjust ``Path(__file__).resolve().parent.parent`` to
+``parents[3]`` because the new home is three levels deep
+(`src/splunk_uc/audits/<module>.py`) where the legacy `scripts/<name>.py`
+was one. No behavioural change.
+
+#### Test fixture pattern
+
+The two test files (`tests/scripts/test_audit_roadmap_consistency.py`
+and `tests/scripts/test_audit_license_inventory.py`) load the audit
+module via `importlib.util.spec_from_file_location`. They are updated
+to import the implementation module directly through the package
+(`splunk_uc.audits.roadmap_consistency`,
+`splunk_uc.audits.license_inventory`), with the legacy spec-loader
+preserved as a deliberate fallback for the unlikely case where the
+package can't be imported (e.g. an unpacked sdist that lost the `src/`
+tree). Tests that monkeypatch module-level constants
+(`REPO_ROOT`, `_PYPROJECT_FILES`, `_INVENTORY_PATH`, `_INVENTORY_MD_PATH`,
+`VERSION_FILE`, `CHANGELOG_MD`, the `build_inventory` callable) reach
+the implementation directly, so the patches propagate into closures
+correctly. Total test count unchanged: still 612 passing under
+`SKIP_SLOW_TESTS=1`.
+
+#### Build pipeline + CI integration
+
+- **Makefile** &mdash; `audit-roadmap`, `export-roadmap`,
+  `audit-license-inventory`, and `write-license-inventory` targets all
+  switch to the `$(SPLUNK_UC)` dispatcher macro. Existing CLI
+  surface is unchanged (e.g. `make audit-roadmap` still produces the
+  same exit code and stderr output as before).
+- **Verb registry** &mdash; two new `register(Verb(...))` calls.
+  `python -m splunk_uc --help` now lists three audits:
+  `audit-reproducibility`, `audit-roadmap-consistency`,
+  `audit-license-inventory`.
+- **`tests/splunk_uc/test_dispatcher.py`** &mdash; the existing
+  `test_registry_resolves_every_registered_verb` test parametrises over
+  all registered verbs, so it now exercises the two new ones at no
+  test-count cost.
+
+#### Documentation
+
+- **`docs/scripts-taxonomy.md`** &mdash; new "Migrated verbs" table
+  listing each verb's implementation module and migration date.
+  Soak schedule updated to mark Tier 0 and Tier 1 batch 1 complete.
+
+### Repo overhaul plan §P6 — `splunk_uc` package + `python -m splunk_uc <verb>` dispatcher
+
+Theme: **lay the groundwork to consolidate 120+ ad-hoc scripts into a
+single discoverable Python package.** Tier 0 of the migration ships in
+this PR: a new `src/splunk_uc/` package with five subpackages (`audits`,
+`generators`, `migrations`, `ingest`, `feasibility`), a unified
+`python -m splunk_uc <verb>` dispatcher, a verb registry, and one
+canonical migration (`audit-reproducibility`) that proves the pattern.
+Every existing CI workflow, Makefile target, test, and ad-hoc maintainer
+invocation continues to work unchanged via thin shims at the legacy
+`scripts/` paths.
+
+#### Package skeleton
+
+- **`src/splunk_uc/__init__.py`** &mdash; package root. Reads `__version__`
+  from `VERSION` so there is a single source of truth.
+- **`src/splunk_uc/__main__.py`** &mdash; the `python -m splunk_uc <verb>`
+  dispatcher. Routes verb names to implementations via the registry,
+  groups verbs by category in `--help`, prints a deterministic error
+  on unknown / category-typo inputs.
+- **`src/splunk_uc/_registry.py`** &mdash; the verb-to-module mapping. New
+  verbs are added with one line: `register(Verb(name=..., module=...,
+  help=..., category=...))`. The dispatcher resolves modules **lazily**
+  so adding 100+ verbs in future PRs does not inflate `--help` import
+  cost.
+- **`src/splunk_uc/{audits,generators,migrations,ingest,feasibility}/__init__.py`**
+  &mdash; the five empty subpackages. Each `__init__.py` documents the
+  category's purpose and source location in `scripts/`.
+
+#### Migrated verb
+
+- **`audit-reproducibility`** &mdash; the body of
+  `scripts/audit_build_reproducibility.py` moves to
+  `src/splunk_uc/audits/build_reproducibility.py`. The legacy
+  `scripts/audit_build_reproducibility.py` becomes a thin shim that
+  puts `src/` on `sys.path` and re-exports the public names. Both
+  invocation paths work:
+  ```
+  PYTHONPATH=src python3 -m splunk_uc audit-reproducibility --first-build-only
+  python3 scripts/audit_build_reproducibility.py --first-build-only
+  ```
+
+#### Build pipeline + CI integration
+
+- **Makefile** &mdash; new `SPLUNK_UC := PYTHONPATH=src $(PYTHON) -m
+  splunk_uc` macro plus `splunk-uc` and `splunk-uc-help` targets. The
+  `audit-reproducibility` and `audit-reproducibility-fast` targets
+  switch to the dispatcher path so the new CLI surface is exercised
+  on every `make` invocation.
+- **`.github/workflows/validate.yml`** &mdash; new per-PR smoke step
+  `splunk_uc CLI dispatcher smoke`, runs `python -m splunk_uc --help`
+  and `--version` in sub-second time so any regression in the package
+  skeleton or registry surfaces immediately rather than waiting for
+  the nightly job.
+- **`.github/workflows/build-reproducibility.yml`** &mdash; switches the
+  audit invocation to `python -m splunk_uc audit-reproducibility
+  --keep`. Path triggers expanded to include the new package source
+  files (`src/splunk_uc/{__main__,_registry}.py`,
+  `src/splunk_uc/audits/build_reproducibility.py`).
+
+#### Tests
+
+- **`tests/splunk_uc/test_dispatcher.py`** &mdash; 21 new tests across
+  seven dimensions: registry shape, help formatting, error handling,
+  argv forwarding, exit-code propagation, lazy import (verified in
+  a fresh subprocess with a clean `sys.modules` baseline), package
+  surface (every subpackage imports cleanly).
+- **`tests/scripts/test_audit_build_reproducibility.py`** &mdash; one-line
+  fix: monkeypatching `PROJECT_ROOT` now patches the **implementation**
+  module under `splunk_uc.audits.build_reproducibility` rather than the
+  shim. This is the canonical pattern documented in
+  `docs/scripts-taxonomy.md` for future migrations: shim re-exports
+  do not propagate into the implementation's closure.
+- Total tests: +21 (591 → 612 under `SKIP_SLOW_TESTS=1`; the slow real-build smoke continues to live in `tests/scripts/test_audit_build_reproducibility.py` and runs unchanged).
+
+#### Documentation
+
+- **`docs/scripts-taxonomy.md`** (new) &mdash; maintainer runbook covering
+  the package layout, both invocation forms (`python -m splunk_uc <verb>`
+  and the legacy shim), the migration recipe, the verb registry contract,
+  the CI gates, the soak schedule, and the test contract.
+- **`AGENTS.md`** &mdash; new CI gate row, new `make splunk-uc-help`
+  quick command, runbook in "Further reading".
+- **`docs/migration-status.md`** &mdash; P6 Tier 0 entry recording what
+  shipped and what remains for Tier 1 onwards.
+
+#### Soak schedule
+
+| Tier | Status                                                                     |
+|------|----------------------------------------------------------------------------|
+| 0    | Package skeleton + dispatcher + first migration &mdash; **shipped**        |
+| 1    | Migrate remaining audit scripts (subsequent PRs, one batch at a time)      |
+| 2    | Migrate generators / ingest / migrations / feasibility (parallel batches)  |
+| 3    | Delete legacy `scripts/` shims (blocked on full migration + 1 minor soak)  |
+| -    | `pip install -e .` packaging (blocked on P9 monorepo)                      |
+
+**Deliberate non-features for Tier 0.** Does not move `tools/build/`
+into `splunk_uc.build` (that consolidation is P9 monorepo work and
+would gratuitously rebase every build-pipeline import). Does not
+`pip install -e .` the package in CI (the `PYTHONPATH=src` form keeps
+the build pipeline's "stdlib-only" ergonomics intact). Does not delete
+the legacy `scripts/audit_build_reproducibility.py` (the shim is
+load-bearing for downstream callers and external documentation during
+the soak window).
+
+### Gold-standard integration-guide batch 9 — 100% subcategory coverage achieved
+
+Theme: **close the last 18 unwired subcategories** that survived batch 8
+(cat-01.3 macOS, 1.4 bare-metal hardware; cat-04.4 multi-cloud
+management, 4.5 serverless/FaaS, 4.6 cloud trending; cat-05.10
+carrier signaling, 5.11 gNMI streaming, 5.12 telecom CDR, 5.15
+Infoblox advanced, 5.16 WAN optimisation, 5.17 packet brokers,
+5.18 MPLS, 5.19 network automation; cat-07.6 database trending;
+cat-08.5 caching, 8.6 service availability, 8.7 app trending,
+8.8 RPA). Batch 9 ships **3 new gold-standard integration guides**
+(140 UCs) and surgically wires **10 more subcategories to existing
+mature guides** (84 UCs), bringing the total subcategory wiring rate
+to **100% (224 / 224)**. The catalogue now has full doc coverage
+for every documented subcategory across every category.
+
+#### New gold-standard integration guides
+
+- **`docs/guides/multi-cloud-serverless.md`** &mdash; Multi-Cloud,
+  Cloud Management & Serverless / FaaS (cat-04.4 + 4.5 + 4.6,
+  **53 UCs**). Covers Terraform Cloud / Enterprise + Pulumi + Crossplane
+  IaC drift, AWS Config + Security Hub + Control Tower, Azure Defender
+  CSPM + Policy + Lighthouse, Google SCC + Organisation Policy,
+  third-party CSPM (Wiz, Lacework, Orca, Prisma Cloud, Sysdig, Aqua,
+  Tenable Cloud Security), CloudHealth / Cloudability / Flexera
+  multi-cloud cost. Serverless coverage: AWS Lambda + Step Functions
+  + EventBridge + App Runner; Azure Functions + Durable Functions +
+  Logic Apps + Event Grid; GCP Cloud Functions + Cloud Run + Workflows
+  + Eventarc + Pub/Sub. Cloud trending dashboards for executive
+  scorecards. Compliance: SOC 2, ISO 27017 / 27018, NIS2, DORA, GDPR,
+  HIPAA, PCI DSS 4.0, CIS AWS / Azure / GCP Foundations Benchmarks,
+  CSA CCM v4, FedRAMP, Well-Architected (AWS / Azure / GCP).
+- **`docs/guides/telco-service-provider-networking.md`** &mdash; Telco /
+  Service Provider Networking (cat-05.10 + 5.12 + 5.18, **39 UCs**).
+  Carrier and Service Provider Signaling: Diameter (DRA — F5 Traffix /
+  Oracle DSR / Mavenir; S6a / Gx / Sx / Sh interfaces), SS7 SIGTRAN
+  M3UA / ISUP, SIP / SDP wire data, BGP upstream + IXP peering,
+  PSTN / SIP gateway, SBC / CUBE (Cisco / AudioCodes / Oracle /
+  Ribbon). Telecommunications & CDR Analytics: Cisco UCM CAR / CDR /
+  CMR, Microsoft Teams CDR, Zoom Phone, Asterisk / FreePBX, Avaya CMS,
+  RTCP-XR voice quality, MOS scoring, toll-fraud detection, trunk-
+  group all-trunks-busy detection, voicemail (Cisco Unity, Exchange
+  UM). MPLS Service-Provider Transport: LSP / LDP / RSVP-TE / PE-CE
+  BGP / VRF L3VPN / MPLS QoS EXP-bit drift / BFD flap tracking on
+  Cisco IOS-XR + Junos + Nokia SR OS. Compliance: STIR/SHAKEN
+  (FCC TRACED Act / CRTC / Ofcom), CALEA, GDPR Art. 5 + 32, ePrivacy
+  Directive, NIS2 Annex II §a (sector 2 essential services), DORA Art. 8,
+  3GPP TS 32.422 + TS 32.299, ITU-T E.500, MANRS routing security,
+  ISO 27001 + ISO 27011 (telecom-specific extension).
+- **`docs/guides/application-availability-caching.md`** &mdash;
+  Application Availability & Caching Layers (cat-08.5 + 8.6,
+  **48 UCs**). In-memory caches (Redis Sentinel / Cluster / Enterprise,
+  ElastiCache, Azure Cache, Memorystore, Memcached, Hazelcast, Apache
+  Ignite, Couchbase, Aerospike), HTTP caches (Varnish, NGINX cache,
+  Apache mod_cache), CDN-edge cache observability, HashiCorp stack
+  (Vault audit + metrics, Consul service health, Nomad job /
+  allocation status), service-mesh sidecar (Envoy admin /stats,
+  upstream cluster health), application-tier dependencies (OpenLDAP /
+  389-DS, NTP / chrony, SSH availability, Asterisk / FreePBX,
+  WildFly server stability), and Splunk Synthetic Monitoring + RUM
+  + OTel APM integration for page-experience telemetry. Compliance:
+  SOC 2 CC6 / CC7 / CC9, ISO 27001 §A.12 + §A.14, HIPAA, GDPR
+  Art. 32, PCI DSS 4.0 §3.5 (Vault) + §6.4 (cache integrity) + §10
+  (Vault audit) + §11.6, NIS2, DORA, NIST SP 800-53 SI + 800-92 +
+  800-209, CIS Controls v8 — Control 6, 8, 13.
+
+#### Wiring fixes (10 subcategories routed to existing guides)
+
+| Subcategory | Wired to | Rationale |
+|---|---|---|
+| 1.3 macOS Endpoints | `linux-servers.md` | UNIX-family scripted-input pattern; UF-based collection identical to Linux |
+| 1.4 Bare-Metal Hardware | `compute-hci.md` | HCI guide already covers IPMI, Redfish, RAID, BIOS/UEFI, sensor health |
+| 5.11 gNMI / gRPC Streaming Telemetry | `cisco-networks.md` | Cisco IOS-XR + Junos OpenConfig telemetry — natural extension of routers/switches guide |
+| 5.15 Infoblox Advanced Monitoring | `dns-dhcp.md` | Infoblox is the dominant DNS/DHCP product covered there |
+| 5.16 WAN Optimization & Acceleration | `sd-wan-network-management.md` | Riverbed / Aruba EdgeConnect / Citrix overlap with SD-WAN coverage |
+| 5.17 Network Packet Brokers & Visibility Fabric | `network-flow.md` | Gigamon / Keysight / APCON feed NetFlow / IPFIX / SPAN — natural fit |
+| 5.19 Network Automation & Orchestration Monitoring | `cisco-networks.md` | Ansible / NETCONF / RESTCONF target Cisco devices primarily |
+| 7.6 Database Trending | `relational-databases.md` | Trending dashboards for the existing RDBMS estate |
+| 8.7 Application Trending | `application-servers.md` | Long-term trending of the existing app-server stack |
+| 8.8 Automation & RPA | `application-servers.md` | UiPath / Automation Anywhere ingestion uses the same modular-input + Splunk DB Connect patterns |
+
+#### Net effect
+
+- **3 new gold-standard guides** (~3,500 lines of authoring across
+  multi-cloud / telco / app-availability domains)
+- **18 subcategories newly wired** (8 to new guides, 10 to existing
+  guides) → **224 newly mapped UC ↔ doc relationships**
+- **224 / 224 subcategories now wired (100%)** — first time in the
+  catalogue's history
+- `docs-uc-map.js` grew from 139 docs / 5,700 UCs (post-batch-8) to
+  **142 docs / 5,924 UCs**
+- Total integration / domain guides: now **~50** under `docs/guides/`,
+  spanning every subcategory in the 23-category catalogue
+- Aggregate compliance coverage now spans 80+ regulatory frameworks,
+  including STIR/SHAKEN, CALEA, ITU-T E.500, 3GPP TS 32.422, MANRS,
+  CSA CCM v4, ISO 27017/27018, FedRAMP, EU AI Act
+- `_category.json` `guide` field is now populated for every
+  subcategory, eliminating the historical sidebar gaps in the SPA
+- All audits pass; no schema, prerequisite, or freshness regressions
+
+> **Recommended version bump on release:** **8.2.0** (minor — new
+> integration guides + first 100% subcategory-wiring milestone). The
+> catalogue is now feature-complete from a documentation-coverage
+> perspective; subsequent batches focus on depth (rebuilding silver
+> guides to gold) and freshness rather than gap-filling.
+
+### Gold-standard integration-guide batch 8 — closing the last unwired subcategories
+
+Theme: **eliminate the remaining 38 unwired-subcategory gap** identified
+in batch 7 (cat-09 LDAP / IdP-SSO / PAM / cloud-identity / MDM / trending,
+cat-17.4–17.6, cat-02.2–2.6, cat-03.1/3/4/5/6, cat-05.5/8/14/20/21,
+cat-10.9–10.16). Batch 8 ships **8 new gold-standard integration guides**
+that together wire 32 previously unwired subcategories (957 use cases),
+plus a wiring fix that links cat-05.14 HTTP Proxies to the existing
+`web-security.md` guide. The remaining cat-10 security subcategories
+that didn't justify a new guide (10.9, 10.10, 10.11, 10.13, 10.15, 10.16
+ESCU / Detection Efficacy / Vendor Detections / CIM / ML / Trending) are
+wired to the already-mature `siem-soar.md`, cat-10.12 Industry-Specific
+Compliance & Fraud Detection is wired to `industry-verticals.md`, and
+cat-10.14 OT Security & MITRE ATT&CK for ICS is wired to `iot-ot.md`.
+
+#### New gold-standard integration guides
+
+- **`docs/guides/ipv6-operations.md`** &mdash; IPv6 Operations & Network
+  Time Services (cat-05.20 + 5.21, **147 UCs**). Covers dual-stack and
+  IPv6-only operations across Cisco IOS-XE / NX-OS / IOS-XR, Juniper
+  Junos, Arista EOS, Palo Alto / FortiGate / Cisco ASA-FTD firewalls,
+  Infoblox / Microsoft / BIND DHCPv6, NetFlow v9 / IPFIX exporters,
+  Zeek IDS, NTP/PTP infrastructure. Anchors OMB M-21-07, NIST SP
+  800-119, RFC 9099, NIS2 Annex II, PCI DSS 4.0, HIPAA, and DISA STIG
+  evidence requirements.
+- **`docs/guides/citrix-virtual-apps-desktops.md`** &mdash; Citrix
+  Virtual Apps & Desktops (CVAD), Citrix DaaS, NetScaler, StoreFront,
+  Workspace App, Director / Monitor OData, WEM, FAS, Endpoint
+  Management, ShareFile, Citrix Analytics, NVIDIA vGPU, FSLogix
+  (cat-02.6, **79 UCs**). Documents uberAgent UXM, Citrix Monitor OData
+  REST polling, NetScaler syslog/AppFlow, StoreFront IIS logs, and
+  ShareFile audit ingestion. Compliance: SOC 2, HIPAA, PCI DSS 4.0,
+  SOX 404, GDPR, NIS2, DORA, CIS Citrix Benchmark.
+- **`docs/guides/container-platforms-docker-openshift.md`** &mdash;
+  Docker Engine + Compose (3.1), OpenShift Container Platform (3.3),
+  Container Registries — Harbor / Quay / ECR / ACR / GAR / Artifactory
+  (3.4), Service Mesh & Serverless Containers — Istio / Linkerd /
+  Consul / Knative / Cloud Run / Fargate / Container Apps (3.5),
+  Container & Kubernetes Trending (3.6), **83 UCs total**. Walks
+  through Splunk Connect for Docker, OpenShift OTel Collector,
+  registry webhooks/APIs, and REST inputs for serverless platforms.
+  Compliance: PCI DSS 4.0, HIPAA, SOC 2, NIST SP 800-190, CIS
+  Benchmarks, NSA/CISA Kubernetes Hardening Guide, EU AI Act, and
+  supply-chain standards (SLSA, in-toto, Sigstore).
+- **`docs/guides/identity-platforms-pam-sso.md`** &mdash; LDAP
+  Directories — OpenLDAP / 389 DS / FreeIPA / Samba 4 (9.2); Identity
+  Providers & SSO — Okta / Ping / Auth0 / OneLogin / ForgeRock /
+  IBM Verify / Duo SSO (9.3); Privileged Access Management — CyberArk /
+  BeyondTrust / Delinea / HashiCorp Vault / Centrify / Saviynt (9.4);
+  Cloud Identity — Okta + Duo (9.5); Endpoint & Mobile Device
+  Management — Intune / Workspace ONE / Jamf / Meraki SM /
+  ManageEngine / IBM MaaS360 (9.6); Identity & Access Trending (9.7);
+  **81 UCs total**. Documents REST APIs for cloud IdPs, syslog for
+  PAM, file tails for LDAP and Vault audit. Compliance: SOX 404, PCI
+  DSS 4.0, HIPAA, GDPR, NIS2, DORA, CMMC, NIST SP 800-63B, NIST SP
+  800-207, CIS Critical Controls v8 (Control 6, 14, 16).
+- **`docs/guides/hypervisors-non-vmware.md`** &mdash; Hypervisors
+  Beyond VMware: Microsoft Hyper-V (2.2), KVM / Proxmox VE / oVirt /
+  OpenStack (2.3), Cross-Platform Virtualization (2.4), VDI Endpoints
+  & Thin Clients — IGEL / 10ZiG / HP Thin Pro / Stratodesk / Dell
+  Wyse (2.5), **49 UCs total**. Covers Splunk_TA_windows for Hyper-V,
+  Splunk_TA_nix for KVM `virsh`/`virt-top`, and REST APIs for Proxmox
+  `pvesh`, oVirt, OpenStack, IGEL UMS, Wyse WMS. Compliance: SOC 2,
+  PCI DSS 4.0, HIPAA, NIS2, DORA, CMMC, CIS / STIG Benchmarks for
+  Hyper-V / KVM / Proxmox, NIST SP 800-46.
+- **`docs/guides/sd-wan-network-management.md`** &mdash; SD-WAN
+  platforms (Cisco Catalyst SD-WAN / vManage, Cisco Meraki MX, Aruba
+  EdgeConnect / Silver Peak, VeloCloud, Versa, Fortinet Secure SD-WAN,
+  Palo Alto Prisma SD-WAN / CloudGenix, Cato, Citrix SD-WAN, 5.5) and
+  Network Management Platforms (Cisco Catalyst Center / DNA-C, Meraki
+  Dashboard, Nexus Dashboard, Juniper Mist + Apstra, Arista CVP,
+  SolarWinds NPM, ScienceLogic, BMC TrueSight, ServiceNow Network
+  Inventory, NetBox, Nautobot, Cisco Crosswork, Cisco Smart Software
+  Manager, 5.8), **54 UCs total**. Documents syslog, REST APIs, and
+  webhooks. Compliance: SOC 2, PCI DSS 4.0, HIPAA, NIS2, DORA, ISO
+  27001, CIS Critical Controls, DISA STIGs.
+- **`docs/guides/edge-security-microsegmentation.md`** &mdash; Edge
+  Security WAF / Bot / DDoS — Cloudflare, Akamai AAP / Bot Manager /
+  Prolexic, AWS WAF + Shield, Azure Front Door / AppGW WAF, Imperva,
+  F5 BIG-IP ASM, Fastly NGWAF (17.4); Forcepoint Security stack —
+  Forcepoint One / Web / DLP / NGFW / Insider Threat (17.5); and
+  Microsegmentation — Akamai Guardicore Centra, Illumio Core / Edge,
+  VMware NSX-T DFW, Cisco Secure Workload (17.6), **36 UCs total**.
+  Documents Cloudflare Logpush, Akamai SIEM Connector, Forcepoint CEF
+  syslog, Forcepoint One REST polling, Guardicore REST API, and
+  Illumio PCE syslog. Compliance: PCI DSS 4.0 §6.4 (WAF mandate),
+  HIPAA, GDPR Art. 22 (bot adjudication), NIS2, DORA, CCPA / CPRA,
+  EU AI Act high-risk bot scoring, SOC 2.
+
+#### Wiring fixes
+
+- **`content/cat-02-virtualization/_category.json`** &mdash; wires 2.2,
+  2.3, 2.4, 2.5 to `hypervisors-non-vmware.md` and 2.6 to
+  `citrix-virtual-apps-desktops.md`.
+- **`content/cat-03-containers-orchestration/_category.json`** &mdash;
+  wires 3.1, 3.3, 3.4, 3.5, 3.6 to
+  `container-platforms-docker-openshift.md`.
+- **`content/cat-05-network-infrastructure/_category.json`** &mdash;
+  wires 5.5 + 5.8 to `sd-wan-network-management.md`, 5.14 HTTP Proxies
+  to the already-mature `web-security.md`, and 5.20 + 5.21 to
+  `ipv6-operations.md`.
+- **`content/cat-09-identity-access-management/_category.json`**
+  &mdash; wires 9.2, 9.3, 9.4, 9.5, 9.6, 9.7 to
+  `identity-platforms-pam-sso.md`.
+- **`content/cat-10-security-infrastructure/_category.json`** &mdash;
+  wires 10.9, 10.10, 10.11, 10.13, 10.15, 10.16 to the existing
+  `siem-soar.md` (Splunk ES + ESCU + RBA already cover these);
+  10.12 Industry-Specific Compliance & Fraud Detection to
+  `industry-verticals.md`; and 10.14 OT Security & MITRE ATT&CK for
+  ICS to `iot-ot.md`.
+- **`content/cat-17-network-security-zero-trust/_category.json`**
+  &mdash; wires 17.4, 17.5, 17.6 to
+  `edge-security-microsegmentation.md`.
+- **`docs-uc-map.js`** &mdash; 7 new entries (citrix, container
+  platforms, edge security, hypervisors, identity, IPv6, SD-WAN) and
+  4 extended entries (web-security, industry-verticals, iot-ot,
+  siem-soar) covering 957 newly mapped UCs. The bidirectional doc ↔ UC
+  map now resolves **5,705 use cases across 139 docs** (was 4,770 /
+  132 in batch 7).
+
+#### Net effect
+
+- **8 new gold-standard guides** brings the `docs/guides/` total from
+  57 to **65** integration guides.
+- All 32 previously unwired subcategories from cat-02, 03, 05, 09, 10,
+  17 are now wired in `_category.json`, `catalog.json`, and surface
+  through both the SPA category landing pages and the JSON twin.
+- 957 use cases gain "Related Documentation" chips on their detail
+  pages.
+- Schema-wise this batch is purely additive: no breaking changes to
+  any existing UC ID, schema, URL, or build artefact.
+
+Filed under `[Unreleased]` pending an explicit version-bump decision;
+the recommended bump on first release after this batch is **8.1.0**
+(minor — 8 new substantial guides + significant wiring expansion).
+
+---
+
+### Gold-standard integration-guide batch 7 — business analytics + closing the wiring loop
+
+Theme: **fill the last category-level documentation gap (cat-23
+Business Analytics) and finish closing the wiring loop so the `guide:`
+field that lives in every `_category.json` actually flows all the way
+to the runtime SPA, the JSON API twin, and the static catalog**. v8.0.0
+already shipped the bulk of the gold-standard guide work (46 guides) and
+mass-wired their entries in `docs-uc-map.js`; this batch adds the one
+missing top-level category guide and closes three latent plumbing gaps
+that were preventing the wiring from being visible end-to-end.
+
+#### New gold-standard guide
+
+- **`docs/guides/business-analytics.md`** &mdash; new gold-standard guide
+  for category 23 (Business Analytics & Executive Intelligence),
+  covering all 63 use cases across the nine subcategories: customer
+  experience (23.1), revenue & sales operations (23.2), marketing
+  performance & attribution (23.3), HR & people analytics (23.4),
+  supply chain & operations (23.5), financial operations & procurement
+  (23.6), customer support & service excellence (23.7), executive
+  dashboards & business KPIs (23.8), and ESG & sustainability reporting
+  (23.9). Documents three ingestion paths (Bulk API → HEC, Splunk DB
+  Connect to warehouse, Splunk Connect for Kafka for CDC) and how to
+  pick between them. Provides per-subcategory data-source tables for
+  Salesforce / Microsoft Dynamics 365 / HubSpot CRMs, SAP S/4HANA &
+  ECC / Oracle Cloud ERP / NetSuite ERPs, Workday / SAP SuccessFactors
+  / Oracle HCM HCMs, Marketo / Eloqua / HubSpot / Pardot marketing
+  platforms, GA4 / Adobe Analytics / Mixpanel / Amplitude product
+  analytics, Zendesk / ServiceNow CSM / Intercom support stacks,
+  Coupa / Ariba / Manhattan / Blue Yonder supply-chain platforms,
+  Watershed / Persefoni / Sphera / SAP Green Ledger sustainability
+  platforms, and EPA eGRID / IEA / DEFRA / AIB grid-emissions factor
+  lookups. Walks through Salesforce Bulk API 2.0 with JWT bearer,
+  Splunk DB Connect identity hardening, Splunk Connect for Kafka
+  configuration, Workday RaaS modular input, Splunk Connect for SAP,
+  and ServiceNow Add-on tuning. Anchors the executive scorecard,
+  identity-reconciliation lookup, and per-index RBAC pattern needed
+  for SOX 404, CSRD, EU AI Act (high-risk HR / credit), GDPR, MAR,
+  DORA, HIPAA, PCI-DSS v4, and ASC 606 / IFRS 15 evidence. Includes
+  Crawl / Walk / Run roadmap (17 / 27 / 19 use cases respectively),
+  reporting cadences for board / CEO / CFO / CMO / CHRO / COO /
+  external auditor audiences, troubleshooting playbook, SOAR
+  automation patterns, and cross-product integration with ITSI,
+  Observability Cloud, ES, FinOps (cat 20), AI / LLM Observability
+  (cat 13.4), Industry Verticals (cat 21), and the Regulatory
+  Compliance Master (cat 22). At 985 lines this brings the
+  `docs/guides/` total to **57** gold-standard integration guides.
+
+#### Wiring
+
+- **`content/cat-23-business-analytics/_category.json`** &mdash; wires
+  `docs/guides/business-analytics.md` as the `guide:` for all nine
+  subcategories. cat-23 is the last top-level category to receive
+  end-to-end guide wiring; v8.0.0 already wired cat-01 through cat-22.
+- **`docs-uc-map.js`** &mdash; one new entry for
+  `business-analytics.md` covering all 63 cat-23 UCs. The
+  bidirectional doc ↔ UC map now resolves **4,770 use cases across
+  132 docs** (was 4,718 / 131 in v8.0.0), with **57 of 57** existing
+  gold-standard guides registered (zero gap).
+
+#### Plumbing fixes (the part that was missing in v8.0.0)
+
+The `guide:` field already existed on most subcategories in
+`_category.json` before this batch but was being silently dropped at
+two layers downstream. Both layers are fixed now:
+
+- **`tools/build/templates/category.py`** &mdash; the per-category
+  JSON twin at `dist/category/<slug>/index.json` now exposes the
+  `guide` field on each subcategory entry. The catalogue model already
+  carries it in the abbreviated `g` key (per
+  `tools/build/parse_content.py`), but the JSON-twin renderer was
+  emitting only `id`, `name`, and `useCases`. Tolerant consumers
+  ignore the field if absent, so this is a backwards-compatible
+  addition. Anchored by a comment that explains the abbreviated-key
+  convention so future renderers don't drop it again.
+- **`catalog.json`** &mdash; the project-root `catalog.json` (still
+  the SSOT consumed by the SPA pending the v9 build refactor that
+  moves it under `tools/build/`) gained `g` (guide) keys on
+  **171 subcategories** that already had a `guide:` value in their
+  `_category.json` but had not been propagated to the catalog.
+  Patched non-destructively by the new helper
+  `scripts/_patch_catalog_guide_fields.py`, which only adds the `g`
+  key and never touches any UC content. The patch is idempotent;
+  re-running with no `_category.json` changes produces a zero-byte
+  diff. The 38 subcategories that legitimately have no guide today
+  (e.g. cat-09 LDAP / IdP-SSO / PAM / Okta / MDM / trending; cat-13
+  AI / third-party / observability stack subdivisions that pre-date
+  the cat-13 split; cat-09 sub 9.8 placeholder; cat-17 sub 17.4 -
+  17.6 yet-to-be-built) are explicitly left unwired.
+
+#### Net effect
+
+After this batch, the wiring is finally visible end-to-end:
+
+- The catalog `g` field flows: `_category.json` →
+  `parse_content.py` → in-memory `Catalog` object → `catalog.json` (`g` key)
+  → `dist/category/<slug>/index.json` (`guide` field) → the runtime SPA.
+- 171 / 209 subcategories now show their gold-standard guide on the
+  category landing page and in the API JSON twin (the remaining 38
+  have no guide yet — see the explicit list above).
+- Every UC detail page can still surface "Related Documentation"
+  chips via `docs-uc-map.js`, now resolving **4,770** unique UCs
+  (10x the v7.4.2 number).
+- `docs.html` continues to render UC chips below every guide entry.
+
+Schema-wise this batch is purely additive: no breaking changes to any
+existing UC ID, schema, URL, or build artefact. The `guide` field on
+the JSON twin is a new optional addition; existing consumers ignore it.
+
+Filed under `[Unreleased]` pending an explicit version-bump decision;
+the recommended bump on first release after this batch is **8.0.1**
+(patch — 1 new guide + plumbing fixes that don't break any consumer).
+
+---
+
 ## [8.0.0] - 2026-05-09
 
 Major bump. Originally drafted as v9.0; v8.x was reserved for a parallel

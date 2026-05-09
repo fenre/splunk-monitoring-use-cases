@@ -37,6 +37,7 @@ sourcetypes:
   - ActiveDirectory
   - WMI:CPUTime
 ta_versions: "9.0+ (current); supports Splunk Enterprise 9.x and Splunk Cloud"
+splunk_versions: "9.0, 9.1, 9.2, 9.3, 9.4 (current), 10.0+; Splunk Cloud (Victoria/Classic) supported"
 windows_versions: "Server 2016 / 2019 / 2022 / 2025; Windows 10/11 endpoints"
 cross_products: [Splunk Enterprise Security, ITSI, Microsoft Defender for Endpoint, Sysmon, Active Directory, AppLocker, Microsoft 365 Defender]
 compliance_frameworks: [PCI-DSS, HIPAA, SOX-ITGC, ISO-27001, NIST-800-53, CIS-Microsoft, NERC-CIP, NIS2, DORA]

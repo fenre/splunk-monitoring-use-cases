@@ -1,0 +1,97 @@
+# Repo-overhaul plan §P4 (build reproducibility tracker), 2026-05-09.
+#
+# Continuously verifies that two consecutive ``tools/build/build.py
+# --reproducible`` invocations against the same git HEAD produce
+# byte-identical output. The audit is too slow (~90s) for per-PR CI;
+# instead we run it nightly + on-demand, plus on every PR that touches
+# the build pipeline itself.
+#
+# The contract is asserted by ``scripts/audit_build_reproducibility.py``
+# which compares ``dist/integrity.json`` between two builds. That file
+# carries the sha256 of every other file in dist/, so byte-identical
+# integrity files prove the entire tree is byte-identical.
+#
+# When the audit fails the workflow uploads both build trees as
+# artifacts so the maintainer can diff them locally.
+name: Build reproducibility
+
+on:
+  schedule:
+    # Nightly 03:00 UTC — quiet window for free-tier runners.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      keep_artifacts:
+        description: "Upload both build trees as artifacts even on success."
+        type: boolean
+        default: false
+  pull_request:
+    branches: [main]
+    # Only on PRs that touch the build pipeline itself. Per-PR cost
+    # is acceptable here because if we change build code, we must
+    # know we didn't break reproducibility.
+    paths:
+      - "tools/build/**"
+      - "schemas/v2/build-info.schema.json"
+      - "schemas/v2/integrity.schema.json"
+      - "scripts/audit_build_reproducibility.py"
+      - "src/splunk_uc/audits/build_reproducibility.py"
+      - "src/splunk_uc/__main__.py"
+      - "src/splunk_uc/_registry.py"
+      - ".github/workflows/build-reproducibility.yml"
+
+# Two reproducibility audits never need to overlap on the same ref.
+concurrency:
+  group: build-reproducibility-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  reproducibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        # Full history so audit can read git HEAD epoch.
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install dev dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install jsonschema==4.23.0
+
+      - name: Reproducibility audit (two consecutive --reproducible builds)
+        # The dispatcher path is the canonical entry point as of P6
+        # (2026-05-09); the legacy ``scripts/...`` shim still works
+        # but is scheduled for deletion in v9. Running the audit
+        # through the dispatcher exercises the new CLI surface
+        # continuously so the migration can't bit-rot.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-reproducibility --keep
+        # ``--keep`` so the temp build trees survive the run; we
+        # capture their paths from stderr and upload them on failure.
+        # If the audit passes, the cleanup happens implicitly when
+        # the runner shuts down.
+
+      - name: Upload build trees on failure
+        if: failure() || (success() && inputs.keep_artifacts == true)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: reproducibility-builds-${{ github.run_id }}
+          path: |
+            /tmp/build-repro-*/build-a/integrity.json
+            /tmp/build-repro-*/build-b/integrity.json
+            /tmp/build-repro-*/build-a/manifest.json
+            /tmp/build-repro-*/build-b/manifest.json
+            /tmp/build-repro-*/build-a/BUILD-INFO.json
+            /tmp/build-repro-*/build-b/BUILD-INFO.json
+          if-no-files-found: warn
+          retention-days: 7

@@ -158,15 +158,46 @@
   }
 
   function loadImplementations() {
-    return runSearchJob('| inputlookup uc_recommender_implementations').then(function (rows) {
+    // Build 12: same race-free KV REST path as loadInventory(). The
+    // SearchManager-event ordering bug that bit inventory bites this
+    // load too — it just hadn't been user-visible because the
+    // implementations KV starts empty.
+    var primary = '/splunkd/__raw/servicesNS/nobody/'
+                + (STATE.appName || 'splunk-uc-recommender')
+                + '/storage/collections/data/uc_recommender_implementations'
+                + '?output_mode=json&limit=5000';
+    var fallbackUrl = '/en-US/splunkd/__raw/servicesNS/nobody/'
+                + (STATE.appName || 'splunk-uc-recommender')
+                + '/storage/collections/data/uc_recommender_implementations'
+                + '?output_mode=json&limit=5000';
+
+    function indexById(rows) {
       var map = {};
       (rows || []).forEach(function (r) {
         if (r && r.uc_id) map[r.uc_id] = r;
       });
       return map;
-    }).catch(function (err) {
-      STATE.upstreamErrors.implementations = err && err.message ? err.message : String(err);
-      return {};
+    }
+    function fetchKv(url) {
+      return fetch(url, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+      }).then(function (r) {
+        if (!r.ok) throw new Error('implementations KV returned HTTP ' + r.status);
+        return r.json();
+      });
+    }
+
+    return fetchKv(primary).then(indexById).catch(function () {
+      return fetchKv(fallbackUrl).then(indexById).catch(function () {
+        return runSearchJob('| inputlookup uc_recommender_implementations')
+          .then(indexById)
+          .catch(function (err) {
+            STATE.upstreamErrors.implementations = err && err.message ? err.message : String(err);
+            return {};
+          });
+      });
     });
   }
 
@@ -318,21 +349,22 @@
         return reject(new Error('Not running inside Splunk Web'));
       }
       var settled = false;
+      var hardTimer = null;
       function safeResolve(rows) {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        if (hardTimer) clearTimeout(hardTimer);
         resolve(rows || []);
       }
       function safeReject(err) {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        if (hardTimer) clearTimeout(hardTimer);
         reject(err instanceof Error ? err : new Error(String(err)));
       }
-      var timer = setTimeout(function () {
-        safeReject(new Error('search timed out after 15s'));
-      }, 15000);
+      hardTimer = setTimeout(function () {
+        safeReject(new Error('search timed out after 30s'));
+      }, 30000);
       require(['splunkjs/mvc', 'splunkjs/mvc/searchmanager'], function (mvc, SearchManager) {
         try {
           var name = 'uc_recommender_job_' + Math.random().toString(36).slice(2);
@@ -343,47 +375,95 @@
             latest_time: 'now',
             autostart: true,
             preview: false,
-            cache: true,
+            // cache:false forces a fresh dispatch every page load. Builds
+            // 9 + 10 carried cache:true which let SearchManager hand back
+            // a previously-empty result set (e.g. dispatch run before
+            // any inventory saved-search had populated the lookup),
+            // giving the matcher [] forever even after the lookup
+            // had filled. The cost of a fresh dispatch on a tiny
+            // ``inputlookup`` is negligible.
+            cache: false,
           });
           var results = sm.data('results', { count: 5000 });
+          var sawSearchDone = false;
+          var pollsAfterDone = 0;
+
+          // Build 11 fix — REPLACES the build-9 / build-10 listener-only
+          // path. Previous builds attached ``results.on('data', ...)`` and
+          // ``sm.on('search:done', ...)`` AFTER the SearchManager auto-
+          // started the job; for fast searches (a tiny ``inputlookup``
+          // returns in milliseconds) those events could fire BEFORE the
+          // listener registration completed, the events were lost, and
+          // the promise either timed out or resolved with [] depending
+          // on whether the deferred 800 ms fallback had registered in
+          // time. The user-visible failure mode was the dashboard tiles
+          // showing 40 / 90 inventory rows but the recommender saying
+          // "No matches yet".
+          //
+          // The new strategy keeps the listeners (so we still surface
+          // 'search:error' / 'search:fail') but ALSO drives a polling
+          // loop on ``results.data()`` every 500 ms. Polling tolerates
+          // the listener-attach race because we will read the populated
+          // ResultsModel as soon as the SDK's background fetch lands.
+          // The polling loop uses recursive setTimeout (not setInterval)
+          // so the stubbed test sandbox in
+          // tests/recommender/run_search_job.test.mjs needs no extra
+          // globals.
           function pull() {
+            if (settled) return;
             var d = (typeof results.data === 'function') ? results.data() : null;
-            var rows = (d && d.results) ? d.results : [];
-            safeResolve(rows);
+            // ``d.results`` is populated (even as []) once the SDK's
+            // GET /services/search/jobs/<sid>/results call lands. If
+            // the property is missing, the fetch hasn't completed yet.
+            if (d && d.results !== undefined) {
+              safeResolve(d.results || []);
+              return;
+            }
+            // Force a fetch — if the 'data' event fired before our
+            // listener attached, the model already has the rows but
+            // hasn't notified anyone. Calling fetch() either no-ops
+            // (already fetched) or kicks the fetch.
+            if (results && typeof results.fetch === 'function') {
+              try { results.fetch(); } catch (_) { /* ignore */ }
+            }
+            // After the JOB itself reports done we only wait a bounded
+            // number of polls for the background results fetch to
+            // settle. 4 polls × 500 ms = 2 s headroom is plenty for the
+            // SDK on every Splunk version we test against; if the
+            // fetch is still empty after that, the search legitimately
+            // returned no rows and we resolve with [].
+            if (sawSearchDone) {
+              pollsAfterDone += 1;
+              if (pollsAfterDone >= 4) {
+                safeResolve(d && d.results ? d.results : []);
+                return;
+              }
+            }
           }
-          // Two events can settle this promise, and they RACE on
-          // every search. Build 9 had a regression where the wrong
-          // one won and we returned [] for non-empty inventory.
-          //
-          //   * results.on('data', ...)  -- ResultsModel fires this
-          //     after its background fetch lands. Fires only when
-          //     resultCount > 0; for empty result sets it never
-          //     fires at all.
-          //   * sm.on('search:done', ...) -- SearchManager fires
-          //     this when the JOB transitions to isDone=true. This
-          //     happens BEFORE the ResultsModel fetch completes, so
-          //     calling results.data() in this handler can return
-          //     null or {results:[]} even when the search produced
-          //     thousands of rows.
-          //
-          // Build 10 fix: 'data' wins outright for non-empty
-          // results; 'search:done' is a deferred safety net so that
-          // empty result sets still settle in bounded time. The
-          // 800ms delay is invisible to users (the dashboard's own
-          // loading text shows for several seconds anyway) but is
-          // ample for the SDK's HTTP fetch to land and the 'data'
-          // event to fire on every Splunk version we test against.
-          var deferredPullTimer;
+          function pollLoop() {
+            if (settled) return;
+            pull();
+            if (settled) return;
+            setTimeout(pollLoop, 500);
+          }
+
           results.on('data', pull);
           sm.on('search:done', function () {
-            clearTimeout(deferredPullTimer);
-            deferredPullTimer = setTimeout(pull, 800);
+            sawSearchDone = true;
+            pull();
           });
           sm.on('search:error', function (err) { safeReject(err); });
           sm.on('search:fail', function (err) { safeReject(err); });
           sm.on('search:cancelled', function () {
             safeReject(new Error('search cancelled'));
           });
+
+          // First quick attempt covers the case where the search
+          // already completed before this require() callback fired
+          // — i.e. both events were lost to the void.
+          setTimeout(pull, 100);
+          // Then settle into a steady polling cadence as the backstop.
+          setTimeout(pollLoop, 500);
         } catch (err) {
           safeReject(err);
         }
@@ -394,7 +474,59 @@
   }
 
   function loadInventory() {
-    return runSearchJob('| inputlookup uc_recommender_inventory');
+    // Build 12: bypass the in-page SearchManager entirely. Builds 9–11
+    // wrestled with a SearchManager event-ordering race where the
+    // ``data`` event for fast ``inputlookup`` searches fired BEFORE
+    // our listener attached, leaving the recommender with [] forever
+    // even though the dashboard tiles (which use Simple XML's own
+    // SearchManager) showed rows. The KV collection is reachable via
+    // a plain REST GET on Splunk Web's ``/splunkd/__raw`` proxy
+    // (credentials ride along on the active Splunk Web session
+    // cookie — same proxy path persistImplementation() uses to
+    // write back), so we query the collection directly. Same data,
+    // no SearchManager, zero races.
+    var primary  = '/splunkd/__raw/servicesNS/nobody/'
+                 + (STATE.appName || 'splunk-uc-recommender')
+                 + '/storage/collections/data/uc_recommender_inventory'
+                 + '?output_mode=json&limit=5000';
+    var fallbackUrl = '/en-US/splunkd/__raw/servicesNS/nobody/'
+                 + (STATE.appName || 'splunk-uc-recommender')
+                 + '/storage/collections/data/uc_recommender_inventory'
+                 + '?output_mode=json&limit=5000';
+
+    function normalise(data) {
+      if (!Array.isArray(data)) return [];
+      return data.map(function (row) {
+        return {
+          type: row.type || '',
+          name: row.name || '',
+          count: row.count || 0,
+          firstSeen: row.firstSeen || '',
+          lastSeen:  row.lastSeen  || '',
+          extras:    row.extras    || '',
+        };
+      });
+    }
+
+    function fetchKv(url) {
+      return fetch(url, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+      }).then(function (r) {
+        if (!r.ok) throw new Error('inventory KV returned HTTP ' + r.status);
+        return r.json();
+      });
+    }
+
+    return fetchKv(primary).then(normalise).catch(function () {
+      return fetchKv(fallbackUrl).then(normalise).catch(function () {
+        // Last-resort fallback to the SearchManager path so the
+        // page still shows SOMETHING if both proxy URLs are blocked
+        // (e.g. constrained Splunk Cloud egress).
+        return runSearchJob('| inputlookup uc_recommender_inventory');
+      });
+    });
   }
 
   function score(row) {
@@ -407,6 +539,60 @@
     return (row._score || 0) * (crit[row.criticality] || 0.6);
   }
 
+  // Drop catalog app-index keys that look like prose fragments rather
+  // than real app/TA names. Upstream ``_recommender_apps()`` splits the
+  // free-text ``t`` field on commas which can land mid-parenthesis (e.g.
+  // "API gateway TAs (Kong, F5)" -> "API gateway TAs (Kong" + " F5)").
+  // Filtering at consume-time is a defence in depth against these
+  // tokens — the upstream generator filters too, but old API surfaces
+  // may still be cached. Also reduces fuzzy-match noise.
+  function looksLikeAppKey(key) {
+    if (typeof key !== 'string' || !key) return false;
+    var first = key.charAt(0);
+    // Reject parenthetical lead-ins and markdown/prose debris up
+    // front — the upstream generator already filters these but old
+    // cached app-index payloads may still contain them.
+    if (first === '(' || first === '*' || first === '_' || first === '[' || first === '<' || first === '$' || first === '#' || first === '/') return false;
+    var open = 0; var close = 0;
+    for (var i = 0; i < key.length; i++) {
+      var c = key.charCodeAt(i);
+      if (c === 40) open += 1;
+      else if (c === 41) close += 1;
+    }
+    if (open !== close) return false;
+    if (key.indexOf('**') !== -1 || key.indexOf('__') !== -1) return false;
+    if (key.toLowerCase().indexOf('://') !== -1) return false;
+    // Reject keys that begin with a prose connective. These are
+    // free-text fragments produced by mid-sentence comma splits in
+    // the upstream ``t`` field, never real Splunk app labels.
+    var lower = key.toLowerCase();
+    var proseStarts = ['or ', 'and ', 'with ', 'via ', 'using ', 'for ', 'in ', 'if ', 'the ', 'this ', 'that ', 'these ', 'those ', 'any '];
+    for (var p = 0; p < proseStarts.length; p++) {
+      if (lower.indexOf(proseStarts[p]) === 0) return false;
+    }
+    return true;
+  }
+
+  // Token-set overlap for app names — lightweight Jaccard over
+  // alphanum-stripped lowercase words ≥3 chars. Avoids the false
+  // positives the previous "indexOf substring" matcher produced when
+  // a short app name was a substring of a longer prose key (e.g.
+  // user app "API" matching catalog key "API gateway access logs").
+  function appNameTokens(s) {
+    if (typeof s !== 'string') return [];
+    var t = s.toLowerCase().replace(/[^a-z0-9_]+/g, ' ').split(/\s+/);
+    var out = [];
+    for (var i = 0; i < t.length; i++) {
+      if (t[i] && t[i].length >= 3) out.push(t[i]);
+    }
+    return out;
+  }
+  // Exposed for unit tests.
+  window.__uc_recommender_helpers__ = {
+    looksLikeAppKey: looksLikeAppKey,
+    appNameTokens: appNameTokens,
+  };
+
   function matchUseCases(inventory, indexes) {
     var buckets = {};
     var seen = {};
@@ -418,8 +604,15 @@
       buckets[ucId].reasons.push(reason);
     }
 
+    // Pre-filter the app-index once per call so the per-row loop is
+    // O(real_apps) rather than O(all_keys_including_prose_fragments).
+    var cleanAppKeys = Object.keys(indexes.apps || {}).filter(looksLikeAppKey);
+    var cleanAppKeysLower = cleanAppKeys.map(function (k) { return k.toLowerCase(); });
+    var cleanAppTokenLists = cleanAppKeys.map(function (k) { return appNameTokens(k); });
+
     inventory.forEach(function (row) {
-      var name = (row.name || '').toLowerCase();
+      var rawName = row.name || '';
+      var name = rawName.toLowerCase();
       if (!name) return;
       if (row.type === 'sourcetype') {
         var exact = indexes.sourcetypes[name];
@@ -437,14 +630,58 @@
           bump(id, 2, 'CIM accelerated: ' + row.name);
         });
       } else if (row.type === 'app') {
-        Object.keys(indexes.apps).forEach(function (appKey) {
-          if (appKey.toLowerCase() === (row.name || '').toLowerCase()
-              || appKey.toLowerCase().indexOf((row.name || '').toLowerCase()) !== -1) {
-            indexes.apps[appKey].forEach(function (id) {
-              bump(id, 1, 'app: ' + appKey);
+        // (1) Splunkbase folder/title exact match against ``extras`` —
+        // the inventory saved-search records the ``title`` (folder) in
+        // ``extras`` after the build-11 scanner change so we can still
+        // hit ``Splunk_TA_nix`` -> 171 UCs even when ``name`` carries
+        // the human-readable label.
+        var inventoryTokens = [name];
+        var extras = (row.extras || '').toLowerCase();
+        if (extras && extras !== name) inventoryTokens.push(extras);
+        // (2) Per-key matching: exact (high weight), substring (medium),
+        // token overlap (low weight). Token overlap protects against
+        // false positives that naive substring produced — only counts
+        // when ≥1 word ≥3 chars is shared between user inventory and
+        // catalog key.
+        var rowTokens = appNameTokens(rawName + ' ' + (row.extras || ''));
+        for (var i = 0; i < cleanAppKeys.length; i++) {
+          var keyLower = cleanAppKeysLower[i];
+          var matched = false;
+          var weight = 0;
+          var reasonSuffix = '';
+          for (var j = 0; j < inventoryTokens.length; j++) {
+            if (keyLower === inventoryTokens[j]) {
+              matched = true; weight = 3; reasonSuffix = 'app exact: ' + cleanAppKeys[i];
+              break;
+            }
+          }
+          if (!matched) {
+            for (var k = 0; k < inventoryTokens.length; k++) {
+              if (inventoryTokens[k]
+                  && (keyLower.indexOf(inventoryTokens[k]) !== -1
+                      || inventoryTokens[k].indexOf(keyLower) !== -1)) {
+                matched = true; weight = 1; reasonSuffix = 'app substring: ' + cleanAppKeys[i];
+                break;
+              }
+            }
+          }
+          if (!matched && rowTokens.length) {
+            // Token-overlap fallback — guards against "API" matching
+            // every prose-y key.
+            var keyTokens = cleanAppTokenLists[i];
+            for (var t = 0; t < rowTokens.length; t++) {
+              if (keyTokens.indexOf(rowTokens[t]) !== -1) {
+                matched = true; weight = 1; reasonSuffix = 'app token: ' + cleanAppKeys[i];
+                break;
+              }
+            }
+          }
+          if (matched) {
+            indexes.apps[cleanAppKeys[i]].forEach(function (id) {
+              bump(id, weight, reasonSuffix);
             });
           }
-        });
+        }
       }
     });
 
@@ -910,12 +1147,221 @@
     });
   }
 
+  // Build a structured diagnostics view shown when ``matchUseCases``
+  // returns []. Replaces the build-9 / build-10 single-sentence
+  // "No matches yet" empty state, which gave operators no way to tell
+  // whether the inventory failed to load (SearchManager race, build 11
+  // fix), the catalogue endpoints failed to load, or the inventory
+  // simply didn't overlap with anything in the upstream catalogue.
+  // The diagnostics renderer reads STATE.inventory + STATE.indexes and
+  // surfaces:
+  //   - Inventory size by type (sourcetype/index/cim/app)
+  //   - Catalogue index sizes (with greens / reds for missing endpoints)
+  //   - Per-type overlap counters (X of Y inventory items have a match)
+  //   - Sample names from BOTH sides so operators can spot
+  //     case / suffix / prefix mismatches at a glance.
+  function renderDiagnostics(parent) {
+    var details = safeAppend(parent, 'details', null, {
+      'class': 'uc-diagnostics',
+      'role': 'group',
+      'aria-label': 'Recommender diagnostics',
+    });
+    // Auto-expand the diagnostics panel when there are zero matches —
+    // the operator's whole job here is to figure out why.
+    details.setAttribute('open', 'open');
+    var summary = safeAppend(details, 'summary');
+    summary.textContent = 'Diagnostics';
+
+    var inv = STATE.inventory || [];
+    var ix = STATE.indexes || {};
+    var sIx = ix.sourcetypes || {};
+    var cIx = ix.cim || {};
+    var aIx = ix.apps || {};
+    var thinIx = ix.thin || {};
+
+    function bucket(rows, predicate) {
+      var out = [];
+      for (var i = 0; i < rows.length; i++) {
+        if (predicate(rows[i])) out.push(rows[i]);
+      }
+      return out;
+    }
+
+    var invST  = bucket(inv, function (r) { return r && r.type === 'sourcetype'; });
+    var invIDX = bucket(inv, function (r) { return r && r.type === 'index'; });
+    var invCIM = bucket(inv, function (r) { return r && r.type === 'cim_model'; });
+    var invCIMA = bucket(invCIM, function (r) {
+      return (r.extras || '').indexOf('accelerated') !== -1;
+    });
+    var invAPP = bucket(inv, function (r) { return r && r.type === 'app'; });
+
+    function renderTable(parent, rows) {
+      var table = safeAppend(parent, 'table', null, { 'class': 'uc-diag-table' });
+      var tbody = safeAppend(table, 'tbody');
+      rows.forEach(function (row) {
+        var tr = safeAppend(tbody, 'tr');
+        safeAppend(tr, 'td', row[0], { 'class': 'uc-diag-label' });
+        var valueCell = safeAppend(tr, 'td', null, { 'class': 'uc-diag-value' });
+        if (row[2] === 'ok') valueCell.classList.add('uc-diag-ok');
+        if (row[2] === 'warn') valueCell.classList.add('uc-diag-warn');
+        if (row[2] === 'bad') valueCell.classList.add('uc-diag-bad');
+        valueCell.textContent = String(row[1]);
+      });
+      return table;
+    }
+
+    // --- Section 1: Inventory loaded ---
+    safeAppend(details, 'h4', 'Inventory loaded from this Splunk instance');
+    var invStatus = inv.length === 0 ? 'bad' : 'ok';
+    renderTable(details, [
+      ['Total rows',           inv.length, invStatus],
+      ['Sourcetypes',          invST.length,  invST.length  ? 'ok' : 'warn'],
+      ['Indexes',              invIDX.length, invIDX.length ? 'ok' : 'warn'],
+      ['CIM models (any)',     invCIM.length, invCIM.length ? 'ok' : 'warn'],
+      ['CIM models (accel.)',  invCIMA.length + ' / ' + invCIM.length,
+                                                            invCIMA.length ? 'ok' : 'warn'],
+      ['Apps',                 invAPP.length, invAPP.length ? 'ok' : 'warn'],
+    ]);
+
+    if (inv.length === 0) {
+      var p = safeAppend(details, 'p', null, { 'class': 'uc-diag-explain' });
+      p.textContent = 'Inventory is empty. The dashboard tiles above use a '
+        + 'separate Simple-XML search; if they show non-zero counts but '
+        + 'this row is 0, the in-page SearchManager dispatch is racing '
+        + 'with results delivery (the build-11 fix should prevent this — '
+        + 'reload the page and re-check). If the tiles also show 0, run '
+        + 'the four "Recommender — *" saved searches in '
+        + 'Settings → Searches, reports, and alerts.';
+      return;
+    }
+
+    // --- Section 2: Catalogue indexes loaded ---
+    safeAppend(details, 'h4', 'Catalogue indexes (upstream)');
+    var sCount = Object.keys(sIx).length;
+    var cCount = Object.keys(cIx).length;
+    var aCount = Object.keys(aIx).length;
+    var tCount = Object.keys(thinIx).length;
+    var bCount = STATE.splunkbaseIndex ? Object.keys(STATE.splunkbaseIndex).length : 0;
+    renderTable(details, [
+      ['Sourcetype index',   sCount, sCount ? 'ok' : 'bad'],
+      ['CIM index',          cCount, cCount ? 'ok' : 'bad'],
+      ['App index',          aCount, aCount ? 'ok' : 'bad'],
+      ['Use-case (thin)',    tCount, tCount ? 'ok' : 'bad'],
+      ['Splunkbase metadata', bCount, bCount ? 'ok' : 'warn'],
+    ]);
+
+    // --- Section 3: Per-type overlap analysis ---
+    safeAppend(details, 'h4', 'Overlap analysis');
+
+    var stHits = 0; var stExact = []; var stFuzzy = []; var stNone = [];
+    for (var i = 0; i < invST.length; i++) {
+      var n = (invST[i].name || '').toLowerCase();
+      if (!n) continue;
+      if (sIx[n]) { stHits += 1; stExact.push(invST[i].name); continue; }
+      var fuzzy = false;
+      var keys = Object.keys(sIx);
+      for (var j = 0; j < keys.length; j++) {
+        if (keys[j].indexOf(n) !== -1 || n.indexOf(keys[j]) !== -1) {
+          fuzzy = true; break;
+        }
+      }
+      if (fuzzy) { stFuzzy.push(invST[i].name); } else { stNone.push(invST[i].name); }
+    }
+
+    var cimHits = 0; var cimNone = [];
+    for (var k = 0; k < invCIMA.length; k++) {
+      if (cIx[invCIMA[k].name]) cimHits += 1; else cimNone.push(invCIMA[k].name);
+    }
+
+    var appHits = 0; var appExamples = [];
+    var cleanAppKeys = Object.keys(aIx).filter(looksLikeAppKey);
+    var cleanAppKeysLower = cleanAppKeys.map(function (k2) { return k2.toLowerCase(); });
+    for (var m = 0; m < invAPP.length; m++) {
+      var nameLower = (invAPP[m].name || '').toLowerCase();
+      var extrasLower = (invAPP[m].extras || '').toLowerCase();
+      var hit = false;
+      for (var p2 = 0; p2 < cleanAppKeysLower.length; p2++) {
+        var ck = cleanAppKeysLower[p2];
+        if (!ck) continue;
+        if (ck === nameLower || ck === extrasLower
+            || (nameLower && (ck.indexOf(nameLower) !== -1 || nameLower.indexOf(ck) !== -1))
+            || (extrasLower && (ck.indexOf(extrasLower) !== -1 || extrasLower.indexOf(ck) !== -1))) {
+          hit = true; break;
+        }
+      }
+      if (hit) {
+        appHits += 1;
+        if (appExamples.length < 5) appExamples.push(invAPP[m].name);
+      }
+    }
+
+    renderTable(details, [
+      ['Sourcetype exact matches',  stExact.length + ' / ' + invST.length,
+                                                                  stExact.length ? 'ok' : 'warn'],
+      ['Sourcetype fuzzy matches',  stFuzzy.length + ' / ' + invST.length,
+                                                                  stFuzzy.length ? 'ok' : 'warn'],
+      ['CIM model accelerated matches', cimHits + ' / ' + invCIMA.length,
+                                                                  cimHits ? 'ok' : 'warn'],
+      ['App matches (any)',          appHits + ' / ' + invAPP.length,
+                                                                  appHits ? 'ok' : 'warn'],
+    ]);
+
+    // --- Section 4: Examples to spot mismatches ---
+    function listSample(parent, label, items) {
+      if (!items || !items.length) return;
+      var h = safeAppend(parent, 'h5', label);
+      var ul = safeAppend(parent, 'ul', null, { 'class': 'uc-diag-list' });
+      items.slice(0, 8).forEach(function (it) {
+        var li = safeAppend(ul, 'li');
+        li.textContent = String(it);
+      });
+      if (items.length > 8) {
+        var more = safeAppend(parent, 'p', '+' + (items.length - 8) + ' more', {
+          'class': 'uc-diag-more',
+        });
+      }
+    }
+
+    var examples = safeAppend(details, 'div', null, { 'class': 'uc-diag-examples' });
+    listSample(examples, 'Inventory sourcetypes (sample)', invST.map(function (r) { return r.name; }));
+    listSample(examples, 'Catalogue sourcetypes (sample)', Object.keys(sIx));
+    listSample(examples, 'Inventory apps (sample)', invAPP.map(function (r) {
+      return r.name + (r.extras ? ' [' + r.extras + ']' : '');
+    }));
+    listSample(examples, 'Catalogue app keys (clean, sample)', cleanAppKeys);
+    listSample(examples, 'Sourcetypes with NO catalogue match (first 8)', stNone);
+    listSample(examples, 'Sourcetypes with EXACT catalogue match (first 8)', stExact);
+
+    // --- Section 5: Plain-language guidance ---
+    var guide = safeAppend(details, 'p', null, { 'class': 'uc-diag-explain' });
+    if (sCount === 0 || aCount === 0) {
+      guide.textContent = 'The catalogue endpoints did not load. Check the '
+        + 'banner above (if any) and confirm this Splunk host can reach '
+        + 'fenre.github.io. Workgroup proxies often need an allow-list '
+        + 'entry for *.github.io.';
+    } else if (stHits === 0 && cimHits === 0 && appHits === 0) {
+      guide.textContent = 'Catalogue indexes loaded but your inventory does '
+        + 'not overlap them. Common causes: case mismatch (e.g. '
+        + '"WinEventLog:Security" vs lower-case keys), niche internal '
+        + 'sourcetypes not yet in the catalogue, or apps whose label / '
+        + 'folder differ from upstream conventions. Compare the samples '
+        + 'above for hints — the matcher does case-insensitive substring '
+        + 'so anything close should match.';
+    } else {
+      guide.textContent = 'Catalogue indexes loaded and overlap was '
+        + 'detected. If the recommendation list above is still empty, '
+        + 'the matched UCs may all be hidden by the criticality / '
+        + 'status filters; clear the filters in the toolbar and retry.';
+    }
+  }
+
   function renderRecommendations(root, rows) {
     if (!rows.length) {
       var empty = safeAppend(root, 'div', null, { 'class': 'uc-empty', 'role': 'status' });
       safeAppend(empty, 'p', 'No matches yet.');
       safeAppend(empty, 'p', 'Run the Scan tab once, wait for ingestion, then refresh — '
         + 'the recommender needs at least one inventory row before it can match.');
+      renderDiagnostics(root);
       return;
     }
     var state = readUrlState();

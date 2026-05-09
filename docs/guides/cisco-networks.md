@@ -1399,7 +1399,7 @@ A: IPv6 events use the same mnemonics — no separate parsing needed. `BGP-5-ADJ
 | Cisco IOS syslog mnemonics | [cisco.com — Error Message Decoder](https://cway.cisco.com/mnemonics/) |
 | OpenConfig YANG models | [openconfig.net/projects/models](https://www.openconfig.net/projects/models/) |
 | Splunk Lantern (Cisco) | [lantern.splunk.com](https://lantern.splunk.com) (search "cisco") |
-| Cisco Networks Add-on docs | [docs.splunk.com — TA-cisco_ios](https://docs.splunk.com/Documentation/AddOns/released/CiscoIOS/About) |
+| Cisco Networks Add-on docs | [docs.splunk.com/Documentation/AddOns](https://docs.splunk.com/Documentation/AddOns) (search "Cisco Networks") |
 
 ---
 

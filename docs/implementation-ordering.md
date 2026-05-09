@@ -168,7 +168,7 @@ of UC-Y.
 ### 3.3 Cycle rule
 
 The prerequisite graph must be a DAG.
-`scripts/audit_prerequisites.py` runs iterative DFS cycle detection on
+`python -m splunk_uc audit-prerequisites` runs iterative DFS cycle detection on
 every PR and will reject a cycle with a concrete path in the error
 message. Refactor by introducing a shared intermediate UC, or by
 demoting one of the two to a `run` UC that consumes the other.
@@ -190,16 +190,16 @@ All three gates run on every pull request:
 | Gate | Script | Behaviour |
 |---|---|---|
 | Build-time parser + warnings | `tools/build/build.py` (prerequisite validation) | Rejects unknown ids, self-references, and cycles; prints wave distribution and monotonicity warnings. |
-| Schema validation | `scripts/audit_catalog_schema.py` | Enforces `wv ∈ {crawl, walk, run}`, the `UC-X.Y.Z` grammar on every `pre[]` entry, no duplicates, and no self-references. |
-| Graph audit | `scripts/audit_prerequisites.py --check` | Re-runs every graph invariant against the committed `catalog.json`, diffs the deterministic report at `reports/prerequisites-audit.json`, and fails on drift. |
+| Schema validation | `python -m splunk_uc audit-catalog-schema` | Enforces `wv ∈ {crawl, walk, run}`, the `UC-X.Y.Z` grammar on every `pre[]` entry, no duplicates, and no self-references. |
+| Graph audit | `python -m splunk_uc audit-prerequisites --check` | Re-runs every graph invariant against the committed `catalog.json`, diffs the deterministic report at `reports/prerequisites-audit.json`, and fails on drift. |
 
 Local invocation:
 
 ```bash
 make build                                                 # emits fresh catalog.json + dist/ + reports/
-python3 scripts/audit_catalog_schema.py                         # per-UC shape checks
-python3 scripts/audit_prerequisites.py --write-report           # regenerate the graph audit report
-python3 scripts/audit_prerequisites.py --check                  # CI-parity drift check
+PYTHONPATH=src python3 -m splunk_uc audit-catalog-schema                 # per-UC shape checks
+PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --write-report   # regenerate the graph audit report
+PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check          # CI-parity drift check
 ```
 
 ---

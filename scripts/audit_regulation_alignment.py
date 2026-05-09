@@ -1,70 +1,41 @@
 #!/usr/bin/env python3
-"""Lint compliance[].regulation against data/regulations.json (id, shortName, aliases).
+"""Compatibility shim — implementation moved to ``splunk_uc.audits.regulation_alignment``.
 
-Unknown labels (no case-insensitive match) → stderr, exit 1.
-Optional --fix-case rewrites matched labels to the canonical framework id.
+This file is kept so legacy invocations of ``python3
+scripts/audit_regulation_alignment.py`` and any in-tree imports of
+``scripts.audit_regulation_alignment`` continue to work during the P6
+migration soak window. It is a thin re-export of the public surface of
+the canonical implementation under ``src/splunk_uc/audits/``.
+
+New callers should use either:
+
+* the dispatcher: ``python -m splunk_uc audit-regulation-alignment``
+* the make target: ``make audit-regulation-alignment``
+
+The shim will be deleted at the end of the P6 Tier 3 soak period
+(see docs/scripts-taxonomy.md).
 """
 
 from __future__ import annotations
 
-import argparse
-import json
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+_SRC = Path(__file__).resolve().parent.parent / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
+from splunk_uc.audits.regulation_alignment import (
+    REPO,
+    _lower_to_canon,
+    main,
+)
 
-def _lower_to_canon(regs_path: Path) -> dict[str, str]:
-    data = json.loads(regs_path.read_text(encoding="utf-8"))
-    m: dict[str, str] = {}
-    for fw in data.get("frameworks", []):
-        canon: str = fw["id"]
-        for lab in (canon, fw.get("shortName"), *fw.get("aliases", [])):
-            if isinstance(lab, str) and lab.strip():
-                m[lab.casefold()] = canon
-    return m
-
-
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument(
-        "--fix-case",
-        action="store_true",
-        help="set regulation to canonical id when it matches id/shortName/alias but differs",
-    )
-    args = ap.parse_args()
-    reg = _lower_to_canon(REPO / "data" / "regulations.json")
-    unknown: list[str] = []
-    for path in sorted((REPO / "content").glob("cat-*/UC-*.json")):
-        doc = json.loads(path.read_text(encoding="utf-8"))
-        com = doc.get("compliance")
-        if not isinstance(com, list):
-            continue
-        dirty = False
-        rel = path.relative_to(REPO)
-        for i, row in enumerate(com):
-            if not isinstance(row, dict):
-                continue
-            val = row.get("regulation")
-            if not isinstance(val, str) or not val.strip():
-                continue
-            key = val.casefold()
-            if key not in reg:
-                unknown.append(f"{rel} compliance[{i}].regulation unknown: {val!r}")
-                continue
-            canon = reg[key]
-            if args.fix_case and val != canon:
-                row["regulation"] = canon
-                dirty = True
-        if dirty:
-            path.write_text(
-                json.dumps(doc, indent=2, ensure_ascii=False) + "\n",
-                encoding="utf-8",
-            )
-    for line in unknown:
-        print(line, file=sys.stderr)
-    return 1 if unknown else 0
+__all__ = [
+    "REPO",
+    "_lower_to_canon",
+    "main",
+]
 
 
 if __name__ == "__main__":

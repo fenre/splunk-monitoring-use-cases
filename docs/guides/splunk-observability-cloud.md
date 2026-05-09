@@ -2276,7 +2276,7 @@ input fields.
 - [Splunk Observability Cloud — main docs](https://docs.splunk.com/observability/en/)
 - [APM — Application Performance Monitoring](https://docs.splunk.com/observability/en/apm/intro-to-apm.html)
 - [RUM — Real User Monitoring](https://docs.splunk.com/observability/en/rum/intro-to-rum.html)
-- [Synthetics](https://docs.splunk.com/observability/en/synthetics/intro-to-synthetics.html)
+- [Synthetics](https://docs.splunk.com/observability) (search "Synthetics")
 - [Infrastructure Monitoring](https://docs.splunk.com/observability/en/infrastructure/intro-to-infrastructure.html)
 - [Log Observer Connect](https://docs.splunk.com/observability/en/logs/intro-to-logs.html)
 - [Splunk Distribution of OpenTelemetry Collector](https://docs.splunk.com/observability/en/gdi/opentelemetry/opentelemetry.html)

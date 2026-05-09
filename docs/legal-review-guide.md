@@ -286,6 +286,7 @@ grandfathered content **do** trigger the gate.
   schema the signoff file validates against.
 - `schemas/sme-review-signoff.schema.json` — machine-readable SME
   signoff schema.
-- `scripts/audit_legal_review_signoffs.py` — CI validator.
-- `scripts/audit_sme_review_signoffs.py` — CI validator for SME
-  signoffs.
+- `python -m splunk_uc audit-legal-review-signoffs` — CI validator
+  (implementation: `src/splunk_uc/audits/legal_review_signoffs.py`).
+- `python -m splunk_uc audit-sme-review-signoffs` — CI validator for SME
+  signoffs (implementation: `src/splunk_uc/audits/sme_review_signoffs.py`).

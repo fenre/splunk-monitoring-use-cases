@@ -49,17 +49,39 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "audit_license_inventory.py"
+SRC_DIR = REPO_ROOT / "src"
 
 
 def _load_audit_module() -> ModuleType:
-    spec = importlib.util.spec_from_file_location(
-        "audit_license_inventory", SCRIPT_PATH
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["audit_license_inventory"] = module
-    spec.loader.exec_module(module)
-    return module
+    """Import the audit implementation module directly.
+
+    P6 (scripts taxonomy, 2026-05-09) relocated the implementation
+    to ``src/splunk_uc/audits/license_inventory.py``; the original
+    ``scripts/audit_license_inventory.py`` is now a thin shim. Tests
+    that ``monkeypatch.setattr`` module-level constants (``REPO_ROOT``,
+    ``_PYPROJECT_FILES``, ``_INVENTORY_PATH``, ``_INVENTORY_MD_PATH``,
+    ``build_inventory``) MUST do so on the implementation module —
+    patching the shim's local re-exports doesn't propagate into the
+    function closures inside the implementation. We therefore prefer
+    the package import; the legacy ``importlib.util.spec_from_file_location``
+    path is retained as a deliberate fallback for an unpacked sdist
+    that lost the ``src/`` tree.
+    """
+    if str(SRC_DIR) not in sys.path:
+        sys.path.insert(0, str(SRC_DIR))
+    try:
+        import splunk_uc.audits.license_inventory as impl
+
+        return impl
+    except ImportError:
+        spec = importlib.util.spec_from_file_location(
+            "audit_license_inventory", SCRIPT_PATH
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["audit_license_inventory"] = module
+        spec.loader.exec_module(module)
+        return module
 
 
 @pytest.fixture(scope="module")
