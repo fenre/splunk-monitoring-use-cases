@@ -440,10 +440,10 @@ or NagiosXI REST API to acknowledge from Splunk SOAR.
 | `icinga2.log` | Server log including check transitions |
 | `service-perfdata` (via PerfDataWriter) | Performance data |
 
-Or use the **API** (Icinga2 REST):
+Or use the **API** (Icinga2 REST). Replace `<USERNAME>` / `<PASSWORD>` with the API user you provisioned via `icinga2 api setup` (do not hard-code the install-time defaults in production):
 
 ```bash
-curl -k -s -u root:icinga \
+curl -k -s -u "<USERNAME>:<PASSWORD>" \
     'https://icinga.example.com:5665/v1/objects/services?attrs=last_state&attrs=name'
 ```
 
@@ -736,10 +736,12 @@ Payload:
 
 #### Insights Events API (for backfill / arbitrary NRQL)
 
+Replace `<NEW_RELIC_QUERY_KEY>` with your account-scoped Insights query key (managed in New Relic → API Keys → Insights query keys; stored in your secret manager, never committed):
+
 ```bash
 curl -X POST \
     -H "Accept: application/json" \
-    -H "X-Query-Key: NEW_RELIC_QUERY_KEY" \
+    -H "X-Query-Key: <NEW_RELIC_QUERY_KEY>" \
     -H "Content-Type: application/json" \
     "https://insights-api.newrelic.com/v1/accounts/<ACCOUNT_ID>/query?nrql=SELECT+*+FROM+Transaction+SINCE+1+hour+ago"
 ```

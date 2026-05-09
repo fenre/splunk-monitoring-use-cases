@@ -1117,7 +1117,7 @@ index=_internal source=*netapp* log_level=ERROR
 ### Veeam REST not responding
 
 ```
-curl -k -u user:pwd https://veeam-srv.example.com:9419/api/v1/sessions
+curl -k -u "<USERNAME>:<PASSWORD>" https://veeam-srv.example.com:9419/api/v1/sessions
 ```
 
 Check Veeam REST API service is running.
