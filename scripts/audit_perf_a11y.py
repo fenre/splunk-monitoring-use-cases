@@ -692,6 +692,21 @@ def main(argv: list[str] | None = None) -> int:
                 "Run `python3 scripts/audit_perf_a11y.py` and commit "
                 "the updated report.\n"
             )
+            import difflib
+
+            diff = list(
+                difflib.unified_diff(
+                    existing.splitlines(keepends=True),
+                    payload_str.splitlines(keepends=True),
+                    fromfile="committed reports/perf-a11y.json",
+                    tofile="regenerated reports/perf-a11y.json",
+                    n=2,
+                )
+            )
+            if diff:
+                sys.stderr.write("--- diff (first 200 lines) ---\n")
+                sys.stderr.writelines(diff[:200])
+                sys.stderr.write("--- end diff ---\n")
             return 1
     else:
         REPORT_PATH.write_text(payload_str, encoding="utf-8")
