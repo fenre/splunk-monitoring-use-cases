@@ -59,10 +59,19 @@ from typing import Any, Optional
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "tools"))
 
-from build import build_info, integrity, parse_content  # noqa: E402
-from build import render_api, render_assets, render_exports  # noqa: E402
-from build import render_meta, render_metrics, render_pages, render_search  # noqa: E402
-from build import render_telemetry  # noqa: E402
+from build import (
+    build_info,
+    integrity,
+    parse_content,
+    render_api,
+    render_assets,
+    render_exports,
+    render_meta,
+    render_metrics,
+    render_pages,
+    render_search,
+    render_telemetry,
+)
 
 DEFAULT_OUT = "dist"
 ALL_STAGES = (
@@ -745,7 +754,7 @@ def _run_once(args: argparse.Namespace) -> int:
         _ts = time.monotonic()
         catalog = _stage_parse(opts)
         stage_telemetry.append(
-            {"stage": "parse", "duration_ms": int(round((time.monotonic() - _ts) * 1000))}
+            {"stage": "parse", "duration_ms": round((time.monotonic() - _ts) * 1000)}
         )
     else:
         catalog = parse_content.empty()
@@ -769,7 +778,7 @@ def _run_once(args: argparse.Namespace) -> int:
         _ts = time.monotonic()
         _fn()
         stage_telemetry.append(
-            {"stage": _name, "duration_ms": int(round((time.monotonic() - _ts) * 1000))}
+            {"stage": _name, "duration_ms": round((time.monotonic() - _ts) * 1000)}
         )
 
     total_seconds = time.monotonic() - t0
