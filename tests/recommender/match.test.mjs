@@ -291,3 +291,155 @@ test('appNameTokens handles non-string inputs without throwing', () => {
   assert.equal(n.length, 0);
   assert.equal(num.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Build 13 — three fixes for cat-22 over-dominance in the recommend list.
+// Live data simulation showed 100/100 of the top-100 were cat-22 because
+// (a) generic tokens like "splunk" / "for" / "add" caused token-overlap
+// fuzzy matches across hundreds of catalogue keys, (b) one inventory row
+// could pile +20 points onto a single UC by hitting many synthetic
+// "App Name (NNNN)" cat-22 evidence-pack keys, and (c) no diversification
+// ceiling let cat-22 sweep the slice(0,100). These tests pin all three
+// fixes so the same regression can never recur silently.
+// ---------------------------------------------------------------------------
+
+test('matchUseCases respects APP_TOKEN_STOPWORDS in token-overlap fallback', () => {
+  // Two inventory rows both share only the generic Splunk-marketing
+  // tokens "splunk" / "add" / "for". The catalogue key shares the
+  // same generic tokens but is otherwise unrelated. Without a stop-word
+  // filter, the user's "Splunk Get Data In" inventory app would
+  // fuzzy-token-match "Splunk Add-on for ServiceNow" → spam its UC.
+  const { matchUseCases } = loadRecommender();
+  const indexes = {
+    sourcetypes: {},
+    cim: {},
+    apps: {
+      // Both keys share zero meaningful tokens with the inventory rows;
+      // they share only stop-word-class tokens "splunk" / "add" / "for".
+      'Splunk Add-on for ServiceNow': ['UC-NOISE-1'],
+      'Splunk Add-on for Microsoft Azure': ['UC-NOISE-2'],
+      // Real meaningful match — shares "linux" with inventory.
+      'Splunk Add-on for Unix and Linux': ['UC-REAL'],
+    },
+    thin: {
+      'UC-NOISE-1': { id: 'UC-NOISE-1', title: 'noise', criticality: 'high' },
+      'UC-NOISE-2': { id: 'UC-NOISE-2', title: 'noise', criticality: 'high' },
+      'UC-REAL':    { id: 'UC-REAL',    title: 'real',  criticality: 'high' },
+    },
+  };
+  const inventory = [
+    {
+      type: 'app',
+      name: 'Splunk Get Data In',
+      extras: 'splunk_get_data_in',
+    },
+    {
+      type: 'app',
+      name: 'Splunk Add-on for Linux',
+      extras: 'Splunk_TA_nix',
+    },
+  ];
+  const res = matchUseCases(inventory, indexes);
+  const ids = res.map((r) => r.id);
+  assert.ok(ids.includes('UC-REAL'), 'meaningful "linux" overlap must surface');
+  assert.ok(
+    !ids.includes('UC-NOISE-1'),
+    'must NOT match ServiceNow UC purely on stop-word "splunk"/"add"/"for" overlap',
+  );
+  assert.ok(
+    !ids.includes('UC-NOISE-2'),
+    'must NOT match Azure UC purely on stop-word "splunk"/"add"/"for" overlap',
+  );
+});
+
+test('matchUseCases caps a single inventory row\'s contribution to one UC', () => {
+  // Build 13 cap: one inventory row matching N catalogue keys that all
+  // point at the SAME UC must not pile up N×weight on that UC. The cap
+  // is +3 per (inventory_row, UC) pair so that one badly-chosen row
+  // can't dominate the leaderboard. This is exactly what the cat-22
+  // evidence-pack synthetic keys (e.g. "Splunk_TA_nix" + "Splunk_TA_nix
+  // (833)" + "Splunk_TA_nix (Splunkbase 833)") were doing.
+  const { matchUseCases } = loadRecommender();
+  const indexes = {
+    sourcetypes: {},
+    cim: {},
+    apps: {
+      // Five cat-22 catalogue keys that all cite UC-DUP — i.e. the
+      // synthetic "App (NNNN)" pattern visible in the live API.
+      'Splunk_TA_nix':                            ['UC-DUP'],
+      'Splunk_TA_nix (833)':                      ['UC-DUP'],
+      'Splunk_TA_nix (Splunkbase 833)':           ['UC-DUP'],
+      'Splunk Add-on for Unix and Linux':         ['UC-DUP'],
+      'Splunk Add-on for Unix and Linux (833)':   ['UC-DUP'],
+      // One vanilla key citing UC-NORMAL for comparison.
+      'Splunk_TA_paloalto':                       ['UC-NORMAL'],
+    },
+    thin: {
+      'UC-DUP':    { id: 'UC-DUP',    title: 'dup',    criticality: 'high' },
+      'UC-NORMAL': { id: 'UC-NORMAL', title: 'normal', criticality: 'high' },
+    },
+  };
+  const inventory = [
+    { type: 'app', name: '*nix',           extras: 'Splunk_TA_nix' },
+    { type: 'app', name: 'Palo Alto',      extras: 'Splunk_TA_paloalto' },
+  ];
+  const res = matchUseCases(inventory, indexes);
+  const dupHit    = res.find((r) => r.id === 'UC-DUP');
+  const normalHit = res.find((r) => r.id === 'UC-NORMAL');
+  assert.ok(dupHit && normalHit, 'both UCs must surface');
+  // Pre-fix: dup score would be ~3 + 1 + 1 + 1 + 1 = 7 (or higher).
+  // Post-fix: per-(row,UC) cap holds it to a single ``+3`` exact bump.
+  assert.ok(
+    dupHit._score <= 3,
+    `single inv row must contribute at most +3 to a UC; got ${dupHit._score}`,
+  );
+  assert.ok(
+    dupHit._score >= 3,
+    'must still award the strongest single match (+3 exact)',
+  );
+});
+
+test('matchUseCases diversifies the top slice across categories', () => {
+  // Build 13 diversification: when the unbounded top-N would be 100%
+  // one category (the live cat-22 case), enforce a per-category cap
+  // so the user sees a representative mix. Uses synthetic UCs across
+  // four categories: cat-22 with very high scores, cat-10 medium,
+  // cat-5 medium, cat-1 lower. Without diversification, cat-22 would
+  // sweep the top-N. With it, every category that scored anything
+  // should appear.
+  const { matchUseCases } = loadRecommender();
+  const indexes = { sourcetypes: {}, cim: {}, apps: {}, thin: {} };
+  // Build up a synthetic catalogue: 200 cat-22 UCs, 50 cat-10, 30 cat-5,
+  // 20 cat-1. Each one is reachable through one app key the user has.
+  const inv = [{ type: 'app', name: 'Splunk_TA_universal', extras: 'Splunk_TA_universal' }];
+  function addUcs(prefix, n, score_keys) {
+    for (var i = 1; i <= n; i++) {
+      var id = prefix + '.1.' + i;
+      indexes.thin[id] = { id, title: `${prefix} UC ${i}`, criticality: 'high' };
+      // ``score_keys`` keys all cite the same UC, simulating the
+      // live cat-22 synthetic-key effect.
+      for (var k = 0; k < score_keys; k++) {
+        var key = `Splunk_TA_universal-cat${prefix}-${i}-${k}`;
+        indexes.apps[key] = (indexes.apps[key] || []).concat(id);
+      }
+    }
+  }
+  addUcs('22', 200, 5);
+  addUcs('10', 50,  2);
+  addUcs('5',  30,  2);
+  addUcs('1',  20,  2);
+  const res = matchUseCases(inv, indexes);
+  const top100 = res.slice(0, 100);
+  const cats = new Set(top100.map((r) => r.id.split('.')[0]));
+  assert.ok(top100.length >= 100, 'must produce at least 100 results');
+  assert.ok(cats.has('22'), 'cat-22 still represented (it scored highest)');
+  assert.ok(cats.has('10'), 'cat-10 must also be represented (diversification)');
+  assert.ok(cats.has('5'),  'cat-5 must also be represented (diversification)');
+  // No single category may exceed 50% of the top-100 unless the others
+  // are exhausted. With 200/50/30/20 = 300 candidates, no exhaustion.
+  const cat22Count = top100.filter((r) => r.id.startsWith('22.')).length;
+  assert.ok(
+    cat22Count <= 50,
+    `cat-22 capped at 50% of top-100; got ${cat22Count}`,
+  );
+});

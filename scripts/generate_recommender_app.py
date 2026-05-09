@@ -299,7 +299,7 @@ def _primary_app_conf(version: str) -> str:
             [
                 ("is_configured", "0"),
                 ("state", "enabled"),
-                ("build", "12"),
+                ("build", "13"),
             ],
         ),
         (
@@ -307,7 +307,7 @@ def _primary_app_conf(version: str) -> str:
             [
                 ("name", PRIMARY_APP_ID),
                 ("version", version),
-                ("build", "12"),
+                ("build", "13"),
             ],
         ),
         (
@@ -2307,14 +2307,68 @@ def _js_recommender(api_base: str) -> str:
     appNameTokens: appNameTokens,
   }};
 
+  // Build 13 — three matcher fairness fixes.
+  //
+  // Live-data analysis (90 inventory apps + 2,428 catalogue keys) found
+  // that the Recommend tab returned 100/100 cat-22 UCs in the top-100
+  // even though only ~22% of catalogue UCs and ~33% of citations are
+  // cat-22. Three compounding causes:
+  //
+  // (a) The token-overlap matcher accepted single-token matches on
+  //     generic Splunk-marketing words like "splunk", "for", "add",
+  //     "addon", which appear in 28 of 90 inventory apps AND in 555 of
+  //     2,428 catalogue keys. These reach 5,270 unique UCs and bias
+  //     heavily toward cat-22.
+  // (b) The cat-22 catalogue includes ~138 synthetic
+  //     "App Name (NNNN)" / "App Name (Splunkbase NNNN)" evidence-pack
+  //     keys, ~87% of whose UC citations are cat-22. One inventory row
+  //     could match 5+ of those keys for the same UC, piling +5 on top
+  //     of the legitimate +3 exact match.
+  // (c) No diversification ceiling on the post-sort top-N let cat-22
+  //     sweep the entire slice(0, 100).
+  //
+  // Stop-words used in (a). Tokens that appear in *both* sides at high
+  // density and carry no meaningful signal. Conservative list — does
+  // not include "data", "service", "cloud", "enterprise" because those
+  // are still useful disambiguators in some app-name pairs.
+  var APP_TOKEN_STOPWORDS = {{
+    'splunk': 1, 'app': 1, 'apps': 1, 'add': 1, 'addon': 1, 'addons': 1,
+    'for': 1, 'and': 1, 'the': 1, 'with': 1, 'via': 1, 'use': 1, 'using': 1,
+    'from': 1, 'has': 1, 'any': 1, 'all': 1, 'this': 1, 'that': 1,
+    'optional': 1, 'required': 1, 'requires': 1, 'tools': 1, 'tool': 1
+  }};
+
+  function meaningfulTokens(tokens) {{
+    var out = [];
+    for (var i = 0; i < tokens.length; i++) {{
+      if (!APP_TOKEN_STOPWORDS[tokens[i]]) out.push(tokens[i]);
+    }}
+    return out;
+  }}
+
   function matchUseCases(inventory, indexes) {{
     var buckets = {{}};
-    var seen = {{}};
+
+    // ``rowSeen`` tracks ``invRowKey + '::' + ucId`` -> highest weight
+    // already awarded. Implements fix (b) — a single inventory row can
+    // contribute at most that highest weight to any one UC, even if it
+    // matches the UC across many catalogue keys.
+    var rowSeen = {{}};
+    var currentRowKey = '';
 
     function bump(ucId, weight, reason) {{
       if (!ucId) return;
+      var seenKey = currentRowKey + '::' + ucId;
+      var prev = rowSeen[seenKey] || 0;
+      if (weight <= prev) {{
+        // Already awarded ≥ this weight from this inventory row to
+        // this UC; skip (the cap that kills evidence-pack pile-ups).
+        return;
+      }}
+      var delta = weight - prev;
+      rowSeen[seenKey] = weight;
       if (!buckets[ucId]) buckets[ucId] = {{ id: ucId, score: 0, reasons: [] }};
-      buckets[ucId].score += weight;
+      buckets[ucId].score += delta;
       buckets[ucId].reasons.push(reason);
     }}
 
@@ -2322,12 +2376,20 @@ def _js_recommender(api_base: str) -> str:
     // O(real_apps) rather than O(all_keys_including_prose_fragments).
     var cleanAppKeys = Object.keys(indexes.apps || {{}}).filter(looksLikeAppKey);
     var cleanAppKeysLower = cleanAppKeys.map(function (k) {{ return k.toLowerCase(); }});
-    var cleanAppTokenLists = cleanAppKeys.map(function (k) {{ return appNameTokens(k); }});
+    // Pre-strip stop-words from the catalogue tokens too so the
+    // overlap test below already operates on meaningful tokens only.
+    var cleanAppTokenLists = cleanAppKeys.map(function (k) {{
+      return meaningfulTokens(appNameTokens(k));
+    }});
 
-    inventory.forEach(function (row) {{
+    inventory.forEach(function (row, rowIndex) {{
       var rawName = row.name || '';
       var name = rawName.toLowerCase();
       if (!name) return;
+      // Stable per-row key for the (row, UC) cap. We use the inventory
+      // index because two rows might share a (name, type) pair.
+      currentRowKey = (row.type || '?') + ':' + rowIndex + ':' + name;
+
       if (row.type === 'sourcetype') {{
         var exact = indexes.sourcetypes[name];
         if (exact) exact.forEach(function (id) {{ bump(id, 3, 'sourcetype: ' + name); }});
@@ -2356,8 +2418,10 @@ def _js_recommender(api_base: str) -> str:
         // token overlap (low weight). Token overlap protects against
         // false positives that naive substring produced — only counts
         // when ≥1 word ≥3 chars is shared between user inventory and
-        // catalog key.
-        var rowTokens = appNameTokens(rawName + ' ' + (row.extras || ''));
+        // catalog key, AFTER stop-word filtering.
+        var rowTokens = meaningfulTokens(
+          appNameTokens(rawName + ' ' + (row.extras || ''))
+        );
         for (var i = 0; i < cleanAppKeys.length; i++) {{
           var keyLower = cleanAppKeysLower[i];
           var matched = false;
@@ -2370,18 +2434,25 @@ def _js_recommender(api_base: str) -> str:
             }}
           }}
           if (!matched) {{
+            // Substring match — but ONLY when the inventory token isn't
+            // a generic Splunk-marketing word. Without this guard,
+            // "splunk" inside an inventory app name substring-matches
+            // every catalogue key containing "Splunk".
             for (var k = 0; k < inventoryTokens.length; k++) {{
-              if (inventoryTokens[k]
-                  && (keyLower.indexOf(inventoryTokens[k]) !== -1
-                      || inventoryTokens[k].indexOf(keyLower) !== -1)) {{
+              var invTok = inventoryTokens[k];
+              if (!invTok) continue;
+              if (APP_TOKEN_STOPWORDS[invTok]) continue;
+              if (keyLower.indexOf(invTok) !== -1
+                  || invTok.indexOf(keyLower) !== -1) {{
                 matched = true; weight = 1; reasonSuffix = 'app substring: ' + cleanAppKeys[i];
                 break;
               }}
             }}
           }}
           if (!matched && rowTokens.length) {{
-            // Token-overlap fallback — guards against "API" matching
-            // every prose-y key.
+            // Token-overlap fallback over MEANINGFUL tokens only.
+            // ``rowTokens`` and ``cleanAppTokenLists[i]`` were both
+            // already stripped of stop-words above.
             var keyTokens = cleanAppTokenLists[i];
             for (var t = 0; t < rowTokens.length; t++) {{
               if (keyTokens.indexOf(rowTokens[t]) !== -1) {{
@@ -2421,7 +2492,38 @@ def _js_recommender(api_base: str) -> str:
     out.sort(function (a, b) {{
       return (score(b) || 0) - (score(a) || 0);
     }});
-    return out.slice(0, 100);
+
+    // Fix (c) — diversify the top-100 across categories. Without this,
+    // even with stop-words and the per-row cap, the cat-22 evidence-
+    // pack catalogue is dense enough that cat-22 still sweeps the
+    // top of the score-sorted list. We allow at most ~30% of the slice
+    // from any single category, falling back to score-sort once a
+    // category hits its cap. Categories are derived from the leading
+    // numeric segment of the UC id (e.g. "22.1.5" -> "22").
+    var TOP_N = 100;
+    var PER_CAT_CAP = Math.ceil(TOP_N * 0.30);   // 30 of 100 per category
+    var perCat = {{}};
+    var diversified = [];
+    var overflow = [];
+    for (var idx = 0; idx < out.length && diversified.length < TOP_N; idx++) {{
+      var item = out[idx];
+      var dot = item.id.indexOf('.');
+      var cat = dot > 0 ? item.id.slice(0, dot) : item.id;
+      var c = perCat[cat] || 0;
+      if (c < PER_CAT_CAP) {{
+        diversified.push(item);
+        perCat[cat] = c + 1;
+      }} else {{
+        overflow.push(item);
+      }}
+    }}
+    // If we ran out of UCs from other categories before filling 100
+    // (e.g. small synthetic indexes in tests, or sparse catalogues),
+    // top up the slice with the highest-scoring overflow items.
+    for (var ov = 0; ov < overflow.length && diversified.length < TOP_N; ov++) {{
+      diversified.push(overflow[ov]);
+    }}
+    return diversified;
   }}
 
   function renderStatusBadge(parent, ucId) {{
