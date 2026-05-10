@@ -3,7 +3,9 @@
 > Repo-overhaul plan §P8 step 4 — landed 2026-05-09.
 
 The **stewardship digest** is a small JSON + markdown twin emitted by
+`python -m splunk_uc generate-stewardship-digest` (legacy
 [`scripts/generate_stewardship_digest.py`](../scripts/generate_stewardship_digest.py)
+shim still works during soak)
 that distils three recurring stewardship questions into a single
 artefact:
 
@@ -34,7 +36,7 @@ to keep the schema honest.
 | `dist/stewardship-digest.md` | Human-friendly twin (drop into release notes verbatim). |
 | `schemas/v2/stewardship-digest.schema.json` | JSON Schema 2020-12 contract. |
 | `.github/workflows/stewardship.yml` | Mondays 08:00 UTC scheduled run. |
-| `scripts/generate_stewardship_digest.py` | Stdlib-only generator. |
+| `src/splunk_uc/generators/stewardship_digest.py` (verb `generate-stewardship-digest`; legacy `scripts/generate_stewardship_digest.py` shim) | Stdlib-only generator. |
 | `tests/scripts/test_generate_stewardship_digest.py` | 55 unit tests. |
 
 ## How to regenerate locally
@@ -113,7 +115,7 @@ sections are omitted.
 2. Capture `WARN :` lines from
    `scripts/audit_roadmap_consistency.py --check` and thread them
    through the generator's `--audit-warning name=message` flag.
-3. Run `scripts/generate_stewardship_digest.py` (no
+3. Run `python -m splunk_uc generate-stewardship-digest` (no
    `--reference-date`, so the issue carries today's date).
 4. Validate the JSON against the schema (defence-in-depth — the
    generator already produces schema-shaped output, but a stale
@@ -136,7 +138,7 @@ Actions → "Stewardship digest" → Run workflow
 The PR `validate.yml` job runs:
 
 ```bash
-python3 scripts/generate_stewardship_digest.py \
+PYTHONPATH=src python3 -m splunk_uc generate-stewardship-digest \
   --reference-date 2026-05-09 \
   --out /tmp/stewardship-digest-ci
 python3 -c '... jsonschema.Draft202012Validator(...)...'

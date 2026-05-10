@@ -175,6 +175,24 @@ silently introduce eager-import side-effects.
 | `audit-sandbox-validation`    | `splunk_uc.audits.sandbox_validation`       | 2026-05-09 (Tier 1, batch 10) |
 | `audit-sme-review-signoffs`   | `splunk_uc.audits.sme_review_signoffs`      | 2026-05-09 (Tier 1, batch 10) |
 | `audit-mapping-ledger`        | `splunk_uc.audits.mapping_ledger`           | 2026-05-09 (Tier 1, batch 10) |
+| `audit-gold-profile`          | `splunk_uc.audits.gold_profile`             | 2026-05-09 (Tier 1, batch 11) |
+| `audit-perf-a11y`             | `splunk_uc.audits.perf_a11y`                | 2026-05-09 (Tier 1, batch 11) |
+| `audit-spl-grammar`           | `splunk_uc.audits.spl_grammar`              | 2026-05-09 (Tier 1, batch 11) |
+| `audit-spl-hallucinations`    | `splunk_uc.audits.spl_hallucinations`       | 2026-05-09 (Tier 1, batch 11) |
+| `audit-splunk-cloud-compat`   | `splunk_uc.audits.splunk_cloud_compat`      | 2026-05-09 (Tier 1, batch 11) |
+| `generate-md-from-json`       | `splunk_uc.generators.md_from_json`         | 2026-05-09 (Tier 2, batch 1) |
+| `generate-grandma-explanations` | `splunk_uc.generators.grandma_explanations` | 2026-05-09 (Tier 2, batch 1) |
+| `generate-stewardship-digest` | `splunk_uc.generators.stewardship_digest`   | 2026-05-09 (Tier 2, batch 1) |
+| `generate-mapping-ledger`     | `splunk_uc.generators.mapping_ledger`       | 2026-05-09 (Tier 2, batch 1) |
+| `generate-manifest-samples`   | `splunk_uc.generators.manifest_samples`     | 2026-05-09 (Tier 2, batch 2) |
+| `generate-equipment-tags`     | `splunk_uc.generators.equipment_tags`       | 2026-05-09 (Tier 2, batch 2) |
+| `generate-evidence-packs`     | `splunk_uc.generators.evidence_packs`       | 2026-05-09 (Tier 2, batch 2) |
+| `generate-api-surface`        | `splunk_uc.generators.api_surface`          | 2026-05-09 (Tier 2, batch 2) |
+| `generate-phase2-mini-categories` | `splunk_uc.generators.phase2_mini_categories` | 2026-05-09 (Tier 2, batch 3) |
+| `generate-phase2-3-per-regulation` | `splunk_uc.generators.phase2_3_per_regulation` | 2026-05-09 (Tier 2, batch 3) |
+| `generate-phase3-1-backfill`  | `splunk_uc.generators.phase3_1_backfill`    | 2026-05-09 (Tier 2, batch 3) |
+| `generate-phase3-2-cross-cutting` | `splunk_uc.generators.phase3_2_cross_cutting` | 2026-05-09 (Tier 2, batch 3) |
+| `generate-phase3-3-derivatives` | `splunk_uc.generators.phase3_3_derivatives` | 2026-05-09 (Tier 2, batch 3) |
 
 ## Soak schedule
 
@@ -192,8 +210,12 @@ silently introduce eager-import side-effects.
 | Tier 1 — audit batch 8        | ✅ `audit-compliance-gaps` + `audit-compliance-mappings` |
 | Tier 1 — audit batch 9        | ✅ `audit-doc-counts` + `audit-openapi-drift` + `audit-content-quality` + `audit-baseline-clause-grammar-free` + `audit-peer-review-signoffs` + `audit-mcp-tool-schemas` |
 | Tier 1 — audit batch 10       | ✅ `audit-gold-profile-v2` + `audit-prerequisites` + `audit-sandbox-validation` + `audit-sme-review-signoffs` + `audit-mapping-ledger` |
-| Tier 1 — remaining audits (5 files: `audit_gold_profile.py` v1 + `audit_perf_a11y.py` + `audit_spl_grammar.py` + `audit_spl_hallucinations.py` + `audit_splunk_cloud_compat.py`; intentionally non-verb one-shot driver `audit_guide_external_links_oneshot.py` stays in `scripts/`) | 🔜 Subsequent PRs (one cluster at a time) |
-| Tier 2 — generators           | 🔜 After audits             |
+| Tier 1 — audit batch 11       | ✅ `audit-gold-profile` (v1) + `audit-perf-a11y` + `audit-spl-grammar` + `audit-spl-hallucinations` + `audit-splunk-cloud-compat` |
+| Tier 1 — remaining audits     | ✅ Closed (intentional non-verb one-shot driver `audit_guide_external_links_oneshot.py` stays in `scripts/`) |
+| Tier 2 — generator batch 1    | ✅ `generate-md-from-json` + `generate-grandma-explanations` + `generate-stewardship-digest` + `generate-mapping-ledger` |
+| Tier 2 — generator batch 2    | ✅ `generate-manifest-samples` + `generate-equipment-tags` + `generate-evidence-packs` + `generate-api-surface` |
+| Tier 2 — generator batch 3    | ✅ `generate-phase2-mini-categories` + `generate-phase2-3-per-regulation` + `generate-phase3-1-backfill` + `generate-phase3-2-cross-cutting` + `generate-phase3-3-derivatives` |
+| Tier 2 — generator batches 4+ | 🔜 NEXT — ~17 generators remaining in `scripts/` |
 | Tier 2 — ingest + migrations + feasibility | 🔜 In parallel |
 | Tier 3 — delete legacy `scripts/` shims | 🔒 Blocked on full migration + one minor release of soak |
 | Tier 4 — wheel-package + `pip install -e .` | 🔒 Blocked on P9 monorepo decision |

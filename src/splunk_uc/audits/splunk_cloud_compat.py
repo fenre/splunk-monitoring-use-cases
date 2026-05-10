@@ -356,9 +356,7 @@ def render_report(spl_findings: list[Finding], pack_findings: list[Finding], tot
         "| ---- | -------- | ----------- |",
     ]
     for spl_rule in SPL_RULES:
-        lines.append(
-            f"| {spl_rule.id} | {spl_rule.severity} | {spl_rule.description} |"
-        )
+        lines.append(f"| {spl_rule.id} | {spl_rule.severity} | {spl_rule.description} |")
     lines.extend(
         [
             "",

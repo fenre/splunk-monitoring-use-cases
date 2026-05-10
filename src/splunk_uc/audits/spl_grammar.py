@@ -555,9 +555,7 @@ def check_where_after_timechart(uc_id: str, file: str, spl: str) -> list[Finding
                 flags=re.IGNORECASE,
             )
             if accum_match:
-                produced.add(
-                    (accum_match.group(2) or accum_match.group(1)).lower()
-                )
+                produced.add((accum_match.group(2) or accum_match.group(1)).lower())
             continue
         if not low.startswith("where "):
             continue

@@ -1877,13 +1877,14 @@ def _sidecar_quality_for(uc_full_id):
 
 
 # Minimal per-category fallback sentences — must stay in sync with
-# ``_CATEGORY_FALLBACK`` in scripts/generate_grandma_explanations.py. This
-# copy is the runtime safety net for UCs that exist only in the markdown
-# (no ``content/cat-*/UC-*.json`` sidecar yet): it guarantees that
+# ``_CATEGORY_FALLBACK`` in src/splunk_uc/generators/grandma_explanations.py
+# (verb: ``python -m splunk_uc generate-grandma-explanations``).  This copy
+# is the runtime safety net for UCs that exist only in the markdown (no
+# ``content/cat-*/UC-*.json`` sidecar yet): it guarantees that
 # ``uc["ge"]`` is always non-empty in ``catalog.json`` / ``data.js``, so
 # every non-technical-view renderer can show *something* even for
-# pre-migration UCs. The richer, full-vocabulary rewriter lives in the
-# generator script — when a curator runs it, the sidecar wins and this
+# pre-migration UCs.  The richer, full-vocabulary rewriter lives in the
+# generator module — when a curator runs it, the sidecar wins and this
 # fallback is never consulted.
 _GE_RUNTIME_FALLBACK = {
     1: "We keep an eye on your servers — so you find out before users do when something is slowing down or breaking.",

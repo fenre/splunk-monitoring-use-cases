@@ -38,13 +38,18 @@ import jsonschema
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SCRIPTS_DIR = REPO_ROOT / "scripts"
+SRC_DIR = REPO_ROOT / "src"
 SCHEMA_PATH = REPO_ROOT / "schemas" / "v2" / "stewardship-digest.schema.json"
 
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+# Tests import the implementation module directly so monkeypatched module-level
+# state propagates through the closure cleanly. The shim at
+# scripts/generate_stewardship_digest.py would only re-export the public API
+# at import time, which would not pick up later patches against helpers like
+# ``_walk_sidecars`` or ``_previous_snapshot``.
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
-import generate_stewardship_digest as gsd  # noqa: E402
+import splunk_uc.generators.stewardship_digest as gsd  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Fixture builders.

@@ -71,7 +71,7 @@ for the build stages.
 1. **Schema:** Every UC JSON sidecar must validate against `schemas/uc.schema.json`.
 2. **Quality tiers:** Gold / Silver / Bronze — see `.cursor/rules/gold-standard-authoring.mdc` and `docs/gold-standard-template.md`.
 3. **Required fields (JSON):** `id`, `title`, `criticality`, `difficulty`, `monitoringType`, `value`, `app`, `dataSources`, `spl`, `implementation`, `visualization`, `cimModels`, `grandmaExplanation`.
-4. **grandmaExplanation:** Every UC carries a plain-language `ge` field; generate with `scripts/generate_grandma_explanations.py`.
+4. **grandmaExplanation:** Every UC carries a plain-language `ge` field; generate with `python -m splunk_uc generate-grandma-explanations` (legacy `scripts/generate_grandma_explanations.py` shim still works during soak).
 5. **Validation:** Run `make audit` (or `python3 scripts/audit_uc_structure.py --full`) and `make build` before committing.
 
 ## MCP tools available
@@ -138,7 +138,7 @@ All audits are in `.github/workflows/validate.yml`. Key steps:
 - License inventory (`scripts/audit_license_inventory.py --check`)
 - Metrics history snapshot (`scripts/snapshot_metrics.py --check` — fails when `VERSION` is bumped without a matching `data/metrics-history/<VERSION>.json`)
 - Metrics shape (`dist/metrics.json` validates against `schemas/v2/metrics.schema.json` on every reproducible build)
-- Stewardship digest schema (PR smoke-test of `scripts/generate_stewardship_digest.py` against `schemas/v2/stewardship-digest.schema.json`; weekly refresh in `.github/workflows/stewardship.yml`)
+- Stewardship digest schema (PR smoke-test of `python -m splunk_uc generate-stewardship-digest` against `schemas/v2/stewardship-digest.schema.json`; weekly refresh in `.github/workflows/stewardship.yml`)
 - Build reproducibility (nightly + build-pipeline PRs: `python -m splunk_uc audit-reproducibility --keep` runs two consecutive `--reproducible` builds and asserts `dist/integrity.json` byte-identical; see `.github/workflows/build-reproducibility.yml`)
 - `splunk_uc` dispatcher smoke (per-PR: `python -m splunk_uc --help` and `--version` succeed; pinned by `tests/splunk_uc/test_dispatcher.py`)
 
@@ -160,7 +160,7 @@ make audit-reproducibility                          # two --reproducible builds 
 make audit-reproducibility-fast                     # single --reproducible build smoke (~30s)
 make splunk-uc-help                                 # show the python -m splunk_uc CLI help
 PYTHONPATH=src python3 -m splunk_uc --help          # canonical splunk_uc dispatcher entry point (P6)
-python3 scripts/generate_grandma_explanations.py    # fill missing plain-language fields
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations  # fill missing plain-language fields
 python3 scripts/splunk_fortune.py                   # random UC "fortune cookie"
 PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check  # validate implementation ordering
 ```

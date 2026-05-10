@@ -95,7 +95,7 @@ project.
 ## 5. Provenance and trust chain
 
 `data/provenance/splunkbase-mappings-signoffs.json` is ingested by
-`scripts/generate_mapping_ledger.py` and covered by the Sigstore
+`python -m splunk_uc generate-mapping-ledger` (impl. `src/splunk_uc/generators/mapping_ledger.py`) and covered by the Sigstore
 attestation on `data/provenance/mapping-ledger.json`. Auditors verifying
 the recommender's install guidance can therefore prove that every
 machine-proposed mapping was reviewed by a named SME before the v9.0

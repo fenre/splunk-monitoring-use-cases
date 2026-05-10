@@ -2,7 +2,9 @@
 
 > **Status:** required for any change to
 > `data/provenance/mapping-ledger.json`, `schemas/mapping-ledger.schema.json`,
-> `scripts/generate_mapping_ledger.py`,
+> `src/splunk_uc/generators/mapping_ledger.py`
+> (verb: `python -m splunk_uc generate-mapping-ledger`; legacy
+> `scripts/generate_mapping_ledger.py` shim still works during soak),
 > `src/splunk_uc/audits/mapping_ledger.py`
 > (verb: `python -m splunk_uc audit-mapping-ledger`),
 > `scripts/stamp_ledger_release.py`, or the ledger-signing steps in
@@ -77,7 +79,7 @@ the ledger establishes the truth of the record.
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `schemas/mapping-ledger.schema.json`               | JSON Schema (Draft 2020-12) that governs the ledger. Defines entry shape, canonicalisation contract, and the `oneOf` signature envelope (`unsigned` or `attested`).                                                                                                                                        |
 | `data/provenance/mapping-ledger.json`              | The in-repo ledger. Always `signature.state = "unsigned"` on `main` (so PR CI is deterministic); the attested copy lives in `dist/` at release time.                                                                                                                                                       |
-| `scripts/generate_mapping_ledger.py`               | Deterministic generator. Walks every `content/cat-*/UC-*.json`, canonicalises regulation names against `data/regulations.json`, probes git history in a single bulk `git log` pass, snapshots peer/legal/SME signoffs, hashes each entry, and emits the sorted-leaf merkle root. `--check` mode diff-gates. |
+| `python -m splunk_uc generate-mapping-ledger` (impl. `src/splunk_uc/generators/mapping_ledger.py`; legacy `scripts/generate_mapping_ledger.py` shim) | Deterministic generator. Walks every `content/cat-*/UC-*.json`, canonicalises regulation names against `data/regulations.json`, probes git history in a single bulk `git log` pass, snapshots peer/legal/SME signoffs, hashes each entry, and emits the sorted-leaf merkle root. `--check` mode diff-gates. |
 | `python -m splunk_uc audit-mapping-ledger`        | Independent verifier (implementation: `src/splunk_uc/audits/mapping_ledger.py`). Re-reads the ledger, recomputes all `canonicalHash`es and the `merkleRoot`, validates against the schema, performs referential integrity against current sidecars, and — when `--verify-signature` is passed — shells out to `gh attestation verify` against the Sigstore bundle. |
 | `scripts/stamp_ledger_release.py`                  | Release-time stamper. Copies the in-repo ledger to `dist/mapping-ledger.json` and flips `signature.state` from `unsigned` to `attested` _before_ Sigstore attestation (because attestation binds the file-at-rest).                                                                                         |
 | `.github/workflows/validate.yml`                   | Runs `--check` (regeneration drift) and the audit on every pull request. Uploads the ledger as part of the `qa-gates` artifact.                                                                                                                                                                             |
@@ -132,14 +134,15 @@ across it.
 UC sidecars use human-readable names (`"GDPR"`, `"EU GDPR"`, `"General
 Data Protection Regulation"`). The ledger stores the stable
 `regulations.json` slug (`gdpr`). Mapping table and precedence rules
-live in `scripts/generate_mapping_ledger.py::NAME_TABLE`. Adding a new
-regulation family requires:
+live in `src/splunk_uc/generators/mapping_ledger.py::NAME_TABLE`. Adding
+a new regulation family requires:
 
 1. An entry in `data/regulations.json frameworks[]`.
 2. A row in `NAME_TABLE` covering every spelling the sidecar authors
    use (the generator refuses to emit an entry for an unknown name).
-3. Regenerating the ledger (`python3 scripts/generate_mapping_ledger.py`)
-   in the same PR.
+3. Regenerating the ledger
+   (`PYTHONPATH=src python3 -m splunk_uc generate-mapping-ledger`) in
+   the same PR.
 
 ## 4. Canonicalisation and merkle root
 
@@ -237,7 +240,7 @@ rejects mismatches as tampering.
 The release workflow
 (`.github/workflows/release.yml`) performs five steps, in order:
 
-1. **Regenerate** the ledger at HEAD: `python3 scripts/generate_mapping_ledger.py --check`.
+1. **Regenerate** the ledger at HEAD: `PYTHONPATH=src python3 -m splunk_uc generate-mapping-ledger --check`.
 2. **Audit** the in-repo (`unsigned`) ledger:
    `PYTHONPATH=src python3 -m splunk_uc audit-mapping-ledger`.
 3. **Stamp** a release copy into `dist/`:
@@ -338,8 +341,8 @@ only when `--verify-signature` is explicitly requested.
 ### 8.1 Adding or changing a mapping
 
 1. Edit the UC sidecar's `compliance[]` entry as normal.
-2. Run `python3 scripts/generate_mapping_ledger.py` to regenerate the
-   ledger. The audit will fail if you skip this step.
+2. Run `PYTHONPATH=src python3 -m splunk_uc generate-mapping-ledger` to
+   regenerate the ledger. The audit will fail if you skip this step.
 3. Run `PYTHONPATH=src python3 -m splunk_uc audit-mapping-ledger` to
    confirm the regeneration is self-consistent.
 4. Commit both the sidecar change and
@@ -362,7 +365,7 @@ the ledger.
 
 ```bash
 git pull
-python3 scripts/generate_mapping_ledger.py
+PYTHONPATH=src python3 -m splunk_uc generate-mapping-ledger
 git add data/provenance/mapping-ledger.json
 git commit -m "provenance: refresh mapping-ledger for <UC id>"
 git push
@@ -380,7 +383,7 @@ three-way merge silently rewriting a compliance claim.
 **Fix:**
 
 1. Do not trust the on-disk ledger. Regenerate from sidecars:
-   `python3 scripts/generate_mapping_ledger.py`.
+   `PYTHONPATH=src python3 -m splunk_uc generate-mapping-ledger`.
 2. Review the diff carefully. Anything that changed is a real
    compliance-graph change; route it through the usual peer → legal
    → SME flow.
@@ -398,7 +401,7 @@ force-pushed, or your clone is shallow.
 **Fix:**
 
 - Unshallow: `git fetch --unshallow`.
-- Regenerate at HEAD: `python3 scripts/generate_mapping_ledger.py`.
+- Regenerate at HEAD: `PYTHONPATH=src python3 -m splunk_uc generate-mapping-ledger`.
 - Commit the refreshed ledger.
 
 ### 8.5 Verifying a downloaded release

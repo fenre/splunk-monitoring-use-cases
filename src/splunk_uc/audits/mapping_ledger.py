@@ -20,8 +20,9 @@ Modes
                     ledger-for-missing-sidecar mapping as a fatal error.
                     This is the CI entry point.
     (default)       Same as --check. The audit is read-only; there is no
-                    auto-fix path here (use scripts/generate_mapping_ledger.py
-                    to repair drift).
+                    auto-fix path here (use
+                    ``python -m splunk_uc generate-mapping-ledger`` to
+                    repair drift).
 
 Outputs
 -------
@@ -40,15 +41,13 @@ import subprocess
 import sys
 from typing import Any
 
-ROOT = pathlib.Path(__file__).resolve().parents[3]
-LEDGER_PATH = ROOT / "data" / "provenance" / "mapping-ledger.json"
-SCHEMA_PATH = ROOT / "schemas" / "mapping-ledger.schema.json"
-REPORT_PATH = ROOT / "reports" / "mapping-ledger-audit.json"
-
-_SCRIPTS_DIR = ROOT / "scripts"
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
-from generate_mapping_ledger import (  # noqa: E402  (path manipulation above)
+# Sibling-package import: the audit must use the EXACT same canonicalisation
+# and merkle construction as the generator or any drift would be a
+# self-inflicted bug rather than a real signal.  Importing the symbols below
+# from ``splunk_uc.generators.mapping_ledger`` (was: ``scripts/generate_mapping_ledger.py``
+# via a ``sys.path.insert`` shim before Tier 2 batch 1 of the Phase 6 reorganisation)
+# keeps the two locked in step.
+from splunk_uc.generators.mapping_ledger import (
     CANONICAL_FIELD_ORDER,
     LedgerInput,
     canonical_dump,
@@ -60,6 +59,11 @@ from generate_mapping_ledger import (  # noqa: E402  (path manipulation above)
     resolve_regulation_id,
     sha256_hex,
 )
+
+ROOT = pathlib.Path(__file__).resolve().parents[3]
+LEDGER_PATH = ROOT / "data" / "provenance" / "mapping-ledger.json"
+SCHEMA_PATH = ROOT / "schemas" / "mapping-ledger.schema.json"
+REPORT_PATH = ROOT / "reports" / "mapping-ledger-audit.json"
 
 
 # ----------------------------------------------------------------------
@@ -227,7 +231,7 @@ def audit_referential_integrity(ledger: dict[str, Any]) -> list[str]:
     for mid in sorted(missing_in_ledger)[:20]:
         errors.append(
             f"referential: sidecar mapping {mid!r} has no ledger entry "
-            "(run scripts/generate_mapping_ledger.py and commit)."
+            "(run `python -m splunk_uc generate-mapping-ledger` and commit)."
         )
     if len(missing_in_ledger) > 20:
         errors.append(
@@ -269,8 +273,8 @@ def audit_catalogue_commit(ledger: dict[str, Any]) -> list[str]:
     if ledger.get("catalogueCommit") != head:
         # This is informational: a developer may regenerate the ledger locally
         # before committing, and HEAD won't match until the commit lands. CI
-        # enforces the match indirectly via `generate_mapping_ledger.py --check`
-        # on the PR branch.
+        # enforces the match indirectly via
+        # ``python -m splunk_uc generate-mapping-ledger --check`` on the PR branch.
         return [
             f"commit: catalogueCommit={ledger.get('catalogueCommit')!r} differs from git HEAD={head!r} "
             "(informational; CI enforces drift via the generator's --check step)."

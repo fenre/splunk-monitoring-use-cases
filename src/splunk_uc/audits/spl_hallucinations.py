@@ -20,6 +20,7 @@ REPO_ROOT = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
 USE_CASES_DIR = os.path.join(REPO_ROOT, "use-cases")
+CONTENT_DIR = os.path.join(REPO_ROOT, "content")
 
 UC_HEADER = re.compile(r"^### UC-(\d+\.\d+\.\d+)\b.*$", re.MULTILINE)
 SPL_FENCE = re.compile(r"```spl\n(.*?)\n```", re.DOTALL)
@@ -127,6 +128,12 @@ CIM_DATASETS: dict[str, set[str]] = {
     "Updates": {"Updates"},
     "Vulnerabilities": {"Vulnerabilities"},
     "Web": {"Web"},
+    # Splunk Enterprise Security (RBA) — ships its own datamodel; not part of
+    # the core CIM 6.x add-on but a first-class citizen of every ES install.
+    "Risk": {"All_Risk"},
+    # Splunk IT Service Intelligence — service-tier KPI summary index. Used
+    # by ITSI-aware detections to query KPI snapshots via tstats.
+    "Service_KPI_Summary": {"Service_KPI_Summary"},
 }
 
 # Valid top-level Splunk SPL commands (search commands)
@@ -824,6 +831,48 @@ def extract_spl_blocks_with_labels(body: str) -> list[tuple[str, str]]:
     return out
 
 
+def audit_json_file(filepath: str) -> list[Finding]:
+    """Audit a single JSON SSOT sidecar (``content/cat-*/UC-*.json``).
+
+    Mirrors the markdown ``audit_file`` but reads structured fields directly:
+    ``spl`` (primary SPL) is treated as the ``[SPL]`` block, ``cimSpl`` as the
+    ``[CIM SPL]`` block. The same checks (tstats, bad-patterns,
+    in-with-wildcards, unknown-commands) are then applied without re-walking
+    markdown — the JSON SSOT does not embed code fences.
+    """
+    import json as _json
+    findings: list[Finding] = []
+    fname = os.path.basename(filepath)
+    try:
+        with open(filepath, encoding="utf-8") as fh:
+            uc = _json.load(fh)
+    except Exception as exc:
+        findings.append(Finding(fname, fname, "ERROR", "parse",
+                                f"cannot parse JSON: {exc}", ""))
+        return findings
+    uc_id = str(uc.get("id", fname))
+
+    for label, key in (("SPL", "spl"), ("CIM SPL", "cimSpl")):
+        spl = uc.get(key, "") or ""
+        if not spl.strip():
+            continue
+        spl_clean = strip_comments(spl)
+        first_line = spl.splitlines()[0] if spl else ""
+        for cat, msg in check_tstats(spl_clean):
+            findings.append(Finding(fname, uc_id, "HIGH", cat,
+                                    f"[{label}] {msg}", first_line))
+        for cat, msg in check_bad_patterns(spl_clean):
+            findings.append(Finding(fname, uc_id, "MED", cat,
+                                    f"[{label}] {msg}", first_line))
+        for cat, msg in check_in_with_wildcards_in_where_eval(spl_clean):
+            findings.append(Finding(fname, uc_id, "MED", cat,
+                                    f"[{label}] {msg}", first_line))
+        for cat, msg in check_unknown_commands(spl_clean):
+            findings.append(Finding(fname, uc_id, "HIGH", cat,
+                                    f"[{label}] {msg}", first_line))
+    return findings
+
+
 def audit_file(filepath: str) -> list[Finding]:
     findings: list[Finding] = []
     text = open(filepath, encoding="utf-8").read()
@@ -887,17 +936,47 @@ def audit_file(filepath: str) -> list[Finding]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    del argv
-    files = sorted(glob.glob(os.path.join(USE_CASES_DIR, "cat-*.md")))
+    """Audit SPL hallucinations across both source-of-truth corpora.
+
+    The JSON SSOT (``content/cat-*/UC-*.json``) is the production catalog
+    consumed by the build pipeline — it has 7,677 UCs vs the legacy markdown
+    corpus's 6,565. Both are scanned by default; pass ``--legacy-only`` to
+    restrict to the historic markdown view (useful while comparing against
+    pre-SSOT baselines).
+    """
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--legacy-only", action="store_true",
+                        help="scan only use-cases/cat-*.md (legacy markdown corpus)")
+    parser.add_argument("--ssot-only", action="store_true",
+                        help="scan only content/cat-*/UC-*.json (JSON SSOT)")
+    args = parser.parse_args(argv)
+
+    md_files = sorted(glob.glob(os.path.join(USE_CASES_DIR, "cat-*.md")))
+    json_files = sorted(glob.glob(os.path.join(CONTENT_DIR, "cat-*", "UC-*.json")))
+
     all_findings: list[Finding] = []
-    for fp in files:
-        all_findings.extend(audit_file(fp))
+    md_scanned = 0
+    json_scanned = 0
+    if not args.ssot_only:
+        for fp in md_files:
+            all_findings.extend(audit_file(fp))
+            md_scanned += 1
+    if not args.legacy_only:
+        for fp in json_files:
+            all_findings.extend(audit_json_file(fp))
+            json_scanned += 1
 
     by_cat: dict[str, list[Finding]] = defaultdict(list)
     for finding in all_findings:
         by_cat[finding.category].append(finding)
 
-    print(f"Scanned {len(files)} files")
+    if md_scanned and json_scanned:
+        print(f"Scanned {md_scanned} legacy markdown files + {json_scanned} JSON SSOT files")
+    elif json_scanned:
+        print(f"Scanned {json_scanned} JSON SSOT files")
+    else:
+        print(f"Scanned {md_scanned} files")
     print(f"Total findings: {len(all_findings)}")
     print()
     for cat in sorted(by_cat.keys()):

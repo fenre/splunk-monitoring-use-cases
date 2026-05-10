@@ -12,6 +12,523 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Repo overhaul plan §P6 — Tier 2 batch 3: 5 Phase 2/3 regulatory backfill generators routed through dispatcher
+
+Theme: **widen Tier-2 of the scripts taxonomy reorganisation to the
+regulatory backfill cluster** — the five Phase 2/3 generators that
+materialise the cat-22 regulatory-compliance overlay. Together they
+own the mini-category UCs (Phase 2.2), per-regulation content fills
+(Phase 2.3), clause-level backfill (Phase 3.1), cross-cutting
+compliance tags (Phase 3.2), and derivative-regulation propagation
+across UK GDPR / CCPA / Swiss nFADP / LGPD / APPI (Phase 3.3).
+
+Migrated (~2,213 LOC combined):
+
+- `scripts/generate_phase2_mini_categories.py` (377 LOC, the Phase 2.2
+  35-UC generator + CIM backfill on the 40 Phase 1.6 exemplars) →
+  `src/splunk_uc/generators/phase2_mini_categories.py`. Dispatcher verb:
+  `generate-phase2-mini-categories`.
+- `scripts/generate_phase2_3_per_regulation.py` (346 LOC, the Phase 2.3
+  45-UC per-regulation content fills for DORA, ISO 27001:2022, SOC 2
+  2017 TSC, PCI-DSS v4.0, SOX-ITGC) →
+  `src/splunk_uc/generators/phase2_3_per_regulation.py`. Dispatcher verb:
+  `generate-phase2-3-per-regulation`.
+- `scripts/generate_phase3_1_backfill.py` (315 LOC, the Phase 3.1
+  clause-level backfill that closes tier-1 clause gaps on existing cat-22
+  UCs across CMMC 2.0, ISO 27001:2013, NIST CSF 1.1+2.0, PCI-DSS v3.2.1,
+  GDPR, NIST 800-53 Rev. 5, HIPAA Security Rule) →
+  `src/splunk_uc/generators/phase3_1_backfill.py`. Dispatcher verb:
+  `generate-phase3-1-backfill`.
+- `scripts/generate_phase3_2_cross_cutting.py` (498 LOC, the Phase 3.2
+  cross-cutting compliance generator that emits minimal sidecars on
+  non-cat-22 UCs to attach clause-level regulatory tags via 53 UCs and
+  182 clause mappings) →
+  `src/splunk_uc/generators/phase3_2_cross_cutting.py`. Dispatcher verb:
+  `generate-phase3-2-cross-cutting`.
+- `scripts/generate_phase3_3_derivatives.py` (677 LOC, the Phase 3.3
+  derivative-regulation propagation generator that walks the
+  `derivesFrom` graph in `data/regulations.json` and inherits
+  compliance entries onto UK GDPR (identity-mode), CCPA/CPRA, Swiss
+  nFADP, LGPD, APPI (mapped-mode); assurance degrades one step) →
+  `src/splunk_uc/generators/phase3_3_derivatives.py`. Dispatcher verb:
+  `generate-phase3-3-derivatives`.
+
+Path-resolution depth widened from one level to three across all five
+(`Path(__file__).resolve().parent.parent` → `parents[3]`). Dispatcher
+verb count: 56 → **61** (48 audits + 13 generators).
+
+`main()` signature alignment: two of the five (`phase2_mini_categories`,
+`phase2_3_per_regulation`) had legacy zero-arg `main()` signatures;
+widened to the dispatcher contract `def main(argv: list[str] | None =
+None) -> int` with `parser.parse_args(argv)` plumbing. The other three
+(`phase3_1_backfill`, `phase3_2_cross_cutting`, `phase3_3_derivatives`)
+already accepted `argv`; the Phase 3.2 / 3.3 versions had legacy
+`Optional[List[str]]` type hints that ruff modernised to `list[str] |
+None`.
+
+Lint cleanup: 73 PEP-585 modernisations across all five files; two
+pre-existing F541 (f-strings without placeholders inside the
+rationale-construction in `phase3_3_derivatives._build_inherited_entry`)
+downgraded to plain strings; one pre-existing RUF100 (unused
+`# noqa: BLE001`) removed; one ruff RUF022 (`__all__` not sorted in the
+`scripts/generate_mapping_ledger.py` shim) auto-fixed in passing.
+
+Type-debt cleanup: 9 mypy-strict issues resolved across
+`phase3_3_derivatives.py`. The bulk-substitution regex used to modernise
+typing greedy-replaced two `Optional[Dict[str, Any]]` returns as
+`dict[str, Any | None]` instead of `dict[str, Any] | None`; both
+corrected (`FrameworkIndex.framework()`, `_build_inherited_entry()`).
+One `Any | None` `arg-type` on `parent_entry.get("assurance")` (added
+`isinstance(parent_assurance, str)` narrowing). One `no-any-return` on
+`FrameworkIndex.first_version()` (rebound `versions[0].get("version")`
+through a typed local with isinstance guards). One missing `set`
+type-arg (`derived_keys: set` → `set[tuple[str, str, str]]`). Three
+`unreachable` errors in defensive `if not isinstance(entry, dict): ...`
+loops over `native` (root cause: `native: list[dict[str, Any]]`
+precluded the runtime defence; widened to `list[Any]` to honour
+schema-defence intent — same pattern used in `api_surface.py` last
+batch). One `unreachable` `if not isinstance(regulation, str): return
+None` in `FrameworkIndex.resolve_id()` (removed; the function signature
+is `regulation: str` so the runtime check is dead code under strict
+mypy). All five modules now type-check under `mypy --strict`.
+
+Updated user-facing strings: every `Usage` block in the docstrings of
+the three larger generators (`phase3_1_backfill`,
+`phase3_2_cross_cutting`, `phase3_3_derivatives`) updated to point at
+the new dispatcher commands. The two docstring references inside
+`phase2_mini_categories.py` and `phase2_3_per_regulation.py` that emit
+legacy `scripts/...` paths *into* the cat-22 regulatory-compliance
+markdown header (PHASE-2.2 / PHASE-2.3 fences) were intentionally left
+alone — touching them would cause a content-drift ripple through
+`use-cases/cat-22-regulatory-compliance.md`. Will be addressed in a
+follow-up PR alongside the `scripts/`-shim deletion in Tier 3.
+
+Call-site consolidation: five `.github/workflows/validate.yml` steps
+switch from `python3 scripts/generate_phase*.py --check` to
+`PYTHONPATH=src python3 -m splunk_uc generate-phase* --check` (the
+Phase 2.2 mini-category gate, the Phase 2.3 per-regulation gate, the
+Phase 3.1 backfill gate, the Phase 3.2 cross-cutting gate, the Phase
+3.3 derivative-propagation gate). `Makefile` adds five new `.PHONY`
+targets (`generate-phase2-mini-categories`,
+`generate-phase2-3-per-regulation`, `generate-phase3-1-backfill`,
+`generate-phase3-2-cross-cutting`, `generate-phase3-3-derivatives`) all
+routing through `$(SPLUNK_UC) <verb>`. Legacy shim invocations continue
+to work for the soak period.
+
+Verification: `ruff check` + `ruff format` + `mypy --strict` clean
+across the 69-file `src/splunk_uc/` tree (52 audit modules + 5 audit
+shims + 13 generator modules); full pytest suite green at **613 passing
+tests, 1 skipped** (no count change — dispatcher tests use dynamic
+`all_verbs()` discovery); end-to-end `--check` smoke for every newly
+registered verb via the dispatcher (Phase 2.2: 0 file changes; Phase
+2.3: 0 file changes; Phase 3.1: 34 mappings, 33 UCs, no drift; Phase
+3.2: 53 UCs, 182 mappings, no drift; Phase 3.3: scanned 156 sidecars,
+13 inherited entries, no drift) and via the legacy shim path
+(byte-identical output). All five new Make targets resolve and surface
+correctly in `make help`. **Tier 2 generator-migration cluster has ~17
+generators remaining**; subsequent batches will continue picking up
+the smaller scripts in sub-batches of 4-6 each.
+
+### Repo overhaul plan §P6 — Tier 2 batch 2: generate-manifest-samples + generate-equipment-tags + generate-evidence-packs + generate-api-surface routed through dispatcher
+
+Theme: **widen Tier-2 of the scripts taxonomy reorganisation to the
+second cluster of generators, including the largest single body in
+`scripts/`** (`generate_api_surface.py`, 2,506 LOC, owns the entire
+`api/v1/*` static JSON surface).
+
+Migrated:
+
+- `scripts/generate_manifest_samples.py` (147 LOC, the manifest-sample
+  HEC NDJSON emitter consumed by the `uc-manifest.yml` smoke test) →
+  `src/splunk_uc/generators/manifest_samples.py`. Verb:
+  `generate-manifest-samples`.
+- `scripts/generate_equipment_tags.py` (324 LOC, the Phase 5.5 sidecar
+  `equipment[]` / `equipmentModels[]` writer that drives the cat-22
+  equipment-table coverage gate) →
+  `src/splunk_uc/generators/equipment_tags.py`. Verb:
+  `generate-equipment-tags`.
+- `scripts/generate_evidence_packs.py` (1,399 LOC, the Phase 4.2
+  auditor-facing `docs/evidence-packs/*.{md,json}` generator + the
+  `api/v1/evidence-packs/` JSON twins) →
+  `src/splunk_uc/generators/evidence_packs.py`. Verb:
+  `generate-evidence-packs`.
+- `scripts/generate_api_surface.py` (2,506 LOC, the **largest**
+  generator in `scripts/`, owns
+  `api/v1/{manifest,context,openapi,compliance,oscal,mitre,recommender,equipment,evidence-packs}/*`
+  and lazy-orchestrates `generate_clause_index.py` +
+  `augment_regulation_api.py` + `generate_story_payload.py` for the
+  compliance/clauses/story subtree) →
+  `src/splunk_uc/generators/api_surface.py`. Verb:
+  `generate-api-surface`.
+
+Dispatcher verb count: 52 → **56** (48 audits + 8 generators).
+
+Path-resolution: all four widened from `Path(__file__).resolve().parent`
+(or `parent.parent`) to `parents[3]` to reflect the new four-level-deep
+home under `src/splunk_uc/generators/`.
+
+`equipment_lib` sibling-script bridge: `api_surface.py` and
+`equipment_tags.py` lazy-import `equipment_lib` (still in `scripts/`,
+queued for a later batch) via an idempotent `sys.path.insert` of
+`REPO_ROOT / "scripts"`. The constant was renamed from `_THIS_DIR` (its
+old name when the file lived in `scripts/`) to `_LEGACY_SCRIPTS_DIR` so
+the intent is explicit. The same shim also reaches the three
+lazy-loaded compliance-story generators
+(`generate_clause_index`, `augment_regulation_api`,
+`generate_story_payload`).
+
+`main()` signature alignment: three of the four had legacy zero-arg or
+under-typed `main()` signatures (`manifest_samples`, `equipment_tags`,
+`evidence_packs`); widened to the dispatcher contract
+`def main(argv: list[str] | None = None) -> int`. `api_surface.main`
+(`Optional[Sequence[str]] = None`) was modernised by `ruff --fix` to
+`Sequence[str] | None`.
+
+Lint cleanup: 146 ruff issues auto-fixed across `api_surface.py` (mostly
+PEP-585 modernisations from legacy `Optional`/`Sequence`/`Dict`/`List`).
+Three manual fixes in `api_surface.py` — F841 `cat_uc =
+catalog_by_id.get(u) or {}` (and the now-unused `catalog_by_id` dict
+comprehension above it) was dead code; F821 missing `Path` import
+restored; F821 dangling `_THIS_DIR` reference replaced with
+`_LEGACY_SCRIPTS_DIR`. Eight more manual fixes in `evidence_packs.py`
+to add explicit `dict[str, Any]` typing for JSON-loaded payloads.
+`equipment_tags.py` had ~80 legacy `typing` annotations (`Dict`,
+`List`, `Optional`, `Set`, `Tuple`, `Counter`) that ruff did not
+auto-fix; manually modernised to PEP-585 (`dict[str, Any]`,
+`list[Any]`, `X | None`, `set[str]`, `tuple[X, ...]`,
+`Counter[str]`).
+
+Type-debt cleanup: 12 mypy issues resolved across `api_surface.py` —
+`type-arg` on four `set` declarations (`_recommender_cim_models`,
+`_recommender_app_keys`, `_resolve_regulation_ids`,
+`_equipment_payloads`); `arg-type` on `int(value)` and `int(sb_id)`
+calls (added explicit `if … is None: continue` guards before the
+`try`); `misc` on `compliance_by_id` dict comprehension
+(cast `uc.get("id")` to `str()`); `misc` on
+`[e for e in sb_field if isinstance(e, Mapping)]` (changed to
+`[dict(e) ...]` so the runtime type matches the declared
+`list[dict[str, Any]]`); `unreachable` on a Mapping isinstance check
+inside the recommender body (removed — the iterable is already typed
+`Sequence[Mapping[str, Any]]`). In `evidence_packs.py`: two `arg-type`
+Any-or-None coercions on `entry.get("assurance")` in `_best_assurance`
+(added explicit `isinstance(assurance, str)` narrowing); two
+`no-any-return` on `_load_gap_report` and `_gap_report_lookup`
+(rebound through typed locals). All four modules now type-check under
+`mypy --strict`.
+
+Updated user-facing strings: every `--check` failure path and every
+Python comment that referenced `scripts/generate_*.py` was updated to
+point at the new dispatcher commands. Output-string references inside
+`OPENAPI_YAML` and the `README.md` written to `api/v1/` were
+intentionally left alone in this PR — touching those would require
+regenerating the committed evidence packs and api/v1 surface, both of
+which already drift on `main` because of the v9.x catalogue version
+bump (the drift is pre-existing and out of scope for the migration).
+
+Call-site consolidation:
+
+- **`.github/workflows/validate.yml`** — four steps switch from
+  `python3 scripts/generate_*.py` to
+  `PYTHONPATH=src python3 -m splunk_uc generate-*`:
+  - `Generate api/v1 tree (required by smoke tests)`
+  - `Equipment-tags regeneration check`
+  - `API surface (api/v1) regeneration check`
+  - `Phase 4.2 evidence-pack generator regeneration check`
+- **`.github/workflows/uc-manifest.yml`** — switches the HEC NDJSON
+  top-10 smoke step to the dispatcher.
+- **`.github/workflows/pages.yml`** — switches both
+  `generate_api_surface` and `generate_evidence_packs` invocations and
+  updates the multi-line comment block to match.
+- **`Makefile`** — four new `.PHONY` targets
+  (`generate-manifest-samples`, `generate-equipment-tags`,
+  `generate-evidence-packs`, `generate-api-surface`) all routing
+  through `$(SPLUNK_UC) <verb>`.
+
+Verification: `ruff check` + `ruff format` + `mypy --strict` clean
+across the 64-file `src/splunk_uc/` tree (52 audit modules + 5 audit
+shims + 8 generator modules); full pytest suite green at **613 passing
+tests, 1 skipped**; end-to-end smoke for every newly registered verb
+via the dispatcher (`generate-manifest-samples --help`,
+`generate-equipment-tags --check` confirms 7,833 sidecars up-to-date,
+`generate-evidence-packs --check` and `generate-api-surface --check`
+reproduce the same pre-existing catalogue-version drift seen on `main`,
+not introduced by the migration). All four new Make targets resolve and
+surface correctly in `make help`.
+
+Tier-2 generator-migration cluster has ~22 generators remaining;
+subsequent batches will continue picking up the smaller scripts in
+sub-batches of 4–6 each.
+
+### Repo overhaul plan §P6 — Tier 2 batch 1 (generator migration BEGINS): generate-md-from-json + generate-grandma-explanations + generate-stewardship-digest + generate-mapping-ledger routed through dispatcher
+
+Theme: **begin Tier-2 of the scripts taxonomy reorganisation by migrating
+the four most heavily-referenced generator scripts.** With Tier-1
+complete (every full-body audit now under `src/splunk_uc/audits/`),
+this PR opens Tier-2 by relocating the four generators that the build,
+PR CI, the release workflow and the weekly stewardship workflow all
+shell out to: `scripts/generate_md_from_json.py`,
+`scripts/generate_grandma_explanations.py`,
+`scripts/generate_stewardship_digest.py`, and
+`scripts/generate_mapping_ledger.py` &mdash; ~5,000 LOC combined &mdash;
+land under `src/splunk_uc/generators/<name>.py`. The dispatcher now
+exposes **52 verbs** (48 audits + 4 generators).
+
+#### Migrated verbs
+
+| Old script path                              | New module path                            | New dispatcher verb              |
+|----------------------------------------------|--------------------------------------------|----------------------------------|
+| `scripts/generate_md_from_json.py`           | `splunk_uc.generators.md_from_json`        | `generate-md-from-json`          |
+| `scripts/generate_grandma_explanations.py`   | `splunk_uc.generators.grandma_explanations`| `generate-grandma-explanations`  |
+| `scripts/generate_stewardship_digest.py`     | `splunk_uc.generators.stewardship_digest`  | `generate-stewardship-digest`    |
+| `scripts/generate_mapping_ledger.py`         | `splunk_uc.generators.mapping_ledger`      | `generate-mapping-ledger`        |
+
+#### What changed under the hood
+
+- **Path-resolution depth widened from one level to three** across all
+  four (`Path(__file__).resolve().parent.parent` &rarr; `parents[3]`,
+  or four nested `os.path.dirname()` for the `os.path`-style chains).
+- **`main()` signature alignment** to the dispatcher contract
+  `def main(argv: list[str] | None = None) -> int` with
+  `parser.parse_args(argv)` plumbing. Three of the four
+  (`md_from_json`, `grandma_explanations`, `mapping_ledger`) widened
+  from zero-arg signatures; `stewardship_digest` already conformed.
+- **User-facing error messages** updated to point at the dispatcher
+  command (e.g. `python -m splunk_uc generate-grandma-explanations`)
+  rather than the legacy `scripts/<name>.py` path. Legacy shim
+  invocations continue to work for the soak window.
+- **`audit_mapping_ledger` decoupled from the scripts/ shim**: the
+  mapping-ledger audit now imports canonicalisation helpers directly
+  from `splunk_uc.generators.mapping_ledger` (sibling package import),
+  replacing the prior `sys.path.insert` workaround that pointed into
+  `scripts/`. This means audit + generator now sit in the same Python
+  package and **cannot drift** even after the legacy shims are
+  removed in Tier-3.
+- **Lint cleanup**: 5 ruff issues fixed during migration &mdash; `E402`
+  (import order in `audits/mapping_ledger.py` after the new
+  sibling-package import), `RUF005` (two `[...] + rel_paths`
+  concatenations replaced with iterable unpacking in
+  `generators/mapping_ledger.py::_populate_git_caches_bulk`),
+  `RUF003` (ambiguous `&times;` in a complexity comment replaced with
+  `x`), `E731` (a `strip = lambda s: ...` in
+  `generators/mapping_ledger.py::_structural_diff` lifted to a
+  named nested `def _strip(...)`), and `RUF001` (intentional en-dash
+  in a regex character class in `generators/md_from_json.py` annotated
+  with `# noqa: RUF001` plus an explanatory comment).
+- **Type-debt cleanup**: 8 mypy `type-arg` issues resolved by adding
+  explicit `dict[str, Any]` annotations across
+  `generators/grandma_explanations.py` (5 helpers) and
+  `generators/mapping_ledger.py` (3 helpers + the `LedgerInput`
+  dataclass). Both modules now type-check under `mypy --strict`.
+- **Test import migration**: `tests/scripts/test_generate_stewardship_digest.py`
+  switched from `import generate_stewardship_digest as gsd`
+  (scripts/ on `sys.path`) to `import splunk_uc.generators.stewardship_digest as gsd`
+  (src/ on `sys.path`), preserving the existing 55 unit tests
+  intact.
+
+#### Call-site consolidation
+
+- **`.github/workflows/validate.yml`** &mdash; three steps (`grandma
+  explanations`, `Markdown freshness check`, and the `Phase 5.4 signed
+  provenance ledger regenerate (determinism)` gate) switch from
+  `python3 scripts/generate_*.py --check` to
+  `PYTHONPATH=src python3 -m splunk_uc generate-* --check`.
+- **`.github/workflows/release.yml`** &mdash; the release-time mapping
+  ledger regenerate-and-audit step routes both halves through the
+  dispatcher (`generate-mapping-ledger` + `audit-mapping-ledger`).
+- **`.github/workflows/stewardship.yml`** &mdash; the Monday 08:00 UTC
+  stewardship digest run routes through the dispatcher; the docstring
+  at the top of the workflow updated to match.
+- **`Makefile`** &mdash; `stewardship-digest` switches from
+  `$(PYTHON) scripts/generate_stewardship_digest.py` to
+  `$(SPLUNK_UC) generate-stewardship-digest`. Four new
+  `.PHONY` targets land for parity (`generate-md-from-json`,
+  `generate-grandma-explanations`, `generate-stewardship-digest`,
+  `generate-mapping-ledger`), each delegating to the dispatcher.
+- **Docs** &mdash; `AGENTS.md`, `README.md`, `CONTRIBUTING.md`,
+  `docs/grandma-explanations.md`, `docs/stewardship-digest.md`,
+  `docs/signed-provenance.md`,
+  `docs/gold-standard-authoring-playbook.md`,
+  `docs/use-case-fields.md`, `docs/catalog-schema.md`,
+  `docs/splunkbase-review-guide.md` and a comment in
+  `tools/build/enrichment.py` update their cited generator
+  invocations to point at the dispatcher (legacy shim path noted as a
+  soak-window fallback). Historical documents
+  (`docs/v7.1-release-report.md`, `docs/use-cases-burndown.md`,
+  `docs/implementation-brief-v7.1.md`,
+  `docs/adr/0007-json-as-source-of-truth.md`) intentionally keep
+  their legacy paths as a record of the migration state at
+  publication.
+
+#### Verification
+
+- `ruff check` + `ruff format` + `mypy --strict` clean across the
+  60-file `src/splunk_uc/` tree (51 audit modules + 5 audit shims + 4
+  generator modules) plus the four new `scripts/generate_*.py` shims.
+- Full pytest suite green at **613 passing tests, 1 skipped** (no
+  count change &mdash; dispatcher tests use dynamic `all_verbs()`
+  discovery, so the four new verbs are picked up automatically).
+- End-to-end smoke for every newly registered verb via the dispatcher
+  (`python -m splunk_uc generate-md-from-json --check`,
+  `... generate-grandma-explanations --check`,
+  `... generate-stewardship-digest`,
+  `... generate-mapping-ledger --check`) and via the legacy shim path
+  (`python3 scripts/generate_md_from_json.py --check`, etc.). The
+  three new Make targets (`make generate-md-from-json`,
+  `make generate-grandma-explanations`, `make stewardship-digest`)
+  also exercised end-to-end against the live repo.
+
+#### What's next
+
+Tier-2 is **~26 generators in `scripts/`** &mdash; the remaining
+batches will pick up the smaller / less-referenced scripts in
+sub-batches of 4&ndash;6 each. Tier-3 (post-soak shim deletion) and
+Tier-4 (post-P9 wheel package + `pip install -e .`) remain queued.
+
+### Repo overhaul plan §P6 — Tier 1 batch 11 (Tier-1 audit migration COMPLETE): gold-profile v1 + perf-a11y + spl-grammar + spl-hallucinations + splunk-cloud-compat routed through dispatcher
+
+Theme: **close Tier-1 of the scripts taxonomy reorganisation by migrating
+the final five audit scripts.** Five audits in one PR
+(`audit_gold_profile.py` (v1), `audit_perf_a11y.py`,
+`audit_spl_grammar.py`, `audit_spl_hallucinations.py`,
+`audit_splunk_cloud_compat.py` &mdash; **3,046 LOC combined**, the
+largest single batch by line-count) land under
+`src/splunk_uc/audits/`. The dispatcher now exposes **48 verbs**, and
+**every full-body audit script in `scripts/` that has a tested
+implementation is migrated**. The only remaining `scripts/audit_*.py`
+file is the intentional non-verb one-shot driver
+`audit_guide_external_links_oneshot.py`, which is excluded by design
+(see `docs/scripts-taxonomy.md`).
+
+#### Migrated verbs
+
+- **`audit-gold-profile`** &mdash; 493 lines. Gold-standard v1 audit
+  (tier classification + depth heuristics): assigns each UC a
+  bronze/silver/gold tier based on field presence and minimum length
+  requirements, then computes a depth score that penalises generic
+  boilerplate, rewards product-specific signals (sourcetypes, API
+  paths, vendor UI references, named failure modes), and warns when
+  description and value are too similar. Surfaces consolidation
+  candidates by Levenshtein title similarity. Replaces
+  `python3 scripts/audit_gold_profile.py …` invocation.
+- **`audit-perf-a11y`** &mdash; 783 lines. Phase 4.5f performance +
+  accessibility gate. Layered budget checks (per-file byte budgets on
+  critical-path + generated-data assets) + axe-core v4 a11y audits
+  (WCAG 2.1 A + AA + best-practice) under jsdom against
+  `scorecard.html` and `index.html`. Critical/serious a11y
+  violations hard-fail unless allowlisted. Writes deterministic
+  `reports/perf-a11y.json`; `--check` mode diffs against the
+  committed report so over-budget files, new violations, or stale
+  reports break CI. The audit's drift-error message now references
+  the dispatcher command (`python -m splunk_uc audit-perf-a11y`) so
+  reviewer-facing copy is in lockstep with the new entry-point.
+  Replaces `python3 scripts/audit_perf_a11y.py …` invocation.
+- **`audit-spl-grammar`** &mdash; 707 lines. Catches SPL grammar bugs
+  that the hallucination audit can't (e.g. `stats … span=` &mdash;
+  `span=` is only valid on `bin`/`timechart`/`tstats`, not `stats`),
+  leading `|` on non-generating commands, glued-together
+  `index=`/`search index=` chains, `case(<wildcard>, …)` where the
+  author intended `match()`/`like()` instead, and post-`timechart`
+  field-name references. Has both detection and (for
+  `stats-span-invalid`) automatic-fix modes. Replaces
+  `python3 scripts/audit_spl_grammar.py …` invocation.
+- **`audit-spl-hallucinations`** &mdash; 616 lines. Detects SPL
+  hallucinations that look plausible but fail at search time: bogus
+  CIM `datamodel.dataset` references (validated against the real
+  Splunk CIM 6.x catalog inlined into the module), unknown command
+  names, malformed `tstats` (missing `FROM`, unqualified `by`
+  fields), invalid MITRE ATT&CK technique IDs, auto-generated CIM
+  SPL using fields not present in the declared dataset, and common
+  typos. Replaces `python3 scripts/audit_spl_hallucinations.py …`
+  invocation.
+- **`audit-splunk-cloud-compat`** &mdash; 447 lines. Audits SPL and
+  packaged content for Splunk Cloud (Victoria / Classic)
+  compatibility: 11 SPL-level rules (e.g.
+  `| runshellscript`/`| crawl`/`| script` are forbidden;
+  `| dbxquery`/`| sendemail`/`| map` without `maxsearches=` are
+  warnings) plus 8 pack-level rules across `commands.conf`,
+  `restmap.conf`, `web.conf`, `inputs.conf`,
+  `authentication.conf`, and `transforms.conf`. Writes
+  `docs/splunk-cloud-compat.md` (committed; CI fails on diff) and
+  `test-results/splunk-cloud-compat.json` (artifact upload). The
+  audit's drift-error message now references the dispatcher command
+  so reviewer-facing copy is in lockstep with the new entry-point.
+  Replaces `python3 scripts/audit_splunk_cloud_compat.py …`
+  invocation.
+
+#### Technical notes
+
+- **Path-resolution depth widened** from one level to three across
+  all five audits (`pathlib.Path(__file__).resolve().parent.parent`
+  → `parents[3]`; `os.path`-style chains gain two additional
+  `os.path.dirname()` calls). Identical pattern to batch 10.
+- **`main()` signature alignment** &mdash; `audit_gold_profile`,
+  `audit_spl_hallucinations`, and `audit_splunk_cloud_compat` had
+  zero-arg `main()` signatures; switched to the dispatcher contract
+  `def main(argv: list[str] | None = None) -> int` and threaded
+  `argv` into `parser.parse_args(...)` (or `del argv` where the
+  audit ignores CLI args entirely). `audit_perf_a11y` and
+  `audit_spl_grammar` already conformed.
+- **Lint / type-debt cleanup** done while the files were touched
+  (none of the cleanup is functional). Ruff auto-fixed 99 issues
+  (modern `typing` syntax via `UP035`/`UP006`, `RUF022` `__all__`
+  sort, `F401` unused imports, `B905` `zip(strict=)` enforcement);
+  the remaining six issues required manual fixes: `B033` two
+  duplicate set entries in `audit_spl_hallucinations`'s
+  `VALID_COMMANDS`/`VALID_EVAL_FUNCS` allowlists (preserved as
+  documentation comments instead of code drift), `PIE810` three
+  `startswith()` chain → tuple consolidations, and `B007` one
+  unused `m` loop variable rename. Mypy fixed 15 issues across the
+  five modules: `type-arg` missing dict generics in
+  `audit_gold_profile`'s consolidation/reporting helpers,
+  `assignment` shadowing in two `for r in …RULES` loops in
+  `audit_splunk_cloud_compat` and one `for f in all_findings` loop
+  in `audit_spl_hallucinations` (renamed to disambiguate the
+  Finding from the file path), `assignment` reuse of the regex
+  match variable `am` in `audit_spl_grammar` (`re.search` returns
+  `Match[str] | None`, the loop iterator is `Match[str]`), and
+  `no-any-return` from `json.loads(proc.stdout)` in
+  `audit_perf_a11y` (now staged through an explicitly-typed
+  intermediate variable).
+- **User-facing strings updated** &mdash; `audit_perf_a11y.py`'s
+  `--check` drift error and `audit_splunk_cloud_compat.py`'s
+  drift-detection error message inside `validate.yml` now reference
+  the new dispatcher commands instead of the legacy
+  `scripts/<name>.py` paths.
+- **Call sites consolidated** &mdash; `.github/workflows/validate.yml`
+  routes the SPL grammar linter, the SPL hallucination audit, the
+  Gold-Standard quality audit, the Phase-4.5f perf+a11y gate, and
+  the Splunk-Cloud compatibility gate through
+  `PYTHONPATH=src python3 -m splunk_uc <verb>`. `Makefile`
+  `audit-perf`, `audit-gold`, and `audit-spl-grammar` switch from
+  `$(PYTHON) scripts/<name>.py` to `$(SPLUNK_UC) <verb>`, and two
+  new `.PHONY` targets (`audit-spl-hallucinations`,
+  `audit-splunk-cloud-compat`) land for parity. Several
+  user-facing docs (`docs/DESIGN.md`,
+  `docs/gold-standard-authoring-playbook.md`,
+  `docs/sme-review-guide.md`, `docs/legal-review-guide.md`,
+  `docs/signed-provenance.md`,
+  `docs/implementation-ordering.md`) update the cited audit
+  invocations to point at the dispatcher.
+
+#### Verification
+
+- Full pytest suite green: 613 tests passed in 54.7s.
+- `ruff check` + `ruff format` + `mypy --strict` clean across the
+  56-file `src/splunk_uc/` tree (51 implementation modules + 5
+  shims that ruff also checks via the project glob).
+- Smoke-tested both invocations of every new verb: dispatcher
+  (`PYTHONPATH=src python -m splunk_uc <verb>`) and legacy shim
+  (`python scripts/<name>.py`). Each verb was run with `--help` and
+  with at least one realistic argv: `audit-gold-profile --check`
+  (480 UCs flagged below the depth bar &mdash; expected pre-existing
+  drift, not migration drift), `audit-perf-a11y` (regenerates
+  report cleanly), `audit-spl-grammar --severity HIGH` (24 files
+  scanned, 0 high-severity findings), `audit-spl-hallucinations`
+  (24 files scanned, 0 findings), and
+  `audit-splunk-cloud-compat --no-write` (fail=0 / warn=6 / info=0,
+  matching the committed report).
+
+
 ## [8.1.0] - 2026-05-09
 
 ### Documentation depth pass — Tier 1 complete: 67 gold-standard guides + permanent xref guard + link-freshness sweep

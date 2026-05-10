@@ -101,7 +101,7 @@ For NIS2 specifically:
 
 ### 2.10 `grandmaExplanation` is jargon-free, ≤400 chars, "we" voice
 
-No `index=`, no SPL, no MITRE T-codes, no clause numbers, no `Splunkbase`, no acronyms. One to three sentences. Owned by `scripts/generate_grandma_explanations.py`; hand-edited only to polish.
+No `index=`, no SPL, no MITRE T-codes, no clause numbers, no `Splunkbase`, no acronyms. One to three sentences. Owned by `python -m splunk_uc generate-grandma-explanations` (impl. `src/splunk_uc/generators/grandma_explanations.py`); hand-edited only to polish.
 
 ---
 
@@ -166,8 +166,8 @@ Each pack record is the source of truth for facts in that family. When authoring
    - `python3 scripts/audit_uc_structure.py --full`
 9. **Regenerate** dependent artifacts:
    - `python3 scripts/generate_equipment_tags.py` (writes `equipment[]` / `equipmentModels[]` from your prose)
-   - `python3 scripts/generate_grandma_explanations.py` if the field is empty
-   - `python3 scripts/generate_md_from_json.py --files content/cat-22-regulatory-compliance/UC-22.2.{n}.json`
+   - `PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations` if the field is empty
+   - `PYTHONPATH=src python3 -m splunk_uc generate-md-from-json --files content/cat-22-regulatory-compliance/UC-22.2.{n}.json`
 10. **Run the no-gap audit** to confirm the matrix is still complete:
     - `python3 scripts/audit_nis2_no_gap.py`
 

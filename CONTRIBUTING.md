@@ -90,10 +90,10 @@ node -e "const window={}; eval(require('fs').readFileSync('non-technical-view.js
 When you add a **new UC** or meaningfully edit an existing UC's `title` / `description` / `value`, regenerate the per-UC plain-language summary used by the non-technical view:
 
 ```bash
-python3 scripts/generate_grandma_explanations.py            # fills missing UCs
-python3 scripts/generate_grandma_explanations.py --only 1.1.1  # regenerate one UC
-python3 scripts/generate_grandma_explanations.py --force    # overwrite (rarely needed)
-python3 scripts/generate_grandma_explanations.py --check    # CI drift guard (exit 1 on missing)
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations            # fills missing UCs
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --only 1.1.1  # regenerate one UC
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --force    # overwrite (rarely needed)
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --check    # CI drift guard (exit 1 on missing)
 ```
 
 CI runs the `--check` step on every PR and blocks merge if any UC sidecar is missing a `grandmaExplanation`. Existing curator-authored values are never overwritten unless `--force` is passed. Full authoring guide: [`docs/grandma-explanations.md`](docs/grandma-explanations.md).
@@ -142,7 +142,7 @@ review via Pull Requests:
    guides agents to produce operationally deep content
 2. **Audit** — `python3 scripts/audit_gold_profile.py --files <changed files>`
    validates depth, not just field presence
-3. **Generate .md** — `python3 scripts/generate_md_from_json.py --files <changed files>`
+3. **Generate .md** — `PYTHONPATH=src python3 -m splunk_uc generate-md-from-json --files <changed files>`
    regenerates companion markdown from JSON (JSON is the single source of truth)
 4. **Review** — Open a PR; the quality audit runs in CI; human reviewers check
    product knowledge and consolidation decisions
@@ -150,7 +150,7 @@ review via Pull Requests:
 ### JSON is the source of truth
 
 Never edit `.md` files directly under `content/`. They are auto-generated from
-JSON by `scripts/generate_md_from_json.py`. Edit only the `.json` files.
+JSON by `python -m splunk_uc generate-md-from-json` (legacy `scripts/generate_md_from_json.py` shim still works during soak). Edit only the `.json` files.
 
 ### Consolidation
 

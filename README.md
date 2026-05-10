@@ -39,8 +39,8 @@ Checks required fields, enum values, and structural consistency across all UC JS
 ### Regenerate plain-language explanations (Non-technical view)
 
 ```bash
-python3 scripts/generate_grandma_explanations.py          # fill missing UCs
-python3 scripts/generate_grandma_explanations.py --check  # CI drift guard
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations           # fill missing UCs
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --check   # CI drift guard
 ```
 
 Writes a short, jargon-free `grandmaExplanation` (the "explain it to my grandma" sentence) into every `content/cat-*/UC-*.json` sidecar. This is the primary text the non-technical view renders on UC cards, search results, subcategory lists, recently-added, and at the top of the UC detail panel. Existing non-empty values are preserved; pass `--force` to overwrite. CI enforces the `--check` step on every PR. Full authoring guide: [docs/grandma-explanations.md](docs/grandma-explanations.md).
@@ -241,17 +241,16 @@ and `data/crosswalks/`.
 
 ## Splunk Content Packs
 
-Every release ships five self-contained Splunk apps built from the same `catalog.json`:
+Every release ships four self-contained Splunk apps built from the same `catalog.json`:
 
 | Pack | File | Contents | Cloud-safe? |
 |------|------|----------|-------------|
 | Technology Add-on | `TA-splunk-use-cases-<ver>.spl` | ~115 Quick-Start saved searches, per-category index macros, eventtype aliases | Yes |
 | ITSI content pack | `DA-ITSI-monitoring-use-cases-<ver>.spl` | 6 KPI base searches, 3 threshold templates, 4 KPI templates, 3 service templates | Yes |
 | ES content pack | `DA-ESS-monitoring-use-cases-<ver>.spl` | 650 correlation searches, MITRE ATT&CK governance, analytic stories, CIM eventtypes/tags | Yes |
-| UC Recommender | `splunk-uc-recommender-<ver>.spl` | Scans local sourcetypes / indexes / CIM acceleration / apps and recommends matching UCs. **Also bundles every tier-1 compliance UC** (GDPR, HIPAA, PCI-DSS, NIS2, ISO 27001, NIST CSF, NIST 800-53, DORA, CMMC, SOC 2, SOX ITGC) as **disabled** saved searches with a filterable Compliance view. | Yes |
-| UC Recommender TA (optional) | `splunk-uc-recommender-ta-<ver>.spl` | One modular input that enriches the recommender's inventory with sampled field names. | **Enterprise only** |
+| UC Recommender | `splunk-uc-recommender-<ver>.spl` | Scans local sourcetypes / indexes / CIM acceleration / apps and recommends matching UCs. **Bundles every tier-1 compliance UC** (GDPR, HIPAA, PCI-DSS, NIS2, ISO 27001, NIST CSF, NIST 800-53, DORA, CMMC, SOC 2, SOX ITGC, UK GDPR) as **disabled** saved searches with a filterable Compliance view, plus **hybrid implementation tracking** (saved-search fingerprinting + inventory signals + manual override) and **Splunkbase install guidance** as of v9.0. The 12 per-regulation companion packs and the helper TA were folded into this single app — see [docs/migration-v9.md](docs/migration-v9.md) for the upgrade path. | Yes |
 
-Every pack is **disabled by default** and passes AppInspect cloud vetting (except the recommender TA, which is Enterprise-only by design because modular inputs need individual vetting for Splunk Cloud). See [docs/enterprise-deployment.md](docs/enterprise-deployment.md) for prerequisites, SHC install, macro tuning and upgrade / rollback procedures. Operator + developer docs for the recommender live at [docs/recommender-app.md](docs/recommender-app.md).
+Every pack is **disabled by default** and passes AppInspect cloud vetting. See [docs/enterprise-deployment.md](docs/enterprise-deployment.md) for prerequisites, SHC install, macro tuning and upgrade / rollback procedures. Operator + developer docs for the recommender live at [docs/recommender-app.md](docs/recommender-app.md). Customers upgrading from a v7.x install with any of the now-retired per-regulation apps or the helper TA: see [docs/migration-v9.md](docs/migration-v9.md).
 
 Build the packs locally:
 
@@ -260,8 +259,8 @@ make build                                   # full site + catalog outputs under
 scripts/package_ta.sh dist/
 scripts/package_itsi.sh dist/
 scripts/package_es.sh dist/
-python3 scripts/generate_recommender_app.py  # regenerate recommender + TA
-scripts/package_splunk_apps.sh dist/         # ships recommender + TA by default
+python3 scripts/generate_recommender_app.py  # regenerate recommender
+scripts/package_splunk_apps.sh dist/         # ships the recommender as a single .spl
 ```
 
 ---

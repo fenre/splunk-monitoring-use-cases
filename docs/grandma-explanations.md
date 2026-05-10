@@ -1,6 +1,6 @@
 # Plain-language explanations (`grandmaExplanation`)
 
-> **Status:** shipped v7.1 (2026-04-20) · **Schema:** `uc.schema.json` v1.6.1 · **Writer:** [`scripts/generate_grandma_explanations.py`](../scripts/generate_grandma_explanations.py) · **CI guard:** `generate_grandma_explanations.py --check`
+> **Status:** shipped v7.1 (2026-04-20) · **Schema:** `uc.schema.json` v1.6.1 · **Writer:** `python -m splunk_uc generate-grandma-explanations` (legacy [`scripts/generate_grandma_explanations.py`](../scripts/generate_grandma_explanations.py) shim still works during soak) · **CI guard:** `python -m splunk_uc generate-grandma-explanations --check`
 
 Every use case in the catalogue carries a short, jargon-free "explain it
 to my grandma" sentence in the sidecar field `grandmaExplanation`
@@ -98,34 +98,36 @@ the existing curated copy and then curator-polishable.
 
 ## How it's generated
 
-`scripts/generate_grandma_explanations.py` is the **sole writer** of
-this field. It is deterministic (byte-for-byte identical output on
+`python -m splunk_uc generate-grandma-explanations` is the **sole writer**
+of this field. It is deterministic (byte-for-byte identical output on
 re-runs at the same catalogue state) and curator-respecting (existing
-non-empty values are never touched unless `--force` is passed).
+non-empty values are never touched unless `--force` is passed). The
+legacy `scripts/generate_grandma_explanations.py` shim still works
+during the soak window before the legacy `scripts/` tree is retired.
 
 ### Common invocations
 
 ```bash
 # Fill missing values for every UC (default)
-python3 scripts/generate_grandma_explanations.py
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations
 
 # CI drift guard — exit 1 on any missing value, no writes
-python3 scripts/generate_grandma_explanations.py --check
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --check
 
 # Regenerate one UC (after editing its title/description/value)
-python3 scripts/generate_grandma_explanations.py --only 1.1.1
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --only 1.1.1
 
 # Regenerate a whole category
-python3 scripts/generate_grandma_explanations.py --category 22
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --category 22
 
 # Show what would change without writing
-python3 scripts/generate_grandma_explanations.py --dry-run
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --dry-run
 
 # Overwrite curator edits (rare — only when tone rules change)
-python3 scripts/generate_grandma_explanations.py --force
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --force
 
 # Per-UC status report
-python3 scripts/generate_grandma_explanations.py --report
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --report
 ```
 
 ### What the generator does, in one paragraph
@@ -153,8 +155,8 @@ improve any UC by hand:
 
 If you believe the generator rules themselves need a change (e.g. you
 keep seeing an acronym slip through), open a PR against the drop-list
-in `scripts/generate_grandma_explanations.py` rather than hand-fixing
-hundreds of UCs.
+in `src/splunk_uc/generators/grandma_explanations.py` rather than
+hand-fixing hundreds of UCs.
 
 ---
 
@@ -163,7 +165,7 @@ hundreds of UCs.
 `.github/workflows/validate.yml` runs:
 
 ```bash
-python3 scripts/generate_grandma_explanations.py --check
+PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --check
 ```
 
 on every PR that touches use-case content. It exits non-zero — and

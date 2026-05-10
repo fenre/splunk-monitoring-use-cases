@@ -501,3 +501,127 @@ register(
         category="audits",
     )
 )
+
+# ----------------------------------------------------------------------
+# Generators (Tier 2)
+# ----------------------------------------------------------------------
+register(
+    Verb(
+        name="generate-md-from-json",
+        module="generators.md_from_json",
+        help="Render UC-X.Y.Z.md companions from JSON SSOT (auto-generated artefacts).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-grandma-explanations",
+        module="generators.grandma_explanations",
+        help="Phase 7 plain-language `grandmaExplanation` writer for UC sidecars.",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-stewardship-digest",
+        module="generators.stewardship_digest",
+        help="P8 step 4 release-over-release stewardship digest (deltas + stale UCs).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-mapping-ledger",
+        module="generators.mapping_ledger",
+        help="Phase 5.4 signed provenance ledger generator (compliance mappings).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-manifest-samples",
+        module="generators.manifest_samples",
+        help="Replay samples/manifest.json fixtures through HEC (smoke-test add-on integrations).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-equipment-tags",
+        module="generators.equipment_tags",
+        help="Backfill `equipment[]`/`equipmentModels[]` UC sidecar fields from EQUIPMENT registry.",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-evidence-packs",
+        module="generators.evidence_packs",
+        help="Build per-regulation evidence packs (docs/evidence-packs/*.{md,json}).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-api-surface",
+        module="generators.api_surface",
+        help="Regenerate api/v1/* static JSON surface (manifest, compliance, mitre, recommender).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-phase2-mini-categories",
+        module="generators.phase2_mini_categories",
+        help="Phase 2.2 generator: 35 mini-category UCs + CIM backfill in cat-22 markdown/sidecars.",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-phase2-3-per-regulation",
+        module="generators.phase2_3_per_regulation",
+        help="Phase 2.3 generator: 45 per-regulation content-fill UCs in cat-22 markdown/sidecars.",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-phase3-1-backfill",
+        module="generators.phase3_1_backfill",
+        help="Phase 3.1 generator: clause-level compliance backfill on existing cat-22 UC sidecars.",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-phase3-2-cross-cutting",
+        module="generators.phase3_2_cross_cutting",
+        help="Phase 3.2 generator: cross-cutting compliance[] tags on non-cat-22 UC sidecars.",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-phase3-3-derivatives",
+        module="generators.phase3_3_derivatives",
+        help="Phase 3.3 generator: propagate derivative-regulation compliance[] entries (UK GDPR, CCPA, nFADP, LGPD, APPI).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-clause-index",
+        module="generators.clause_index",
+        help="Regenerate api/v1/compliance/clauses/* (clause -> UC reverse index).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-story-payload",
+        module="generators.story_payload",
+        help="Regenerate api/v1/compliance/story/* (per-regulation buyer/auditor/implementer story).",
+        category="generators",
+    )
+)

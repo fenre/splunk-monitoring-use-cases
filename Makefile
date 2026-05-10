@@ -11,6 +11,13 @@
        audit-baseline-clause-grammar-free audit-peer-review-signoffs \
        audit-mcp-tool-schemas \
        stewardship-digest audit-reproducibility audit-reproducibility-fast \
+       generate-md-from-json generate-grandma-explanations \
+       generate-stewardship-digest generate-mapping-ledger \
+       generate-manifest-samples generate-equipment-tags \
+       generate-evidence-packs generate-api-surface \
+       generate-phase2-mini-categories generate-phase2-3-per-regulation \
+       generate-phase3-1-backfill generate-phase3-2-cross-cutting \
+       generate-phase3-3-derivatives \
        splunk-uc splunk-uc-help \
        inventory manifest test test-unit help
 
@@ -164,7 +171,46 @@ snapshot-metrics: ## Write data/metrics-history/<VERSION>.json from dist/metrics
 	$(PYTHON) scripts/snapshot_metrics.py --write
 
 stewardship-digest: ## Generate dist/stewardship-digest.{json,md}
-	$(PYTHON) scripts/generate_stewardship_digest.py
+	$(SPLUNK_UC) generate-stewardship-digest
+
+generate-md-from-json: ## Render UC-X.Y.Z.md companions from JSON SSOT
+	$(SPLUNK_UC) generate-md-from-json
+
+generate-grandma-explanations: ## Fill missing plain-language `grandmaExplanation` fields
+	$(SPLUNK_UC) generate-grandma-explanations
+
+generate-stewardship-digest: ## Alias for stewardship-digest (dispatcher verb name)
+	$(SPLUNK_UC) generate-stewardship-digest
+
+generate-mapping-ledger: ## Regenerate data/provenance/mapping-ledger.json
+	$(SPLUNK_UC) generate-mapping-ledger
+
+generate-manifest-samples: ## Replay samples/manifest.json fixtures through HEC
+	$(SPLUNK_UC) generate-manifest-samples
+
+generate-equipment-tags: ## Backfill UC sidecar equipment[]/equipmentModels[] tags
+	$(SPLUNK_UC) generate-equipment-tags
+
+generate-evidence-packs: ## Build per-regulation evidence packs
+	$(SPLUNK_UC) generate-evidence-packs
+
+generate-api-surface: ## Regenerate api/v1/* static JSON surface
+	$(SPLUNK_UC) generate-api-surface
+
+generate-phase2-mini-categories: ## Phase 2.2 generator (cat-22.35-22.49 mini-category UCs)
+	$(SPLUNK_UC) generate-phase2-mini-categories
+
+generate-phase2-3-per-regulation: ## Phase 2.3 generator (per-regulation content fills)
+	$(SPLUNK_UC) generate-phase2-3-per-regulation
+
+generate-phase3-1-backfill: ## Phase 3.1 generator (clause-level backfill on cat-22)
+	$(SPLUNK_UC) generate-phase3-1-backfill
+
+generate-phase3-2-cross-cutting: ## Phase 3.2 generator (cross-cutting compliance tags)
+	$(SPLUNK_UC) generate-phase3-2-cross-cutting
+
+generate-phase3-3-derivatives: ## Phase 3.3 generator (derivative-regulation propagation)
+	$(SPLUNK_UC) generate-phase3-3-derivatives
 
 audit-reproducibility: ## Two consecutive --reproducible builds must match (~90s)
 	$(SPLUNK_UC) audit-reproducibility
